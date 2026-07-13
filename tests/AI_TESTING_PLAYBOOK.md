@@ -136,7 +136,7 @@ For network-sensitive regressions on Local sites:
 - Prefer Chromium DevTools throttling via CDP over fake `setTimeout()` delays.
 - Calibrate with env vars such as `LL_E2E_PAGE_SPEED_LATENCY_MS`, `LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS`, and the `LL_E2E_PAGE_SPEED_MAX_*` budgets.
 - Measure an actionable selector becoming visible, not just the `load` event.
-- For release-to-release performance comparison, use `tests/bin/run-performance-benchmark.sh` so the static `ll-perf-*` wordsets are reused when current or refreshed from `tests/performance/fixtures/performance-wordsets.json` when stale before timing starts.
+- For release-to-release performance comparison, use `tests/bin/run-performance-benchmark.sh` so the fixture is reused or refreshed against the selected profile manifest; the default profile uses `tests/performance/fixtures/performance-wordsets.json`.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -214,8 +214,24 @@ Full Playwright run times out under an automation cap:
 - Inspect the attached `performance-benchmark-summary` JSON.
 - Inspect the latest local reports under `tests/performance/reports/` when the Playwright HTML report is not open.
 - Use `node scripts/summarize-performance-history.js` for a quick read of existing JSONL history without rerunning the benchmark.
-- Set `LL_PERF_FORCE_SEED=1` when you need a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify the fixture state.
+- Set `LL_PERF_FORCE_SEED=1` for a full fixture reset, or `LL_PERF_SEED_ONLY=1` to seed/verify without launching Playwright.
 - Set `LL_PERF_PROFILE=xl` when the default fixture is too small for a performance claim; the XL profile uses a separate manifest and history file.
+- Set `LL_PERF_PROFILE=genc` when investigating Genç-scale wordset, settings-hub,
+  or recorder-queue behavior. It models 209 categories, 2717 words, per-word
+  images, 8151 audio rows, and a meaningful assigned-recorder queue; initial
+  queue usability and lazy completion are reported separately.
+- In Windows PowerShell with WSL `bash`, pass `LL_PERF_*` values inside one
+  `bash -lc 'LL_PERF_PROFILE=genc ... tests/bin/run-performance-benchmark.sh'`
+  invocation. Preceding `$env:` assignments may not cross into WSL; require the
+  runner's `Using LL Tools performance profile: genc` confirmation before
+  accepting or allowing a seed.
+- Named profiles override conflicting fixture/history/report path values, while caller-supplied run counts, comparison/write flags, and budgets remain configurable. `LL_PERF_SKIP_SEED=1` never promotes a missing or legacy checksum; it fails until a normal seed writes the exact selected version and canonical checksum. The benchmark runner locks all exported `LL_E2E_PERF_*` values before invoking `run-e2e.sh`.
+- For benchmark-runner or manifest-contract changes, run:
+
+  ```bash
+  tests/bin/php-local.sh tests/performance/verify-performance-manifest.php
+  tests/bin/run-e2e.sh specs/performance-benchmark-contracts.spec.js
+  ```
 - Set `LL_PERF_PROFILE=stress-2x` when you need full local stress coverage for
   a 5000-word wordset with per-word image posts and 15000 `word_audio` posts.
   Seed it separately first with `LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1`, then benchmark with
@@ -226,7 +242,8 @@ Full Playwright run times out under an automation cap:
   `LL_E2E_PERF_MAX_INTERACTION_MS=60000` and inspect whether the measured
   interaction is still subsecond. A cold AJAX/search warmup timeout is different
   from a steady-state search regression.
-- Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress-page scenarios are authenticated.
+- Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress, settings-hub, and recorder-queue scenarios are authenticated. Recorder-enabled manifests fail rather than silently dropping those measurements.
+- Keep `LL_E2E_PERF_MAX_INTERACTION_MS` scoped to ordinary search/progress/quiz work. Use `LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS` for the longer full recorder-summary stream.
 - If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture version, manifest checksum, and throttle profile.
 - If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
 
@@ -242,9 +259,10 @@ PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
 
 For behavior changes touching quiz/recording flows:
 
-1. `tests/bin/run-tests.sh`
-2. `tests/bin/run-e2e.sh`
-3. Update `tests/README.md` if test scope or runner behavior changed.
+1. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
+2. `tests/bin/run-tests.sh`
+3. `tests/bin/run-e2e.sh`
+4. Update `tests/README.md` if test scope or runner behavior changed.
 
 For public-page shell, asset, or template changes that could affect perceived load time:
 

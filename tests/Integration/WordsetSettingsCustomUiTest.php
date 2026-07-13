@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=';
@@ -14,12 +16,20 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
     /** @var array<string,mixed> */
     private $serverBackup = [];
 
+    /** @var mixed */
+    private $scriptsBackup;
+
+    private bool $hadScriptsBackup = false;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->getBackup = $_GET;
         $this->postBackup = $_POST;
         $this->serverBackup = $_SERVER;
+        $this->hadScriptsBackup = array_key_exists('wp_scripts', $GLOBALS);
+        $this->scriptsBackup = $GLOBALS['wp_scripts'] ?? null;
+        $this->installCleanScriptRegistry();
     }
 
     protected function tearDown(): void
@@ -29,6 +39,11 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $_SERVER = $this->serverBackup;
         set_query_var('ll_wordset_page', null);
         set_query_var('ll_wordset_view', null);
+        if ($this->hadScriptsBackup) {
+            $GLOBALS['wp_scripts'] = $this->scriptsBackup;
+        } else {
+            unset($GLOBALS['wp_scripts']);
+        }
         parent::tearDown();
     }
 
@@ -106,6 +121,168 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=editor', $html);
         $this->assertStringContainsString('ll_wordset_tool=template', $html);
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
+    }
+
+    public function test_settings_hub_skips_the_full_wordset_javascript_runtime(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $this->setWordsetSettingsRoute($wordset_term);
+        $this->resetWordsetSettingsAssetHandles();
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('ll-wordset-settings-page--hub', $html);
+        $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'registered'));
+        $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'enqueued'));
+        $this->assertFalse(wp_script_is('ll-tools-locale-sort', 'registered'));
+        $this->assertFalse(wp_script_is('ll-tools-locale-sort', 'enqueued'));
+        $this->assertSame('', $this->getWordsetRuntimeLocalization());
+    }
+
+    public function test_plain_settings_tools_skip_the_full_wordset_javascript_runtime(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $plain_tools = [
+            'language',
+            'visibility',
+            'categories',
+            'import',
+            'template',
+            'recorder',
+            'transcription',
+            'offline-app',
+            'image-upload',
+            'audio-upload',
+        ];
+
+        foreach ($plain_tools as $tool) {
+            $this->resetWordsetSettingsAssetHandles();
+            $this->setWordsetSettingsRoute($wordset_term, $tool);
+
+            ll_tools_wordset_page_enqueue_scripts();
+
+            $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'registered'), $tool);
+            $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'enqueued'), $tool);
+            $this->assertFalse(wp_script_is('ll-tools-locale-sort', 'registered'), $tool);
+            $this->assertFalse(wp_script_is('ll-tools-locale-sort', 'enqueued'), $tool);
+        }
+    }
+
+    public function test_plain_settings_tool_does_not_localize_the_skipped_runtime(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $this->resetWordsetSettingsAssetHandles();
+        $this->setWordsetSettingsRoute($wordset_term, 'visibility');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('ll-wordset-settings-page--tool', $html);
+        $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'registered'));
+        $this->assertFalse(wp_script_is('ll-tools-locale-sort', 'registered'));
+        $this->assertSame('', $this->getWordsetRuntimeLocalization());
+    }
+
+    public function test_advanced_settings_keeps_only_its_dedicated_runtime_assets(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $this->resetWordsetSettingsAssetHandles();
+        $this->setWordsetSettingsRoute($wordset_term, 'advanced');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('ll-wordset-settings-page--tool', $html);
+        $this->assertFalse(wp_script_is('ll-wordset-pages-js', 'registered'));
+        $this->assertTrue(wp_script_is('ll-tools-locale-sort', 'enqueued'));
+        $this->assertTrue(wp_script_is('manage-wordsets-script', 'enqueued'));
+        $this->assertTrue(wp_script_is('ll-wordset-settings-media-js', 'enqueued'));
+        $this->assertContains(
+            'll-tools-locale-sort',
+            (array) (wp_scripts()->registered['manage-wordsets-script']->deps ?? [])
+        );
+        $this->assertSame('', $this->getWordsetRuntimeLocalization());
+    }
+
+    public function test_interactive_settings_tools_keep_the_full_wordset_javascript_runtime(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        foreach (['study', 'editor', 'recorder-queues'] as $tool) {
+            $this->resetWordsetSettingsAssetHandles();
+            $this->setWordsetSettingsRoute($wordset_term, $tool);
+
+            ll_tools_wordset_page_enqueue_scripts();
+
+            $this->assertTrue(wp_script_is('ll-wordset-pages-js', 'enqueued'), $tool);
+            $this->assertTrue(wp_script_is('ll-tools-locale-sort', 'enqueued'), $tool);
+        }
+    }
+
+    public function test_interactive_settings_tool_localizes_the_retained_runtime(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $this->resetWordsetSettingsAssetHandles();
+        $this->setWordsetSettingsRoute($wordset_term, 'editor');
+
+        ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertTrue(wp_script_is('ll-wordset-pages-js', 'enqueued'));
+        $this->assertStringContainsString('var llWordsetPageData = ', $this->getWordsetRuntimeLocalization());
+    }
+
+    #[DataProvider('wordsetViewConfettiProvider')]
+    public function test_confetti_is_limited_to_main_and_progress_views(string $view, string $settings_tool, bool $expected): void
+    {
+        $this->assertSame($expected, ll_tools_wordset_page_should_enqueue_confetti($view), $settings_tool);
+    }
+
+    /** @return array<string,array{0:string,1:string,2:bool}> */
+    public static function wordsetViewConfettiProvider(): array
+    {
+        return [
+            'main' => ['', '', true],
+            'progress' => ['progress', '', true],
+            'settings tool' => ['settings', 'visibility', false],
+        ];
     }
 
     public function test_settings_hub_does_not_refresh_an_empty_recommendation_queue_without_a_category_catalog(): void
@@ -334,7 +511,9 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $scripts = wp_scripts();
         $this->assertInstanceOf(WP_Scripts::class, $scripts);
-        $settings_data = (string) ($scripts->registered['ll-wordset-pages-js']->extra['data'] ?? '');
+        $settings_data = isset($scripts->registered['ll-wordset-pages-js'])
+            ? (string) ($scripts->registered['ll-wordset-pages-js']->extra['data'] ?? '')
+            : '';
         $this->assertStringNotContainsString('ll_wordset_games_bootstrap', $settings_data);
         $this->assertStringNotContainsString('gamesLoading', $settings_data);
 
@@ -2384,6 +2563,46 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = (string) wp_parse_url($url, PHP_URL_QUERY);
 
         return $path . ($query !== '' ? ('?' . $query) : '');
+    }
+
+    private function setWordsetSettingsRoute(WP_Term $wordset_term, string $tool = ''): void
+    {
+        $_GET = $tool !== '' ? ['ll_wordset_tool' => $tool] : [];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(
+            $tool !== ''
+                ? ll_tools_get_wordset_settings_tool_url($wordset_term, $tool)
+                : ll_tools_get_wordset_page_view_url($wordset_term, 'settings')
+        );
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+    }
+
+    private function resetWordsetSettingsAssetHandles(): void
+    {
+        // Asset assertions need a request-local registry. A prior test can
+        // leave locale-sort reachable through an unrelated queued parent
+        // (for example the recorder or flashcard runtime), and deregistering
+        // the leaf does not remove that dependency from WP_Dependencies.
+        $this->installCleanScriptRegistry();
+    }
+
+    private function installCleanScriptRegistry(): void
+    {
+        $scripts = new WP_Scripts();
+        // The test request has already passed init. Do not retain each
+        // short-lived registry through a never-fired callback.
+        remove_action('init', [$scripts, 'init'], 0);
+        $GLOBALS['wp_scripts'] = $scripts;
+    }
+
+    private function getWordsetRuntimeLocalization(): string
+    {
+        $scripts = wp_scripts();
+        if (!$scripts instanceof WP_Scripts || !isset($scripts->registered['ll-wordset-pages-js'])) {
+            return '';
+        }
+
+        return (string) ($scripts->registered['ll-wordset-pages-js']->extra['data'] ?? '');
     }
 
     private function ensureRecordingType(string $name, string $slug): int

@@ -3,18 +3,22 @@ const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin
 const {
   DEFAULT_HISTORY,
   DEFAULT_REPORT,
+  MANIFEST_CHECKSUM_FORMAT,
   appendHistoryRecord,
+  benchmarkRequiresAuthentication,
   buildBenchmarkReport,
   buildBenchmarkScenarios,
+  calculateBenchmarkTestTimeout,
   compareWithPrevious,
-  fileChecksum,
   findPreviousComparableRun,
   getRunMetadata,
   loadPerformanceManifest,
+  manifestChecksum,
   readEnvFlag,
   readHistoryRecords,
   resolvePluginPath,
   summarizeScenarioSamples,
+  validateRecorderQueueCompletion,
   formatBenchmarkReportMarkdown,
   writeBenchmarkReport
 } = require('../helpers/performance-benchmark');
@@ -33,6 +37,7 @@ const MAX_DOMCONTENTLOADED_MS = readEnvNumber('LL_E2E_PERF_MAX_DOMCONTENTLOADED_
 const MAX_ACTIONABLE_MS = readEnvNumber('LL_E2E_PERF_MAX_ACTIONABLE_MS', 30000);
 const MAX_LOAD_MS = readEnvNumber('LL_E2E_PERF_MAX_LOAD_MS', 45000);
 const MAX_INTERACTION_MS = readEnvNumber('LL_E2E_PERF_MAX_INTERACTION_MS', 20000);
+const MAX_RECORDER_QUEUE_COMPLETION_MS = readEnvNumber('LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS', 120000);
 const WARMUP_ATTEMPTS = readEnvNumber('LL_E2E_PERF_WARMUP_ATTEMPTS', 2);
 const WARMUP_RETRY_DELAY_MS = readEnvNumber('LL_E2E_PERF_WARMUP_RETRY_DELAY_MS', 1000);
 const MAX_REGRESSION_RATIO = readEnvNumber('LL_E2E_PERF_MAX_REGRESSION_RATIO', 0.2);
@@ -50,7 +55,7 @@ async function countVisible(page, selector) {
   }).length);
 }
 
-async function runScenarioAction(page, scenario) {
+async function runScenarioAction(page, scenario, actionContext = {}) {
   if (scenario.action === 'wordset-search') {
     const input = page.locator('[data-ll-wordset-page-search]').first();
     await expect(input).toBeVisible({ timeout: MAX_ACTIONABLE_MS });
@@ -94,16 +99,118 @@ async function runScenarioAction(page, scenario) {
     return page.evaluate((start) => Math.round(performance.now() - start), startedAt);
   }
 
+  if (scenario.action === 'recorder-queue-lazy-completion') {
+    const root = page.locator('[data-ll-recorder-queue-summary-root]').first();
+    const placeholders = root.locator('[data-ll-recorder-queue-summary-placeholder]');
+    const loadedCards = root.locator('.ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])');
+    const loadMore = root.locator('[data-ll-recorder-queue-summary-load-more]').first();
+    await expect(root).toBeVisible({ timeout: MAX_ACTIONABLE_MS });
+
+    const initialPlaceholderCount = await placeholders.count();
+    const initialLoadedCategoryCount = await loadedCards.count();
+    const deadline = Date.now() + MAX_RECORDER_QUEUE_COMPLETION_MS;
+    const maximumBatchAttempts = Math.max(20, initialPlaceholderCount * 4);
+    let noProgressCount = 0;
+
+    const remainingTimeout = () => Math.max(1, deadline - Date.now());
+    for (let attempt = 0; attempt < maximumBatchAttempts; attempt += 1) {
+      const pendingBeforeWait = await placeholders.count();
+      if (pendingBeforeWait === 0) {
+        break;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Recorder queue lazy completion exceeded ${MAX_RECORDER_QUEUE_COMPLETION_MS} ms with ${pendingBeforeWait} placeholders remaining.`);
+      }
+
+      const requestInFlight = await root.evaluate((element) => element.classList.contains('is-loading'));
+      if (requestInFlight) {
+        await page.waitForFunction(() => {
+          const queueRoot = document.querySelector('[data-ll-recorder-queue-summary-root]');
+          return queueRoot && !queueRoot.classList.contains('is-loading');
+        }, null, { timeout: remainingTimeout() });
+        continue;
+      }
+
+      const pendingBeforeRequest = await placeholders.count();
+      await expect(loadMore).toBeVisible({ timeout: remainingTimeout() });
+      await expect(loadMore).toBeEnabled({ timeout: remainingTimeout() });
+      const responsePromise = page.waitForResponse((response) => {
+        if (!response.url().includes('/wp-admin/admin-ajax.php')) {
+          return false;
+        }
+        const postData = response.request().postData() || '';
+        return postData.includes('action=ll_tools_wordset_recorder_queue_summaries');
+      }, { timeout: remainingTimeout() });
+      await loadMore.click();
+      await responsePromise;
+      await page.waitForFunction(() => {
+        const queueRoot = document.querySelector('[data-ll-recorder-queue-summary-root]');
+        return queueRoot && !queueRoot.classList.contains('is-loading');
+      }, null, { timeout: remainingTimeout() });
+
+      const pendingAfterRequest = await placeholders.count();
+      if (pendingAfterRequest < pendingBeforeRequest) {
+        noProgressCount = 0;
+      } else {
+        noProgressCount += 1;
+      }
+      if (noProgressCount > 6) {
+        throw new Error(`Recorder queue lazy completion made no progress across ${noProgressCount} bounded requests.`);
+      }
+    }
+
+    const finalPlaceholderCount = await placeholders.count();
+    if (finalPlaceholderCount > 0) {
+      throw new Error(`Recorder queue lazy completion stopped with ${finalPlaceholderCount} placeholders remaining.`);
+    }
+    await expect(root).toHaveAttribute('aria-busy', 'false', { timeout: remainingTimeout() });
+    const finalLoadedCategoryCount = await loadedCards.count();
+    const batchRequestCount = typeof actionContext.getRecorderQueueBatchRequestCount === 'function'
+      ? actionContext.getRecorderQueueBatchRequestCount()
+      : 0;
+    validateRecorderQueueCompletion(scenario, finalLoadedCategoryCount, batchRequestCount);
+    // Recorder summary loading begins during the page's startup script, before
+    // this action runs. performance.now() is navigation-relative, so this
+    // measures the complete navigation-to-all-categories interval instead of
+    // an unstable remainder that can collapse to zero on warm runs.
+    const durationMs = await page.evaluate(() => Math.round(performance.now()));
+    return {
+      durationMs,
+      details: {
+        initialPlaceholderCount,
+        initialLoadedCategoryCount,
+        finalLoadedCategoryCount,
+        batchRequestCount
+      }
+    };
+  }
+
   return 0;
 }
 
 async function measureScenarioRun(page, request, scenario) {
   const navigationTimeoutMs = Math.max(MAX_DOMCONTENTLOADED_MS, MAX_ACTIONABLE_MS, MAX_LOAD_MS) + 10000;
-  await warmPageSpeedRoute(request, scenario.path, {
+  const warmupRequest = scenario.requiresAuth ? page.context().request : request;
+  await warmPageSpeedRoute(warmupRequest, scenario.path, {
     attempts: WARMUP_ATTEMPTS,
     retryDelayMs: WARMUP_RETRY_DELAY_MS,
     timeoutMs: navigationTimeoutMs
   });
+
+  let recorderQueueBatchRequestCount = 0;
+  const recorderQueueRequestListener = (browserRequest) => {
+    if (scenario.action !== 'recorder-queue-lazy-completion') {
+      return;
+    }
+    const postData = browserRequest.postData() || '';
+    if (
+      browserRequest.url().includes('/wp-admin/admin-ajax.php')
+      && postData.includes('action=ll_tools_wordset_recorder_queue_summaries')
+    ) {
+      recorderQueueBatchRequestCount += 1;
+    }
+  };
+  page.on('request', recorderQueueRequestListener);
 
   const session = await createPageSpeedSession(page);
   try {
@@ -120,7 +227,15 @@ async function measureScenarioRun(page, request, scenario) {
     metrics.visibleActionableCount = await countVisible(page, scenario.selector);
 
     if (scenario.kind === 'interaction') {
-      metrics.interactionMs = await runScenarioAction(page, scenario);
+      const actionResult = await runScenarioAction(page, scenario, {
+        getRecorderQueueBatchRequestCount: () => recorderQueueBatchRequestCount
+      });
+      if (actionResult && typeof actionResult === 'object') {
+        metrics.interactionMs = Number(actionResult.durationMs || 0);
+        metrics.interactionDetails = actionResult.details || null;
+      } else {
+        metrics.interactionMs = Number(actionResult || 0);
+      }
     }
 
     return {
@@ -134,30 +249,53 @@ async function measureScenarioRun(page, request, scenario) {
       visibleActionableCount: metrics.visibleActionableCount,
       resourceCount: metrics.resourceCount,
       totalResourceTransferBytes: metrics.totalResourceTransferBytes,
-      slowestResources: metrics.slowestResources
+      slowestResources: metrics.slowestResources,
+      interactionDetails: metrics.interactionDetails || null
     };
   } finally {
+    page.off('request', recorderQueueRequestListener);
     await session.dispose();
   }
 }
 
 test('seeded LL Tools benchmark scenarios stay within the historical performance envelope', async ({ page, request }, testInfo) => {
-  test.slow();
-
   const { manifest, manifestPath } = loadPerformanceManifest();
   const allScenarios = buildBenchmarkScenarios(manifest);
   const credentialsAvailable = hasAdminCredentials();
+  if (benchmarkRequiresAuthentication(manifest) && !credentialsAvailable) {
+    throw new Error(
+      'This performance fixture requires LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS so authenticated settings and recorder scenarios cannot be skipped.'
+    );
+  }
   const scenarios = credentialsAvailable
     ? allScenarios
     : allScenarios.filter((scenario) => !scenario.requiresAuth);
   if (!scenarios.length) {
     throw new Error('No performance scenarios are runnable with the available credentials.');
   }
+  const testTimeoutMs = calculateBenchmarkTestTimeout(scenarios, {
+    runsPerScenario: RUNS_PER_SCENARIO,
+    warmupAttempts: WARMUP_ATTEMPTS,
+    warmupRetryDelayMs: WARMUP_RETRY_DELAY_MS,
+    maxDomContentLoadedMs: MAX_DOMCONTENTLOADED_MS,
+    maxActionableMs: MAX_ACTIONABLE_MS,
+    maxLoadMs: MAX_LOAD_MS,
+    maxInteractionMs: MAX_INTERACTION_MS,
+    maxRecorderQueueCompletionMs: MAX_RECORDER_QUEUE_COMPLETION_MS,
+    navigationGraceMs: 10000
+  });
+  testInfo.setTimeout(testTimeoutMs);
+  const benchmarkStartedAt = Date.now();
+  console.log(
+    `[LL Tools performance] ${scenarios.length} runnable scenarios x ${RUNS_PER_SCENARIO} run(s); `
+      + `test timeout budget ${testTimeoutMs} ms.`
+  );
   const scenarioSummaries = [];
   let throttleProfile = null;
   let authenticated = false;
 
-  for (const scenario of scenarios) {
+  for (let scenarioIndex = 0; scenarioIndex < scenarios.length; scenarioIndex += 1) {
+    const scenario = scenarios[scenarioIndex];
     if (scenario.requiresAuth && !authenticated) {
       await ensureLoggedIntoAdmin(page, '/wp-admin/');
       authenticated = true;
@@ -165,8 +303,38 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
 
     const samples = [];
     for (let runIndex = 0; runIndex < RUNS_PER_SCENARIO; runIndex += 1) {
-      const sample = await measureScenarioRun(page, request, scenario);
-      samples.push(sample);
+      console.log(
+        `[LL Tools performance] Starting scenario ${scenarioIndex + 1}/${scenarios.length} `
+          + `${scenario.name}, run ${runIndex + 1}/${RUNS_PER_SCENARIO} `
+          + `(${Date.now() - benchmarkStartedAt} ms elapsed).`
+      );
+      try {
+        const sample = await measureScenarioRun(page, request, scenario);
+        samples.push(sample);
+        console.log(
+          `[LL Tools performance] Finished ${scenario.name}, run ${runIndex + 1}/${RUNS_PER_SCENARIO}; `
+            + `first actionable ${sample.firstActionableMs} ms, `
+            + `${scenario.primaryMetric} ${sample[scenario.primaryMetric]} ms.`
+        );
+      } catch (error) {
+        const diagnostic = {
+          elapsedMs: Date.now() - benchmarkStartedAt,
+          testTimeoutMs,
+          runnableScenarioCount: scenarios.length,
+          runsPerScenario: RUNS_PER_SCENARIO,
+          completedScenarios: scenarioSummaries.map((summary) => summary.name),
+          currentScenario: scenario.name,
+          currentRun: runIndex + 1,
+          completedSamplesForCurrentScenario: samples.length,
+          error: error instanceof Error ? error.message : String(error)
+        };
+        console.error(`[LL Tools performance] Scenario failed: ${JSON.stringify(diagnostic)}`);
+        await testInfo.attach('performance-benchmark-partial-diagnostic', {
+          body: JSON.stringify(diagnostic, null, 2),
+          contentType: 'application/json'
+        });
+        throw error;
+      }
     }
 
     const summary = summarizeScenarioSamples(scenario, samples);
@@ -180,8 +348,13 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
     expect(summary.median.firstActionableMs, `${scenario.name} firstActionableMs`).toBeLessThanOrEqual(MAX_ACTIONABLE_MS);
     expect(summary.median.loadEventMs, `${scenario.name} loadEventMs`).toBeLessThanOrEqual(MAX_LOAD_MS);
     expect(summary.median[scenario.primaryMetric], `${scenario.name} ${scenario.primaryMetric}`).toBeGreaterThan(0);
+    const primaryMetricBudget = scenario.primaryMetric !== 'interactionMs'
+      ? MAX_ACTIONABLE_MS
+      : (scenario.action === 'recorder-queue-lazy-completion'
+        ? MAX_RECORDER_QUEUE_COMPLETION_MS
+        : MAX_INTERACTION_MS);
     expect(summary.median[scenario.primaryMetric], `${scenario.name} ${scenario.primaryMetric}`).toBeLessThanOrEqual(
-      scenario.primaryMetric === 'interactionMs' ? MAX_INTERACTION_MS : MAX_ACTIONABLE_MS
+      primaryMetricBudget
     );
     expect(
       Math.max(...samples.map((sample) => sample.visibleActionableCount || 0)),
@@ -197,7 +370,8 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
     fixtureVersion: String(manifest.fixtureVersion || ''),
     fixtureManifest: {
       path: manifestPath,
-      sha256: fileChecksum(manifestPath)
+      sha256: manifestChecksum(manifestPath),
+      checksumFormat: MANIFEST_CHECKSUM_FORMAT
     },
     baseURL: process.env.LL_E2E_BASE_URL || '',
     runsPerScenario: RUNS_PER_SCENARIO,

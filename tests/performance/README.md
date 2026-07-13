@@ -11,19 +11,28 @@ tests/bin/run-performance-benchmark.sh
 
 The runner:
 
-1. Checks whether the static fixture already matches
-   `tests/performance/fixtures/performance-wordsets.json`.
-2. Reuses the existing fixture when the version, checksum, counts, tags, and
-   key pages still match.
-3. Resets only fixture-owned content tagged with `_ll_tools_performance_fixture`
-   when the fixture is missing or stale.
-4. Recreates the static `ll-perf-small`, `ll-perf-medium`, and `ll-perf-large`
-   wordsets, `/ll-perf-learn/`, quiz pages, and vocab lesson pages when needed.
-5. Runs `tests/e2e/specs/performance-benchmark.spec.js` under Playwright.
-6. Appends one JSONL record to `tests/performance/history/performance-history.jsonl`
-   unless `LL_E2E_PERF_WRITE_HISTORY=0` is set.
-7. Writes the latest machine-readable and Markdown summaries under
-   `tests/performance/reports/`.
+1. Resolves the selected profile. Caller environment overrides `.env.local`,
+   which overrides `.env` for caller-tunable settings; named profiles fix one
+   manifest/history/report tuple.
+2. Computes the selected manifest's `fixtureVersion` and `canonical-json-v1`
+   checksum.
+3. Unless seeding is skipped, reuses only an exactly current fixture or reseeds
+   fixture-tagged content and users.
+4. Always verifies the stored fixture option after seeding. With
+   `LL_PERF_SKIP_SEED=1`, this is a read-only check that fails on missing,
+   legacy, or mismatched version/checksum state.
+5. Locks every currently exported `LL_E2E_PERF_*` value before `run-e2e.sh`
+   reloads environment files, requiring the manifest, history, report, and
+   verified checksum values.
+6. Runs `tests/e2e/specs/performance-benchmark.spec.js` and writes history and
+   reports for the selected profile, subject to `LL_E2E_PERF_WRITE_HISTORY`.
+
+Manifest checksums use recursively key-sorted canonical JSON, so Git/Windows
+CRLF conversion, indentation, and object-key order do not split otherwise
+comparable benchmark history. Run the lightweight PHP contract directly with
+`php tests/performance/verify-performance-manifest.php`. Numeric manifest fields
+must be integers within JavaScript's safe integer range so PHP and Node produce
+the same canonical representation.
 
 The default fixture is intentionally modest for routine release-to-release
 checks. For thousands-of-words coverage, use the opt-in XL profile:
@@ -36,6 +45,45 @@ The XL profile uses `tests/performance/fixtures/performance-wordsets-xl.json`,
 targets `benchmarkTargetSize: "xl"`, defaults to one run per scenario, and
 writes history to `tests/performance/history/performance-history-xl.jsonl` plus
 latest reports to `tests/performance/reports/performance-latest-xl.*`.
+
+For the closest routine reproduction of the Genç production growth dimensions,
+use the opt-in Genç profile:
+
+```bash
+LL_PERF_PROFILE=genc LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1 tests/bin/run-performance-benchmark.sh
+LL_PERF_PROFILE=genc LL_PERF_SKIP_SEED=1 tests/bin/run-performance-benchmark.sh
+```
+
+From Windows PowerShell when `bash` resolves to WSL, put the variables inside
+the WSL command instead of relying on preceding `$env:` assignments (which are
+not imported unless `WSLENV` is configured):
+
+```powershell
+bash -lc 'LL_PERF_PROFILE=genc LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 tests/bin/run-performance-benchmark.sh'
+```
+
+Confirm the runner prints `Using LL Tools performance profile: genc` before
+accepting the result; otherwise it measured and may reseed the default fixture.
+
+The Genç profile uses
+`tests/performance/fixtures/performance-wordsets-genc.json`, targets 209
+categories with 13 words each (2717 words), per-word images, and three audio
+rows per word (8151 audio rows). It also creates one fixture-tagged
+`audio_recorder`, assigns that recorder to the benchmark wordset, and requests
+both isolation and question audio while seeding only isolation audio. This
+produces bounded but meaningful queue work in all 209 categories.
+
+Authenticated scenarios measure the settings hub, recorder-queue initial
+usability, and the separate navigation-to-completion time for all lazy summary
+batches. The lazy-completion samples retain the category counts observed when
+the driver takes over, the exact final count, and the bounded AJAX request
+count since navigation began. The run fails if it does not expose at least six
+initial categories, finish with all 209, or exceeds eleven 20-category summary
+requests. Genç history is written to
+`tests/performance/history/performance-history-genc.jsonl`; latest reports are
+written to `tests/performance/reports/performance-latest-genc.*`. Set
+`LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` in `tests/.env.local`; these are the
+manager credentials, not the generated recorder account.
 
 For full local stress coverage, use the opt-in stress profile:
 
@@ -79,25 +127,34 @@ Change `fixtureVersion` whenever fixture shape changes. History comparisons only
 use records with the same fixture version, matching manifest checksum when both
 records have one, and the same throttle profile so older results are not mixed
 with a different test dataset.
+When canonical checksum history is introduced for an existing fixture, the
+new run may compare once with the newest same-version/same-throttle legacy row
+whose raw file hash varied by line endings. After any canonical row exists,
+only matching `canonical-json-v1` checksums are comparable.
+The one-time legacy history-row comparison exception does not authorize fixture
+reuse. The stored WordPress fixture option must always contain the exact
+selected version and `canonical-json-v1` checksum.
 
 Useful overrides:
 
 ```bash
 LL_PERF_FORCE_SEED=1
 LL_PERF_PROFILE=xl
+LL_PERF_PROFILE=genc
 LL_PERF_PROFILE=stress-2x
 LL_PERF_SEED_ONLY=1
 LL_PERF_SKIP_SEED=1
 LL_E2E_PERF_RUNS=5
 LL_E2E_PERF_WRITE_HISTORY=0
 LL_E2E_PERF_COMPARE_HISTORY=0
-LL_E2E_PERF_REPORT_FILE=tests/performance/reports/performance-latest.json
+LL_E2E_PERF_REPORT_FILE=tests/performance/reports/performance-latest.json # default profile only
 LL_E2E_PERF_MAX_REGRESSION_RATIO=0.2
 LL_E2E_PERF_MAX_REGRESSION_MS=500
-LL_E2E_PERF_HISTORY_FILE=tests/performance/history/performance-history.jsonl
+LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS=120000
+LL_E2E_PERF_HISTORY_FILE=tests/performance/history/performance-history.jsonl # default profile only
 ```
 
-Progress-page scenarios use the shared E2E admin credentials, so set
+Progress, settings-hub, and recorder-queue scenarios use the shared E2E admin credentials, so set
 `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` in `tests/.env.local`.
 
 The regression rule is intentionally conservative: a scenario fails only when

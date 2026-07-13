@@ -1,0 +1,53 @@
+{
+  "fixtureVersion": "2026-07-13-genc.1",
+  "description": "Opt-in Genç-shaped LL Tools performance fixture: 209 categories, about 13 words per category, per-word images, three audio rows per word, and one assigned recorder with a meaningful missing-question queue.",
+  "benchmarkTargetSize": "genc",
+  "sourceScaleReference": {
+    "wordsetSlug": "genc-palu",
+    "categoryCount": 209,
+    "wordsTotalApprox": 2633,
+    "audioTotalApprox": 7584,
+    "capturedAt": "2026-07-10"
+  },
+  "learnPage": {
+    "slug": "ll-perf-genc-learn",
+    "title": "LL Performance Genç Learn Grid",
+    "wordsetSlug": "ll-perf-genc"
+  },
+  "quizConfig": {
+    "promptType": "text_title",
+    "optionType": "text_translation"
+  },
+  "media": {
+    "imagePerCategory": false,
+    "imagePerWord": true,
+    "audioPerWord": true,
+    "audioPerWordCount": 3
+  },
+  "recorderQueue": {
+    "enabled": true,
+    "wordsetSlug": "ll-perf-genc",
+    "username": "ll-perf-genc-recorder",
+    "email": "ll-perf-genc-recorder@example.invalid",
+    "displayName": "LL Performance Genç Recorder",
+    "desiredRecordingTypes": [
+      "isolation",
+      "question"
+    ],
+    "includeRecordingTypes": [
+      "isolation",
+      "question"
+    ],
+    "allowNewWords": false,
+    "autoProcessRecordings": true
+  },
+  "wordsets": [
+    {
+      "size": "genc",
+      "slug": "ll-perf-genc",
+      "title": "LL Performance Genç Scale",
+      "categoryCount": 209,
+      "wordsPerCategory": 13
+    }
+  ]
+}

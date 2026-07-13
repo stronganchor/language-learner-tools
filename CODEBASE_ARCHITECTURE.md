@@ -49,8 +49,13 @@ read_first:
 - Large wordsets are normal production data. A single wordset may have thousands of `words` posts and many thousands of `word_audio`, `word_images`, prompt cards, and generated media records.
 - Interactive UI, AJAX, shortcode, and game-launch paths should stay bounded by the page size or launch-candidate size. Do not hydrate or iterate a whole wordset's posts just to render a catalog card, count availability, or launch a game.
 - Prefer ID-only queries, capped launch pools, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
-- The recorder queue overview is a selected-recorder stream: render one assigned recorder, server-render a bounded initial set of compact category summaries, and hydrate remaining summaries in bounded authenticated batches. Focused-category and hidden queue item views stay paged; do not replace them with full-queue hydration.
-- Recorder queue summary caches use durable plugin epochs for queue content, compact category structure, and recording-type changes. Audio/content mutations invalidate summaries without evicting the compact structural category catalog. Core `posts`/`terms` last-changed tokens may contribute only with a persistent object-cache backend; the default request-local tokens must never invalidate durable summaries on every request.
+- Main wordset category rows must discard categories already proven ineligible before building content summaries, bulk-prime the exact candidate term, lesson, and wrong-answer-owner sets, and trust the exact membership established by flat `word-category` queries instead of re-querying each candidate word. Preserve the bounded initial-card/lazy-card split.
+- Metric-dependent saved main-category sorts (`progress-*` and `recent-*`) must not trigger full-wordset metric hydration while analytics is deferred. Keep the bounded initial cards and lazy offsets in canonical/default order, preserve the saved sort key for the browser, and reorder only after the summary-only per-category analytics aggregate arrives.
+- Settings routes should enqueue only the runtime they use: plain settings tools and the hub skip the main wordset-page monolith and locale sorter; `study`, `editor`, and `recorder-queues` retain them; `advanced` retains its dedicated manager/media/autocomplete assets and locale sorter; confetti remains main/progress-only.
+- The recorder queue overview is a selected-recorder stream: render one assigned recorder, server-render a small bounded initial set of compact category summaries (six by default), and hydrate remaining summaries in larger bounded authenticated batches (twenty by default). Keeping those budgets distinct preserves quick first use without paying dozens of sequential WordPress bootstrap round trips. Focused-category and hidden queue item views stay paged; do not replace them with full-queue hydration.
+- Focused recorder pages apply limits after recording eligibility across canonical word/image candidates, legacy missing-audio rows, and prompt cards in that order. Raw scans must be query-budgeted and resumable, and later pages plus same-page continuations must carry the prior keyset/offset instead of rescanning the source prefix. Browser-visible cursors are short-lived HMAC tokens bound to the viewer, target recorder, wordset, category, filters, requested page, page size, and structural/recording-type epochs; never accept raw candidate IDs or offsets from request data. Do not bind cursors to ordinary audio or hide mutations: recorders consume and hide items between lazy batches, so the stable raw cursor must survive those expected eligibility changes. An invalid, expired, tampered, or context-mismatched supplied token must explicitly rebase to page one with `cursor_rebased` and `reset_queue`; never fall back to mutable numeric offsets. An empty bounded batch with `has_more` remains continuable (with repeat-token protection), and nonincremental same-page navigation must carry cumulative `page_items` so earlier legacy or prompt rows do not disappear. Never advertise `has_more` when a signed token cannot be produced: keep the bounded items, terminate automatic continuation, and expose `continuation_unavailable` for explicit recovery. Client continuation requests are category-generation scoped; a late response from a previously selected category must be discarded without mutating the new queue or pagination. Compact summaries must reject unrenderable image rows before filling preview slots and remain incomplete while a bounded refill could still find useful work.
+- Recorder queue summary caches use each word-category's canonical cache version plus a small shared signature for recorder-hidden entries, recording-type taxonomy changes, and global desired-recording defaults. Word, image, prompt-card, audio, and recording-type relationship mutations must bump only their affected category versions; the virtual uncategorized summary conservatively retains the broader plugin epochs because it has no category identity. A matching completed summary stays reusable for its retention TTL (one day by default), without an age-only five-minute rebuild. The compact structural category catalog keeps its separate structure key.
+- Expired database transients are reclaimed only by the hourly LL Tools maintenance job in `includes/lib/expired-transient-maintenance.php`: it skips external object-cache installs, selects at most 200 timeout rows from an exact LL-owned cache/rate-limit prefix allowlist after a five-minute grace period, and conditionally deletes each exact timeout/value pair only while the selected timeout remains expired. Do not broaden it to a global transient purge, persistent `ll_tools_*` options/jobs, request-path cleanup, or unbounded batches.
 
 # Entry points and runtime flow
 - `language-learner-tools.php`
@@ -60,7 +65,7 @@ read_first:
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/expired-transient-maintenance.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -104,6 +109,7 @@ module list.
 <!-- bootstrap-include-index:start -->
 - includes/assets.php
 - includes/lib/php-compat.php
+- includes/lib/expired-transient-maintenance.php
 - includes/lib/sort.php
 - includes/lib/text-display.php
 - includes/lib/entity-translations.php
@@ -235,6 +241,7 @@ includes/
   wordset-templates.php       # Reusable wordset template bundles
   lib/
     php-compat.php            # Compatibility helpers for older PHP runtimes
+    expired-transient-maintenance.php # Bounded hourly cleanup for expired LL-owned database transients
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
     entity-translations.php   # Locale-keyed wordset/category/lesson display text translations
@@ -641,6 +648,8 @@ wordset can opt into it.
 - Public static caches must exclude logged-in users, wp-admin, admin-ajax, REST/API, POST requests, preview/customizer requests, and error/redirect responses; anonymous cache keys should normalize noisy args such as `ll_locale_nonce`, `ll_tools_auth`, and `ll_wordset_back`.
 - Public static cache writes must keep the configured max-byte guard, and MISS responses should not receive public cache headers until storage succeeds.
 - Anonymous public AJAX surfaces that can rebuild expensive payloads should be cache-aware and resource-guarded: preserve cheap cache hits, but throttle or cap cache misses and oversized batch requests.
+- Expired-transient maintenance must remain database-only and cron-only: skip when an external object cache is active, use only audited LL-owned cache/rate-limit prefixes, keep the five-minute grace and hard 200-row/two-second caps, conditionally recheck the exact timeout during pair deletion, and emit aggregate counts/namespaces/bytes without transient keys or values. Timeout-only rows are eligible; active pairs, value-only rows, non-LL transients, and persistent options/jobs are not.
+- Named performance profiles own one manifest/history/report tuple. `LL_PERF_SKIP_SEED=1` is read-only and must fail unless the stored fixture version and `canonical-json-v1` checksum match the selected manifest. The child E2E runner must preserve every parent-set locked `LL_E2E_PERF_*` value across env-file loading.
 - Pasted bulk word and prompt-audio imports are synchronous small-batch tools: keep both the raw-byte and actionable-row ceilings in place, and use a durable job instead of raising those limits for large imports.
 - The legacy `word_english_meaning` translation migration uses an ID keyset cursor and bounded repeat submissions; do not replace it with an all-post migration query.
 - Wordset main-page category search indexing should stay scoped to allowed categories. The current SQL prunes words that have no allowed category while preserving the deepest-category assignment rule; a larger on-demand search migration must preserve diacritic-insensitive matching and hidden-selection cleanup.

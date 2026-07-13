@@ -459,12 +459,25 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
 /**
  * Read reverse ownership map for specific wrong answers.
  *
+ * @param array<int,int>|null $candidate_word_ids Optional wrong-answer IDs to normalize.
  * @return array
  */
-function ll_tools_get_specific_wrong_answer_owner_map(): array {
+function ll_tools_get_specific_wrong_answer_owner_map(?array $candidate_word_ids = null): array {
+    if ($candidate_word_ids !== null) {
+        $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function ($word_id): bool {
+            return $word_id > 0;
+        })));
+        if (empty($candidate_word_ids)) {
+            return [];
+        }
+    }
+
     $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
     if (!is_array($raw)) {
-        return ll_tools_rebuild_specific_wrong_answer_owner_map();
+        $raw = ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+    if ($candidate_word_ids !== null) {
+        $raw = array_intersect_key($raw, array_fill_keys($candidate_word_ids, true));
     }
 
     $normalized = [];
@@ -492,18 +505,79 @@ function ll_tools_get_specific_wrong_answer_owner_map(): array {
 }
 
 /**
+ * Return only the integer keys present in the reverse owner option.
+ *
+ * This lets aggregate wordset queries scope the usually-small wrong-answer
+ * candidate set in SQL without first loading every word ID in the wordset or
+ * normalizing/hydrating every owner entry site-wide.
+ *
+ * @return int[]
+ */
+function ll_tools_get_specific_wrong_answer_owner_candidate_word_ids(): array {
+    $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (!is_array($raw)) {
+        $raw = ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', array_keys($raw)), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+}
+
+/**
  * Build a lookup of words that are configured as wrong-answer-only.
  *
+ * Passing candidate IDs keeps request-time rendering proportional to the
+ * current category/page instead of hydrating every distractor site-wide.
+ * A null candidate list retains the complete lookup for maintenance flows.
+ *
+ * @param array<int,int>|null $candidate_word_ids
  * @return array<int,bool> Map of word_id => true.
  */
-function ll_tools_get_specific_wrong_answer_only_word_lookup(): array {
-    $owner_map = ll_tools_get_specific_wrong_answer_owner_map();
+function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_word_ids = null): array {
+    if ($candidate_word_ids !== null) {
+        $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function ($word_id): bool {
+            return $word_id > 0;
+        })));
+        if (empty($candidate_word_ids)) {
+            return [];
+        }
+    }
+
+    $owner_map = ll_tools_get_specific_wrong_answer_owner_map($candidate_word_ids);
     if (empty($owner_map)) {
         return [];
     }
+    if ($candidate_word_ids === null) {
+        $candidate_word_ids = array_keys($owner_map);
+    }
+
+    $bounded_owner_map = [];
+    $candidate_wrong_ids = [];
+    foreach ($candidate_word_ids as $wrong_id_raw) {
+        $wrong_id = (int) $wrong_id_raw;
+        if ($wrong_id <= 0) {
+            continue;
+        }
+        $owners_raw = $owner_map[$wrong_id] ?? [];
+        $owner_ids = array_values(array_filter(array_map('intval', (array) $owners_raw), static function ($owner_id): bool {
+            return $owner_id > 0;
+        }));
+        if (!empty($owner_ids)) {
+            $bounded_owner_map[$wrong_id] = $owner_ids;
+            $candidate_wrong_ids[] = $wrong_id;
+        }
+    }
+    if (!empty($candidate_wrong_ids)) {
+        // The semantic pass below reads both metadata and the title for every
+        // candidate. Prime exactly that already-bounded owner-map set so a
+        // large distractor pool does not issue one post and one meta query per
+        // word.
+        _prime_post_caches($candidate_wrong_ids, false, true);
+    }
 
     $lookup = [];
-    foreach ($owner_map as $wrong_id_raw => $owners_raw) {
+    foreach ($bounded_owner_map as $wrong_id_raw => $owners_raw) {
         $wrong_id = (int) $wrong_id_raw;
         if ($wrong_id <= 0) {
             continue;
@@ -543,7 +617,7 @@ function ll_tools_filter_specific_wrong_answer_only_word_ids(array $word_ids): a
         return [];
     }
 
-    $wrong_only_lookup = ll_tools_get_specific_wrong_answer_only_word_lookup();
+    $wrong_only_lookup = ll_tools_get_specific_wrong_answer_only_word_lookup($word_ids);
     if (empty($wrong_only_lookup)) {
         return $word_ids;
     }

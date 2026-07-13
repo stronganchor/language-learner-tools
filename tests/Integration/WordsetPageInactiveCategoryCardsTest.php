@@ -158,6 +158,58 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $queries_sql);
     }
 
+    public function test_public_only_staff_rows_skip_inactive_content_summary_queries(): void
+    {
+        $wordset = wp_insert_term('Public Only Staff Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Public Only Staff Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id';
+        update_term_meta($category_id, $owner_meta_key, (string) $wordset_id);
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createWord(
+                'Public Only Staff Word ' . $index,
+                'Public Only Staff Translation ' . $index,
+                $category_id,
+                $wordset_id
+            );
+        }
+        $this->createVocabLesson('Public Only Staff Lesson', $category_id, $wordset_id);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries): string {
+            $captured_queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $rows = ll_tools_get_wordset_page_category_rows($wordset_id, 2, true);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $row_ids = array_map(static function (array $row): int {
+            return (int) ($row['term_id'] ?? 0);
+        }, $rows);
+        $queries_sql = implode("\n", $captured_queries);
+
+        $this->assertContains($category_id, $row_ids);
+        $this->assertStringNotContainsString('AS published_audio_count', $queries_sql);
+        $this->assertStringNotContainsString('AS image_count', $queries_sql);
+        $this->assertStringNotContainsString('AS prompt_card_count', $queries_sql);
+    }
+
     public function test_preview_prepares_draft_words_from_word_images(): void
     {
         $fixture = $this->createWordsetFixture();

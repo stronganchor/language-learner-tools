@@ -47,6 +47,7 @@
     let pendingRecordingStop = null;
     let categoryQueuePagination = null;
     let pendingCategoryQueuePageRequest = null;
+    let categoryQueueRequestGeneration = 0;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -152,7 +153,7 @@
 
     images.forEach(normalizeImageRecordingTypeState);
 
-    if (images.length === 0 && !allowNewWords && hiddenWords.length === 0) return;
+    if (images.length === 0 && !allowNewWords && hiddenWords.length === 0 && !categoryQueuePagination?.hasMore) return;
 
     const icons = {
         record: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><circle cx="12" cy="12" r="8"/></svg>',
@@ -188,6 +189,11 @@
             category,
             page,
             perPage,
+            nextPage: normalizePositiveInteger(raw.next_page || raw.nextPage, page + 1),
+            cursorToken: String(raw.cursor_token || raw.cursorToken || ''),
+            isContinuation: !!(raw.is_continuation || raw.isContinuation),
+            resetQueue: !!(raw.reset_queue || raw.resetQueue),
+            cursorRebased: !!(raw.cursor_rebased || raw.cursorRebased),
             hasMore: !!(raw.has_more || raw.hasMore),
             count: normalizePositiveInteger(raw.count, 0),
             countIsLowerBound: !!(raw.count_is_lower_bound || raw.countIsLowerBound)
@@ -202,7 +208,31 @@
         return categoryQueuePagination;
     }
 
-    function appendRecordingCategoryRequest(formData, category, page) {
+    function hasCategoryQueueContinuation(category) {
+        if (!categoryQueuePagination?.hasMore) return false;
+        const requestedCategory = String(category || '').trim();
+        return !requestedCategory
+            || !categoryQueuePagination.category
+            || categoryQueuePagination.category === requestedCategory;
+    }
+
+    function isCategoryQueueRequestGenerationCurrent(generation) {
+        return generation === categoryQueueRequestGeneration;
+    }
+
+    function isCategoryQueueRequestCurrent(category, generation) {
+        if (!isCategoryQueueRequestGenerationCurrent(generation)) return false;
+        const selectedCategory = String(
+            window.llRecorder?.categorySelect?.value || categoryQueuePagination?.category || ''
+        ).trim();
+        return selectedCategory === String(category || '').trim();
+    }
+
+    function staleCategoryQueueLoadResult() {
+        return { stale: true, resetQueue: false };
+    }
+
+    function appendRecordingCategoryRequest(formData, category, page, cursorToken) {
         formData.append('action', 'll_get_images_for_recording');
         formData.append('nonce', nonce);
         appendRequestLocale(formData);
@@ -211,11 +241,14 @@
         formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
         formData.append('include_types', window.ll_recorder_data?.include_types || '');
         formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
+        if (cursorToken) {
+            formData.append('queue_cursor', String(cursorToken));
+        }
     }
 
-    async function requestRecordingCategoryPage(category, page) {
+    async function requestRecordingCategoryPage(category, page, cursorToken) {
         const formData = new FormData();
-        appendRecordingCategoryRequest(formData, category, page);
+        appendRecordingCategoryRequest(formData, category, page, cursorToken);
 
         const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
         if (!response.ok) {
@@ -239,17 +272,23 @@
             window.ll_recorder_data.hide_name = payload.hide_name;
         }
 
+        const pagination = payload?.pagination || null;
+        const resetQueue = !!(pagination?.reset_queue || pagination?.resetQueue);
+        const shouldReplace = !!replace || resetQueue;
         const newImages = Array.isArray(payload?.images) ? payload.images : [];
         newImages.forEach(normalizeImageRecordingTypeState);
-        if (replace) {
+        if (shouldReplace) {
             images.length = 0;
         }
         images.push(...newImages);
+        if (resetQueue) {
+            currentImageIndex = 0;
+        }
         window.ll_recorder_data.images = images;
-        setCategoryQueuePagination(payload?.pagination || null, category);
+        setCategoryQueuePagination(pagination, category);
 
         const newTypes = sortRecordingTypes(payload?.recording_types || []);
-        if (replace || newTypes.length > 0) {
+        if (shouldReplace || newTypes.length > 0) {
             updateRecordingTypeOptions(newTypes);
         }
 
@@ -257,41 +296,86 @@
             window.llRecorder.totalNum.textContent = String(images.length);
         }
 
-        return newImages;
+        return {
+            images: newImages,
+            resetQueue
+        };
     }
 
-    async function loadNextCategoryQueuePage() {
+    async function loadNextCategoryQueuePage(requestGeneration = categoryQueueRequestGeneration) {
         const el = window.llRecorder;
         const category = String(el?.categorySelect?.value || categoryQueuePagination?.category || '').trim();
         if (!category || !categoryQueuePagination || categoryQueuePagination.category !== category || !categoryQueuePagination.hasMore) {
             return false;
         }
 
-        if (pendingCategoryQueuePageRequest) {
-            return pendingCategoryQueuePageRequest;
+        if (!isCategoryQueueRequestCurrent(category, requestGeneration)) {
+            return staleCategoryQueueLoadResult();
         }
 
-        pendingCategoryQueuePageRequest = (async () => {
-            showStatus(i18n.loading_more_category || 'Loading more words in this category...', 'info');
-            const nextPage = Math.max(1, categoryQueuePagination.page + 1);
-            const data = await requestRecordingCategoryPage(category, nextPage);
-            if (!data?.success) {
-                const errorMsg = data?.data || data?.message || (i18n.switch_failed_message || 'Switch failed');
-                throw new Error(String(errorMsg));
+        if (
+            pendingCategoryQueuePageRequest
+            && pendingCategoryQueuePageRequest.category === category
+            && pendingCategoryQueuePageRequest.generation === requestGeneration
+        ) {
+            return pendingCategoryQueuePageRequest.promise;
+        }
+
+        const requestState = {
+            category,
+            generation: requestGeneration,
+            promise: null
+        };
+        requestState.promise = (async () => {
+            const requestedContinuations = new Set();
+            let resetQueue = false;
+
+            while (hasCategoryQueueContinuation(category)) {
+                if (!isCategoryQueueRequestCurrent(category, requestGeneration)) {
+                    return staleCategoryQueueLoadResult();
+                }
+                showStatus(i18n.loading_more_category || 'Loading more words in this category...', 'info');
+                const nextPage = Math.max(1, categoryQueuePagination.nextPage || (categoryQueuePagination.page + 1));
+                const cursorToken = categoryQueuePagination.cursorToken;
+                const continuationKey = `${nextPage}\u0000${cursorToken}`;
+                if (requestedContinuations.has(continuationKey)) {
+                    throw new Error(i18n.invalid_response || 'Server returned invalid response format');
+                }
+                requestedContinuations.add(continuationKey);
+
+                const data = await requestRecordingCategoryPage(category, nextPage, cursorToken);
+                if (!isCategoryQueueRequestCurrent(category, requestGeneration)) {
+                    return staleCategoryQueueLoadResult();
+                }
+                if (!data?.success) {
+                    const errorMsg = data?.data || data?.message || (i18n.switch_failed_message || 'Switch failed');
+                    throw new Error(String(errorMsg));
+                }
+
+                const appliedPage = applyRecordingCategoryPagePayload(data.data || {}, category, false);
+                resetQueue = resetQueue || appliedPage.resetQueue;
+                if (appliedPage.images.length > 0) {
+                    return { resetQueue };
+                }
             }
 
-            const addedImages = applyRecordingCategoryPagePayload(data.data || {}, category, false);
-            return addedImages.length > 0;
+            return false;
         })();
+        pendingCategoryQueuePageRequest = requestState;
 
         try {
-            return await pendingCategoryQueuePageRequest;
+            return await requestState.promise;
         } catch (err) {
+            if (!isCategoryQueueRequestCurrent(category, requestGeneration)) {
+                return staleCategoryQueueLoadResult();
+            }
             console.error('Category page load error:', err);
             showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + (err?.message || ''), 'error');
             return null;
         } finally {
-            pendingCategoryQueuePageRequest = null;
+            if (pendingCategoryQueuePageRequest === requestState) {
+                pendingCategoryQueuePageRequest = null;
+            }
         }
     }
 
@@ -304,6 +388,8 @@
         setupCategorySelector();
         setupNewWordMode();
         if (images.length > 0) {
+            loadImage(0);
+        } else if (hasCategoryQueueContinuation()) {
             loadImage(0);
         } else if (allowNewWords) {
             enterNewWordMode(false);
@@ -3629,17 +3715,15 @@
             const loadToken = beginDisplayLoading();
             loadNextCategoryQueuePage().then(loaded => {
                 endDisplayLoading(loadToken);
-                if (loaded === true && index < images.length) {
-                    loadImage(index);
+                if (loaded?.stale) {
+                    return;
+                }
+                if (loaded && typeof loaded === 'object') {
+                    loadImage(loaded.resetQueue ? currentImageIndex : index);
                     return;
                 }
                 if (loaded === false) {
                     showComplete();
-                    return;
-                }
-                if (images.length > 0) {
-                    currentImageIndex = Math.max(0, images.length - 1);
-                    loadImage(currentImageIndex);
                 }
             });
             return;
@@ -4287,23 +4371,19 @@
             const hiddenKeySet = new Set(getItemHideKeys(img));
             const serverKey = sanitizeHideKey(data?.data?.entry?.key || hideKey);
             if (serverKey) hiddenKeySet.add(serverKey);
+            let removedBeforeCurrent = 0;
             for (let idx = images.length - 1; idx >= 0; idx -= 1) {
                 if (itemMatchesHideKeySet(images[idx], hiddenKeySet)) {
+                    if (idx < currentImageIndex) {
+                        removedBeforeCurrent += 1;
+                    }
                     images.splice(idx, 1);
                 }
             }
 
-            if (images.length === 0) {
-                showStatus(i18n.hidden_success || 'Word hidden. Moving to the next item.', 'success');
-                showComplete();
-                return;
-            }
-
-            if (currentImageIndex >= images.length) {
-                currentImageIndex = images.length - 1;
-            }
-            loadImage(currentImageIndex);
+            currentImageIndex = Math.max(0, currentImageIndex - removedBeforeCurrent);
             showStatus(i18n.hidden_success || 'Word hidden. Moving to the next item.', 'success');
+            loadImage(currentImageIndex);
         } catch (err) {
             const detail = err?.message || '';
             showStatus(`${i18n.hide_failed || 'Hide failed:'} ${detail}`.trim(), 'error');
@@ -5124,6 +5204,7 @@
 
         const newCategory = el.categorySelect.value;
         if (!newCategory) return;
+        const requestGeneration = ++categoryQueueRequestGeneration;
         const previousIndex = currentImageIndex;
         const previousCategory = String((images[previousIndex] && images[previousIndex].category_slug) || '');
 
@@ -5139,11 +5220,22 @@
 
         try {
             const data = await requestRecordingCategoryPage(newCategory, 1);
+            if (!isCategoryQueueRequestCurrent(newCategory, requestGeneration)) {
+                return;
+            }
 
             if (data.success) {
-                const newImages = applyRecordingCategoryPagePayload(data.data || {}, newCategory, true);
-                if (newImages.length === 0) {
-                    exhaustedCategories.add(newCategory);
+                const appliedPage = applyRecordingCategoryPagePayload(data.data || {}, newCategory, true);
+                const newImages = appliedPage.images;
+                if (newImages.length === 0 && hasCategoryQueueContinuation(newCategory)) {
+                    const continuationLoaded = await loadNextCategoryQueuePage(requestGeneration);
+                    if (continuationLoaded === null || continuationLoaded?.stale) {
+                        endDisplayLoading();
+                        return;
+                    }
+                }
+
+                if (images.length === 0) {
                     window.ll_recorder_data.images = [];
                     images.length = 0;
                     currentImageIndex = 0;
@@ -5178,6 +5270,9 @@
                 showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + errorMsg, 'error');
             }
         } catch (err) {
+            if (!isCategoryQueueRequestCurrent(newCategory, requestGeneration)) {
+                return;
+            }
             console.error('Category switch error:', err);
             if (previousCategory) {
                 el.categorySelect.value = previousCategory;
@@ -5190,13 +5285,15 @@
             }
             showStatus((i18n.switch_failed || 'Switch failed:') + ' ' + err.message, 'error');
         } finally {
-            el.categorySelect.disabled = false;
-            if (el.wordsetSelect) el.wordsetSelect.disabled = false;
-            if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
-            renderRecordingTypeChoices();
-            el.recordBtn.disabled = false;
-            el.skipBtn.disabled = false;
-            if (el.hideBtn) el.hideBtn.disabled = false;
+            if (isCategoryQueueRequestGenerationCurrent(requestGeneration)) {
+                el.categorySelect.disabled = false;
+                if (el.wordsetSelect) el.wordsetSelect.disabled = false;
+                if (el.recordingTypeSelect) el.recordingTypeSelect.disabled = false;
+                renderRecordingTypeChoices();
+                el.recordBtn.disabled = false;
+                el.skipBtn.disabled = false;
+                if (el.hideBtn) el.hideBtn.disabled = false;
+            }
         }
     }
 
@@ -5207,13 +5304,19 @@
             showNewWordPanel();
             return;
         }
+
+        const currentCategory = el.categorySelect?.value;
+        if (hasCategoryQueueContinuation(currentCategory)) {
+            loadImage(images.length);
+            return;
+        }
+
         setHiddenWordsPanelOpen(false);
         if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
         if (el.processingReviewOverlay) el.processingReviewOverlay.setAttribute('hidden', 'hidden');
         if (el.mainScreen) el.mainScreen.style.display = 'none';
 
         // Mark current category as exhausted since we completed all its images
-        const currentCategory = el.categorySelect?.value;
         if (currentCategory) {
             exhaustedCategories.add(currentCategory);
         }

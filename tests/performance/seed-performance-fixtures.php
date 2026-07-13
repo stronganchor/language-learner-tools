@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
+require_once __DIR__ . '/lib/performance-manifest.php';
+
 const LL_TOOLS_PERF_FIXTURE_KEY = 'll-tools-performance-benchmark';
 const LL_TOOLS_PERF_FIXTURE_META_KEY = '_ll_tools_performance_fixture';
 const LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY = '_ll_tools_performance_fixture_version';
@@ -199,7 +201,65 @@ function ll_tools_perf_seed_load_manifest(): array {
 
 function ll_tools_perf_seed_manifest_checksum(): string {
     $path = ll_tools_perf_seed_manifest_path();
-    return is_readable($path) ? (string) hash_file('sha256', $path) : '';
+    if (!is_readable($path)) {
+        return '';
+    }
+
+    try {
+        return ll_tools_perf_manifest_checksum_file($path);
+    } catch (RuntimeException $error) {
+        ll_tools_perf_seed_fail($error->getMessage());
+    }
+
+    return '';
+}
+
+function ll_tools_perf_seed_recorder_queue_config(array $manifest): array {
+    $raw = isset($manifest['recorderQueue']) && is_array($manifest['recorderQueue'])
+        ? $manifest['recorderQueue']
+        : [];
+    if (empty($raw['enabled'])) {
+        return ['enabled' => false];
+    }
+
+    $target_wordset_slug = sanitize_title((string) ($raw['wordsetSlug'] ?? ''));
+    if ($target_wordset_slug === '') {
+        $target_size = sanitize_key((string) ($manifest['benchmarkTargetSize'] ?? 'large'));
+        foreach ((array) ($manifest['wordsets'] ?? []) as $wordset) {
+            if (sanitize_key((string) ($wordset['size'] ?? '')) === $target_size) {
+                $target_wordset_slug = sanitize_title((string) ($wordset['slug'] ?? ''));
+                break;
+            }
+        }
+    }
+
+    $normalize_types = static function ($values): array {
+        $types = array_values(array_unique(array_filter(array_map(
+            'sanitize_key',
+            is_array($values) ? $values : []
+        ))));
+        return array_values(array_filter($types, static fn(string $type): bool => $type !== ''));
+    };
+    $desired_types = $normalize_types($raw['desiredRecordingTypes'] ?? ['isolation', 'question']);
+    $include_types = $normalize_types($raw['includeRecordingTypes'] ?? $desired_types);
+    $username = sanitize_user((string) ($raw['username'] ?? 'll-perf-recorder'), true);
+    $email = sanitize_email((string) ($raw['email'] ?? $username . '@example.invalid'));
+    if ($target_wordset_slug === '' || $username === '' || $email === '' || empty($desired_types)) {
+        ll_tools_perf_seed_fail('Invalid performance recorderQueue fixture configuration.');
+    }
+
+    return [
+        'enabled' => true,
+        'wordset_slug' => $target_wordset_slug,
+        'username' => $username,
+        'email' => $email,
+        'display_name' => sanitize_text_field((string) ($raw['displayName'] ?? 'LL Performance Recorder')),
+        'desired_types' => $desired_types,
+        'include_types' => $include_types,
+        'exclude_types' => $normalize_types($raw['excludeRecordingTypes'] ?? []),
+        'allow_new_words' => !empty($raw['allowNewWords']),
+        'auto_process_recordings' => !empty($raw['autoProcessRecordings']),
+    ];
 }
 
 function ll_tools_perf_seed_audio_per_word_count(array $manifest): int {
@@ -357,15 +417,15 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
     }
 
     $fixture_version = (string) ($manifest['fixtureVersion'] ?? '');
+    $recorder_config = ll_tools_perf_seed_recorder_queue_config($manifest);
     $stored_version = (string) ($stored['fixture_version'] ?? '');
-    $stored_checksum = (string) ($stored['manifest_sha256'] ?? '');
     $manifest_checksum = ll_tools_perf_seed_manifest_checksum();
     $reasons = [];
     if ($stored_version !== $fixture_version) {
         $reasons[] = 'fixture version changed';
     }
-    if ($manifest_checksum !== '' && $stored_checksum !== '' && $stored_checksum !== $manifest_checksum) {
-        $reasons[] = 'fixture manifest checksum changed';
+    if (!ll_tools_perf_manifest_stored_checksum_is_current($stored, $manifest_checksum)) {
+        $reasons[] = 'fixture manifest checksum missing, legacy, or changed';
     }
 
     $totals = ll_tools_perf_seed_manifest_totals($manifest);
@@ -415,6 +475,21 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
         if ((string) get_term_meta($term_id, LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY, true) !== $fixture_version) {
             $reasons[] = 'category fixture version mismatch ' . $category_slug;
         }
+        if (
+            !empty($recorder_config['enabled'])
+            && str_starts_with($category_slug, (string) $recorder_config['wordset_slug'] . '-cat-')
+        ) {
+            $actual_desired_types = array_values(array_unique(array_filter(array_map(
+                'sanitize_key',
+                (array) get_term_meta($term_id, 'll_desired_recording_types', true)
+            ))));
+            $expected_desired_types = array_values((array) $recorder_config['desired_types']);
+            sort($actual_desired_types, SORT_STRING);
+            sort($expected_desired_types, SORT_STRING);
+            if ($actual_desired_types !== $expected_desired_types) {
+                $reasons[] = 'fixture recorder desired types mismatch ' . $category_slug;
+            }
+        }
     }
 
     $post_type_expectations = ll_tools_perf_seed_fixture_post_type_expectations($totals);
@@ -433,6 +508,63 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
         $reasons[] = 'learn page not tagged as fixture';
     }
 
+    $recorder_summary = [];
+    if (!empty($recorder_config['enabled'])) {
+        $recorder_user = get_user_by('login', (string) $recorder_config['username']);
+        if (!($recorder_user instanceof WP_User)) {
+            $reasons[] = 'missing fixture recorder ' . (string) $recorder_config['username'];
+        } else {
+            $recorder_user_id = (int) $recorder_user->ID;
+            if ((string) get_user_meta($recorder_user_id, LL_TOOLS_PERF_FIXTURE_META_KEY, true) !== LL_TOOLS_PERF_FIXTURE_KEY) {
+                $reasons[] = 'recorder not tagged as fixture ' . (string) $recorder_config['username'];
+            }
+            if ((string) get_user_meta($recorder_user_id, LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY, true) !== $fixture_version) {
+                $reasons[] = 'recorder fixture version mismatch ' . (string) $recorder_config['username'];
+            }
+            if (!in_array('audio_recorder', (array) $recorder_user->roles, true)) {
+                $reasons[] = 'fixture recorder role mismatch ' . (string) $recorder_config['username'];
+            }
+            $saved_recording_config = get_user_meta($recorder_user_id, 'll_recording_config', true);
+            if (
+                !is_array($saved_recording_config)
+                || sanitize_title((string) ($saved_recording_config['wordset'] ?? '')) !== (string) $recorder_config['wordset_slug']
+            ) {
+                $reasons[] = 'fixture recorder wordset assignment mismatch ' . (string) $recorder_config['username'];
+            }
+            if (is_array($saved_recording_config)) {
+                $normalize_csv_types = static function ($value): array {
+                    $types = array_values(array_unique(array_filter(array_map(
+                        'sanitize_key',
+                        array_map('trim', explode(',', (string) $value))
+                    ))));
+                    sort($types, SORT_STRING);
+                    return $types;
+                };
+                $expected_include_types = array_values((array) $recorder_config['include_types']);
+                $expected_exclude_types = array_values((array) $recorder_config['exclude_types']);
+                sort($expected_include_types, SORT_STRING);
+                sort($expected_exclude_types, SORT_STRING);
+                if ($normalize_csv_types($saved_recording_config['include_recording_types'] ?? '') !== $expected_include_types) {
+                    $reasons[] = 'fixture recorder included types mismatch ' . (string) $recorder_config['username'];
+                }
+                if ($normalize_csv_types($saved_recording_config['exclude_recording_types'] ?? '') !== $expected_exclude_types) {
+                    $reasons[] = 'fixture recorder excluded types mismatch ' . (string) $recorder_config['username'];
+                }
+                if (!empty($saved_recording_config['allow_new_words']) !== !empty($recorder_config['allow_new_words'])) {
+                    $reasons[] = 'fixture recorder new-word setting mismatch ' . (string) $recorder_config['username'];
+                }
+                if (!empty($saved_recording_config['auto_process_recordings']) !== !empty($recorder_config['auto_process_recordings'])) {
+                    $reasons[] = 'fixture recorder processing setting mismatch ' . (string) $recorder_config['username'];
+                }
+            }
+            $recorder_summary = [
+                'user_id' => $recorder_user_id,
+                'username' => (string) $recorder_config['username'],
+                'wordset_slug' => (string) $recorder_config['wordset_slug'],
+            ];
+        }
+    }
+
     return [
         'current' => empty($reasons),
         'reasons' => array_values(array_unique($reasons)),
@@ -446,6 +578,7 @@ function ll_tools_perf_seed_get_current_fixture_summary(array $manifest): array 
                 'vocab_lessons' => $totals['vocab_lessons'],
                 'learn_page_id' => $learn_page instanceof WP_Post ? (int) $learn_page->ID : 0,
             ],
+            'recorder' => $recorder_summary,
             'learn_page_path' => '/' . trim($learn_slug, '/') . '/',
             'checked_at_gmt' => gmdate('c'),
         ],
@@ -549,8 +682,63 @@ function ll_tools_perf_seed_delete_rows_by_ids(string $table, string $column, ar
     return $deleted;
 }
 
+/**
+ * Find only fixture-owned quiz pages linked to one fixture category.
+ *
+ * An untagged page can legitimately reference the same category. Resetting a
+ * benchmark must never delete that local content merely because the category
+ * itself belongs to the fixture.
+ *
+ * @return int[]
+ */
+function ll_tools_perf_seed_query_fixture_quiz_pages_for_category(int $category_id): array {
+    if ($category_id <= 0) {
+        return [];
+    }
+
+    $quiz_page_category_meta = defined('LL_TOOLS_QUIZ_PAGE_CATEGORY_META')
+        ? LL_TOOLS_QUIZ_PAGE_CATEGORY_META
+        : '_ll_tools_word_category_id';
+
+    return array_values(array_map('intval', (array) get_posts([
+        'post_type' => function_exists('ll_tools_get_quiz_page_post_types') ? ll_tools_get_quiz_page_post_types(true) : ['page'],
+        'post_status' => 'any',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'meta_query' => [
+            'relation' => 'AND',
+            [
+                'key' => $quiz_page_category_meta,
+                'value' => (string) $category_id,
+            ],
+            [
+                'key' => LL_TOOLS_PERF_FIXTURE_META_KEY,
+                'value' => LL_TOOLS_PERF_FIXTURE_KEY,
+            ],
+        ],
+    ])));
+}
+
 function ll_tools_perf_seed_reset_fixture(array $manifest): array {
     $collisions = [];
+    $recorder_config = ll_tools_perf_seed_recorder_queue_config($manifest);
+    if (!empty($recorder_config['enabled'])) {
+        $recorder_candidates = [
+            get_user_by('login', (string) $recorder_config['username']),
+            get_user_by('email', (string) $recorder_config['email']),
+        ];
+        foreach ($recorder_candidates as $recorder_candidate) {
+            if (!($recorder_candidate instanceof WP_User)) {
+                continue;
+            }
+            $marker = (string) get_user_meta((int) $recorder_candidate->ID, LL_TOOLS_PERF_FIXTURE_META_KEY, true);
+            if ($marker !== LL_TOOLS_PERF_FIXTURE_KEY) {
+                $collisions[] = 'user:' . (string) $recorder_candidate->user_login;
+            }
+        }
+    }
     $learn_slug = sanitize_title((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'));
     if ($learn_slug !== '') {
         $learn_page = get_page_by_path($learn_slug, OBJECT, 'page');
@@ -587,8 +775,9 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
     }
 
     if (!empty($collisions)) {
+        $collisions = array_values(array_unique($collisions));
         ll_tools_perf_seed_fail(
-            'Refusing to reset performance fixtures because these slugs belong to untagged Local-site content: '
+            'Refusing to reset performance fixtures because these identifiers belong to untagged Local-site content: '
             . implode(', ', $collisions)
         );
     }
@@ -598,6 +787,7 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
         'quiz_pages' => 0,
         'categories' => 0,
         'wordsets' => 0,
+        'users' => 0,
         'media_files' => 0,
     ];
 
@@ -610,21 +800,27 @@ function ll_tools_perf_seed_reset_fixture(array $manifest): array {
     ]);
     if (!is_wp_error($fixture_category_ids)) {
         foreach (array_map('intval', (array) $fixture_category_ids) as $category_id) {
-            $quiz_pages = get_posts([
-                'post_type' => function_exists('ll_tools_get_quiz_page_post_types') ? ll_tools_get_quiz_page_post_types(true) : ['page'],
-                'post_status' => 'any',
-                'posts_per_page' => -1,
-                'fields' => 'ids',
-                'no_found_rows' => true,
-                'suppress_filters' => true,
-                'meta_key' => defined('LL_TOOLS_QUIZ_PAGE_CATEGORY_META') ? LL_TOOLS_QUIZ_PAGE_CATEGORY_META : '_ll_tools_word_category_id',
-                'meta_value' => (string) $category_id,
-            ]);
+            $quiz_pages = ll_tools_perf_seed_query_fixture_quiz_pages_for_category($category_id);
             $deleted['quiz_pages'] += ll_tools_perf_seed_delete_posts((array) $quiz_pages);
         }
     }
 
     $deleted['posts'] += ll_tools_perf_seed_delete_posts(ll_tools_perf_seed_query_fixture_posts());
+
+    $fixture_user_ids = get_users([
+        'fields' => 'ids',
+        'number' => -1,
+        'meta_key' => LL_TOOLS_PERF_FIXTURE_META_KEY,
+        'meta_value' => LL_TOOLS_PERF_FIXTURE_KEY,
+    ]);
+    if (!function_exists('wp_delete_user')) {
+        require_once ABSPATH . 'wp-admin/includes/user.php';
+    }
+    foreach (array_values(array_unique(array_map('intval', (array) $fixture_user_ids))) as $fixture_user_id) {
+        if ($fixture_user_id > 0 && wp_delete_user($fixture_user_id)) {
+            $deleted['users']++;
+        }
+    }
 
     $term_sets = [
         'word-category' => get_terms([
@@ -736,13 +932,17 @@ function ll_tools_perf_seed_insert_post_meta_rows(int $post_id, array $meta): vo
         return;
     }
 
+    $placeholders = [];
+    $values = [];
     foreach ($meta as $key => $value) {
-        $wpdb->insert($wpdb->postmeta, [
-            'post_id' => $post_id,
-            'meta_key' => (string) $key,
-            'meta_value' => maybe_serialize($value),
-        ]);
+        $placeholders[] = '(%d, %s, %s)';
+        $values[] = $post_id;
+        $values[] = (string) $key;
+        $values[] = maybe_serialize($value);
     }
+
+    $sql = "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES " . implode(', ', $placeholders);
+    $wpdb->query($wpdb->prepare($sql, ...$values));
 }
 
 function ll_tools_perf_seed_term_taxonomy_id(int $term_id, string $taxonomy): int {
@@ -799,16 +999,24 @@ function ll_tools_perf_seed_insert_term_relationships(int $object_id, array $ter
         return;
     }
 
-    foreach (array_values(array_unique(array_filter(array_map('intval', $term_taxonomy_ids)))) as $term_taxonomy_id) {
-        if ($term_taxonomy_id <= 0) {
-            continue;
-        }
-        $wpdb->query($wpdb->prepare(
-            "INSERT IGNORE INTO {$wpdb->term_relationships} (object_id, term_taxonomy_id, term_order) VALUES (%d, %d, 0)",
-            $object_id,
-            $term_taxonomy_id
-        ));
+    $term_taxonomy_ids = array_values(array_unique(array_filter(
+        array_map('intval', $term_taxonomy_ids),
+        static fn(int $term_taxonomy_id): bool => $term_taxonomy_id > 0
+    )));
+    if (empty($term_taxonomy_ids)) {
+        return;
     }
+
+    $placeholders = [];
+    $values = [];
+    foreach ($term_taxonomy_ids as $term_taxonomy_id) {
+        $placeholders[] = '(%d, %d, 0)';
+        $values[] = $object_id;
+        $values[] = $term_taxonomy_id;
+    }
+
+    $sql = "INSERT IGNORE INTO {$wpdb->term_relationships} (object_id, term_taxonomy_id, term_order) VALUES " . implode(', ', $placeholders);
+    $wpdb->query($wpdb->prepare($sql, ...$values));
 }
 
 function ll_tools_perf_seed_tag_term(int $term_id, string $fixture_version): void {
@@ -877,6 +1085,9 @@ function ll_tools_perf_seed_begin_bulk_mode(): array {
         'cache_invalidation' => null,
         'term_counting' => false,
         'comment_counting' => false,
+        'category_maintenance_active' => false,
+        'category_maintenance_initial_depth' => 0,
+        'category_maintenance_initial_queue' => [],
     ];
 
     if (function_exists('wp_suspend_cache_invalidation')) {
@@ -890,11 +1101,52 @@ function ll_tools_perf_seed_begin_bulk_mode(): array {
         wp_defer_comment_counting(true);
         $state['comment_counting'] = true;
     }
+    if (
+        function_exists('ll_tools_begin_deferred_category_maintenance')
+        && function_exists('ll_tools_end_deferred_category_maintenance')
+    ) {
+        if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+            $maintenance_state = &ll_tools_get_category_maintenance_runtime();
+            $state['category_maintenance_initial_depth'] = max(0, (int) ($maintenance_state['defer_depth'] ?? 0));
+            $state['category_maintenance_initial_queue'] = isset($maintenance_state['queued_category_ids'])
+                && is_array($maintenance_state['queued_category_ids'])
+                ? $maintenance_state['queued_category_ids']
+                : [];
+        }
+
+        ll_tools_begin_deferred_category_maintenance('performance-fixture-seed');
+        $state['category_maintenance_active'] = true;
+    }
 
     return $state;
 }
 
-function ll_tools_perf_seed_end_bulk_mode(array $state): void {
+function ll_tools_perf_seed_end_category_maintenance(array &$state): void {
+    if (
+        empty($state['category_maintenance_active'])
+        || !function_exists('ll_tools_end_deferred_category_maintenance')
+    ) {
+        return;
+    }
+
+    try {
+        ll_tools_end_deferred_category_maintenance(false);
+    } finally {
+        if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+            $maintenance_state = &ll_tools_get_category_maintenance_runtime();
+            $maintenance_state['defer_depth'] = max(0, (int) ($state['category_maintenance_initial_depth'] ?? 0));
+            $maintenance_state['queued_category_ids'] = isset($state['category_maintenance_initial_queue'])
+                && is_array($state['category_maintenance_initial_queue'])
+                ? $state['category_maintenance_initial_queue']
+                : [];
+        }
+        $state['category_maintenance_active'] = false;
+    }
+}
+
+function ll_tools_perf_seed_end_bulk_mode(array &$state): void {
+    ll_tools_perf_seed_end_category_maintenance($state);
+
     if (!empty($state['term_counting']) && function_exists('wp_defer_term_counting')) {
         wp_defer_term_counting(false);
     }
@@ -1127,6 +1379,21 @@ function ll_tools_perf_seed_create_category(array $wordset, int $wordset_id, int
     update_term_meta($category_id, 'll_category_visibility', 'public');
     update_term_meta($category_id, 'll_category_enabled_games', ['space-shooter', 'line-up', 'unscramble']);
 
+    $recorder_config = ll_tools_perf_seed_recorder_queue_config($manifest);
+    if (
+        !empty($recorder_config['enabled'])
+        && (string) $recorder_config['wordset_slug'] === $wordset_slug
+    ) {
+        foreach ((array) $recorder_config['desired_types'] as $recording_type_slug) {
+            ll_tools_perf_seed_term_taxonomy_id_for_slug(
+                'recording_type',
+                (string) $recording_type_slug,
+                ucwords(str_replace(['-', '_'], ' ', (string) $recording_type_slug))
+            );
+        }
+        update_term_meta($category_id, 'll_desired_recording_types', (array) $recorder_config['desired_types']);
+    }
+
     return [
         'id' => $category_id,
         'slug' => $category_slug,
@@ -1273,6 +1540,56 @@ function ll_tools_perf_seed_create_word(array $wordset, int $wordset_id, array $
     return $word_id;
 }
 
+function ll_tools_perf_seed_create_recorder(array $manifest, array $seeded_wordsets): array {
+    $config = ll_tools_perf_seed_recorder_queue_config($manifest);
+    if (empty($config['enabled'])) {
+        return [];
+    }
+
+    $target_wordset = null;
+    foreach ($seeded_wordsets as $wordset) {
+        if ((string) ($wordset['slug'] ?? '') === (string) $config['wordset_slug']) {
+            $target_wordset = $wordset;
+            break;
+        }
+    }
+    if (!is_array($target_wordset) || (int) ($target_wordset['wordset_id'] ?? 0) <= 0) {
+        ll_tools_perf_seed_fail('Performance fixture recorder target wordset was not seeded.');
+    }
+
+    $user_id = wp_insert_user([
+        'user_login' => (string) $config['username'],
+        'user_pass' => wp_generate_password(32, true, true),
+        'user_email' => (string) $config['email'],
+        'display_name' => (string) $config['display_name'],
+        'role' => 'audio_recorder',
+    ]);
+    if (is_wp_error($user_id) || (int) $user_id <= 0) {
+        $message = is_wp_error($user_id) ? $user_id->get_error_message() : 'unknown user insert error';
+        ll_tools_perf_seed_fail('Unable to create performance fixture recorder: ' . $message);
+    }
+
+    $user_id = (int) $user_id;
+    update_user_meta($user_id, LL_TOOLS_PERF_FIXTURE_META_KEY, LL_TOOLS_PERF_FIXTURE_KEY);
+    update_user_meta($user_id, LL_TOOLS_PERF_FIXTURE_VERSION_META_KEY, (string) $manifest['fixtureVersion']);
+    update_user_meta($user_id, 'll_recording_config', [
+        'wordset' => (string) $config['wordset_slug'],
+        'include_recording_types' => implode(',', (array) $config['include_types']),
+        'exclude_recording_types' => implode(',', (array) $config['exclude_types']),
+        'allow_new_words' => !empty($config['allow_new_words']) ? '1' : '0',
+        'auto_process_recordings' => !empty($config['auto_process_recordings']) ? '1' : '0',
+    ]);
+
+    return [
+        'user_id' => $user_id,
+        'username' => (string) $config['username'],
+        'wordset_id' => (int) $target_wordset['wordset_id'],
+        'wordset_slug' => (string) $config['wordset_slug'],
+        'desired_recording_types' => array_values((array) $config['desired_types']),
+        'include_recording_types' => array_values((array) $config['include_types']),
+    ];
+}
+
 function ll_tools_perf_seed_create_pages(array $manifest, array $seeded_wordsets): array {
     $fixture_version = (string) $manifest['fixtureVersion'];
     $created = [
@@ -1332,14 +1649,6 @@ function ll_tools_perf_seed_run(): array {
         ll_tools_perf_seed_log('Performance fixture reseed required: ' . implode('; ', (array) $current_fixture['reasons']));
     }
     if (!ll_tools_perf_seed_env_flag('LL_PERF_FORCE_SEED') && !empty($current_fixture['current'])) {
-        $stored_manifest = get_option(LL_TOOLS_PERF_FIXTURE_MANIFEST_OPTION, []);
-        if (is_array($stored_manifest)) {
-            $manifest_checksum = ll_tools_perf_seed_manifest_checksum();
-            if ($manifest_checksum !== '' && (string) ($stored_manifest['manifest_sha256'] ?? '') !== $manifest_checksum) {
-                $stored_manifest['manifest_sha256'] = $manifest_checksum;
-                update_option(LL_TOOLS_PERF_FIXTURE_MANIFEST_OPTION, $stored_manifest, false);
-            }
-        }
         ll_tools_perf_seed_refresh_rewrites();
         return (array) ($current_fixture['summary'] ?? []);
     }
@@ -1429,11 +1738,14 @@ function ll_tools_perf_seed_run(): array {
         $seeded_wordsets[] = $summary;
     }
 
+    $recorder = ll_tools_perf_seed_create_recorder($manifest, $seeded_wordsets);
+    ll_tools_perf_seed_end_category_maintenance($bulk_state);
     $pages = ll_tools_perf_seed_create_pages($manifest, $seeded_wordsets);
 
     update_option(LL_TOOLS_PERF_FIXTURE_MANIFEST_OPTION, [
         'fixture_version' => $fixture_version,
         'manifest_sha256' => ll_tools_perf_seed_manifest_checksum(),
+        'manifest_checksum_format' => LL_TOOLS_PERF_MANIFEST_CHECKSUM_FORMAT,
         'seeded_at_gmt' => gmdate('c'),
         'media_sources' => $media_context['summary'],
         'wordsets' => array_map(static function (array $wordset): array {
@@ -1450,6 +1762,7 @@ function ll_tools_perf_seed_run(): array {
             'slug' => (string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'),
             'path' => '/' . trim((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'), '/') . '/',
         ],
+        'recorder' => $recorder,
     ], false);
 
     ll_tools_perf_seed_refresh_rewrites();
@@ -1462,6 +1775,7 @@ function ll_tools_perf_seed_run(): array {
             unset($wordset['categories']);
             return $wordset;
         }, $seeded_wordsets),
+        'recorder' => $recorder,
         'pages' => $pages,
         'learn_page_path' => '/' . trim((string) ($manifest['learnPage']['slug'] ?? 'll-perf-learn'), '/') . '/',
         'seeded_at_gmt' => gmdate('c'),

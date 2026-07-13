@@ -202,4 +202,99 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         $this->assertSame(['Typed Wrong'], array_values(array_map('strval', (array) ($updated_by_id[$owner_id]['specific_wrong_answer_texts'] ?? []))));
         $this->assertSame([$owner_id], $this->normalizeIds((array) ($updated_by_id[$reserved_id]['specific_wrong_answer_owner_ids'] ?? [])));
     }
+
+    public function test_wrong_answer_only_lookup_primes_candidate_posts_and_meta_in_batches(): void
+    {
+        global $wpdb;
+
+        $category_id = $this->createCategory('Specific Wrong Batch ' . (string) wp_rand(1000, 9999));
+        $owner_id = $this->createWord($category_id, 'Batch Owner Word');
+        $candidate_ids = [];
+        for ($index = 1; $index <= 8; $index++) {
+            $candidate_ids[] = $this->createWord($category_id, 'Batch Reserved Word ' . $index);
+        }
+        $unrequested_id = $this->createWord($category_id, 'Unrequested Reserved Word');
+
+        update_post_meta($candidate_ids[0], LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$candidate_ids[7]]);
+        update_post_meta($candidate_ids[1], LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Nested typed distractor']);
+
+        $owner_option = LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION;
+        $original_owner_map = get_option($owner_option, null);
+        $owner_map = [];
+        foreach ($candidate_ids as $candidate_id) {
+            $owner_map[$candidate_id] = [$owner_id];
+            clean_post_cache($candidate_id);
+            wp_cache_delete($candidate_id, 'post_meta');
+        }
+        $owner_map[$unrequested_id] = [$owner_id];
+        clean_post_cache($unrequested_id);
+        wp_cache_delete($unrequested_id, 'post_meta');
+        update_option($owner_option, $owner_map, false);
+
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries): string {
+            $captured_queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $lookup = ll_tools_get_specific_wrong_answer_only_word_lookup($candidate_ids);
+        } finally {
+            remove_filter('query', $capture);
+            if ($original_owner_map === null) {
+                delete_option($owner_option);
+            } else {
+                update_option($owner_option, $original_owner_map, false);
+            }
+        }
+
+        $this->assertArrayNotHasKey($candidate_ids[0], $lookup);
+        $this->assertArrayNotHasKey($candidate_ids[1], $lookup);
+        foreach (array_slice($candidate_ids, 2) as $candidate_id) {
+            $this->assertArrayHasKey($candidate_id, $lookup);
+        }
+        $this->assertArrayNotHasKey($unrequested_id, $lookup);
+
+        $post_queries = array_values(array_filter($captured_queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, 'FROM ' . $wpdb->posts) !== false;
+        }));
+        $post_meta_queries = array_values(array_filter($captured_queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, 'FROM ' . $wpdb->postmeta) !== false;
+        }));
+        $single_post_queries = array_values(array_filter($post_queries, static function (string $query): bool {
+            return (bool) preg_match('/\\bWHERE ID = \\d+\\b/', $query);
+        }));
+        $batch_post_queries = array_values(array_filter($post_queries, static function (string $query): bool {
+            return strpos($query, 'WHERE ID IN (') !== false;
+        }));
+
+        $this->assertSame([], $single_post_queries, 'Candidate titles must not trigger one post-object query per distractor.');
+        $this->assertCount(1, $batch_post_queries, 'Candidate post objects should be primed in one exact-ID query.');
+        $this->assertLessThanOrEqual(1, count($post_meta_queries), 'Candidate metadata should be primed in one exact-ID query.');
+        $this->assertDoesNotMatchRegularExpression(
+            '/\\b' . preg_quote((string) $unrequested_id, '/') . '\\b/',
+            implode("\n", $batch_post_queries),
+            'The bounded lookup must not hydrate distractors outside the requested category/page.'
+        );
+    }
+
+    public function test_empty_candidate_lookup_does_not_read_the_global_owner_option(): void
+    {
+        $option_reads = 0;
+        $filter = static function ($value) use (&$option_reads) {
+            $option_reads++;
+            return $value;
+        };
+
+        add_filter('pre_option_' . LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $filter);
+        try {
+            $this->assertSame([], ll_tools_get_specific_wrong_answer_only_word_lookup([]));
+            $this->assertSame([], ll_tools_get_specific_wrong_answer_owner_map([]));
+        } finally {
+            remove_filter('pre_option_' . LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $filter);
+        }
+
+        $this->assertSame(0, $option_reads);
+    }
 }

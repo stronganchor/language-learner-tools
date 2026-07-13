@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -7,6 +8,12 @@ const DEFAULT_MANIFEST = path.join(PLUGIN_ROOT, 'tests', 'performance', 'fixture
 const DEFAULT_HISTORY = path.join(PLUGIN_ROOT, 'tests', 'performance', 'history', 'performance-history.jsonl');
 const DEFAULT_REPORT = path.join(PLUGIN_ROOT, 'tests', 'performance', 'reports', 'performance-latest.json');
 const DEFAULT_WORDSET_INITIAL_CARD_COUNT = 18;
+const DEFAULT_RECORDER_QUEUE_INITIAL_CARD_COUNT = 6;
+const DEFAULT_RECORDER_QUEUE_BATCH_SIZE = 20;
+const MANIFEST_CHECKSUM_FORMAT = 'canonical-json-v1';
+const DEFAULT_BENCHMARK_TIMEOUT_FIXED_OVERHEAD_MS = 30000;
+const DEFAULT_BENCHMARK_TIMEOUT_PER_SCENARIO_OVERHEAD_MS = 5000;
+const DEFAULT_BENCHMARK_TIMEOUT_PER_RUN_OVERHEAD_MS = 5000;
 
 function readEnvFlag(name, fallback = false) {
   const rawValue = process.env[name];
@@ -25,15 +32,49 @@ function resolvePluginPath(rawPath, fallback) {
 function loadPerformanceManifest() {
   const manifestPath = resolvePluginPath(process.env.LL_E2E_PERF_FIXTURE_MANIFEST, DEFAULT_MANIFEST);
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const expectedChecksum = String(process.env.LL_E2E_PERF_MANIFEST_SHA256 || '').trim();
+  if (expectedChecksum !== '') {
+    const actualChecksum = manifestChecksum(manifestPath);
+    if (actualChecksum !== expectedChecksum) {
+      throw new Error(
+        `Performance fixture manifest checksum changed after runner verification: expected ${expectedChecksum}, found ${actualChecksum}.`
+      );
+    }
+  }
   return {
     manifest,
     manifestPath
   };
 }
 
-function fileChecksum(filePath) {
-  const crypto = require('crypto');
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+function canonicalizeJsonValue(value) {
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error('Performance fixture manifests may contain only JSON integers within JavaScript\'s safe integer range.');
+    }
+    return Object.is(value, -0) ? 0 : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalizeJsonValue(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value)
+      .sort()
+      .reduce((canonical, key) => {
+        canonical[key] = canonicalizeJsonValue(value[key]);
+        return canonical;
+      }, {});
+  }
+  return value;
+}
+
+function canonicalManifestJson(manifest) {
+  return JSON.stringify(canonicalizeJsonValue(manifest));
+}
+
+function manifestChecksum(filePath) {
+  const manifest = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return crypto.createHash('sha256').update(canonicalManifestJson(manifest)).digest('hex');
 }
 
 function safeGit(args) {
@@ -168,6 +209,7 @@ function buildBenchmarkScenarios(manifest) {
   });
 
   if (targetWordset.slug) {
+    const settingsPath = pathForSlug(targetWordset.slug, 'settings');
     scenarios.push(
       {
         name: `wordset-${targetSize}-search-filter`,
@@ -214,11 +256,167 @@ function buildBenchmarkScenarios(manifest) {
         primaryMetric: 'interactionMs',
         action: 'progress-words-tab',
         requiresAuth: true
+      },
+      {
+        name: `wordset-${targetSize}-settings-hub-load`,
+        kind: 'navigation',
+        path: settingsPath,
+        selector: '.ll-wordset-settings-page--hub[data-ll-wordset-settings-page]',
+        minActionableCount: 1,
+        primaryMetric: 'firstActionableMs',
+        requiresAuth: true
       }
     );
+
+    const recorderQueueConfig = manifest.recorderQueue && typeof manifest.recorderQueue === 'object'
+      ? manifest.recorderQueue
+      : {};
+    if (recorderQueueConfig.enabled) {
+      const recorderQueuePath = `${settingsPath}?ll_wordset_tool=recorder-queues`;
+      const expectedCategoryCount = Math.max(1, Number(
+        recorderQueueConfig.expectedCategoryCount || targetWordset.categoryCount || 1
+      ));
+      const initialCategoryCount = Math.min(
+        expectedCategoryCount,
+        Math.max(1, Number(
+          recorderQueueConfig.initialCategoryCount || DEFAULT_RECORDER_QUEUE_INITIAL_CARD_COUNT
+        ))
+      );
+      const batchSize = Math.max(1, Number(
+        recorderQueueConfig.batchSize || DEFAULT_RECORDER_QUEUE_BATCH_SIZE
+      ));
+      const maxBatchRequestCount = Math.ceil(
+        Math.max(0, expectedCategoryCount - initialCategoryCount) / batchSize
+      );
+      scenarios.push(
+        {
+          name: `wordset-${targetSize}-recorder-queues-initial-load`,
+          kind: 'navigation',
+          path: recorderQueuePath,
+          selector: '[data-ll-recorder-queue-summary-root] .ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])',
+          minActionableCount: initialCategoryCount,
+          primaryMetric: 'firstActionableMs',
+          requiresAuth: true
+        },
+        {
+          name: `wordset-${targetSize}-recorder-queues-lazy-completion`,
+          kind: 'interaction',
+          path: recorderQueuePath,
+          selector: '[data-ll-recorder-queue-summary-root]',
+          minActionableCount: 1,
+          primaryMetric: 'interactionMs',
+          action: 'recorder-queue-lazy-completion',
+          expectedCategoryCount,
+          maxBatchRequestCount,
+          requiresAuth: true
+        }
+      );
+    }
   }
 
   return scenarios;
+}
+
+function benchmarkRequiresAuthentication(manifest) {
+  if (manifest && manifest.requiresAuthentication === true) {
+    return true;
+  }
+
+  const recorderQueue = manifest && manifest.recorderQueue;
+  return !!(recorderQueue && typeof recorderQueue === 'object' && recorderQueue.enabled);
+}
+
+function validateRecorderQueueCompletion(scenario, finalLoadedCategoryCount, batchRequestCount = 0) {
+  const expectedCategoryCount = Math.max(1, Number(
+    scenario && scenario.expectedCategoryCount ? scenario.expectedCategoryCount : 1
+  ));
+  const actualCategoryCount = Math.max(0, Number(finalLoadedCategoryCount) || 0);
+  if (actualCategoryCount !== expectedCategoryCount) {
+    throw new Error(
+      `Recorder queue lazy completion loaded ${actualCategoryCount} categories; expected ${expectedCategoryCount}.`
+    );
+  }
+
+  const actualBatchRequestCount = Math.max(0, Number(batchRequestCount) || 0);
+  const maxBatchRequestCount = Math.max(0, Number(
+    scenario && scenario.maxBatchRequestCount ? scenario.maxBatchRequestCount : 0
+  ));
+  if (maxBatchRequestCount > 0 && actualBatchRequestCount > maxBatchRequestCount) {
+    throw new Error(
+      `Recorder queue lazy completion issued ${actualBatchRequestCount} summary requests; expected at most ${maxBatchRequestCount}.`
+    );
+  }
+
+  return actualCategoryCount;
+}
+
+function calculateBenchmarkTestTimeout(scenarios, options = {}) {
+  // The benchmark is intentionally one serial test so it can emit one report.
+  // Reserve the sum of every operation's own timeout; otherwise Playwright's
+  // test-wide clock can interrupt a late scenario before that operation gets
+  // the timeout promised by its local assertion or request wait.
+  const runnableScenarios = Array.isArray(scenarios) ? scenarios : [];
+  const runsPerScenario = Math.max(1, Math.ceil(Number(options.runsPerScenario) || 1));
+  const warmupAttempts = Math.max(1, Math.round(Number(options.warmupAttempts) || 1));
+  const warmupRetryDelayMs = Math.max(0, Number(options.warmupRetryDelayMs) || 0);
+  const maxDomContentLoadedMs = Math.max(1, Number(options.maxDomContentLoadedMs) || 1);
+  const maxActionableMs = Math.max(1, Number(options.maxActionableMs) || 1);
+  const maxLoadMs = Math.max(1, Number(options.maxLoadMs) || 1);
+  const maxInteractionMs = Math.max(1, Number(options.maxInteractionMs) || 1);
+  const maxRecorderQueueCompletionMs = Math.max(
+    1,
+    Number(options.maxRecorderQueueCompletionMs) || maxInteractionMs
+  );
+  const navigationGraceMs = Math.max(0, Number(options.navigationGraceMs) || 0);
+  const fixedOverheadMs = Math.max(
+    0,
+    Number.isFinite(Number(options.fixedOverheadMs))
+      ? Number(options.fixedOverheadMs)
+      : DEFAULT_BENCHMARK_TIMEOUT_FIXED_OVERHEAD_MS
+  );
+  const perScenarioOverheadMs = Math.max(
+    0,
+    Number.isFinite(Number(options.perScenarioOverheadMs))
+      ? Number(options.perScenarioOverheadMs)
+      : DEFAULT_BENCHMARK_TIMEOUT_PER_SCENARIO_OVERHEAD_MS
+  );
+  const perRunOverheadMs = Math.max(
+    0,
+    Number.isFinite(Number(options.perRunOverheadMs))
+      ? Number(options.perRunOverheadMs)
+      : DEFAULT_BENCHMARK_TIMEOUT_PER_RUN_OVERHEAD_MS
+  );
+  const navigationTimeoutMs = Math.max(
+    maxDomContentLoadedMs,
+    maxActionableMs,
+    maxLoadMs
+  ) + navigationGraceMs;
+  const warmupBudgetMs = (warmupAttempts * navigationTimeoutMs)
+    + (Math.max(0, warmupAttempts - 1) * warmupRetryDelayMs);
+  const measuredNavigationBudgetMs = navigationTimeoutMs
+    + (2 * maxActionableMs)
+    + maxLoadMs;
+
+  const scenarioBudgetsMs = runnableScenarios.map((scenario) => {
+    let actionBudgetMs = 0;
+    if (scenario && scenario.kind === 'interaction') {
+      const scenarioInteractionMs = scenario.action === 'recorder-queue-lazy-completion'
+        ? maxRecorderQueueCompletionMs
+        : maxInteractionMs;
+      actionBudgetMs = maxActionableMs + scenarioInteractionMs;
+      if (scenario.action === 'quiz-popup') {
+        actionBudgetMs += maxInteractionMs;
+      }
+    }
+
+    const runBudgetMs = warmupBudgetMs
+      + measuredNavigationBudgetMs
+      + actionBudgetMs
+      + perRunOverheadMs;
+    return perScenarioOverheadMs + (runsPerScenario * runBudgetMs);
+  });
+
+  return Math.ceil(fixedOverheadMs + scenarioBudgetsMs.reduce((total, budget) => total + budget, 0));
 }
 
 function readHistoryRecords(historyFile) {
@@ -255,24 +453,48 @@ function findPreviousComparableRun(records, currentRecord) {
     && currentRecord.fixtureManifest.sha256
     ? String(currentRecord.fixtureManifest.sha256)
     : '';
+  const currentManifestChecksumFormat = currentRecord
+    && currentRecord.fixtureManifest
+    && currentRecord.fixtureManifest.checksumFormat
+    ? String(currentRecord.fixtureManifest.checksumFormat)
+    : '';
+  const candidates = [];
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const candidate = records[index];
     if (!candidate || candidate.fixtureVersion !== currentRecord.fixtureVersion) {
       continue;
     }
-    const candidateManifestSha = candidate.fixtureManifest && candidate.fixtureManifest.sha256
-      ? String(candidate.fixtureManifest.sha256)
-      : '';
-    if (currentManifestSha && candidateManifestSha && currentManifestSha !== candidateManifestSha) {
-      continue;
-    }
     if (!sameThrottleProfile(candidate.throttleProfile, currentRecord.throttleProfile)) {
       continue;
     }
-    return candidate;
+    candidates.push(candidate);
   }
 
-  return null;
+  if (currentManifestChecksumFormat === MANIFEST_CHECKSUM_FORMAT) {
+    const canonicalCandidates = candidates.filter((candidate) => (
+      candidate.fixtureManifest
+      && String(candidate.fixtureManifest.checksumFormat || '') === MANIFEST_CHECKSUM_FORMAT
+    ));
+    if (canonicalCandidates.length > 0) {
+      return canonicalCandidates.find((candidate) => (
+        currentManifestSha !== ''
+        && String(candidate.fixtureManifest.sha256 || '') === currentManifestSha
+      )) || null;
+    }
+
+    // The history predates canonical-json-v1. Fixture version plus throttle
+    // form the one-time migration gate because raw hashes varied by CRLF/LF.
+    return candidates[0] || null;
+  }
+
+  if (currentManifestSha !== '') {
+    return candidates.find((candidate) => (
+      candidate.fixtureManifest
+      && String(candidate.fixtureManifest.sha256 || '') === currentManifestSha
+    )) || null;
+  }
+
+  return candidates[0] || null;
 }
 
 function compareWithPrevious(currentRecord, previousRecord, options = {}) {
@@ -405,10 +627,14 @@ function writeBenchmarkReport(reportFile, report) {
 module.exports = {
   DEFAULT_HISTORY,
   DEFAULT_REPORT,
+  MANIFEST_CHECKSUM_FORMAT,
+  benchmarkRequiresAuthentication,
   buildBenchmarkReport,
   buildBenchmarkScenarios,
+  calculateBenchmarkTestTimeout,
   compareWithPrevious,
-  fileChecksum,
+  canonicalManifestJson,
+  manifestChecksum,
   findPreviousComparableRun,
   getRunMetadata,
   loadPerformanceManifest,
@@ -418,6 +644,7 @@ module.exports = {
   resolveBenchmarkWordsets,
   resolveBenchmarkTargetWordset,
   summarizeScenarioSamples,
+  validateRecorderQueueCompletion,
   appendHistoryRecord,
   formatBenchmarkReportMarkdown,
   writeBenchmarkReport

@@ -7,6 +7,29 @@ ROOT_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 WP_ROOT="$(cd "$ROOT_DIR/../../.." && pwd)"
 SEED_SCRIPT="$TESTS_DIR/performance/seed-performance-fixtures.php"
 DEFAULT_HISTORY="$TESTS_DIR/performance/history/performance-history.jsonl"
+DEFAULT_MANIFEST_REL="tests/performance/fixtures/performance-wordsets.json"
+DEFAULT_HISTORY_REL="tests/performance/history/performance-history.jsonl"
+DEFAULT_REPORT_REL="tests/performance/reports/performance-latest.json"
+
+# Preserve normal configuration precedence for this runner: an explicit
+# process environment wins over .env.local, which wins over .env. The env files
+# still populate credentials and other values that the caller did not supply.
+LL_TOOLS_PERF_CALLER_ENV_KEYS=()
+while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    LL_TOOLS_PERF_CALLER_ENV_KEYS+=("$key")
+done < <(compgen -e)
+
+ll_tools_perf_caller_env_has_key() {
+    local expected_key="$1"
+    local caller_key
+    for caller_key in "${LL_TOOLS_PERF_CALLER_ENV_KEYS[@]}"; do
+        if [[ "$caller_key" == "$expected_key" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
 load_env_file_literal() {
     local file="$1"
@@ -29,6 +52,10 @@ load_env_file_literal() {
         key="${key#"${key%%[![:space:]]*}"}"
         key="${key%"${key##*[![:space:]]}"}"
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+
+        if ll_tools_perf_caller_env_has_key "$key"; then
+            continue
+        fi
 
         if [[ ${#value} -ge 2 ]]; then
             local first_char="${value:0:1}"
@@ -179,45 +206,149 @@ fi
 
 configure_perf_profile() {
     local profile="${LL_PERF_PROFILE:-default}"
+    local manifest_rel=""
+    local history_rel=""
+    local report_rel=""
     case "$profile" in
         ""|"default")
-            return
+            profile="default"
+            local seed_manifest_raw="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-}"
+            local e2e_manifest_raw="${LL_E2E_PERF_FIXTURE_MANIFEST:-}"
+            local seed_manifest_path=""
+            local e2e_manifest_path=""
+            if [[ -n "$seed_manifest_raw" ]]; then
+                seed_manifest_path="$(canonical_perf_manifest_path "$seed_manifest_raw")"
+            fi
+            if [[ -n "$e2e_manifest_raw" ]]; then
+                e2e_manifest_path="$(canonical_perf_manifest_path "$e2e_manifest_raw")"
+            fi
+            if [[ -n "$seed_manifest_path" && -n "$e2e_manifest_path" && "$seed_manifest_path" != "$e2e_manifest_path" ]]; then
+                echo "Default performance manifest overrides disagree; seeder and Playwright must use one file." >&2
+                exit 1
+            fi
+
+            PERF_MANIFEST_PATH="${seed_manifest_path:-${e2e_manifest_path:-$(canonical_perf_manifest_path "$DEFAULT_MANIFEST_REL")}}"
+            export LL_TOOLS_PERF_FIXTURE_MANIFEST="$PERF_MANIFEST_PATH"
+            if [[ "$PERF_MANIFEST_PATH" == "$ROOT_DIR/"* ]]; then
+                export LL_E2E_PERF_FIXTURE_MANIFEST="${PERF_MANIFEST_PATH#"$ROOT_DIR/"}"
+            else
+                export LL_E2E_PERF_FIXTURE_MANIFEST="${e2e_manifest_raw:-$PERF_MANIFEST_PATH}"
+            fi
+            export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-$DEFAULT_HISTORY_REL}"
+            export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-$DEFAULT_REPORT_REL}"
             ;;
         "xl")
-            local xl_manifest="$TESTS_DIR/performance/fixtures/performance-wordsets-xl.json"
-            local xl_manifest_rel="tests/performance/fixtures/performance-wordsets-xl.json"
-            export LL_TOOLS_PERF_FIXTURE_MANIFEST="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-$xl_manifest}"
-            export LL_E2E_PERF_FIXTURE_MANIFEST="${LL_E2E_PERF_FIXTURE_MANIFEST:-$xl_manifest_rel}"
-            export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-tests/performance/history/performance-history-xl.jsonl}"
-            export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest-xl.json}"
+            manifest_rel="tests/performance/fixtures/performance-wordsets-xl.json"
+            history_rel="tests/performance/history/performance-history-xl.jsonl"
+            report_rel="tests/performance/reports/performance-latest-xl.json"
             export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
-            echo "Using LL Tools performance profile: xl"
+            ;;
+        "genc")
+            manifest_rel="tests/performance/fixtures/performance-wordsets-genc.json"
+            history_rel="tests/performance/history/performance-history-genc.jsonl"
+            report_rel="tests/performance/reports/performance-latest-genc.json"
+            export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
+            export LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS="${LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS:-120000}"
+            export LL_PERF_SOURCE_IMAGE_LIMIT="${LL_PERF_SOURCE_IMAGE_LIMIT:-24}"
+            export LL_PERF_SOURCE_AUDIO_LIMIT="${LL_PERF_SOURCE_AUDIO_LIMIT:-24}"
+            configure_wordboat_media_sources
             ;;
         "stress-2x")
-            local stress_manifest="$TESTS_DIR/performance/fixtures/performance-wordsets-stress-2x.json"
-            local stress_manifest_rel="tests/performance/fixtures/performance-wordsets-stress-2x.json"
-            export LL_TOOLS_PERF_FIXTURE_MANIFEST="${LL_TOOLS_PERF_FIXTURE_MANIFEST:-$stress_manifest}"
-            export LL_E2E_PERF_FIXTURE_MANIFEST="${LL_E2E_PERF_FIXTURE_MANIFEST:-$stress_manifest_rel}"
-            export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-tests/performance/history/performance-history-stress-2x.jsonl}"
-            export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest-stress-2x.json}"
+            manifest_rel="tests/performance/fixtures/performance-wordsets-stress-2x.json"
+            history_rel="tests/performance/history/performance-history-stress-2x.jsonl"
+            report_rel="tests/performance/reports/performance-latest-stress-2x.json"
             export LL_E2E_PERF_RUNS="${LL_E2E_PERF_RUNS:-1}"
             export LL_PERF_SOURCE_IMAGE_LIMIT="${LL_PERF_SOURCE_IMAGE_LIMIT:-24}"
             export LL_PERF_SOURCE_AUDIO_LIMIT="${LL_PERF_SOURCE_AUDIO_LIMIT:-24}"
             configure_wordboat_media_sources
-            echo "Using LL Tools performance profile: stress-2x"
             ;;
         *)
             echo "Unknown LL_PERF_PROFILE: $profile" >&2
-            echo "Supported profiles: default, xl, stress-2x" >&2
+            echo "Supported profiles: default, xl, genc, stress-2x" >&2
             exit 1
             ;;
     esac
+
+    if [[ "$profile" != "default" ]]; then
+        PERF_MANIFEST_PATH="$(canonical_perf_manifest_path "$manifest_rel")"
+        # Named profiles are intentionally authoritative. Per-path values from
+        # process env or env files cannot split seeding, measurement, history,
+        # and reporting while the runner claims to measure this profile.
+        export LL_TOOLS_PERF_FIXTURE_MANIFEST="$PERF_MANIFEST_PATH"
+        export LL_E2E_PERF_FIXTURE_MANIFEST="$manifest_rel"
+        export LL_E2E_PERF_HISTORY_FILE="$history_rel"
+        export LL_E2E_PERF_REPORT_FILE="$report_rel"
+    fi
+
+    PERF_PROFILE="$profile"
+    echo "Using LL Tools performance profile: $PERF_PROFILE"
+}
+
+canonical_perf_manifest_path() {
+    local raw_path="$1"
+    local resolved
+    resolved="$(resolve_plugin_path "$raw_path")"
+    if [[ "$resolved" =~ ^[A-Za-z]:[\\/].* ]] && command -v wslpath >/dev/null 2>&1; then
+        resolved="$(wslpath -u "$resolved")"
+    fi
+    if [[ ! -f "$resolved" ]]; then
+        echo "Performance fixture manifest was not found: $raw_path" >&2
+        return 1
+    fi
+
+    local resolved_dir
+    resolved_dir="$(cd "$(dirname "$resolved")" && pwd -P)"
+    printf '%s/%s\n' "$resolved_dir" "$(basename "$resolved")"
+}
+
+describe_perf_manifest() {
+    local description
+    description="$("$SCRIPT_DIR/php-local.sh" \
+        "$TESTS_DIR/performance/verify-performance-manifest.php" \
+        --describe "$PERF_MANIFEST_PATH")"
+    IFS=$'\t' read -r PERF_FIXTURE_VERSION PERF_MANIFEST_CHECKSUM PERF_MANIFEST_CHECKSUM_FORMAT <<< "$description"
+    if [[ -z "$PERF_FIXTURE_VERSION" || -z "$PERF_MANIFEST_CHECKSUM" || "$PERF_MANIFEST_CHECKSUM_FORMAT" != "canonical-json-v1" ]]; then
+        echo "Unable to resolve the canonical performance manifest contract." >&2
+        exit 1
+    fi
+
+    export LL_E2E_PERF_MANIFEST_SHA256="$PERF_MANIFEST_CHECKSUM"
+    echo "Performance fixture manifest: ${LL_E2E_PERF_FIXTURE_MANIFEST}"
+    echo "Performance fixture version: $PERF_FIXTURE_VERSION"
+    echo "Performance fixture canonical SHA-256: $PERF_MANIFEST_CHECKSUM"
+    echo "Performance history file: ${LL_E2E_PERF_HISTORY_FILE}"
+    echo "Performance report file: ${LL_E2E_PERF_REPORT_FILE}"
+}
+
+verify_seeded_perf_fixture() {
+    local stored_fixture_json
+    local option_command=(
+        "${WP_CLI_ARGS[@]}"
+        option get ll_tools_performance_fixture_manifest
+        --format=json
+        --path="$(to_runtime_path "$WP_ROOT")"
+        --skip-plugins
+        --skip-themes
+    )
+    if ! stored_fixture_json="$("$WP_CLI_BIN" "${option_command[@]}")"; then
+        echo "Unable to read the stored LL Tools performance fixture manifest." >&2
+        return 1
+    fi
+
+    if ! printf '%s' "$stored_fixture_json" | "$SCRIPT_DIR/php-local.sh" \
+        "$TESTS_DIR/performance/verify-performance-manifest.php" \
+        --verify-stored "$PERF_MANIFEST_PATH"; then
+        echo "Stored LL Tools performance fixture does not match the selected profile; reseed before benchmarking." >&2
+        return 1
+    fi
 }
 
 configure_perf_profile
+describe_perf_manifest
+
+find_wp_cli
 
 if [[ "${LL_PERF_SKIP_SEED:-0}" != "1" ]]; then
-    find_wp_cli
     echo "Seeding LL Tools performance fixture in ${WP_ROOT}"
     seed_env=()
     seed_args=()
@@ -265,8 +396,10 @@ if [[ "${LL_PERF_SKIP_SEED:-0}" != "1" ]]; then
         "$WP_CLI_BIN" "${seed_command[@]}"
     fi
 else
-    echo "Skipping performance fixture seeding because LL_PERF_SKIP_SEED=1"
+    echo "Skipping performance fixture seeding because LL_PERF_SKIP_SEED=1; verifying the existing fixture read-only."
 fi
+
+verify_seeded_perf_fixture
 
 if [[ "${LL_PERF_SEED_ONLY:-0}" == "1" ]]; then
     exit 0
@@ -277,5 +410,6 @@ export LL_E2E_PERF_WRITE_HISTORY="${LL_E2E_PERF_WRITE_HISTORY:-1}"
 export LL_E2E_PERF_COMPARE_HISTORY="${LL_E2E_PERF_COMPARE_HISTORY:-1}"
 export LL_E2E_PERF_HISTORY_FILE="${LL_E2E_PERF_HISTORY_FILE:-$DEFAULT_HISTORY}"
 export LL_E2E_PERF_REPORT_FILE="${LL_E2E_PERF_REPORT_FILE:-tests/performance/reports/performance-latest.json}"
+export LL_E2E_PERF_CONFIG_LOCKED=1
 
 "$SCRIPT_DIR/run-e2e.sh" specs/performance-benchmark.spec.js

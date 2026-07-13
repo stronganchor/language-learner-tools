@@ -1032,13 +1032,15 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await expect(page.getByRole('link', { name: 'Continue' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /^2$/ })).toHaveCount(0);
 
-  await enableRecorderQueueLazySummaryScript(page, 2);
+  // The server-rendered fixture starts with one useful card; continuation
+  // requests intentionally use a larger, still-bounded batch.
+  await enableRecorderQueueLazySummaryScript(page, 3);
 
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
   const requests = await page.evaluate(() => window.__recorderQueueSummaryCalls);
   expect(requests.map((request) => request.slugs)).toEqual([
-    ['market', 'empty'],
-    ['travel', 'food']
+    ['market', 'empty', 'travel'],
+    ['food']
   ]);
   requests.forEach((request) => {
     expect(request.url).toBe('/fake-admin-ajax.php');
@@ -1048,9 +1050,9 @@ test('manager recorder queue streams one recorder category queue in bounded orde
     expect(request.recorderUserId).toBe(101);
     expect(request.generation).toBe('summary-generation');
     expect(request.backUrl).toBe('https://example.test/manager-return/');
-    expect(request.slugs.length).toBeLessThanOrEqual(2);
+    expect(request.slugs.length).toBeLessThanOrEqual(3);
   });
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['travel']);
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['food']);
 
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
   await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);

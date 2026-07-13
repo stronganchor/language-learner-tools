@@ -4959,7 +4959,7 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
         ? ll_tools_get_word_effective_image_presence_map($all_word_ids)
         : [];
     $wrong_only_lookup = function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')
-        ? ll_tools_get_specific_wrong_answer_only_word_lookup()
+        ? ll_tools_get_specific_wrong_answer_only_word_lookup($all_word_ids)
         : [];
 
     $word_state = static function (int $word_id) use (
@@ -5356,7 +5356,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         ? ll_tools_get_word_effective_image_presence_map($all_word_ids)
         : [];
     $wrong_only_lookup = function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')
-        ? ll_tools_get_specific_wrong_answer_only_word_lookup()
+        ? ll_tools_get_specific_wrong_answer_only_word_lookup($all_word_ids)
         : [];
 
     $word_state = static function (int $word_id) use (
@@ -5999,7 +5999,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $blocked_map_by_recording_type = $group_maps['blocked_map_by_recording_type'] ?? [];
     $similar_image_override_map = $group_maps['similar_image_override_map'] ?? [];
     $specific_wrong_owner_map = function_exists('ll_tools_get_specific_wrong_answer_owner_map')
-        ? ll_tools_get_specific_wrong_answer_owner_map()
+        ? ll_tools_get_specific_wrong_answer_owner_map($word_ids)
         : [];
 
     $merge_positive_ids = static function (...$lists): array {

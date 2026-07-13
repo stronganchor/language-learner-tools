@@ -261,6 +261,40 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(['alpha-one', 'beta', 'gamma'], $normalized);
     }
 
+    public function test_summary_stream_keeps_first_paint_small_and_uses_larger_background_batches(): void
+    {
+        $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
+        $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+
+        $background_batch_size = static function (): int {
+            return 4;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $background_batch_size);
+
+        try {
+            $this->assertSame(4, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+            $this->assertSame(
+                4,
+                ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size(),
+                'Lower operator caps must also bound the server-rendered first batch.'
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $background_batch_size);
+        }
+
+        $initial_batch_size = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);
+
+        try {
+            $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
+            $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);
+        }
+    }
+
     public function test_compact_category_source_honors_the_selected_recorders_category_visibility(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
@@ -287,8 +321,11 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertContains((string) $fixture['categories'][0]['slug'], $recorder_slugs);
     }
 
-    public function test_summary_source_signature_uses_last_changed_only_with_a_persistent_object_cache(): void
+    public function test_scoped_summary_source_signature_ignores_core_last_changed_tokens(): void
     {
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category = $fixture['categories'][0];
         $original_using_ext_cache = wp_using_ext_object_cache();
         $original_posts_last_changed = wp_cache_get('last_changed', 'posts');
         $original_terms_last_changed = wp_cache_get('last_changed', 'terms');
@@ -297,18 +334,19 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             wp_using_ext_object_cache(false);
             wp_cache_set('last_changed', 'request-local-a', 'posts');
             wp_cache_set('last_changed', 'request-local-a', 'terms');
-            $default_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $default_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category);
 
             wp_cache_set('last_changed', 'request-local-b', 'posts');
             wp_cache_set('last_changed', 'request-local-b', 'terms');
-            $next_request_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $next_request_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category);
             $this->assertSame($default_cache_signature, $next_request_signature);
 
             wp_using_ext_object_cache(true);
-            $persistent_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $persistent_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category);
             wp_cache_set('last_changed', 'persistent-change', 'posts');
-            $changed_persistent_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($persistent_cache_signature, $changed_persistent_signature);
+            wp_cache_set('last_changed', 'persistent-change', 'terms');
+            $changed_persistent_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category);
+            $this->assertSame($persistent_cache_signature, $changed_persistent_signature);
         } finally {
             wp_using_ext_object_cache($original_using_ext_cache);
             if ($original_posts_last_changed === false) {
@@ -324,7 +362,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_summary_source_signature_tracks_durable_queue_inputs_without_a_persistent_object_cache(): void
+    public function test_scoped_summary_source_signatures_ignore_broad_content_epochs_but_track_local_and_global_configuration(): void
     {
         $option_names = [
             'll_tools_wordset_recorder_queue_structure_epoch',
@@ -338,6 +376,13 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $option_backups[$option_name] = get_option($option_name, null);
         }
         $original_using_ext_cache = wp_using_ext_object_cache();
+        $fixture = $this->createWordsetWithCategories(2);
+        $other_fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $other_wordset_id = (int) $other_fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+        $other_category = $other_fixture['categories'][0];
 
         try {
             wp_using_ext_object_cache(false);
@@ -346,27 +391,54 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             update_option('ll_tools_wordset_editor_image_aggregate_epoch', 'image-a', false);
             update_option('ll_tools_wordset_recorder_queue_recording_type_epoch', 'recording-type-a', false);
             update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
-            $signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $other_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
 
             update_option('ll_tools_wordset_editor_image_aggregate_epoch', 'image-b', false);
-            $image_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($signature, $image_signature);
-
             update_option('ll_tools_wordset_recorder_queue_structure_epoch', 'structure-b', false);
-            $structure_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($image_signature, $structure_signature);
-
             update_option('ll_tools_wordset_recorder_queue_content_epoch', 'content-b', false);
-            $content_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($structure_signature, $content_signature);
+            $this->assertSame(
+                $signature_a,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a),
+                'Broad fallback epochs must not invalidate categorized summaries.'
+            );
+
+            update_term_meta((int) $category_a['id'], 'll_desired_recording_types', ['question']);
+            $configured_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $this->assertNotSame($signature_a, $configured_signature_a);
+            $this->assertSame($signature_b, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b));
+            $this->assertSame($other_signature, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category));
+
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, 'translation');
+            $wordset_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $wordset_signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $wordset_other_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
+            $this->assertNotSame($configured_signature_a, $wordset_signature_a);
+            $this->assertNotSame($signature_b, $wordset_signature_b);
+            $this->assertSame($other_signature, $wordset_other_signature);
 
             update_option('ll_tools_wordset_recorder_queue_recording_type_epoch', 'recording-type-b', false);
-            $recording_type_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($content_signature, $recording_type_signature);
+            $recording_type_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $recording_type_signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $recording_type_other_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
+            $this->assertNotSame($wordset_signature_a, $recording_type_signature_a);
+            $this->assertNotSame($wordset_signature_b, $recording_type_signature_b);
+            $this->assertNotSame($wordset_other_signature, $recording_type_other_signature);
 
             update_option('ll_uncategorized_desired_recording_types', ['question'], false);
-            $defaults_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
-            $this->assertNotSame($recording_type_signature, $defaults_signature);
+            $this->assertNotSame(
+                $recording_type_signature_a,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a)
+            );
+            $this->assertNotSame(
+                $recording_type_signature_b,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+            );
+            $this->assertNotSame(
+                $recording_type_other_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category)
+            );
         } finally {
             wp_using_ext_object_cache($original_using_ext_cache);
             foreach ($option_backups as $option_name => $value) {
@@ -428,6 +500,18 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             update_option($option_name, 'structure-category-owner-a', false);
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
             $before_category_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $category_term = get_term((int) $category['term_id'], 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $category_term);
+            $category_source = [
+                'id' => (int) $category_term->term_id,
+                'name' => (string) $category_term->name,
+                'slug' => (string) $category_term->slug,
+            ];
+            $before_category_owner_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                0,
+                $wordset_id,
+                $category_source
+            );
             $category_owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
                 ? (string) LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
                 : 'll_wordset_owner_id';
@@ -435,6 +519,10 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             update_term_meta((int) $category['term_id'], $category_owner_meta_key, $wordset_id);
             $after_category_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
             $this->assertNotSame($before_category_owner_key, $after_category_owner_key);
+            $this->assertNotSame(
+                $before_category_owner_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_source)
+            );
         } finally {
             if ($option_backup === null) {
                 delete_option($option_name);
@@ -449,41 +537,72 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_recording_type_relationship_and_taxonomy_mutations_change_the_queue_epoch(): void
+    public function test_recording_type_relationship_changes_only_parent_categories_while_taxonomy_mutations_are_global(): void
     {
         $option_name = 'll_tools_wordset_recorder_queue_recording_type_epoch';
         $option_backup = get_option($option_name, null);
         $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
         $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
         $recording_type_id = $this->ensureRecordingType('Isolation', 'isolation');
-        $word_id = self::factory()->post->create([
+        $fixture = $this->createWordsetWithCategories(2);
+        $other_fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $other_wordset_id = (int) $other_fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+        $other_category = $other_fixture['categories'][0];
+        $word_ids = get_posts([
             'post_type' => 'words',
             'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => 1,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [(int) $category_a['id']],
+            ]],
         ]);
+        $this->assertCount(1, $word_ids);
         $audio_id = self::factory()->post->create([
             'post_type' => 'word_audio',
             'post_status' => 'publish',
-            'post_parent' => $word_id,
+            'post_parent' => (int) $word_ids[0],
         ]);
 
         try {
             update_option($option_name, 'recording-relation-a', false);
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
             $before_relationship_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+            $before_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $before_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $before_other = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
 
             wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
             $after_relationship_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
-            $this->assertNotSame($before_relationship_epoch, $after_relationship_epoch);
+            $this->assertSame($before_relationship_epoch, $after_relationship_epoch);
+            $after_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $after_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $after_other = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
+            $this->assertNotSame($before_a, $after_a);
+            $this->assertSame($before_b, $after_b);
+            $this->assertSame($before_other, $after_other);
 
             update_option($option_name, 'recording-taxonomy-a', false);
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
             $before_taxonomy_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
-            $created = wp_insert_term('Recorder Epoch Type', 'recording_type', [
-                'slug' => 'recorder-epoch-type',
+            $before_taxonomy_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $before_taxonomy_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $before_taxonomy_other = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
+            $suffix = strtolower(wp_generate_password(6, false));
+            $created = wp_insert_term('Recorder Epoch Type ' . $suffix, 'recording_type', [
+                'slug' => 'recorder-epoch-type-' . $suffix,
             ]);
             $this->assertIsArray($created);
             $after_taxonomy_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
             $this->assertNotSame($before_taxonomy_epoch, $after_taxonomy_epoch);
+            $this->assertNotSame($before_taxonomy_a, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a));
+            $this->assertNotSame($before_taxonomy_b, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b));
+            $this->assertNotSame($before_taxonomy_other, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category));
         } finally {
             if ($option_backup === null) {
                 delete_option($option_name);
@@ -502,9 +621,13 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
     {
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
         $recording_type_id = $this->ensureRecordingType('Isolation', 'isolation');
-        $fixture = $this->createWordsetWithCategories(1);
+        $fixture = $this->createWordsetWithCategories(2);
+        $other_fixture = $this->createWordsetWithCategories(1);
         $wordset_id = (int) $fixture['wordset_id'];
-        $category_id = (int) $fixture['categories'][0]['id'];
+        $other_wordset_id = (int) $other_fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+        $other_category = $other_fixture['categories'][0];
         $word_ids = get_posts([
             'post_type' => 'words',
             'post_status' => 'publish',
@@ -513,13 +636,15 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             'tax_query' => [[
                 'taxonomy' => 'word-category',
                 'field' => 'term_id',
-                'terms' => [$category_id],
+                'terms' => [(int) $category_a['id']],
             ]],
         ]);
         $this->assertCount(1, $word_ids);
 
         $before_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
-        $before_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+        $before_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+        $before_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+        $before_other = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
         $audio_id = self::factory()->post->create([
             'post_type' => 'word_audio',
             'post_status' => 'publish',
@@ -528,9 +653,65 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
 
         $after_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
-        $after_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
         $this->assertSame($before_category_key, $after_category_key);
-        $this->assertNotSame($before_summary_signature, $after_summary_signature);
+        $this->assertNotSame($before_a, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a));
+        $this->assertSame($before_b, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b));
+        $this->assertSame($before_other, ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category));
+
+        $before_speaker_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+        $before_speaker_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+        update_post_meta($audio_id, 'speaker_user_id', self::factory()->user->create(['role' => 'subscriber']));
+        $this->assertNotSame(
+            $before_speaker_a,
+            ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a)
+        );
+        $this->assertSame(
+            $before_speaker_b,
+            ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+        );
+    }
+
+    public function test_queue_display_meta_mutations_invalidate_only_the_affected_category(): void
+    {
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+        $word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => 1,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [(int) $category_a['id']],
+            ]],
+        ]);
+        $this->assertCount(1, $word_ids);
+        $word_id = (int) $word_ids[0];
+
+        $before_translation_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+        $before_translation_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+        update_post_meta($word_id, 'word_translation', 'Updated recorder queue translation');
+        $after_translation_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+        $this->assertNotSame($before_translation_a, $after_translation_a);
+        $this->assertSame(
+            $before_translation_b,
+            ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+        );
+
+        $before_prompt_a = $after_translation_a;
+        $before_prompt_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+        update_post_meta($word_id, '_ll_recording_prompt_hints', ['isolation' => 'Say this naturally.']);
+        $this->assertNotSame(
+            $before_prompt_a,
+            ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a)
+        );
+        $this->assertSame(
+            $before_prompt_b,
+            ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+        );
     }
 
     public function test_prompt_audio_meta_and_attachment_deletion_invalidate_summaries_without_evicting_the_catalog(): void
@@ -540,8 +721,10 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
         $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
-        $fixture = $this->createWordsetWithCategories(1);
+        $fixture = $this->createWordsetWithCategories(2);
         $wordset_id = (int) $fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
         $prompt_card_id = self::factory()->post->create([
             'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
             'post_status' => 'publish',
@@ -554,17 +737,24 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             'post_title' => 'Prompt audio invalidation attachment',
             'guid' => 'https://example.org/prompt-audio-invalidation.mp3',
         ]);
+        wp_set_post_terms($prompt_card_id, [(int) $category_a['id']], 'word-category', false);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
 
         try {
             update_option($option_name, 'prompt-meta-a', false);
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
             $before_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
-            $before_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $before_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $before_meta_sibling_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
             $this->assertTrue(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
 
             update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY, $attachment_id);
-            $after_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $after_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
             $this->assertNotSame($before_meta_signature, $after_meta_signature);
+            $this->assertSame(
+                $before_meta_sibling_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+            );
             $this->assertFalse(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
             $this->assertSame(
                 $before_category_key,
@@ -573,11 +763,16 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
 
             update_option($option_name, 'prompt-delete-a', false);
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
-            $before_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $before_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $before_delete_sibling_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
             $deleted = wp_delete_attachment($attachment_id, true);
             $this->assertInstanceOf(WP_Post::class, $deleted);
-            $after_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $after_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
             $this->assertNotSame($before_delete_signature, $after_delete_signature);
+            $this->assertSame(
+                $before_delete_sibling_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+            );
             $this->assertTrue(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
             $this->assertSame(
                 $before_category_key,
@@ -595,6 +790,71 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
             }
         }
+    }
+
+    public function test_matching_completed_summary_remains_fresh_beyond_the_old_five_minute_window(): void
+    {
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category = $fixture['categories'][0];
+        $recorder_id = self::factory()->user->create(['role' => 'subscriber']);
+        $source_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+            $recorder_id,
+            $wordset_id,
+            $category
+        );
+        $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
+            'schema' => 4,
+            'wordset_id' => $wordset_id,
+            'recorder_user_id' => $recorder_id,
+            'category_slug' => (string) $category['slug'],
+            'category_name' => (string) $category['name'],
+            'include_types' => '',
+            'exclude_types' => '',
+            'locale' => sanitize_key((string) get_locale()),
+        ]);
+        $cached_group = [
+            'name' => 'Retained summary sentinel',
+            'slug' => (string) $category['slug'],
+            'count' => 1,
+            'items' => [],
+            'preview_items' => [],
+            'is_summary' => true,
+        ];
+        $request_cache = [];
+        ll_tools_wordset_page_store_cached_payload($cache_key, [
+            'source_signature' => $source_signature,
+            'generated_at' => time() - (6 * HOUR_IN_SECONDS),
+            'group' => $cached_group,
+            'scan_state' => [],
+            'scan_complete' => true,
+        ], DAY_IN_SECONDS, $request_cache);
+
+        $legacy_freshness_ttl = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_summary_freshness_ttl', $legacy_freshness_ttl);
+        try {
+            $status = [];
+            $states = [];
+            $groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                1,
+                $status,
+                $states
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_summary_freshness_ttl', $legacy_freshness_ttl);
+        }
+
+        $this->assertSame([$cached_group], $groups);
+        $this->assertSame(1, (int) $status['fresh']);
+        $this->assertSame(0, (int) $status['refreshed']);
+        $this->assertTrue((bool) $states[(string) $category['slug']]['fresh']);
     }
 
     public function test_summary_batch_accounts_for_every_requested_source_and_keeps_selected_recorder_urls(): void
@@ -1010,6 +1270,317 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_overview_category_source_includes_prompt_only_uncategorized_queue(): void
+    {
+        if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $wordset = wp_insert_term('Prompt-only Recorder Catalog ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Prompt-only uncategorized recorder item',
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Record this uncategorized prompt.');
+
+        $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id);
+
+        $this->assertSame(['uncategorized'], array_column($categories, 'slug'));
+    }
+
+    public function test_missing_audio_only_uncategorized_source_invalidates_catalog_and_summary_epochs(): void
+    {
+        $option_backup = get_option('ll_missing_audio_instances', null);
+        $structure_option = 'll_tools_wordset_recorder_queue_structure_epoch';
+        $content_option = 'll_tools_wordset_recorder_queue_content_epoch';
+        $structure_backup = get_option($structure_option, null);
+        $content_backup = get_option($content_option, null);
+        $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
+        $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $wordset = wp_insert_term('Missing-only Recorder Catalog ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $uncategorized = [
+            'id' => ll_tools_wordset_page_uncategorized_virtual_category_id(),
+            'name' => 'Uncategorized',
+            'slug' => 'uncategorized',
+        ];
+
+        try {
+            delete_option('ll_missing_audio_instances');
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            update_option($structure_option, 'missing-source-structure-a', false);
+            update_option($content_option, 'missing-source-content-a', false);
+
+            $empty_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $empty_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
+            $this->assertSame([], ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id));
+
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            update_option('ll_missing_audio_instances', ['Catalog-only missing word' => 123], false);
+            $added_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $added_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
+            $this->assertNotSame($empty_catalog_key, $added_catalog_key);
+            $this->assertNotSame($empty_summary_signature, $added_summary_signature);
+            $this->assertSame(
+                ['uncategorized'],
+                array_column(ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id), 'slug')
+            );
+
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            update_option('ll_missing_audio_instances', ['Updated missing word' => 456], false);
+            $updated_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $updated_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
+            $this->assertNotSame($added_catalog_key, $updated_catalog_key);
+            $this->assertNotSame($added_summary_signature, $updated_summary_signature);
+
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            delete_option('ll_missing_audio_instances');
+            $this->assertNotSame(
+                $updated_catalog_key,
+                ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id)
+            );
+            $this->assertNotSame(
+                $updated_summary_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized)
+            );
+            $this->assertSame([], ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id));
+        } finally {
+            if ($option_backup === null) {
+                delete_option('ll_missing_audio_instances');
+            } else {
+                update_option('ll_missing_audio_instances', $option_backup, false);
+            }
+            if ($structure_backup === null) {
+                delete_option($structure_option);
+            } else {
+                update_option($structure_option, $structure_backup, false);
+            }
+            if ($content_backup === null) {
+                delete_option($content_option);
+            } else {
+                update_option($content_option, $content_backup, false);
+            }
+            if ($had_state) {
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = $state_backup;
+            } else {
+                unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
+            }
+        }
+    }
+
+    public function test_focused_category_queue_paginates_prompt_only_continuation_and_has_next(): void
+    {
+        if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $wordset = wp_insert_term('Focused Prompt Queue ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Focused Prompt Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        $category_term = get_term($category_id, 'word-category');
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $prompt_card_ids = [];
+        foreach (['Alpha', 'Bravo', 'Charlie'] as $title) {
+            $prompt_card_id = self::factory()->post->create([
+                'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title' => 'Focused Prompt ' . $title,
+            ]);
+            wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($prompt_card_id, [$category_id], 'word-category', false);
+            update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Record focused prompt ' . $title . '.');
+            $prompt_card_ids[] = (int) $prompt_card_id;
+        }
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', ['wordset' => (string) $wordset_term->slug]);
+        $recorder = get_userdata($recorder_id);
+        $this->assertInstanceOf(WP_User::class, $recorder);
+
+        $first_rows = ll_tools_wordset_page_get_recorder_queue_rows($wordset_id, $wordset_term, [$recorder], [
+            'focused_user_id' => $recorder_id,
+            'focused_category_slug' => (string) $category_term->slug,
+            'page' => 1,
+            'per_page' => 2,
+        ]);
+        $second_rows = ll_tools_wordset_page_get_recorder_queue_rows($wordset_id, $wordset_term, [$recorder], [
+            'focused_user_id' => $recorder_id,
+            'focused_category_slug' => (string) $category_term->slug,
+            'page' => 2,
+            'per_page' => 2,
+        ]);
+
+        $this->assertCount(1, $first_rows);
+        $this->assertSame(array_slice($prompt_card_ids, 0, 2), array_map(static function (array $item): int {
+            return (int) ($item['prompt_card_id'] ?? 0);
+        }, (array) $first_rows[0]['visible_items']));
+        $this->assertTrue((bool) $first_rows[0]['pagination']['has_next']);
+        $this->assertCount(1, $second_rows);
+        $this->assertSame(array_slice($prompt_card_ids, 2), array_map(static function (array $item): int {
+            return (int) ($item['prompt_card_id'] ?? 0);
+        }, (array) $second_rows[0]['visible_items']));
+        $this->assertFalse((bool) $second_rows[0]['pagination']['has_next']);
+    }
+
+    public function test_focused_category_pager_carries_only_the_signed_continuation_token_forward(): void
+    {
+        $html = ll_tools_wordset_page_render_recorder_queue_category_pagination(
+            [
+                'page' => 1,
+                'has_prev' => false,
+                'has_next' => true,
+                'next_page' => 1,
+                'cursor_token' => 'signed_payload.signed_mac',
+                'is_continuation' => true,
+            ],
+            [
+                'action_url' => 'https://example.test/wordset/?ll_wordset_tool=recorder-queues&ll_recorder_queue_cursor=stale.token',
+                'recorder_user_id' => 77,
+            ],
+            [
+                'slug' => 'cursor-category',
+            ]
+        );
+
+        $this->assertStringContainsString('Load more', $html);
+        $this->assertStringContainsString('ll_recorder_queue_cursor=signed_payload.signed_mac', $html);
+        $this->assertStringNotContainsString('stale.token', $html);
+        $this->assertStringNotContainsString('ll_recorder_queue_page=2', $html);
+
+        $group_html = ll_tools_wordset_page_render_recorder_queue_category_group(
+            [
+                'name' => 'Cursor category',
+                'slug' => 'cursor-category',
+                'items' => [],
+            ],
+            [
+                'action_url' => 'https://example.test/wordset/?ll_wordset_tool=recorder-queues',
+                'recorder_user_id' => 77,
+                'pagination' => [
+                    'page' => 1,
+                    'has_prev' => false,
+                    'has_next' => true,
+                    'next_page' => 1,
+                    'cursor_token' => 'signed_payload.signed_mac',
+                    'is_continuation' => true,
+                ],
+            ]
+        );
+        $this->assertStringContainsString('Cursor category', $group_html);
+        $this->assertStringContainsString('Loading...', $group_html);
+        $this->assertStringContainsString('Load more', $group_html);
+    }
+
+    public function test_summary_keeps_a_truncated_prompt_scan_pending_and_resumes_its_cursor(): void
+    {
+        if (
+            !defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+            || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')
+            || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY')
+        ) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $wordset = wp_insert_term('Resumable Prompt Summary ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Resumable Prompt Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $category_source = [
+            'id' => $category_id,
+            'name' => (string) $category_term->name,
+            'slug' => (string) $category_term->slug,
+        ];
+
+        for ($index = 1; $index <= 25; $index++) {
+            $prompt_card_id = self::factory()->post->create([
+                'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+                'post_status' => 'publish',
+                'post_title' => sprintf('AAA Recorded Prompt %02d', $index),
+            ]);
+            wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($prompt_card_id, [$category_id], 'word-category', false);
+            update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, 'https://example.org/already-recorded.mp3');
+        }
+        $eligible_prompt_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'ZZZ Resumed Eligible Prompt',
+        ]);
+        wp_set_post_terms($eligible_prompt_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($eligible_prompt_id, [$category_id], 'word-category', false);
+        update_post_meta($eligible_prompt_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Record after the cursor resumes.');
+
+        $recorder_id = self::factory()->user->create(['role' => 'administrator']);
+        $batch_size = static function (): int {
+            return 20;
+        };
+        $hard_cap = static function (): int {
+            return 20;
+        };
+        add_filter('ll_tools_recorder_prompt_scan_batch_size', $batch_size);
+        add_filter('ll_tools_recorder_prompt_scan_hard_cap', $hard_cap);
+
+        try {
+            $first_status = [];
+            $first_states = [];
+            $first_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category_source],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                1,
+                $first_status,
+                $first_states
+            );
+            $this->assertSame([], $first_groups);
+            $this->assertSame(1, (int) $first_status['pending']);
+            $this->assertFalse((bool) $first_states[$category_source['slug']]['complete']);
+
+            $second_status = [];
+            $second_states = [];
+            $second_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category_source],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                1,
+                $second_status,
+                $second_states
+            );
+            $this->assertSame(0, (int) $second_status['pending']);
+            $this->assertTrue((bool) $second_states[$category_source['slug']]['complete']);
+            $this->assertCount(1, $second_groups);
+            $this->assertSame($eligible_prompt_id, (int) ($second_groups[0]['items'][0]['prompt_card_id'] ?? 0));
+        } finally {
+            remove_filter('ll_tools_recorder_prompt_scan_batch_size', $batch_size);
+            remove_filter('ll_tools_recorder_prompt_scan_hard_cap', $hard_cap);
+        }
+    }
+
     public function test_overview_category_source_preserves_content_categories_order_and_uncategorized_without_empty_shells(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -1214,6 +1785,219 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame([], $legacy_whole_map_queries);
         $this->assertSame([], $page['image_ids']);
         $this->assertSame([], $page['ids']);
+    }
+
+    public function test_summary_skips_broken_image_candidates_and_fills_from_later_renderable_images(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $wordset = wp_insert_term('Broken Image Summary ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Broken Image Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $category_source = [
+            'id' => $category_id,
+            'name' => (string) $category_term->name,
+            'slug' => (string) $category_term->slug,
+        ];
+
+        for ($index = 1; $index <= 3; $index++) {
+            $broken_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => sprintf('AAA Broken Queue Image %02d', $index),
+            ]);
+            update_post_meta($broken_image_id, '_thumbnail_id', 900000 + $index);
+            wp_set_post_terms($broken_image_id, [$category_id], 'word-category', false);
+            ll_tools_set_word_image_wordset_owner($broken_image_id, $wordset_id, $broken_image_id);
+        }
+
+        $renderable_image_ids = [];
+        $renderable_attachment_lookup = [];
+        foreach (['Alpha', 'Bravo'] as $label) {
+            $attachment_id = self::factory()->post->create([
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'post_title' => 'Renderable Queue Attachment ' . $label,
+                'post_mime_type' => 'image/png',
+            ]);
+            $image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'ZZZ Renderable Queue Image ' . $label,
+            ]);
+            update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+            wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+            ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+            $renderable_image_ids[] = (int) $image_id;
+            $renderable_attachment_lookup[(int) $attachment_id] = true;
+        }
+
+        $image_src_filter = static function ($image, $attachment_id) use ($renderable_attachment_lookup) {
+            $attachment_id = (int) $attachment_id;
+            if (isset($renderable_attachment_lookup[$attachment_id])) {
+                return ['https://example.org/recorder-queue-image-' . $attachment_id . '.png', 320, 240, true];
+            }
+            return $image;
+        };
+        add_filter('wp_get_attachment_image_src', $image_src_filter, 10, 2);
+        try {
+            $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                $category_source,
+                $wordset_id,
+                get_current_user_id()
+            );
+        } finally {
+            remove_filter('wp_get_attachment_image_src', $image_src_filter, 10);
+        }
+
+        $this->assertTrue((bool) $summary['complete']);
+        $this->assertIsArray($summary['group']);
+        $this->assertSame($renderable_image_ids, array_map(static function (array $item): int {
+            return (int) ($item['id'] ?? 0);
+        }, (array) $summary['group']['items']));
+        $this->assertSame($renderable_image_ids, array_map(static function (array $candidate): int {
+            return (int) ($candidate['id'] ?? 0);
+        }, (array) $summary['scan_state']['candidates']));
+    }
+
+    public function test_focused_candidate_page_resumes_bounded_word_and_image_scans_without_losing_partial_state(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $recorder_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($recorder_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $wordset = wp_insert_term('Resumable Focused Candidates ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Resumable Focused Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $category_slug = (string) get_term_field('slug', $category_id, 'word-category');
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        $hidden = [];
+        for ($index = 1; $index <= 85; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('AAA Hidden Focused Word %03d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $key = 'word:' . $word_id;
+            $hidden[$key] = [
+                'key' => $key,
+                'word_id' => $word_id,
+                'title' => (string) get_the_title($word_id),
+                'category_name' => (string) get_term_field('name', $category_id, 'word-category'),
+                'category_slug' => $category_slug,
+                'hidden_at' => gmdate('c'),
+            ];
+        }
+        $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, $hidden));
+
+        $renderable_image_ids = [];
+        $renderable_attachment_lookup = [];
+        foreach (['Alpha', 'Bravo', 'Charlie'] as $label) {
+            $attachment_id = self::factory()->post->create([
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'post_title' => 'Focused Cursor Attachment ' . $label,
+                'post_mime_type' => 'image/png',
+            ]);
+            $image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'ZZZ Focused Cursor Image ' . $label,
+            ]);
+            update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+            wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+            ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+            $renderable_image_ids[] = (int) $image_id;
+            $renderable_attachment_lookup[(int) $attachment_id] = true;
+        }
+
+        $chunk_size = static function (): int {
+            return 40;
+        };
+        $query_budget = static function (): int {
+            return 1;
+        };
+        $candidate_queries = 0;
+        $query_watcher = static function (WP_Query $query) use (&$candidate_queries): void {
+            if (
+                in_array($query->get('post_type'), ['words', 'word_images'], true)
+                && $query->get('fields') === 'ids'
+                && (int) $query->get('posts_per_page') === 40
+                && (bool) $query->get('no_found_rows')
+            ) {
+                $candidate_queries++;
+            }
+        };
+        $image_src_filter = static function ($image, $attachment_id) use ($renderable_attachment_lookup) {
+            $attachment_id = (int) $attachment_id;
+            if (isset($renderable_attachment_lookup[$attachment_id])) {
+                return ['https://example.org/focused-cursor-' . $attachment_id . '.png', 320, 240, true];
+            }
+            return $image;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+        add_filter('ll_tools_wordset_recorder_queue_candidate_scan_query_budget', $query_budget);
+        add_filter('wp_get_attachment_image_src', $image_src_filter, 10, 2);
+        add_action('pre_get_posts', $query_watcher);
+
+        try {
+            $cursor = [];
+            $pages = [];
+            for ($attempt = 0; $attempt < 4; $attempt++) {
+                $candidate_queries = 0;
+                $candidate_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                    $wordset_id,
+                    $category_slug,
+                    1,
+                    2,
+                    '',
+                    '',
+                    $recorder_id,
+                    $cursor
+                );
+                $this->assertSame(1, $candidate_queries, 'Each resume invocation must consume only its one-query scan budget.');
+                $pages[] = $candidate_page;
+                $cursor = (array) $candidate_page['cursor'];
+            }
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+            remove_filter('wp_get_attachment_image_src', $image_src_filter, 10);
+            remove_filter('ll_tools_wordset_recorder_queue_candidate_scan_query_budget', $query_budget);
+            remove_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+        }
+
+        $this->assertTrue((bool) $pages[0]['truncated']);
+        $this->assertTrue((bool) $pages[1]['truncated']);
+        $this->assertTrue((bool) $pages[2]['truncated']);
+        $this->assertSame(40, (int) $pages[0]['cursor']['word_offset']);
+        $this->assertSame(80, (int) $pages[1]['cursor']['word_offset']);
+        $this->assertSame(85, (int) $pages[2]['cursor']['word_offset']);
+        $this->assertSame('images', (string) $pages[2]['cursor']['phase']);
+        $this->assertFalse((bool) $pages[3]['truncated']);
+        $this->assertTrue((bool) $pages[3]['complete']);
+        $this->assertTrue((bool) $pages[3]['has_more']);
+        $this->assertSame([], $pages[3]['word_ids']);
+        $this->assertSame(array_slice($renderable_image_ids, 0, 2), $pages[3]['image_ids']);
+        $this->assertSame($renderable_image_ids, array_map(static function (array $match): int {
+            return (int) ($match['id'] ?? 0);
+        }, (array) $pages[3]['cursor']['page_matches']));
     }
 
     public function test_overview_resumes_a_mostly_hidden_category_without_scanning_it_all_at_once(): void

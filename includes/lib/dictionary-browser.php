@@ -40,6 +40,9 @@ if (!defined('LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION')) {
 if (!defined('LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP')) {
     define('LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP', 'll_tools');
 }
+if (!defined('LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA')) {
+    define('LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA', 1);
+}
 if (!defined('LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION', 'll_tools_dictionary_sense_pos_meta_version');
 }
@@ -99,6 +102,19 @@ function ll_tools_dictionary_browser_build_cache_key(string $namespace, array $a
 }
 
 /**
+ * Build one request-scope key using the same versioned arguments as persistence.
+ *
+ * @param string              $namespace Cache namespace.
+ * @param array<string,mixed> $args      Key arguments.
+ */
+function ll_tools_dictionary_browser_build_request_cache_key(string $namespace, array $args = []): string {
+    return $namespace . ':' . md5((string) wp_json_encode([
+        'version' => ll_tools_get_dictionary_browser_cache_version(),
+        'args' => $args,
+    ]));
+}
+
+/**
  * Read one dictionary browser payload from request/object/transient cache.
  *
  * @param string              $namespace     Cache namespace.
@@ -107,10 +123,7 @@ function ll_tools_dictionary_browser_build_cache_key(string $namespace, array $a
  * @return mixed|null
  */
 function ll_tools_dictionary_browser_get_cached_payload(string $namespace, array $args, array &$request_cache) {
-    $request_key = $namespace . ':' . md5((string) wp_json_encode([
-        'version' => ll_tools_get_dictionary_browser_cache_version(),
-        'args' => $args,
-    ]));
+    $request_key = ll_tools_dictionary_browser_build_request_cache_key($namespace, $args);
     if (array_key_exists($request_key, $request_cache)) {
         return $request_cache[$request_key];
     }
@@ -140,10 +153,7 @@ function ll_tools_dictionary_browser_get_cached_payload(string $namespace, array
  * @return mixed
  */
 function ll_tools_dictionary_browser_store_cached_payload(string $namespace, array $args, $payload, int $ttl_seconds, array &$request_cache) {
-    $request_key = $namespace . ':' . md5((string) wp_json_encode([
-        'version' => ll_tools_get_dictionary_browser_cache_version(),
-        'args' => $args,
-    ]));
+    $request_key = ll_tools_dictionary_browser_build_request_cache_key($namespace, $args);
     $persistent_key = ll_tools_dictionary_browser_build_cache_key($namespace, $args);
 
     $request_cache[$request_key] = $payload;
@@ -151,6 +161,87 @@ function ll_tools_dictionary_browser_store_cached_payload(string $namespace, arr
     set_transient($persistent_key, $payload, $ttl_seconds);
 
     return $payload;
+}
+
+/**
+ * Prime several dictionary browser payloads without one cache/database lookup per key.
+ *
+ * Query-result caches intentionally hydrate their bounded page of entry IDs through
+ * the canonical per-entry cache. Batch-reading those entry caches keeps that compact
+ * representation from introducing an N+1 query pattern on database-transient sites.
+ *
+ * @param string                         $namespace     Cache namespace.
+ * @param array<int,array<string,mixed>> $args_list     Cache-key arguments.
+ * @param array<string,mixed>            $request_cache Request-scope cache bucket.
+ */
+function ll_tools_dictionary_browser_prime_cached_payloads(string $namespace, array $args_list, array &$request_cache): void {
+    $pending = [];
+
+    foreach ($args_list as $args) {
+        if (!is_array($args)) {
+            continue;
+        }
+
+        $request_key = ll_tools_dictionary_browser_build_request_cache_key($namespace, $args);
+        if (array_key_exists($request_key, $request_cache)) {
+            continue;
+        }
+
+        $persistent_key = ll_tools_dictionary_browser_build_cache_key($namespace, $args);
+        $pending[$persistent_key] = $request_key;
+    }
+
+    if (empty($pending)) {
+        return;
+    }
+
+    $persistent_keys = array_keys($pending);
+    $object_cached = function_exists('wp_cache_get_multiple')
+        ? wp_cache_get_multiple($persistent_keys, LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP)
+        : [];
+
+    foreach ($persistent_keys as $persistent_key) {
+        $cached = $object_cached[$persistent_key] ?? false;
+        if (false === $cached) {
+            continue;
+        }
+
+        $request_cache[$pending[$persistent_key]] = $cached;
+        unset($pending[$persistent_key]);
+    }
+
+    if (empty($pending)) {
+        return;
+    }
+
+    $persistent_keys = array_keys($pending);
+    if (wp_using_ext_object_cache() && function_exists('wp_cache_get_multiple')) {
+        $transient_cached = wp_cache_get_multiple($persistent_keys, 'transient');
+        foreach ($persistent_keys as $persistent_key) {
+            $cached = $transient_cached[$persistent_key] ?? false;
+            if (false === $cached) {
+                continue;
+            }
+
+            $request_cache[$pending[$persistent_key]] = $cached;
+            unset($pending[$persistent_key]);
+        }
+        return;
+    } elseif (function_exists('wp_prime_option_caches')) {
+        $option_names = [];
+        foreach ($persistent_keys as $persistent_key) {
+            $option_names[] = '_transient_' . $persistent_key;
+            $option_names[] = '_transient_timeout_' . $persistent_key;
+        }
+        wp_prime_option_caches($option_names);
+    }
+
+    foreach ($pending as $persistent_key => $request_key) {
+        $cached = get_transient($persistent_key);
+        if (false !== $cached) {
+            $request_cache[$request_key] = $cached;
+        }
+    }
 }
 
 /**
@@ -4006,19 +4097,24 @@ function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit 
 }
 
 /**
- * Build a structured display payload for one dictionary entry.
+ * Return the shared request-scope cache for canonical dictionary entry payloads.
  *
- * @param int|null $linked_word_count_override Optional count from a page-level aggregate query.
  * @return array<string,mixed>
  */
-function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = [], ?int $linked_word_count_override = null): array {
+function &ll_tools_dictionary_entry_data_request_cache(): array {
     static $request_cache = [];
 
-    $entry_id = (int) $entry_id;
-    if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
-        return [];
-    }
+    return $request_cache;
+}
 
+/**
+ * Normalize the arguments that identify one canonical dictionary entry payload.
+ *
+ * @param string[] $preferred_languages
+ * @param mixed    $source_filter
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_entry_data_cache_args(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = []): array {
     $normalized_preferred_languages = [];
     foreach ($preferred_languages as $language) {
         $language_key = ll_tools_dictionary_normalize_language_key((string) $language);
@@ -4031,14 +4127,98 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         ? ll_tools_dictionary_get_single_source_display_filter($source_filter)
         : [];
 
-    $cache_args = [
-        'entry_id' => $entry_id,
+    return [
+        'entry_id' => max(0, (int) $entry_id),
         'sense_limit' => max(1, $sense_limit),
         'linked_word_limit' => max(0, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
         'display_source_filter_ids' => $display_source_filter_ids,
         'locale' => ll_tools_dictionary_get_ui_locale_cache_key(),
     ];
+}
+
+/**
+ * Prime dictionary entry post objects for a bounded result page.
+ *
+ * @param int[] $entry_ids
+ */
+function ll_tools_dictionary_prime_entry_posts(array $entry_ids): void {
+    $entry_ids = array_values(array_unique(array_filter(array_map('intval', $entry_ids), static function (int $entry_id): bool {
+        return $entry_id > 0;
+    })));
+    if (empty($entry_ids)) {
+        return;
+    }
+
+    if (function_exists('_prime_post_caches')) {
+        _prime_post_caches($entry_ids, false, false);
+        return;
+    }
+
+    get_posts([
+        'post_type' => 'll_dictionary_entry',
+        'post_status' => 'any',
+        'posts_per_page' => count($entry_ids),
+        'post__in' => $entry_ids,
+        'orderby' => 'post__in',
+        'suppress_filters' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+    ]);
+}
+
+/**
+ * Prime post, taxonomy, and metadata dependencies for a bounded entry page.
+ *
+ * @param int[] $entry_ids
+ */
+function ll_tools_dictionary_prime_entry_data_dependencies(array $entry_ids): void {
+    $entry_ids = array_values(array_unique(array_filter(array_map('intval', $entry_ids), static function (int $entry_id): bool {
+        return $entry_id > 0;
+    })));
+    if (empty($entry_ids)) {
+        return;
+    }
+
+    if (function_exists('_prime_post_caches')) {
+        _prime_post_caches($entry_ids, true, true);
+        return;
+    }
+
+    get_posts([
+        'post_type' => 'll_dictionary_entry',
+        'post_status' => 'any',
+        'posts_per_page' => count($entry_ids),
+        'post__in' => $entry_ids,
+        'orderby' => 'post__in',
+        'suppress_filters' => true,
+    ]);
+    update_postmeta_cache($entry_ids);
+}
+
+/**
+ * Build a structured display payload for one dictionary entry.
+ *
+ * @param int|null $linked_word_count_override Optional count from a page-level aggregate query.
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = [], $source_filter = [], ?int $linked_word_count_override = null): array {
+    $request_cache =& ll_tools_dictionary_entry_data_request_cache();
+
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
+        return [];
+    }
+
+    $cache_args = ll_tools_dictionary_entry_data_cache_args(
+        $entry_id,
+        $sense_limit,
+        $linked_word_limit,
+        $preferred_languages,
+        $source_filter
+    );
+    $normalized_preferred_languages = (array) $cache_args['preferred_languages'];
+    $display_source_filter_ids = (array) $cache_args['display_source_filter_ids'];
     $cached = ll_tools_dictionary_browser_get_cached_payload('entry_data', $cache_args, $request_cache);
     if (is_array($cached)) {
         return $cached;
@@ -4756,6 +4936,150 @@ function ll_tools_dictionary_query_entry_ids_from_search_meta(
 }
 
 /**
+ * Convert one fully hydrated query result to its compact persistent shape.
+ *
+ * @param array<string,mixed> $result
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_query_entries_compact_cache_payload(array $result): array {
+    $entry_ids = [];
+    foreach ((array) ($result['items'] ?? []) as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $entry_id = (int) ($item['id'] ?? 0);
+        if ($entry_id > 0) {
+            $entry_ids[] = $entry_id;
+        }
+    }
+
+    $metadata = $result;
+    unset($metadata['items']);
+
+    return [
+        '_ll_tools_dictionary_query_cache_schema' => LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA,
+        'entry_ids' => $entry_ids,
+        'metadata' => $metadata,
+    ];
+}
+
+/**
+ * Hydrate a compact query cache through the canonical per-entry cache.
+ *
+ * Full legacy payloads are returned unchanged so caches created by an earlier
+ * plugin version remain usable until their normal expiry or version bump.
+ * Unknown or malformed compact schemas return null and are rebuilt by the caller.
+ *
+ * @param array<string,mixed> $cached
+ * @param string[]            $preferred_languages
+ * @param string[]            $source_ids
+ * @return array<string,mixed>|null
+ */
+function ll_tools_dictionary_query_entries_hydrate_cached_payload(
+    array $cached,
+    int $sense_limit,
+    int $linked_word_limit,
+    array $preferred_languages,
+    array $source_ids
+): ?array {
+    if (!array_key_exists('_ll_tools_dictionary_query_cache_schema', $cached)) {
+        return $cached;
+    }
+
+    if (
+        (int) $cached['_ll_tools_dictionary_query_cache_schema'] !== LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA
+        || !isset($cached['entry_ids'])
+        || !is_array($cached['entry_ids'])
+        || !isset($cached['metadata'])
+        || !is_array($cached['metadata'])
+    ) {
+        return null;
+    }
+
+    $entry_ids = [];
+    foreach ($cached['entry_ids'] as $entry_id) {
+        if (!is_numeric($entry_id) || (int) $entry_id <= 0) {
+            return null;
+        }
+        $entry_ids[] = (int) $entry_id;
+    }
+
+    $entry_request_cache =& ll_tools_dictionary_entry_data_request_cache();
+    $entry_cache_args = [];
+    foreach ($entry_ids as $entry_id) {
+        $entry_cache_args[] = ll_tools_dictionary_entry_data_cache_args(
+            $entry_id,
+            $sense_limit,
+            $linked_word_limit,
+            $preferred_languages,
+            $source_ids
+        );
+    }
+    ll_tools_dictionary_browser_prime_cached_payloads('entry_data', $entry_cache_args, $entry_request_cache);
+    ll_tools_dictionary_prime_entry_posts($entry_ids);
+
+    $missing_entry_ids = [];
+    foreach ($entry_cache_args as $index => $entry_args) {
+        $request_key = ll_tools_dictionary_browser_build_request_cache_key('entry_data', $entry_args);
+        if (!array_key_exists($request_key, $entry_request_cache) || !is_array($entry_request_cache[$request_key])) {
+            $missing_entry_ids[] = $entry_ids[$index];
+        }
+    }
+
+    ll_tools_dictionary_prime_entry_data_dependencies($missing_entry_ids);
+    $linked_word_counts = !empty($missing_entry_ids) && function_exists('ll_tools_count_dictionary_entry_words_batch')
+        ? ll_tools_count_dictionary_entry_words_batch($missing_entry_ids)
+        : [];
+
+    $items = [];
+    foreach ($entry_ids as $entry_id) {
+        $linked_word_count = array_key_exists($entry_id, $linked_word_counts)
+            ? (int) $linked_word_counts[$entry_id]
+            : null;
+        $item = ll_tools_dictionary_get_entry_data(
+            $entry_id,
+            $sense_limit,
+            $linked_word_limit,
+            $preferred_languages,
+            $source_ids,
+            $linked_word_count
+        );
+        if (!empty($item)) {
+            $items[] = $item;
+        }
+    }
+
+    $result = ['items' => $items];
+    foreach ($cached['metadata'] as $key => $value) {
+        if ($key !== 'items') {
+            $result[$key] = $value;
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Store a query result compactly while returning its fully hydrated response.
+ *
+ * @param array<string,mixed> $cache_args
+ * @param array<string,mixed> $result
+ * @param array<string,mixed> $request_cache
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_query_entries_store_cached_result(array $cache_args, array $result, array &$request_cache): array {
+    ll_tools_dictionary_browser_store_cached_payload(
+        'query_entries',
+        $cache_args,
+        ll_tools_dictionary_query_entries_compact_cache_payload($result),
+        10 * MINUTE_IN_SECONDS,
+        $request_cache
+    );
+
+    return $result;
+}
+
+/**
  * Query dictionary entries with ranked search and pagination.
  *
  * @param array<string,mixed> $args Query arguments.
@@ -4836,7 +5160,16 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {
-        return $cached;
+        $hydrated_cached = ll_tools_dictionary_query_entries_hydrate_cached_payload(
+            $cached,
+            $sense_limit,
+            $linked_word_limit,
+            $preferred_languages,
+            $source_ids
+        );
+        if (is_array($hydrated_cached)) {
+            return $hydrated_cached;
+        }
     }
 
     $candidate_ids = [];
@@ -4979,8 +5312,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $total = count($filtered_ids);
     $total_pages = max(1, (int) ceil($total / $per_page));
     if ($total === 0) {
-        return ll_tools_dictionary_browser_store_cached_payload(
-            'query_entries',
+        return ll_tools_dictionary_query_entries_store_cached_result(
             $cache_args,
             [
             'items' => [],
@@ -5001,7 +5333,6 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             'candidate_scan_limit' => $candidate_scan_limit,
             'result_depth_limit' => $result_depth_limit,
             ],
-            10 * MINUTE_IN_SECONDS,
             $request_cache
         );
     }
@@ -5013,7 +5344,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $ids = array_slice($filtered_ids, $offset, $per_page);
 
     if (!empty($ids)) {
-        update_postmeta_cache($ids);
+        ll_tools_dictionary_prime_entry_data_dependencies($ids);
     }
 
     $linked_word_counts = function_exists('ll_tools_count_dictionary_entry_words_batch')
@@ -5038,8 +5369,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         }
     }
 
-    return ll_tools_dictionary_browser_store_cached_payload(
-        'query_entries',
+    return ll_tools_dictionary_query_entries_store_cached_result(
         $cache_args,
         [
         'items' => $items,
@@ -5060,7 +5390,6 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'candidate_scan_limit' => $candidate_scan_limit,
         'result_depth_limit' => $result_depth_limit,
         ],
-        10 * MINUTE_IN_SECONDS,
         $request_cache
     );
 }

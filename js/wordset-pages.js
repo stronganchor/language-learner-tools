@@ -586,7 +586,7 @@
         && String(recorderQueueSummariesCfg.nonce || '') !== ''
         && (parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0) > 0
         && (parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0) > 0;
-    const recorderQueueSummaryBatchSize = Math.max(1, Math.min(20, parseInt(recorderQueueSummariesCfg.batchSize, 10) || 6));
+    const recorderQueueSummaryBatchSize = Math.max(1, Math.min(20, parseInt(recorderQueueSummariesCfg.batchSize, 10) || 20));
     const recorderQueueSummaryMaxAutoRetries = Math.max(1, Math.min(12, parseInt(recorderQueueSummariesCfg.maxAutoRetries, 10) || 6));
     let recorderQueueSummaryRequest = null;
     let recorderQueueSummaryObserver = null;

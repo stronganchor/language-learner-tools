@@ -1890,14 +1890,86 @@ function ll_tools_vocab_lesson_depth_by_term_taxonomy_id(array $depth_rows): arr
 }
 
 /**
+ * Return the published word candidates for one wordset and, when supplied,
+ * one bounded category batch.
+ *
+ * @param int[] $category_ids
  * @return int[]
  */
-function ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids(): array {
+function ll_tools_vocab_lesson_get_wrong_answer_candidate_word_ids(int $wordset_id, array $category_ids = []): array {
+    $wrong_answer_candidate_ids = function_exists('ll_tools_get_specific_wrong_answer_owner_candidate_word_ids')
+        ? ll_tools_get_specific_wrong_answer_owner_candidate_word_ids()
+        : [];
+    if ($wrong_answer_candidate_ids === []) {
+        return [];
+    }
+
+    $wordset_tt_id = ll_tools_vocab_lesson_get_wordset_term_taxonomy_id($wordset_id);
+    if ($wordset_tt_id <= 0) {
+        return [];
+    }
+
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+
+    global $wpdb;
+
+    $category_joins = '';
+    $category_where = '';
+    $params = [$wordset_tt_id];
+    if ($category_ids !== []) {
+        $category_joins = "
+            INNER JOIN {$wpdb->term_relationships} AS wrong_answer_category_relationships
+                ON wrong_answer_category_relationships.object_id = posts.ID
+            INNER JOIN {$wpdb->term_taxonomy} AS wrong_answer_category_taxonomy
+                ON wrong_answer_category_taxonomy.term_taxonomy_id = wrong_answer_category_relationships.term_taxonomy_id
+                AND wrong_answer_category_taxonomy.taxonomy = %s
+        ";
+        $category_where = 'AND wrong_answer_category_taxonomy.term_id IN (' . implode(',', array_fill(0, count($category_ids), '%d')) . ')';
+        $params[] = 'word-category';
+    }
+    $wrong_answer_placeholders = implode(',', array_fill(0, count($wrong_answer_candidate_ids), '%d'));
+    $params[] = 'words';
+    $params[] = 'publish';
+    $params = array_merge($params, $wrong_answer_candidate_ids);
+    $params = array_merge($params, $category_ids);
+
+    $candidate_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT posts.ID
+         FROM {$wpdb->posts} AS posts
+         INNER JOIN {$wpdb->term_relationships} AS wrong_answer_wordset_relationships
+            ON wrong_answer_wordset_relationships.object_id = posts.ID
+           AND wrong_answer_wordset_relationships.term_taxonomy_id = %d
+         {$category_joins}
+         WHERE posts.post_type = %s
+           AND posts.post_status = %s
+           AND posts.ID IN ({$wrong_answer_placeholders})
+           {$category_where}
+         ORDER BY posts.ID ASC",
+        $params
+    ));
+
+    return array_values(array_filter(array_map('intval', (array) $candidate_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+}
+
+/**
+ * @param int[] $category_ids
+ * @return int[]
+ */
+function ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids(int $wordset_id, array $category_ids = []): array {
     if (!function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')) {
         return [];
     }
 
-    $lookup = ll_tools_get_specific_wrong_answer_only_word_lookup();
+    $candidate_word_ids = ll_tools_vocab_lesson_get_wrong_answer_candidate_word_ids($wordset_id, $category_ids);
+    if ($candidate_word_ids === []) {
+        return [];
+    }
+
+    $lookup = ll_tools_get_specific_wrong_answer_only_word_lookup($candidate_word_ids);
     if (empty($lookup) || !is_array($lookup)) {
         return [];
     }
@@ -2232,7 +2304,7 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     }
 
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
-    $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids();
+    $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids($wordset_id);
 
     $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, false, $excluded_word_ids);
     $word_image_counts = ll_tools_vocab_lesson_count_word_deepest_categories($wordset_id, $wordset_tt_id, $depth_by_term_taxonomy_id, true, $excluded_word_ids);
@@ -2976,7 +3048,7 @@ function ll_tools_get_vocab_lesson_reconciliation_counts(int $wordset_id, array 
         return ['all' => [], 'with_images' => []];
     }
 
-    $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids();
+    $excluded_word_ids = ll_tools_vocab_lesson_get_specific_wrong_answer_only_word_ids($wordset_id, $category_ids);
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
     $word_all_counts = ll_tools_vocab_lesson_count_word_deepest_categories(
         $wordset_id,

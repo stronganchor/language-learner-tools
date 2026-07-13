@@ -39,8 +39,57 @@ load_env_file_literal() {
     done < "$file"
 }
 
+perf_config_lock_requested="${LL_E2E_PERF_CONFIG_LOCKED:-0}"
+required_locked_perf_vars=(
+    LL_E2E_PERF_FIXTURE_MANIFEST
+    LL_E2E_PERF_HISTORY_FILE
+    LL_E2E_PERF_REPORT_FILE
+    LL_E2E_PERF_MANIFEST_SHA256
+)
+locked_perf_vars=()
+locked_perf_values=()
+if [[ "$perf_config_lock_requested" == "1" ]]; then
+    while IFS= read -r env_var; do
+        [[ "$env_var" == LL_E2E_PERF_* ]] || continue
+        [[ "$env_var" == "LL_E2E_PERF_CONFIG_LOCKED" ]] && continue
+        locked_perf_vars+=("$env_var")
+        locked_perf_values+=("${!env_var}")
+    done < <(compgen -e)
+
+    for env_var in "${required_locked_perf_vars[@]}"; do
+        found_locked_perf_var=0
+        for locked_index in "${!locked_perf_vars[@]}"; do
+            if [[ "${locked_perf_vars[$locked_index]}" == "$env_var" && -n "${locked_perf_values[$locked_index]}" ]]; then
+                found_locked_perf_var=1
+                break
+            fi
+        done
+        if [[ "$found_locked_perf_var" != "1" ]]; then
+            echo "Locked performance configuration is missing ${env_var}." >&2
+            exit 1
+        fi
+    done
+fi
+
 load_env_file_literal "$TESTS_DIR/.env"
 load_env_file_literal "$TESTS_DIR/.env.local"
+
+if [[ "$perf_config_lock_requested" == "1" ]]; then
+    export LL_E2E_PERF_CONFIG_LOCKED=1
+    for locked_index in "${!locked_perf_vars[@]}"; do
+        env_var="${locked_perf_vars[$locked_index]}"
+        export "$env_var=${locked_perf_values[$locked_index]}"
+    done
+else
+    unset LL_E2E_PERF_CONFIG_LOCKED
+fi
+
+if [[ "${LL_E2E_PERF_CONFIG_CONTRACT_ONLY:-0}" == "1" ]]; then
+    for locked_index in "${!locked_perf_vars[@]}"; do
+        printf '%s=%s\n' "${locked_perf_vars[$locked_index]}" "${locked_perf_values[$locked_index]}"
+    done
+    exit 0
+fi
 
 if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
@@ -67,6 +116,7 @@ for env_var in \
     LL_E2E_PAGE_SPEED_MEASURE_ATTEMPTS \
     LL_E2E_PERF_ENABLED \
     LL_E2E_PERF_FIXTURE_MANIFEST \
+    LL_E2E_PERF_MANIFEST_SHA256 \
     LL_E2E_PERF_HISTORY_FILE \
     LL_E2E_PERF_REPORT_FILE \
     LL_E2E_PERF_WRITE_HISTORY \
@@ -78,6 +128,7 @@ for env_var in \
     LL_E2E_PERF_MAX_ACTIONABLE_MS \
     LL_E2E_PERF_MAX_LOAD_MS \
     LL_E2E_PERF_MAX_INTERACTION_MS \
+    LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS \
     LL_E2E_PERF_MAX_REGRESSION_RATIO \
     LL_E2E_PERF_MAX_REGRESSION_MS \
     PHP_BIN \
@@ -125,6 +176,7 @@ for env_var in \
     LL_E2E_PAGE_SPEED_MEASURE_ATTEMPTS \
     LL_E2E_PERF_ENABLED \
     LL_E2E_PERF_FIXTURE_MANIFEST \
+    LL_E2E_PERF_MANIFEST_SHA256 \
     LL_E2E_PERF_HISTORY_FILE \
     LL_E2E_PERF_REPORT_FILE \
     LL_E2E_PERF_WRITE_HISTORY \
@@ -136,6 +188,7 @@ for env_var in \
     LL_E2E_PERF_MAX_ACTIONABLE_MS \
     LL_E2E_PERF_MAX_LOAD_MS \
     LL_E2E_PERF_MAX_INTERACTION_MS \
+    LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS \
     LL_E2E_PERF_MAX_REGRESSION_RATIO \
     LL_E2E_PERF_MAX_REGRESSION_MS \
     PHP_BIN \
@@ -145,6 +198,12 @@ for env_var in \
 do
     append_wslenv_var "$env_var"
 done
+
+if [[ "$perf_config_lock_requested" == "1" ]]; then
+    for env_var in "${locked_perf_vars[@]}"; do
+        append_wslenv_var "$env_var"
+    done
+fi
 
 if [[ ! -d "$E2E_DIR" ]]; then
     echo "E2E directory was not found: $E2E_DIR" >&2

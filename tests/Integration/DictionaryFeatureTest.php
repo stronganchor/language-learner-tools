@@ -4291,6 +4291,159 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('SQL_CALC_FOUND_ROWS', $queries_sql);
     }
 
+    public function test_dictionary_query_cache_stores_ordered_ids_and_hydrates_equivalent_result(): void
+    {
+        global $wpdb;
+
+        $entry_ids = [];
+        foreach (['Compact Cache Alpha', 'Compact Cache Bravo', 'Compact Cache Charlie'] as $title) {
+            $result = ll_tools_dictionary_upsert_entry_from_rows([[
+                'entry' => $title,
+                'definition' => 'Compact cache definition for ' . $title,
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ]], [
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ]);
+            $this->assertIsArray($result);
+            $entry_ids[] = (int) ($result['entry_id'] ?? 0);
+        }
+        $this->assertNotContains(0, $entry_ids);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $args = [
+            'search' => 'Compact Cache',
+            'page' => 1,
+            'per_page' => 3,
+            'sense_limit' => 2,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ];
+        $result = ll_tools_dictionary_query_entries($args);
+        $result_ids = array_values(array_map(static function (array $item): int {
+            return (int) ($item['id'] ?? 0);
+        }, (array) ($result['items'] ?? [])));
+        $this->assertCount(3, $result_ids);
+
+        $option_name = (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT option_name
+             FROM {$wpdb->options}
+             WHERE option_name LIKE %s
+             ORDER BY option_id DESC
+             LIMIT 1",
+            $wpdb->esc_like('_transient_ll_dict_query_entries_') . '%'
+        ));
+        $this->assertNotSame('', $option_name);
+        $cached = get_option($option_name);
+        $this->assertIsArray($cached);
+        $this->assertSame(
+            LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA,
+            (int) ($cached['_ll_tools_dictionary_query_cache_schema'] ?? 0)
+        );
+        $this->assertArrayNotHasKey('items', $cached);
+        $this->assertSame($result_ids, array_values(array_map('intval', (array) ($cached['entry_ids'] ?? []))));
+
+        $expected_metadata = $result;
+        unset($expected_metadata['items']);
+        $this->assertSame($expected_metadata, (array) ($cached['metadata'] ?? []));
+        $this->assertLessThan(strlen(serialize($result)), strlen(serialize($cached)));
+
+        $hydrated = ll_tools_dictionary_query_entries_hydrate_cached_payload($cached, 2, 0, [], []);
+        $this->assertSame($result, $hydrated);
+        $this->assertSame($result, ll_tools_dictionary_query_entries($args));
+    }
+
+    public function test_dictionary_query_cache_accepts_legacy_full_payloads(): void
+    {
+        $legacy = [
+            'items' => [
+                [
+                    'id' => 321,
+                    'title' => 'Legacy Cached Entry',
+                    'translation' => 'legacy value',
+                ],
+            ],
+            'total' => 1,
+            'page' => 1,
+            'per_page' => 20,
+            'total_pages' => 1,
+            'search' => 'legacy',
+        ];
+
+        $this->assertSame(
+            $legacy,
+            ll_tools_dictionary_query_entries_hydrate_cached_payload($legacy, 3, 4, [], [])
+        );
+        $this->assertNull(ll_tools_dictionary_query_entries_hydrate_cached_payload([
+            '_ll_tools_dictionary_query_cache_schema' => 999,
+            'entry_ids' => [321],
+            'metadata' => [],
+        ], 3, 4, [], []));
+    }
+
+    public function test_dictionary_compact_query_cache_batch_primes_entry_transients(): void
+    {
+        $entry_ids = [];
+        foreach (['Primed Cache Alpha', 'Primed Cache Bravo', 'Primed Cache Charlie', 'Primed Cache Delta'] as $title) {
+            $entry_ids[] = self::factory()->post->create([
+                'post_type' => 'll_dictionary_entry',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+        }
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        foreach ($entry_ids as $entry_id) {
+            $cache_args = ll_tools_dictionary_entry_data_cache_args($entry_id, 1, 0, [], []);
+            $persistent_key = ll_tools_dictionary_browser_build_cache_key('entry_data', $cache_args);
+            set_transient($persistent_key, [
+                'id' => $entry_id,
+                'title' => (string) get_the_title($entry_id),
+            ], 10 * MINUTE_IN_SECONDS);
+            wp_cache_delete($persistent_key, LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP);
+            wp_cache_delete('_transient_' . $persistent_key, 'options');
+            wp_cache_delete('_transient_timeout_' . $persistent_key, 'options');
+            clean_post_cache($entry_id);
+        }
+
+        $compact = [
+            '_ll_tools_dictionary_query_cache_schema' => LL_TOOLS_DICTIONARY_QUERY_CACHE_PAYLOAD_SCHEMA,
+            'entry_ids' => $entry_ids,
+            'metadata' => [
+                'total' => count($entry_ids),
+                'page' => 1,
+                'per_page' => count($entry_ids),
+                'total_pages' => 1,
+            ],
+        ];
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $capture);
+        try {
+            $hydrated = ll_tools_dictionary_query_entries_hydrate_cached_payload($compact, 1, 0, [], []);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertIsArray($hydrated);
+        $this->assertSame($entry_ids, array_values(array_map(static function (array $item): int {
+            return (int) ($item['id'] ?? 0);
+        }, (array) ($hydrated['items'] ?? []))));
+
+        $entry_transient_queries = array_values(array_filter($queries, static function (string $query): bool {
+            return str_contains($query, '_transient_ll_dict_entry_data_');
+        }));
+        $this->assertCount(1, $entry_transient_queries, implode("\n", $queries));
+        $this->assertStringContainsString(' IN (', $entry_transient_queries[0]);
+        $this->assertStringNotContainsString('COUNT(DISTINCT p.ID)', implode("\n", $queries));
+    }
+
     public function test_find_entry_by_title_backfills_lookup_meta_without_wordset_join_regression(): void
     {
         $wordset = wp_insert_term('Legacy Dictionary Wordset', 'wordset', ['slug' => 'legacy-dictionary-wordset']);

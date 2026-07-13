@@ -20,6 +20,9 @@ function buildRecorderMarkup() {
             <option value="baby-animals" selected>Baby animals (1)</option>
           </select>
         </div>
+        <select id="ll-wordset-select">
+          <option value="11" selected>Test wordset</option>
+        </select>
       </div>
 
       <div class="ll-recording-main" style="display:flex;">
@@ -90,10 +93,13 @@ async function mountRecorder(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(buildRecorderMarkup());
 
-  await page.evaluate(({ categoryPages }) => {
+  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures }) => {
     window.__requestedCategories = [];
     window.__requestedCategoryPages = [];
+    window.__requestedQueueCursors = [];
     window.__categoryPages = categoryPages || {};
+    window.__categoryResponseDelays = categoryResponseDelays || {};
+    window.__categoryFailures = categoryFailures || {};
 
     const makeJsonResponse = (payload) => ({
       ok: true,
@@ -117,12 +123,30 @@ async function mountRecorder(page, options = {}) {
         const page = String(body.get('category_page') || '1');
         window.__requestedCategories.push(category);
         window.__requestedCategoryPages.push(`${category}:${page}`);
-        const configuredPage = window.__categoryPages?.[category]?.[page];
-        if (configuredPage) {
+        window.__requestedQueueCursors.push(String(body.get('queue_cursor') || ''));
+        const configuredPageConfig = window.__categoryPages?.[category]?.[page];
+        const configuredPage = Array.isArray(configuredPageConfig)
+          ? configuredPageConfig.shift()
+          : configuredPageConfig;
+        const configuredDelayConfig = window.__categoryResponseDelays?.[category]?.[page];
+        const configuredDelay = Array.isArray(configuredDelayConfig)
+          ? configuredDelayConfig.shift()
+          : configuredDelayConfig;
+        const configuredFailure = window.__categoryFailures?.[category]?.[page];
+        if (configuredFailure) {
           return Promise.resolve(makeJsonResponse({
+            success: false,
+            data: String(configuredFailure)
+          }));
+        }
+        if (configuredPage) {
+          const response = makeJsonResponse({
             success: true,
             data: configuredPage
-          }));
+          });
+          return configuredDelay > 0
+            ? new Promise(resolve => setTimeout(() => resolve(response), configuredDelay))
+            : Promise.resolve(response);
         }
         if (category === 'ağaç-çeşitleri') {
           return Promise.resolve(makeJsonResponse({
@@ -194,15 +218,19 @@ async function mountRecorder(page, options = {}) {
       };
     }
   }, {
-    categoryPages: options.categoryPages || null
+    categoryPages: options.categoryPages || null,
+    categoryResponseDelays: options.categoryResponseDelays || null,
+    categoryFailures: options.categoryFailures || null
   });
 
-  const initialImage = options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf');
-  await page.evaluate(({ initialImage, hideRecorderText }) => {
+  const initialImages = Array.isArray(options.initialImages)
+    ? options.initialImages
+    : [options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf')];
+  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue }) => {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
-      images: [initialImage],
+      images: initialImages,
       available_categories: {
         'ağaç-çeşitleri': 'Ağaç çeşitleri',
         'baby-animals': 'Baby animals'
@@ -225,7 +253,7 @@ async function mountRecorder(page, options = {}) {
       include_types: '',
       exclude_types: '',
       auto_process_recordings: false,
-      category_queue: {
+      category_queue: categoryQueue || {
         category: 'baby-animals',
         page: 1,
         per_page: 1,
@@ -246,8 +274,9 @@ async function mountRecorder(page, options = {}) {
       }
     };
   }, {
-    initialImage,
-    hideRecorderText: !!options.hideRecorderText
+    initialImages,
+    hideRecorderText: !!options.hideRecorderText,
+    categoryQueue: options.categoryQueue || null
   });
 
   await page.addScriptTag({ content: recorderJsSource });
@@ -255,6 +284,44 @@ async function mountRecorder(page, options = {}) {
     document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
   });
 }
+
+test('initial empty queue follows its continuation before showing completion', async ({ page }) => {
+  const continuedItem = buildQueueItem('baby-animals', 'Baby animals', 'foal', {
+    word_id: 151
+  });
+
+  await mountRecorder(page, {
+    initialImages: [],
+    categoryQueue: {
+      category: 'baby-animals',
+      page: 1,
+      per_page: 1,
+      next_page: 1,
+      cursor_token: 'initial.cursor',
+      is_continuation: true,
+      has_more: true
+    },
+    categoryPages: {
+      'baby-animals': {
+        '1': {
+          images: [continuedItem],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 1,
+            per_page: 1,
+            has_more: false
+          }
+        }
+      }
+    }
+  });
+
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|'))).toBe('baby-animals:1');
+  await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|'))).toBe('initial.cursor');
+});
 
 test('manual category switch stays on an empty Turkish category instead of advancing', async ({ page }) => {
   await mountRecorder(page);
@@ -268,6 +335,166 @@ test('manual category switch stays on an empty Turkish category instead of advan
   await expect(page.locator('#ll-upload-status')).toContainText('No images need audio in this category.');
 
   await expect.poll(async () => page.evaluate(() => window.__requestedCategories.join('|'))).toBe('ağaç-çeşitleri');
+});
+
+test('failed current category switch restores the previous category and re-enables controls', async ({ page }) => {
+  const treeCategory = 'a\u011fa\u00e7-\u00e7e\u015fitleri';
+  await mountRecorder(page, {
+    categoryFailures: {
+      [treeCategory]: {
+        '1': 'Intentional category failure'
+      }
+    }
+  });
+
+  await page.selectOption('#ll-category-select', treeCategory);
+
+  await expect(page.locator('#ll-category-select')).toHaveValue('baby-animals');
+  await expect(page.locator('#ll-upload-status')).toContainText('Intentional category failure');
+  await expect(page.locator('#ll-category-select')).toBeEnabled();
+  await expect(page.locator('#ll-wordset-select')).toBeEnabled();
+  await expect(page.locator('#ll-recording-type')).toBeEnabled();
+  await expect(page.locator('#ll-record-btn')).toBeEnabled();
+  await expect(page.locator('#ll-skip-btn')).toBeEnabled();
+  await expect(page.locator('#ll-hide-btn')).toBeEnabled();
+});
+
+test('category switch follows an empty first response continuation', async ({ page }) => {
+  const treeCategory = 'a\u011fa\u00e7-\u00e7e\u015fitleri';
+  const continuedItem = buildQueueItem(treeCategory, 'Ağaç çeşitleri', 'oak', {
+    word_id: 181
+  });
+
+  await mountRecorder(page, {
+    categoryPages: {
+      [treeCategory]: {
+        '1': [
+          {
+            images: [],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: treeCategory,
+              page: 1,
+              per_page: 1,
+              next_page: 1,
+              cursor_token: 'switch.cursor',
+              is_continuation: true,
+              has_more: true
+            }
+          },
+          {
+            images: [continuedItem],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: treeCategory,
+              page: 1,
+              per_page: 1,
+              has_more: false
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  await page.selectOption('#ll-category-select', treeCategory);
+
+  await expect(page.locator('#ll-category-select')).toHaveValue(treeCategory);
+  await expect(page.locator('#ll-image-title')).toHaveText('oak');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|')))
+    .toBe(`${treeCategory}:1|${treeCategory}:1`);
+  await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|'))).toBe('|switch.cursor');
+});
+
+test('late continuation from the previous category cannot replace the newly selected queue', async ({ page }) => {
+  const treeCategory = 'a\u011fa\u00e7-\u00e7e\u015fitleri';
+  const staleAnimal = buildQueueItem('baby-animals', 'Baby animals', 'late foal', {
+    word_id: 191
+  });
+  const treeItem = buildQueueItem(treeCategory, 'Tree varieties', 'oak', {
+    word_id: 192
+  });
+
+  await mountRecorder(page, {
+    categoryQueue: {
+      category: 'baby-animals',
+      page: 1,
+      per_page: 1,
+      next_page: 2,
+      cursor_token: 'animals.cursor',
+      has_more: true
+    },
+    categoryPages: {
+      'baby-animals': {
+        '2': {
+          images: [staleAnimal],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 2,
+            per_page: 1,
+            has_more: false
+          }
+        }
+      },
+      [treeCategory]: {
+        '1': [
+          {
+            images: [],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: treeCategory,
+              page: 1,
+              per_page: 1,
+              next_page: 1,
+              cursor_token: 'trees.cursor',
+              is_continuation: true,
+              has_more: true
+            }
+          },
+          {
+            images: [treeItem],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: treeCategory,
+              page: 1,
+              per_page: 1,
+              has_more: false
+            }
+          }
+        ]
+      }
+    },
+    categoryResponseDelays: {
+      'baby-animals': {
+        '2': 250
+      }
+    }
+  });
+
+  await page.locator('#ll-skip-btn').click();
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|')))
+    .toBe('baby-animals:2');
+
+  await page.selectOption('#ll-category-select', treeCategory);
+
+  await expect(page.locator('#ll-image-title')).toHaveText('oak');
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|')))
+    .toBe(`baby-animals:2|${treeCategory}:1|${treeCategory}:1`);
+  await page.waitForTimeout(350);
+
+  await expect(page.locator('#ll-category-select')).toHaveValue(treeCategory);
+  await expect(page.locator('#ll-image-title')).toHaveText('oak');
+  await expect(page.locator('.ll-total-num')).toHaveText('1');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => ({
+    titles: window.ll_recorder_data.images.map(item => item.title),
+    category: window.ll_recorder_data.category_queue?.category || ''
+  }))).toEqual({
+    titles: ['oak'],
+    category: treeCategory
+  });
 });
 
 test('category switch loads the next queue page before marking the category complete', async ({ page }) => {
@@ -318,6 +545,157 @@ test('category switch loads the next queue page before marking the category comp
   await expect(page.locator('#ll-image-title')).toHaveText('foal');
   await expect(page.locator('.ll-recording-complete')).toBeHidden();
   await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|'))).toBe('baby-animals:1|baby-animals:2');
+});
+
+test('sparse queue continuation reuses the same page with its opaque cursor', async ({ page }) => {
+  const firstItem = buildQueueItem('baby-animals', 'Baby animals', 'calf', {
+    word_id: 301
+  });
+  const secondItem = buildQueueItem('baby-animals', 'Baby animals', 'foal', {
+    word_id: 302
+  });
+
+  await mountRecorder(page, {
+    initialImage: firstItem,
+    categoryQueue: {
+      category: 'baby-animals',
+      page: 1,
+      per_page: 2,
+      next_page: 1,
+      cursor_token: 'opaque.payload',
+      is_continuation: true,
+      has_more: true
+    },
+    categoryPages: {
+      'baby-animals': {
+        '1': {
+          images: [secondItem],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 1,
+            per_page: 2,
+            next_page: 0,
+            cursor_token: '',
+            has_more: false,
+            count: 2,
+            count_is_lower_bound: false
+          }
+        }
+      }
+    }
+  });
+
+  await page.locator('#ll-skip-btn').click();
+
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|'))).toBe('baby-animals:1');
+  await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|'))).toBe('opaque.payload');
+});
+
+test('empty rebased continuation replaces the stale queue and keeps scanning', async ({ page }) => {
+  const staleItem = buildQueueItem('baby-animals', 'Baby animals', 'stale calf', {
+    word_id: 351
+  });
+  const recoveredItem = buildQueueItem('baby-animals', 'Baby animals', 'recovered foal', {
+    word_id: 352
+  });
+
+  await mountRecorder(page, {
+    initialImage: staleItem,
+    categoryQueue: {
+      category: 'baby-animals',
+      page: 1,
+      per_page: 1,
+      next_page: 1,
+      cursor_token: 'expired.cursor',
+      is_continuation: true,
+      has_more: true
+    },
+    categoryPages: {
+      'baby-animals': {
+        '1': [
+          {
+            images: [],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: 'baby-animals',
+              page: 1,
+              per_page: 1,
+              next_page: 1,
+              cursor_token: 'rebased.cursor',
+              is_continuation: true,
+              reset_queue: true,
+              cursor_rebased: true,
+              has_more: true
+            }
+          },
+          {
+            images: [recoveredItem],
+            recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+            pagination: {
+              category: 'baby-animals',
+              page: 1,
+              per_page: 1,
+              has_more: false
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  await page.locator('#ll-skip-btn').click();
+
+  await expect(page.locator('#ll-image-title')).toHaveText('recovered foal');
+  await expect(page.locator('.ll-total-num')).toHaveText('1');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|')))
+    .toBe('baby-animals:1|baby-animals:1');
+  await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|')))
+    .toBe('expired.cursor|rebased.cursor');
+});
+
+test('hiding the last buffered item loads its continuation before completion', async ({ page }) => {
+  const hiddenItem = buildQueueItem('baby-animals', 'Baby animals', 'calf', {
+    word_id: 401
+  });
+  const continuedItem = buildQueueItem('baby-animals', 'Baby animals', 'foal', {
+    word_id: 402
+  });
+
+  await mountRecorder(page, {
+    initialImage: hiddenItem,
+    categoryQueue: {
+      category: 'baby-animals',
+      page: 1,
+      per_page: 1,
+      next_page: 1,
+      cursor_token: 'hide.cursor',
+      is_continuation: true,
+      has_more: true
+    },
+    categoryPages: {
+      'baby-animals': {
+        '1': {
+          images: [continuedItem],
+          recording_types: [{ slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }],
+          pagination: {
+            category: 'baby-animals',
+            page: 1,
+            per_page: 1,
+            has_more: false
+          }
+        }
+      }
+    }
+  });
+
+  await page.locator('#ll-hide-btn').click();
+
+  await expect(page.locator('#ll-image-title')).toHaveText('foal');
+  await expect(page.locator('.ll-recording-complete')).toBeHidden();
+  await expect.poll(async () => page.evaluate(() => window.__requestedQueueCursors.join('|'))).toBe('hide.cursor');
 });
 
 test('recorder text setting hides image-backed word text but keeps text-only prompts usable', async ({ page }) => {

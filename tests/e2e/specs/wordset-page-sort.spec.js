@@ -281,6 +281,7 @@ async function mountWordsetPage(page, options = {}) {
   const analytics = options.analytics || buildAnalytics(categories);
   const config = buildConfig(categories, options.configOverrides || {});
   const analyticsDelayMs = Number(options.analyticsDelayMs || 0);
+  const controlAnalytics = !!options.controlAnalytics;
   const storedSort = String(options.storedSort || '').trim();
 
   await page.goto('about:blank');
@@ -290,15 +291,21 @@ async function mountWordsetPage(page, options = {}) {
   }));
   await page.addScriptTag({ content: jquerySource });
 
-  await page.evaluate(({ configValue, analyticsValue, analyticsDelayValue, remainingCardsValue }) => {
+  await page.evaluate(({ configValue, analyticsValue, analyticsDelayValue, controlAnalyticsValue, remainingCardsValue }) => {
     window.llWordsetPageData = configValue;
     window.alert = function () {};
     window.__llLazyAjaxCalls = [];
+    window.__llPendingAnalyticsResolvers = [];
+    window.__llResolveAnalytics = function () {
+      const resolvers = window.__llPendingAnalyticsResolvers.splice(0);
+      resolvers.forEach((resolve) => resolve());
+      return resolvers.length;
+    };
 
     const $ = window.jQuery;
     $.post = function () {
       const deferred = $.Deferred();
-      window.setTimeout(() => {
+      const resolveAnalytics = () => {
         deferred.resolve({
           success: true,
           data: {
@@ -307,7 +314,12 @@ async function mountWordsetPage(page, options = {}) {
             recommendation_queue: []
           }
         });
-      }, analyticsDelayValue);
+      };
+      if (controlAnalyticsValue) {
+        window.__llPendingAnalyticsResolvers.push(resolveAnalytics);
+      } else {
+        window.setTimeout(resolveAnalytics, analyticsDelayValue);
+      }
       return deferred.promise();
     };
 
@@ -362,6 +374,7 @@ async function mountWordsetPage(page, options = {}) {
     configValue: config,
     analyticsValue: analytics,
     analyticsDelayValue: analyticsDelayMs,
+    controlAnalyticsValue: controlAnalytics,
     remainingCardsValue: remainingCards
   });
 
@@ -859,7 +872,7 @@ test('changing sort materializes the top sorted rows while deeper slots stay laz
   expect(afterLoadSlots[7]).toEqual({ id: 88, placeholder: false, title: 'Weather' });
 });
 
-test('saved sort preferences do not force-load all lazy cards on page init', async ({ page }) => {
+test('saved metric sort waits for analytics and keeps deeper sorted slots lazy', async ({ page }) => {
   const categories = [
     {
       id: 33,
@@ -883,6 +896,69 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
       last_seen_at: ''
     },
     {
+      id: 66,
+      slug: 'numbers',
+      name: 'Numbers',
+      translation: 'Numbers',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'one two three',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 77,
+      slug: 'school',
+      name: 'School',
+      translation: 'School',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'teacher book class',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 88,
+      slug: 'weather',
+      name: 'Weather',
+      translation: 'Weather',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'rain sun cloud',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
       id: 11,
       slug: 'fruit',
       name: 'Fruit',
@@ -897,6 +973,48 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
       aspect_bucket: 'ratio:1_1',
       hidden: false,
       search_text: 'apple pear banana',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 55,
+      slug: 'colors',
+      name: 'Colors',
+      translation: 'Colors',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'red blue green',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 44,
+      slug: 'body',
+      name: 'Body',
+      translation: 'Body',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'hand eye foot',
       preview: [],
       mastered_words: 0,
       studied_words: 0,
@@ -929,21 +1047,43 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
   const analyticsCategories = [
     Object.assign({}, categories[0], {
       mastered_words: 0,
-      studied_words: 2,
-      new_words: 8,
-      last_seen_at: '2026-04-19 09:00:00'
+      studied_words: 1,
+      new_words: 9
     }),
     Object.assign({}, categories[1], {
-      mastered_words: 6,
-      studied_words: 8,
-      new_words: 2,
-      last_seen_at: '2026-04-15 12:00:00'
+      mastered_words: 1,
+      studied_words: 3,
+      new_words: 7
     }),
     Object.assign({}, categories[2], {
-      mastered_words: 4,
+      mastered_words: 2,
       studied_words: 5,
-      new_words: 5,
-      last_seen_at: ''
+      new_words: 5
+    }),
+    Object.assign({}, categories[3], {
+      mastered_words: 3,
+      studied_words: 6,
+      new_words: 4
+    }),
+    Object.assign({}, categories[4], {
+      mastered_words: 7,
+      studied_words: 9,
+      new_words: 1
+    }),
+    Object.assign({}, categories[5], {
+      mastered_words: 6,
+      studied_words: 8,
+      new_words: 2
+    }),
+    Object.assign({}, categories[6], {
+      mastered_words: 5,
+      studied_words: 7,
+      new_words: 3
+    }),
+    Object.assign({}, categories[7], {
+      mastered_words: 8,
+      studied_words: 10,
+      new_words: 0
     })
   ];
 
@@ -952,12 +1092,13 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
     initialCategories: [
       Object.assign({}, categories[0], {
         extraStyle: 'margin-top: 1600px;'
-      })
+      }),
+      categories[1]
     ],
     remainingCards: categories,
     analytics: buildAnalytics(analyticsCategories),
-    analyticsDelayMs: 200,
-    storedSort: 'recent-desc',
+    controlAnalytics: true,
+    storedSort: 'progress-desc',
     configOverrides: {
       summaryCountsDeferred: true,
       lazyCards: {
@@ -966,21 +1107,36 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
         token: 'lazy-token',
         wordsetId: 77,
         previewLimit: 2,
-        batchSize: 1,
-        initialCount: 1,
-        loaded: 1,
-        total: 3,
-        remaining: 2
+        batchSize: 2,
+        initialCount: 2,
+        loaded: 2,
+        total: 8,
+        remaining: 6
       }
     }
   });
 
+  await expect(page.locator('[data-ll-wordset-main-sort-option="progress-desc"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('[data-ll-wordset-main-sort-root]')).toHaveClass(/is-pending-metrics/);
+  await expect(page.locator('[data-ll-wordset-main-sort-toggle]')).toHaveAttribute('aria-busy', 'true');
   await expect.poll(() => getRenderedCategorySlots(page)).toEqual([
     { id: 33, placeholder: false, title: 'Travel' },
-    { id: 11, placeholder: false, title: 'Fruit' },
-    { id: 22, placeholder: false, title: 'Animals' }
+    { id: 66, placeholder: false, title: 'Numbers' }
   ]);
-  await expect.poll(async () => {
-    return page.evaluate(() => window.__llLazyAjaxCalls.length);
-  }).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__llLazyAjaxCalls.length)).toBe(0);
+
+  await expect.poll(() => page.evaluate(() => window.__llPendingAnalyticsResolvers.length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__llResolveAnalytics())).toBeGreaterThan(0);
+
+  await expect.poll(async () => (await getRenderedCategorySlots(page)).map((slot) => slot.id)).toEqual([
+    22, 11, 55, 44, 88, 77, 66, 33
+  ]);
+  await expect(page.locator('[data-ll-wordset-main-sort-root]')).not.toHaveClass(/is-pending-metrics/);
+  await expect(page.locator('[data-ll-wordset-main-sort-toggle]')).not.toHaveAttribute('aria-busy', 'true');
+
+  const afterAnalyticsSlots = await getRenderedCategorySlots(page);
+  expect(afterAnalyticsSlots.slice(0, 2).every((slot) => !slot.placeholder)).toBe(true);
+  expect(afterAnalyticsSlots.slice(2, 6).every((slot) => slot.placeholder)).toBe(true);
+  expect(afterAnalyticsSlots.slice(6).every((slot) => !slot.placeholder)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__llLazyAjaxCalls.length)).toBe(0);
 });
