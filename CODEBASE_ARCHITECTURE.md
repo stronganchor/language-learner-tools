@@ -501,6 +501,7 @@ wordset can opt into it.
 - `[flashcard_widget]` (controller: `includes/shortcodes/flashcard-widget.php`)
   - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening|gender|self-check), `wordset`, `wordset_fallback`.
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
+  - Cold public reads use the durable stale snapshot and never rebuild inline. Refreshes persist generation-scoped chunks, keyset-query one canonical quiz-page post-type batch at a time (100 rows by default, hard cap 250), serialize resets behind the scope lock, fence writes by lock token plus durable generation, and atomically replace the latest manifest only after current and legacy phases finish. Manifest readiness verifies every chunk without assembling the catalog, interrupted publication keeps old chunk references recoverable, and the loading UI permits 120 bounded continuations by default. Keep the synchronous full rebuild helper limited to explicit maintenance and compatibility tests.
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).

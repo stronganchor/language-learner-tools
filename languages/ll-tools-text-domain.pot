@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-13T10:11:09+00:00\n"
+"POT-Creation-Date: 2026-07-13T11:56:22+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -6502,7 +6502,7 @@ msgid "Saved."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:396
-#: includes/shortcodes/quiz-pages-shortcodes.php:557
+#: includes/shortcodes/quiz-pages-shortcodes.php:1421
 msgid "Something went wrong. Please try again."
 msgstr ""
 
@@ -13232,7 +13232,7 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:562
 #: includes/shortcodes/flashcard-widget.php:624
 #: includes/shortcodes/flashcard-widget.php:707
-#: includes/shortcodes/quiz-pages-shortcodes.php:1351
+#: includes/shortcodes/quiz-pages-shortcodes.php:2231
 #: templates/offline-app-shell-template.php:823
 #: templates/offline-app-shell-template.php:854
 #: templates/vocab-lesson-template.php:178
@@ -13352,7 +13352,7 @@ msgstr ""
 
 #: includes/flashcard-shell.php:134
 #: includes/pages/quiz-pages.php:901
-#: includes/shortcodes/quiz-pages-shortcodes.php:955
+#: includes/shortcodes/quiz-pages-shortcodes.php:1835
 #: templates/quiz-page-template.php:12
 msgid "Loading quiz..."
 msgstr ""
@@ -16263,8 +16263,8 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:4311
 #: includes/pages/vocab-lesson-pages.php:5321
 #: includes/shortcodes/dictionary-shortcode.php:3155
-#: includes/shortcodes/quiz-pages-shortcodes.php:548
-#: includes/shortcodes/quiz-pages-shortcodes.php:576
+#: includes/shortcodes/quiz-pages-shortcodes.php:1412
+#: includes/shortcodes/quiz-pages-shortcodes.php:1440
 msgid "Invalid request."
 msgstr ""
 
@@ -23670,7 +23670,7 @@ msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:1075
 #: includes/shortcodes/editor-hub-shortcode.php:1143
-#: includes/shortcodes/quiz-pages-shortcodes.php:957
+#: includes/shortcodes/quiz-pages-shortcodes.php:1837
 msgid "Refresh"
 msgstr ""
 
@@ -23957,29 +23957,29 @@ msgstr ""
 msgid "Language: %s"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:1797
+#: includes/shortcodes/quiz-pages-shortcodes.php:2677
 msgid "No quizzes found."
 msgstr ""
 
 #. translators: %s: quiz card title
-#: includes/shortcodes/quiz-pages-shortcodes.php:1850
+#: includes/shortcodes/quiz-pages-shortcodes.php:2730
 #, php-format
 msgid "Start %s"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:1892
+#: includes/shortcodes/quiz-pages-shortcodes.php:2772
 msgid "Select a quiz…"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:1916
+#: includes/shortcodes/quiz-pages-shortcodes.php:2796
 msgid "No quiz pages are available yet."
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:1925
+#: includes/shortcodes/quiz-pages-shortcodes.php:2805
 msgid "Quiz selection"
 msgstr ""
 
-#: includes/shortcodes/quiz-pages-shortcodes.php:1940
+#: includes/shortcodes/quiz-pages-shortcodes.php:2820
 msgid "Go"
 msgstr ""
 

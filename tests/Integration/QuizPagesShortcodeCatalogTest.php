@@ -28,6 +28,12 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
                 delete_transient($cache_key);
             }
             if ($scope_id !== '') {
+                ll_tools_quiz_pages_catalog_cleanup_snapshot_payload(
+                    get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null)
+                );
+                ll_tools_quiz_pages_catalog_cleanup_build_state(
+                    get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), null)
+                );
                 delete_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id));
                 delete_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id));
                 delete_option(ll_tools_quiz_pages_catalog_option_name('lock', $scope_id));
@@ -88,6 +94,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $this->assertStringContainsString('Refresh', $html);
             $this->assertStringContainsString('data-ll-quiz-catalog-status="1"', $html);
             $this->assertStringContainsString('data-scope-id="' . esc_attr((string) $scope['id']) . '"', $html);
+            $this->assertStringContainsString('data-max-attempts="120"', $html);
             $this->assertStringContainsString('admin-ajax.php', $html);
             $this->assertTrue(wp_script_is('ll-quiz-pages-shortcodes-js', 'enqueued'));
             $this->assertStringNotContainsString('No quizzes found.', $html);
@@ -115,7 +122,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $this->assertSame([], ll_get_all_quiz_pages_data($opts));
             $this->assertFalse(ll_tools_quiz_pages_catalog_snapshot_ready((string) $scope['id']));
 
-            $status = ll_tools_quiz_pages_catalog_warmup_status((string) $scope['id']);
+            $status = $this->runWarmupUntilReady((string) $scope['id']);
             $this->assertIsArray($status);
             $this->assertTrue((bool) ($status['ready'] ?? false));
             $this->assertTrue(ll_tools_quiz_pages_catalog_snapshot_ready((string) $scope['id']));
@@ -146,7 +153,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $scope = $this->trackAndClearScope($opts, 1);
 
             $this->assertSame([], ll_get_all_quiz_pages_data($opts));
-            ll_tools_quiz_pages_catalog_refresh_event((string) $scope['id']);
+            $this->runWarmupUntilReady((string) $scope['id']);
 
             $items = ll_get_all_quiz_pages_data($opts);
             $this->assertCount(1, $items);
@@ -186,6 +193,299 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
 
         ll_tools_quiz_pages_catalog_latest_set($scope, [['post_id' => 202]], true);
         $this->assertSame(202, (int) (ll_tools_quiz_pages_catalog_latest_get($scope)[0]['post_id'] ?? 0));
+    }
+
+    public function test_missing_manifest_chunk_is_not_ready_and_is_rebuilt(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Corrupt Manifest Catalog');
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $cache_key = (string) $scope['cache_key'];
+
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $this->assertTrue((bool) ($this->runWarmupUntilReady($scope_id)['ready'] ?? false));
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), []);
+            $chunk_option = (string) ($latest['chunks'][0] ?? '');
+            $this->assertNotSame('', $chunk_option);
+            delete_option($chunk_option);
+            wp_cache_delete($cache_key, 'll_tools_quiz_pages');
+            delete_transient($cache_key);
+
+            $readiness_queries = [];
+            $capture_readiness = static function (string $query) use (&$readiness_queries): string {
+                if (strpos($query, 'll_tools_quiz_pages_catalog_chunk_ready') !== false) {
+                    $readiness_queries[] = $query;
+                }
+                return $query;
+            };
+            add_filter('query', $capture_readiness, 10, 1);
+            try {
+                $this->assertFalse(ll_tools_quiz_pages_catalog_snapshot_ready($scope_id));
+            } finally {
+                remove_filter('query', $capture_readiness, 10);
+            }
+            $this->assertCount(1, $readiness_queries);
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $this->assertNotFalse(wp_next_scheduled('ll_tools_quiz_pages_catalog_refresh_event', [$scope_id]));
+
+            $status = $this->runWarmupUntilReady($scope_id);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $items = ll_tools_quiz_pages_catalog_latest_get($scope);
+            $this->assertCount(1, $items);
+            $this->assertSame($fixture['page_id'], (int) ($items[0]['post_id'] ?? 0));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_refresh_uses_bounded_chunks_and_publishes_only_after_completion(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        $batch_filter = static fn (): int => 2;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            $expected_page_ids = [];
+            for ($index = 0; $index < 5; $index++) {
+                $fixture = $this->createCatalogFixture('Bounded Catalog ' . $index);
+                $expected_page_ids[] = (int) $fixture['page_id'];
+            }
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $captured_queries = [];
+            $capture_query = static function (string $query) use (&$captured_queries): string {
+                if (strpos($query, 'll_tools_quiz_pages_catalog_batch') !== false) {
+                    $captured_queries[] = $query;
+                }
+                return $query;
+            };
+            add_filter('query', $capture_query, 10, 1);
+
+            try {
+                $this->assertSame([], ll_get_all_quiz_pages_data([]));
+                ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+
+                $this->assertFalse(get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), false));
+                $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+                $this->assertSame(2, (int) ($state['processed'] ?? 0));
+                $this->assertCount(1, (array) ($state['chunks'] ?? []));
+                $first_chunk = get_option((string) ($state['chunks'][0] ?? ''), []);
+                $this->assertLessThanOrEqual(2, count((array) ($first_chunk['items'] ?? [])));
+
+                $status = $this->runWarmupUntilReady($scope_id, 12);
+            } finally {
+                remove_filter('query', $capture_query, 10);
+            }
+
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), []);
+            $this->assertNotEmpty($latest['__ll_quiz_pages_catalog_manifest']);
+            $this->assertSame(5, (int) ($latest['item_count'] ?? 0));
+            $this->assertGreaterThanOrEqual(3, count((array) ($latest['chunks'] ?? [])));
+            foreach ((array) ($latest['chunks'] ?? []) as $chunk_option) {
+                $chunk = get_option((string) $chunk_option, []);
+                $this->assertLessThanOrEqual(2, count((array) ($chunk['items'] ?? [])));
+            }
+
+            $this->assertTrue(ll_tools_quiz_pages_catalog_latest_set_manifest(
+                $scope,
+                (string) ($latest['generation'] ?? ''),
+                (array) ($latest['chunks'] ?? []),
+                (int) ($latest['item_count'] ?? 0)
+            ));
+            $this->assertCount(5, ll_tools_quiz_pages_catalog_latest_get($scope));
+
+            $items = ll_tools_quiz_pages_catalog_latest_get($scope);
+            $this->assertIsArray($items);
+            $actual_page_ids = array_map(static fn (array $item): int => (int) ($item['post_id'] ?? 0), $items);
+            $this->assertSame($expected_page_ids, $actual_page_ids);
+            $this->assertNotEmpty($captured_queries);
+            foreach ($captured_queries as $query) {
+                $this->assertMatchesRegularExpression('/LIMIT\s+3\b/i', $query);
+            }
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_interrupted_manifest_replacement_retains_and_cleans_old_chunks_on_retry(): void
+    {
+        $scope = $this->trackAndClearScope([], LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        $scope_id = (string) $scope['id'];
+        $latest_option = ll_tools_quiz_pages_catalog_option_name('latest', $scope_id);
+        $old_generation = 'aaaaaaaaaaaa';
+        $new_generation = 'bbbbbbbbbbbb';
+        $old_chunk = ll_tools_quiz_pages_catalog_chunk_option_name($scope_id, $old_generation, 0);
+        $new_chunk = ll_tools_quiz_pages_catalog_chunk_option_name($scope_id, $new_generation, 0);
+        update_option($old_chunk, [
+            '__ll_quiz_pages_catalog_chunk' => 1,
+            'generation' => $old_generation,
+            'cache_key' => (string) $scope['cache_key'],
+            'items' => [['post_id' => 101, 'display_name' => 'Old']],
+        ], false);
+        update_option($new_chunk, [
+            '__ll_quiz_pages_catalog_chunk' => 1,
+            'generation' => $new_generation,
+            'cache_key' => (string) $scope['cache_key'],
+            'items' => [['post_id' => 202, 'display_name' => 'New']],
+        ], false);
+        $this->assertTrue(ll_tools_quiz_pages_catalog_latest_set_manifest($scope, $old_generation, [$old_chunk], 1));
+
+        $interrupted = false;
+        $interrupt_after_pointer = static function (string $option, $old_value, $value) use (
+            $latest_option,
+            &$interrupted
+        ): void {
+            if ($option === $latest_option && !$interrupted && !empty($value['retired_chunks'])) {
+                $interrupted = true;
+                throw new RuntimeException('Simulated manifest publication interruption.');
+            }
+        };
+        add_action('updated_option', $interrupt_after_pointer, 10, 3);
+        try {
+            ll_tools_quiz_pages_catalog_latest_set_manifest($scope, $new_generation, [$new_chunk], 1);
+            $this->fail('Expected the simulated publication interruption.');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Simulated manifest publication interruption.', $error->getMessage());
+        } finally {
+            remove_action('updated_option', $interrupt_after_pointer, 10);
+        }
+
+        $interrupted_payload = get_option($latest_option, []);
+        $this->assertTrue($interrupted);
+        $this->assertContains($old_chunk, (array) ($interrupted_payload['retired_chunks'] ?? []));
+        $this->assertNotFalse(get_option($old_chunk, false));
+
+        $this->assertTrue(ll_tools_quiz_pages_catalog_latest_set_manifest($scope, $new_generation, [$new_chunk], 1));
+        $this->assertFalse(get_option($old_chunk, false));
+        $this->assertNotFalse(get_option($new_chunk, false));
+        $final_payload = get_option($latest_option, []);
+        $this->assertArrayNotHasKey('retired_chunks', $final_payload);
+        $this->assertSame(202, (int) (ll_tools_quiz_pages_catalog_latest_get($scope)[0]['post_id'] ?? 0));
+    }
+
+    public function test_refresh_prefers_one_current_shell_over_current_and_legacy_duplicates(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        $batch_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Duplicate Shell Catalog');
+            $current_post_type = defined('LL_TOOLS_QUIZ_PAGE_POST_TYPE')
+                ? (string) LL_TOOLS_QUIZ_PAGE_POST_TYPE
+                : 'page';
+            $this->assertNotSame('page', $current_post_type);
+
+            foreach ([$current_post_type, 'page'] as $post_type) {
+                $duplicate_id = self::factory()->post->create([
+                    'post_type' => $post_type,
+                    'post_status' => 'publish',
+                    'post_title' => 'Duplicate Quiz Shell',
+                ]);
+                $this->assertIsInt($duplicate_id);
+                update_post_meta($duplicate_id, $this->quizPageCategoryMetaKey(), (string) $fixture['category_id']);
+            }
+
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $captured_queries = [];
+            $capture_query = static function (string $query) use (&$captured_queries): string {
+                if (strpos($query, 'll_tools_quiz_pages_catalog_batch') !== false) {
+                    $captured_queries[] = $query;
+                }
+                return $query;
+            };
+            add_filter('query', $capture_query, 10, 1);
+            try {
+                $this->assertSame([], ll_get_all_quiz_pages_data([]));
+                $status = $this->runWarmupUntilReady($scope_id);
+            } finally {
+                remove_filter('query', $capture_query, 10);
+            }
+
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $items = ll_tools_quiz_pages_catalog_latest_get($scope);
+            $this->assertCount(1, $items);
+            $this->assertSame($fixture['page_id'], (int) ($items[0]['post_id'] ?? 0));
+            $this->assertGreaterThanOrEqual(2, count($captured_queries));
+            foreach ($captured_queries as $query) {
+                $this->assertMatchesRegularExpression('/LIMIT\s+2\b/i', $query);
+            }
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_worker_that_loses_its_lock_does_not_persist_progress(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Lock Takeover Catalog');
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $initial_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+
+            $replaced_lock = false;
+            $replacement_scope = null;
+            $replacement_generation = '';
+            $replace_lock = static function (string $query) use (
+                $fixture,
+                $scope_id,
+                &$replaced_lock,
+                &$replacement_scope,
+                &$replacement_generation
+            ): string {
+                if (!$replaced_lock && strpos($query, 'll_tools_quiz_pages_catalog_batch') !== false) {
+                    $replaced_lock = true;
+                    ll_tools_bump_category_cache_epoch([(int) $fixture['wordset_id']]);
+                    $replacement_scope = ll_tools_quiz_pages_catalog_scope([], 1);
+                    $replacement_state = ll_tools_quiz_pages_catalog_new_build_state($replacement_scope);
+                    $replacement_generation = (string) $replacement_state['generation'];
+                    update_option(
+                        ll_tools_quiz_pages_catalog_option_name('state', $scope_id),
+                        $replacement_state,
+                        false
+                    );
+                    update_option(ll_tools_quiz_pages_catalog_option_name('lock', $scope_id), [
+                        'token' => 'replacement-worker',
+                        'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+                    ], false);
+                }
+                return $query;
+            };
+            add_filter('query', $replace_lock, 10, 1);
+            try {
+                ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            } finally {
+                remove_filter('query', $replace_lock, 10);
+            }
+
+            $this->assertTrue($replaced_lock);
+            $this->assertIsArray($replacement_scope);
+            $this->assertNotSame((string) ($initial_state['cache_key'] ?? ''), (string) $replacement_scope['cache_key']);
+            $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame($replacement_generation, (string) ($state['generation'] ?? ''));
+            $this->assertSame((string) $replacement_scope['cache_key'], (string) ($state['cache_key'] ?? ''));
+            $this->assertSame(0, (int) ($state['processed'] ?? -1));
+            $this->assertSame([], (array) ($state['chunks'] ?? []));
+            $this->assertFalse(get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), false));
+            $this->assertNotFalse(wp_next_scheduled('ll_tools_quiz_pages_catalog_refresh_event', [$scope_id]));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
     }
 
     public function test_stale_snapshot_is_served_without_rebuild_during_lock_contention(): void
@@ -258,7 +558,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             $this->assertStringContainsString('data-ll-quiz-catalog-status="1"', ll_tools_quiz_pages_catalog_loading_notice());
             $this->assertFalse(ll_tools_quiz_pages_catalog_snapshot_ready((string) $current_scope['id']));
 
-            $status = ll_tools_quiz_pages_catalog_warmup_status((string) $current_scope['id']);
+            $status = $this->runWarmupUntilReady((string) $current_scope['id']);
             $this->assertIsArray($status);
             $this->assertTrue((bool) ($status['ready'] ?? false));
             $this->assertTrue(ll_tools_quiz_pages_catalog_snapshot_ready((string) $current_scope['id']));
@@ -362,6 +662,12 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
 
         wp_cache_delete($cache_key, 'll_tools_quiz_pages');
         delete_transient($cache_key);
+        ll_tools_quiz_pages_catalog_cleanup_snapshot_payload(
+            get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null)
+        );
+        ll_tools_quiz_pages_catalog_cleanup_build_state(
+            get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), null)
+        );
         delete_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id));
         delete_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id));
         delete_option(ll_tools_quiz_pages_catalog_option_name('lock', $scope_id));
@@ -393,6 +699,19 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
                 $captured_queries[] = $query->query_vars;
             }
         };
+    }
+
+    private function runWarmupUntilReady(string $scope_id, int $max_steps = 8)
+    {
+        $status = null;
+        for ($step = 0; $step < $max_steps; $step++) {
+            $status = ll_tools_quiz_pages_catalog_warmup_status($scope_id);
+            if (is_wp_error($status) || !empty($status['ready'])) {
+                return $status;
+            }
+        }
+
+        return $status;
     }
 
     private function quizPageCategoryMetaKey(): string

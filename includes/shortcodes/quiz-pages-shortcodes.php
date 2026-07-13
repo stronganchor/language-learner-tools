@@ -289,12 +289,104 @@ function ll_tools_quiz_pages_catalog_option_name(string $type, string $scope_id)
     return 'll_qpg_catalog_' . $type . '_' . preg_replace('/[^a-f0-9]/', '', strtolower($scope_id));
 }
 
-function ll_tools_quiz_pages_catalog_latest_get(array $scope) {
+function ll_tools_quiz_pages_catalog_sort_items(array $items): array {
+    usort($items, static function ($a, $b): int {
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            return ll_tools_locale_compare_strings((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
+        }
+        return strnatcasecmp((string) ($a['display_name'] ?? ''), (string) ($b['display_name'] ?? ''));
+    });
+
+    return $items;
+}
+
+function ll_tools_quiz_pages_catalog_chunk_option_name(string $scope_id, string $generation, int $chunk_index): string {
+    $scope_id = preg_replace('/[^a-f0-9]/', '', strtolower($scope_id));
+    $generation = substr(preg_replace('/[^a-f0-9]/', '', strtolower($generation)), 0, 12);
+    return 'll_qpg_catalog_chunk_' . $scope_id . '_' . $generation . '_' . max(0, $chunk_index);
+}
+
+function ll_tools_quiz_pages_catalog_is_chunk_option_name(string $option_name): bool {
+    return preg_match('/^ll_qpg_catalog_chunk_[a-f0-9]{32}_[a-f0-9]{12}_[0-9]+$/D', $option_name) === 1;
+}
+
+function ll_tools_quiz_pages_catalog_cleanup_chunk_options(array $option_names, array $preserve_option_names = []): void {
+    $preserve_lookup = array_fill_keys(array_map('strval', $preserve_option_names), true);
+    foreach (array_values(array_unique(array_map('strval', $option_names))) as $option_name) {
+        if (!isset($preserve_lookup[$option_name]) && ll_tools_quiz_pages_catalog_is_chunk_option_name($option_name)) {
+            delete_option($option_name);
+        }
+    }
+}
+
+function ll_tools_quiz_pages_catalog_snapshot_chunk_options($payload): array {
+    if (!is_array($payload)) {
+        return [];
+    }
+
+    return array_values(array_unique(array_merge(
+        array_map('strval', (array) ($payload['chunks'] ?? [])),
+        array_map('strval', (array) ($payload['retired_chunks'] ?? []))
+    )));
+}
+
+function ll_tools_quiz_pages_catalog_cleanup_snapshot_payload($payload, array $preserve_option_names = []): void {
+    ll_tools_quiz_pages_catalog_cleanup_chunk_options(
+        ll_tools_quiz_pages_catalog_snapshot_chunk_options($payload),
+        $preserve_option_names
+    );
+}
+
+function ll_tools_quiz_pages_catalog_snapshot_items(array $payload) {
+    if (is_array($payload['items'] ?? null)) {
+        return $payload['items'];
+    }
+    if (
+        empty($payload['__ll_quiz_pages_catalog_manifest'])
+        || !is_array($payload['chunks'] ?? null)
+        || !isset($payload['generation'])
+    ) {
+        return null;
+    }
+
+    $generation = (string) $payload['generation'];
+    $cache_key = (string) ($payload['cache_key'] ?? '');
+    $items = [];
+    foreach ($payload['chunks'] as $option_name) {
+        $option_name = (string) $option_name;
+        if (!ll_tools_quiz_pages_catalog_is_chunk_option_name($option_name)) {
+            return null;
+        }
+        $chunk = get_option($option_name, null);
+        if (
+            !is_array($chunk)
+            || empty($chunk['__ll_quiz_pages_catalog_chunk'])
+            || (string) ($chunk['generation'] ?? '') !== $generation
+            || (string) ($chunk['cache_key'] ?? '') !== $cache_key
+            || !is_array($chunk['items'] ?? null)
+        ) {
+            return null;
+        }
+        foreach ($chunk['items'] as $item) {
+            if (is_array($item)) {
+                $items[] = $item;
+            }
+        }
+    }
+
+    if (count($items) !== max(0, (int) ($payload['item_count'] ?? 0))) {
+        return null;
+    }
+
+    return ll_tools_quiz_pages_catalog_sort_items($items);
+}
+
+function ll_tools_quiz_pages_catalog_latest_payload(array $scope) {
     $payload = get_option(ll_tools_quiz_pages_catalog_option_name('latest', (string) $scope['id']), null);
     if (
         !is_array($payload)
         || empty($payload['__ll_quiz_pages_catalog'])
-        || !is_array($payload['items'] ?? null)
+        || (!is_array($payload['items'] ?? null) && empty($payload['__ll_quiz_pages_catalog_manifest']))
     ) {
         return null;
     }
@@ -304,7 +396,12 @@ function ll_tools_quiz_pages_catalog_latest_get(array $scope) {
         return null;
     }
 
-    return $payload['items'];
+    return $payload;
+}
+
+function ll_tools_quiz_pages_catalog_latest_get(array $scope) {
+    $payload = ll_tools_quiz_pages_catalog_latest_payload($scope);
+    return is_array($payload) ? ll_tools_quiz_pages_catalog_snapshot_items($payload) : null;
 }
 
 function ll_tools_quiz_pages_catalog_latest_set(array $scope, array $items, bool $replace = false): void {
@@ -319,12 +416,69 @@ function ll_tools_quiz_pages_catalog_latest_set(array $scope, array $items, bool
         return;
     }
 
-    update_option($option_name, [
+    $payload = [
         '__ll_quiz_pages_catalog' => 1,
         'cache_key' => (string) $scope['cache_key'],
         'generated_at' => time(),
         'items' => $items,
-    ], false);
+    ];
+    $retired_chunks = ll_tools_quiz_pages_catalog_snapshot_chunk_options($existing);
+    if ($retired_chunks !== []) {
+        $payload['retired_chunks'] = $retired_chunks;
+    }
+    update_option($option_name, $payload, false);
+    $stored = get_option($option_name, null);
+    if (is_array($stored) && is_array($stored['items'] ?? null)) {
+        ll_tools_quiz_pages_catalog_cleanup_snapshot_payload($existing);
+        if ($retired_chunks !== []) {
+            unset($payload['retired_chunks']);
+            update_option($option_name, $payload, false);
+        }
+    }
+}
+
+function ll_tools_quiz_pages_catalog_latest_set_manifest(
+    array $scope,
+    string $generation,
+    array $chunk_options,
+    int $item_count
+): bool {
+    $option_name = ll_tools_quiz_pages_catalog_option_name('latest', (string) $scope['id']);
+    $existing = get_option($option_name, null);
+    $chunk_options = array_values(array_unique(array_map('strval', $chunk_options)));
+    $retired_chunks = array_values(array_diff(
+        ll_tools_quiz_pages_catalog_snapshot_chunk_options($existing),
+        $chunk_options
+    ));
+    $payload = [
+        '__ll_quiz_pages_catalog' => 1,
+        '__ll_quiz_pages_catalog_manifest' => 1,
+        'cache_key' => (string) $scope['cache_key'],
+        'generated_at' => time(),
+        'generation' => $generation,
+        'item_count' => max(0, $item_count),
+        'chunks' => $chunk_options,
+    ];
+    if ($retired_chunks !== []) {
+        $payload['retired_chunks'] = $retired_chunks;
+    }
+    update_option($option_name, $payload, false);
+    $stored = get_option($option_name, null);
+    if (
+        !is_array($stored)
+        || empty($stored['__ll_quiz_pages_catalog_manifest'])
+        || (string) ($stored['generation'] ?? '') !== $generation
+        || (string) ($stored['cache_key'] ?? '') !== (string) $scope['cache_key']
+    ) {
+        return false;
+    }
+
+    ll_tools_quiz_pages_catalog_cleanup_snapshot_payload($existing, $chunk_options);
+    if ($retired_chunks !== []) {
+        unset($payload['retired_chunks']);
+        update_option($option_name, $payload, false);
+    }
+    return true;
 }
 
 function ll_tools_quiz_pages_catalog_set_status(array $status): void {
@@ -434,6 +588,76 @@ function ll_tools_quiz_pages_catalog_lock_release(string $scope_id, string $toke
     }
 }
 
+function ll_tools_quiz_pages_catalog_lock_is_owned(string $scope_id, string $token): bool {
+    if ($token === '') {
+        return false;
+    }
+
+    $existing = get_option(ll_tools_quiz_pages_catalog_option_name('lock', $scope_id), []);
+    return is_array($existing)
+        && (int) ($existing['expires_at'] ?? 0) >= time()
+        && hash_equals((string) ($existing['token'] ?? ''), $token);
+}
+
+function ll_tools_quiz_pages_catalog_snapshot_payload_ready(array $payload): bool {
+    if (is_array($payload['items'] ?? null)) {
+        return true;
+    }
+    if (
+        empty($payload['__ll_quiz_pages_catalog_manifest'])
+        || !is_array($payload['chunks'] ?? null)
+        || !isset($payload['generation'], $payload['cache_key'], $payload['item_count'])
+    ) {
+        return false;
+    }
+
+    global $wpdb;
+
+    $generation = (string) $payload['generation'];
+    $cache_key = (string) $payload['cache_key'];
+    $expected_count = max(0, (int) $payload['item_count']);
+    $actual_count = 0;
+    $seen_options = [];
+    foreach ($payload['chunks'] as $option_name) {
+        $option_name = (string) $option_name;
+        if (
+            isset($seen_options[$option_name])
+            || !ll_tools_quiz_pages_catalog_is_chunk_option_name($option_name)
+        ) {
+            return false;
+        }
+        $seen_options[$option_name] = true;
+        $raw_chunk = $wpdb->get_var($wpdb->prepare(
+            "/* ll_tools_quiz_pages_catalog_chunk_ready */ SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $option_name
+        ));
+        if ($raw_chunk === null) {
+            return false;
+        }
+        $chunk = maybe_unserialize($raw_chunk);
+        if (
+            !is_array($chunk)
+            || empty($chunk['__ll_quiz_pages_catalog_chunk'])
+            || (string) ($chunk['generation'] ?? '') !== $generation
+            || (string) ($chunk['cache_key'] ?? '') !== $cache_key
+            || !is_array($chunk['items'] ?? null)
+        ) {
+            return false;
+        }
+        foreach ($chunk['items'] as $item) {
+            if (!is_array($item)) {
+                return false;
+            }
+            $actual_count++;
+            if ($actual_count > $expected_count) {
+                return false;
+            }
+        }
+    }
+
+    return $actual_count === $expected_count;
+}
+
 function ll_tools_quiz_pages_catalog_snapshot_ready(string $scope_id): bool {
     if (!preg_match('/^[a-f0-9]{32}$/D', $scope_id)) {
         return false;
@@ -443,7 +667,7 @@ function ll_tools_quiz_pages_catalog_snapshot_ready(string $scope_id): bool {
     if (
         !is_array($payload)
         || empty($payload['__ll_quiz_pages_catalog'])
-        || !is_array($payload['items'] ?? null)
+        || (!is_array($payload['items'] ?? null) && empty($payload['__ll_quiz_pages_catalog_manifest']))
     ) {
         return false;
     }
@@ -451,26 +675,500 @@ function ll_tools_quiz_pages_catalog_snapshot_ready(string $scope_id): bool {
     $state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
     if (
         !empty($state['__ll_quiz_pages_catalog_state'])
-        && (string) ($state['cache_key'] ?? '') !== (string) ($payload['cache_key'] ?? '')
+        && (
+            (string) ($state['cache_key'] ?? '') !== (string) ($payload['cache_key'] ?? '')
+            || (
+                !empty($payload['__ll_quiz_pages_catalog_manifest'])
+                && (string) ($state['generation'] ?? '') !== (string) ($payload['generation'] ?? '')
+            )
+        )
     ) {
         return false;
     }
 
     $generated_at = max(0, (int) ($payload['generated_at'] ?? 0));
-    return $generated_at > 0 && $generated_at + ll_tools_quiz_pages_catalog_stale_ttl() >= time();
+    if ($generated_at <= 0 || $generated_at + ll_tools_quiz_pages_catalog_stale_ttl() < time()) {
+        return false;
+    }
+
+    return ll_tools_quiz_pages_catalog_snapshot_payload_ready($payload);
+}
+
+function ll_tools_quiz_pages_catalog_rebuild_batch_size(): int {
+    $batch_size = (int) apply_filters('ll_tools_quiz_pages_catalog_rebuild_batch_size', 100);
+    return max(1, min(250, $batch_size));
+}
+
+function ll_tools_quiz_pages_catalog_warmup_max_attempts(): int {
+    $max_attempts = (int) apply_filters('ll_tools_quiz_pages_catalog_warmup_max_attempts', 120);
+    return max(1, min(600, $max_attempts));
+}
+
+function ll_tools_quiz_pages_catalog_new_build_state(array $scope): array {
+    $seed = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('ll-qpg-', true);
+    return [
+        '__ll_quiz_pages_catalog_state' => 1,
+        'scope' => $scope,
+        'cache_key' => (string) $scope['cache_key'],
+        'generation' => substr(md5((string) $seed), 0, 12),
+        'status' => 'queued',
+        'source_index' => 0,
+        'cursor' => 0,
+        'processed' => 0,
+        'item_count' => 0,
+        'chunk_index' => 0,
+        'chunks' => [],
+        'requested_at' => time(),
+        'updated_at' => time(),
+        'last_error' => '',
+    ];
+}
+
+function ll_tools_quiz_pages_catalog_cleanup_build_state($state, array $preserve_option_names = []): void {
+    if (!is_array($state)) {
+        return;
+    }
+    ll_tools_quiz_pages_catalog_cleanup_chunk_options(
+        (array) ($state['chunks'] ?? []),
+        $preserve_option_names
+    );
+}
+
+function ll_tools_quiz_pages_catalog_build_state_is_current(string $state_option, array $state): bool {
+    $current = get_option($state_option, []);
+    return is_array($current)
+        && !empty($current['__ll_quiz_pages_catalog_state'])
+        && (string) ($current['generation'] ?? '') === (string) ($state['generation'] ?? '')
+        && (string) ($current['cache_key'] ?? '') === (string) ($state['cache_key'] ?? '');
+}
+
+function ll_tools_quiz_pages_catalog_worker_can_persist(
+    string $state_option,
+    array $state,
+    string $scope_id,
+    string $scope_token,
+    string $global_lock_id,
+    string $global_token
+): bool {
+    return ll_tools_quiz_pages_catalog_lock_is_owned($scope_id, $scope_token)
+        && ll_tools_quiz_pages_catalog_lock_is_owned($global_lock_id, $global_token)
+        && ll_tools_quiz_pages_catalog_build_state_is_current($state_option, $state);
+}
+
+function ll_tools_quiz_pages_catalog_build_context(array $scope): array {
+    $opts = is_array($scope['opts'] ?? null) ? $scope['opts'] : [];
+    $min_word_count = max(0, (int) ($scope['min_word_count'] ?? LL_TOOLS_MIN_WORDS_PER_QUIZ));
+    $post_types = function_exists('ll_tools_get_quiz_page_post_types')
+        ? ll_tools_get_quiz_page_post_types(true)
+        : ['page'];
+    $post_types = array_values(array_unique(array_filter(array_map('sanitize_key', (array) $post_types))));
+    if (defined('LL_TOOLS_QUIZ_PAGE_POST_TYPE')) {
+        $current_post_type = (string) LL_TOOLS_QUIZ_PAGE_POST_TYPE;
+        usort($post_types, static function (string $a, string $b) use ($current_post_type): int {
+            if (($a === $current_post_type) !== ($b === $current_post_type)) {
+                return $a === $current_post_type ? -1 : 1;
+            }
+            return strcmp($a, $b);
+        });
+    }
+
+    $allowed_term_ids = null;
+    $wordset_ids = [];
+    $filtered_wordset_id = 0;
+    $meta_category_ids = [];
+    $valid = true;
+    if (!empty($opts['wordset'])) {
+        $wordset_ids = array_values(array_filter(array_map('intval', (array) ll_raw_resolve_wordset_term_ids($opts['wordset']))));
+        if ($wordset_ids === []) {
+            $valid = false;
+        } else {
+            $allowed_term_ids = array_values(array_unique(array_filter(array_map('intval', (array) ll_collect_wc_ids_for_wordset_term_ids($wordset_ids)))));
+            if ($allowed_term_ids === []) {
+                $valid = false;
+            }
+        }
+        $filtered_wordset_id = (int) ($wordset_ids[0] ?? 0);
+        $meta_category_ids = array_map('intval', (array) $allowed_term_ids);
+        if ($valid && function_exists('ll_tools_wordset_isolation_get_category_query_scope_for_wordset')) {
+            $scoped_ids = [];
+            foreach ($wordset_ids as $wordset_id) {
+                foreach (ll_tools_wordset_isolation_get_category_query_scope_for_wordset($meta_category_ids, (int) $wordset_id) as $category_id) {
+                    $scoped_ids[] = (int) $category_id;
+                }
+            }
+            if ($scoped_ids !== []) {
+                $meta_category_ids = $scoped_ids;
+            }
+        }
+        $meta_category_ids = array_values(array_unique(array_filter(array_map('intval', $meta_category_ids))));
+        if ($meta_category_ids === []) {
+            $valid = false;
+        }
+    }
+
+    return [
+        'valid' => $valid,
+        'opts' => $opts,
+        'min_word_count' => $min_word_count,
+        'post_types' => $post_types,
+        'category_meta_key' => defined('LL_TOOLS_QUIZ_PAGE_CATEGORY_META')
+            ? (string) LL_TOOLS_QUIZ_PAGE_CATEGORY_META
+            : '_ll_tools_word_category_id',
+        'wordset_ids' => $wordset_ids,
+        'filtered_wordset_id' => $filtered_wordset_id,
+        'allowed_term_ids' => $allowed_term_ids,
+        'meta_category_ids' => $meta_category_ids,
+        'use_translations' => function_exists('ll_flashcards_should_use_translations')
+            ? ll_flashcards_should_use_translations($wordset_ids)
+            : false,
+    ];
+}
+
+/**
+ * @return array{rows:array<int,array{post_id:int,category_id:int}>,has_more:bool}
+ */
+function ll_tools_quiz_pages_catalog_query_page_batch(
+    array $context,
+    int $source_index,
+    int $after_post_id,
+    int $batch_size
+): array {
+    global $wpdb;
+
+    $post_types = array_values(array_map('strval', (array) ($context['post_types'] ?? [])));
+    if (!isset($post_types[$source_index])) {
+        return ['rows' => [], 'has_more' => false];
+    }
+    $post_type = sanitize_key($post_types[$source_index]);
+    $earlier_post_types = array_slice($post_types, 0, $source_index);
+    $meta_category_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($context['meta_category_ids'] ?? [])))));
+    $category_filter_sql = '';
+    if (!empty($context['opts']['wordset'])) {
+        if ($meta_category_ids === []) {
+            return ['rows' => [], 'has_more' => false];
+        }
+        $category_filter_sql = 'AND CAST(category_meta.meta_value AS UNSIGNED) IN ('
+            . implode(',', array_fill(0, count($meta_category_ids), '%d')) . ')';
+    }
+
+    $priority_sql = '(better_posts.post_type = %s AND better_posts.ID < posts.ID)';
+    $priority_params = [$post_type];
+    if ($earlier_post_types !== []) {
+        $priority_sql = '(better_posts.post_type IN ('
+            . implode(',', array_fill(0, count($earlier_post_types), '%s'))
+            . ') OR (better_posts.post_type = %s AND better_posts.ID < posts.ID))';
+        $priority_params = array_merge($earlier_post_types, [$post_type]);
+    }
+
+    $sql = "/* ll_tools_quiz_pages_catalog_batch */
+        SELECT posts.ID AS post_id, MIN(CAST(category_meta.meta_value AS UNSIGNED)) AS category_id
+        FROM {$wpdb->posts} AS posts
+        INNER JOIN {$wpdb->postmeta} AS category_meta
+            ON category_meta.post_id = posts.ID
+           AND category_meta.meta_key = %s
+           AND category_meta.meta_value <> ''
+           AND CAST(category_meta.meta_value AS UNSIGNED) > 0
+        WHERE posts.post_type = %s
+          AND posts.post_status = %s
+          AND posts.post_password = ''
+          AND posts.ID > %d
+          {$category_filter_sql}
+          AND NOT EXISTS (
+              SELECT 1
+              FROM {$wpdb->posts} AS better_posts
+              INNER JOIN {$wpdb->postmeta} AS better_meta
+                  ON better_meta.post_id = better_posts.ID
+                 AND better_meta.meta_key = %s
+                 AND CAST(better_meta.meta_value AS UNSIGNED) = CAST(category_meta.meta_value AS UNSIGNED)
+              WHERE better_posts.post_status = %s
+                AND better_posts.post_password = ''
+                AND {$priority_sql}
+          )
+        GROUP BY posts.ID
+        ORDER BY posts.ID ASC
+        LIMIT %d";
+    $params = [
+        (string) ($context['category_meta_key'] ?? ''),
+        $post_type,
+        'publish',
+        max(0, $after_post_id),
+    ];
+    $params = array_merge(
+        $params,
+        $meta_category_ids,
+        [(string) ($context['category_meta_key'] ?? ''), 'publish'],
+        $priority_params,
+        [max(1, $batch_size) + 1]
+    );
+    $raw_rows = (array) $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+    $has_more = count($raw_rows) > $batch_size;
+    $rows = [];
+    foreach (array_slice($raw_rows, 0, $batch_size) as $row) {
+        $post_id = is_array($row) ? (int) ($row['post_id'] ?? 0) : 0;
+        $category_id = is_array($row) ? (int) ($row['category_id'] ?? 0) : 0;
+        if ($post_id > 0 && $category_id > 0) {
+            $rows[] = ['post_id' => $post_id, 'category_id' => $category_id];
+        }
+    }
+
+    return ['rows' => $rows, 'has_more' => $has_more];
+}
+
+function ll_tools_quiz_pages_catalog_build_items_for_page_rows(array $rows, array $context): array {
+    $allowed_term_ids = $context['allowed_term_ids'] ?? null;
+    $allowed_lookup = is_array($allowed_term_ids)
+        ? array_fill_keys(array_map('intval', $allowed_term_ids), true)
+        : null;
+    $filtered_wordset_id = max(0, (int) ($context['filtered_wordset_id'] ?? 0));
+    $wordset_ids = array_values(array_map('intval', (array) ($context['wordset_ids'] ?? [])));
+    $min_word_count = max(0, (int) ($context['min_word_count'] ?? LL_TOOLS_MIN_WORDS_PER_QUIZ));
+    $use_translations = !empty($context['use_translations']);
+    $opts = is_array($context['opts'] ?? null) ? $context['opts'] : [];
+    $candidates = [];
+    $category_ids_for_meta = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $post_id = (int) ($row['post_id'] ?? 0);
+        $stored_term_id = (int) ($row['category_id'] ?? 0);
+        if ($post_id <= 0 || $stored_term_id <= 0) {
+            continue;
+        }
+
+        $term_id = $stored_term_id;
+        if ($filtered_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_term_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_term_id, $filtered_wordset_id, false);
+            if ($effective_term_id > 0) {
+                $term_id = $effective_term_id;
+            }
+        }
+        if (
+            is_array($allowed_lookup)
+            && !isset($allowed_lookup[$term_id])
+            && !isset($allowed_lookup[$stored_term_id])
+        ) {
+            continue;
+        }
+
+        $term = get_term($term_id, 'word-category');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($term)) {
+            continue;
+        }
+
+        $candidates[] = [
+            'post_id' => $post_id,
+            'stored_term_id' => $stored_term_id,
+            'term_id' => $term_id,
+            'term' => $term,
+        ];
+        $category_ids_for_meta[$term_id] = true;
+        $category_ids_for_meta[$stored_term_id] = true;
+    }
+    if ($candidates === []) {
+        return [];
+    }
+
+    $category_meta_map = [];
+    $has_processed_category_meta = function_exists('ll_flashcards_build_categories');
+    if ($has_processed_category_meta) {
+        [$processed_categories] = ll_flashcards_build_categories(
+            implode(',', array_map('strval', array_keys($category_ids_for_meta))),
+            $use_translations,
+            $wordset_ids
+        );
+        foreach ((array) $processed_categories as $category_meta) {
+            $category_id = is_array($category_meta) ? (int) ($category_meta['id'] ?? 0) : 0;
+            if ($category_id > 0) {
+                $category_meta_map[$category_id] = $category_meta;
+            }
+        }
+    }
+
+    $base_items = [];
+    $gender_category_ids_by_wordset = [];
+    foreach ($candidates as $candidate) {
+        $post_id = (int) $candidate['post_id'];
+        $stored_term_id = (int) $candidate['stored_term_id'];
+        $term_id = (int) $candidate['term_id'];
+        $term = $candidate['term'];
+        $category_meta = $category_meta_map[$term_id] ?? ($category_meta_map[$stored_term_id] ?? null);
+        if ($has_processed_category_meta && !is_array($category_meta)) {
+            continue;
+        }
+        if (!is_array($category_meta) && !ll_can_category_generate_quiz($term, $min_word_count, $wordset_ids)) {
+            continue;
+        }
+
+        $config = is_array($category_meta)
+            ? [
+                'prompt_type' => $category_meta['prompt_type'] ?? 'audio',
+                'option_type' => $category_meta['option_type'] ?? ($category_meta['mode'] ?? 'image'),
+                'learning_prompt_type' => $category_meta['learning_prompt_type'] ?? '',
+                'learning_option_type' => $category_meta['learning_option_type'] ?? '',
+                'learning_supported' => $category_meta['learning_supported'] ?? true,
+                'self_check_supported' => $category_meta['self_check_supported'] ?? true,
+                'sign_language_mode' => !empty($category_meta['sign_language_mode']),
+                'use_titles' => $category_meta['use_titles'] ?? false,
+            ]
+            : (function_exists('ll_tools_get_category_quiz_config')
+                ? ll_tools_get_category_quiz_config($term)
+                : ['prompt_type' => 'audio', 'option_type' => 'image', 'learning_supported' => true, 'self_check_supported' => true, 'use_titles' => false]);
+        $name = html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8');
+        $translation = '';
+        if ($use_translations) {
+            $translation_value = get_term_meta($term_id, 'term_translation', true);
+            if (empty($translation_value) && $stored_term_id !== $term_id) {
+                $translation_value = get_term_meta($stored_term_id, 'term_translation', true);
+            }
+            if (!empty($translation_value)) {
+                $translation = html_entity_decode((string) $translation_value, ENT_QUOTES, 'UTF-8');
+            }
+        }
+
+        $wordset_slug = '';
+        $wordset_id_for_item = 0;
+        if (!empty($opts['wordset'])) {
+            $wordset_slug = sanitize_text_field((string) $opts['wordset']);
+            $wordset_id_for_item = $filtered_wordset_id;
+        } else {
+            $default_wordset_id = (int) ll_get_default_wordset_id_for_category($name, $min_word_count);
+            if (
+                $default_wordset_id > 0
+                && function_exists('ll_can_category_generate_quiz')
+                && !ll_can_category_generate_quiz($term, $min_word_count, [$default_wordset_id])
+            ) {
+                $default_wordset_id = 0;
+            }
+            if ($default_wordset_id > 0) {
+                $default_wordset = get_term($default_wordset_id, 'wordset');
+                if ($default_wordset instanceof WP_Term && !is_wp_error($default_wordset)) {
+                    $wordset_slug = (string) $default_wordset->slug;
+                    $wordset_id_for_item = $default_wordset_id;
+                }
+            }
+        }
+        if ($wordset_id_for_item > 0) {
+            $gender_category_ids_by_wordset[$wordset_id_for_item][$term_id] = true;
+        }
+
+        $option_type = (string) ($config['option_type'] ?? 'image');
+        $base_items[] = [
+            'post_id' => $post_id,
+            'permalink' => get_permalink($post_id),
+            'slug' => (string) $term->slug,
+            'term_id' => $term_id,
+            'name' => $name,
+            'translation' => $translation,
+            'display_name' => $translation !== '' ? $translation : $name,
+            'wordset_slug' => $wordset_slug,
+            'wordset_id' => $wordset_id_for_item,
+            'autoplay_text_audio_answer_options' => ($wordset_id_for_item > 0 && function_exists('ll_tools_should_autoplay_text_audio_answer_options'))
+                ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id_for_item])
+                : false,
+            'display_mode' => $option_type,
+            'option_type' => $option_type,
+            'prompt_type' => (string) ($config['prompt_type'] ?? 'audio'),
+            'learning_prompt_type' => (string) ($config['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
+            'learning_supported' => $config['learning_supported'] ?? true,
+            'self_check_supported' => $config['self_check_supported'] ?? true,
+            'sign_language_mode' => !empty($config['sign_language_mode']),
+            'use_titles' => !empty($config['use_titles']),
+            'word_count' => is_array($category_meta) ? max(0, (int) ($category_meta['word_count'] ?? 0)) : 0,
+            'aspect_bucket' => is_array($category_meta) ? (string) ($category_meta['aspect_bucket'] ?? 'no-image') : 'no-image',
+        ];
+    }
+
+    $gender_config_by_wordset = [];
+    foreach ($gender_category_ids_by_wordset as $wordset_id => $category_id_map) {
+        $wordset_id = (int) $wordset_id;
+        $enabled = function_exists('ll_tools_wordset_has_grammatical_gender')
+            && ll_tools_wordset_has_grammatical_gender($wordset_id);
+        $options = ($enabled && function_exists('ll_tools_wordset_get_gender_options'))
+            ? ll_tools_wordset_get_gender_options($wordset_id)
+            : [];
+        $options = array_values(array_filter(array_map('strval', (array) $options), static function (string $value): bool {
+            return $value !== '';
+        }));
+        $visual_config = ($enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+            ? ll_tools_wordset_get_gender_visual_config($wordset_id)
+            : [];
+        $support_map = [];
+        if ($enabled && $has_processed_category_meta) {
+            [$gender_categories] = ll_flashcards_build_categories(
+                implode(',', array_map('strval', array_keys($category_id_map))),
+                $use_translations,
+                [$wordset_id]
+            );
+            foreach ((array) $gender_categories as $gender_category) {
+                $category_id = is_array($gender_category) ? (int) ($gender_category['id'] ?? 0) : 0;
+                if ($category_id > 0) {
+                    $support_map[$category_id] = !empty($gender_category['gender_supported']);
+                }
+            }
+        }
+        $gender_config_by_wordset[$wordset_id] = [
+            'enabled' => $enabled,
+            'options' => $options,
+            'visual_config' => is_array($visual_config) ? $visual_config : [],
+            'support_map' => $support_map,
+        ];
+    }
+
+    foreach ($base_items as &$item) {
+        $wordset_id = (int) ($item['wordset_id'] ?? 0);
+        $term_id = (int) ($item['term_id'] ?? 0);
+        $gender_config = $gender_config_by_wordset[$wordset_id] ?? [];
+        $item['gender_enabled'] = !empty($gender_config['enabled']);
+        $item['gender_options'] = array_values((array) ($gender_config['options'] ?? []));
+        $item['gender_visual_config'] = is_array($gender_config['visual_config'] ?? null)
+            ? $gender_config['visual_config']
+            : [];
+        $item['gender_supported'] = !empty($gender_config['support_map'][$term_id]);
+    }
+    unset($item);
+
+    return $base_items;
 }
 
 function ll_tools_quiz_pages_catalog_schedule_refresh(array $scope): void {
     $scope_id = (string) $scope['id'];
     $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
     $state = get_option($state_option, []);
-    if (!is_array($state) || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']) {
-        update_option($state_option, [
-            '__ll_quiz_pages_catalog_state' => 1,
-            'scope' => $scope,
-            'cache_key' => (string) $scope['cache_key'],
-            'requested_at' => time(),
-        ], false);
+    $needs_reset = (
+        !is_array($state)
+        || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']
+        || preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) !== 1
+        || !is_array($state['chunks'] ?? null)
+    );
+    if ($needs_reset) {
+        $state_token = ll_tools_quiz_pages_catalog_lock_acquire($scope_id);
+        if ($state_token !== '') {
+            try {
+                $state = get_option($state_option, []);
+                $needs_reset = (
+                    !is_array($state)
+                    || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']
+                    || preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) !== 1
+                    || !is_array($state['chunks'] ?? null)
+                );
+                if ($needs_reset) {
+                    $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+                    ll_tools_quiz_pages_catalog_cleanup_build_state(
+                        $state,
+                        ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
+                    );
+                    update_option($state_option, ll_tools_quiz_pages_catalog_new_build_state($scope), false);
+                }
+            } finally {
+                ll_tools_quiz_pages_catalog_lock_release($scope_id, $state_token);
+            }
+        }
     }
 
     $hook = 'll_tools_quiz_pages_catalog_refresh_event';
@@ -486,12 +1184,29 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
     if (empty($state['__ll_quiz_pages_catalog_state']) || !is_array($state['scope'] ?? null)) {
         return;
     }
-
     $token = ll_tools_quiz_pages_catalog_lock_acquire($scope_id);
     if ($token === '') {
         $scope = (array) $state['scope'];
         ll_tools_quiz_pages_catalog_schedule_refresh($scope);
         return;
+    }
+
+    $state = get_option($state_option, []);
+    if (empty($state['__ll_quiz_pages_catalog_state']) || !is_array($state['scope'] ?? null)) {
+        ll_tools_quiz_pages_catalog_lock_release($scope_id, $token);
+        return;
+    }
+    if (
+        preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) !== 1
+        || !is_array($state['chunks'] ?? null)
+    ) {
+        $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+        ll_tools_quiz_pages_catalog_cleanup_build_state(
+            $state,
+            ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
+        );
+        $state = ll_tools_quiz_pages_catalog_new_build_state((array) $state['scope']);
+        update_option($state_option, $state, false);
     }
 
     $global_lock_id = md5('ll-tools-quiz-pages-catalog-global-refresh');
@@ -502,8 +1217,12 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
         return;
     }
 
+    // Leave a continuation queued before doing work so a fatal interruption can retry the durable state.
+    ll_tools_quiz_pages_catalog_schedule_refresh((array) $state['scope']);
+
     $old_user_id = (int) get_current_user_id();
     $switched_locale = false;
+    $reschedule_scope = null;
     try {
         $stored_scope = (array) $state['scope'];
         if (function_exists('wp_set_current_user')) {
@@ -516,19 +1235,161 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
 
         $opts = is_array($stored_scope['opts'] ?? null) ? $stored_scope['opts'] : [];
         $min_word_count = (int) ($stored_scope['min_word_count'] ?? LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        $scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
-        $items = ll_tools_quiz_pages_rebuild_catalog_data($opts);
         $current_scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
-
-        if ((string) $scope['cache_key'] === (string) $current_scope['cache_key']) {
-            ll_tools_quiz_pages_catalog_latest_set($current_scope, $items, true);
-            $latest_state = get_option($state_option, []);
-            if ((string) ($latest_state['cache_key'] ?? '') === (string) $current_scope['cache_key']) {
-                delete_option($state_option);
+        if ((string) ($state['cache_key'] ?? '') !== (string) $current_scope['cache_key']) {
+            if (!ll_tools_quiz_pages_catalog_worker_can_persist(
+                $state_option,
+                $state,
+                $scope_id,
+                $token,
+                $global_lock_id,
+                $global_token
+            )) {
+                throw new RuntimeException('Quiz catalog refresh lock expired.');
             }
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+            ll_tools_quiz_pages_catalog_cleanup_build_state(
+                $state,
+                ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
+            );
+            $state = ll_tools_quiz_pages_catalog_new_build_state($current_scope);
+            update_option($state_option, $state, false);
+            $reschedule_scope = $current_scope;
         } else {
-            ll_tools_quiz_pages_catalog_schedule_refresh($current_scope);
+            $context = ll_tools_quiz_pages_catalog_build_context($current_scope);
+            $source_index = max(0, (int) ($state['source_index'] ?? 0));
+            $post_types = array_values((array) ($context['post_types'] ?? []));
+            $batch_size = ll_tools_quiz_pages_catalog_rebuild_batch_size();
+            $completed = empty($context['valid']) || $source_index >= count($post_types);
+
+            if (!$completed) {
+                $batch = ll_tools_quiz_pages_catalog_query_page_batch(
+                    $context,
+                    $source_index,
+                    max(0, (int) ($state['cursor'] ?? 0)),
+                    $batch_size
+                );
+                $rows = array_values((array) ($batch['rows'] ?? []));
+                $items = ll_tools_quiz_pages_catalog_build_items_for_page_rows($rows, $context);
+                if (!ll_tools_quiz_pages_catalog_worker_can_persist(
+                    $state_option,
+                    $state,
+                    $scope_id,
+                    $token,
+                    $global_lock_id,
+                    $global_token
+                )) {
+                    throw new RuntimeException('Quiz catalog refresh lock expired.');
+                }
+                if ($items !== []) {
+                    $chunk_index = max(0, (int) ($state['chunk_index'] ?? 0));
+                    $chunk_option = ll_tools_quiz_pages_catalog_chunk_option_name(
+                        $scope_id,
+                        (string) ($state['generation'] ?? ''),
+                        $chunk_index
+                    );
+                    $chunk_payload = [
+                        '__ll_quiz_pages_catalog_chunk' => 1,
+                        'generation' => (string) ($state['generation'] ?? ''),
+                        'cache_key' => (string) $current_scope['cache_key'],
+                        'items' => $items,
+                    ];
+                    update_option($chunk_option, $chunk_payload, false);
+                    $stored_chunk = get_option($chunk_option, null);
+                    if (
+                        !is_array($stored_chunk)
+                        || empty($stored_chunk['__ll_quiz_pages_catalog_chunk'])
+                        || (string) ($stored_chunk['generation'] ?? '') !== (string) ($state['generation'] ?? '')
+                    ) {
+                        throw new RuntimeException('Could not persist the quiz catalog build chunk.');
+                    }
+                    $state['chunks'][] = $chunk_option;
+                    $state['chunk_index'] = $chunk_index + 1;
+                    $state['item_count'] = max(0, (int) ($state['item_count'] ?? 0)) + count($items);
+                }
+
+                $state['processed'] = max(0, (int) ($state['processed'] ?? 0)) + count($rows);
+                if ($rows !== []) {
+                    $last_row = end($rows);
+                    $state['cursor'] = is_array($last_row) ? max(0, (int) ($last_row['post_id'] ?? 0)) : 0;
+                }
+                if (empty($batch['has_more'])) {
+                    $state['source_index'] = $source_index + 1;
+                    $state['cursor'] = 0;
+                }
+                $state['status'] = 'queued';
+                $state['updated_at'] = time();
+                $state['last_error'] = '';
+                $completed = (int) ($state['source_index'] ?? 0) >= count($post_types);
+            }
+
+            if ($completed) {
+                if (!ll_tools_quiz_pages_catalog_worker_can_persist(
+                    $state_option,
+                    $state,
+                    $scope_id,
+                    $token,
+                    $global_lock_id,
+                    $global_token
+                )) {
+                    throw new RuntimeException('Quiz catalog refresh lock expired.');
+                }
+                $publish_scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
+                if ((string) $publish_scope['cache_key'] !== (string) ($state['cache_key'] ?? '')) {
+                    $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+                    ll_tools_quiz_pages_catalog_cleanup_build_state(
+                        $state,
+                        ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
+                    );
+                    $state = ll_tools_quiz_pages_catalog_new_build_state($publish_scope);
+                    update_option($state_option, $state, false);
+                    $reschedule_scope = $publish_scope;
+                } elseif (ll_tools_quiz_pages_catalog_latest_set_manifest(
+                    $publish_scope,
+                    (string) ($state['generation'] ?? ''),
+                    (array) ($state['chunks'] ?? []),
+                    (int) ($state['item_count'] ?? 0)
+                )) {
+                    delete_option($state_option);
+                    wp_clear_scheduled_hook('ll_tools_quiz_pages_catalog_refresh_event', [$scope_id]);
+                } else {
+                    throw new RuntimeException('Could not publish the quiz catalog snapshot.');
+                }
+            } else {
+                if (!ll_tools_quiz_pages_catalog_worker_can_persist(
+                    $state_option,
+                    $state,
+                    $scope_id,
+                    $token,
+                    $global_lock_id,
+                    $global_token
+                )) {
+                    throw new RuntimeException('Quiz catalog refresh lock expired.');
+                }
+                update_option($state_option, $state, false);
+                $reschedule_scope = $current_scope;
+            }
         }
+    } catch (Throwable $error) {
+        if (ll_tools_quiz_pages_catalog_worker_can_persist(
+            $state_option,
+            $state,
+            $scope_id,
+            $token,
+            $global_lock_id,
+            $global_token
+        )) {
+            $latest_state = get_option($state_option, $state);
+            if (!is_array($latest_state)) {
+                $latest_state = $state;
+            }
+            $latest_state['status'] = 'queued';
+            $latest_state['updated_at'] = time();
+            $latest_state['last_error'] = sanitize_text_field($error->getMessage());
+            update_option($state_option, $latest_state, false);
+        }
+        $current_state = get_option($state_option, []);
+        $reschedule_scope = is_array($current_state['scope'] ?? null) ? $current_state['scope'] : null;
     } finally {
         if ($switched_locale && function_exists('restore_previous_locale')) {
             restore_previous_locale();
@@ -538,6 +1399,9 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
         }
         ll_tools_quiz_pages_catalog_lock_release($global_lock_id, $global_token);
         ll_tools_quiz_pages_catalog_lock_release($scope_id, $token);
+    }
+    if (is_array($reschedule_scope)) {
+        ll_tools_quiz_pages_catalog_schedule_refresh($reschedule_scope);
     }
 }
 add_action('ll_tools_quiz_pages_catalog_refresh_event', 'll_tools_quiz_pages_catalog_refresh_event', 10, 1);
@@ -587,9 +1451,10 @@ add_action('wp_ajax_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_
 add_action('wp_ajax_nopriv_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_warmup_ajax');
 
 /**
- * Rebuild the complete materialized quiz-page catalog.
+ * Rebuild the complete materialized quiz-page catalog synchronously.
  * Optional filter: $opts['wordset'] accepts slug/name/id of a WORDSET term.
- * This runs only in the locked refresh worker, never in a public cold render.
+ * Production cold reads and refresh workers use the chunked generation above.
+ * Keep this helper limited to explicit maintenance and compatibility tests.
  */
 function ll_tools_quiz_pages_rebuild_catalog_data($opts = []) {
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
@@ -895,7 +1760,22 @@ function ll_get_all_quiz_pages_data($opts = []) {
         return ll_tools_quiz_pages_catalog_filter_visible_items($cached_items, $scope);
     }
 
-    $stale_items = ll_tools_quiz_pages_catalog_latest_get($scope);
+    $latest_payload = ll_tools_quiz_pages_catalog_latest_payload($scope);
+    $stale_items = is_array($latest_payload)
+        ? ll_tools_quiz_pages_catalog_snapshot_items($latest_payload)
+        : null;
+    if (
+        is_array($stale_items)
+        && (string) ($latest_payload['cache_key'] ?? '') === (string) $scope['cache_key']
+    ) {
+        ll_tools_quiz_pages_data_cache_set((string) $scope['cache_key'], $stale_items);
+        ll_tools_quiz_pages_catalog_set_status([
+            'refreshing' => false,
+            'has_snapshot' => true,
+            'scope_id' => (string) $scope['id'],
+        ]);
+        return ll_tools_quiz_pages_catalog_filter_visible_items($stale_items, $scope);
+    }
     ll_tools_quiz_pages_catalog_schedule_refresh($scope);
 
     if (is_array($stale_items)) {
@@ -951,7 +1831,7 @@ function ll_tools_quiz_pages_catalog_loading_notice(): string {
         . ' data-nonce="' . esc_attr(wp_create_nonce('ll_quiz_catalog_warmup_' . $scope_id)) . '"'
         . ' data-scope-id="' . esc_attr($scope_id) . '"'
         . ' data-refresh-url="' . esc_url($refresh_url) . '"'
-        . ' data-retry-ms="1200" data-max-attempts="8">'
+        . ' data-retry-ms="1200" data-max-attempts="' . esc_attr((string) ll_tools_quiz_pages_catalog_warmup_max_attempts()) . '">'
         . esc_html__('Loading quiz...', 'll-tools-text-domain')
         . ' <a href="' . esc_url($refresh_url) . '">'
         . esc_html__('Refresh', 'll-tools-text-domain')

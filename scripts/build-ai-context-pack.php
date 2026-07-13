@@ -203,6 +203,7 @@ function ll_tools_context_pack_definitions(): array
                 'Do not hydrate all words when a count or bounded candidate pool is enough.',
                 'Keep ll_get_words_by_category() payload fields stable for option safety.',
                 'Anonymous public surfaces should remain cache-aware and nonce-safe.',
+                'Quiz catalog refreshes must keyset-page generation chunks, serialize state resets behind the scope lock, fence writes by lock token plus durable generation, and atomically publish only a complete validated manifest; public cold reads never run the synchronous full rebuild helper.',
             ],
             'sources' => [
                 'includes/shortcodes/flashcard-widget.php',

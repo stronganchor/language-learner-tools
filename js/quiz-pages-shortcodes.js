@@ -20,7 +20,7 @@
         var scopeId = status.dataset.scopeId || '';
         var refreshUrl = status.dataset.refreshUrl || window.location.href;
         var retryMs = Math.max(250, Math.min(5000, Number(status.dataset.retryMs) || 1200));
-        var maxAttempts = Math.max(1, Math.min(12, Number(status.dataset.maxAttempts) || 8));
+        var maxAttempts = Math.max(1, Math.min(600, Number(status.dataset.maxAttempts) || 120));
         var attempts = 0;
 
         if (!ajaxUrl || !action || !nonce || !scopeId || typeof window.fetch !== 'function') {
