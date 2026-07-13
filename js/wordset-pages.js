@@ -672,8 +672,6 @@
     const $progressCategorySearchLoading = $root.find('[data-ll-wordset-progress-category-search-loading]');
     const $progressWordColumnFilterOptions = $root.find('[data-ll-wordset-progress-column-filter-options]');
     const $progressCategoryFilterOptions = $root.find('[data-ll-wordset-progress-category-filter-options]');
-    const $progressFilterTriggers = $root.find('[data-ll-wordset-progress-filter-trigger]');
-    const $progressFilterPops = $root.find('[data-ll-wordset-progress-filter-pop]');
     const $progressSortButtons = $root.find('[data-ll-wordset-progress-sort]');
     const $progressSortHeaders = $root.find('[data-ll-wordset-progress-sort-th]');
     const $progressCategorySortButtons = $root.find('[data-ll-wordset-progress-category-sort]');
@@ -706,6 +704,14 @@
         '.ll-wordset-progress-word-thumb',
         '.ll-wordset-progress-category-thumb.is-image'
     ].join(', ');
+
+    function getProgressFilterTriggers() {
+        return $root.find('[data-ll-wordset-progress-filter-trigger]');
+    }
+
+    function getProgressFilterPops() {
+        return $root.find('[data-ll-wordset-progress-filter-pop]');
+    }
     let wordsetThumbImageObserver = null;
 
     function getWordsetThumbImageWrapper(img) {
@@ -4441,8 +4447,9 @@
 
     function renderProgressFilterTriggerStates() {
         let anyActive = !!normalizeSummaryFilter(analyticsSummaryFilter);
-        if (!$progressFilterTriggers.length) { return; }
-        $progressFilterTriggers.each(function () {
+        const $triggers = getProgressFilterTriggers();
+        if (!$triggers.length) { return; }
+        $triggers.each(function () {
             const $trigger = $(this);
             const key = String($trigger.attr('data-ll-wordset-progress-filter-trigger') || '');
             let hasFilter = false;
@@ -4829,8 +4836,10 @@
 
     function closeProgressFilterPops(exceptKey) {
         const keepKey = String(exceptKey || '');
+        const $pops = getProgressFilterPops();
+        const $triggers = getProgressFilterTriggers();
         $root.find('th.ll-wordset-progress-filter-open').removeClass('ll-wordset-progress-filter-open');
-        $progressFilterPops.each(function () {
+        $pops.each(function () {
             const $pop = $(this);
             const key = String($pop.attr('data-ll-wordset-progress-filter-pop') || '');
             const keepOpen = keepKey && key === keepKey;
@@ -4842,7 +4851,7 @@
                 $pop.css({ left: '', top: '' });
             }
         });
-        $progressFilterTriggers.each(function () {
+        $triggers.each(function () {
             const $trigger = $(this);
             const key = String($trigger.attr('data-ll-wordset-progress-filter-trigger') || '');
             const expanded = !!(keepKey && key === keepKey);
@@ -4854,7 +4863,7 @@
 
     function getOpenProgressFilterKey() {
         let openKey = '';
-        $progressFilterTriggers.each(function () {
+        getProgressFilterTriggers().each(function () {
             if (openKey) { return; }
             const $trigger = $(this);
             if (String($trigger.attr('aria-expanded') || '') !== 'true') { return; }
@@ -4866,8 +4875,8 @@
     function positionProgressFilterPop(filterKey) {
         const key = String(filterKey || '');
         if (!key) { return; }
-        const $trigger = $progressFilterTriggers.filter('[data-ll-wordset-progress-filter-trigger="' + key + '"]').first();
-        const $pop = $progressFilterPops.filter('[data-ll-wordset-progress-filter-pop="' + key + '"]').first();
+        const $trigger = getProgressFilterTriggers().filter('[data-ll-wordset-progress-filter-trigger="' + key + '"]').first();
+        const $pop = getProgressFilterPops().filter('[data-ll-wordset-progress-filter-pop="' + key + '"]').first();
         if (!$trigger.length || !$pop.length || $pop.prop('hidden')) { return; }
         const triggerRect = $trigger[0].getBoundingClientRect();
         if (!triggerRect || (triggerRect.width === 0 && triggerRect.height === 0)) { return; }
@@ -4915,7 +4924,7 @@
             closeProgressFilterPops('');
             return;
         }
-        const $pop = $progressFilterPops.filter('[data-ll-wordset-progress-filter-pop="' + filterKey + '"]');
+        const $pop = getProgressFilterPops().filter('[data-ll-wordset-progress-filter-pop="' + filterKey + '"]');
         if (!$pop.length) { return; }
         const isOpen = !$pop.prop('hidden');
         if (isOpen) {
