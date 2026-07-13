@@ -2430,8 +2430,11 @@
     const bulkMessages = {
         saving: bulkI18n.saving || 'Updating...',
         saved: bulkI18n.saved || 'Saved.',
+        continuing: bulkI18n.continuing || 'Continuing bulk change...',
+        interrupted: bulkI18n.interrupted || 'Bulk change interrupted. Continue or undo it.',
         undoLabel: bulkI18n.undoLabel || 'Undo last bulk change',
         undoSuccess: bulkI18n.undoSuccess || 'Bulk changes undone.',
+        undoConflict: bulkI18n.undoConflict || 'Rollback skipped %d words changed after the bulk operation.',
         undoError: bulkI18n.undoError || 'Unable to undo bulk changes.',
         posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
         genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',

@@ -253,11 +253,13 @@ async function mountMobileBulkEditor(page, options = {}) {
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
   }, buildWordGridConfig(options));
-  await page.evaluate(({ simulateCursorBatches, interruptedOperation }) => {
+  await page.evaluate(({ simulateCursorBatches, interruptedOperation, bulkResponseDelayMs, undoConflictCount }) => {
     window.llSimulateBulkBatches = !!simulateCursorBatches;
     window.llBulkPostCalls = [];
     window.llBulkTargetValue = interruptedOperation ? interruptedOperation.request_value : '';
     window.llBulkDurableOperation = interruptedOperation || null;
+    window.llBulkResponseDelayMs = Math.max(0, Number.parseInt(bulkResponseDelayMs, 10) || 0);
+    window.llUndoConflictCount = Math.max(0, Number.parseInt(undoConflictCount, 10) || 0);
     window.llUndoCallCount = 0;
     jQuery.post = function (_url, data) {
       const payload = JSON.parse(JSON.stringify(data || {}));
@@ -304,7 +306,7 @@ async function mountMobileBulkEditor(page, options = {}) {
             word_ids: undoWordIds,
             has_more_undo: hasMoreUndo,
             operation: window.llBulkDurableOperation || {},
-            conflict_count: 0,
+            conflict_count: window.llUndoConflictCount,
             words: [
               {
                 word_id: 101,
@@ -348,7 +350,7 @@ async function mountMobileBulkEditor(page, options = {}) {
         can_undo: true
       };
 
-      deferred.resolve({
+      const response = {
         success: true,
         data: {
           word_ids: batchWordIds,
@@ -365,12 +367,19 @@ async function mountMobileBulkEditor(page, options = {}) {
           verb_tense_cleared: true,
           verb_mood_cleared: true
         }
-      });
+      };
+      if (window.llBulkResponseDelayMs > 0) {
+        window.setTimeout(() => deferred.resolve(response), window.llBulkResponseDelayMs);
+      } else {
+        deferred.resolve(response);
+      }
       return deferred.promise();
     };
   }, {
     simulateCursorBatches: !!options.simulateCursorBatches,
-    interruptedOperation: options.interruptedOperation || null
+    interruptedOperation: options.interruptedOperation || null,
+    bulkResponseDelayMs: options.bulkResponseDelayMs || 0,
+    undoConflictCount: options.undoConflictCount || 0
   });
   await page.addScriptTag({ content: wordGridScriptSource });
 }
@@ -471,6 +480,7 @@ test('mobile bulk edit continues cursor batches and chunks undo payloads', async
 test('mobile bulk edit recovers an interrupted operation and continues it after reload', async ({ page }) => {
   await mountMobileBulkEditor(page, {
     simulateCursorBatches: true,
+    bulkResponseDelayMs: 100,
     interruptedOperation: {
       token: 'bulk-token',
       mode: 'pos',
@@ -489,8 +499,16 @@ test('mobile bulk edit recovers an interrupted operation and continues it after 
   await expect(page.locator('[data-ll-bulk-control-continue="pos"]')).toBeVisible();
   await expect(page.locator('[data-ll-bulk-control-undo="pos"]')).toBeVisible();
   await expect(page.locator('[data-ll-bulk-pos]')).toBeDisabled();
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute(
+    'aria-label',
+    'Bulk change interrupted. Continue or undo it.'
+  );
 
   await page.locator('[data-ll-bulk-control-continue="pos"]').click();
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute(
+    'aria-label',
+    'Continuing bulk change...'
+  );
   await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 2);
   await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute('data-state', 'saved');
   await expect(page.locator('[data-ll-bulk-control-continue="pos"]')).toBeHidden();
@@ -499,6 +517,22 @@ test('mobile bulk edit recovers an interrupted operation and continues it after 
   const calls = await page.evaluate(() => window.llBulkPostCalls);
   expect(calls[0].operation_token).toBe('bulk-token');
   expect(calls[0].part_of_speech).toBeUndefined();
+});
+
+test('mobile bulk undo reports localized conflicts', async ({ page }) => {
+  await mountMobileBulkEditor(page, { undoConflictCount: 2 });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await page.locator('[data-ll-bulk-pos]').selectOption('adjective');
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 1);
+  await page.locator('[data-ll-bulk-control-undo="pos"]').click();
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 2);
+
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute(
+    'aria-label',
+    'Rollback skipped 2 words changed after the bulk operation.'
+  );
+  await expect(page.locator('[data-ll-bulk-control-status="pos"]')).toHaveAttribute('data-state', 'paused');
 });
 
 test('mobile bulk edit exposes generic undo when an interrupted feature control is unavailable', async ({ page }) => {

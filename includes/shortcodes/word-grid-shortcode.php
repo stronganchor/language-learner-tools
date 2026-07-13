@@ -3963,8 +3963,11 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         'bulkI18n' => [
             'saving' => __('Updating...', 'll-tools-text-domain'),
             'saved' => __('Saved.', 'll-tools-text-domain'),
+            'continuing' => __('Continuing bulk change...', 'll-tools-text-domain'),
+            'interrupted' => __('Bulk change interrupted. Continue or undo it.', 'll-tools-text-domain'),
             'undoLabel' => __('Undo last bulk change', 'll-tools-text-domain'),
             'undoSuccess' => __('Bulk changes undone.', 'll-tools-text-domain'),
+            'undoConflict' => __('Rollback skipped %d words changed after the bulk operation.', 'll-tools-text-domain'),
             'undoError' => __('Unable to undo bulk changes.', 'll-tools-text-domain'),
             'posSuccess' => __('Updated %d words.', 'll-tools-text-domain'),
             'genderSuccess' => __('Updated %d nouns.', 'll-tools-text-domain'),
