@@ -8,6 +8,10 @@ final class VocabLessonSettingsAccessTest extends LL_Tools_TestCase
         if (function_exists('set_current_screen')) {
             set_current_screen('front');
         }
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        delete_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
 
         parent::tearDown();
     }
@@ -102,6 +106,13 @@ final class VocabLessonSettingsAccessTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('post_type=ll_vocab_lesson', $redirect_url);
         $this->assertSame([$wordset_id], ll_tools_get_vocab_lesson_wordset_ids());
+        $state = ll_tools_get_vocab_lesson_reconciliation_state();
+        $this->assertSame('queued', (string) ($state['status'] ?? ''));
+        $this->assertSame('cleanup', (string) ($state['phase'] ?? ''));
+        $this->assertSame([$wordset_id], (array) ($state['wordset_ids'] ?? []));
+        $this->assertSame(0, (int) ($state['cleanup_processed'] ?? -1));
+        $this->assertSame(0, (int) ($state['created'] ?? -1));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
     }
 
     private function ensure_term(string $taxonomy, string $name, string $slug): int

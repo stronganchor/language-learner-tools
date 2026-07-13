@@ -9,7 +9,9 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
         delete_option('ll_tools_quiz_page_sync_last');
         delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
         delete_option('ll_tools_vocab_lesson_sync_last');
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
         delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+        delete_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
         delete_transient('ll_tools_skip_sync_until_seeded');
         delete_transient('ll_tools_seed_default_wordset');
         wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
@@ -67,7 +69,8 @@ final class CategoryMaintenanceDeferralTest extends LL_Tools_TestCase
         do_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
 
         $this->assertGreaterThan(0, $this->findQuizPageId($fixture['category_id']));
-        $this->assertNotFalse(has_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT, 'll_tools_sync_vocab_lesson_pages'));
+        $this->assertNotFalse(has_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT, 'll_tools_run_vocab_lesson_reconciliation_batch'));
+        $this->assertFalse(has_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT, 'll_tools_sync_vocab_lesson_pages'));
     }
 
     public function test_content_save_does_not_rebuild_existing_quiz_page_shell(): void

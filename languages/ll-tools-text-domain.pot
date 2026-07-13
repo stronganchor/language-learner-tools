@@ -9,9 +9,9 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-13T09:22:20+00:00\n"
+"POT-Creation-Date: 2026-07-13T10:11:09+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.10.0\n"
+"X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
@@ -556,6 +556,7 @@ msgstr ""
 
 #. translators: 1: Admin page title, 2: Site name
 #: includes/admin/admin-dashboard-menu.php:1156
+#, php-format
 msgid "%1$s ‹ %2$s — WordPress"
 msgstr ""
 
@@ -622,6 +623,7 @@ msgid "Failed to retrieve language names."
 msgstr ""
 
 #: includes/admin/api/deepl-api.php:231
+#, php-format
 msgid "Available languages: %s"
 msgstr ""
 
@@ -630,6 +632,7 @@ msgid "Translation failed. Please check your API key."
 msgstr ""
 
 #: includes/admin/api/deepl-api.php:241
+#, php-format
 msgid "Translated text from Turkish: %s"
 msgstr ""
 
@@ -725,6 +728,7 @@ msgstr ""
 
 #. translators: %s: absolute template path
 #: includes/admin/audio-image-matcher.php:181
+#, php-format
 msgid "Template not found: %s"
 msgstr ""
 
@@ -812,6 +816,7 @@ msgstr ""
 
 #. translators: %d: number of processed audio files ready to save
 #: includes/admin/audio-processor-admin.php:141
+#, php-format
 msgid "Save %d processed audio file(s)?"
 msgstr ""
 
@@ -837,16 +842,19 @@ msgstr ""
 
 #. translators: 1: recording title, 2: current item number, 3: total items
 #: includes/admin/audio-processor-admin.php:146
+#, php-format
 msgid "Saving: %1$s (%2$d/%3$d)"
 msgstr ""
 
 #. translators: 1: saved file count, 2: total file count
 #: includes/admin/audio-processor-admin.php:148
+#, php-format
 msgid "Success! Saved %1$d of %2$d files."
 msgstr ""
 
 #. translators: 1: saved file count, 2: failed file count
 #: includes/admin/audio-processor-admin.php:150
+#, php-format
 msgid "Completed with errors: %1$d saved, %2$d failed."
 msgstr ""
 
@@ -856,6 +864,7 @@ msgstr ""
 
 #. translators: 1: completed file count, 2: total file count
 #: includes/admin/audio-processor-admin.php:153
+#, php-format
 msgid "%1$d / %2$d complete"
 msgstr ""
 
@@ -965,6 +974,7 @@ msgstr ""
 
 #. translators: %d: number of selected recordings
 #: includes/admin/audio-processor-admin.php:167
+#, php-format
 msgid "Delete %d recording(s)? This action cannot be undone."
 msgstr ""
 
@@ -986,26 +996,31 @@ msgstr ""
 
 #. translators: %d: number of deleted recordings
 #: includes/admin/audio-processor-admin.php:172
+#, php-format
 msgid "Deleted %d recording(s)."
 msgstr ""
 
 #. translators: 1: deleted recording count, 2: failed deletion count
 #: includes/admin/audio-processor-admin.php:174
+#, php-format
 msgid "Deleted %1$d recording(s). Failed to delete %2$d."
 msgstr ""
 
 #. translators: %d: number of deleted recordings
 #: includes/admin/audio-processor-admin.php:176
+#, php-format
 msgid "Successfully deleted %d recording(s)"
 msgstr ""
 
 #. translators: %s: recording title
 #: includes/admin/audio-processor-admin.php:178
+#, php-format
 msgid "Delete \"%s\"? This action cannot be undone."
 msgstr ""
 
 #. translators: %s: recording title
 #: includes/admin/audio-processor-admin.php:180
+#, php-format
 msgid "Remove \"%s\" from this batch? It will remain unprocessed."
 msgstr ""
 
@@ -1023,6 +1038,7 @@ msgstr ""
 
 #. translators: %s: error message
 #: includes/admin/audio-processor-admin.php:184
+#, php-format
 msgid "Error deleting recording: %s"
 msgstr ""
 
@@ -1095,11 +1111,13 @@ msgstr ""
 
 #. translators: 1: recording title, 2: current item number, 3: total items
 #: includes/admin/audio-processor-admin.php:198
+#, php-format
 msgid "Processing: %1$s (%2$d/%3$d)"
 msgstr ""
 
 #. translators: 1: recording title, 2: error message
 #: includes/admin/audio-processor-admin.php:200
+#, php-format
 msgid "Error processing %1$s: %2$s"
 msgstr ""
 
@@ -1287,6 +1305,7 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:6478
 #: includes/shortcodes/audio-recording-shortcode.php:7504
 #: includes/shortcodes/word-grid-shortcode.php:8000
+#, php-format
 msgid "Failed to save file: %s"
 msgstr ""
 
@@ -1328,6 +1347,7 @@ msgstr ""
 
 #. translators: %d: number of audio recordings
 #: includes/admin/audio-processor-admin.php:1427
+#, php-format
 msgid "%d audio recording needs processing"
 msgid_plural "%d audio recordings need processing"
 msgstr[0] ""
@@ -1335,6 +1355,7 @@ msgstr[1] ""
 
 #. translators: %d: number of categories
 #: includes/admin/audio-processor-admin.php:1449
+#, php-format
 msgid "Images need aspect ratio normalization in %d category"
 msgid_plural "Images need aspect ratio normalization in %d categories"
 msgstr[0] ""
@@ -1342,6 +1363,7 @@ msgstr[1] ""
 
 #. translators: %d: number of word images
 #: includes/admin/audio-processor-admin.php:1480
+#, php-format
 msgid "%d image needs WebP optimization"
 msgid_plural "%d images need WebP optimization"
 msgstr[0] ""
@@ -1349,6 +1371,7 @@ msgstr[1] ""
 
 #. translators: %d: number of words
 #: includes/admin/audio-processor-admin.php:1509
+#, php-format
 msgid "%d word is not in any quizzable category"
 msgid_plural "%d words are not in any quizzable category"
 msgstr[0] ""
@@ -1357,11 +1380,13 @@ msgstr[1] ""
 #. translators: %s: wordset name
 #: includes/admin/audio-processor-admin.php:1547
 #: includes/admin/audio-processor-admin.php:1591
+#, php-format
 msgid "Transcription Manager: %s"
 msgstr ""
 
 #. translators: 1: number of recordings, 2: wordset name
 #: includes/admin/audio-processor-admin.php:1552
+#, php-format
 msgid "%1$d recording in %2$s has possible transcription issues"
 msgid_plural "%1$d recordings in %2$s have possible transcription issues"
 msgstr[0] ""
@@ -1369,6 +1394,7 @@ msgstr[1] ""
 
 #. translators: 1: number of recordings, 2: wordset name
 #: includes/admin/audio-processor-admin.php:1596
+#, php-format
 msgid "%1$d auto-generated transcription in %2$s needs review"
 msgid_plural "%1$d auto-generated transcriptions in %2$s need review"
 msgstr[0] ""
@@ -1429,6 +1455,7 @@ msgid "Migrate legacy meta (word_english_meaning to word_translation)"
 msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:98
+#, php-format
 msgid "%d values migrated so far. Continue with the next bounded batch."
 msgstr ""
 
@@ -1599,6 +1626,7 @@ msgstr ""
 
 #. translators: %s: Item count.
 #: includes/admin/bulk-translation-admin.php:276
+#, php-format
 msgid "%s item"
 msgid_plural "%s items"
 msgstr[0] ""
@@ -1693,10 +1721,12 @@ msgid "LL Bulk Word Import"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:333
+#, php-format
 msgid "Bulk word import is limited to %s of pasted text per request."
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:345
+#, php-format
 msgid "Bulk word import is limited to %d row per request. Split the list and submit the remaining rows separately."
 msgid_plural "Bulk word import is limited to %d rows per request. Split the list and submit the remaining rows separately."
 msgstr[0] ""
@@ -1705,12 +1735,14 @@ msgstr[1] ""
 #. translators: 1: category name, 2: error message
 #: includes/admin/bulk-word-import-admin.php:384
 #: includes/admin/prompt-audio-import-admin.php:267
+#, php-format
 msgid "Could not create the \"%1$s\" category: %2$s"
 msgstr ""
 
 #. translators: %s: category name
 #: includes/admin/bulk-word-import-admin.php:394
 #: includes/admin/prompt-audio-import-admin.php:278
+#, php-format
 msgid "Created or reused category \"%s\"."
 msgstr ""
 
@@ -1721,30 +1753,36 @@ msgstr ""
 #. translators: 1: prompt text, 2: error message
 #: includes/admin/bulk-word-import-admin.php:442
 #: includes/admin/prompt-audio-import-admin.php:327
+#, php-format
 msgid "Failed to create \"%1$s\": %2$s"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:453
+#, php-format
 msgid "The word \"%1$s\" was created but could not be assigned to the category: %2$s"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:464
+#, php-format
 msgid "The word \"%1$s\" was created but could not be assigned to the word set: %2$s"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:491
+#, php-format
 msgid "%d word was imported as a draft."
 msgid_plural "%d words were imported as drafts."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/bulk-word-import-admin.php:501
+#, php-format
 msgid "%d imported word included a translation."
 msgid_plural "%d imported words included translations."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/bulk-word-import-admin.php:518
+#, php-format
 msgid "%1$d word was skipped because it already exists: %2$s"
 msgid_plural "%1$d words were skipped because they already exist: %2$s"
 msgstr[0] ""
@@ -1753,12 +1791,14 @@ msgstr[1] ""
 #: includes/admin/bulk-word-import-admin.php:534
 #: includes/admin/prompt-audio-import-admin.php:386
 #: includes/pages/wordset-pages.php:8227
+#, php-format
 msgid "%d empty line was ignored."
 msgid_plural "%d empty lines were ignored."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/bulk-word-import-admin.php:544
+#, php-format
 msgid "Ignored extra columns on %d row. Only the first two columns were imported."
 msgid_plural "Ignored extra columns on %d rows. Only the first two columns were imported."
 msgstr[0] ""
@@ -1781,14 +1821,17 @@ msgid "Each row creates a new draft word post with the title automatically capit
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:610
+#, php-format
 msgid "Word only: %s"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:611
+#, php-format
 msgid "Word + translation with a tab: %s"
 msgstr ""
 
 #: includes/admin/bulk-word-import-admin.php:612
+#, php-format
 msgid "Word + translation with a comma: %s"
 msgstr ""
 
@@ -1861,16 +1904,19 @@ msgstr ""
 
 #. translators: 1: total processed rows, 2: grouped entry count, 3: created entries, 4: updated entries
 #: includes/admin/dictionary-import-admin.php:436
+#, php-format
 msgid "Processed %1$d rows into %2$d dictionary headwords. Created: %3$d. Updated: %4$d."
 msgstr ""
 
 #. translators: %d: skipped empty rows
 #: includes/admin/dictionary-import-admin.php:446
+#, php-format
 msgid "Skipped empty rows: %d."
 msgstr ""
 
 #. translators: %d: count of touched dictionary entries
 #: includes/admin/dictionary-import-admin.php:454
+#, php-format
 msgid "%d dictionary entry was touched."
 msgid_plural "%d dictionary entries were touched."
 msgstr[0] ""
@@ -1883,6 +1929,7 @@ msgstr ""
 #. translators: %d: number of additional hidden errors
 #: includes/admin/dictionary-import-admin.php:467
 #: includes/admin/dictionary-import-admin.php:2307
+#, php-format
 msgid "%d more errors not shown."
 msgstr ""
 
@@ -2045,6 +2092,7 @@ msgstr ""
 
 #. translators: %d: dictionary entry post ID
 #: includes/admin/dictionary-import-admin.php:2073
+#, php-format
 msgid "Dictionary entry %d could not be removed during override cleanup."
 msgstr ""
 
@@ -2102,11 +2150,13 @@ msgstr ""
 
 #. translators: 1: processed entries, 2: created entries, 3: updated entries, 4: deleted entries
 #: includes/admin/dictionary-import-admin.php:2283
+#, php-format
 msgid "Processed %1$d dictionary entries. Created: %2$d. Updated: %3$d. Deleted: %4$d."
 msgstr ""
 
 #. translators: 1: updated sources count, 2: replaced sources count
 #: includes/admin/dictionary-import-admin.php:2293
+#, php-format
 msgid "Dictionary sources updated: %1$d. Source registry replaced entries: %2$d."
 msgstr ""
 
@@ -2133,6 +2183,7 @@ msgstr ""
 
 #. translators: 1: created entries, 2: updated entries, 3: deleted entries
 #: includes/admin/dictionary-import-admin.php:2386
+#, php-format
 msgid "Created: %1$d | Updated: %2$d | Deleted: %3$d"
 msgstr ""
 
@@ -2218,6 +2269,7 @@ msgid "(no source label)"
 msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:2462
+#, php-format
 msgid "Undo unavailable: %s"
 msgstr ""
 
@@ -2231,6 +2283,7 @@ msgstr ""
 
 #. translators: 1: backed-up dictionary entries, 2: total dictionary entries
 #: includes/admin/dictionary-import-admin.php:2523
+#, php-format
 msgid "Backed up %1$d of %2$d dictionary entries."
 msgstr ""
 
@@ -2244,6 +2297,7 @@ msgstr ""
 
 #. translators: 1: checked dictionary entries, 2: total dictionary entries
 #: includes/admin/dictionary-import-admin.php:2533
+#, php-format
 msgid "Checked %1$d of %2$d existing entries for override cleanup."
 msgstr ""
 
@@ -2253,41 +2307,49 @@ msgstr ""
 
 #. translators: 1: created entries, 2: updated entries, 3: deleted entries
 #: includes/admin/dictionary-import-admin.php:2540
+#, php-format
 msgid "Imported entries are protected. Created %1$d, updated %2$d, and deleted %3$d missing entries so far."
 msgstr ""
 
 #. translators: 1: processed row count, 2: total row count
 #: includes/admin/dictionary-import-admin.php:2548
+#, php-format
 msgid "Processed %1$d of %2$d source rows."
 msgstr ""
 
 #. translators: 1: created entry count, 2: updated entry count, 3: skipped row count
 #: includes/admin/dictionary-import-admin.php:2554
+#, php-format
 msgid "Created %1$d, updated %2$d, skipped %3$d rows so far."
 msgstr ""
 
 #. translators: 1: processed dictionary entries, 2: total dictionary entries
 #: includes/admin/dictionary-import-admin.php:2562
+#, php-format
 msgid "Processed %1$d of %2$d dictionary entries."
 msgstr ""
 
 #. translators: 1: created entries, 2: updated entries, 3: deleted entries, 4: updated sources
 #: includes/admin/dictionary-import-admin.php:2568
+#, php-format
 msgid "Created %1$d, updated %2$d, deleted %3$d, sources updated %4$d so far."
 msgstr ""
 
 #. translators: 1: processed headword count, 2: total headword count
 #: includes/admin/dictionary-import-admin.php:2577
+#, php-format
 msgid "Imported %1$d of %2$d dictionary headwords."
 msgstr ""
 
 #. translators: 1: created entry count, 2: updated entry count, 3: skipped empty row count
 #: includes/admin/dictionary-import-admin.php:2583
+#, php-format
 msgid "Created %1$d, updated %2$d, skipped %3$d empty rows so far."
 msgstr ""
 
 #. translators: %s: backup warning
 #: includes/admin/dictionary-import-admin.php:2594
+#, php-format
 msgid "Undo backup was not created: %s"
 msgstr ""
 
@@ -2397,6 +2459,7 @@ msgstr ""
 
 #. translators: %s: URL to the dictionary sources screen
 #: includes/admin/dictionary-import-admin.php:2926
+#, php-format
 msgid "Use the <a href=\"%s\">Dictionary Sources</a> screen to define per-dictionary attribution text, source detail URLs, and default dialect tags before importing rows from a new source."
 msgstr ""
 
@@ -2530,6 +2593,7 @@ msgstr ""
 
 #. translators: %s: URL to the dictionary import tools screen
 #: includes/admin/dictionary-sources-admin.php:90
+#, php-format
 msgid "After saving sources here, use them from the <a href=\"%s\">Dictionary Manager</a> screen with the TSV columns <code>source_id</code> or <code>source_dictionary</code>."
 msgstr ""
 
@@ -2547,11 +2611,13 @@ msgstr ""
 
 #. translators: %d: 1-based source row number
 #: includes/admin/dictionary-sources-admin.php:124
+#, php-format
 msgid "Source Row %d"
 msgstr ""
 
 #. translators: %s: source ID
 #: includes/admin/dictionary-sources-admin.php:130
+#, php-format
 msgid "Source ID: %s"
 msgstr ""
 
@@ -2689,6 +2755,7 @@ msgstr ""
 
 #. translators: %d: word post ID
 #: includes/admin/duplicate-category-words-admin.php:543
+#, php-format
 msgid "Dictionary Entry %d"
 msgstr ""
 
@@ -2701,30 +2768,35 @@ msgid "Use overrides to bulk-change grammatical flags such as tense, mood, and p
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:651
+#, php-format
 msgid "%d word duplicated."
 msgid_plural "%d words duplicated."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/duplicate-category-words-admin.php:657
+#, php-format
 msgid "%d clone failed."
 msgid_plural "%d clones failed."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/duplicate-category-words-admin.php:663
+#, php-format
 msgid "%d word skipped (permission)."
 msgid_plural "%d words skipped (permission)."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/duplicate-category-words-admin.php:669
+#, php-format
 msgid "%d dictionary entry was created automatically."
 msgid_plural "%d dictionary entries were created automatically."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/duplicate-category-words-admin.php:675
+#, php-format
 msgid "%d dictionary link update failed."
 msgid_plural "%d dictionary link updates failed."
 msgstr[0] ""
@@ -2947,6 +3019,7 @@ msgid "Uploading import bundle..."
 msgstr ""
 
 #: includes/admin/export-import.php:168
+#, php-format
 msgid "Uploading import bundle... %s%%"
 msgstr ""
 
@@ -3026,21 +3099,25 @@ msgstr ""
 
 #. translators: 1: estimated media size, 2: warning threshold
 #: includes/admin/export-import.php:257
+#, php-format
 msgid "Estimated media size is %1$s (warning threshold: %2$s). Large exports can hit server time or memory limits."
 msgstr ""
 
 #. translators: 1: media file count, 2: advisory file-count safeguard
 #: includes/admin/export-import.php:267
+#, php-format
 msgid "Media file count is %1$d, above the large-export safeguard setting (%2$d). The export can still be attempted, but slower hosts may time out."
 msgstr ""
 
 #. translators: 1: estimated media size, 2: advisory size safeguard
 #: includes/admin/export-import.php:277
+#, php-format
 msgid "Estimated media size is %1$s, above the large-export safeguard setting (%2$s). The export can still be attempted, but slower hosts may time out."
 msgstr ""
 
 #. translators: 1: estimated media size, 2: advisory reliability safeguard
 #: includes/admin/export-import.php:287
+#, php-format
 msgid "Multi-category full export estimated media size is %1$s, above the reliability safeguard (%2$s). Split categories into smaller batches when possible."
 msgstr ""
 
@@ -3287,6 +3364,7 @@ msgid "Running"
 msgstr ""
 
 #: includes/admin/export-import.php:1708
+#, php-format
 msgid "Extracting bundle files: %1$d of %2$d"
 msgstr ""
 
@@ -3295,14 +3373,17 @@ msgid "Preparing import batches…"
 msgstr ""
 
 #: includes/admin/export-import.php:1718
+#, php-format
 msgid "Creating categories: %1$d of %2$d"
 msgstr ""
 
 #: includes/admin/export-import.php:1725
+#, php-format
 msgid "Applying category settings: %1$d of %2$d"
 msgstr ""
 
 #: includes/admin/export-import.php:1732
+#, php-format
 msgid "Importing word images: %1$d of %2$d"
 msgstr ""
 
@@ -3311,6 +3392,7 @@ msgid "Preparing word sets…"
 msgstr ""
 
 #: includes/admin/export-import.php:1742
+#, php-format
 msgid "Importing words: %1$d of %2$d"
 msgstr ""
 
@@ -3380,11 +3462,13 @@ msgstr ""
 
 #. translators: 1: checked recording count, 2: included training sample count
 #: includes/admin/export-import.php:2146
+#, php-format
 msgid "Checked %1$d recordings; added %2$d training samples."
 msgstr ""
 
 #. translators: 1: prepared export record count, 2: discovered media file count.
 #: includes/admin/export-import.php:2155
+#, php-format
 msgid "Prepared %1$d export records; found %2$d media files."
 msgstr ""
 
@@ -3394,11 +3478,13 @@ msgstr ""
 
 #. translators: 1: processed file count, 2: total file count, 3: processed media size, 4: total media size
 #: includes/admin/export-import.php:2175
+#, php-format
 msgid "Prepared %1$d of %2$d media files (%3$s of %4$s)."
 msgstr ""
 
 #. translators: 1: processed file count, 2: total file count
 #: includes/admin/export-import.php:2185
+#, php-format
 msgid "Prepared %1$d of %2$d media files."
 msgstr ""
 
@@ -3634,6 +3720,7 @@ msgstr ""
 
 #. translators: %s: comma-separated field names
 #: includes/admin/export-import.php:3404
+#, php-format
 msgid "The importer accepts these editable fields: %s."
 msgstr ""
 
@@ -3702,57 +3789,70 @@ msgstr ""
 
 #: includes/admin/export-import.php:3539
 #: includes/admin/export-import.php:4517
+#, php-format
 msgid "Categories: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3540
+#, php-format
 msgid "Word sets: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3541
 #: includes/admin/export-import.php:4518
+#, php-format
 msgid "Word images: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3542
 #: includes/admin/export-import.php:4519
+#, php-format
 msgid "Words: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3543
 #: includes/admin/export-import.php:4520
+#, php-format
 msgid "Audio entries: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3556
+#, php-format
 msgid "Categories updated: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3557
+#, php-format
 msgid "Word sets updated: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3558
+#, php-format
 msgid "Word images updated: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3559
+#, php-format
 msgid "Words updated: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3560
+#, php-format
 msgid "Audio entries updated: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3561
+#, php-format
 msgid "Transcription reviews flagged: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3562
+#, php-format
 msgid "IPA reviews flagged: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:3563
+#, php-format
 msgid "Review notes updated: %d"
 msgstr ""
 
@@ -3762,6 +3862,7 @@ msgstr ""
 
 #. translators: %d term ID
 #: includes/admin/export-import.php:3595
+#, php-format
 msgid "Term #%d"
 msgstr ""
 
@@ -3799,6 +3900,7 @@ msgstr ""
 
 #. translators: %s zip filename
 #: includes/admin/export-import.php:3789
+#, php-format
 msgid "Server zip: %s"
 msgstr ""
 
@@ -3808,11 +3910,13 @@ msgstr ""
 
 #. translators: 1 status label, 2 number of errors
 #: includes/admin/export-import.php:3802
+#, php-format
 msgid "%1$s (%2$d errors)"
 msgstr ""
 
 #. translators: %d number of imported categories
 #: includes/admin/export-import.php:3820
+#, php-format
 msgid "Categories (%d)"
 msgid_plural "Categories (%d)"
 msgstr[0] ""
@@ -3823,6 +3927,7 @@ msgid "Lesson pages:"
 msgstr ""
 
 #: includes/admin/export-import.php:3856
+#, php-format
 msgid "Showing the first %1$d of %2$d imported categories."
 msgstr ""
 
@@ -3968,6 +4073,7 @@ msgstr ""
 
 #. translators: %s advisory reliability safeguard
 #: includes/admin/export-import.php:4224
+#, php-format
 msgid "Multi-category full exports above %s estimated media size often time out on typical WordPress hosting. Split into smaller batches when possible, or use the override below to try anyway."
 msgstr ""
 
@@ -4001,6 +4107,7 @@ msgstr ""
 
 #. translators: 1: soft size warning threshold, 2: advisory size safeguard, 3: advisory file-count safeguard
 #: includes/admin/export-import.php:4265
+#, php-format
 msgid "Warning threshold: %1$s. Advisory thresholds: %2$s of media or %3$s media files."
 msgstr ""
 
@@ -4144,6 +4251,7 @@ msgstr ""
 
 #. translators: 1: media file warning threshold, 2: media size warning threshold
 #: includes/admin/export-import.php:4439
+#, php-format
 msgid "Large import warning thresholds: %1$s media files or %2$s of media."
 msgstr ""
 
@@ -4164,6 +4272,7 @@ msgid "Select a zip file"
 msgstr ""
 
 #: includes/admin/export-import.php:4465
+#, php-format
 msgid "Upload the zip to %s and refresh this page to select it. If both fields are used, the uploaded file takes precedence."
 msgstr ""
 
@@ -4192,10 +4301,12 @@ msgid "Import warnings:"
 msgstr ""
 
 #: includes/admin/export-import.php:4521
+#, php-format
 msgid "Source word sets: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4522
+#, php-format
 msgid "Media files: %d (%s)"
 msgstr ""
 
@@ -4228,6 +4339,7 @@ msgstr ""
 #: includes/shortcodes/word-grid-shortcode.php:8047
 #: includes/shortcodes/word-grid-shortcode.php:8696
 #: templates/vocab-lesson-template.php:1551
+#, php-format
 msgid "Play %s recording"
 msgstr ""
 
@@ -4323,6 +4435,7 @@ msgstr ""
 
 #. translators: %d processed metadata rows
 #: includes/admin/export-import.php:4769
+#, php-format
 msgid "Processed %d metadata rows."
 msgstr ""
 
@@ -4351,46 +4464,57 @@ msgid "Rows with problems:"
 msgstr ""
 
 #: includes/admin/export-import.php:4835
+#, php-format
 msgid "Rows sampled: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4836
+#, php-format
 msgid "Rows found: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4839
+#, php-format
 msgid "Rows with changes: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4840
+#, php-format
 msgid "Rows skipped: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4841
+#, php-format
 msgid "Words to update: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4842
+#, php-format
 msgid "Audio entries to update: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4843
+#, php-format
 msgid "Fields to update: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4844
+#, php-format
 msgid "Fields to clear: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4846
+#, php-format
 msgid "Transcription review flags to set: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4848
+#, php-format
 msgid "IPA review flags to set: %d"
 msgstr ""
 
 #: includes/admin/export-import.php:4851
+#, php-format
 msgid "Review notes to update: %d"
 msgstr ""
 
@@ -4532,16 +4656,19 @@ msgstr ""
 
 #. translators: 1: detected media files count, 2: warning threshold count
 #: includes/admin/export-import.php:5517
+#, php-format
 msgid "Detected %1$d media files (warning threshold: %2$d). Large imports can hit server time or memory limits."
 msgstr ""
 
 #. translators: 1: detected media size, 2: warning threshold size
 #: includes/admin/export-import.php:5527
+#, php-format
 msgid "Detected %1$s of media files (warning threshold: %2$s). Large imports can hit server time or memory limits."
 msgstr ""
 
 #: includes/admin/export-import.php:5545
 #: includes/admin/export-import.php:14421
+#, php-format
 msgid "CSV parsing skipped %d file before import. Review the warnings below for details."
 msgid_plural "CSV parsing skipped %d files before import. Review the warnings below for details."
 msgstr[0] ""
@@ -4549,11 +4676,13 @@ msgstr[1] ""
 
 #: includes/admin/export-import.php:5561
 #: includes/admin/export-import.php:14437
+#, php-format
 msgid "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
 
 #: includes/admin/export-import.php:5568
 #: includes/admin/export-import.php:14444
+#, php-format
 msgid "CSV parsing skipped %d row before import."
 msgid_plural "CSV parsing skipped %d rows before import."
 msgstr[0] ""
@@ -4565,66 +4694,82 @@ msgstr ""
 
 #: includes/admin/export-import.php:6652
 #: includes/admin/export-import.php:6663
+#, php-format
 msgid "Could not read CSV file \"%s\"."
 msgstr ""
 
 #: includes/admin/export-import.php:6675
+#, php-format
 msgid "Skipped CSV \"%s\" because it is empty."
 msgstr ""
 
 #: includes/admin/export-import.php:6688
+#, php-format
 msgid "Skipped CSV \"%s\" because the header row could not be read."
 msgstr ""
 
 #: includes/admin/export-import.php:6858
+#, php-format
 msgid "Skipped CSV \"%s\" because required columns were not found."
 msgstr ""
 
 #: includes/admin/export-import.php:6886
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": category and answer are required."
 msgstr ""
 
 #: includes/admin/export-import.php:6895
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": prompt text is required for text-to-text quizzes."
 msgstr ""
 
 #: includes/admin/export-import.php:6904
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": prompt text and audio are required for audio+text quizzes."
 msgstr ""
 
 #: includes/admin/export-import.php:6913
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": correct audio is required for image-to-text-audio quizzes."
 msgstr ""
 
 #: includes/admin/export-import.php:6924
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": category name could not be converted to a valid slug."
 msgstr ""
 
 #: includes/admin/export-import.php:6940
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": category \"%3$s\" mixes incompatible quiz formats."
 msgstr ""
 
 #: includes/admin/export-import.php:6959
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": image \"%3$s\" was not found in /images."
 msgstr ""
 
 #: includes/admin/export-import.php:6974
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": audio \"%3$s\" was not found."
 msgstr ""
 
 #: includes/admin/export-import.php:6996
+#, php-format
 msgid "Skipped row %1$d in CSV \"%2$s\": correct audio \"%3$s\" was not found."
 msgstr ""
 
 #: includes/admin/export-import.php:7066
+#, php-format
 msgid "Skipped wrong-answer audio \"%1$s\" on row %2$d in CSV \"%3$s\" because the file was not found."
 msgstr ""
 
 #: includes/admin/export-import.php:7101
+#, php-format
 msgid "Skipped wrong-image reference \"%1$s\" on row %2$d in CSV \"%3$s\" because the file was not found in /images."
 msgstr ""
 
 #: includes/admin/export-import.php:7208
+#, php-format
 msgid "%d additional CSV issue was not shown."
 msgid_plural "%d additional CSV issues were not shown."
 msgstr[0] ""
@@ -4710,6 +4855,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:7618
 #: includes/admin/export-import.php:7749
+#, php-format
 msgid "Import failed: the selected zip file is larger than the upload staging limit of %s."
 msgstr ""
 
@@ -4734,6 +4880,7 @@ msgid "Import failed: one of the upload chunks was missing."
 msgstr ""
 
 #: includes/admin/export-import.php:7720
+#, php-format
 msgid "Import failed: one upload chunk is larger than the staging limit of %s."
 msgstr ""
 
@@ -4791,6 +4938,7 @@ msgstr ""
 #. translators: %d JSONL line number
 #: includes/admin/export-import.php:8287
 #: includes/admin/export-import.php:8484
+#, php-format
 msgid "Metadata update import failed: JSONL line %d is not valid JSON."
 msgstr ""
 
@@ -4832,16 +4980,19 @@ msgstr ""
 
 #. translators: 1 row number, 2 word ID
 #: includes/admin/export-import.php:8539
+#, php-format
 msgid "Row %1$d: word_id %2$d was not found."
 msgstr ""
 
 #. translators: 1 row number, 2 word slug
 #: includes/admin/export-import.php:8555
+#, php-format
 msgid "Row %1$d: word_slug \"%2$s\" was not found."
 msgstr ""
 
 #. translators: %d row number
 #: includes/admin/export-import.php:8569
+#, php-format
 msgid "Row %d: word_id and word_slug point to different words."
 msgstr ""
 
@@ -4851,38 +5002,45 @@ msgstr ""
 
 #. translators: 1 row word ID, 2 recording type
 #: includes/admin/export-import.php:8639
+#, php-format
 msgid "Word %1$d has multiple recordings of type \"%2$s\". Use recording_id or recording_slug instead."
 msgstr ""
 
 #. translators: 1 row number, 2 recording ID
 #: includes/admin/export-import.php:8660
+#, php-format
 msgid "Row %1$d: recording_id %2$d was not found."
 msgstr ""
 
 #. translators: 1 row number, 2 reason
 #: includes/admin/export-import.php:8674
 #: includes/admin/export-import.php:8687
+#, php-format
 msgid "Row %1$d: %2$s"
 msgstr ""
 
 #. translators: %d row number
 #: includes/admin/export-import.php:8710
+#, php-format
 msgid "Row %d: the recording does not belong to the specified word."
 msgstr ""
 
 #. translators: %d row number
 #: includes/admin/export-import.php:8813
+#, php-format
 msgid "Row %d: recording fields were provided but no recording could be identified."
 msgstr ""
 
 #. translators: %d row number
 #: includes/admin/export-import.php:8840
+#, php-format
 msgid "Row %d: word fields were provided but no word could be identified."
 msgstr ""
 
 #. translators: %s word title
 #: includes/admin/export-import.php:8864
 #: includes/pages/wordset-editor.php:168
+#, php-format
 msgid "Word: %s"
 msgstr ""
 
@@ -4891,21 +5049,25 @@ msgstr ""
 #: includes/pages/wordset-pages.php:1544
 #: includes/post-types/words-post-type.php:731
 #: includes/shortcodes/word-grid-shortcode.php:7444
+#, php-format
 msgid "Word #%d"
 msgstr ""
 
 #. translators: 1 recording title, 2 parent word title
 #: includes/admin/export-import.php:8880
+#, php-format
 msgid "Recording: %1$s (%2$s)"
 msgstr ""
 
 #. translators: %s recording title
 #: includes/admin/export-import.php:8888
+#, php-format
 msgid "Recording: %s"
 msgstr ""
 
 #. translators: %d recording post ID
 #: includes/admin/export-import.php:8895
+#, php-format
 msgid "Recording #%d"
 msgstr ""
 
@@ -4918,11 +5080,13 @@ msgstr ""
 #. translators: 1 row number, 2 field key
 #: includes/admin/export-import.php:9017
 #: includes/admin/export-import.php:9360
+#, php-format
 msgid "Row %1$d: %2$s cannot be cleared and was ignored."
 msgstr ""
 
 #: includes/admin/export-import.php:9173
 #: includes/admin/export-import.php:9646
+#, php-format
 msgid "%d additional metadata warning was not shown."
 msgid_plural "%d additional metadata warnings were not shown."
 msgstr[0] ""
@@ -4930,6 +5094,7 @@ msgstr[1] ""
 
 #: includes/admin/export-import.php:9184
 #: includes/admin/export-import.php:9657
+#, php-format
 msgid "%d additional metadata error was not shown."
 msgid_plural "%d additional metadata errors were not shown."
 msgstr[0] ""
@@ -4961,6 +5126,7 @@ msgstr ""
 
 #. translators: 1 row number, 2 error message
 #: includes/admin/export-import.php:9449
+#, php-format
 msgid "Row %1$d: failed to update the word post: %2$s"
 msgstr ""
 
@@ -5018,14 +5184,17 @@ msgid "Metadata update import failed."
 msgstr ""
 
 #: includes/admin/export-import.php:10127
+#, php-format
 msgid "Skipped restoring updated post %d during undo because it no longer exists."
 msgstr ""
 
 #: includes/admin/export-import.php:10131
+#, php-format
 msgid "Skipped restoring post %d during undo because it is not %s."
 msgstr ""
 
 #: includes/admin/export-import.php:10159
+#, php-format
 msgid "Failed to restore updated post %1$d during undo: %2$s"
 msgstr ""
 
@@ -5034,46 +5203,57 @@ msgid "Undo complete."
 msgstr ""
 
 #: includes/admin/export-import.php:10286
+#, php-format
 msgid "Skipped post %d during undo because it is not word_audio."
 msgstr ""
 
 #: includes/admin/export-import.php:10291
+#, php-format
 msgid "Failed to delete word_audio post %d during undo."
 msgstr ""
 
 #: includes/admin/export-import.php:10303
+#, php-format
 msgid "Skipped post %d during undo because it is not a word."
 msgstr ""
 
 #: includes/admin/export-import.php:10308
+#, php-format
 msgid "Failed to delete word post %d during undo."
 msgstr ""
 
 #: includes/admin/export-import.php:10320
+#, php-format
 msgid "Skipped post %d during undo because it is not a word image."
 msgstr ""
 
 #: includes/admin/export-import.php:10325
+#, php-format
 msgid "Failed to delete word image post %d during undo."
 msgstr ""
 
 #: includes/admin/export-import.php:10337
+#, php-format
 msgid "Skipped post %d during undo because it is not an attachment."
 msgstr ""
 
 #: includes/admin/export-import.php:10342
+#, php-format
 msgid "Failed to delete attachment %d during undo."
 msgstr ""
 
 #: includes/admin/export-import.php:10350
+#, php-format
 msgid "Skipped deleting audio file \"%s\" during undo because the path was outside uploads or invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:10363
+#, php-format
 msgid "Failed to delete category term %d during undo."
 msgstr ""
 
 #: includes/admin/export-import.php:10376
+#, php-format
 msgid "Failed to delete word set term %d during undo."
 msgstr ""
 
@@ -5112,6 +5292,7 @@ msgstr ""
 
 #. translators: %d chunk number
 #: includes/admin/export-import.php:10678
+#, php-format
 msgid "Upload chunk %d is missing."
 msgstr ""
 
@@ -5199,6 +5380,7 @@ msgstr ""
 
 #. translators: %d category term ID
 #: includes/admin/export-import.php:12569
+#, php-format
 msgid "The selected category (ID %d) is invalid."
 msgstr ""
 
@@ -5215,6 +5397,7 @@ msgstr ""
 
 #. translators: %s transcription mode label, for example IPA
 #: includes/admin/export-import.php:12656
+#, php-format
 msgid "Recording transcription (%s)"
 msgstr ""
 
@@ -5324,10 +5507,12 @@ msgid "Could not finalize STT export metadata files."
 msgstr ""
 
 #: includes/admin/export-import.php:14150
+#, php-format
 msgid "Only %1$d of %2$d categories from the import bundle were created or updated."
 msgstr ""
 
 #: includes/admin/export-import.php:14160
+#, php-format
 msgid "Only %1$d of %2$d words from the import bundle were created or updated."
 msgstr ""
 
@@ -5348,6 +5533,7 @@ msgid "Imported Template"
 msgstr ""
 
 #: includes/admin/export-import.php:14270
+#, php-format
 msgid "Failed to create template word set \"%s\": %s"
 msgstr ""
 
@@ -5366,10 +5552,12 @@ msgid "Unknown error"
 msgstr ""
 
 #: includes/admin/export-import.php:14321
+#, php-format
 msgid "Failed to create template category \"%1$s\": %2$s"
 msgstr ""
 
 #: includes/admin/export-import.php:14378
+#, php-format
 msgid "Failed to create template word image \"%1$s\": %2$s"
 msgstr ""
 
@@ -5379,14 +5567,17 @@ msgstr ""
 
 #: includes/admin/export-import.php:14519
 #: includes/admin/export-import.php:14547
+#, php-format
 msgid "Category \"%s\" could not be created: %s"
 msgstr ""
 
 #: includes/admin/export-import.php:14624
+#, php-format
 msgid "Failed to update word image \"%s\": %s"
 msgstr ""
 
 #: includes/admin/export-import.php:14633
+#, php-format
 msgid "Failed to create word image \"%s\": %s"
 msgstr ""
 
@@ -5395,10 +5586,12 @@ msgid "Import failed: select a valid existing word set for assignment."
 msgstr ""
 
 #: includes/admin/export-import.php:14972
+#, php-format
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:14976
+#, php-format
 msgid "Image file for \"%s\" is missing from the zip."
 msgstr ""
 
@@ -5411,26 +5604,32 @@ msgid "word image"
 msgstr ""
 
 #: includes/admin/export-import.php:14991
+#, php-format
 msgid "Failed to import image for %1$s \"%2$s\": %3$s"
 msgstr ""
 
 #: includes/admin/export-import.php:15137
+#, php-format
 msgid "Failed to update word \"%s\": %s"
 msgstr ""
 
 #: includes/admin/export-import.php:15146
+#, php-format
 msgid "Failed to create word \"%s\": %s"
 msgstr ""
 
 #: includes/admin/export-import.php:15288
+#, php-format
 msgid "Could not link word \"%1$s\" to source word image \"%2$s\"."
 msgstr ""
 
 #: includes/admin/export-import.php:15315
+#, php-format
 msgid "Failed to update audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
 #: includes/admin/export-import.php:15324
+#, php-format
 msgid "Failed to create audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
@@ -5439,36 +5638,44 @@ msgid "Imported wrong-image preferences were skipped because word option rules a
 msgstr ""
 
 #: includes/admin/export-import.php:15802
+#, php-format
 msgid "Imported wrong-image preference \"%1$s\" for word \"%2$s\" could not be matched to another imported word in the same category/word set."
 msgstr ""
 
 #: includes/admin/export-import.php:15825
+#, php-format
 msgid "%d additional wrong-image preference warning was not shown."
 msgid_plural "%d additional wrong-image preference warnings were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/export-import.php:15923
+#, php-format
 msgid "Failed to update word set \"%s\": %s"
 msgstr ""
 
 #: includes/admin/export-import.php:15934
+#, php-format
 msgid "Failed to create word set \"%s\": %s"
 msgstr ""
 
 #: includes/admin/export-import.php:16002
+#, php-format
 msgid "Could not create %1$s term \"%2$s\": %3$s"
 msgstr ""
 
 #: includes/admin/export-import.php:16057
+#, php-format
 msgid "Skipped audio import for \"%s\" because the file path was invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:16061
+#, php-format
 msgid "Audio file for \"%s\" is missing from the zip."
 msgstr ""
 
 #: includes/admin/export-import.php:16067
+#, php-format
 msgid "Failed to import audio for \"%1$s\": %2$s"
 msgstr ""
 
@@ -5541,10 +5748,12 @@ msgid "No categories currently need image aspect normalization."
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:83
+#, php-format
 msgid "%1$d of %2$d images need fixes"
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:84
+#, php-format
 msgid "%d aspect ratios detected"
 msgstr ""
 
@@ -5558,6 +5767,7 @@ msgid "Select a category from the left to preview crops and white-padding update
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:89
+#, php-format
 msgid "%1$d images need fixes out of %2$d tracked images."
 msgstr ""
 
@@ -5595,6 +5805,7 @@ msgid "Applying crops..."
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:97
+#, php-format
 msgid "Applied %1$d crop(s), updated %2$d post thumbnail(s)."
 msgstr ""
 
@@ -5603,6 +5814,7 @@ msgid "Apply White Padding"
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:99
+#, php-format
 msgid "Apply white padding to image %s using the current canonical ratio."
 msgstr ""
 
@@ -5615,6 +5827,7 @@ msgid "Applying white padding to image..."
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:102
+#, php-format
 msgid "Applied white padding to %1$d image(s), updated %2$d post thumbnail(s)."
 msgstr ""
 
@@ -5635,6 +5848,7 @@ msgid "Images needing updates"
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:109
+#, php-format
 msgid "Current ratio: %s"
 msgstr ""
 
@@ -5643,14 +5857,17 @@ msgid "Use as canonical"
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:111
+#, php-format
 msgid "Use ratio %s as the canonical ratio and refresh preview."
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:112
+#, php-format
 msgid "Crop: x:%1$d y:%2$d w:%3$d h:%4$d"
 msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:113
+#, php-format
 msgid "Completed with %d warning(s). Check the error list below."
 msgstr ""
 
@@ -5715,10 +5932,10 @@ msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:896
 #: includes/admin/image-aspect-normalizer-admin.php:957
-#: includes/pages/vocab-lesson-pages.php:3588
-#: includes/pages/vocab-lesson-pages.php:3799
-#: includes/pages/vocab-lesson-pages.php:3842
-#: includes/pages/vocab-lesson-pages.php:3960
+#: includes/pages/vocab-lesson-pages.php:3996
+#: includes/pages/vocab-lesson-pages.php:4207
+#: includes/pages/vocab-lesson-pages.php:4250
+#: includes/pages/vocab-lesson-pages.php:4368
 #: includes/taxonomies/word-category-taxonomy.php:1845
 #: includes/taxonomies/word-category-taxonomy.php:1899
 #: includes/taxonomies/word-category-taxonomy.php:2027
@@ -5732,11 +5949,13 @@ msgstr ""
 
 #. translators: %d attachment ID
 #: includes/admin/image-aspect-normalizer-admin.php:1015
+#, php-format
 msgid "Skipped attachment %d because crop data was invalid."
 msgstr ""
 
 #. translators: 1: attachment ID, 2: error message
 #: includes/admin/image-aspect-normalizer-admin.php:1031
+#, php-format
 msgid "Attachment %1$d failed: %2$s"
 msgstr ""
 
@@ -5759,6 +5978,7 @@ msgstr ""
 
 #. translators: %s error message
 #: includes/admin/image-webp-optimizer-admin.php:345
+#, php-format
 msgid "Could not download the remote image for optimization: %s"
 msgstr ""
 
@@ -5823,6 +6043,7 @@ msgstr ""
 #. translators: %s: file size threshold.
 #: includes/admin/image-webp-optimizer-admin.php:613
 #: includes/admin/image-webp-optimizer-admin.php:1683
+#, php-format
 msgid "Over %s"
 msgstr ""
 
@@ -5863,6 +6084,7 @@ msgstr ""
 
 #. translators: %s error message
 #: includes/admin/image-webp-optimizer-admin.php:1176
+#, php-format
 msgid "Could not optimize animated WebP image: %s"
 msgstr ""
 
@@ -5909,11 +6131,13 @@ msgstr ""
 
 #. translators: 1: source size, 2: new size
 #: includes/admin/image-webp-optimizer-admin.php:1431
+#, php-format
 msgid "Optimized image would be larger (%1$s -> %2$s), so it was not applied."
 msgstr ""
 
 #. translators: %s minimum savings threshold
 #: includes/admin/image-webp-optimizer-admin.php:1454
+#, php-format
 msgid "Savings were under the minimum threshold (%s), so the existing WebP was kept."
 msgstr ""
 
@@ -5924,6 +6148,7 @@ msgstr ""
 #. translators: %s target file size threshold
 #: includes/admin/image-webp-optimizer-admin.php:1538
 #: includes/admin/image-webp-optimizer-admin.php:1665
+#, php-format
 msgid "Optimize to %s"
 msgstr ""
 
@@ -5995,6 +6220,7 @@ msgid "WebP encoding is not available on this server. The queue can still be rev
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1673
+#, php-format
 msgid "Optimizing batch %1$d of %2$d..."
 msgstr ""
 
@@ -6003,14 +6229,17 @@ msgid "Batch optimization finished."
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1675
+#, php-format
 msgid "Saved %s"
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1676
+#, php-format
 msgid "Optimized %1$d image(s); %2$d failed; saved %3$s total."
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:1677
+#, php-format
 msgid "%d image(s) are still flagged and remain in the queue."
 msgstr ""
 
@@ -6020,6 +6249,7 @@ msgstr ""
 #: includes/pages/content-lesson-pages.php:659
 #: includes/pages/wordset-pages.php:14881
 #: includes/pages/wordset-pages.php:18391
+#, php-format
 msgid "Page %1$d of %2$d"
 msgstr ""
 
@@ -6081,6 +6311,7 @@ msgstr ""
 
 #. translators: 1: standard file size threshold, 2: animated WebP label, 3: animated WebP threshold.
 #: includes/admin/image-webp-optimizer-admin.php:1685
+#, php-format
 msgid "Over %1$s (%2$s: %3$s)"
 msgstr ""
 
@@ -6114,6 +6345,7 @@ msgstr ""
 
 #. translators: %s: number of supported queued images.
 #: includes/admin/image-webp-optimizer-admin.php:1694
+#, php-format
 msgid "%s supported"
 msgstr ""
 
@@ -6141,11 +6373,13 @@ msgstr ""
 
 #. translators: 1: standard WebP threshold, 2: animated WebP threshold
 #: includes/admin/image-webp-optimizer-admin.php:1768
+#, php-format
 msgid "Oversized WebP threshold: %1$s (animated WebP: %2$s)"
 msgstr ""
 
 #. translators: %s file size threshold
 #: includes/admin/image-webp-optimizer-admin.php:1775
+#, php-format
 msgid "Oversized WebP threshold: %s"
 msgstr ""
 
@@ -6159,16 +6393,19 @@ msgstr ""
 
 #. translators: 1: old size, 2: new size, 3: bytes saved
 #: includes/admin/image-webp-optimizer-admin.php:1921
+#, php-format
 msgid "%1$s -> %2$s (%3$s saved)"
 msgstr ""
 
 #. translators: 1: optimization summary, 2: remaining reason labels
 #: includes/admin/image-webp-optimizer-admin.php:1932
+#, php-format
 msgid "%1$s. Still flagged: %2$s (remains in queue)."
 msgstr ""
 
 #. translators: %s optimization summary
 #: includes/admin/image-webp-optimizer-admin.php:1939
+#, php-format
 msgid "%s. Still flagged and remains in queue."
 msgstr ""
 
@@ -6187,6 +6424,7 @@ msgstr ""
 
 #. translators: %d: maximum search query length.
 #: includes/admin/ipa-keyboard-admin.php:189
+#, php-format
 msgid "Search queries are limited to %d characters."
 msgstr ""
 
@@ -6205,6 +6443,7 @@ msgstr ""
 
 #. translators: %d: maximum regular expression length.
 #: includes/admin/ipa-keyboard-admin.php:232
+#, php-format
 msgid "Regular expressions are limited to %d characters."
 msgstr ""
 
@@ -6347,6 +6586,7 @@ msgid "Rebuilding counts and samples..."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:418
+#, php-format
 msgid "Processed %1$d of %2$d recordings."
 msgstr ""
 
@@ -6395,18 +6635,22 @@ msgid "Recording"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:428
+#, php-format
 msgid "%1$d recording"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:429
+#, php-format
 msgid "%1$d recordings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:430
+#, php-format
 msgid "%1$d occurrence"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:431
+#, php-format
 msgid "%1$d occurrences"
 msgstr ""
 
@@ -6423,7 +6667,7 @@ msgid "Blocked mappings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:435
-#: includes/pages/vocab-lesson-pages.php:5119
+#: includes/pages/vocab-lesson-pages.php:5527
 #: includes/pages/wordset-editor.php:4935
 #: templates/vocab-lesson-template.php:602
 msgid "Undo"
@@ -6500,50 +6744,62 @@ msgid "No matches in this batch. Continue searching to check the remaining recor
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:452
+#, php-format
 msgid "%1$d result"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:453
+#, php-format
 msgid "%1$d results"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:454
+#, php-format
 msgid "%1$d matching recording loaded"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:455
+#, php-format
 msgid "%1$d matching recordings loaded"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:456
+#, php-format
 msgid "Showing %1$d flagged recording"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:457
+#, php-format
 msgid "Showing %1$d flagged recordings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:458
+#, php-format
 msgid "Showing %1$d transcription needing review"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:459
+#, php-format
 msgid "Showing %1$d transcriptions needing review"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:460
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d results"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:461
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d flagged recordings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:462
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d transcriptions needing review"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:463
+#, php-format
 msgid "Showing the first %1$d results. Narrow the search to see more."
 msgstr ""
 
@@ -6552,10 +6808,12 @@ msgid "Search result pages"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:466
+#, php-format
 msgid "Go to page %1$d"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:467
+#, php-format
 msgid "Current page %1$d"
 msgstr ""
 
@@ -6751,10 +7009,12 @@ msgid "Mark as needing review"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:519
+#, php-format
 msgid "%s: mark as reviewed"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:520
+#, php-format
 msgid "%s: mark as needing review"
 msgstr ""
 
@@ -6817,6 +7077,7 @@ msgid "Undo exception"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:535
+#, php-format
 msgid "Approve %1$s symbol and map it to %2$s in orthography"
 msgstr ""
 
@@ -6829,6 +7090,7 @@ msgid "Flag as illegal symbol"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:538
+#, php-format
 msgid "Mark %s as illegal for this word set?"
 msgstr ""
 
@@ -6841,6 +7103,7 @@ msgid "Symbol marked illegal and checks rescanned."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:541
+#, php-format
 msgid "Show %s"
 msgstr ""
 
@@ -6848,6 +7111,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:5532
 #: includes/pages/wordset-pages.php:5541
 #: includes/pages/wordset-pages.php:21293
+#, php-format
 msgid "Hide %s"
 msgstr ""
 
@@ -6956,10 +7220,12 @@ msgid "No contradictions found with the current rules."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:572
+#, php-format
 msgid "%1$d contradicting word"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:573
+#, php-format
 msgid "%1$d contradicting words"
 msgstr ""
 
@@ -6985,10 +7251,12 @@ msgid "Use suggested orthography"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:580
+#, php-format
 msgid "Use IPA: %1$s"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:581
+#, php-format
 msgid "Change to: %s"
 msgstr ""
 
@@ -7017,10 +7285,12 @@ msgid "No words are waiting for IPA-to-orthography conversion."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:588
+#, php-format
 msgid "%1$d word ready to convert"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:589
+#, php-format
 msgid "%1$d words ready to convert"
 msgstr ""
 
@@ -7369,26 +7639,31 @@ msgstr ""
 
 #. translators: 1: target sound, 2: previous sounds, 3: next sounds
 #: includes/admin/ipa-keyboard-admin.php:3016
+#, php-format
 msgid "Do not allow %1$s after %2$s and before %3$s."
 msgstr ""
 
 #. translators: 1: target sound, 2: previous sounds
 #: includes/admin/ipa-keyboard-admin.php:3026
+#, php-format
 msgid "Do not allow %1$s after %2$s."
 msgstr ""
 
 #. translators: 1: target sound, 2: next sounds
 #: includes/admin/ipa-keyboard-admin.php:3035
+#, php-format
 msgid "Do not allow %1$s before %2$s."
 msgstr ""
 
 #. translators: %s: target sound
 #: includes/admin/ipa-keyboard-admin.php:3043
+#, php-format
 msgid "Do not allow %s anywhere in this word set."
 msgstr ""
 
 #. translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen
 #: includes/admin/ipa-keyboard-admin.php:4451
+#, php-format
 msgid "Preserved the GenÃ§-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href=\"%2$s\">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically."
 msgstr ""
 
@@ -7487,6 +7762,7 @@ msgstr ""
 
 #. translators: %s is an IPA symbol.
 #: includes/admin/ipa-keyboard-admin.php:8062
+#, php-format
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr ""
 
@@ -7617,6 +7893,7 @@ msgstr ""
 
 #. translators: %d: number of minutes
 #: includes/admin/login-blocks-admin.php:62
+#, php-format
 msgid "%d minute"
 msgid_plural "%d minutes"
 msgstr[0] ""
@@ -7624,6 +7901,7 @@ msgstr[1] ""
 
 #. translators: %d: number of seconds
 #: includes/admin/login-blocks-admin.php:69
+#, php-format
 msgid "%d second"
 msgid_plural "%d seconds"
 msgstr[0] ""
@@ -7635,11 +7913,13 @@ msgstr ""
 
 #. translators: 1: relative time, 2: exact date/time
 #: includes/admin/login-blocks-admin.php:86
+#, php-format
 msgid "In %1$s (%2$s)"
 msgstr ""
 
 #. translators: 1: block type, 2: attempt count, 3: limit
 #: includes/admin/login-blocks-admin.php:107
+#, php-format
 msgid "%1$s: %2$d/%3$d"
 msgstr ""
 
@@ -7653,16 +7933,19 @@ msgstr ""
 
 #. translators: 1: IP address, 2: released status summary
 #: includes/admin/login-blocks-admin.php:155
+#, php-format
 msgid "Released auth blocks for %1$s. Previous status: %2$s."
 msgstr ""
 
 #. translators: %s: IP address
 #: includes/admin/login-blocks-admin.php:163
+#, php-format
 msgid "Cleared any matching auth block records for %s."
 msgstr ""
 
 #. translators: 1: failed attempt limit, 2: release window
 #: includes/admin/login-blocks-admin.php:193
+#, php-format
 msgid "Frontend login blocks happen after %1$d failed login attempts from the same connection. They expire automatically after %2$s."
 msgstr ""
 
@@ -7676,6 +7959,7 @@ msgstr ""
 
 #. translators: %s: current admin IP address
 #: includes/admin/login-blocks-admin.php:221
+#, php-format
 msgid "This admin request appears to come from %s."
 msgstr ""
 
@@ -7716,6 +8000,7 @@ msgstr ""
 #: includes/admin/login-blocks-admin.php:264
 #: includes/lib/interlinear.php:1678
 #: includes/pages/wordset-editor.php:4313
+#, php-format
 msgid "%1$d of %2$d"
 msgstr ""
 
@@ -7887,18 +8172,22 @@ msgid "Maintenance job"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:555
+#, php-format
 msgid "Processed %1$d of %2$d matching posts. Continue to run the next bounded batch."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:561
+#, php-format
 msgid "Processed %d posts so far. Continue to run the next bounded batch."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:563
+#, php-format
 msgid "Completed after processing %d posts."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:565
+#, php-format
 msgid "Cancelled after processing %d posts."
 msgstr ""
 
@@ -7907,22 +8196,27 @@ msgid "The maintenance job stopped before completion."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:571
+#, php-format
 msgid "Missing audio entries found so far: %d."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:573
+#, php-format
 msgid "Unique table headers found so far: %d."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:575
+#, php-format
 msgid "Regex matches found so far: %1$d across %2$d posts."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:577
+#, php-format
 msgid "Table cells found so far: %1$d across %2$d posts."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:582
+#, php-format
 msgid "Updated %1$d posts and inserted %2$d shortcodes so far. Changed posts skipped: %3$d."
 msgstr ""
 
@@ -7944,6 +8238,7 @@ msgid "Regex → Insert [word_audio]"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:613
+#, php-format
 msgid "Find text via regex and wrap it with the %s shortcode. Patterns are stored for re-use and tagged with a comment label."
 msgstr ""
 
@@ -8008,6 +8303,7 @@ msgid "#\\b[A-Za-z]+\\b#u"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:686
+#, php-format
 msgid "Uses PHP regex with delimiters. Matches are wrapped as %s."
 msgstr ""
 
@@ -8024,6 +8320,7 @@ msgid "Preview Results"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:701
+#, php-format
 msgid "Found %1$d match across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying."
 msgid_plural "Found %1$d matches across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying."
 msgstr[0] ""
@@ -8048,6 +8345,7 @@ msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:753
 #: includes/admin/missing-audio-admin-page.php:900
+#, php-format
 msgid "Updated %1$d post, inserted %2$d shortcode."
 msgid_plural "Updated %1$d posts, inserted %2$d shortcodes."
 msgstr[0] ""
@@ -8055,6 +8353,7 @@ msgstr[1] ""
 
 #: includes/admin/missing-audio-admin-page.php:766
 #: includes/admin/missing-audio-admin-page.php:913
+#, php-format
 msgid "Skipped %d posts because their content changed after preview."
 msgstr ""
 
@@ -8063,6 +8362,7 @@ msgid "Table Column → Insert [word_audio]"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:788
+#, php-format
 msgid "Find HTML tables, choose header(s), and wrap every cell in those columns with %s. Existing shortcodes are skipped."
 msgstr ""
 
@@ -8079,6 +8379,7 @@ msgid "Select column headers to target"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:816
+#, php-format
 msgid "%1$d unique header found. Use Ctrl/Cmd-click or Shift-click to select multiple."
 msgid_plural "%1$d unique headers found. Use Ctrl/Cmd-click or Shift-click to select multiple."
 msgstr[0] ""
@@ -8101,6 +8402,7 @@ msgid "Table Preview Results"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:845
+#, php-format
 msgid "Found %1$d cell across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying."
 msgid_plural "Found %1$d cells across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying."
 msgstr[0] ""
@@ -8140,16 +8442,19 @@ msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:1393
 #: includes/admin/missing-audio-admin-page.php:1489
+#, php-format
 msgid "Failed to run regex on post ID %d"
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:1479
 #: includes/admin/missing-audio-admin-page.php:2007
+#, php-format
 msgid "Skipped changed post ID %d; preview it again before applying."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:1546
 #: includes/admin/missing-audio-admin-page.php:2103
+#, php-format
 msgid "Failed to update post ID %1$d: %2$s"
 msgstr ""
 
@@ -8176,6 +8481,7 @@ msgstr ""
 
 #. translators: %s: source path
 #: includes/admin/offline-app-export.php:367
+#, php-format
 msgid "The configured offline STT bundle path does not exist: %s"
 msgstr ""
 
@@ -8431,6 +8737,7 @@ msgstr ""
 
 #. translators: 1: category count, 2: word count, 3: copied asset count
 #: includes/admin/offline-app-export.php:1864
+#, php-format
 msgid "%1$d categories checked, %2$d words checked, %3$d assets copied."
 msgstr ""
 
@@ -8503,6 +8810,7 @@ msgstr ""
 
 #. translators: 1: category name, 2: minimum word count
 #: includes/admin/offline-app-export.php:2492
+#, php-format
 msgid "Category \"%1$s\" was omitted from the offline app because fewer than %2$d usable words remained after offline asset checks."
 msgstr ""
 
@@ -8555,6 +8863,7 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:2841
 #: includes/admin/offline-app-export.php:3584
+#, php-format
 msgid "Connected as %s"
 msgstr ""
 
@@ -8575,6 +8884,7 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:2845
 #: includes/admin/offline-app-export.php:3588
+#, php-format
 msgid "%d pending"
 msgstr ""
 
@@ -8655,24 +8965,28 @@ msgstr ""
 #: includes/admin/offline-app-export.php:2968
 #: includes/admin/offline-app-export.php:3638
 #: includes/pages/wordset-pages.php:11305
+#, php-format
 msgid "Word set: %s"
 msgstr ""
 
 #. translators: %s: app name
 #: includes/admin/offline-app-export.php:2969
 #: includes/admin/offline-app-export.php:3643
+#, php-format
 msgid "App name: %s"
 msgstr ""
 
 #. translators: %s: Android app id
 #: includes/admin/offline-app-export.php:2970
 #: includes/admin/offline-app-export.php:3648
+#, php-format
 msgid "Android app id: %s"
 msgstr ""
 
 #. translators: %s: icon source
 #: includes/admin/offline-app-export.php:2972
 #: includes/admin/offline-app-export.php:3654
+#, php-format
 msgid "App icon: %s"
 msgstr ""
 
@@ -8694,6 +9008,7 @@ msgstr ""
 #. translators: 1: version name, 2: version code
 #: includes/admin/offline-app-export.php:2974
 #: includes/admin/offline-app-export.php:3662
+#, php-format
 msgid "Version: %1$s (%2$d)"
 msgstr ""
 
@@ -8795,6 +9110,7 @@ msgstr ""
 
 #. translators: 1: category name, 2: minimum words
 #: includes/admin/offline-app-export.php:3384
+#, php-format
 msgid "Category \"%1$s\" was omitted from the offline app because only %2$d or fewer usable words remained after offline asset checks."
 msgstr ""
 
@@ -8836,26 +9152,31 @@ msgstr ""
 
 #. translators: 1: word title, 2: category name
 #: includes/admin/offline-app-export.php:4006
+#, php-format
 msgid "Word \"%1$s\" was omitted from offline category \"%2$s\" because no local audio file could be bundled."
 msgstr ""
 
 #. translators: 1: word title, 2: category name
 #: includes/admin/offline-app-export.php:4016
+#, php-format
 msgid "Word \"%1$s\" was omitted from offline category \"%2$s\" because no local image file could be bundled."
 msgstr ""
 
 #. translators: %d: audio post id
 #: includes/admin/offline-app-export.php:4065
+#, php-format
 msgid "Audio post %d could not be bundled because its source file is missing."
 msgstr ""
 
 #. translators: %d: word id
 #: includes/admin/offline-app-export.php:4103
+#, php-format
 msgid "Word %d could not bundle its featured image because the source file is missing."
 msgstr ""
 
 #. translators: %s: relative plugin path
 #: includes/admin/offline-app-export.php:4258
+#, php-format
 msgid "The offline app bundle is missing required asset \"%s\"."
 msgstr ""
 
@@ -8865,6 +9186,7 @@ msgstr ""
 
 #. translators: %s: relative plugin path
 #: includes/admin/offline-app-export.php:4275
+#, php-format
 msgid "Could not copy required offline asset \"%s\"."
 msgstr ""
 
@@ -8894,6 +9216,7 @@ msgstr ""
 
 #. translators: %s: relative plugin directory
 #: includes/admin/offline-app-export.php:4343
+#, php-format
 msgid "The offline app bundle is missing required directory \"%s\"."
 msgstr ""
 
@@ -8907,6 +9230,7 @@ msgstr ""
 
 #. translators: %s: relative plugin directory
 #: includes/admin/offline-app-export.php:4376
+#, php-format
 msgid "Could not copy files from \"%s\" into the offline app bundle."
 msgstr ""
 
@@ -8977,6 +9301,7 @@ msgstr ""
 
 #. translators: %d: number of orphaned media items
 #: includes/admin/orphan-media-admin.php:1245
+#, php-format
 msgid "%d orphaned media item can be reviewed and cleaned up"
 msgid_plural "%d orphaned media items can be reviewed and cleaned up"
 msgstr[0] ""
@@ -8996,11 +9321,13 @@ msgstr ""
 
 #. translators: 1: deleted count, 2: failed count
 #: includes/admin/orphan-media-admin.php:1294
+#, php-format
 msgid "Deleted %1$d orphaned media item(s). %2$d could not be deleted."
 msgstr ""
 
 #. translators: %d: deleted count
 #: includes/admin/orphan-media-admin.php:1305
+#, php-format
 msgid "Deleted %d orphaned media item(s)."
 msgstr ""
 
@@ -9055,6 +9382,7 @@ msgstr ""
 
 #. translators: 1: visible item count, 2: total orphaned media item count
 #: includes/admin/orphan-media-admin.php:1750
+#, php-format
 msgid "Showing the largest %1$d orphaned media items from a total of %2$d. Refresh the scan after cleaning these up to reveal more items."
 msgstr ""
 
@@ -9063,14 +9391,17 @@ msgid "Total orphaned items"
 msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1766
+#, php-format
 msgid "Images (%s)"
 msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1770
+#, php-format
 msgid "Audio (%s)"
 msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1774
+#, php-format
 msgid "Last scan: %s"
 msgstr ""
 
@@ -9138,6 +9469,7 @@ msgid "No preview"
 msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1860
+#, php-format
 msgid "Last seen on: %s"
 msgstr ""
 
@@ -9170,10 +9502,12 @@ msgid "Prompt"
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:217
+#, php-format
 msgid "Prompt audio import is limited to %s of pasted text per request."
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:229
+#, php-format
 msgid "Prompt audio import is limited to %d row per request. Split the list and submit the remaining rows separately."
 msgid_plural "Prompt audio import is limited to %d rows per request. Split the list and submit the remaining rows separately."
 msgstr[0] ""
@@ -9189,27 +9523,32 @@ msgstr ""
 
 #. translators: 1: prompt title, 2: error message
 #: includes/admin/prompt-audio-import-admin.php:341
+#, php-format
 msgid "The prompt \"%1$s\" was created but could not be assigned to the category: %2$s"
 msgstr ""
 
 #. translators: 1: prompt title, 2: error message
 #: includes/admin/prompt-audio-import-admin.php:353
+#, php-format
 msgid "The prompt \"%1$s\" was created but could not be assigned to the word set: %2$s"
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:367
+#, php-format
 msgid "%d prompt card was added to the audio queue as a draft."
 msgid_plural "%d prompt cards were added to the audio queue as drafts."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/prompt-audio-import-admin.php:376
+#, php-format
 msgid "%1$d prompt was skipped because it already exists: %2$s"
 msgid_plural "%1$d prompts were skipped because they already exist: %2$s"
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/prompt-audio-import-admin.php:395
+#, php-format
 msgid "Ignored extra columns on %d row. Only the prompt text and optional title were imported."
 msgid_plural "Ignored extra columns on %d rows. Only the prompt text and optional title were imported."
 msgstr[0] ""
@@ -9232,10 +9571,12 @@ msgid "Each row creates a draft prompt card with no prompt audio. It will appear
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:454
+#, php-format
 msgid "Prompt only: %s"
 msgstr ""
 
 #: includes/admin/prompt-audio-import-admin.php:455
+#, php-format
 msgid "Prompt + title with a tab: %s"
 msgstr ""
 
@@ -9265,6 +9606,7 @@ msgstr ""
 
 #. translators: %s: error message
 #: includes/admin/recording-types-admin.php:37
+#, php-format
 msgid "Error deleting recording type: %s"
 msgstr ""
 
@@ -9274,6 +9616,7 @@ msgstr ""
 
 #. translators: %s: error message
 #: includes/admin/recording-types-admin.php:58
+#, php-format
 msgid "Error adding recording type: %s"
 msgstr ""
 
@@ -9333,6 +9676,7 @@ msgstr ""
 
 #. translators: %d: recording count
 #: includes/admin/recording-types-admin.php:152
+#, php-format
 msgid "%d recording"
 msgid_plural "%d recordings"
 msgstr[0] ""
@@ -9398,11 +9742,13 @@ msgstr ""
 
 #. translators: %d: number of deleted rows
 #: includes/admin/settings.php:330
+#, php-format
 msgid "Purged %d legacy meta rows."
 msgstr ""
 
 #. translators: %d: number of word categories
 #: includes/admin/settings.php:338
+#, php-format
 msgid "Cache bumped for %d word categories."
 msgstr ""
 
@@ -9615,6 +9961,7 @@ msgstr ""
 
 #. translators: 1: source language code, 2: target language code
 #: includes/admin/settings.php:648
+#, php-format
 msgid "Translating from %1$s to %2$s."
 msgstr ""
 
@@ -9727,6 +10074,7 @@ msgstr ""
 
 #. translators: 1: updated local field count, 2: updated local recording count
 #: includes/admin/site-sync-admin.php:776
+#, php-format
 msgid "Accepted live values locally for %1$d conflicted field(s) across %2$d recording(s)."
 msgstr ""
 
@@ -9740,6 +10088,7 @@ msgstr ""
 
 #. translators: 1: processed update count, 2: total update count, 3: remaining update count, 4: conflict count
 #: includes/admin/site-sync-admin.php:861
+#, php-format
 msgid "Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain after refresh. Conflicts remaining: %4$d."
 msgstr ""
 
@@ -9749,31 +10098,37 @@ msgstr ""
 
 #. translators: %d: updated local field count
 #: includes/admin/site-sync-admin.php:918
+#, php-format
 msgid "Reverted %d local field(s). Preview again when you are ready to compare against the live site."
 msgstr ""
 
 #. translators: %d: updated local field count
 #: includes/admin/site-sync-admin.php:923
+#, php-format
 msgid "Saved %d local after-change field(s). Preview again when you are ready to compare against the live site."
 msgstr ""
 
 #. translators: 1: processed update count, 2: total clean update count, 3: remaining clean update count, 4: conflict count
 #: includes/admin/site-sync-admin.php:959
+#, php-format
 msgid "Push batch finished. Processed %1$d of %2$d queued remote update(s). %3$d update(s) remain; use Apply All Push Batches to continue automatically. Conflicts remaining: %4$d."
 msgstr ""
 
 #. translators: 1: remote updated count, 2: remote request count, 3: conflict count
 #: includes/admin/site-sync-admin.php:970
+#, php-format
 msgid "Push finished. Applied %1$d remote updates across %2$d small request(s). Conflicts remaining: %3$d."
 msgstr ""
 
 #. translators: 1: updated record count, 2: created word count, 3: created record count, 4: reparented recording count, 5: field count, 6: media reference count
 #: includes/admin/site-sync-admin.php:1007
+#, php-format
 msgid "Pull finished. Updated %1$d local recordings, created %2$d words and %3$d recordings, moved %4$d recordings, and applied %5$d fields plus %6$d media references."
 msgstr ""
 
 #. translators: %d conflict count
 #: includes/admin/site-sync-admin.php:1021
+#, php-format
 msgid "Pull found %d conflicts. Conflicting fields were not overwritten locally."
 msgstr ""
 
@@ -9804,6 +10159,7 @@ msgstr ""
 
 #. translators: %s: sync field key
 #: includes/admin/site-sync-admin.php:1065
+#, php-format
 msgid "Field: %s"
 msgstr ""
 
@@ -9815,6 +10171,7 @@ msgstr ""
 #. translators: 1: first visible result number, 2: last visible result number, 3: total result count
 #: includes/admin/site-sync-admin.php:1120
 #: includes/shortcodes/dictionary-shortcode.php:2579
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d"
 msgstr ""
 
@@ -9971,27 +10328,33 @@ msgid "This overview compares the current staging word set to the last saved pul
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1855
+#, php-format
 msgid "Baseline records: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1856
+#, php-format
 msgid "Local records: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1857
+#, php-format
 msgid "Modified locally: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1858
+#, php-format
 msgid "Local only: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1859
+#, php-format
 msgid "Missing locally: %d"
 msgstr ""
 
 #. translators: 1: sync field label, 2: changed row count
 #: includes/admin/site-sync-admin.php:1866
+#, php-format
 msgid "%1$s: %2$d"
 msgstr ""
 
@@ -10025,6 +10388,7 @@ msgstr ""
 
 #. translators: 1: clean update count, 2: conflict count, 3: skipped count
 #: includes/admin/site-sync-admin.php:2014
+#, php-format
 msgid "Ready to process %1$d clean update(s), %2$d conflict(s), and %3$d skipped row(s). The browser will keep sending small live-safe batches until the pushable work is finished."
 msgstr ""
 
@@ -10054,6 +10418,7 @@ msgstr ""
 
 #. translators: %d: update count including local-wins conflicts
 #: includes/admin/site-sync-admin.php:2050
+#, php-format
 msgid "Choosing staging-values conflict handling would queue %d total remote update(s)."
 msgstr ""
 
@@ -10078,35 +10443,43 @@ msgid "This preview uses a fresh live-site snapshot for this request and shows w
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2110
+#, php-format
 msgid "Records checked: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2111
+#, php-format
 msgid "Words to create: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2112
+#, php-format
 msgid "Records to create: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2113
+#, php-format
 msgid "Fields to apply: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2114
+#, php-format
 msgid "Media refs to apply: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2115
+#, php-format
 msgid "Conflicts: %d"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2116
+#, php-format
 msgid "Skipped: %d"
 msgstr ""
 
 #. translators: %d: conflict count
 #: includes/admin/site-sync-admin.php:2122
+#, php-format
 msgid "%d conflict needs review"
 msgid_plural "%d conflicts need review"
 msgstr[0] ""
@@ -10129,6 +10502,7 @@ msgid "No changes were found for this sync direction."
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2155
+#, php-format
 msgid "Skipped rows are usually recordings that exist on only one site or rows without a previous pull baseline. Count: %d"
 msgstr ""
 
@@ -10149,6 +10523,7 @@ msgid "Preview Push to Live"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:2201
+#, php-format
 msgid "Last pull baseline: %1$s, %2$d records."
 msgstr ""
 
@@ -10220,6 +10595,7 @@ msgstr ""
 
 #. translators: %s: source word title
 #: includes/admin/split-word-admin.php:315
+#, php-format
 msgid "Split \"%s\" into two word posts by choosing which recordings move to the new word."
 msgstr ""
 
@@ -10270,6 +10646,7 @@ msgstr ""
 
 #. translators: %d: count of moved recordings
 #: includes/admin/split-word-admin.php:811
+#, php-format
 msgid "%d recording moved."
 msgid_plural "%d recordings moved."
 msgstr[0] ""
@@ -10277,6 +10654,7 @@ msgstr[1] ""
 
 #. translators: %d: count of failed recording moves
 #: includes/admin/split-word-admin.php:818
+#, php-format
 msgid "%d recording could not be moved."
 msgid_plural "%d recordings could not be moved."
 msgstr[0] ""
@@ -10288,6 +10666,7 @@ msgstr ""
 
 #. translators: 1: original word title, 2: new word title
 #: includes/admin/split-word-admin.php:830
+#, php-format
 msgid "Split complete: \"%1$s\" and \"%2$s\"."
 msgstr ""
 
@@ -10305,6 +10684,7 @@ msgstr ""
 
 #. translators: %s: class name
 #: includes/admin/teacher-classes-page.php:185
+#, php-format
 msgid "Created class: %s"
 msgstr ""
 
@@ -10330,21 +10710,25 @@ msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/admin/teacher-classes-page.php:237
+#, php-format
 msgid "Assigned %s as the class teacher and granted the Teacher role."
 msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/admin/teacher-classes-page.php:243
+#, php-format
 msgid "Assigned %s as the class teacher."
 msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/admin/teacher-classes-page.php:249
+#, php-format
 msgid "%s is already the class teacher. The Teacher role was granted."
 msgstr ""
 
 #. translators: %s: teacher display name
 #: includes/admin/teacher-classes-page.php:255
+#, php-format
 msgid "%s is already the class teacher."
 msgstr ""
 
@@ -10354,6 +10738,7 @@ msgstr ""
 
 #. translators: %s: learner email
 #: includes/admin/teacher-classes-page.php:304
+#, php-format
 msgid "Sent a class invitation to %s."
 msgstr ""
 
@@ -10372,11 +10757,13 @@ msgstr ""
 
 #. translators: %s: learner display name
 #: includes/admin/teacher-classes-page.php:356
+#, php-format
 msgid "%s is already a member of this class."
 msgstr ""
 
 #. translators: %s: learner display name
 #: includes/admin/teacher-classes-page.php:361
+#, php-format
 msgid "Added %s to this class."
 msgstr ""
 
@@ -10386,11 +10773,13 @@ msgstr ""
 
 #. translators: %s: learner display name
 #: includes/admin/teacher-classes-page.php:414
+#, php-format
 msgid "%s is no longer in this class."
 msgstr ""
 
 #. translators: %s: learner display name
 #: includes/admin/teacher-classes-page.php:419
+#, php-format
 msgid "Removed %s from this class."
 msgstr ""
 
@@ -10400,6 +10789,7 @@ msgstr ""
 
 #. translators: %s: class name
 #: includes/admin/teacher-classes-page.php:466
+#, php-format
 msgid "Deleted class: %s"
 msgstr ""
 
@@ -10485,6 +10875,7 @@ msgstr ""
 
 #: includes/admin/teacher-classes-page.php:669
 #: includes/pages/wordset-pages.php:11260
+#, php-format
 msgid "Delete %s?"
 msgstr ""
 
@@ -10665,6 +11056,7 @@ msgstr ""
 
 #: includes/admin/teacher-classes-page.php:843
 #: includes/pages/wordset-pages.php:11502
+#, php-format
 msgid "Remove %s from this class?"
 msgstr ""
 
@@ -10952,27 +11344,32 @@ msgstr ""
 #: includes/post-types/content-lesson-post-type.php:746
 #: includes/post-types/content-lesson-post-type.php:998
 #: includes/shortcodes/audio-recording-shortcode.php:1479
+#, php-format
 msgid "%1$s (%2$s)"
 msgstr ""
 
 #. translators: 1: Uploaded file name, 2: Existing post ID.
 #: includes/admin/uploads/audio-upload-form.php:668
+#, php-format
 msgid "%1$s -> Post ID: %2$d"
 msgstr ""
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:676
 #: includes/admin/uploads/audio-upload-form.php:701
+#, php-format
 msgid "%s (Failed to create post)"
 msgstr ""
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:684
+#, php-format
 msgid "%s (No matching post found)"
 msgstr ""
 
 #. translators: 1: Uploaded file name, 2: New post ID.
 #: includes/admin/uploads/audio-upload-form.php:693
+#, php-format
 msgid "%1$s -> New Post ID: %2$d"
 msgstr ""
 
@@ -10982,16 +11379,19 @@ msgstr ""
 
 #. translators: 1: Uploaded file name, 2: MIME type.
 #: includes/admin/uploads/audio-upload-form.php:783
+#, php-format
 msgid "%1$s (Invalid file type: %2$s)"
 msgstr ""
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:793
+#, php-format
 msgid "%s (File size exceeds the limit)"
 msgstr ""
 
 #. translators: %s: Uploaded file name.
 #: includes/admin/uploads/audio-upload-form.php:805
+#, php-format
 msgid "%s (Invalid audio file)"
 msgstr ""
 
@@ -11034,6 +11434,7 @@ msgid "File upload error"
 msgstr ""
 
 #: includes/admin/uploads/image-upload-form.php:88
+#, php-format
 msgid "Image file is larger than the allowed limit of %s."
 msgstr ""
 
@@ -11046,6 +11447,7 @@ msgid "Invalid image data"
 msgstr ""
 
 #: includes/admin/uploads/image-upload-form.php:144
+#, php-format
 msgid "Some selected images are larger than %s. They may fail to upload or load slowly in quizzes."
 msgstr ""
 
@@ -11099,6 +11501,7 @@ msgstr ""
 
 #: includes/admin/uploads/image-upload-form.php:1052
 #: includes/admin/uploads/image-upload-form.php:1072
+#, php-format
 msgid "Category \"%1$s\" could not be created: %2$s"
 msgstr ""
 
@@ -11147,11 +11550,13 @@ msgstr ""
 
 #. translators: %s: comma separated keyword list
 #: includes/admin/user-progress-report.php:402
+#, php-format
 msgid "Spam-style keyword match: %s"
 msgstr ""
 
 #. translators: %s: email domain
 #: includes/admin/user-progress-report.php:411
+#, php-format
 msgid "Disposable email domain: %s"
 msgstr ""
 
@@ -11165,16 +11570,19 @@ msgstr ""
 
 #. translators: 1: rounds count, 2: outcomes count
 #: includes/admin/user-progress-report.php:435
+#, php-format
 msgid "Unusually heavy recent quiz activity (%1$d rounds / %2$d outcomes)."
 msgstr ""
 
 #. translators: %d: call count
 #: includes/admin/user-progress-report.php:445
+#, php-format
 msgid "High speech-to-text volume in 7 days: %d calls."
 msgstr ""
 
 #. translators: %d: call count
 #: includes/admin/user-progress-report.php:452
+#, php-format
 msgid "High speech-to-text volume in 30 days: %d calls."
 msgstr ""
 
@@ -11287,11 +11695,13 @@ msgstr ""
 
 #. translators: %s: learner display name
 #: includes/admin/user-progress-report.php:959
+#, php-format
 msgid "Progress details for %s"
 msgstr ""
 
 #. translators: %s: word set name
 #: includes/admin/user-progress-report.php:969
+#, php-format
 msgid "Showing analytics for word set: %s"
 msgstr ""
 
@@ -11363,10 +11773,12 @@ msgid "Word image helper is not available"
 msgstr ""
 
 #: includes/admin/word-images-fixer.php:146
+#, php-format
 msgid "Created %d word image posts."
 msgstr ""
 
 #: includes/admin/word-images-fixer.php:148
+#, php-format
 msgid "%d items failed."
 msgstr ""
 
@@ -11393,6 +11805,7 @@ msgstr ""
 #. translators: %s: group label
 #: includes/admin/word-option-rules-admin.php:301
 #: includes/admin/word-option-rules-admin.php:2355
+#, php-format
 msgid "Assign to group %s"
 msgstr ""
 
@@ -11433,6 +11846,7 @@ msgstr ""
 
 #. translators: %s: recording type label
 #: includes/admin/word-option-rules-admin.php:662
+#, php-format
 msgid "Same %s text"
 msgstr ""
 
@@ -11549,6 +11963,7 @@ msgstr ""
 
 #. translators: 1: first visible word number, 2: last visible word number, 3: total matching words
 #: includes/admin/word-option-rules-admin.php:1968
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d words"
 msgstr ""
 
@@ -11665,6 +12080,7 @@ msgid "Reason"
 msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:2478
+#, php-format
 msgid "Remove pair: %s"
 msgstr ""
 
@@ -11695,6 +12111,7 @@ msgstr ""
 
 #. translators: 1: current pair page, 2: total pair pages
 #: includes/admin/word-option-rules-admin.php:2571
+#, php-format
 msgid "Saved pair page %1$d of %2$d"
 msgstr ""
 
@@ -11727,6 +12144,7 @@ msgid "Confirm Import Target"
 msgstr ""
 
 #: includes/admin/word-option-rules-admin.php:2657
+#, php-format
 msgid "Exported from category: %s"
 msgstr ""
 
@@ -11841,6 +12259,7 @@ msgstr ""
 #. translators: 1: field name, 2: comma-separated field list
 #: includes/api/automation-rest.php:498
 #: includes/cli/cli-support.php:130
+#, php-format
 msgid "Unsupported update field \"%1$s\". Allowed fields: %2$s"
 msgstr ""
 
@@ -11918,6 +12337,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:1809
+#, php-format
 msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
 msgstr ""
 
@@ -11979,6 +12399,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:2832
+#, php-format
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr ""
 
@@ -11990,6 +12411,7 @@ msgstr ""
 #. translators: %s: field name
 #: includes/api/automation-rest.php:2868
 #: includes/cli/cli-support.php:1008
+#, php-format
 msgid "Unsupported update field: %s"
 msgstr ""
 
@@ -12018,6 +12440,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:3085
+#, php-format
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr ""
 
@@ -12045,6 +12468,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:3373
+#, php-format
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr ""
 
@@ -12074,6 +12498,7 @@ msgstr ""
 
 #. translators: %d: maximum word count
 #: includes/api/automation-rest.php:3974
+#, php-format
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr ""
 
@@ -12125,6 +12550,7 @@ msgstr ""
 
 #. translators: %d: maximum category action count
 #: includes/api/automation-rest.php:4421
+#, php-format
 msgid "Too many category actions in one request. Maximum is %d."
 msgstr ""
 
@@ -12182,6 +12608,7 @@ msgstr ""
 
 #. translators: %d: maximum word image count
 #: includes/api/automation-rest.php:4861
+#, php-format
 msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
 msgstr ""
 
@@ -12199,6 +12626,7 @@ msgstr ""
 
 #. translators: %d: maximum word image count
 #: includes/api/automation-rest.php:5017
+#, php-format
 msgid "Too many word images in one request. Maximum is %d."
 msgstr ""
 
@@ -12224,6 +12652,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:5416
+#, php-format
 msgid "Too many transcription updates in one request. Maximum is %d."
 msgstr ""
 
@@ -12234,6 +12663,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/automation-rest.php:5620
+#, php-format
 msgid "Too many word audio speaker updates in one request. Maximum is %d."
 msgstr ""
 
@@ -12274,6 +12704,7 @@ msgstr ""
 
 #. translators: %s: category identifier
 #: includes/api/automation-rest.php:6710
+#, php-format
 msgid "Unable to resolve word category: %s"
 msgstr ""
 
@@ -12303,6 +12734,7 @@ msgstr ""
 
 #. translators: %s: word set name.
 #: includes/api/automation-rest.php:7065
+#, php-format
 msgid "%s profile image"
 msgstr ""
 
@@ -12384,6 +12816,7 @@ msgstr ""
 
 #. translators: %s: category identifier
 #: includes/api/automation-rest.php:8351
+#, php-format
 msgid "Unable to resolve prompt-card category: %s"
 msgstr ""
 
@@ -12401,6 +12834,7 @@ msgstr ""
 
 #. translators: %s: word set identifier
 #: includes/api/automation-rest.php:8430
+#, php-format
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr ""
 
@@ -12553,6 +12987,7 @@ msgstr ""
 #. translators: %s: part-of-speech slug
 #: includes/api/word-metadata-plan-rest.php:589
 #: includes/cli/cli-support.php:846
+#, php-format
 msgid "Unknown part of speech: %s"
 msgstr ""
 
@@ -12618,6 +13053,7 @@ msgstr ""
 
 #. translators: %d: maximum update count
 #: includes/api/word-metadata-plan-rest.php:1646
+#, php-format
 msgid "Too many word metadata updates in one plan. Maximum is %d."
 msgstr ""
 
@@ -12659,16 +13095,19 @@ msgstr ""
 
 #. translators: %s: directory path
 #: includes/cli/cli-support.php:28
+#, php-format
 msgid "Unable to create directory: %s"
 msgstr ""
 
 #. translators: %s: file path
 #: includes/cli/cli-support.php:40
+#, php-format
 msgid "Unable to write file: %s"
 msgstr ""
 
 #. translators: 1: field name, 2: comma-separated allowed field list
 #: includes/cli/cli-support.php:95
+#, php-format
 msgid "Unsupported field \"%1$s\". Allowed fields: %2$s"
 msgstr ""
 
@@ -12686,6 +13125,7 @@ msgstr ""
 
 #. translators: %s: wordset identifier
 #: includes/cli/cli-support.php:200
+#, php-format
 msgid "Unable to resolve word set: %s"
 msgstr ""
 
@@ -12695,16 +13135,19 @@ msgstr ""
 
 #. translators: %s: user identifier
 #: includes/cli/cli-support.php:231
+#, php-format
 msgid "Unable to resolve user: %s"
 msgstr ""
 
 #. translators: %s: category identifier
 #: includes/cli/cli-support.php:289
+#, php-format
 msgid "Unable to resolve category: %s"
 msgstr ""
 
 #. translators: %s: word identifier
 #: includes/cli/cli-support.php:342
+#, php-format
 msgid "Unable to resolve word in this word set: %s"
 msgstr ""
 
@@ -12756,21 +13199,25 @@ msgstr ""
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:891
+#, php-format
 msgid "Invalid gender value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:926
+#, php-format
 msgid "Invalid plurality value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:961
+#, php-format
 msgid "Invalid verb tense value. Allowed values: %s"
 msgstr ""
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:996
+#, php-format
 msgid "Invalid verb mood value. Allowed values: %s"
 msgstr ""
 
@@ -12891,7 +13338,7 @@ msgstr ""
 #: includes/flashcard-shell.php:112
 #: includes/flashcard-shell.php:117
 #: includes/pages/quiz-pages.php:1563
-#: includes/pages/vocab-lesson-pages.php:3244
+#: includes/pages/vocab-lesson-pages.php:3652
 #: includes/pages/wordset-pages.php:11773
 #: includes/shortcodes/audio-recording-shortcode.php:1574
 #: includes/shortcodes/audio-recording-shortcode.php:1599
@@ -12919,8 +13366,8 @@ msgid "Quiz Results"
 msgstr ""
 
 #: includes/flashcard-shell.php:166
-#: includes/pages/vocab-lesson-pages.php:1657
-#: includes/pages/vocab-lesson-pages.php:1730
+#: includes/pages/vocab-lesson-pages.php:1663
+#: includes/pages/vocab-lesson-pages.php:1736
 #: includes/pages/wordset-pages.php:11772
 msgid "Correct"
 msgstr ""
@@ -13037,6 +13484,7 @@ msgstr ""
 
 #. translators: %s: Site name.
 #: includes/lib/ai-crawler-support.php:971
+#, php-format
 msgid "%s LL Tools AI Index"
 msgstr ""
 
@@ -13088,6 +13536,7 @@ msgstr ""
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1000
+#, php-format
 msgid "Dictionary letter %s"
 msgstr ""
 
@@ -13097,6 +13546,7 @@ msgstr ""
 
 #. translators: %s: Site name.
 #: includes/lib/ai-crawler-support.php:1116
+#, php-format
 msgid "%s LL Tools AI discovery index"
 msgstr ""
 
@@ -13119,6 +13569,7 @@ msgstr ""
 
 #. translators: %d: Entry limit.
 #: includes/lib/ai-crawler-support.php:1167
+#, php-format
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
 msgstr ""
 
@@ -13129,6 +13580,7 @@ msgstr ""
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1181
+#, php-format
 msgid "Letter %s"
 msgstr ""
 
@@ -13138,11 +13590,13 @@ msgstr ""
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1211
+#, php-format
 msgid "Public Dictionary: %s"
 msgstr ""
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1217
+#, php-format
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
 msgstr ""
 
@@ -13207,11 +13661,13 @@ msgstr ""
 
 #. translators: %s: Wordset name.
 #: includes/lib/ai-crawler-support.php:1419
+#, php-format
 msgid "Wordset: %s"
 msgstr ""
 
 #. translators: %s: Category name.
 #: includes/lib/ai-crawler-support.php:1437
+#, php-format
 msgid "Category: %s"
 msgstr ""
 
@@ -13221,6 +13677,7 @@ msgstr ""
 
 #. translators: %d: Lesson limit.
 #: includes/lib/ai-crawler-support.php:1457
+#, php-format
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
 msgstr ""
 
@@ -13306,11 +13763,13 @@ msgstr ""
 
 #. translators: %s: remote STT request error message
 #: includes/lib/custom-stt-endpoint.php:226
+#, php-format
 msgid "Unable to reach the STT endpoint: %s"
 msgstr ""
 
 #. translators: %d: HTTP status code from custom STT endpoint
 #: includes/lib/custom-stt-endpoint.php:243
+#, php-format
 msgid "STT endpoint returned HTTP %d."
 msgstr ""
 
@@ -13401,11 +13860,13 @@ msgstr ""
 #: includes/shortcodes/dictionary-shortcode.php:1747
 #: includes/shortcodes/dictionary-shortcode.php:2029
 #: includes/shortcodes/dictionary-shortcode.php:2289
+#, php-format
 msgid "Parent: %s"
 msgstr ""
 
 #. translators: %s: source page number.
 #: includes/lib/dictionary-browser.php:2527
+#, php-format
 msgid "Page %s"
 msgstr ""
 
@@ -13753,6 +14214,7 @@ msgid "Russian"
 msgstr ""
 
 #: includes/lib/interlinear.php:1554
+#, php-format
 msgid "Section %d"
 msgstr ""
 
@@ -13839,6 +14301,7 @@ msgid "Linguistic edition"
 msgstr ""
 
 #: includes/lib/interlinear.php:2144
+#, php-format
 msgid "Line %d"
 msgstr ""
 
@@ -13877,6 +14340,7 @@ msgstr ""
 
 #: includes/lib/interlinear.php:2295
 #: includes/lib/interlinear.php:2304
+#, php-format
 msgid "Section %1$d of %2$d"
 msgstr ""
 
@@ -13916,6 +14380,7 @@ msgstr ""
 
 #. translators: %d: number of deleted cache files
 #: includes/lib/public-static-cache.php:1717
+#, php-format
 msgid "LL cache cleared (%d)"
 msgstr ""
 
@@ -13925,6 +14390,7 @@ msgstr ""
 
 #. translators: %d: number of deleted cache files
 #: includes/lib/public-static-cache.php:1772
+#, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
 msgstr[0] ""
@@ -13945,6 +14411,7 @@ msgstr ""
 
 #. translators: 1: field key, 2: word title, 3: recording title
 #: includes/lib/site-sync.php:1295
+#, php-format
 msgid "Site sync conflict for %1$s on \"%2$s\" / \"%3$s\"."
 msgstr ""
 
@@ -14721,11 +15188,13 @@ msgstr ""
 
 #. translators: %s: language name
 #: includes/lib/wordset-language-settings.php:208
+#, php-format
 msgid "%s (Universal-3 Pro)"
 msgstr ""
 
 #. translators: %s: language name
 #: includes/lib/wordset-language-settings.php:222
+#, php-format
 msgid "%s (Universal-2)"
 msgstr ""
 
@@ -14834,6 +15303,7 @@ msgstr ""
 #. translators: %s: transcription mode label, e.g. IPA
 #: includes/lib/wordset-language-settings.php:1252
 #: includes/pages/wordset-pages.php:14979
+#, php-format
 msgid "Secondary transcription field (%s)"
 msgstr ""
 
@@ -14992,6 +15462,7 @@ msgstr ""
 
 #. translators: 1: category ID, 2: category name
 #: includes/lib/wordset-language-settings.php:1632
+#, php-format
 msgid "Translation failed for category ID %1$d (%2$s)."
 msgstr ""
 
@@ -15154,6 +15625,7 @@ msgstr ""
 
 #. translators: %s: word set name
 #: includes/login-window.php:2283
+#, php-format
 msgid "Create a recorder account to record for %s."
 msgstr ""
 
@@ -15263,6 +15735,7 @@ msgstr ""
 
 #: includes/pages/content-lesson-pages.php:409
 #: includes/pages/wordset-pages.php:4297
+#, php-format
 msgid "%d vocab lesson"
 msgid_plural "%d vocab lessons"
 msgstr[0] ""
@@ -15297,6 +15770,7 @@ msgid "Creating page..."
 msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
+#: includes/pages/vocab-lesson-pages.php:5783
 msgid "Unknown error."
 msgstr ""
 
@@ -15322,6 +15796,7 @@ msgstr ""
 
 #. translators: %s: URL of the created dictionary page
 #: includes/pages/dictionary-page.php:16
+#, php-format
 msgid "A default dictionary page has been created at %s"
 msgstr ""
 
@@ -15356,6 +15831,7 @@ msgstr ""
 
 #. translators: %s: URL of the created editor hub page
 #: includes/pages/editor-hub-page.php:21
+#, php-format
 msgid "A default Editor Hub page has been created at %s"
 msgstr ""
 
@@ -15381,6 +15857,7 @@ msgstr ""
 
 #: includes/pages/embed-page.php:45
 #: includes/pages/quiz-pages.php:515
+#, php-format
 msgid "Quiz: %s"
 msgstr ""
 
@@ -15439,6 +15916,7 @@ msgid "Public Page"
 msgstr ""
 
 #: includes/pages/quiz-pages.php:276
+#, php-format
 msgid "Category ID: %d"
 msgstr ""
 
@@ -15451,6 +15929,7 @@ msgid "Quiz pages are generated from word categories. Edit the category or its w
 msgstr ""
 
 #: includes/pages/quiz-pages.php:519
+#, php-format
 msgid "%1$s | %2$s"
 msgstr ""
 
@@ -15461,8 +15940,8 @@ msgid "Quiz Content"
 msgstr ""
 
 #: includes/pages/quiz-pages.php:911
-#: includes/pages/vocab-lesson-pages.php:2317
-#: includes/pages/vocab-lesson-pages.php:2468
+#: includes/pages/vocab-lesson-pages.php:2345
+#: includes/pages/vocab-lesson-pages.php:2496
 #: includes/shortcodes/flashcard-widget.php:1780
 msgid "Invalid category."
 msgstr ""
@@ -15479,11 +15958,13 @@ msgstr ""
 
 #: includes/pages/quiz-pages.php:1604
 #: includes/pages/quiz-pages.php:1731
+#, php-format
 msgid "Quiz page maintenance queued: %1$d pages checked, %2$d categories checked, %3$d pages removed."
 msgstr ""
 
 #: includes/pages/quiz-pages.php:1615
 #: includes/pages/quiz-pages.php:1742
+#, php-format
 msgid "Quiz page maintenance is running: %1$d pages checked, %2$d categories checked."
 msgstr ""
 
@@ -15503,6 +15984,7 @@ msgid "Clean Up & Sync Quiz Pages"
 msgstr ""
 
 #: includes/pages/quiz-pages.php:1644
+#, php-format
 msgid "Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far."
 msgstr ""
 
@@ -15520,6 +16002,7 @@ msgstr ""
 
 #. translators: %s: URL of the created recording page
 #: includes/pages/recording-page.php:21
+#, php-format
 msgid "A default recording page has been created at %s"
 msgstr ""
 
@@ -15556,6 +16039,7 @@ msgstr ""
 
 #. translators: %s: URL of the created site tools page
 #: includes/pages/site-tools-page.php:21
+#, php-format
 msgid "A default Site Tools page has been created at %s"
 msgstr ""
 
@@ -15580,44 +16064,49 @@ msgid "Create a new site tools page?"
 msgstr ""
 
 #. translators: %d: vocab lesson post ID.
-#: includes/pages/vocab-lesson-pages.php:423
-#: includes/pages/vocab-lesson-pages.php:432
+#: includes/pages/vocab-lesson-pages.php:429
+#: includes/pages/vocab-lesson-pages.php:438
+#, php-format
 msgid "Vocab lesson #%d"
 msgstr ""
 
 #. translators: %s: vocab lesson title.
-#: includes/pages/vocab-lesson-pages.php:454
+#: includes/pages/vocab-lesson-pages.php:460
+#, php-format
 msgid "\"%s\" was moved to the Trash. Use Undo to restore it if this was unintentional."
 msgstr ""
 
 #. translators: 1: first vocab lesson title, 2: second vocab lesson title.
-#: includes/pages/vocab-lesson-pages.php:462
+#: includes/pages/vocab-lesson-pages.php:468
+#, php-format
 msgid "\"%1$s\" and \"%2$s\" were moved to the Trash. Use Undo to restore them if this was unintentional."
 msgstr ""
 
 #. translators: 1: first vocab lesson title, 2: second vocab lesson title, 3: number of additional vocab lessons.
-#: includes/pages/vocab-lesson-pages.php:471
+#: includes/pages/vocab-lesson-pages.php:477
+#, php-format
 msgid "\"%1$s\", \"%2$s\", and %3$d additional vocab lesson were moved to the Trash. Use Undo to restore them if this was unintentional."
 msgid_plural "\"%1$s\", \"%2$s\", and %3$d additional vocab lessons were moved to the Trash. Use Undo to restore them if this was unintentional."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/vocab-lesson-pages.php:710
+#: includes/pages/vocab-lesson-pages.php:716
+#, php-format
 msgid "Vocab: %1$s (%2$s)"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:1619
-#: includes/pages/vocab-lesson-pages.php:1709
+#: includes/pages/vocab-lesson-pages.php:1625
+#: includes/pages/vocab-lesson-pages.php:1715
 msgid "Referenced item"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:1635
-#: includes/pages/vocab-lesson-pages.php:1709
+#: includes/pages/vocab-lesson-pages.php:1641
+#: includes/pages/vocab-lesson-pages.php:1715
 msgid "Answer options"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:1658
-#: includes/pages/vocab-lesson-pages.php:1731
+#: includes/pages/vocab-lesson-pages.php:1664
+#: includes/pages/vocab-lesson-pages.php:1737
 #: includes/pages/wordset-pages.php:11879
 #: includes/pages/wordset-pages.php:21357
 #: includes/pages/wordset-pages.php:21802
@@ -15626,8 +16115,8 @@ msgstr ""
 msgid "Wrong"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:1701
-#: includes/pages/vocab-lesson-pages.php:1722
+#: includes/pages/vocab-lesson-pages.php:1707
+#: includes/pages/vocab-lesson-pages.php:1728
 #: includes/pages/wordset-pages.php:21347
 #: includes/shortcodes/flashcard-widget.php:544
 #: includes/shortcodes/flashcard-widget.php:549
@@ -15636,46 +16125,46 @@ msgstr ""
 msgid "Play audio"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:2320
-#: includes/pages/vocab-lesson-pages.php:2471
+#: includes/pages/vocab-lesson-pages.php:2348
+#: includes/pages/vocab-lesson-pages.php:2499
 #: includes/pages/wordset-games.php:6141
 #: includes/pages/wordset-games.php:6408
 msgid "Invalid word set."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3241
+#: includes/pages/vocab-lesson-pages.php:3649
 msgid "Options"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3242
+#: includes/pages/vocab-lesson-pages.php:3650
 msgid "Edit word option rules for this lesson"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3243
+#: includes/pages/vocab-lesson-pages.php:3651
 msgid "Word options"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3245
+#: includes/pages/vocab-lesson-pages.php:3653
 msgid "Opening word options..."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3246
+#: includes/pages/vocab-lesson-pages.php:3654
 msgid "Lesson word option rules"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3562
+#: includes/pages/vocab-lesson-pages.php:3970
 msgid "Category settings saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3579
-#: includes/pages/vocab-lesson-pages.php:3951
+#: includes/pages/vocab-lesson-pages.php:3987
+#: includes/pages/vocab-lesson-pages.php:4359
 #: includes/taxonomies/word-category-taxonomy.php:2119
 #: includes/taxonomies/word-category-taxonomy.php:2133
 msgid "You do not have permission to update this category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3582
-#: includes/pages/vocab-lesson-pages.php:3943
+#: includes/pages/vocab-lesson-pages.php:3990
+#: includes/pages/vocab-lesson-pages.php:4351
 #: includes/pages/wordset-pages.php:2290
 #: includes/pages/wordset-pages.php:6956
 #: includes/pages/wordset-pages.php:7007
@@ -15693,19 +16182,19 @@ msgstr ""
 msgid "Your session expired. Please try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3585
-#: includes/pages/vocab-lesson-pages.php:3935
-#: includes/pages/vocab-lesson-pages.php:3971
+#: includes/pages/vocab-lesson-pages.php:3993
+#: includes/pages/vocab-lesson-pages.php:4343
+#: includes/pages/vocab-lesson-pages.php:4379
 msgid "This lesson no longer matches that word set category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3591
-#: includes/pages/vocab-lesson-pages.php:3779
-#: includes/pages/vocab-lesson-pages.php:3925
-#: includes/pages/vocab-lesson-pages.php:4918
-#: includes/pages/vocab-lesson-pages.php:4927
-#: includes/pages/vocab-lesson-pages.php:4930
-#: includes/pages/vocab-lesson-pages.php:4933
+#: includes/pages/vocab-lesson-pages.php:3999
+#: includes/pages/vocab-lesson-pages.php:4187
+#: includes/pages/vocab-lesson-pages.php:4333
+#: includes/pages/vocab-lesson-pages.php:5326
+#: includes/pages/vocab-lesson-pages.php:5335
+#: includes/pages/vocab-lesson-pages.php:5338
+#: includes/pages/vocab-lesson-pages.php:5341
 #: includes/taxonomies/word-category-taxonomy.php:2104
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
@@ -15714,197 +16203,222 @@ msgstr ""
 msgid "Lesson not found."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3596
-#: includes/pages/vocab-lesson-pages.php:3980
+#: includes/pages/vocab-lesson-pages.php:4004
+#: includes/pages/vocab-lesson-pages.php:4388
 msgid "Unable to delete this category right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3599
+#: includes/pages/vocab-lesson-pages.php:4007
 msgid "Unable to save this category right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3678
+#: includes/pages/vocab-lesson-pages.php:4086
 msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3738
+#: includes/pages/vocab-lesson-pages.php:4146
 #: includes/pages/wordset-pages.php:11743
 #: includes/taxonomies/word-category-taxonomy.php:1790
 msgid "Move earlier"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3739
+#: includes/pages/vocab-lesson-pages.php:4147
 #: includes/pages/wordset-pages.php:11744
 #: includes/taxonomies/word-category-taxonomy.php:1791
 msgid "Move later"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3740
+#: includes/pages/vocab-lesson-pages.php:4148
 msgid "Remove from print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3741
+#: includes/pages/vocab-lesson-pages.php:4149
 msgid "Add back to print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3742
+#: includes/pages/vocab-lesson-pages.php:4150
 #: templates/vocab-lesson-print-template.php:136
 msgid "Restore all"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3743
+#: includes/pages/vocab-lesson-pages.php:4151
 #: templates/vocab-lesson-print-template.php:145
 msgid "Removed"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3744
+#: includes/pages/vocab-lesson-pages.php:4152
 msgid "All words removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3745
+#: includes/pages/vocab-lesson-pages.php:4153
 msgid "Restore one or more words to print this lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3766
-#: includes/pages/vocab-lesson-pages.php:4910
+#: includes/pages/vocab-lesson-pages.php:4174
+#: includes/pages/vocab-lesson-pages.php:5318
 msgid "Missing lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3772
-#: includes/pages/vocab-lesson-pages.php:3903
-#: includes/pages/vocab-lesson-pages.php:4913
+#: includes/pages/vocab-lesson-pages.php:4180
+#: includes/pages/vocab-lesson-pages.php:4311
+#: includes/pages/vocab-lesson-pages.php:5321
 #: includes/shortcodes/dictionary-shortcode.php:3155
 #: includes/shortcodes/quiz-pages-shortcodes.php:548
 #: includes/shortcodes/quiz-pages-shortcodes.php:576
 msgid "Invalid request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3786
+#: includes/pages/vocab-lesson-pages.php:4194
 msgid "Lesson category is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3792
+#: includes/pages/vocab-lesson-pages.php:4200
 msgid "You do not have permission to edit this category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3807
+#: includes/pages/vocab-lesson-pages.php:4215
 #: templates/vocab-lesson-template.php:394
 msgid "Enter a category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3834
+#: includes/pages/vocab-lesson-pages.php:4242
 #: templates/vocab-lesson-template.php:397
 msgid "Unable to save this category title right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3857
+#: includes/pages/vocab-lesson-pages.php:4265
 #: templates/vocab-lesson-template.php:396
 msgid "Category title saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4001
+#: includes/pages/vocab-lesson-pages.php:4409
 #: includes/pages/wordset-pages.php:2471
 #: includes/pages/wordset-pages.php:7049
 #: includes/pages/wordset-pages.php:14548
 msgid "Category deleted."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4029
+#: includes/pages/vocab-lesson-pages.php:4437
 msgid "Unable to validate the Line-Up sequence."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4148
-#: includes/pages/vocab-lesson-pages.php:4234
+#: includes/pages/vocab-lesson-pages.php:4556
+#: includes/pages/vocab-lesson-pages.php:4642
 #: templates/vocab-lesson-template.php:405
 msgid "Changes saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4924
+#: includes/pages/vocab-lesson-pages.php:5332
 msgid "Lesson metadata is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4939
+#: includes/pages/vocab-lesson-pages.php:5347
 #: includes/shortcodes/word-grid-shortcode.php:8083
 #: includes/shortcodes/word-grid-shortcode.php:8095
 msgid "Lesson terms are missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4960
+#: includes/pages/vocab-lesson-pages.php:5368
 msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4981
+#: includes/pages/vocab-lesson-pages.php:5389
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5072
+#: includes/pages/vocab-lesson-pages.php:5480
+#, php-format
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:5083
+#: includes/pages/vocab-lesson-pages.php:5491
+#, php-format
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5088
+#: includes/pages/vocab-lesson-pages.php:5496
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5090
+#: includes/pages/vocab-lesson-pages.php:5498
 msgid "Vocab lesson pages could not be restored right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5121
+#: includes/pages/vocab-lesson-pages.php:5529
 msgid "View Trash"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5126
+#: includes/pages/vocab-lesson-pages.php:5534
 msgid "Dismiss"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5136
+#: includes/pages/vocab-lesson-pages.php:5544
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5203
+#: includes/pages/vocab-lesson-pages.php:5611
 msgid "You do not have permission to dismiss vocab lesson page notices."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5295
+#: includes/pages/vocab-lesson-pages.php:5703
 msgid "You do not have permission to update vocab lesson settings."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5299
+#: includes/pages/vocab-lesson-pages.php:5707
 msgid "Invalid vocab lesson settings request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5345
+#: includes/pages/vocab-lesson-pages.php:5753
+#, php-format
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5360
+#: includes/pages/vocab-lesson-pages.php:5765
+msgid "checking existing pages"
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:5766
+msgid "creating and refreshing lesson pages"
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:5772
+#, php-format
+msgid "Vocab lesson sync is running in bounded background batches. Phase: %1$s. %2$d items checked, %3$d created, %4$d updated, %5$d removed. Reload this screen to refresh progress."
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:5788
+#, php-format
+msgid "Vocab lesson sync failed: %s"
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:5801
 msgid "Vocab Lesson Settings"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5361
+#: includes/pages/vocab-lesson-pages.php:5802
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5376
+#: includes/pages/vocab-lesson-pages.php:5817
 msgid "No word sets found yet."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5380
+#: includes/pages/vocab-lesson-pages.php:5821
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5384
+#: includes/pages/vocab-lesson-pages.php:5825
 msgid "Save Settings & Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5385
+#: includes/pages/vocab-lesson-pages.php:5827
+msgid "Retry Sync"
+msgstr ""
+
+#: includes/pages/vocab-lesson-pages.php:5828
 msgid "Sync Now"
 msgstr ""
 
@@ -15955,40 +16469,49 @@ msgid "Unknown user"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:164
+#, php-format
 msgid "%d word affected."
 msgid_plural "%d words affected."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:176
+#, php-format
 msgid "From: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:179
+#, php-format
 msgid "To: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:184
+#, php-format
 msgid "Recording ID: %d"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:187
+#, php-format
 msgid "New status: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:190
+#, php-format
 msgid "Category action: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:198
+#, php-format
 msgid "From category: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:204
+#, php-format
 msgid "To category: %s"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:209
+#, php-format
 msgid "Title: %1$s -> %2$s"
 msgstr ""
 
@@ -16093,21 +16616,25 @@ msgid "Choose an action to undo."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3483
+#, php-format
 msgid "Quick edited \"%s\"."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3524
 #: includes/shortcodes/word-grid-shortcode.php:8993
+#, php-format
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3557
 #: includes/shortcodes/word-grid-shortcode.php:9084
+#, php-format
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3624
 #: includes/pages/wordset-editor.php:3919
+#, php-format
 msgid "Published %d word."
 msgid_plural "Published %d words."
 msgstr[0] ""
@@ -16115,6 +16642,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3625
 #: includes/pages/wordset-editor.php:3921
+#, php-format
 msgid "Moved %d word to draft."
 msgid_plural "Moved %d words to draft."
 msgstr[0] ""
@@ -16122,6 +16650,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3682
 #: includes/pages/wordset-editor.php:3923
+#, php-format
 msgid "Updated categories for %d word."
 msgid_plural "Updated categories for %d words."
 msgstr[0] ""
@@ -16129,6 +16658,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3761
 #: includes/pages/wordset-editor.php:3925
+#, php-format
 msgid "Split %d word into another category."
 msgid_plural "Split %d words into another category."
 msgstr[0] ""
@@ -16139,6 +16669,7 @@ msgid "Missing audio review: this word needs a published recording before it is 
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3811
+#, php-format
 msgid "Flagged %d word for missing audio."
 msgid_plural "Flagged %d words for missing audio."
 msgstr[0] ""
@@ -16149,6 +16680,7 @@ msgid "Missing image review: this word needs an image before it is learner-ready
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3856
+#, php-format
 msgid "Flagged %d word for missing images."
 msgid_plural "Flagged %d words for missing images."
 msgstr[0] ""
@@ -16156,6 +16688,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3883
 #: includes/pages/wordset-editor.php:3931
+#, php-format
 msgid "Moved %d word to Trash."
 msgid_plural "Moved %d words to Trash."
 msgstr[0] ""
@@ -16170,18 +16703,21 @@ msgid "Editor action completed."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3927
+#, php-format
 msgid "Flagged %d word for missing audio review."
 msgid_plural "Flagged %d words for missing audio review."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3929
+#, php-format
 msgid "Flagged %d word for missing image review."
 msgid_plural "Flagged %d words for missing image review."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3933
+#, php-format
 msgid "Undid %d item."
 msgid_plural "Undid %d items."
 msgstr[0] ""
@@ -16216,18 +16752,21 @@ msgid "Deleted editor view."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3945
+#, php-format
 msgid "Prepared a batch job for %d word."
 msgid_plural "Prepared a batch job for %d words."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3947
+#, php-format
 msgid "Completed the batch job with %d change."
 msgid_plural "Completed the batch job with %d changes."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3951
+#, php-format
 msgid "%d item was skipped."
 msgid_plural "%d items were skipped."
 msgstr[0] ""
@@ -16266,6 +16805,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:18513
 #: includes/pages/wordset-pages.php:18730
 #: includes/pages/wordset-pages.php:20852
+#, php-format
 msgid "%d category"
 msgid_plural "%d categories"
 msgstr[0] ""
@@ -16278,6 +16818,7 @@ msgid "No category"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4147
+#, php-format
 msgid "%d categories"
 msgstr ""
 
@@ -16295,6 +16836,7 @@ msgid "Split Category"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4243
+#, php-format
 msgid "Move %1$d filtered word out of %2$s."
 msgid_plural "Move %1$d filtered words out of %2$s."
 msgstr[0] ""
@@ -16331,6 +16873,7 @@ msgid "Bulk action progress"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4309
+#, php-format
 msgid "Processed %1$d of %2$d. %3$d changed, %4$d skipped."
 msgstr ""
 
@@ -16355,10 +16898,12 @@ msgstr ""
 #: includes/pages/wordset-pages.php:21282
 #: includes/shortcodes/dictionary-shortcode.php:2949
 #: includes/shortcodes/dictionary-shortcode.php:2963
+#, php-format
 msgid "%d selected"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4453
+#, php-format
 msgid "All %d filtered word selected"
 msgid_plural "All %d filtered words selected"
 msgstr[0] ""
@@ -16464,6 +17009,7 @@ msgid "0 selected"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4614
+#, php-format
 msgid "All %d filtered word"
 msgid_plural "All %d filtered words"
 msgstr[0] ""
@@ -16534,6 +17080,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:4698
 #: includes/pages/wordset-pages.php:5505
 #: includes/pages/wordset-pages.php:21292
+#, php-format
 msgid "Select %s"
 msgstr ""
 
@@ -16548,6 +17095,7 @@ msgid "Recordings"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4789
+#, php-format
 msgid "Recording %d"
 msgstr ""
 
@@ -16630,6 +17178,7 @@ msgstr ""
 
 #. translators: %s: speaking configuration compatibility problem
 #: includes/pages/wordset-games.php:293
+#, php-format
 msgid "Speaking games are hidden because the current speaking configuration is incompatible: %s"
 msgstr ""
 
@@ -16760,6 +17309,7 @@ msgstr ""
 #. translators: %d: maximum candidate word count
 #: includes/pages/wordset-games.php:5680
 #: includes/pages/wordset-games.php:6368
+#, php-format
 msgid "Too many active words were provided. Maximum is %d."
 msgstr ""
 
@@ -17001,6 +17551,7 @@ msgid "Language code"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4265
+#, php-format
 msgid "Open %s"
 msgstr ""
 
@@ -17010,6 +17561,7 @@ msgid "Main lesson"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:4311
+#, php-format
 msgid "Lesson actions for %s"
 msgstr ""
 
@@ -17020,11 +17572,13 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:5536
 #: includes/pages/wordset-pages.php:21275
+#, php-format
 msgid "Category management for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:5549
 #: includes/pages/wordset-pages.php:21294
+#, php-format
 msgid "Delete %s"
 msgstr ""
 
@@ -17034,6 +17588,7 @@ msgid "Delete this category and any linked vocab lesson? This cannot be undone."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:5575
+#, php-format
 msgid "%1$d starred word in %2$s"
 msgid_plural "%1$d starred words in %2$s"
 msgstr[0] ""
@@ -17041,12 +17596,14 @@ msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:5644
 #: includes/pages/wordset-pages.php:21296
+#, php-format
 msgid "Quiz modes for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:5649
 #: includes/pages/wordset-pages.php:21297
 #: includes/shortcodes/flashcard-widget.php:639
+#, php-format
 msgid "%1$s: %2$s"
 msgstr ""
 
@@ -17064,6 +17621,7 @@ msgid "the selected category"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:6930
+#, php-format
 msgid "Progress was reset for %s."
 msgstr ""
 
@@ -17133,6 +17691,7 @@ msgid "Word set manager access removed."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:7183
+#, php-format
 msgid "Word set manager access enabled for %s."
 msgstr ""
 
@@ -17142,6 +17701,7 @@ msgid "Word set manager access enabled."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:7191
+#, php-format
 msgid "Word set manager invitation sent to %s."
 msgstr ""
 
@@ -17218,6 +17778,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:7547
 #: includes/taxonomies/wordset-taxonomy.php:3842
+#, php-format
 msgid "Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again."
 msgstr ""
 
@@ -17243,12 +17804,14 @@ msgid "The offline app export could not be started."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8202
+#, php-format
 msgid "%d word was imported."
 msgid_plural "%d words were imported."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:8208
+#, php-format
 msgid "%d duplicate was skipped."
 msgid_plural "%d duplicates were skipped."
 msgstr[0] ""
@@ -17259,18 +17822,21 @@ msgid "Re-run with \"Allow duplicate titles\" to import them anyway."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8215
+#, php-format
 msgid "%d duplicate title was imported because duplicate override was enabled."
 msgid_plural "%d duplicate titles were imported because duplicate override was enabled."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:8221
+#, php-format
 msgid "%d line was skipped because it did not include a prompt and answer pair."
 msgid_plural "%d lines were skipped because they did not include prompt and answer pairs."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:8233
+#, php-format
 msgid "%d item failed during creation."
 msgid_plural "%d items failed during creation."
 msgstr[0] ""
@@ -17297,10 +17863,12 @@ msgid "No valid prompt and answer pairs were found. Use one pair per line (tab-s
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8294
+#, php-format
 msgid "That paste is too large for the frontend importer. Keep each import under %s, split the list into smaller batches, and try again."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8306
+#, php-format
 msgid "That paste has too many valid rows for the frontend importer. Keep each import to %d row or fewer, split the list into smaller batches, and try again."
 msgid_plural "That paste has too many valid rows for the frontend importer. Keep each import to %d rows or fewer, split the list into smaller batches, and try again."
 msgstr[0] ""
@@ -17315,12 +17883,14 @@ msgid "New word set created from this template."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8349
+#, php-format
 msgid "%d category copied."
 msgid_plural "%d categories copied."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:8355
+#, php-format
 msgid "%d image copied."
 msgid_plural "%d images copied."
 msgstr[0] ""
@@ -17331,12 +17901,14 @@ msgid "Non-language word set settings were copied too."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:8364
+#, php-format
 msgid "%d category could not be copied."
 msgid_plural "%d categories could not be copied."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:8370
+#, php-format
 msgid "%d image could not be copied."
 msgid_plural "%d images could not be copied."
 msgstr[0] ""
@@ -17395,16 +17967,19 @@ msgstr ""
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:9210
+#, php-format
 msgid "[%1$s] Recorder invitation for %2$s"
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:9218
+#, php-format
 msgid "You have been invited on %1$s to record audio for the word set \"%2$s\"."
 msgstr ""
 
 #. translators: %s: manager display name
 #: includes/pages/wordset-pages.php:9226
+#, php-format
 msgid "Word set manager: %s"
 msgstr ""
 
@@ -17457,16 +18032,19 @@ msgstr ""
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:9517
+#, php-format
 msgid "[%1$s] Word set manager invitation for %2$s"
 msgstr ""
 
 #. translators: 1: site name, 2: word set name
 #: includes/pages/wordset-pages.php:9525
+#, php-format
 msgid "You have been invited on %1$s to manage the word set \"%2$s\"."
 msgstr ""
 
 #. translators: %s: manager display name
 #: includes/pages/wordset-pages.php:9533
+#, php-format
 msgid "Invited by: %s"
 msgstr ""
 
@@ -17487,6 +18065,7 @@ msgid "Recorder assignment removed for this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:9821
+#, php-format
 msgid "Recorder access enabled for %s and assigned to this word set."
 msgstr ""
 
@@ -17495,6 +18074,7 @@ msgid "Recorder access enabled and assigned to this word set."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:9829
+#, php-format
 msgid "Recorder invitation sent to %s."
 msgstr ""
 
@@ -17583,6 +18163,7 @@ msgid "Audio upload"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:10031
+#, php-format
 msgid "%1$s: %2$d file succeeded."
 msgid_plural "%1$s: %2$d files succeeded."
 msgstr[0] ""
@@ -17590,6 +18171,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:10038
 #: includes/pages/wordset-pages.php:10076
+#, php-format
 msgid "%d file failed."
 msgid_plural "%d files failed."
 msgstr[0] ""
@@ -17600,6 +18182,7 @@ msgid "Audio upload completed with no processed files."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:10070
+#, php-format
 msgid "Image upload: %d file succeeded."
 msgid_plural "Image upload: %d files succeeded."
 msgstr[0] ""
@@ -17633,6 +18216,7 @@ msgstr ""
 #: templates/content-lesson-template.php:114
 #: templates/content-lesson-template.php:123
 #: templates/vocab-lesson-template.php:467
+#, php-format
 msgid "Back to %s"
 msgstr ""
 
@@ -17666,6 +18250,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:11280
 #: includes/pages/wordset-pages.php:11524
 #: includes/pages/wordset-pages.php:18120
+#, php-format
 msgid "Page %d"
 msgstr ""
 
@@ -17682,6 +18267,7 @@ msgid "Create a class to start inviting learners."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11253
+#, php-format
 msgid "%d student"
 msgid_plural "%d students"
 msgstr[0] ""
@@ -17698,6 +18284,7 @@ msgstr ""
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:11302
 #: includes/teacher-classes.php:1330
+#, php-format
 msgid "Teacher: %s"
 msgstr ""
 
@@ -17787,18 +18374,22 @@ msgid "Unable to load games right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11700
+#, php-format
 msgid "%d words ready"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11701
+#, php-format
 msgid "%d sequences ready"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11702
+#, php-format
 msgid "Need %1$d more words to unlock this game."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11703
+#, php-format
 msgid "Need %1$d more learned words to unlock this game."
 msgstr ""
 
@@ -17807,6 +18398,7 @@ msgid "This word set does not have a playable mix of picture cards yet."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11705
+#, php-format
 msgid "Each Line-Up sequence needs at least %d cards."
 msgstr ""
 
@@ -17852,6 +18444,7 @@ msgid "Resume"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11717
+#, php-format
 msgid "Paused after %d rounds without input."
 msgstr ""
 
@@ -17897,6 +18490,7 @@ msgid "Run Complete"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11727
+#, php-format
 msgid "Coins: %1$d · Prompts: %2$d"
 msgstr ""
 
@@ -17905,6 +18499,7 @@ msgid "You win"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11729
+#, php-format
 msgid "Completed: %1$d of %2$d · Coins: %3$d"
 msgstr ""
 
@@ -17952,6 +18547,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:11742
 #: includes/pages/wordset-pages.php:23133
+#, php-format
 msgid "Sequence %1$d of %2$d"
 msgstr ""
 
@@ -17974,6 +18570,7 @@ msgid "Correct order."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11750
+#, php-format
 msgid "Not quite yet. %1$d of %2$d are in the right place."
 msgstr ""
 
@@ -17982,6 +18579,7 @@ msgid "Line-Up complete"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11752
+#, php-format
 msgid "Perfect: %1$d of %2$d · Retries: %3$d"
 msgstr ""
 
@@ -17991,6 +18589,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:11754
 #: includes/pages/wordset-pages.php:11764
+#, php-format
 msgid "Word %1$d of %2$d"
 msgstr ""
 
@@ -18000,6 +18599,7 @@ msgid "Clue"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11756
+#, php-format
 msgid "%1$d of %2$d letters are in the right place."
 msgstr ""
 
@@ -18025,6 +18625,7 @@ msgid "Unscramble complete"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11761
+#, php-format
 msgid "Solved: %1$d of %2$d · Moves: %3$d"
 msgstr ""
 
@@ -18104,11 +18705,13 @@ msgid "Speaking round complete"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11787
+#, php-format
 msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11788
 #: includes/pages/wordset-pages.php:23118
+#, php-format
 msgid "%1$d left"
 msgstr ""
 
@@ -18151,6 +18754,7 @@ msgid "Time ran out"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11800
+#, php-format
 msgid "Cleared: %1$d of %2$d"
 msgstr ""
 
@@ -18221,6 +18825,7 @@ msgstr ""
 
 #. translators: %s: word set name
 #: includes/pages/wordset-pages.php:12340
+#, php-format
 msgid "Manage %s"
 msgstr ""
 
@@ -18418,6 +19023,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:12814
 #: includes/taxonomies/wordset-taxonomy.php:3095
 #: includes/taxonomies/wordset-taxonomy.php:3097
+#, php-format
 msgid "%1$s to %2$s"
 msgstr ""
 
@@ -18636,6 +19242,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13296
 #: includes/pages/wordset-pages.php:20812
+#, php-format
 msgid "%d grammar feature"
 msgid_plural "%d grammar features"
 msgstr[0] ""
@@ -18735,6 +19342,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13420
 #: includes/taxonomies/wordset-taxonomy.php:3290
+#, php-format
 msgid "Saved font \"%s\" is not currently detected on this site, so it is not selectable until the font is loaded again."
 msgstr ""
 
@@ -18920,6 +19528,7 @@ msgid "Category created."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14535
+#, php-format
 msgid "Category deletion is in progress: %1$d of %2$d linked items processed. Continue deletion to finish."
 msgstr ""
 
@@ -18928,12 +19537,14 @@ msgid "Category deletion is in progress. Continue deletion to finish."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14644
+#, php-format
 msgid "%d translation saved"
 msgid_plural "%d translations saved"
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:14653
+#, php-format
 msgid "%d hidden from study"
 msgid_plural "%d hidden from study"
 msgstr[0] ""
@@ -18977,6 +19588,7 @@ msgid "Search categories"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14732
+#, php-format
 msgid "Showing %1$d-%2$d of %3$d categories."
 msgstr ""
 
@@ -19012,6 +19624,7 @@ msgid "Hidden from study"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14842
+#, php-format
 msgid "Deletion in progress: %1$d of %2$d linked items processed."
 msgstr ""
 
@@ -19233,6 +19846,7 @@ msgid "Create New Word Set"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:15271
+#, php-format
 msgid "This template currently includes %1$d categories and %2$d images. Words, audio, and learner progress are not copied."
 msgstr ""
 
@@ -19275,6 +19889,7 @@ msgstr ""
 
 #. translators: %s: recording type labels
 #: includes/pages/wordset-pages.php:17559
+#, php-format
 msgid "Types: %s"
 msgstr ""
 
@@ -19285,6 +19900,7 @@ msgstr ""
 
 #. translators: %s: recording type labels
 #: includes/pages/wordset-pages.php:17568
+#, php-format
 msgid "Skipping: %s"
 msgstr ""
 
@@ -19323,6 +19939,7 @@ msgstr ""
 
 #. translators: %d: lower-bound queued word count
 #: includes/pages/wordset-pages.php:17861
+#, php-format
 msgid "%d+ word"
 msgid_plural "%d+ words"
 msgstr[0] ""
@@ -19330,6 +19947,7 @@ msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:17866
 #: includes/pages/wordset-pages.php:18156
+#, php-format
 msgid "%d word"
 msgid_plural "%d words"
 msgstr[0] ""
@@ -19337,6 +19955,7 @@ msgstr[1] ""
 
 #. translators: %s: recorder queue category name
 #: includes/pages/wordset-pages.php:17904
+#, php-format
 msgid "Loading %s"
 msgstr ""
 
@@ -19366,6 +19985,7 @@ msgstr ""
 
 #. translators: %s: effective recorder text state.
 #: includes/pages/wordset-pages.php:18223
+#, php-format
 msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
 msgstr ""
 
@@ -19430,6 +20050,7 @@ msgid "Review each assigned recorder's queue by category, edit prompt wording, a
 msgstr ""
 
 #: includes/pages/wordset-pages.php:18497
+#, php-format
 msgid "%d recorder"
 msgid_plural "%d recorders"
 msgstr[0] ""
@@ -19441,6 +20062,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:18508
 #: includes/pages/wordset-pages.php:18725
+#, php-format
 msgid "%d queued word"
 msgid_plural "%d queued words"
 msgstr[0] ""
@@ -19453,6 +20075,7 @@ msgstr ""
 #. translators: %d: hidden queue item count
 #: includes/pages/wordset-pages.php:18525
 #: includes/pages/wordset-pages.php:18741
+#, php-format
 msgid "Hidden (%d)"
 msgid_plural "Hidden (%d)"
 msgstr[0] ""
@@ -19479,6 +20102,7 @@ msgid "Open Recorder Access"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:18720
+#, php-format
 msgid "%d queue category"
 msgid_plural "%d queue categories"
 msgstr[0] ""
@@ -19514,6 +20138,7 @@ msgstr ""
 
 #. translators: 1: ready summaries, 2: summaries on this page
 #: includes/pages/wordset-pages.php:18868
+#, php-format
 msgid "Updating queue summaries: %1$d of %2$d ready."
 msgstr ""
 
@@ -19523,6 +20148,7 @@ msgstr ""
 
 #. translators: %s: recorder display name
 #: includes/pages/wordset-pages.php:18908
+#, php-format
 msgid "Queue category pages for %s"
 msgstr ""
 
@@ -19536,6 +20162,7 @@ msgstr ""
 
 #. translators: %s: recorder display name
 #: includes/pages/wordset-pages.php:18949
+#, php-format
 msgid "Hidden queue pages for %s"
 msgstr ""
 
@@ -19839,20 +20466,24 @@ msgid "This will permanently delete your progress for all categories in this wor
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20510
+#, php-format
 msgid "This will permanently delete your progress for %s. This cannot be undone. Continue?"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20511
+#, php-format
 msgid "Reset progress for %s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20717
+#, php-format
 msgid "%d mode enabled"
 msgid_plural "%d modes enabled"
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:20724
+#, php-format
 msgid "%d activity queued"
 msgid_plural "%d activities queued"
 msgstr[0] ""
@@ -19867,6 +20498,7 @@ msgid "Category translations"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20775
+#, php-format
 msgid "%d hidden"
 msgid_plural "%d hidden"
 msgstr[0] ""
@@ -19885,6 +20517,7 @@ msgid "Defaults"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20858
+#, php-format
 msgid "%d image"
 msgid_plural "%d images"
 msgstr[0] ""
@@ -19895,6 +20528,7 @@ msgid "No template content yet"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20882
+#, php-format
 msgid "%d recorder assigned"
 msgid_plural "%d recorders assigned"
 msgstr[0] ""
@@ -19906,6 +20540,7 @@ msgid "No recorders assigned"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20896
+#, php-format
 msgid "%d recorder ready"
 msgid_plural "%d recorders ready"
 msgstr[0] ""
@@ -19921,6 +20556,7 @@ msgid "Zip unavailable"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:20935
+#, php-format
 msgid "%d category ready"
 msgid_plural "%d categories ready"
 msgstr[0] ""
@@ -19957,11 +20593,13 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:21267
 #: includes/shortcodes/flashcard-widget.php:633
+#, php-format
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21268
 #: includes/shortcodes/flashcard-widget.php:634
+#, php-format
 msgid "Recommended: %1$s in %2$s."
 msgstr ""
 
@@ -19973,6 +20611,7 @@ msgid "Select categories to study together"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21283
+#, php-format
 msgid "%1$d selected · %2$d words"
 msgstr ""
 
@@ -19981,6 +20620,7 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:580
 #: includes/shortcodes/flashcard-widget.php:621
 #: includes/shortcodes/flashcard-widget.php:635
+#, php-format
 msgid "%d words"
 msgstr ""
 
@@ -19998,6 +20638,7 @@ msgid "Hard words only"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21295
+#, php-format
 msgid "Starred words in %s"
 msgstr ""
 
@@ -20067,10 +20708,12 @@ msgid "Progress is unavailable right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21321
+#, php-format
 msgid "Selected categories (%d)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21322
+#, php-format
 msgid "All categories (%d)"
 msgstr ""
 
@@ -20114,6 +20757,7 @@ msgid "Hardest"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21346
+#, php-format
 msgid "Play audio for %s"
 msgstr ""
 
@@ -20184,10 +20828,12 @@ msgid "Sort descending"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21371
+#, php-format
 msgid "Select all: %1$s"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21372
+#, php-format
 msgid "Deselect all: %1$s"
 msgstr ""
 
@@ -20197,14 +20843,17 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:21374
 #: includes/pages/wordset-pages.php:21863
+#, php-format
 msgid "%d selected words"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21375
+#, php-format
 msgid "Showing %1$d of %2$d words"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21376
+#, php-format
 msgid "Showing %1$d of %2$d matching words"
 msgstr ""
 
@@ -20226,6 +20875,7 @@ msgid "Loading matching words..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21383
+#, php-format
 msgid "%1$d rounds, %2$d words"
 msgstr ""
 
@@ -20235,6 +20885,7 @@ msgid "Only words with marked gender are counted."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21386
+#, php-format
 msgid "%d tracked words"
 msgstr ""
 
@@ -20312,6 +20963,7 @@ msgid "Saved!"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21414
+#, php-format
 msgid "Queue categories loaded: %d"
 msgstr ""
 
@@ -20411,6 +21063,7 @@ msgid "Sign in to manage hidden categories."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:21929
+#, php-format
 msgid "Unhide %s"
 msgstr ""
 
@@ -20439,12 +21092,14 @@ msgid "Open games"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:22114
+#, php-format
 msgid "Update Language Learner Tools to version %s"
 msgstr ""
 
 #. translators: %s: available plugin version
 #: includes/pages/wordset-pages.php:22117
 #: language-learner-tools.php:653
+#, php-format
 msgid "Update to %s"
 msgstr ""
 
@@ -20539,6 +21194,7 @@ msgstr ""
 
 #. translators: %s: number of words per game
 #: includes/pages/wordset-pages.php:22967
+#, php-format
 msgid "%s words per game"
 msgstr ""
 
@@ -20704,6 +21360,7 @@ msgid "Example sources: line_alignment.vtt, line_alignment.tsv, sentence_alignme
 msgstr ""
 
 #: includes/post-types/content-lesson-post-type.php:1586
+#, php-format
 msgid "%d cue parsed and ready for playback."
 msgid_plural "%d cues parsed and ready for playback."
 msgstr[0] ""
@@ -20747,6 +21404,7 @@ msgstr ""
 
 #. translators: %d number of additional linked words.
 #: includes/post-types/dictionary-entry-post-type.php:689
+#, php-format
 msgid "View %d more"
 msgstr ""
 
@@ -20920,6 +21578,7 @@ msgstr ""
 #. translators: %d: linked word count
 #: includes/post-types/dictionary-entry-post-type.php:2171
 #: includes/shortcodes/dictionary-shortcode.php:1953
+#, php-format
 msgid "%d linked word"
 msgid_plural "%d linked words"
 msgstr[0] ""
@@ -21467,12 +22126,14 @@ msgid "Mark for Audio Reprocessing"
 msgstr ""
 
 #: includes/post-types/words-post-type.php:1673
+#, php-format
 msgid "%d word marked for audio reprocessing."
 msgid_plural "%d words marked for audio reprocessing."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/post-types/words-post-type.php:1684
+#, php-format
 msgid "%d word skipped (no audio file)."
 msgid_plural "%d words skipped (no audio file)."
 msgstr[0] ""
@@ -21483,6 +22144,7 @@ msgid "Go to Audio Processor"
 msgstr ""
 
 #: includes/post-types/words-post-type.php:1706
+#, php-format
 msgid "%d word skipped (no audio recordings)."
 msgid_plural "%d words skipped (no audio recordings)."
 msgstr[0] ""
@@ -21498,6 +22160,7 @@ msgstr ""
 
 #. translators: 1: blocked word title, 2: edit post URL
 #: includes/post-types/words-post-type.php:2369
+#, php-format
 msgid "\"%1$s\" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href=\"%2$s\">Edit post</a>"
 msgstr ""
 
@@ -21808,6 +22471,7 @@ msgstr ""
 
 #. translators: %d: retention days
 #: includes/privacy.php:771
+#, php-format
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, and let site administrators review learner progress when needed for site operations. Detailed activity log entries are kept for %d days. Summary progress data remains until your account is deleted or the site erases your LL Tools personal data. You can request an export or erasure of this data through the site’s privacy request tools."
 msgstr ""
 
@@ -21850,6 +22514,7 @@ msgstr ""
 
 #. translators: %s: max upload size
 #: includes/shortcodes/audio-recording-shortcode.php:511
+#, php-format
 msgid "Audio file is too large. Maximum allowed size is %s."
 msgstr ""
 
@@ -21956,6 +22621,7 @@ msgid "Starting upload for image:"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1420
+#, php-format
 msgid "HTTP %d: %s"
 msgstr ""
 
@@ -22254,6 +22920,7 @@ msgid "recordings completed"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1961
+#, php-format
 msgid "%1$s (%2$d)"
 msgstr ""
 
@@ -22266,6 +22933,7 @@ msgid "Create a word image"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3288
+#, php-format
 msgid "You have %d word image(s), but none have a featured image set."
 msgstr ""
 
@@ -22279,6 +22947,7 @@ msgid "Edit Word Images"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3318
+#, php-format
 msgid "You have %d word image(s) with featured images, but none are assigned to any word categories."
 msgstr ""
 
@@ -22295,10 +22964,12 @@ msgid "Set Up Recording Types"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3351
+#, php-format
 msgid "You have %d word image(s) with featured images in categories (%s), but all images in the selected wordset already have recordings."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3359
+#, php-format
 msgid "Current wordset filter: <strong>%s</strong>"
 msgstr ""
 
@@ -22379,16 +23050,19 @@ msgstr ""
 #. translators: %s: category creation error message
 #: includes/shortcodes/audio-recording-shortcode.php:3662
 #: includes/shortcodes/audio-recording-shortcode.php:3679
+#, php-format
 msgid "Failed to create category: %s"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3743
+#, php-format
 msgid "New word %s"
 msgstr ""
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:3758
 #: includes/shortcodes/audio-recording-shortcode.php:4611
+#, php-format
 msgid "Failed to create word: %s"
 msgstr ""
 
@@ -22458,12 +23132,14 @@ msgstr ""
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:4595
+#, php-format
 msgid "Failed to find/create word: %s"
 msgstr ""
 
 #. translators: %d: prompt card post ID
 #: includes/shortcodes/audio-recording-shortcode.php:4911
 #: includes/shortcodes/audio-recording-shortcode.php:6436
+#, php-format
 msgid "Prompt card #%d"
 msgstr ""
 
@@ -22474,6 +23150,7 @@ msgstr ""
 
 #. translators: %s: prompt text or prompt card title
 #: includes/shortcodes/audio-recording-shortcode.php:6496
+#, php-format
 msgid "Prompt audio: %s"
 msgstr ""
 
@@ -22483,6 +23160,7 @@ msgstr ""
 
 #. translators: %s: attachment creation error
 #: includes/shortcodes/audio-recording-shortcode.php:6518
+#, php-format
 msgid "Failed to create prompt audio attachment: %s"
 msgstr ""
 
@@ -22497,12 +23175,14 @@ msgstr ""
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:6618
 #: includes/shortcodes/audio-recording-shortcode.php:7344
+#, php-format
 msgid "Failed to find/create word post: %s"
 msgstr ""
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:6634
 #: includes/shortcodes/audio-recording-shortcode.php:7368
+#, php-format
 msgid "Failed to create word post: %s"
 msgstr ""
 
@@ -22516,6 +23196,7 @@ msgstr ""
 
 #. translators: %s: admin email address
 #: includes/shortcodes/audio-recording-shortcode.php:6807
+#, php-format
 msgid "Leave blank to use the site admin email (%s)."
 msgstr ""
 
@@ -22537,11 +23218,13 @@ msgstr ""
 
 #. translators: %d: term ID
 #: includes/shortcodes/audio-recording-shortcode.php:6890
+#, php-format
 msgid "Category #%d"
 msgstr ""
 
 #. translators: 1: total distinct categories, 2: shown category names, 3: remaining category count
 #: includes/shortcodes/audio-recording-shortcode.php:6955
+#, php-format
 msgid "Categories (%1$d total): %2$s (+%3$d more category)"
 msgid_plural "Categories (%1$d total): %2$s (+%3$d more categories)"
 msgstr[0] ""
@@ -22549,11 +23232,13 @@ msgstr[1] ""
 
 #. translators: 1: total distinct categories, 2: category names
 #: includes/shortcodes/audio-recording-shortcode.php:6968
+#, php-format
 msgid "Categories (%1$d total): %2$s"
 msgstr ""
 
 #. translators: %d: recording count
 #: includes/shortcodes/audio-recording-shortcode.php:6980
+#, php-format
 msgid "Uncategorized recording: %d"
 msgid_plural "Uncategorized recordings: %d"
 msgstr[0] ""
@@ -22561,11 +23246,13 @@ msgstr[1] ""
 
 #. translators: %d: user ID
 #: includes/shortcodes/audio-recording-shortcode.php:7053
+#, php-format
 msgid "User #%d"
 msgstr ""
 
 #. translators: 1: site name, 2: number of recordings
 #: includes/shortcodes/audio-recording-shortcode.php:7111
+#, php-format
 msgid "[%1$s] %2$d new recording is ready for processing"
 msgid_plural "[%1$s] %2$d new recordings are ready for processing"
 msgstr[0] ""
@@ -22573,6 +23260,7 @@ msgstr[1] ""
 
 #. translators: %d: number of new recordings
 #: includes/shortcodes/audio-recording-shortcode.php:7129
+#, php-format
 msgid "%d new audio recording was uploaded through the recording interface."
 msgid_plural "%d new audio recordings were uploaded through the recording interface."
 msgstr[0] ""
@@ -22584,6 +23272,7 @@ msgstr ""
 
 #. translators: 1: display name, 2: recording count
 #: includes/shortcodes/audio-recording-shortcode.php:7146
+#, php-format
 msgid "- %1$s (%2$d recording)"
 msgid_plural "- %1$s (%2$d recordings)"
 msgstr[0] ""
@@ -22591,11 +23280,13 @@ msgstr[1] ""
 
 #. translators: %s: date/time
 #: includes/shortcodes/audio-recording-shortcode.php:7170
+#, php-format
 msgid "Batch started: %s"
 msgstr ""
 
 #. translators: %s: date/time
 #: includes/shortcodes/audio-recording-shortcode.php:7177
+#, php-format
 msgid "Most recent upload: %s"
 msgstr ""
 
@@ -22609,6 +23300,7 @@ msgstr ""
 
 #. translators: %s: upload subsystem error message
 #: includes/shortcodes/audio-recording-shortcode.php:7240
+#, php-format
 msgid "Failed to save original audio: %s"
 msgstr ""
 
@@ -22643,6 +23335,7 @@ msgid "Original audio source was not included with the processed upload."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:7540
+#, php-format
 msgid "Failed to create word_audio post: %s"
 msgstr ""
 
@@ -22709,6 +23402,7 @@ msgstr ""
 
 #. translators: %s: glossary language label.
 #: includes/shortcodes/dictionary-shortcode.php:1052
+#, php-format
 msgid "Edit %s definition"
 msgstr ""
 
@@ -22726,6 +23420,7 @@ msgstr ""
 
 #. translators: %s: source label
 #: includes/shortcodes/dictionary-shortcode.php:1594
+#, php-format
 msgid "Open source page for %s"
 msgstr ""
 
@@ -22752,6 +23447,7 @@ msgstr ""
 
 #. translators: %d: number of hidden senses
 #: includes/shortcodes/dictionary-shortcode.php:2076
+#, php-format
 msgid "+ %d more sense"
 msgid_plural "+ %d more senses"
 msgstr[0] ""
@@ -22759,6 +23455,7 @@ msgstr[1] ""
 
 #. translators: %d: example sentence count
 #: includes/shortcodes/dictionary-shortcode.php:2085
+#, php-format
 msgid "%d example"
 msgid_plural "%d examples"
 msgstr[0] ""
@@ -22766,6 +23463,7 @@ msgstr[1] ""
 
 #. translators: %d: number of hidden linked words
 #: includes/shortcodes/dictionary-shortcode.php:2094
+#, php-format
 msgid "+ %d more linked word"
 msgid_plural "+ %d more linked words"
 msgstr[0] ""
@@ -22905,6 +23603,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:658
 #: includes/shortcodes/editor-hub-shortcode.php:666
 #: includes/shortcodes/editor-hub-shortcode.php:674
+#, php-format
 msgid "%1$s recording: %2$s"
 msgstr ""
 
@@ -23072,6 +23771,7 @@ msgid "I got it right"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:545
+#, php-format
 msgid "%d answers"
 msgstr ""
 
@@ -23181,6 +23881,7 @@ msgid "Quiz round requires at least two options."
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:614
+#, php-format
 msgid "Round setup: %1$d of %2$d required options are available."
 msgstr ""
 
@@ -23194,6 +23895,7 @@ msgid "No categories are available in this offline app."
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:629
+#, php-format
 msgid "Select category: %s"
 msgstr ""
 
@@ -23224,6 +23926,7 @@ msgstr ""
 
 #. translators: %d is the source link number.
 #: includes/shortcodes/image-copyright-grid-shortcode.php:252
+#, php-format
 msgid "Source %d"
 msgstr ""
 
@@ -23250,6 +23953,7 @@ msgstr ""
 
 #. translators: %s: Current language name.
 #: includes/shortcodes/language-switcher-shortcode.php:1008
+#, php-format
 msgid "Language: %s"
 msgstr ""
 
@@ -23259,6 +23963,7 @@ msgstr ""
 
 #. translators: %s: quiz card title
 #: includes/shortcodes/quiz-pages-shortcodes.php:1850
+#, php-format
 msgid "Start %s"
 msgstr ""
 
@@ -23316,16 +24021,19 @@ msgstr ""
 
 #. translators: %s: managed page label
 #: includes/shortcodes/site-tools-shortcode.php:331
+#, php-format
 msgid "%s page is ready."
 msgstr ""
 
 #. translators: 1: deleted transient rows, 2: bumped categories, 3: yes/no object cache state
 #: includes/shortcodes/site-tools-shortcode.php:352
+#, php-format
 msgid "Flushed quiz caches. Deleted %1$d transient rows, bumped %2$d categories, object cache flushed: %3$s."
 msgstr ""
 
 #. translators: 1: deleted rows, 2: total rows found
 #: includes/shortcodes/site-tools-shortcode.php:372
+#, php-format
 msgid "Purged %1$d legacy audio meta rows out of %2$d found."
 msgstr ""
 
@@ -23343,6 +24051,7 @@ msgstr ""
 
 #. translators: 1: deleted language terms, 2: current language terms
 #: includes/shortcodes/site-tools-shortcode.php:412
+#, php-format
 msgid "Refreshed language list. Removed %1$d old language terms and loaded %2$d current terms."
 msgstr ""
 
@@ -23424,6 +24133,7 @@ msgstr ""
 
 #. translators: %s: plugin version
 #: includes/shortcodes/site-tools-shortcode.php:1037
+#, php-format
 msgid "Update %s available"
 msgstr ""
 
@@ -23468,10 +24178,12 @@ msgid "Browser language auto-detect off"
 msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:1098
+#, php-format
 msgid "Max %d options"
 msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:1099
+#, php-format
 msgid "Switcher shows %d first"
 msgstr ""
 
@@ -23576,6 +24288,7 @@ msgid "Word titles shown"
 msgstr ""
 
 #: includes/shortcodes/site-tools-shortcode.php:1205
+#, php-format
 msgid "First email after %d min"
 msgstr ""
 
@@ -23617,6 +24330,7 @@ msgstr ""
 #. translators: %d is the number of enabled recording types for the category.
 #: includes/shortcodes/site-tools-shortcode.php:1251
 #: templates/vocab-lesson-template.php:883
+#, php-format
 msgid "%d recording type"
 msgid_plural "%d recording types"
 msgstr[0] ""
@@ -23660,6 +24374,7 @@ msgstr ""
 
 #. translators: %d: number of days
 #: includes/shortcodes/site-tools-shortcode.php:1359
+#, php-format
 msgid "Keep event details for %d days"
 msgstr ""
 
@@ -23717,6 +24432,7 @@ msgstr ""
 
 #. translators: %s: plugin version
 #: includes/shortcodes/site-tools-shortcode.php:1424
+#, php-format
 msgid "Install %s"
 msgstr ""
 
@@ -23834,6 +24550,7 @@ msgstr ""
 
 #. translators: %s: page title
 #: includes/shortcodes/site-tools-shortcode.php:1560
+#, php-format
 msgid "Using \"%s\"."
 msgstr ""
 
@@ -23855,6 +24572,7 @@ msgstr ""
 
 #. translators: %s: word title
 #: includes/shortcodes/word-grid-shortcode.php:445
+#, php-format
 msgid "Record missing audio for %s"
 msgstr ""
 
@@ -24063,16 +24781,19 @@ msgid "Unable to undo bulk changes."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3962
+#, php-format
 msgid "Updated %d words."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3963
 #: includes/shortcodes/word-grid-shortcode.php:3964
+#, php-format
 msgid "Updated %d nouns."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3965
 #: includes/shortcodes/word-grid-shortcode.php:3966
+#, php-format
 msgid "Updated %d verbs."
 msgstr ""
 
@@ -24119,14 +24840,17 @@ msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3979
 #: includes/shortcodes/word-grid-shortcode.php:3981
+#, php-format
 msgid "Remove %s"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3980
+#, php-format
 msgid "Add %s"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3982
+#, php-format
 msgid "Cannot add %s because it would create a loop."
 msgstr ""
 
@@ -24159,6 +24883,7 @@ msgid "Clear transcription for this lesson?"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3993
+#, php-format
 msgid "Transcribing %1$d of %2$d..."
 msgstr ""
 
@@ -24207,6 +24932,7 @@ msgid "Invalid word editor context."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4264
+#, php-format
 msgid "Word image #%d"
 msgstr ""
 
@@ -24243,12 +24969,14 @@ msgid "In sentence"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:5656
+#, php-format
 msgid "Edit %s"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:5657
 #: includes/shortcodes/word-grid-shortcode.php:8048
 #: includes/shortcodes/word-grid-shortcode.php:8697
+#, php-format
 msgid "Edit %s recording"
 msgstr ""
 
@@ -24369,6 +25097,7 @@ msgstr ""
 
 #. translators: %d is the number of quiz-ready published words in a category.
 #: includes/shortcodes/word-grid-shortcode.php:6296
+#, php-format
 msgid "%d quizzable word"
 msgid_plural "%d quizzable words"
 msgstr[0] ""
@@ -24457,6 +25186,7 @@ msgid "Unable to create the word."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:8157
+#, php-format
 msgid "Created a new word in \"%s\"."
 msgstr ""
 
@@ -24497,6 +25227,7 @@ msgid "The selected word image does not have an image file."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:8912
+#, php-format
 msgid "Moved \"%s\" to Trash."
 msgstr ""
 
@@ -24554,6 +25285,7 @@ msgid "This lesson category is not available for prerequisite ordering."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:9409
+#, php-format
 msgid "Prerequisites were not saved because they create a loop: %s"
 msgstr ""
 
@@ -24682,6 +25414,7 @@ msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
 #: includes/shortcodes/wordset-buttons-shortcode.php:407
+#, php-format
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
@@ -24693,11 +25426,13 @@ msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
 #: includes/shortcodes/wordset-buttons-shortcode.php:414
+#, php-format
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
 #: includes/shortcodes/wordset-buttons-shortcode.php:420
+#, php-format
 msgid "%1$s, %2$s"
 msgstr ""
 
@@ -24773,6 +25508,7 @@ msgid "Images + text (translation)"
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:1294
+#, php-format
 msgid "%1$s -> %2$s"
 msgstr ""
 
@@ -24841,11 +25577,13 @@ msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:1797
 #: includes/taxonomies/word-category-taxonomy.php:1957
+#, php-format
 msgid "Unavailable word #%d"
 msgstr ""
 
 #. translators: %d is the maximum number of submitted word IDs.
 #: includes/taxonomies/word-category-taxonomy.php:1855
+#, php-format
 msgid "Submit no more than %d Line-Up words at once."
 msgstr ""
 
@@ -24969,30 +25707,36 @@ msgid "Currently disabled (no recording types selected)."
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:4047
+#, php-format
 msgid "Category \"%1$s\" is set to %2$s, so %3$d of %4$d published words currently appear for learners."
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:4055
+#, php-format
 msgid "%d published word does not match this presentation and will not appear for learners on lesson or quiz pages."
 msgid_plural "%d published words do not match this presentation and will not appear for learners on lesson or quiz pages."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/taxonomies/word-category-taxonomy.php:4066
+#, php-format
 msgid "Changing this category to %1$s would include %2$d of %3$d published words instead."
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:4073
+#, php-format
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:6894
+#, php-format
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/taxonomies/word-category-taxonomy.php:6900
+#, php-format
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
@@ -25013,6 +25757,7 @@ msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
 #: includes/taxonomies/word-category-taxonomy.php:7078
+#, php-format
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""
@@ -25175,6 +25920,7 @@ msgid "Reorder list"
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:2427
+#, php-format
 msgid "Move %s up"
 msgstr ""
 
@@ -25184,6 +25930,7 @@ msgid "Up"
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:2428
+#, php-format
 msgid "Move %s down"
 msgstr ""
 
@@ -25205,6 +25952,7 @@ msgid "Cycle detected"
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:2483
+#, php-format
 msgid "%1$s (manual #%2$d)"
 msgstr ""
 
@@ -25396,14 +26144,17 @@ msgid "One option per line (for example: indicative, subjunctive, imperative)."
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:4826
+#, php-format
 msgid "Grammar label update completed for wordset #%1$d: %2$d words checked, %3$d updated."
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:4833
+#, php-format
 msgid "Grammar label update failed for wordset #%1$d after checking %2$d words: %3$s"
 msgstr ""
 
 #: includes/taxonomies/wordset-taxonomy.php:4840
+#, php-format
 msgid "Grammar label update is queued or running for wordset #%1$d: %2$d words checked, %3$d updated."
 msgstr ""
 
@@ -25489,11 +26240,13 @@ msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1314
+#, php-format
 msgid "Invitation to join %s"
 msgstr ""
 
 #. translators: %1$s: site name, %2$s: class name
 #: includes/teacher-classes.php:1321
+#, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr ""
 
@@ -25507,6 +26260,7 @@ msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1400
+#, php-format
 msgid "Create a learner account to join %s."
 msgstr ""
 
@@ -25519,16 +26273,19 @@ msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1405
+#, php-format
 msgid "Sign in with the invited learner account to join %s."
 msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1425
+#, php-format
 msgid "You are already a member of %s."
 msgstr ""
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1430
+#, php-format
 msgid "You joined %s."
 msgstr ""
 
@@ -25661,10 +26418,12 @@ msgid "Missing category name."
 msgstr ""
 
 #: includes/wordset-isolation.php:1590
+#, php-format
 msgid "Word %1$d could not be linked to an isolated word image: %2$s"
 msgstr ""
 
 #: includes/wordset-isolation.php:1815
+#, php-format
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr ""
 
@@ -25685,6 +26444,7 @@ msgid "Check now"
 msgstr ""
 
 #: includes/wordset-isolation.php:2059
+#, php-format
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
 msgstr ""
 
@@ -25708,28 +26468,33 @@ msgid "Wordset isolation health has not been checked since the last data change 
 msgstr ""
 
 #: includes/wordset-isolation.php:2635
+#, php-format
 msgid "Stored migration version is %1$d, expected %2$d."
 msgstr ""
 
 #: includes/wordset-isolation.php:2644
+#, php-format
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/wordset-isolation.php:2657
+#, php-format
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/wordset-isolation.php:2670
+#, php-format
 msgid "%d vocab lesson points at a non-owned category."
 msgid_plural "%d vocab lessons point at non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/wordset-isolation.php:2683
+#, php-format
 msgid "%d wordset has category ordering or prerequisite metadata that still references non-owned categories."
 msgid_plural "%d wordsets have category ordering or prerequisite metadata that still reference non-owned categories."
 msgstr[0] ""
@@ -25744,6 +26509,7 @@ msgid "Wordset isolation health checks found data that may need repair."
 msgstr ""
 
 #: includes/wordset-isolation.php:2697
+#, php-format
 msgid "Last checked: %1$s. Stored migration version: %2$d. Expected version: %3$d."
 msgstr ""
 
@@ -25756,26 +26522,31 @@ msgid "Word samples"
 msgstr ""
 
 #: includes/wordset-isolation.php:2722
+#, php-format
 msgid "Wordsets: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2723
 #: includes/wordset-isolation.php:2757
+#, php-format
 msgid "Categories: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2726
 #: includes/wordset-isolation.php:2760
+#, php-format
 msgid "Shared categories: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2729
 #: includes/wordset-isolation.php:2763
+#, php-format
 msgid "Foreign-owner categories: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2732
 #: includes/wordset-isolation.php:2766
+#, php-format
 msgid "Missing owned copies: %s."
 msgstr ""
 
@@ -25784,6 +26555,7 @@ msgid "Word image samples"
 msgstr ""
 
 #: includes/wordset-isolation.php:2756
+#, php-format
 msgid "Owner wordset: %s."
 msgstr ""
 
@@ -25792,14 +26564,17 @@ msgid "Vocab lesson samples"
 msgstr ""
 
 #: includes/wordset-isolation.php:2790
+#, php-format
 msgid "Wordset: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2791
+#, php-format
 msgid "Category: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2794
+#, php-format
 msgid "Existing owned copy: %s."
 msgstr ""
 
@@ -25808,14 +26583,17 @@ msgid "Wordset metadata samples"
 msgstr ""
 
 #: includes/wordset-isolation.php:2819
+#, php-format
 msgid "Manual order refs: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2822
+#, php-format
 msgid "Prerequisite keys: %s."
 msgstr ""
 
 #: includes/wordset-isolation.php:2825
+#, php-format
 msgid "Prerequisite dependencies: %s."
 msgstr ""
 
@@ -25825,6 +26603,7 @@ msgstr ""
 
 #. translators: 1: minimum supported PHP version, 2: current PHP version
 #: language-learner-tools.php:44
+#, php-format
 msgid "Language Learner Tools requires PHP %1$s or newer. This site is running PHP %2$s, so the plugin was not loaded to prevent a fatal error."
 msgstr ""
 
@@ -25838,6 +26617,7 @@ msgstr ""
 
 #. translators: %s: available plugin version
 #: language-learner-tools.php:643
+#, php-format
 msgid "Language Learner Tools update available: version %s."
 msgstr ""
 
@@ -25883,6 +26663,7 @@ msgid "Transcript"
 msgstr ""
 
 #: templates/content-lesson-template.php:183
+#, php-format
 msgid "%d cue"
 msgid_plural "%d cues"
 msgstr[0] ""

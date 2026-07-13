@@ -523,6 +523,7 @@ wordset can opt into it.
   - Views: main, `progress`, `hidden-categories`, `settings`, `games`, and `classes`.
   - The settings view can launch the Wordset Editor tool (`ll_wordset_tool=editor`, implemented in `includes/pages/wordset-editor.php`) for searchable word tables, media-status filters, bulk category/status/review actions, recording moves, saved views, and recent-action undo.
 - `/<wordset>/<category>` vocab lesson pages (handled by `includes/pages/vocab-lesson-pages.php`).
+- Global vocab-lesson settings and scheduled full syncs only queue the durable cleanup/sync reconciliation state; each cron continuation keyset-checks at most 10 existing pages or discovers at most 10 category candidates for one enabled wordset (hard cap 50), persists cursors/counts/failure state, and reschedules until completion. Keep the synchronous `ll_tools_sync_vocab_lesson_pages()` helper out of web/admin/cron entry points.
 - Routing maintenance note: wordset and vocab-lesson pretty routes are currently
   registered per enabled wordset. A future scalability migration should add a
   small fixed route shape, preserve or narrowly redirect existing root pretty

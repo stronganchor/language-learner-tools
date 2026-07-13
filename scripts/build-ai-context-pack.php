@@ -257,6 +257,7 @@ function ll_tools_context_pack_definitions(): array
                 'Search and progress summaries should use bounded or materialized data paths.',
                 'Recorder queue overviews select one recorder and hydrate compact category summaries in bounded batches.',
                 'Recorder queue summaries use durable content, structure, and recording-type epochs; request-local core cache tokens are not durable invalidators.',
+                'Global vocab-lesson settings and cron syncs queue the durable reconciliation job; each continuation must cap cleanup rows and one wordset category cursor.',
             ],
             'sources' => [
                 'includes/pages/wordset-pages.php',

@@ -69,18 +69,18 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($counts['with_images'][$effective_prompt_category_id] ?? 0));
 
         $relationship_queries = array_values(array_filter($captured_queries, static function (string $query): bool {
-            return strpos($query, 'posts.ID AS post_id') !== false
-                && strpos($query, 'category_taxonomy.term_id AS category_id') !== false
-                && strpos($query, 'category_relationships.term_taxonomy_id AS term_taxonomy_id') !== false;
+            return strpos($query, 'category_taxonomy.term_id AS category_id') !== false
+                && strpos($query, 'COUNT(DISTINCT posts.ID) AS total') !== false;
         }));
 
-        $this->assertGreaterThanOrEqual(4, count($relationship_queries), 'Expected deepest counts to use bounded post/category relationship queries.');
+        $this->assertGreaterThanOrEqual(4, count($relationship_queries), 'Expected deepest counts to use compact post/category aggregate queries.');
         foreach ($relationship_queries as $query) {
             $this->assertStringContainsString('category_taxonomy.taxonomy =', $query);
             $this->assertStringNotContainsString('UNION ALL', $query);
             $this->assertStringNotContainsString('category_depths', $query);
             $this->assertStringNotContainsString('deeper_depths', $query);
-            $this->assertStringNotContainsString('COUNT(DISTINCT posts.ID) AS total', $query);
+            $this->assertStringContainsString('COUNT(DISTINCT posts.ID) AS total', $query);
+            $this->assertStringNotContainsString('posts.ID AS post_id', $query);
             $this->assertStringNotContainsString('posts.ID AS object_id', $query);
             $this->assertStringNotContainsString('SELECT ' . $wpdb->posts . '.ID', $query);
         }

@@ -27706,3 +27706,25 @@ msgstr "Ses dosyası AssemblyAI transkripsiyonu için çok büyük."
 #: includes/pages/content-lesson-pages.php:650
 msgid "Text pages"
 msgstr "Metin sayfaları"
+
+#: includes/pages/vocab-lesson-pages.php:5765
+msgid "checking existing pages"
+msgstr "mevcut sayfalar kontrol ediliyor"
+
+#: includes/pages/vocab-lesson-pages.php:5766
+msgid "creating and refreshing lesson pages"
+msgstr "ders sayfaları oluşturuluyor ve yenileniyor"
+
+#: includes/pages/vocab-lesson-pages.php:5772
+#, php-format
+msgid "Vocab lesson sync is running in bounded background batches. Phase: %1$s. %2$d items checked, %3$d created, %4$d updated, %5$d removed. Reload this screen to refresh progress."
+msgstr "Kelime dersi senkronizasyonu arka planda sınırlı gruplar halinde çalışıyor. Aşama: %1$s. %2$d öğe kontrol edildi, %3$d oluşturuldu, %4$d güncellendi, %5$d kaldırıldı. İlerlemeyi yenilemek için bu ekranı yeniden yükle."
+
+#: includes/pages/vocab-lesson-pages.php:5788
+#, php-format
+msgid "Vocab lesson sync failed: %s"
+msgstr "Kelime dersi senkronizasyonu başarısız oldu: %s"
+
+#: includes/pages/vocab-lesson-pages.php:5827
+msgid "Retry Sync"
+msgstr "Senkronizasyonu Yeniden Dene"

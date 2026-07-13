@@ -2496,7 +2496,7 @@
                 "includes/flashcard-shell.php:112",
                 "includes/flashcard-shell.php:117",
                 "includes/pages/quiz-pages.php:1563",
-                "includes/pages/vocab-lesson-pages.php:3244",
+                "includes/pages/vocab-lesson-pages.php:3652",
                 "includes/pages/wordset-pages.php:11773",
                 "includes/shortcodes/audio-recording-shortcode.php:1574",
                 "includes/shortcodes/audio-recording-shortcode.php:1599"
@@ -2572,14 +2572,14 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/quiz-pages.php:911",
-                "includes/pages/vocab-lesson-pages.php:2317",
-                "includes/pages/vocab-lesson-pages.php:2468",
+                "includes/pages/vocab-lesson-pages.php:2345",
+                "includes/pages/vocab-lesson-pages.php:2496",
                 "includes/shortcodes/flashcard-widget.php:1780"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:911",
-                "includes/pages/vocab-lesson-pages.php:2317",
-                "includes/pages/vocab-lesson-pages.php:2468",
+                "includes/pages/vocab-lesson-pages.php:2345",
+                "includes/pages/vocab-lesson-pages.php:2496",
                 "includes/shortcodes/flashcard-widget.php:1780"
             ]
         },
@@ -2589,12 +2589,12 @@
             "msgid": "Referenced item",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1619",
-                "includes/pages/vocab-lesson-pages.php:1709"
+                "includes/pages/vocab-lesson-pages.php:1625",
+                "includes/pages/vocab-lesson-pages.php:1715"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1619",
-                "includes/pages/vocab-lesson-pages.php:1709"
+                "includes/pages/vocab-lesson-pages.php:1625",
+                "includes/pages/vocab-lesson-pages.php:1715"
             ]
         },
         {
@@ -2603,12 +2603,12 @@
             "msgid": "Answer options",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1635",
-                "includes/pages/vocab-lesson-pages.php:1709"
+                "includes/pages/vocab-lesson-pages.php:1641",
+                "includes/pages/vocab-lesson-pages.php:1715"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1635",
-                "includes/pages/vocab-lesson-pages.php:1709"
+                "includes/pages/vocab-lesson-pages.php:1641",
+                "includes/pages/vocab-lesson-pages.php:1715"
             ]
         },
         {
@@ -2618,13 +2618,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/flashcard-shell.php:166",
-                "includes/pages/vocab-lesson-pages.php:1657",
-                "includes/pages/vocab-lesson-pages.php:1730",
+                "includes/pages/vocab-lesson-pages.php:1663",
+                "includes/pages/vocab-lesson-pages.php:1736",
                 "includes/pages/wordset-pages.php:11772"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1657",
-                "includes/pages/vocab-lesson-pages.php:1730",
+                "includes/pages/vocab-lesson-pages.php:1663",
+                "includes/pages/vocab-lesson-pages.php:1736",
                 "includes/pages/wordset-pages.php:11772"
             ]
         },
@@ -2634,8 +2634,8 @@
             "msgid": "Wrong",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1658",
-                "includes/pages/vocab-lesson-pages.php:1731",
+                "includes/pages/vocab-lesson-pages.php:1664",
+                "includes/pages/vocab-lesson-pages.php:1737",
                 "includes/pages/wordset-pages.php:11879",
                 "includes/pages/wordset-pages.php:21357",
                 "includes/pages/wordset-pages.php:21802",
@@ -2643,8 +2643,8 @@
                 "includes/pages/wordset-pages.php:21814"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1658",
-                "includes/pages/vocab-lesson-pages.php:1731",
+                "includes/pages/vocab-lesson-pages.php:1664",
+                "includes/pages/vocab-lesson-pages.php:1737",
                 "includes/pages/wordset-pages.php:11879",
                 "includes/pages/wordset-pages.php:21357",
                 "includes/pages/wordset-pages.php:21802",
@@ -2658,8 +2658,8 @@
             "msgid": "Play audio",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:1701",
-                "includes/pages/vocab-lesson-pages.php:1722",
+                "includes/pages/vocab-lesson-pages.php:1707",
+                "includes/pages/vocab-lesson-pages.php:1728",
                 "includes/pages/wordset-pages.php:21347",
                 "includes/shortcodes/flashcard-widget.php:544",
                 "includes/shortcodes/flashcard-widget.php:549",
@@ -2667,8 +2667,8 @@
                 "includes/taxonomies/word-category-taxonomy.php:1267"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:1701",
-                "includes/pages/vocab-lesson-pages.php:1722",
+                "includes/pages/vocab-lesson-pages.php:1707",
+                "includes/pages/vocab-lesson-pages.php:1728",
                 "includes/pages/wordset-pages.php:21347",
                 "includes/shortcodes/flashcard-widget.php:544",
                 "includes/shortcodes/flashcard-widget.php:549",
@@ -2681,14 +2681,14 @@
             "msgid": "Invalid word set.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:2320",
-                "includes/pages/vocab-lesson-pages.php:2471",
+                "includes/pages/vocab-lesson-pages.php:2348",
+                "includes/pages/vocab-lesson-pages.php:2499",
                 "includes/pages/wordset-games.php:6141",
                 "includes/pages/wordset-games.php:6408"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:2320",
-                "includes/pages/vocab-lesson-pages.php:2471",
+                "includes/pages/vocab-lesson-pages.php:2348",
+                "includes/pages/vocab-lesson-pages.php:2499",
                 "includes/pages/wordset-games.php:6141",
                 "includes/pages/wordset-games.php:6408"
             ]
@@ -2699,12 +2699,12 @@
             "msgid": "Move earlier",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3738",
+                "includes/pages/vocab-lesson-pages.php:4146",
                 "includes/pages/wordset-pages.php:11743",
                 "includes/taxonomies/word-category-taxonomy.php:1790"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3738",
+                "includes/pages/vocab-lesson-pages.php:4146",
                 "includes/pages/wordset-pages.php:11743"
             ]
         },
@@ -2714,12 +2714,12 @@
             "msgid": "Move later",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3739",
+                "includes/pages/vocab-lesson-pages.php:4147",
                 "includes/pages/wordset-pages.php:11744",
                 "includes/taxonomies/word-category-taxonomy.php:1791"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3739",
+                "includes/pages/vocab-lesson-pages.php:4147",
                 "includes/pages/wordset-pages.php:11744"
             ]
         },
@@ -2729,10 +2729,10 @@
             "msgid": "Remove from print",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3740"
+                "includes/pages/vocab-lesson-pages.php:4148"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3740"
+                "includes/pages/vocab-lesson-pages.php:4148"
             ]
         },
         {
@@ -2741,10 +2741,10 @@
             "msgid": "Add back to print",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3741"
+                "includes/pages/vocab-lesson-pages.php:4149"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3741"
+                "includes/pages/vocab-lesson-pages.php:4149"
             ]
         },
         {
@@ -2753,11 +2753,11 @@
             "msgid": "Restore all",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3742",
+                "includes/pages/vocab-lesson-pages.php:4150",
                 "templates/vocab-lesson-print-template.php:136"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3742",
+                "includes/pages/vocab-lesson-pages.php:4150",
                 "templates/vocab-lesson-print-template.php:136"
             ]
         },
@@ -2767,11 +2767,11 @@
             "msgid": "Removed",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3743",
+                "includes/pages/vocab-lesson-pages.php:4151",
                 "templates/vocab-lesson-print-template.php:145"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3743",
+                "includes/pages/vocab-lesson-pages.php:4151",
                 "templates/vocab-lesson-print-template.php:145"
             ]
         },
@@ -2781,10 +2781,10 @@
             "msgid": "All words removed.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3744"
+                "includes/pages/vocab-lesson-pages.php:4152"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3744"
+                "includes/pages/vocab-lesson-pages.php:4152"
             ]
         },
         {
@@ -2793,10 +2793,10 @@
             "msgid": "Restore one or more words to print this lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3745"
+                "includes/pages/vocab-lesson-pages.php:4153"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:3745"
+                "includes/pages/vocab-lesson-pages.php:4153"
             ]
         },
         {
@@ -2805,10 +2805,10 @@
             "msgid": "Vocab: %1$s (%2$s)",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:710"
+                "includes/pages/vocab-lesson-pages.php:716"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:710"
+                "includes/pages/vocab-lesson-pages.php:716"
             ]
         },
         {
@@ -7748,8 +7748,8 @@
             "msgid": "Your session expired. Please try again.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3582",
-                "includes/pages/vocab-lesson-pages.php:3943",
+                "includes/pages/vocab-lesson-pages.php:3990",
+                "includes/pages/vocab-lesson-pages.php:4351",
                 "includes/pages/wordset-pages.php:2290",
                 "includes/pages/wordset-pages.php:6956",
                 "includes/pages/wordset-pages.php:7007",
@@ -9570,9 +9570,9 @@
             "msgid": "Invalid request.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3772",
-                "includes/pages/vocab-lesson-pages.php:3903",
-                "includes/pages/vocab-lesson-pages.php:4913",
+                "includes/pages/vocab-lesson-pages.php:4180",
+                "includes/pages/vocab-lesson-pages.php:4311",
+                "includes/pages/vocab-lesson-pages.php:5321",
                 "includes/shortcodes/dictionary-shortcode.php:3155",
                 "includes/shortcodes/quiz-pages-shortcodes.php:548",
                 "includes/shortcodes/quiz-pages-shortcodes.php:576"
@@ -9868,13 +9868,13 @@
             "msgid": "Lesson not found.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:3591",
-                "includes/pages/vocab-lesson-pages.php:3779",
-                "includes/pages/vocab-lesson-pages.php:3925",
-                "includes/pages/vocab-lesson-pages.php:4918",
-                "includes/pages/vocab-lesson-pages.php:4927",
-                "includes/pages/vocab-lesson-pages.php:4930",
-                "includes/pages/vocab-lesson-pages.php:4933",
+                "includes/pages/vocab-lesson-pages.php:3999",
+                "includes/pages/vocab-lesson-pages.php:4187",
+                "includes/pages/vocab-lesson-pages.php:4333",
+                "includes/pages/vocab-lesson-pages.php:5326",
+                "includes/pages/vocab-lesson-pages.php:5335",
+                "includes/pages/vocab-lesson-pages.php:5338",
+                "includes/pages/vocab-lesson-pages.php:5341",
                 "includes/taxonomies/word-category-taxonomy.php:2104",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
