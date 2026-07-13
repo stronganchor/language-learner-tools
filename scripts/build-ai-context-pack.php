@@ -233,8 +233,8 @@ function ll_tools_context_pack_definitions(): array
             ],
         ],
         'wordset-vocab-manager' => [
-            'description' => 'Wordset pages, lazy cards, search, editor/settings UI, vocab lessons, and word grid.',
-            'load_when' => 'A change touches public wordset pages, category shells, search, recommendations, editor rows, or vocab lesson cards.',
+            'description' => 'Wordset pages, lazy cards, search, editor/settings UI, recorder queue overviews, vocab lessons, and word grid.',
+            'load_when' => 'A change touches public wordset pages, category shells, search, recommendations, editor rows, recorder queue overview/settings, or vocab lesson cards.',
             'signals' => [
                 'wordset page',
                 'wordset manager',
@@ -248,11 +248,15 @@ function ll_tools_context_pack_definitions(): array
                 'progress summary',
                 'recommendations',
                 'large wordset first paint',
+                'recorder queue overview',
+                'queue summary lazy loading',
             ],
             'invariants' => [
                 'Large wordsets are production data; first paint must stay bounded.',
                 'Use shell cards, paged editor rows, ID queries, and lazy hydration before full word/media hydration.',
                 'Search and progress summaries should use bounded or materialized data paths.',
+                'Recorder queue overviews select one recorder and hydrate compact category summaries in bounded batches.',
+                'Recorder queue summaries use durable content, structure, and recording-type epochs; request-local core cache tokens are not durable invalidators.',
             ],
             'sources' => [
                 'includes/pages/wordset-pages.php',

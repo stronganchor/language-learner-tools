@@ -250,6 +250,77 @@ function buildRecorderQueueToolMarkup() {
   `;
 }
 
+function buildRecorderQueueLazySummaryMarkup() {
+  const placeholder = (slug, name) => `
+    <article
+      class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading"
+      role="listitem"
+      data-recorder-queue-category="${slug}"
+      data-ll-recorder-queue-summary-placeholder="true"
+      aria-label="Loading ${name}"
+      aria-busy="true"
+    >
+      <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
+        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">${name}</span>
+        <span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span>
+      </span>
+      <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
+        <span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images">
+          <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+          <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
+        </span>
+      </span>
+    </article>
+  `;
+
+  return `
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
+      <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+          <h2 class="ll-wordset-settings-card__title">Recorder Queues</h2>
+          <label for="ll-recorder-queue-switcher">Recorder queue</label>
+          <select id="ll-recorder-queue-switcher" data-ll-recorder-queue-switcher>
+            <option value="101" data-url="#recorder-one" selected>Recorder One</option>
+            <option value="202" data-url="#recorder-two">Recorder Two</option>
+          </select>
+          <span class="ll-wordset-settings-card__pill" data-ll-recorder-queue-summary-count>Queue categories loaded: 1</span>
+        </div>
+
+        <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="ll-recorder-queue-101">
+          <section
+            class="ll-wordset-recorder-queue-column ll-wordset-recorder-queue-column--stream"
+            data-ll-recorder-queue-summary-root
+            aria-busy="true"
+          >
+            <h4 class="ll-wordset-settings-card__subtitle">Queue by Category</h4>
+            <div class="ll-wordset-recorder-queue-category-grid" role="list" data-ll-recorder-queue-summary-grid>
+              <a
+                class="ll-wordset-card ll-wordset-recorder-queue-category-card"
+                href="#fruit"
+                data-recorder-queue-category="fruit"
+                role="listitem"
+              >
+                <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Fruit</span>
+                <span class="ll-wordset-settings-card__pill">2 words</span>
+              </a>
+              ${placeholder('market', 'Market')}
+              ${placeholder('empty', 'Empty category')}
+              ${placeholder('travel', 'Travel')}
+              ${placeholder('food', 'Food')}
+            </div>
+            <p class="ll-wordset-settings-empty" data-ll-recorder-queue-summary-empty hidden>No words currently need recordings for this recorder.</p>
+            <div class="ll-wordset-recorder-queue-summary-loader" data-ll-recorder-queue-summary-loader>
+              <span data-ll-recorder-queue-summary-status role="status" aria-live="polite">Loading queue categories...</span>
+              <button type="button" data-ll-recorder-queue-summary-load-more>Load more</button>
+              <span data-ll-recorder-queue-summary-sentinel aria-hidden="true"></span>
+            </div>
+          </section>
+        </article>
+      </section>
+    </main>
+  `;
+}
+
 function buildRecorderQueueCategoryViewMarkup() {
   return `
     <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
@@ -731,8 +802,8 @@ async function mountSettingsTool(page, markup, viewport) {
   await page.addStyleTag({ content: hostileThemeCss });
 }
 
-async function enableWordsetPageScript(page) {
-  await page.evaluate(() => {
+async function enableWordsetPageScript(page, options = {}) {
+  await page.evaluate((enableRecorderQueueSummaries) => {
     window.llWordsetPageData = {
       view: 'settings',
       ajaxUrl: '/fake-admin-ajax.php',
@@ -742,7 +813,17 @@ async function enableWordsetPageScript(page) {
         recorderQueueSaveError: 'Unable to save right now.'
       }
     };
-  });
+    if (enableRecorderQueueSummaries) {
+      window.llWordsetPageData.recorderQueueSummaries = {
+        enabled: true,
+        nonce: 'summary-nonce',
+        wordsetId: 22,
+        recorderUserId: 44,
+        generation: 'summary-generation',
+        batchSize: 2
+      };
+    }
+  }, !!options.enableRecorderQueueSummaries);
   await page.addScriptTag({ content: jquerySource });
   await page.addScriptTag({ content: wordsetPagesJsSource });
 }
@@ -771,6 +852,105 @@ async function stubRecorderQueueAutosave(page) {
       return deferred.promise();
     };
   });
+}
+
+async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
+  await page.evaluate((localizedBatchSize) => {
+    window.llWordsetPageData = {
+      view: 'settings',
+      ajaxUrl: '/fake-admin-ajax.php',
+      isLoggedIn: true,
+      recorderQueueSummaries: {
+        enabled: true,
+        nonce: 'summary-nonce',
+        wordsetId: 22,
+        recorderUserId: 101,
+        generation: 'summary-generation',
+        backUrl: 'https://example.test/manager-return/',
+        batchSize: localizedBatchSize,
+        maxAutoRetries: 2
+      },
+      i18n: {
+        recorderQueueLoading: 'Loading queue categories...',
+        recorderQueueLoadedCount: 'Queue categories loaded: %d',
+        recorderQueueLoadedAll: 'All queue categories are loaded.',
+        recorderQueueLoadMore: 'Load more',
+        recorderQueueLoadError: 'Could not load more queue categories right now.'
+      }
+    };
+
+    window.__recorderQueueObservedSlugs = [];
+    window.IntersectionObserver = class ImmediateIntersectionObserver {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      disconnect() {}
+
+      observe(element) {
+        window.__recorderQueueObservedSlugs.push(element.getAttribute('data-recorder-queue-category'));
+        window.setTimeout(() => {
+          this.callback([{ target: element, isIntersecting: true }]);
+        }, 0);
+      }
+    };
+  }, batchSize);
+
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.__recorderQueueSummaryCalls = [];
+    const cardHtml = (slug, name) => `
+      <a
+        class="ll-wordset-card ll-wordset-recorder-queue-category-card"
+        href="#${slug}"
+        data-recorder-queue-category="${slug}"
+        role="listitem"
+      >
+        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">${name}</span>
+        <span class="ll-wordset-settings-card__pill">1 word</span>
+      </a>
+    `;
+
+    window.jQuery.post = function postRecorderQueueSummary(url, payload) {
+      const slugs = Array.isArray(payload.category_slugs)
+        ? payload.category_slugs.map((slug) => String(slug))
+        : [];
+      window.__recorderQueueSummaryCalls.push({
+        url,
+        action: String(payload.action || ''),
+        nonce: String(payload.nonce || ''),
+        wordsetId: Number(payload.wordset_id || 0),
+        recorderUserId: Number(payload.recorder_user_id || 0),
+        generation: String(payload.generation || ''),
+        backUrl: String(payload.back_url || ''),
+        slugs
+      });
+
+      const labels = {
+        market: 'Market',
+        travel: 'Travel',
+        food: 'Food'
+      };
+      const cards = slugs
+        .filter((slug) => Object.prototype.hasOwnProperty.call(labels, slug))
+        .reverse()
+        .map((slug) => ({ slug, html: cardHtml(slug, labels[slug]) }));
+      const deferred = window.jQuery.Deferred();
+      window.setTimeout(() => {
+        deferred.resolve({
+          success: true,
+          data: {
+            cards,
+            resolvedSlugs: slugs,
+            pendingSlugs: [],
+            generation: 'summary-generation'
+          }
+        });
+      }, 20);
+      return deferred.promise();
+    };
+  });
+  await page.addScriptTag({ content: wordsetPagesJsSource });
 }
 
 async function assertPageFitsViewport(page) {
@@ -840,6 +1020,53 @@ test('manager recorder queue uses compact category cards and focused prompt edit
   await assertPageFitsViewport(page);
 });
 
+test('manager recorder queue streams one recorder category queue in bounded ordered batches', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
+
+  const grid = page.locator('[data-ll-recorder-queue-summary-grid]');
+  await expect(grid.locator('.ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])')).toHaveCount(1);
+  await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(4);
+  await expect(grid.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(4);
+  await expect(grid.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(8);
+  await expect(page.locator('.ll-wordset-recorder-queue-pagination')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Continue' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^2$/ })).toHaveCount(0);
+
+  await enableRecorderQueueLazySummaryScript(page, 2);
+
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
+  const requests = await page.evaluate(() => window.__recorderQueueSummaryCalls);
+  expect(requests.map((request) => request.slugs)).toEqual([
+    ['market', 'empty'],
+    ['travel', 'food']
+  ]);
+  requests.forEach((request) => {
+    expect(request.url).toBe('/fake-admin-ajax.php');
+    expect(request.action).toBe('ll_tools_wordset_recorder_queue_summaries');
+    expect(request.nonce).toBe('summary-nonce');
+    expect(request.wordsetId).toBe(22);
+    expect(request.recorderUserId).toBe(101);
+    expect(request.generation).toBe('summary-generation');
+    expect(request.backUrl).toBe('https://example.test/manager-return/');
+    expect(request.slugs.length).toBeLessThanOrEqual(2);
+  });
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['travel']);
+
+  await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
+  await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);
+  await expect(grid.locator('.ll-wordset-recorder-queue-category-card')).toHaveCount(4);
+  const resolvedOrder = await grid.locator('.ll-wordset-recorder-queue-category-card').evaluateAll((cards) => (
+    cards.map((card) => card.getAttribute('data-recorder-queue-category'))
+  ));
+  expect(resolvedOrder).toEqual(['fruit', 'market', 'travel', 'food']);
+  await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');
+  await expect(page.locator('[data-ll-recorder-queue-summary-root]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-recorder-queue-summary-load-more]')).toBeHidden();
+
+  await page.locator('[data-ll-recorder-queue-switcher]').selectOption('202');
+  await expect(page).toHaveURL(/#recorder-two$/);
+});
+
 test('manager recorder queue autosaves prompt edits without a manual save click', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueCategoryViewMarkup(), { width: 390, height: 844 });
   await enableWordsetPageScript(page);
@@ -859,6 +1086,61 @@ test('manager recorder queue autosaves prompt edits without a manual save click'
   expect(autosavePayload.entries.action).toContain('ll_tools_wordset_recorder_queue_save');
   expect(autosavePayload.entries.ll_wordset_manager_recorder_queue_action).toContain('save_prompts');
   expect(autosavePayload.entries['ll_wordset_manager_recorder_queue_prompts[question]']).toContain('Where should the recorder say loquat?');
+});
+
+test('recorder queue summary refresh waits for every autosave form to settle', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueToolMarkup(), { width: 900, height: 844 });
+  await enableWordsetPageScript(page, { enableRecorderQueueSummaries: true });
+  await page.evaluate(() => {
+    window.name = '';
+    window.__recorderQueueReloadCalls = [];
+    window.__recorderQueueReloadCompleted = [];
+    window.addEventListener('beforeunload', () => {
+      window.name = JSON.stringify({
+        calls: window.__recorderQueueReloadCalls,
+        completed: window.__recorderQueueReloadCompleted
+      });
+    });
+    window.jQuery.post = function postRecorderQueueAutosave(url, payload) {
+      const entries = {};
+      (Array.isArray(payload) ? payload : []).forEach((entry) => {
+        const name = String(entry && entry.name || '');
+        if (name) {
+          entries[name] = String(entry.value || '');
+        }
+      });
+      const action = String(entries.ll_wordset_manager_recorder_queue_action || '');
+      window.__recorderQueueReloadCalls.push(action);
+      const deferred = window.jQuery.Deferred();
+      window.setTimeout(() => {
+        window.__recorderQueueReloadCompleted.push(action);
+        deferred.resolve({
+          success: true,
+          data: { result: action === 'save_settings' ? 'settings' : 'wordset_settings' }
+        });
+      }, action === 'save_settings' ? 25 : 180);
+      return deferred.promise();
+    };
+  });
+
+  await page.locator('.ll-wordset-recorder-queue-settings > summary').click();
+  await page.locator('input[name="ll_wordset_manager_recorder_queue_include_types[]"][value="isolation"]').check();
+  await page.locator('select[name="ll_wordset_recorder_text_visibility"]').selectOption('show');
+
+  let reloadSnapshot = null;
+  await expect.poll(async () => {
+    try {
+      const rawSnapshot = await page.evaluate(() => window.name);
+      reloadSnapshot = rawSnapshot ? JSON.parse(rawSnapshot) : null;
+      return reloadSnapshot && Array.isArray(reloadSnapshot.completed)
+        ? reloadSnapshot.completed.length
+        : 0;
+    } catch (error) {
+      return 0;
+    }
+  }, { timeout: 5000 }).toBe(2);
+  expect(reloadSnapshot.calls.sort()).toEqual(['save_settings', 'save_wordset_settings']);
+  expect(reloadSnapshot.completed.sort()).toEqual(['save_settings', 'save_wordset_settings']);
 });
 
 test('manager categories tool keeps create and edit actions visible on mobile', async ({ page }) => {

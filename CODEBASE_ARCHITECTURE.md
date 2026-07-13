@@ -49,6 +49,8 @@ read_first:
 - Large wordsets are normal production data. A single wordset may have thousands of `words` posts and many thousands of `word_audio`, `word_images`, prompt cards, and generated media records.
 - Interactive UI, AJAX, shortcode, and game-launch paths should stay bounded by the page size or launch-candidate size. Do not hydrate or iterate a whole wordset's posts just to render a catalog card, count availability, or launch a game.
 - Prefer ID-only queries, capped launch pools, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
+- The recorder queue overview is a selected-recorder stream: render one assigned recorder, server-render a bounded initial set of compact category summaries, and hydrate remaining summaries in bounded authenticated batches. Focused-category and hidden queue item views stay paged; do not replace them with full-queue hydration.
+- Recorder queue summary caches use durable plugin epochs for queue content, compact category structure, and recording-type changes. Audio/content mutations invalidate summaries without evicting the compact structural category catalog. Core `posts`/`terms` last-changed tokens may contribute only with a persistent object-cache backend; the default request-local tokens must never invalidate durable summaries on every request.
 
 # Entry points and runtime flow
 - `language-learner-tools.php`

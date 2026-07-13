@@ -5205,6 +5205,35 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 12px;
 }
 
+.ll-wordset-recorder-queue-switcher-card {
+    gap: 8px;
+}
+
+.ll-wordset-recorder-queue-switcher {
+    display: grid;
+    gap: 6px;
+    color: var(--ll-wp-text);
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.ll-wordset-page .ll-wordset-recorder-queue-switcher select {
+    width: min(100%, 420px) !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 7px 34px 7px 10px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    font: inherit !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+}
+
 .ll-wordset-recorder-queue-card__head {
     display: flex;
     align-items: flex-start;
@@ -10446,6 +10475,43 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-teacher-classes__list {
     display: grid;
     gap: 12px;
+}
+
+.ll-wordset-recorder-queue-category-card--loading {
+    pointer-events: none;
+}
+
+.ll-wordset-recorder-queue-category-card__count-skeleton {
+    width: 72px;
+    min-width: 72px;
+    color: transparent !important;
+    background: #dfe6ee !important;
+}
+
+.ll-wordset-recorder-queue-summary-loader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-height: 42px;
+}
+
+.ll-wordset-recorder-queue-summary-loader__status {
+    color: var(--ll-wp-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.ll-wordset-recorder-queue-column--stream.has-load-error .ll-wordset-recorder-queue-summary-loader__status,
+[data-ll-recorder-queue-summary-root].has-load-error .ll-wordset-recorder-queue-summary-loader__status {
+    color: #b42318;
+}
+
+.ll-wordset-recorder-queue-summary-loader__sentinel {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 1px;
 }
 
 .ll-teacher-classes__search {

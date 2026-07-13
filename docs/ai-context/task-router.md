@@ -21,7 +21,7 @@ If the suggested pack looks wrong, update the `signals` for the relevant pack in
 | --- | --- | --- |
 | Bootstrap, loaded modules, constants, assets, template overrides, CPTs, taxonomies, roles | `core-runtime-data-model` | `includes/bootstrap.php`, `ll_enqueue_asset_by_timestamp`, `register_post_type`, `register_taxonomy`, `template-loader` |
 | Quiz pages, flashcards, practice/learning/listening modes, option labels, embed routes | `public-quiz-flashcards` | `flashcard_widget`, `ll_get_words_by_category`, `llToolsFlashcardsData`, `word-option-rules`, `quiz-page-template` |
-| Wordset landing pages, category shells, search, word grid, editor rows, vocab lesson cards | `wordset-vocab-manager` | `wordset-pages`, `wordset-editor`, `word-grid`, `vocab-lesson`, `lazy`, `paged` |
+| Wordset landing pages, category shells, search, word grid, editor rows, vocab lesson cards, recorder queue overview/settings | `wordset-vocab-manager` | `wordset-pages`, `wordset-editor`, `word-grid`, `vocab-lesson`, `recorder queue summary`, `ll_tools_wordset_recorder_queue_summaries`, `lazy`, `paged` |
 | Recording interface, audio upload/processing, media matching, IPA/transcription manager | `recording-media-transcription` | `audio_recording_interface`, `ipa-keyboard`, `recording_type`, `review_note`, `ll-matching` |
 | Automation REST, site sync, imports/exports, CLI support, live apply/readback flows | `automation-import-sync` | `automation-rest`, `site-sync`, `export-import`, `ensure_sync_ids`, `snapshot` |
 | Dictionary search/browser, public cache, language switcher, public i18n manifests | `dictionary-i18n-cache` | `dictionary-search-index`, `dictionary-browser`, `public-static-cache`, `tier2-public-ui-sources`, `language-switcher` |

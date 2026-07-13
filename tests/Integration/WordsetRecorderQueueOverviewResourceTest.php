@@ -158,6 +158,559 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_stream_overview_renders_shimmer_shells_without_numbered_overview_paging_or_continue_link(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(5);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorders = [];
+        foreach (['Selected Stream Recorder', 'Alternate Stream Recorder'] as $display_name) {
+            $recorder_id = self::factory()->user->create([
+                'role' => 'audio_recorder',
+                'display_name' => $display_name,
+            ]);
+            update_user_meta($recorder_id, 'll_recording_config', [
+                'wordset' => (string) $wordset_term->slug,
+            ]);
+            $recorder = get_userdata($recorder_id);
+            $this->assertInstanceOf(WP_User::class, $recorder);
+            $recorders[] = $recorder;
+        }
+
+        $refresh_budget = static function (): int {
+            return 0;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_overview_refresh_budget', $refresh_budget);
+
+        try {
+            $rows = ll_tools_wordset_page_get_recorder_queue_rows(
+                $wordset_id,
+                $wordset_term,
+                $recorders,
+                [
+                    'stream_view' => true,
+                    'focused_user_id' => (int) $recorders[0]->ID,
+                    'summary_categories' => array_slice($fixture['categories'], 0, 2),
+                    'summary_categories_paged' => true,
+                    'summary_category_total' => count($fixture['categories']),
+                    'categories_per_page' => 2,
+                ]
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_overview_refresh_budget', $refresh_budget);
+        }
+
+        $this->assertCount(1, $rows);
+        $this->assertSame((int) $recorders[0]->ID, (int) $rows[0]['user_id']);
+
+        $_GET = ['ll_wordset_tool' => 'recorder-queues'];
+        $html = ll_tools_wordset_page_render_settings_recorder_queues_tool(
+            $wordset_term,
+            $wordset_id,
+            '',
+            $rows,
+            [
+                'stream_view' => true,
+                'selected_recorder_user_id' => (int) $recorders[0]->ID,
+                'assigned_audio_recorders' => $recorders,
+                'stream_categories' => $fixture['categories'],
+            ]
+        );
+
+        $this->assertStringContainsString('data-ll-recorder-queue-summary-root', $html);
+        $this->assertStringContainsString('data-ll-recorder-queue-summary-load-more', $html);
+        $this->assertSame(
+            count($fixture['categories']),
+            substr_count($html, 'data-ll-recorder-queue-summary-placeholder="true"')
+        );
+        $this->assertStringContainsString('ll-wordset-card--lazy-placeholder', $html);
+        $this->assertStringNotContainsString('ll_recorder_queue_recorders_page=', $html);
+        $this->assertStringNotContainsString('ll_recorder_queue_categories_page=', $html);
+        $this->assertStringNotContainsString('Recorder queue recorder pages', $html);
+        $this->assertStringNotContainsString('Queue category pages for', $html);
+        $this->assertStringNotContainsString('>Continue<', $html);
+    }
+
+    public function test_summary_batch_slug_normalization_deduplicates_and_caps_the_request(): void
+    {
+        $batch_size = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $batch_size);
+
+        try {
+            $normalized = ll_tools_wordset_page_normalize_recorder_queue_summary_slugs([
+                'Alpha One',
+                'alpha-one',
+                '',
+                ['not-a-scalar'],
+                'BETA',
+                'Gamma',
+                'Delta',
+            ]);
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $batch_size);
+        }
+
+        $this->assertSame(['alpha-one', 'beta', 'gamma'], $normalized);
+    }
+
+    public function test_compact_category_source_honors_the_selected_recorders_category_visibility(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $private_category_id = (int) $fixture['categories'][1]['id'];
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$admin_id]);
+
+        $admin_slugs = array_column(
+            ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id, $admin_id),
+            'slug'
+        );
+        $recorder_slugs = array_column(
+            ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id, $recorder_id),
+            'slug'
+        );
+
+        $this->assertContains((string) $fixture['categories'][1]['slug'], $admin_slugs);
+        $this->assertNotContains((string) $fixture['categories'][1]['slug'], $recorder_slugs);
+        $this->assertContains((string) $fixture['categories'][0]['slug'], $recorder_slugs);
+    }
+
+    public function test_summary_source_signature_uses_last_changed_only_with_a_persistent_object_cache(): void
+    {
+        $original_using_ext_cache = wp_using_ext_object_cache();
+        $original_posts_last_changed = wp_cache_get('last_changed', 'posts');
+        $original_terms_last_changed = wp_cache_get('last_changed', 'terms');
+
+        try {
+            wp_using_ext_object_cache(false);
+            wp_cache_set('last_changed', 'request-local-a', 'posts');
+            wp_cache_set('last_changed', 'request-local-a', 'terms');
+            $default_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+
+            wp_cache_set('last_changed', 'request-local-b', 'posts');
+            wp_cache_set('last_changed', 'request-local-b', 'terms');
+            $next_request_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertSame($default_cache_signature, $next_request_signature);
+
+            wp_using_ext_object_cache(true);
+            $persistent_cache_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            wp_cache_set('last_changed', 'persistent-change', 'posts');
+            $changed_persistent_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($persistent_cache_signature, $changed_persistent_signature);
+        } finally {
+            wp_using_ext_object_cache($original_using_ext_cache);
+            if ($original_posts_last_changed === false) {
+                wp_cache_delete('last_changed', 'posts');
+            } else {
+                wp_cache_set('last_changed', $original_posts_last_changed, 'posts');
+            }
+            if ($original_terms_last_changed === false) {
+                wp_cache_delete('last_changed', 'terms');
+            } else {
+                wp_cache_set('last_changed', $original_terms_last_changed, 'terms');
+            }
+        }
+    }
+
+    public function test_summary_source_signature_tracks_durable_queue_inputs_without_a_persistent_object_cache(): void
+    {
+        $option_names = [
+            'll_tools_wordset_recorder_queue_structure_epoch',
+            'll_tools_wordset_recorder_queue_content_epoch',
+            'll_tools_wordset_editor_image_aggregate_epoch',
+            'll_tools_wordset_recorder_queue_recording_type_epoch',
+            'll_uncategorized_desired_recording_types',
+        ];
+        $option_backups = [];
+        foreach ($option_names as $option_name) {
+            $option_backups[$option_name] = get_option($option_name, null);
+        }
+        $original_using_ext_cache = wp_using_ext_object_cache();
+
+        try {
+            wp_using_ext_object_cache(false);
+            update_option('ll_tools_wordset_recorder_queue_structure_epoch', 'structure-a', false);
+            update_option('ll_tools_wordset_recorder_queue_content_epoch', 'content-a', false);
+            update_option('ll_tools_wordset_editor_image_aggregate_epoch', 'image-a', false);
+            update_option('ll_tools_wordset_recorder_queue_recording_type_epoch', 'recording-type-a', false);
+            update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
+            $signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+
+            update_option('ll_tools_wordset_editor_image_aggregate_epoch', 'image-b', false);
+            $image_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($signature, $image_signature);
+
+            update_option('ll_tools_wordset_recorder_queue_structure_epoch', 'structure-b', false);
+            $structure_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($image_signature, $structure_signature);
+
+            update_option('ll_tools_wordset_recorder_queue_content_epoch', 'content-b', false);
+            $content_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($structure_signature, $content_signature);
+
+            update_option('ll_tools_wordset_recorder_queue_recording_type_epoch', 'recording-type-b', false);
+            $recording_type_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($content_signature, $recording_type_signature);
+
+            update_option('ll_uncategorized_desired_recording_types', ['question'], false);
+            $defaults_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($recording_type_signature, $defaults_signature);
+        } finally {
+            wp_using_ext_object_cache($original_using_ext_cache);
+            foreach ($option_backups as $option_name => $value) {
+                if ($value === null) {
+                    delete_option($option_name);
+                } else {
+                    update_option($option_name, $value, false);
+                }
+            }
+        }
+    }
+
+    public function test_structural_mutations_change_the_compact_recorder_category_cache_key(): void
+    {
+        $option_name = 'll_tools_wordset_recorder_queue_structure_epoch';
+        $option_backup = get_option($option_name, null);
+        $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
+        $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $wordset = wp_insert_term('Recorder Structure Epoch Wordset', 'wordset', [
+            'slug' => 'recorder-structure-epoch-wordset',
+        ]);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        try {
+            update_option($option_name, 'structure-word-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_word_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+
+            self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'First uncategorized recorder word',
+            ]);
+            $after_word_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $this->assertNotSame($before_word_key, $after_word_key);
+
+            $image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Recorder ownership image',
+            ]);
+            update_option($option_name, 'structure-owner-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+                ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+                : 'll_wordset_owner_id';
+
+            update_post_meta($image_id, $owner_meta_key, $wordset_id);
+            $after_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $this->assertNotSame($before_owner_key, $after_owner_key);
+
+            $category = wp_insert_term('Recorder Structure Epoch Category', 'word-category', [
+                'slug' => 'recorder-structure-epoch-category',
+            ]);
+            $this->assertIsArray($category);
+            update_option($option_name, 'structure-category-owner-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_category_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $category_owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
+                ? (string) LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+                : 'll_wordset_owner_id';
+
+            update_term_meta((int) $category['term_id'], $category_owner_meta_key, $wordset_id);
+            $after_category_owner_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $this->assertNotSame($before_category_owner_key, $after_category_owner_key);
+        } finally {
+            if ($option_backup === null) {
+                delete_option($option_name);
+            } else {
+                update_option($option_name, $option_backup, false);
+            }
+            if ($had_state) {
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = $state_backup;
+            } else {
+                unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
+            }
+        }
+    }
+
+    public function test_recording_type_relationship_and_taxonomy_mutations_change_the_queue_epoch(): void
+    {
+        $option_name = 'll_tools_wordset_recorder_queue_recording_type_epoch';
+        $option_backup = get_option($option_name, null);
+        $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
+        $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
+        $recording_type_id = $this->ensureRecordingType('Isolation', 'isolation');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+        ]);
+
+        try {
+            update_option($option_name, 'recording-relation-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_relationship_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+
+            wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
+            $after_relationship_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+            $this->assertNotSame($before_relationship_epoch, $after_relationship_epoch);
+
+            update_option($option_name, 'recording-taxonomy-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_taxonomy_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+            $created = wp_insert_term('Recorder Epoch Type', 'recording_type', [
+                'slug' => 'recorder-epoch-type',
+            ]);
+            $this->assertIsArray($created);
+            $after_taxonomy_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+            $this->assertNotSame($before_taxonomy_epoch, $after_taxonomy_epoch);
+        } finally {
+            if ($option_backup === null) {
+                delete_option($option_name);
+            } else {
+                update_option($option_name, $option_backup, false);
+            }
+            if ($had_state) {
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = $state_backup;
+            } else {
+                unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
+            }
+        }
+    }
+
+    public function test_audio_mutations_invalidate_summaries_without_evicting_the_compact_category_catalog(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $recording_type_id = $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['categories'][0]['id'];
+        $word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => 1,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ]],
+        ]);
+        $this->assertCount(1, $word_ids);
+
+        $before_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+        $before_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => (int) $word_ids[0],
+        ]);
+        wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
+
+        $after_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+        $after_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+        $this->assertSame($before_category_key, $after_category_key);
+        $this->assertNotSame($before_summary_signature, $after_summary_signature);
+    }
+
+    public function test_prompt_audio_meta_and_attachment_deletion_invalidate_summaries_without_evicting_the_catalog(): void
+    {
+        $option_name = 'll_tools_wordset_recorder_queue_content_epoch';
+        $option_backup = get_option($option_name, null);
+        $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
+        $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Prompt audio invalidation card',
+        ]);
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_mime_type' => 'audio/mpeg',
+            'post_title' => 'Prompt audio invalidation attachment',
+            'guid' => 'https://example.org/prompt-audio-invalidation.mp3',
+        ]);
+
+        try {
+            update_option($option_name, 'prompt-meta-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_category_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
+            $before_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertTrue(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
+
+            update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY, $attachment_id);
+            $after_meta_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($before_meta_signature, $after_meta_signature);
+            $this->assertFalse(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
+            $this->assertSame(
+                $before_category_key,
+                ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id)
+            );
+
+            update_option($option_name, 'prompt-delete-a', false);
+            $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+            $before_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $deleted = wp_delete_attachment($attachment_id, true);
+            $this->assertInstanceOf(WP_Post::class, $deleted);
+            $after_delete_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0);
+            $this->assertNotSame($before_delete_signature, $after_delete_signature);
+            $this->assertTrue(ll_tools_prompt_card_needs_prompt_audio($prompt_card_id));
+            $this->assertSame(
+                $before_category_key,
+                ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id)
+            );
+        } finally {
+            if ($option_backup === null) {
+                delete_option($option_name);
+            } else {
+                update_option($option_name, $option_backup, false);
+            }
+            if ($had_state) {
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = $state_backup;
+            } else {
+                unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
+            }
+        }
+    }
+
+    public function test_summary_batch_accounts_for_every_requested_source_and_keeps_selected_recorder_urls(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Selected Batch Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $pending_category = $fixture['categories'][1];
+        for ($index = 2; $index <= 81; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $index === 2
+                    ? 'AAA Partial Batch Word'
+                    : sprintf('Pending Batch Word %03d', $index),
+            ]);
+            wp_set_post_terms($word_id, [(int) $pending_category['id']], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+
+        $pending_word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => -1,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [(int) $pending_category['id']],
+            ]],
+        ]);
+        $this->assertCount(81, $pending_word_ids);
+
+        $hidden_entries = [];
+        $visible_pending_word_ids = [];
+        foreach ($pending_word_ids as $word_id) {
+            $word_title = (string) get_the_title($word_id);
+            if ($word_title === 'AAA Partial Batch Word' || strpos($word_title, 'Bounded Queue Word') === 0) {
+                $visible_pending_word_ids[] = (int) $word_id;
+                continue;
+            }
+            $hide_key = 'word:' . (int) $word_id;
+            $hidden_entries[$hide_key] = [
+                'key' => $hide_key,
+                'word_id' => (int) $word_id,
+                'title' => $word_title,
+                'category_name' => (string) $pending_category['name'],
+                'category_slug' => (string) $pending_category['slug'],
+                'hidden_at' => gmdate('c'),
+            ];
+        }
+        $this->assertCount(2, $visible_pending_word_ids);
+        $this->assertCount(79, $hidden_entries);
+        $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, $hidden_entries));
+
+        $chunk_size = static function (): int {
+            return 40;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+
+        try {
+            $requested_slugs = array_column($fixture['categories'], 'slug');
+            $back_url = home_url('/manager-return/');
+            $payload = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+                $wordset_id,
+                $wordset_term,
+                $recorder_id,
+                $requested_slugs,
+                ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues', $back_url)
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+        }
+
+        $this->assertSame(2, (int) $payload['sourceTotal']);
+        $this->assertCount(1, $payload['cards']);
+        $this->assertSame((string) $fixture['categories'][0]['slug'], (string) $payload['cards'][0]['slug']);
+        $this->assertContains((string) $fixture['categories'][0]['slug'], $payload['resolvedSlugs']);
+        $this->assertSame([(string) $pending_category['slug']], $payload['pendingSlugs']);
+        $this->assertNotContains(
+            (string) $pending_category['slug'],
+            array_column((array) $payload['cards'], 'slug'),
+            'An incomplete category with partial card data must remain a loading placeholder.'
+        );
+
+        $accounted_slugs = array_values(array_unique(array_merge(
+            array_map('strval', (array) $payload['resolvedSlugs']),
+            array_map('strval', (array) $payload['pendingSlugs'])
+        )));
+        sort($accounted_slugs);
+        sort($requested_slugs);
+        $this->assertSame($requested_slugs, $accounted_slugs);
+
+        $card_html = (string) $payload['cards'][0]['html'];
+        $this->assertStringContainsString('ll_recorder_queue_focus=' . $recorder_id, $card_html);
+        $this->assertStringContainsString(
+            'll_recorder_queue_category=' . rawurlencode((string) $fixture['categories'][0]['slug']),
+            $card_html
+        );
+        $this->assertStringContainsString('ll_wordset_back=' . rawurlencode($back_url), $card_html);
+    }
+
     public function test_overview_pages_recorders_before_building_rows(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

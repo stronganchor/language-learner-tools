@@ -299,6 +299,79 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('#ll-wordset-category-create', $html);
     }
 
+    public function test_recorder_queue_overview_selects_one_recorder_and_exposes_every_assigned_recorder(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorders = [];
+        foreach (['Alpha Stream Recorder', 'Beta Stream Recorder', 'Gamma Stream Recorder'] as $display_name) {
+            $recorder_id = self::factory()->user->create([
+                'role' => 'audio_recorder',
+                'display_name' => $display_name,
+            ]);
+            update_user_meta($recorder_id, 'll_recording_config', [
+                'wordset' => (string) $wordset_term->slug,
+            ]);
+            $recorders[] = [
+                'id' => (int) $recorder_id,
+                'name' => $display_name,
+            ];
+        }
+
+        $_GET = [
+            'll_wordset_tool' => 'recorder-queues',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(
+            ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+        );
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $fallback_html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('data-ll-recorder-queue-switcher', $fallback_html);
+        $this->assertSame(1, substr_count($fallback_html, 'class="ll-wordset-settings-card ll-wordset-recorder-queue-card"'));
+        $this->assertStringContainsString('id="ll-recorder-queue-' . $recorders[0]['id'] . '"', $fallback_html);
+        $this->assertStringNotContainsString('id="ll-recorder-queue-' . $recorders[1]['id'] . '"', $fallback_html);
+        $this->assertStringNotContainsString('id="ll-recorder-queue-' . $recorders[2]['id'] . '"', $fallback_html);
+        foreach ($recorders as $recorder) {
+            $this->assertStringContainsString('value="' . $recorder['id'] . '"', $fallback_html);
+            $this->assertStringContainsString($recorder['name'], $fallback_html);
+        }
+        $this->assertMatchesRegularExpression(
+            '/<option(?=[^>]*value="' . preg_quote((string) $recorders[0]['id'], '/') . '")(?=[^>]*selected=[\'\"]selected[\'\"])[^>]*>/',
+            $fallback_html
+        );
+
+        $_GET['ll_recorder_queue_focus'] = (string) $recorders[1]['id'];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(add_query_arg(
+            'll_recorder_queue_focus',
+            (string) $recorders[1]['id'],
+            ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues')
+        ));
+
+        $requested_html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertSame(1, substr_count($requested_html, 'class="ll-wordset-settings-card ll-wordset-recorder-queue-card"'));
+        $this->assertStringContainsString('id="ll-recorder-queue-' . $recorders[1]['id'] . '"', $requested_html);
+        $this->assertStringNotContainsString('id="ll-recorder-queue-' . $recorders[0]['id'] . '"', $requested_html);
+        $this->assertStringNotContainsString('id="ll-recorder-queue-' . $recorders[2]['id'] . '"', $requested_html);
+        foreach ($recorders as $recorder) {
+            $this->assertStringContainsString('value="' . $recorder['id'] . '"', $requested_html);
+        }
+        $this->assertMatchesRegularExpression(
+            '/<option(?=[^>]*value="' . preg_quote((string) $recorders[1]['id'], '/') . '")(?=[^>]*selected=[\'\"]selected[\'\"])[^>]*>/',
+            $requested_html
+        );
+    }
+
     public function test_recorder_queue_tool_renders_visible_and_hidden_items_for_assigned_recorders(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

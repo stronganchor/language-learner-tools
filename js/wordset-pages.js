@@ -56,6 +56,9 @@
     const INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX = 240;
     const lazyCardsCfg = (cfg.lazyCards && typeof cfg.lazyCards === 'object') ? cfg.lazyCards : {};
     const categorySearchCfg = (cfg.categorySearch && typeof cfg.categorySearch === 'object') ? cfg.categorySearch : {};
+    const recorderQueueSummariesCfg = (cfg.recorderQueueSummaries && typeof cfg.recorderQueueSummaries === 'object')
+        ? cfg.recorderQueueSummaries
+        : {};
 
     let wordsByCategory = {};
     let candidateScopedWordsByCategory = {};
@@ -578,6 +581,18 @@
         template: '',
         count: 0
     };
+    const recorderQueueSummariesEnabled = !!recorderQueueSummariesCfg.enabled
+        && !!ajaxUrl
+        && String(recorderQueueSummariesCfg.nonce || '') !== ''
+        && (parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0) > 0
+        && (parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0) > 0;
+    const recorderQueueSummaryBatchSize = Math.max(1, Math.min(20, parseInt(recorderQueueSummariesCfg.batchSize, 10) || 6));
+    const recorderQueueSummaryMaxAutoRetries = Math.max(1, Math.min(12, parseInt(recorderQueueSummariesCfg.maxAutoRetries, 10) || 6));
+    let recorderQueueSummaryRequest = null;
+    let recorderQueueSummaryObserver = null;
+    let recorderQueueSummaryRetryTimer = 0;
+    let recorderQueueSummaryReloadPending = false;
+    let recorderQueueSummaryReloadTimer = 0;
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -625,6 +640,11 @@
     const $lazyCardsStatus = $root.find('[data-ll-wordset-load-more-status]').first();
     const $lazyCardsPlaceholders = $root.find('[data-ll-wordset-load-more-placeholders]').first();
     const $lazyCardsSentinel = $root.find('[data-ll-wordset-load-more-sentinel]').first();
+    const $recorderQueueSummaryRoot = $root.find('[data-ll-recorder-queue-summary-root]').first();
+    const $recorderQueueSummaryGrid = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-grid]').first();
+    const $recorderQueueSummaryStatus = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-status]').first();
+    const $recorderQueueSummaryLoadMore = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-load-more]').first();
+    const $recorderQueueSummaryEmpty = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-empty]').first();
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
     const $selectionPriorityToggle = $root.find('[data-ll-wordset-selection-priority-only]');
@@ -15990,6 +16010,42 @@
         return payload;
     }
 
+    function recorderQueueAutosaveFormsAreSettled() {
+        let settled = true;
+        $root.find('[data-ll-recorder-queue-autosave]').each(function () {
+            const $form = $(this);
+            const state = getRecorderQueueAutosaveState($form);
+            if (
+                state.timer
+                || state.saving
+                || state.queued
+                || getRecorderQueueFormSignature($form) !== state.lastSavedSignature
+            ) {
+                settled = false;
+                return false;
+            }
+            return undefined;
+        });
+        return settled;
+    }
+
+    function maybeReloadRecorderQueueSummariesWhenSettled() {
+        if (!recorderQueueSummaryReloadPending) {
+            return;
+        }
+        if (recorderQueueSummaryReloadTimer) {
+            clearTimeout(recorderQueueSummaryReloadTimer);
+        }
+        recorderQueueSummaryReloadTimer = setTimeout(function () {
+            recorderQueueSummaryReloadTimer = 0;
+            if (!recorderQueueSummaryReloadPending || !recorderQueueAutosaveFormsAreSettled()) {
+                return;
+            }
+            recorderQueueSummaryReloadPending = false;
+            window.location.reload();
+        }, 80);
+    }
+
     function saveRecorderQueueAutosaveForm($form, options) {
         const opts = options && typeof options === 'object' ? options : {};
         const state = getRecorderQueueAutosaveState($form);
@@ -16006,6 +16062,7 @@
 
         if (!opts.force && signature === state.lastSavedSignature && !state.queued) {
             setRecorderQueueAutosaveStatus($form, '');
+            maybeReloadRecorderQueueSummariesWhenSettled();
             return $.Deferred().resolve().promise();
         }
 
@@ -16033,6 +16090,13 @@
 
                 succeeded = true;
                 state.lastSavedSignature = state.pendingSignature;
+                if (
+                    recorderQueueSummariesEnabled
+                    && response.data
+                    && String(response.data.result || '') === 'settings'
+                ) {
+                    recorderQueueSummaryReloadPending = true;
+                }
                 if (getRecorderQueueFormSignature($form) === state.lastSavedSignature) {
                     setRecorderQueueAutosaveStatus($form, 'saved');
                 } else {
@@ -16047,7 +16111,10 @@
                 if (succeeded && (state.queued || getRecorderQueueFormSignature($form) !== state.lastSavedSignature)) {
                     state.queued = false;
                     scheduleRecorderQueueAutosave($form, 20);
+                    maybeReloadRecorderQueueSummariesWhenSettled();
+                    return;
                 }
+                maybeReloadRecorderQueueSummariesWhenSettled();
             });
     }
 
@@ -16056,18 +16123,292 @@
 
         const state = getRecorderQueueAutosaveState($form);
         const signature = getRecorderQueueFormSignature($form);
+        if (state.timer) {
+            clearTimeout(state.timer);
+            state.timer = 0;
+        }
         if (signature === state.lastSavedSignature && !state.saving) {
             setRecorderQueueAutosaveStatus($form, '');
+            maybeReloadRecorderQueueSummariesWhenSettled();
             return;
         }
 
-        if (state.timer) {
-            clearTimeout(state.timer);
-        }
         setRecorderQueueAutosaveStatus($form, 'saving');
         state.timer = setTimeout(function () {
             saveRecorderQueueAutosaveForm($form);
         }, Math.max(0, parseInt(delay, 10) || 0));
+    }
+
+    function getRecorderQueueSummaryPlaceholders() {
+        if (!$recorderQueueSummaryGrid.length) {
+            return $();
+        }
+        return $recorderQueueSummaryGrid.find('[data-ll-recorder-queue-summary-placeholder]');
+    }
+
+    function getRecorderQueueSummaryPlaceholder(slug) {
+        const normalizedSlug = String(slug || '');
+        return getRecorderQueueSummaryPlaceholders().filter(function () {
+            return String($(this).attr('data-recorder-queue-category') || '') === normalizedSlug;
+        }).first();
+    }
+
+    function getRecorderQueueSummaryLoadedCount() {
+        if (!$recorderQueueSummaryGrid.length) {
+            return 0;
+        }
+        return $recorderQueueSummaryGrid
+            .find('.ll-wordset-recorder-queue-category-card')
+            .not('[data-ll-recorder-queue-summary-placeholder]')
+            .length;
+    }
+
+    function formatRecorderQueueSummaryLoadedCount(count) {
+        const template = String(i18n.recorderQueueLoadedCount || '');
+        return template.replace('%d', String(Math.max(0, parseInt(count, 10) || 0)));
+    }
+
+    function setRecorderQueueSummaryState(state, message) {
+        if (!$recorderQueueSummaryRoot.length) {
+            return;
+        }
+
+        const pendingCount = getRecorderQueueSummaryPlaceholders().length;
+        const loadedCount = getRecorderQueueSummaryLoadedCount();
+        const cleanState = String(state || '');
+        let statusMessage = String(message || '');
+        if (!statusMessage) {
+            if (cleanState === 'loading') {
+                statusMessage = String(i18n.recorderQueueLoading || '');
+            } else if (cleanState === 'error') {
+                statusMessage = String(i18n.recorderQueueLoadError || i18n.saveError || '');
+            } else if (pendingCount === 0) {
+                statusMessage = String(i18n.recorderQueueLoadedAll || '');
+            } else {
+                statusMessage = formatRecorderQueueSummaryLoadedCount(loadedCount);
+            }
+        }
+
+        $recorderQueueSummaryRoot
+            .toggleClass('is-loading', cleanState === 'loading')
+            .toggleClass('has-load-error', cleanState === 'error')
+            .attr('aria-busy', cleanState === 'loading' || (pendingCount > 0 && cleanState !== 'error') ? 'true' : 'false');
+        if ($recorderQueueSummaryStatus.length) {
+            $recorderQueueSummaryStatus.text(statusMessage);
+        }
+        if ($recorderQueueSummaryLoadMore.length) {
+            $recorderQueueSummaryLoadMore
+                .text(String(i18n.recorderQueueLoadMore || ''))
+                .prop('disabled', cleanState === 'loading')
+                .prop('hidden', pendingCount === 0);
+        }
+        if ($recorderQueueSummaryEmpty.length) {
+            $recorderQueueSummaryEmpty.prop('hidden', pendingCount > 0 || loadedCount > 0);
+        }
+        $root.find('[data-ll-recorder-queue-summary-count]').text(formatRecorderQueueSummaryLoadedCount(loadedCount));
+    }
+
+    function recorderQueueSummaryElementIsNearViewport(element) {
+        if (!element || typeof element.getBoundingClientRect !== 'function') {
+            return false;
+        }
+        const rect = element.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        return rect.top <= viewportHeight + 720 && rect.bottom >= -720;
+    }
+
+    function observeNextRecorderQueueSummaryPlaceholder() {
+        if (recorderQueueSummaryObserver) {
+            recorderQueueSummaryObserver.disconnect();
+        }
+        const nextPlaceholder = getRecorderQueueSummaryPlaceholders().first().get(0);
+        if (!nextPlaceholder || recorderQueueSummaryRequest) {
+            return;
+        }
+
+        if (typeof window.IntersectionObserver !== 'function') {
+            setRecorderQueueSummaryState('idle');
+            return;
+        }
+        if (!recorderQueueSummaryObserver) {
+            recorderQueueSummaryObserver = new window.IntersectionObserver(function (entries) {
+                if (entries.some(function (entry) { return entry && entry.isIntersecting; })) {
+                    requestRecorderQueueSummaryBatch();
+                }
+            }, {
+                root: null,
+                rootMargin: '720px 0px',
+                threshold: 0.01
+            });
+        }
+        recorderQueueSummaryObserver.observe(nextPlaceholder);
+    }
+
+    function requestRecorderQueueSummaryBatch(options) {
+        const opts = options && typeof options === 'object' ? options : {};
+        if (!recorderQueueSummariesEnabled || !$recorderQueueSummaryRoot.length || recorderQueueSummaryRequest) {
+            return;
+        }
+
+        const $pending = getRecorderQueueSummaryPlaceholders().filter(function () {
+            return String($(this).attr('data-ll-recorder-queue-summary-loading') || '') !== 'true';
+        }).slice(0, recorderQueueSummaryBatchSize);
+        if (!$pending.length) {
+            setRecorderQueueSummaryState('idle');
+            return;
+        }
+
+        const slugs = [];
+        $pending.each(function () {
+            const $placeholder = $(this);
+            if (opts.resetRetries) {
+                $placeholder.removeAttr('data-ll-recorder-queue-summary-retries');
+            }
+            const slug = String($placeholder.attr('data-recorder-queue-category') || '');
+            if (slug) {
+                slugs.push(slug);
+                $placeholder.attr('data-ll-recorder-queue-summary-loading', 'true');
+            }
+        });
+        if (!slugs.length) {
+            setRecorderQueueSummaryState('idle');
+            return;
+        }
+
+        if (recorderQueueSummaryObserver) {
+            recorderQueueSummaryObserver.disconnect();
+        }
+        if (recorderQueueSummaryRetryTimer) {
+            clearTimeout(recorderQueueSummaryRetryTimer);
+            recorderQueueSummaryRetryTimer = 0;
+        }
+        setRecorderQueueSummaryState('loading');
+
+        let retryPendingAutomatically = false;
+        let pauseAutomaticLoading = false;
+        recorderQueueSummaryRequest = $.post(ajaxUrl, {
+            action: 'll_tools_wordset_recorder_queue_summaries',
+            nonce: String(recorderQueueSummariesCfg.nonce || ''),
+            wordset_id: parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0,
+            recorder_user_id: parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0,
+            generation: String(recorderQueueSummariesCfg.generation || ''),
+            back_url: String(recorderQueueSummariesCfg.backUrl || ''),
+            category_slugs: slugs
+        }).done(function (response) {
+            if (!response || !response.success || !response.data) {
+                pauseAutomaticLoading = true;
+                slugs.forEach(function (slug) {
+                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                });
+                setRecorderQueueSummaryState('error');
+                return;
+            }
+
+            const data = response.data;
+            const requestedGeneration = String(recorderQueueSummariesCfg.generation || '');
+            const responseGeneration = String(data.generation || '');
+            if (requestedGeneration && responseGeneration && responseGeneration !== requestedGeneration) {
+                pauseAutomaticLoading = true;
+                slugs.forEach(function (slug) {
+                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                });
+                setRecorderQueueSummaryState('error');
+                recorderQueueSummaryReloadPending = true;
+                maybeReloadRecorderQueueSummariesWhenSettled();
+                return;
+            }
+            const cardSlugs = {};
+            (Array.isArray(data.cards) ? data.cards : []).forEach(function (card) {
+                const slug = String(card && card.slug || '');
+                const html = String(card && card.html || '');
+                if (!slug || !html) {
+                    return;
+                }
+                const $placeholder = getRecorderQueueSummaryPlaceholder(slug);
+                if (!$placeholder.length) {
+                    return;
+                }
+                cardSlugs[slug] = true;
+                $placeholder.replaceWith(html);
+            });
+
+            (Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : []).forEach(function (slug) {
+                const normalizedSlug = String(slug || '');
+                if (!normalizedSlug || cardSlugs[normalizedSlug]) {
+                    return;
+                }
+                getRecorderQueueSummaryPlaceholder(normalizedSlug).remove();
+            });
+
+            const pendingLookup = {};
+            (Array.isArray(data.pendingSlugs) ? data.pendingSlugs : []).forEach(function (slug) {
+                const normalizedSlug = String(slug || '');
+                if (normalizedSlug) {
+                    pendingLookup[normalizedSlug] = true;
+                }
+            });
+            slugs.forEach(function (slug) {
+                const $placeholder = getRecorderQueueSummaryPlaceholder(slug);
+                if (!$placeholder.length) {
+                    return;
+                }
+                $placeholder.removeAttr('data-ll-recorder-queue-summary-loading');
+                if (!pendingLookup[slug]) {
+                    return;
+                }
+                const retries = Math.max(0, parseInt($placeholder.attr('data-ll-recorder-queue-summary-retries'), 10) || 0) + 1;
+                $placeholder.attr('data-ll-recorder-queue-summary-retries', String(retries));
+                if (retries <= recorderQueueSummaryMaxAutoRetries) {
+                    retryPendingAutomatically = true;
+                } else {
+                    pauseAutomaticLoading = true;
+                }
+            });
+
+            setRecorderQueueSummaryState(pauseAutomaticLoading ? 'error' : 'idle');
+        }).fail(function () {
+            pauseAutomaticLoading = true;
+            slugs.forEach(function (slug) {
+                getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+            });
+            setRecorderQueueSummaryState('error');
+        }).always(function () {
+            recorderQueueSummaryRequest = null;
+            if (pauseAutomaticLoading) {
+                return;
+            }
+            if (retryPendingAutomatically) {
+                const nextPlaceholder = getRecorderQueueSummaryPlaceholders().first().get(0);
+                if (recorderQueueSummaryElementIsNearViewport(nextPlaceholder)) {
+                    recorderQueueSummaryRetryTimer = setTimeout(function () {
+                        recorderQueueSummaryRetryTimer = 0;
+                        requestRecorderQueueSummaryBatch();
+                    }, 180);
+                    return;
+                }
+            }
+            observeNextRecorderQueueSummaryPlaceholder();
+        });
+    }
+
+    function bindRecorderQueueSummaryInteractions() {
+        $root.on('change', '[data-ll-recorder-queue-switcher]', function () {
+            const url = String($(this).find('option:selected').attr('data-url') || '');
+            if (url) {
+                window.location.assign(url);
+            }
+        });
+
+        if (!recorderQueueSummariesEnabled || !$recorderQueueSummaryRoot.length) {
+            return;
+        }
+        $root.on('click', '[data-ll-recorder-queue-summary-load-more]', function () {
+            requestRecorderQueueSummaryBatch({ resetRetries: true });
+        });
+        setRecorderQueueSummaryState('idle');
+        if (getRecorderQueueSummaryPlaceholders().length) {
+            requestRecorderQueueSummaryBatch();
+        }
     }
 
     function bindRecorderQueueAutosaveInteractions() {
@@ -16106,6 +16447,7 @@
         syncGlobalPrefs();
         renderSettingsQueue();
         bindWordsetEditorInteractions();
+        bindRecorderQueueSummaryInteractions();
         bindRecorderQueueAutosaveInteractions();
         scheduleUniformQueueItemWidth();
         $(window).off('resize.llWordsetQueueWidth').on('resize.llWordsetQueueWidth', function () {

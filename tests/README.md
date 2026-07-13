@@ -242,7 +242,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/performance-benchmark.spec.js`
   - Opt-in benchmark for static `ll-perf-small`, `ll-perf-medium`, and `ll-perf-large` fixtures. It records medians for seeded learn-grid, wordset, progress, games, search, and quiz-popup scenarios, then compares them with the previous matching JSONL history record.
 - `tests/e2e/specs/wordset-manager-settings-ui.spec.js`
-  - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table and full-width recording details.
+  - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table and full-width recording details. Recorder-queue coverage also checks selected-recorder switching, shimmer placeholders, bounded ordered summary batches, resolved-empty category removal, and the absence of misleading numbered overview pages.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
