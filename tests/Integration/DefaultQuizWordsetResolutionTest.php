@@ -221,4 +221,54 @@ final class DefaultQuizWordsetResolutionTest extends LL_Tools_TestCase
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
     }
+
+    public function test_invalid_legacy_embed_lookup_is_bounded_and_negative_result_is_cached(): void
+    {
+        global $wpdb;
+
+        $wordset = wp_insert_term('Large Legacy Catalog', 'wordset', [
+            'slug' => 'large-legacy-catalog',
+        ]);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        for ($index = 1; $index <= 200; $index++) {
+            $category = wp_insert_term('Unrelated Legacy Category ' . $index, 'word-category', [
+                'slug' => 'unrelated-legacy-' . $index . '--large-legacy-catalog',
+            ]);
+            $this->assertIsArray($category);
+            ll_tools_set_category_wordset_owner((int) $category['term_id'], $wordset_id, (int) $category['term_id']);
+        }
+
+        $queries = [];
+        $capture_query = static function (string $query) use (&$queries, $wpdb): string {
+            if (
+                stripos($query, (string) $wpdb->terms) !== false
+                && stripos($query, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY) !== false
+                && stripos($query, 'terms.slug LIKE') !== false
+            ) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+        $candidate_limit = static function (): int {
+            return 7;
+        };
+
+        add_filter('query', $capture_query);
+        add_filter('ll_tools_legacy_embed_candidate_limit', $candidate_limit);
+
+        try {
+            $this->assertNull(ll_tools_resolve_legacy_embed_isolated_category('missing-legacy', null, 1));
+            $this->assertNull(ll_tools_resolve_legacy_embed_isolated_category('missing-legacy', null, 1));
+        } finally {
+            remove_filter('ll_tools_legacy_embed_candidate_limit', $candidate_limit);
+            remove_filter('query', $capture_query);
+        }
+
+        $this->assertCount(1, $queries, 'The repeated miss should use the cached empty candidate list.');
+        $this->assertStringContainsString('LIMIT 7', $queries[0]);
+        $this->assertStringContainsString("missing-legacy-%", $queries[0]);
+        $this->assertStringNotContainsString('get_terms', strtolower($queries[0]));
+    }
 }

@@ -532,6 +532,86 @@ function ll_tools_get_quiz_title_for_term($term, bool $include_site_name = false
 }
 
 /**
+ * Return the maximum legacy embed category candidates inspected per request.
+ */
+function ll_tools_legacy_embed_candidate_limit(): int {
+    $limit = (int) apply_filters('ll_tools_legacy_embed_candidate_limit', 25);
+    return min(100, max(1, $limit));
+}
+
+/**
+ * Find a bounded list of owned categories whose slug extends a legacy embed slug.
+ *
+ * The prefix predicate can use the terms.slug index and avoids hydrating every
+ * isolated category. Empty lists are cached too, which also avoids repeating a
+ * lookup when context resolution reaches the compatibility fallback twice.
+ *
+ * @return int[]
+ */
+function ll_tools_get_legacy_embed_candidate_ids(string $legacy_slug, int $wordset_id = 0): array {
+    global $wpdb;
+
+    $legacy_slug = sanitize_title($legacy_slug);
+    $wordset_id = max(0, $wordset_id);
+    if ($legacy_slug === '' || !defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+        return [];
+    }
+
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $cache_key = 'legacy_embed_candidates:' . md5(implode('|', [
+        $legacy_slug,
+        (string) $wordset_id,
+        (string) $category_epoch,
+        (string) ll_tools_legacy_embed_candidate_limit(),
+    ]));
+    $cache_found = false;
+    $cached = wp_cache_get($cache_key, 'll_tools_quiz_pages', false, $cache_found);
+    if ($cache_found && is_array($cached)) {
+        return array_values(array_filter(array_map('intval', $cached)));
+    }
+
+    $query = "
+        SELECT STRAIGHT_JOIN terms.term_id
+        FROM {$wpdb->terms} AS terms
+        INNER JOIN {$wpdb->term_taxonomy} AS taxonomy
+            ON taxonomy.term_id = terms.term_id
+            AND taxonomy.taxonomy = %s
+        INNER JOIN {$wpdb->termmeta} AS owner_meta
+            ON owner_meta.term_id = terms.term_id
+            AND owner_meta.meta_key = %s
+        WHERE terms.slug LIKE %s
+            AND CAST(owner_meta.meta_value AS UNSIGNED) > 0
+    ";
+    $query_args = [
+        'word-category',
+        LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+        $wpdb->esc_like($legacy_slug . '-') . '%',
+    ];
+
+    if ($wordset_id > 0) {
+        $query .= ' AND owner_meta.meta_value = %s';
+        $query_args[] = (string) $wordset_id;
+        $query .= ' ORDER BY terms.term_id ASC';
+    } else {
+        $query .= ' ORDER BY CAST(owner_meta.meta_value AS UNSIGNED) ASC, terms.term_id ASC';
+    }
+
+    $query .= ' LIMIT %d';
+    $query_args[] = ll_tools_legacy_embed_candidate_limit();
+
+    $prepared_query = $wpdb->prepare($query, $query_args);
+    $candidate_ids = is_string($prepared_query)
+        ? $wpdb->get_col($prepared_query)
+        : [];
+    $candidate_ids = array_values(array_filter(array_map('intval', (array) $candidate_ids)));
+
+    wp_cache_set($cache_key, $candidate_ids, 'll_tools_quiz_pages', 5 * MINUTE_IN_SECONDS);
+    return $candidate_ids;
+}
+
+/**
  * Resolve a wordset-owned category whose current slug was derived from an old
  * embed slug after the original source category is no longer resolvable.
  *
@@ -546,29 +626,11 @@ function ll_tools_resolve_legacy_embed_isolated_category(string $embed_category,
         return null;
     }
 
-    $owner_query = [
-        'key'     => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
-        'compare' => 'EXISTS',
-    ];
-    if ($wordset_term instanceof WP_Term) {
-        $owner_query = [
-            'key'     => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
-            'value'   => (int) $wordset_term->term_id,
-            'compare' => '=',
-            'type'    => 'NUMERIC',
-        ];
-    }
-
-    $terms = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'fields'     => 'all',
-        'orderby'    => 'term_id',
-        'order'      => 'ASC',
-        'meta_query' => [$owner_query],
-    ]);
-
-    if (is_wp_error($terms) || empty($terms)) {
+    $owner_wordset_id = $wordset_term instanceof WP_Term
+        ? (int) $wordset_term->term_id
+        : 0;
+    $candidate_ids = ll_tools_get_legacy_embed_candidate_ids($legacy_slug, $owner_wordset_id);
+    if (empty($candidate_ids)) {
         return null;
     }
 
@@ -580,7 +642,8 @@ function ll_tools_resolve_legacy_embed_isolated_category(string $embed_category,
     $best_owner_wordset_id = 0;
     $best_term_id = 0;
 
-    foreach ($terms as $term) {
+    foreach ($candidate_ids as $candidate_id) {
+        $term = get_term((int) $candidate_id, 'word-category');
         if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
             continue;
         }
