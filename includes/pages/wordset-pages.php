@@ -7287,6 +7287,12 @@ function ll_tools_wordset_page_manager_offline_export_notice(): ?array {
             'message' => __('Offline app export is ready to download.', 'll-tools-text-domain'),
         ];
     }
+    if ($status === 'queued') {
+        return [
+            'type' => 'success',
+            'message' => __('Offline app export started. Progress is shown below.', 'll-tools-text-domain'),
+        ];
+    }
 
     $message = isset($_GET['ll_wordset_manager_offline_export_message'])
         ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_offline_export_message']))
@@ -8019,6 +8025,90 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
 }
 add_action('template_redirect', 'll_tools_wordset_page_handle_manager_settings_action', 6);
 
+function ll_tools_wordset_page_validate_manager_offline_export_request(WP_Term $wordset_term, array $request) {
+    $wordset_id = (int) $wordset_term->term_id;
+    $submitted_wordset_id = isset($request['ll_wordset_manager_offline_wordset_id'])
+        ? (int) wp_unslash((string) $request['ll_wordset_manager_offline_wordset_id'])
+        : 0;
+    if ($submitted_wordset_id !== $wordset_id) {
+        return new WP_Error('wordset', __('Select a valid word set to export.', 'll-tools-text-domain'));
+    }
+
+    $can_manage_wordset = function_exists('ll_tools_current_user_can_manage_wordset_content')
+        ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
+        : current_user_can('manage_options');
+    $can_export_offline_app = function_exists('ll_tools_current_user_can_offline_app_export')
+        ? ll_tools_current_user_can_offline_app_export()
+        : current_user_can('manage_options');
+    if (!$can_manage_wordset || !$can_export_offline_app) {
+        return new WP_Error('permission', __('You do not have permission to export offline apps for this word set.', 'll-tools-text-domain'));
+    }
+
+    $nonce = isset($request['ll_wordset_manager_offline_nonce'])
+        ? wp_unslash((string) $request['ll_wordset_manager_offline_nonce'])
+        : '';
+    if (!wp_verify_nonce($nonce, 'll_wordset_manager_offline_export_' . $wordset_id)) {
+        return new WP_Error('nonce', __('The offline app export request expired. Refresh the page and try again.', 'll-tools-text-domain'));
+    }
+
+    if (!class_exists('ZipArchive')) {
+        return new WP_Error('ziparchive', __('ZipArchive is not available on this server.', 'll-tools-text-domain'));
+    }
+
+    return true;
+}
+
+function ll_tools_wordset_page_get_manager_offline_export_job(string $token, int $wordset_id) {
+    $token = sanitize_text_field($token);
+    if ($token === '' || !function_exists('ll_tools_offline_app_export_load_job')) {
+        return new WP_Error('missing_job', __('The offline app export could not be found.', 'll-tools-text-domain'));
+    }
+
+    $job = ll_tools_offline_app_export_load_job($token);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+
+    $job_wordset_id = (int) (($job['options'] ?? [])['wordset_id'] ?? 0);
+    if ($job_wordset_id !== $wordset_id) {
+        return new WP_Error('permission', __('That offline app export belongs to another word set.', 'll-tools-text-domain'));
+    }
+
+    return $job;
+}
+
+function ll_tools_wordset_page_prepare_manager_offline_export_job(WP_Term $wordset_term, array $request) {
+    $valid = ll_tools_wordset_page_validate_manager_offline_export_request($wordset_term, $request);
+    if (is_wp_error($valid)) {
+        return $valid;
+    }
+    if (!function_exists('ll_tools_offline_app_export_prepare_job')) {
+        return new WP_Error('missing_exporter', __('Offline app export is not available right now.', 'll-tools-text-domain'));
+    }
+
+    return ll_tools_offline_app_export_prepare_job($request);
+}
+
+function ll_tools_wordset_page_continue_manager_offline_export_job(WP_Term $wordset_term, array $request) {
+    $valid = ll_tools_wordset_page_validate_manager_offline_export_request($wordset_term, $request);
+    if (is_wp_error($valid)) {
+        return $valid;
+    }
+
+    $token = isset($request['ll_wordset_manager_offline_job_token'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_wordset_manager_offline_job_token']))
+        : '';
+    $job = ll_tools_wordset_page_get_manager_offline_export_job($token, (int) $wordset_term->term_id);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+    if (!function_exists('ll_tools_offline_app_export_run_step')) {
+        return new WP_Error('missing_exporter', __('Offline app export is not available right now.', 'll-tools-text-domain'));
+    }
+
+    return ll_tools_offline_app_export_run_step($token);
+}
+
 function ll_tools_wordset_page_handle_manager_offline_app_export_action(): void {
     if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
         return;
@@ -8030,7 +8120,7 @@ function ll_tools_wordset_page_handle_manager_offline_app_export_action(): void 
     $action = isset($_POST['ll_wordset_manager_offline_export_action'])
         ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_manager_offline_export_action']))
         : '';
-    if ($action !== 'export') {
+    if (!in_array($action, ['export', 'continue'], true)) {
         return;
     }
 
@@ -8040,12 +8130,6 @@ function ll_tools_wordset_page_handle_manager_offline_app_export_action(): void 
     }
 
     $wordset_id = (int) $wordset_term->term_id;
-    $submitted_wordset_id = isset($_POST['ll_wordset_manager_offline_wordset_id'])
-        ? (int) wp_unslash((string) $_POST['ll_wordset_manager_offline_wordset_id'])
-        : 0;
-    $nonce = isset($_POST['ll_wordset_manager_offline_nonce'])
-        ? wp_unslash((string) $_POST['ll_wordset_manager_offline_nonce'])
-        : '';
     $base_redirect = ll_tools_get_wordset_settings_tool_url(
         $wordset_term,
         'offline-app',
@@ -8063,64 +8147,23 @@ function ll_tools_wordset_page_handle_manager_offline_app_export_action(): void 
         exit;
     };
 
-    if ($submitted_wordset_id !== $wordset_id) {
-        $redirect_error('wordset');
+    $result = $action === 'continue'
+        ? ll_tools_wordset_page_continue_manager_offline_export_job($wordset_term, $_POST)
+        : ll_tools_wordset_page_prepare_manager_offline_export_job($wordset_term, $_POST);
+    if (is_wp_error($result)) {
+        $redirect_error(sanitize_key($result->get_error_code()), $result->get_error_message());
     }
 
-    $can_manage_wordset = function_exists('ll_tools_current_user_can_manage_wordset_content')
-        ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
-        : current_user_can('manage_options');
-    $can_export_offline_app = function_exists('ll_tools_current_user_can_offline_app_export')
-        ? ll_tools_current_user_can_offline_app_export()
-        : current_user_can('manage_options');
-
-    if (!$can_manage_wordset || !$can_export_offline_app) {
-        $redirect_error('permission');
+    $token = sanitize_text_field((string) ($result['token'] ?? ''));
+    if ($token === '') {
+        $redirect_error('missing_job', __('The offline app export could not be started.', 'll-tools-text-domain'));
     }
 
-    if (!wp_verify_nonce($nonce, 'll_wordset_manager_offline_export_' . $wordset_id)) {
-        $redirect_error('nonce');
-    }
-
-    if (!class_exists('ZipArchive')) {
-        $redirect_error('ziparchive');
-    }
-
-    $bundle_options = function_exists('ll_tools_offline_app_parse_export_request')
-        ? ll_tools_offline_app_parse_export_request($_POST)
-        : new WP_Error('ll_tools_offline_app_missing_parser', __('Offline app export is not available right now.', 'll-tools-text-domain'));
-    if (is_wp_error($bundle_options)) {
-        $redirect_error(sanitize_key($bundle_options->get_error_code()), $bundle_options->get_error_message());
-    }
-
-    $bundle = function_exists('ll_tools_build_offline_app_bundle')
-        ? ll_tools_build_offline_app_bundle($bundle_options)
-        : new WP_Error('ll_tools_offline_app_missing_builder', __('Offline app export is not available right now.', 'll-tools-text-domain'));
-    if (is_wp_error($bundle)) {
-        $redirect_error(sanitize_key($bundle->get_error_code()), $bundle->get_error_message());
-    }
-
-    $zip_path = (string) ($bundle['zip_path'] ?? '');
-    $staging_dir = (string) ($bundle['staging_dir'] ?? '');
-    $filename = (string) ($bundle['filename'] ?? 'll-tools-offline-app.zip');
-
-    if ($zip_path === '' || !is_file($zip_path)) {
-        if ($staging_dir !== '' && is_dir($staging_dir)) {
-            ll_tools_rrmdir($staging_dir);
-        }
-        $redirect_error('missing_zip', __('Offline app export did not produce a zip file.', 'll-tools-text-domain'));
-    }
-
-    register_shutdown_function(static function () use ($zip_path, $staging_dir): void {
-        if ($zip_path !== '' && is_file($zip_path)) {
-            @unlink($zip_path);
-        }
-        if ($staging_dir !== '' && is_dir($staging_dir)) {
-            ll_tools_rrmdir($staging_dir);
-        }
-    });
-
-    ll_tools_stream_download_file($zip_path, $filename, 'application/zip');
+    wp_safe_redirect(add_query_arg([
+        'll_offline_job' => $token,
+        'll_wordset_manager_offline_export' => (string) ($result['status'] ?? '') === 'completed' ? 'ok' : 'queued',
+    ], $base_redirect));
+    exit;
 }
 add_action('template_redirect', 'll_tools_wordset_page_handle_manager_offline_app_export_action', 6);
 
@@ -18370,10 +18413,42 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
         : '';
     $has_exportable_categories = !empty($category_options);
     $can_submit = ($zip_available && $has_exportable_categories);
+    $current_job = null;
+    $requested_job_token = isset($_GET['ll_offline_job'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_offline_job']))
+        : '';
+    if ($requested_job_token !== '') {
+        $loaded_job = ll_tools_wordset_page_get_manager_offline_export_job($requested_job_token, $wordset_id);
+        if (is_array($loaded_job) && function_exists('ll_tools_offline_app_export_build_response')) {
+            $current_job = ll_tools_offline_app_export_build_response($loaded_job);
+        }
+    }
+
+    ll_enqueue_asset_by_timestamp(
+        '/js/wordset-offline-export.js',
+        'll-wordset-offline-export-js',
+        [],
+        true
+    );
+    ll_enqueue_asset_by_timestamp(
+        '/css/wordset-offline-export.css',
+        'll-wordset-offline-export-css'
+    );
+    wp_localize_script('ll-wordset-offline-export-js', 'llWordsetOfflineExportData', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'startAction' => 'll_tools_offline_app_export_start',
+        'stepAction' => 'll_tools_offline_app_export_step',
+        'nonce' => wp_create_nonce('ll_tools_offline_app_export_job'),
+        'currentJob' => $current_job,
+        'strings' => [
+            'requestFailed' => __('The export request failed. Resume the job to continue from its last completed batch.', 'll-tools-text-domain'),
+            'paused' => __('Offline app export paused', 'll-tools-text-domain'),
+        ],
+    ]);
 
     ob_start();
     ?>
-    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page data-ll-wordset-offline-export>
         <div class="ll-wordset-settings-card">
             <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Offline app bundle', 'll-tools-text-domain'); ?></h2>
             <p class="description">
@@ -18386,7 +18461,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
                 <p class="ll-wordset-settings-empty"><?php echo esc_html__('This word set does not have any categories with published words available for offline export yet.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
 
-            <form method="post" action="<?php echo esc_url($action_url); ?>">
+            <form method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-offline-export-form>
                 <input type="hidden" name="ll_wordset_manager_offline_export_action" value="export" />
                 <input type="hidden" name="ll_wordset_manager_offline_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
                 <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
@@ -18394,6 +18469,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
                 <input type="hidden" name="ll_wordset_view" value="settings" />
                 <input type="hidden" name="ll_wordset_tool" value="offline-app" />
                 <input type="hidden" name="ll_offline_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_offline_category_scope" value="custom" />
                 <?php wp_nonce_field('ll_wordset_manager_offline_export_' . $wordset_id, 'll_wordset_manager_offline_nonce'); ?>
 
                 <div class="ll-wordset-settings-card__group">
@@ -18507,10 +18583,48 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
                     </p>
                     <p class="description"><?php echo esc_html__('The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress.', 'll-tools-text-domain'); ?></p>
                     <div style="margin-top:10px;">
-                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button" <?php disabled(!$can_submit); ?>><?php echo esc_html__('Export Offline App', 'll-tools-text-domain'); ?></button>
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-wordset-offline-export-submit <?php disabled(!$can_submit); ?>><?php echo esc_html__('Export Offline App', 'll-tools-text-domain'); ?></button>
                     </div>
                 </div>
             </form>
+
+            <?php
+            $current_status = is_array($current_job) ? (string) ($current_job['status'] ?? '') : '';
+            $current_progress = is_array($current_job) ? max(0, min(100, (int) ($current_job['progress'] ?? 0))) : 0;
+            $current_download_url = is_array($current_job) ? (string) ($current_job['downloadUrl'] ?? '') : '';
+            $current_error = is_array($current_job) ? (string) ($current_job['error'] ?? '') : '';
+            ?>
+            <div
+                class="ll-wordset-offline-export-job"
+                data-ll-wordset-offline-export-job
+                <?php echo is_array($current_job) ? '' : ' hidden'; ?>
+            >
+                <h3 class="ll-wordset-settings-card__subtitle" data-ll-wordset-offline-export-phase><?php echo esc_html(is_array($current_job) ? (string) ($current_job['phaseLabel'] ?? '') : ''); ?></h3>
+                <p class="description" data-ll-wordset-offline-export-status role="status" aria-live="polite"><?php echo esc_html(is_array($current_job) ? (string) ($current_job['statusText'] ?? '') : ''); ?></p>
+                <progress class="ll-wordset-offline-export-job__progress" data-ll-wordset-offline-export-progress max="100" value="<?php echo esc_attr($current_progress); ?>"><?php echo esc_html($current_progress); ?>%</progress>
+                <p class="ll-wordset-offline-export-job__error" data-ll-wordset-offline-export-error role="alert" <?php echo ($current_status === 'failed' && $current_error !== '') ? '' : ' hidden'; ?>><?php echo esc_html($current_error); ?></p>
+                <div class="ll-wordset-offline-export-job__actions">
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-wordset-offline-export-resume hidden><?php echo esc_html__('Resume export', 'll-tools-text-domain'); ?></button>
+                    <a
+                        class="ll-study-btn ll-vocab-lesson-mode-button"
+                        data-ll-wordset-offline-export-download
+                        href="<?php echo esc_url($current_download_url); ?>"
+                        <?php echo ($current_status === 'completed' && $current_download_url !== '') ? '' : ' hidden'; ?>
+                    ><?php echo esc_html__('Download Offline App Bundle', 'll-tools-text-domain'); ?></a>
+                </div>
+            </div>
+
+            <?php if (is_array($current_job) && in_array($current_status, ['queued', 'processing'], true)) : ?>
+                <noscript>
+                    <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-offline-export-job__fallback">
+                        <input type="hidden" name="ll_wordset_manager_offline_export_action" value="continue" />
+                        <input type="hidden" name="ll_wordset_manager_offline_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                        <input type="hidden" name="ll_wordset_manager_offline_job_token" value="<?php echo esc_attr((string) ($current_job['token'] ?? '')); ?>" />
+                        <?php wp_nonce_field('ll_wordset_manager_offline_export_' . $wordset_id, 'll_wordset_manager_offline_nonce'); ?>
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Continue export', 'll-tools-text-domain'); ?></button>
+                    </form>
+                </noscript>
+            <?php endif; ?>
         </div>
     </section>
     <?php

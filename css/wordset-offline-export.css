@@ -1,0 +1,30 @@
+[data-ll-wordset-offline-export] .ll-wordset-offline-export-job {
+    border-top: 1px solid #dcdcde;
+    margin-top: 20px;
+    padding-top: 18px;
+}
+
+[data-ll-wordset-offline-export] .ll-wordset-offline-export-job__progress {
+    accent-color: #2271b1;
+    display: block;
+    height: 12px;
+    margin: 12px 0;
+    width: 100%;
+}
+
+[data-ll-wordset-offline-export] .ll-wordset-offline-export-job__error {
+    color: #b32d2e;
+    font-weight: 600;
+}
+
+[data-ll-wordset-offline-export] .ll-wordset-offline-export-job__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+[data-ll-wordset-offline-export] .ll-wordset-offline-export-job__fallback {
+    margin-top: 12px;
+}

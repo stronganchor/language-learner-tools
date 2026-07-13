@@ -33,6 +33,110 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_wordset_manager_export_starts_and_resumes_the_owned_bounded_job(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for offline export job coverage.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $other_admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset = wp_insert_term('Manager Offline Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Manager Offline Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Manager Offline Word',
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        update_post_meta($word_id, 'word_translation', 'Manager Offline Translation');
+
+        $options = ll_tools_offline_app_get_wordset_category_options($wordset_id);
+        $this->assertNotEmpty($options);
+        $export_category_id = (int) ($options[0]['id'] ?? 0);
+        $this->assertGreaterThan(0, $export_category_id);
+
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $request = [
+            'll_wordset_manager_offline_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_offline_nonce' => wp_create_nonce('ll_wordset_manager_offline_export_' . $wordset_id),
+            'll_offline_wordset_id' => (string) $wordset_id,
+            'll_offline_category_scope' => 'custom',
+            'll_offline_category_ids' => [(string) $export_category_id],
+            'll_offline_app_name' => 'Manager Offline App',
+            'll_offline_version_name' => '1.0.0',
+            'll_offline_version_code' => '1',
+            'll_offline_app_id_suffix' => 'tests.manager.offline',
+        ];
+
+        $full_builder_started = false;
+        $full_builder_listener = static function () use (&$full_builder_started): void {
+            $full_builder_started = true;
+        };
+        add_action('ll_tools_offline_app_full_builder_started', $full_builder_listener);
+
+        $token = '';
+        $original_get = $_GET;
+        try {
+            $start = ll_tools_wordset_page_prepare_manager_offline_export_job($wordset_term, $request);
+            $this->assertIsArray($start, is_wp_error($start) ? $start->get_error_message() : '');
+            $this->assertSame('queued', (string) ($start['status'] ?? ''));
+            $this->assertSame('categories', (string) ($start['phase'] ?? ''));
+            $this->assertFalse($full_builder_started, 'The manager start request must not invoke the full bundle builder.');
+            $token = (string) ($start['token'] ?? '');
+            $this->assertNotSame('', $token);
+
+            $step = ll_tools_wordset_page_continue_manager_offline_export_job($wordset_term, array_merge($request, [
+                'll_wordset_manager_offline_job_token' => $token,
+            ]));
+            $this->assertIsArray($step, is_wp_error($step) ? $step->get_error_message() : '');
+            $this->assertLessThanOrEqual(ll_tools_offline_app_export_category_batch_size(), (int) (($step['batch'] ?? [])['categories'] ?? 0));
+            $this->assertFalse($full_builder_started, 'The manager continuation must use the bounded job step.');
+
+            wp_set_current_user($other_admin_id);
+            $foreign_job = ll_tools_wordset_page_get_manager_offline_export_job($token, $wordset_id);
+            $this->assertWPError($foreign_job);
+            $this->assertSame('ll_tools_offline_app_job_forbidden', $foreign_job->get_error_code());
+
+            wp_set_current_user($admin_id);
+            $_GET['ll_offline_job'] = $token;
+            $html = ll_tools_wordset_page_render_settings_offline_app_tool(
+                $wordset_term,
+                $wordset_id,
+                '',
+                $options,
+                true
+            );
+            $this->assertStringContainsString('data-ll-wordset-offline-export-form', $html);
+            $this->assertStringContainsString('name="ll_offline_category_scope" value="custom"', $html);
+            $this->assertStringContainsString('data-ll-wordset-offline-export-job', $html);
+            $this->assertStringContainsString('data-ll-wordset-offline-export-progress', $html);
+            $this->assertStringContainsString('name="ll_wordset_manager_offline_job_token" value="' . esc_attr($token) . '"', $html);
+            $this->assertTrue(wp_script_is('ll-wordset-offline-export-js', 'enqueued'));
+            $this->assertTrue(wp_style_is('ll-wordset-offline-export-css', 'enqueued'));
+            $localized = (string) wp_scripts()->get_data('ll-wordset-offline-export-js', 'data');
+            $this->assertStringContainsString($token, $localized);
+        } finally {
+            $_GET = $original_get;
+            wp_set_current_user($admin_id);
+            remove_action('ll_tools_offline_app_full_builder_started', $full_builder_listener);
+            wp_dequeue_script('ll-wordset-offline-export-js');
+            wp_dequeue_style('ll-wordset-offline-export-css');
+            if ($token !== '') {
+                ll_tools_offline_app_export_delete_job($token);
+            }
+        }
+    }
+
     public function test_offline_app_category_options_are_filtered_to_selected_wordset_content(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
