@@ -19796,29 +19796,29 @@ function ll_tools_wordset_page_get_recorder_queue_summary_generation(
     string $exclude_types_csv = ''
 ): string {
     $categories = ll_tools_wordset_page_normalize_recorder_queue_summary_categories($categories);
-    ll_tools_wordset_page_prime_recorder_queue_summary_category_meta($categories);
-    $global_source_signature = ll_tools_wordset_page_get_recorder_queue_summary_global_source_signature($recorder_user_id);
-    $wordset_source_signature = ll_tools_wordset_page_get_recorder_queue_summary_wordset_source_signature($wordset_id);
-    $category_sources = array_values(array_map(static function (array $category) use ($recorder_user_id, $wordset_id, $global_source_signature, $wordset_source_signature): string {
-        return ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
-            $recorder_user_id,
-            $wordset_id,
-            $category,
-            $global_source_signature,
-            $wordset_source_signature
-        );
-    }, $categories));
+    $normalize_type_scope = static function (string $csv): array {
+        $slugs = ll_tools_wordset_page_recorder_queue_type_csv_to_slugs($csv);
+        $slugs = array_values(array_unique(array_filter(array_map('sanitize_key', $slugs))));
+        sort($slugs, SORT_STRING);
+        return $slugs;
+    };
 
     return md5((string) wp_json_encode([
-        'schema' => 2,
+        // This token protects the DOM shell/catalog shape. Per-category source
+        // signatures independently protect card freshness; including them here
+        // would restart a 200-category stream whenever unrelated content changes.
+        'schema' => 3,
         'wordset_id' => $wordset_id,
         'recorder_user_id' => $recorder_user_id,
-        'category_slugs' => array_values(array_map(static function (array $category): string {
-            return sanitize_title((string) ($category['slug'] ?? ''));
+        'categories' => array_values(array_map(static function (array $category): array {
+            return [
+                'id' => max(0, (int) ($category['id'] ?? 0)),
+                'name' => trim((string) ($category['name'] ?? '')),
+                'slug' => sanitize_title((string) ($category['slug'] ?? '')),
+            ];
         }, $categories)),
-        'include_types' => $include_types_csv,
-        'exclude_types' => $exclude_types_csv,
-        'category_sources' => $category_sources,
+        'include_types' => $normalize_type_scope($include_types_csv),
+        'exclude_types' => $normalize_type_scope($exclude_types_csv),
     ]));
 }
 

@@ -9,11 +9,19 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
     /** @var mixed */
     private $originalIsolationOption = null;
 
+    /** @var int|false */
+    private $wpLoadedCronPriority = false;
+
+    /** @var int|false */
+    private $shutdownCronPriority = false;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+        $this->wpLoadedCronPriority = has_action('wp_loaded', '_wp_cron');
+        $this->shutdownCronPriority = has_action('shutdown', '_wp_cron');
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         wp_set_current_user(0);
     }
@@ -43,6 +51,15 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
         delete_option(ll_tools_quiz_pages_catalog_option_name('lock', md5('ll-tools-quiz-pages-catalog-global-refresh')));
 
         unset($GLOBALS['ll_tools_quiz_pages_catalog_status']);
+
+        remove_action('wp_loaded', '_wp_cron', 20);
+        remove_action('shutdown', '_wp_cron', 10);
+        if ($this->wpLoadedCronPriority !== false) {
+            add_action('wp_loaded', '_wp_cron', (int) $this->wpLoadedCronPriority);
+        }
+        if ($this->shutdownCronPriority !== false) {
+            add_action('shutdown', '_wp_cron', (int) $this->shutdownCronPriority);
+        }
 
         if ($this->originalIsolationOption === null) {
             delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
@@ -181,6 +198,379 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             ]);
             $this->assertStringContainsString('<option value="' . esc_url((string) $item['permalink']) . '">', $dropdown_html);
         } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_refresh_uses_the_catalog_chunk_instead_of_per_category_database_transients(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        $derived_transient_options = [];
+        $capture_option_name = static function (string $option_name) use (&$derived_transient_options): void {
+            if (preg_match('/^_transient_(?:timeout_)?(?:ll_wc_(?:words|gender)_count_|ll_fc_proc_cats_|ll_tools_(?:aspect_usage|aspect_stats)_|ll_default_quiz_ws_|ll_can_quiz_)/', $option_name) === 1) {
+                $derived_transient_options[] = $option_name;
+            }
+        };
+        $capture_updated_option = static function (string $option_name) use ($capture_option_name): void {
+            $capture_option_name($option_name);
+        };
+        add_action('added_option', $capture_option_name, 10, 1);
+        add_action('updated_option', $capture_updated_option, 10, 1);
+
+        try {
+            $fixture = $this->createCatalogFixture('Transient Policy Catalog', true);
+            ll_tools_bump_category_cache_version([(int) $fixture['category_id']]);
+            $scope = $this->trackAndClearScope([], 1);
+
+            // Ignore fixture/cache invalidation writes; only the worker interval
+            // below is part of this persistence contract.
+            $derived_transient_options = [];
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $status = $this->runWarmupUntilReady((string) $scope['id']);
+
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $this->assertSame([], array_values(array_unique($derived_transient_options)));
+
+            // The worker's temporary cache policy must not leak into later
+            // foreground reads in the same request.
+            $this->assertTrue((bool) apply_filters('ll_tools_flashcard_categories_persist_transient', true, 'test', [], []));
+            $this->assertTrue((bool) apply_filters('ll_tools_words_count_persist_transient', true, 'quiz', 'test', 0, []));
+            $this->assertTrue((bool) apply_filters('ll_tools_category_aspect_persist_transient', true, 'stats', 'test', 0));
+            $this->assertTrue((bool) apply_filters('ll_tools_default_quiz_wordset_persist_transient', true, 'test', 0, 0));
+            $this->assertTrue((bool) apply_filters('ll_tools_can_category_generate_quiz_persist_transient', true, 0, [], 0));
+        } finally {
+            remove_action('updated_option', $capture_updated_option, 10);
+            remove_action('added_option', $capture_option_name, 10);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_cold_refresh_publishes_one_snapshot_when_global_epochs_change_mid_build(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        $batch_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            for ($index = 0; $index < 3; $index++) {
+                $this->createCatalogFixture('Epoch Drift Catalog ' . $index);
+            }
+
+            $initial_scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $initial_scope['id'];
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            $partial_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame(1, (int) ($partial_state['processed'] ?? 0));
+            $initial_cache_key = (string) ($partial_state['cache_key'] ?? '');
+            $this->assertNotSame('', $initial_cache_key);
+
+            ll_tools_bump_category_cache_epoch();
+            $current_scope = ll_tools_quiz_pages_catalog_scope([], 1);
+            $this->assertSame($scope_id, (string) $current_scope['id']);
+            $this->assertNotSame($initial_cache_key, (string) $current_scope['cache_key']);
+
+            // A foreground poll after the epoch bump must not discard a valid
+            // partial cold generation when no usable snapshot exists yet.
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $preserved_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame((string) ($partial_state['generation'] ?? ''), (string) ($preserved_state['generation'] ?? ''));
+            $this->assertSame($initial_cache_key, (string) ($preserved_state['cache_key'] ?? ''));
+            $this->assertSame(1, (int) ($preserved_state['processed'] ?? 0));
+
+            $status = $this->runWarmupUntilReady($scope_id, 20);
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), []);
+            $this->assertSame($initial_cache_key, (string) ($latest['cache_key'] ?? ''));
+            $this->assertSame([], get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []));
+
+            $items = ll_get_all_quiz_pages_data([]);
+            $this->assertCount(3, $items);
+            $this->assertFalse(ll_tools_quiz_pages_catalog_needs_loading_notice());
+
+            $replacement_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame((string) $current_scope['cache_key'], (string) ($replacement_state['cache_key'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_incompatible_builder_cannot_continue_a_partial_generation(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        $batch_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            for ($index = 0; $index < 3; $index++) {
+                $this->createCatalogFixture('Builder Fence Catalog ' . $index);
+            }
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+
+            $partial_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $old_generation = (string) ($partial_state['generation'] ?? '');
+            $old_chunks = array_values((array) ($partial_state['chunks'] ?? []));
+            $this->assertSame(1, (int) ($partial_state['processed'] ?? 0));
+            $this->assertNotSame([], $old_chunks);
+
+            $partial_state['scope']['builder_token'] = str_repeat('0', 64);
+            update_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), $partial_state, false);
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+
+            $replacement = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertNotSame($old_generation, (string) ($replacement['generation'] ?? ''));
+            $this->assertSame(0, (int) ($replacement['processed'] ?? -1));
+            $this->assertSame([], (array) ($replacement['chunks'] ?? []));
+            $this->assertSame(
+                (string) $scope['builder_token'],
+                (string) ($replacement['scope']['builder_token'] ?? '')
+            );
+            foreach ($old_chunks as $old_chunk) {
+                $this->assertFalse(get_option((string) $old_chunk, false));
+            }
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_warmup_ajax_does_not_spawn_unrelated_wp_cron_work(): void
+    {
+        $request_backup = $_REQUEST;
+        $wp_loaded_priority = has_action('wp_loaded', '_wp_cron');
+        $shutdown_priority = has_action('shutdown', '_wp_cron');
+        if ($wp_loaded_priority === false) {
+            add_action('wp_loaded', '_wp_cron', 20);
+        }
+        if ($shutdown_priority === false) {
+            add_action('shutdown', '_wp_cron', 10);
+        }
+
+        $doing_ajax = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $doing_ajax);
+        $_REQUEST['action'] = 'll_quiz_pages_catalog_warmup';
+
+        try {
+            ll_tools_quiz_pages_catalog_avoid_cron_contention();
+            $this->assertFalse(has_action('wp_loaded', '_wp_cron'));
+            $this->assertFalse(has_action('shutdown', '_wp_cron'));
+        } finally {
+            $_REQUEST = $request_backup;
+            remove_filter('wp_doing_ajax', $doing_ajax);
+            if ($wp_loaded_priority !== false) {
+                add_action('wp_loaded', '_wp_cron', (int) $wp_loaded_priority);
+            }
+            if ($shutdown_priority !== false) {
+                add_action('shutdown', '_wp_cron', (int) $shutdown_priority);
+            }
+        }
+    }
+
+    public function test_manual_refresh_fallback_advances_one_bounded_worker_batch(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        $batch_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+        $get_backup = $_GET;
+
+        try {
+            $this->createCatalogFixture('Manual Refresh Catalog 1');
+            $this->createCatalogFixture('Manual Refresh Catalog 2');
+            $scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $scope['id'];
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $state_before = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame(0, (int) ($state_before['processed'] ?? -1));
+
+            $_GET['ll_quiz_catalog_refresh'] = $scope_id;
+            $_GET['ll_quiz_catalog_nonce'] = wp_create_nonce('ll_quiz_catalog_manual_refresh_' . $scope_id);
+
+            if (has_action('wp_loaded', '_wp_cron') === false) {
+                add_action('wp_loaded', '_wp_cron', 20);
+            }
+            if (has_action('shutdown', '_wp_cron') === false) {
+                add_action('shutdown', '_wp_cron', 10);
+            }
+            ll_tools_quiz_pages_catalog_avoid_cron_contention();
+            $this->assertFalse(has_action('wp_loaded', '_wp_cron'));
+            $this->assertFalse(has_action('shutdown', '_wp_cron'));
+
+            add_action('wp_loaded', '_wp_cron', 20);
+            add_action('shutdown', '_wp_cron', 10);
+            $html = ll_tools_quiz_pages_catalog_loading_notice();
+
+            $state_after = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame(1, (int) ($state_after['processed'] ?? 0));
+            $this->assertFalse(has_action('wp_loaded', '_wp_cron'));
+            $this->assertFalse(has_action('shutdown', '_wp_cron'));
+            $this->assertStringContainsString('ll_quiz_catalog_refresh=' . $scope_id, html_entity_decode($html));
+            $this->assertStringContainsString('ll_quiz_catalog_nonce=', html_entity_decode($html));
+        } finally {
+            $_GET = $get_backup;
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_unusable_stale_snapshot_cannot_starve_a_cold_build_during_epoch_drift(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        $batch_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            $fixture = $this->createCatalogFixture('Unusable Stale Catalog');
+            $second_category = wp_insert_term(
+                'Unusable Stale Catalog Second Category ' . wp_generate_password(6, false),
+                'word-category'
+            );
+            $this->assertIsArray($second_category);
+            $second_category_id = (int) ($second_category['term_id'] ?? 0);
+            update_term_meta($second_category_id, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($second_category_id, 'll_quiz_option_type', 'text_translation');
+            $second_word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Unusable Stale Catalog Second Word',
+            ]);
+            wp_set_post_terms($second_word_id, [$fixture['wordset_id']], 'wordset', false);
+            wp_set_post_terms($second_word_id, [$second_category_id], 'word-category', false);
+            update_post_meta($second_word_id, 'word_translation', 'Unusable Stale Catalog Second Translation');
+
+            $post_type = defined('LL_TOOLS_QUIZ_PAGE_POST_TYPE') && post_type_exists(LL_TOOLS_QUIZ_PAGE_POST_TYPE)
+                ? LL_TOOLS_QUIZ_PAGE_POST_TYPE
+                : 'page';
+            $second_page_id = self::factory()->post->create([
+                'post_type' => $post_type,
+                'post_status' => 'publish',
+                'post_title' => 'Unusable Stale Catalog Second Quiz',
+            ]);
+            update_post_meta($second_page_id, $this->quizPageCategoryMetaKey(), (string) $second_category_id);
+
+            $opts = ['wordset' => $fixture['wordset_slug']];
+            $old_scope = $this->trackAndClearScope($opts, 1);
+            $obsolete_items = ll_tools_quiz_pages_rebuild_catalog_data($opts);
+            $this->assertCount(2, $obsolete_items);
+            foreach ($obsolete_items as &$obsolete_item) {
+                $obsolete_item['wordset_id'] = $fixture['wordset_id'] + 1000000;
+            }
+            unset($obsolete_item);
+            ll_tools_quiz_pages_catalog_latest_set($old_scope, $obsolete_items, true);
+
+            ll_tools_bump_category_cache_epoch([$fixture['wordset_id']]);
+            $current_scope = $this->trackAndClearCurrentCacheOnly($opts, 1);
+            $scope_id = (string) $current_scope['id'];
+            $this->assertSame([], ll_get_all_quiz_pages_data($opts));
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            $partial_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame(1, (int) ($partial_state['processed'] ?? 0));
+            $partial_generation = (string) ($partial_state['generation'] ?? '');
+            $partial_cache_key = (string) ($partial_state['cache_key'] ?? '');
+
+            ll_tools_bump_category_cache_epoch([$fixture['wordset_id']]);
+            $newest_scope = $this->trackAndClearCurrentCacheOnly($opts, 1);
+            $this->assertNotSame($partial_cache_key, (string) $newest_scope['cache_key']);
+            $this->assertSame([], ll_get_all_quiz_pages_data($opts));
+            $preserved_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame($partial_generation, (string) ($preserved_state['generation'] ?? ''));
+            $this->assertSame($partial_cache_key, (string) ($preserved_state['cache_key'] ?? ''));
+            $this->assertSame(1, (int) ($preserved_state['processed'] ?? 0));
+
+            $status = $this->runWarmupUntilReady($scope_id, 20);
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), []);
+            $this->assertSame($partial_cache_key, (string) ($latest['cache_key'] ?? ''));
+            $this->assertCount(2, ll_tools_quiz_pages_catalog_snapshot_items($latest));
+
+            $visible_items = ll_get_all_quiz_pages_data($opts);
+            $this->assertCount(2, $visible_items);
+            $replacement_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame((string) $newest_scope['cache_key'], (string) ($replacement_state['cache_key'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_empty_stale_snapshot_cannot_starve_new_content_during_epoch_drift(): void
+    {
+        $min_words_filter = static fn (): int => 1;
+        $batch_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            $empty_scope = $this->trackAndClearScope([], 1);
+            ll_tools_quiz_pages_catalog_latest_set($empty_scope, [], true);
+
+            $fixture = $this->createCatalogFixture('Empty Stale Catalog');
+            ll_tools_bump_category_cache_epoch([(int) $fixture['wordset_id']]);
+            $current_scope = $this->trackAndClearCurrentCacheOnly([], 1);
+            $scope_id = (string) $current_scope['id'];
+            $this->assertNotSame((string) $empty_scope['cache_key'], (string) $current_scope['cache_key']);
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            $partial_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $partial_generation = (string) ($partial_state['generation'] ?? '');
+            $partial_cache_key = (string) ($partial_state['cache_key'] ?? '');
+            $this->assertSame(1, (int) ($partial_state['processed'] ?? 0));
+
+            ll_tools_bump_category_cache_epoch([(int) $fixture['wordset_id']]);
+            $newest_scope = $this->trackAndClearCurrentCacheOnly([], 1);
+            $this->assertNotSame($partial_cache_key, (string) $newest_scope['cache_key']);
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+
+            $preserved_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame($partial_generation, (string) ($preserved_state['generation'] ?? ''));
+            $this->assertSame($partial_cache_key, (string) ($preserved_state['cache_key'] ?? ''));
+            $this->assertSame(1, (int) ($preserved_state['processed'] ?? 0));
+
+            $status = $this->runWarmupUntilReady($scope_id, 20);
+            $this->assertIsArray($status);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), []);
+            $this->assertSame($partial_cache_key, (string) ($latest['cache_key'] ?? ''));
+            $this->assertCount(1, ll_tools_quiz_pages_catalog_snapshot_items($latest));
+
+            $items = ll_get_all_quiz_pages_data([]);
+            $this->assertCount(1, $items);
+            $this->assertSame($fixture['page_id'], (int) ($items[0]['post_id'] ?? 0));
+            $replacement_state = get_option(ll_tools_quiz_pages_catalog_option_name('state', $scope_id), []);
+            $this->assertSame((string) $newest_scope['cache_key'], (string) ($replacement_state['cache_key'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
     }

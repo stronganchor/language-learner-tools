@@ -260,6 +260,19 @@ function ll_tools_quiz_pages_catalog_stale_ttl(): int {
     return max(DAY_IN_SECONDS, min(30 * DAY_IN_SECONDS, $ttl));
 }
 
+function ll_tools_quiz_pages_catalog_builder_token(): string {
+    $plugin_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
+    return hash('sha256', 'll-tools-quiz-catalog-builder-v1|' . $plugin_version);
+}
+
+function ll_tools_quiz_pages_catalog_scopes_share_builder(array $left, array $right): bool {
+    $left_token = (string) ($left['builder_token'] ?? '');
+    $right_token = (string) ($right['builder_token'] ?? '');
+    return $left_token !== ''
+        && $right_token !== ''
+        && hash_equals($left_token, $right_token);
+}
+
 function ll_tools_quiz_pages_catalog_scope(array $opts, int $min_word_count): array {
     $wordset_spec = isset($opts['wordset']) && is_scalar($opts['wordset'])
         ? trim((string) $opts['wordset'])
@@ -282,6 +295,7 @@ function ll_tools_quiz_pages_catalog_scope(array $opts, int $min_word_count): ar
         'user_id' => (int) $identity['user_id'],
         'locale' => $locale,
         'cache_key' => ll_tools_quiz_pages_data_cache_key($opts, $min_word_count),
+        'builder_token' => ll_tools_quiz_pages_catalog_builder_token(),
     ];
 }
 
@@ -656,6 +670,33 @@ function ll_tools_quiz_pages_catalog_snapshot_payload_ready(array $payload): boo
     }
 
     return $actual_count === $expected_count;
+}
+
+function ll_tools_quiz_pages_catalog_snapshot_usable_for_scope($payload, array $scope): bool {
+    if (!is_array($payload) || !ll_tools_quiz_pages_catalog_snapshot_payload_ready($payload)) {
+        return false;
+    }
+
+    $items = ll_tools_quiz_pages_catalog_snapshot_items($payload);
+    if (!is_array($items)) {
+        return false;
+    }
+
+    // An empty stale snapshot cannot prove that the current epoch is still
+    // empty. Content may have appeared since it was published, so it is not a
+    // sufficient reason to discard the only advancing generation.
+    if ($items === []) {
+        return false;
+    }
+
+    // An explicit wordset must not treat a nonempty snapshot whose rows all
+    // belong to an obsolete or no-longer-viewable wordset as useful fallback.
+    // This mirrors the foreground loading-shell decision.
+    if (!empty($scope['opts']['wordset'])) {
+        return ll_tools_quiz_pages_catalog_filter_visible_items($items, $scope) !== [];
+    }
+
+    return true;
 }
 
 function ll_tools_quiz_pages_catalog_snapshot_ready(string $scope_id): bool {
@@ -1140,22 +1181,44 @@ function ll_tools_quiz_pages_catalog_schedule_refresh(array $scope): void {
     $scope_id = (string) $scope['id'];
     $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
     $state = get_option($state_option, []);
-    $needs_reset = (
-        !is_array($state)
-        || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']
-        || preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) !== 1
-        || !is_array($state['chunks'] ?? null)
+    $state_is_valid = is_array($state)
+        && !empty($state['__ll_quiz_pages_catalog_state'])
+        && is_array($state['scope'] ?? null)
+        && (string) ($state['scope']['id'] ?? '') === $scope_id
+        && preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) === 1
+        && is_array($state['chunks'] ?? null);
+    $cache_key_changed = $state_is_valid
+        && (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key'];
+    $builder_is_compatible = $state_is_valid
+        && ll_tools_quiz_pages_catalog_scopes_share_builder((array) $state['scope'], $scope);
+    $latest_payload = $cache_key_changed
+        ? ll_tools_quiz_pages_catalog_latest_payload($scope)
+        : null;
+    $needs_reset = !$state_is_valid || !$builder_is_compatible || (
+        $cache_key_changed
+        && ll_tools_quiz_pages_catalog_snapshot_usable_for_scope($latest_payload, $scope)
     );
     if ($needs_reset) {
         $state_token = ll_tools_quiz_pages_catalog_lock_acquire($scope_id);
         if ($state_token !== '') {
             try {
                 $state = get_option($state_option, []);
-                $needs_reset = (
-                    !is_array($state)
-                    || (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key']
-                    || preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) !== 1
-                    || !is_array($state['chunks'] ?? null)
+                $state_is_valid = is_array($state)
+                    && !empty($state['__ll_quiz_pages_catalog_state'])
+                    && is_array($state['scope'] ?? null)
+                    && (string) ($state['scope']['id'] ?? '') === $scope_id
+                    && preg_match('/^[a-f0-9]{12}$/D', (string) ($state['generation'] ?? '')) === 1
+                    && is_array($state['chunks'] ?? null);
+                $cache_key_changed = $state_is_valid
+                    && (string) ($state['cache_key'] ?? '') !== (string) $scope['cache_key'];
+                $builder_is_compatible = $state_is_valid
+                    && ll_tools_quiz_pages_catalog_scopes_share_builder((array) $state['scope'], $scope);
+                $latest_payload = $cache_key_changed
+                    ? ll_tools_quiz_pages_catalog_latest_payload($scope)
+                    : null;
+                $needs_reset = !$state_is_valid || !$builder_is_compatible || (
+                    $cache_key_changed
+                    && ll_tools_quiz_pages_catalog_snapshot_usable_for_scope($latest_payload, $scope)
                 );
                 if ($needs_reset) {
                     $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
@@ -1236,7 +1299,27 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
         $opts = is_array($stored_scope['opts'] ?? null) ? $stored_scope['opts'] : [];
         $min_word_count = (int) ($stored_scope['min_word_count'] ?? LL_TOOLS_MIN_WORDS_PER_QUIZ);
         $current_scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
-        if ((string) ($state['cache_key'] ?? '') !== (string) $current_scope['cache_key']) {
+        $working_scope = $current_scope;
+        $builder_is_compatible = ll_tools_quiz_pages_catalog_scopes_share_builder(
+            $stored_scope,
+            $current_scope
+        );
+        $scope_cache_changed = (string) ($state['cache_key'] ?? '') !== (string) $current_scope['cache_key'];
+        $has_usable_latest = false;
+        if ($scope_cache_changed && $builder_is_compatible) {
+            $latest_payload = ll_tools_quiz_pages_catalog_latest_payload($stored_scope);
+            $has_usable_latest = is_array($latest_payload)
+                && ll_tools_quiz_pages_catalog_snapshot_usable_for_scope($latest_payload, $current_scope);
+            if (!$has_usable_latest) {
+                // A cold catalog must be allowed to finish one durable snapshot
+                // even while unrelated background maintenance advances a global
+                // cache epoch. The next foreground read will serve this snapshot
+                // stale-while-refresh and queue the newer generation.
+                $working_scope = $stored_scope;
+            }
+        }
+
+        if (!$builder_is_compatible || ($scope_cache_changed && $has_usable_latest)) {
             if (!ll_tools_quiz_pages_catalog_worker_can_persist(
                 $state_option,
                 $state,
@@ -1256,7 +1339,7 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
             update_option($state_option, $state, false);
             $reschedule_scope = $current_scope;
         } else {
-            $context = ll_tools_quiz_pages_catalog_build_context($current_scope);
+            $context = ll_tools_quiz_pages_catalog_build_context($working_scope);
             $source_index = max(0, (int) ($state['source_index'] ?? 0));
             $post_types = array_values((array) ($context['post_types'] ?? []));
             $batch_size = ll_tools_quiz_pages_catalog_rebuild_batch_size();
@@ -1270,7 +1353,27 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
                     $batch_size
                 );
                 $rows = array_values((array) ($batch['rows'] ?? []));
-                $items = ll_tools_quiz_pages_catalog_build_items_for_page_rows($rows, $context);
+                // The completed catalog chunk is the durable cache for this
+                // maintenance flow. Avoid amplifying a cold batch into hundreds
+                // of short-lived wp_options writes on sites without a persistent
+                // object cache; lower-level request/object caches are still used.
+                $skip_derived_transient = static function (): bool {
+                    return false;
+                };
+                add_filter('ll_tools_flashcard_categories_persist_transient', $skip_derived_transient);
+                add_filter('ll_tools_words_count_persist_transient', $skip_derived_transient);
+                add_filter('ll_tools_category_aspect_persist_transient', $skip_derived_transient);
+                add_filter('ll_tools_default_quiz_wordset_persist_transient', $skip_derived_transient);
+                add_filter('ll_tools_can_category_generate_quiz_persist_transient', $skip_derived_transient);
+                try {
+                    $items = ll_tools_quiz_pages_catalog_build_items_for_page_rows($rows, $context);
+                } finally {
+                    remove_filter('ll_tools_can_category_generate_quiz_persist_transient', $skip_derived_transient);
+                    remove_filter('ll_tools_default_quiz_wordset_persist_transient', $skip_derived_transient);
+                    remove_filter('ll_tools_category_aspect_persist_transient', $skip_derived_transient);
+                    remove_filter('ll_tools_words_count_persist_transient', $skip_derived_transient);
+                    remove_filter('ll_tools_flashcard_categories_persist_transient', $skip_derived_transient);
+                }
                 if (!ll_tools_quiz_pages_catalog_worker_can_persist(
                     $state_option,
                     $state,
@@ -1291,7 +1394,7 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
                     $chunk_payload = [
                         '__ll_quiz_pages_catalog_chunk' => 1,
                         'generation' => (string) ($state['generation'] ?? ''),
-                        'cache_key' => (string) $current_scope['cache_key'],
+                        'cache_key' => (string) $working_scope['cache_key'],
                         'items' => $items,
                     ];
                     update_option($chunk_option, $chunk_payload, false);
@@ -1336,14 +1439,24 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
                 }
                 $publish_scope = ll_tools_quiz_pages_catalog_scope($opts, $min_word_count);
                 if ((string) $publish_scope['cache_key'] !== (string) ($state['cache_key'] ?? '')) {
-                    $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
-                    ll_tools_quiz_pages_catalog_cleanup_build_state(
-                        $state,
-                        ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
-                    );
-                    $state = ll_tools_quiz_pages_catalog_new_build_state($publish_scope);
-                    update_option($state_option, $state, false);
-                    $reschedule_scope = $publish_scope;
+                    if (!$has_usable_latest && ll_tools_quiz_pages_catalog_latest_set_manifest(
+                        $working_scope,
+                        (string) ($state['generation'] ?? ''),
+                        (array) ($state['chunks'] ?? []),
+                        (int) ($state['item_count'] ?? 0)
+                    )) {
+                        delete_option($state_option);
+                        wp_clear_scheduled_hook('ll_tools_quiz_pages_catalog_refresh_event', [$scope_id]);
+                    } else {
+                        $latest = get_option(ll_tools_quiz_pages_catalog_option_name('latest', $scope_id), null);
+                        ll_tools_quiz_pages_catalog_cleanup_build_state(
+                            $state,
+                            ll_tools_quiz_pages_catalog_snapshot_chunk_options($latest)
+                        );
+                        $state = ll_tools_quiz_pages_catalog_new_build_state($publish_scope);
+                        update_option($state_option, $state, false);
+                        $reschedule_scope = $publish_scope;
+                    }
                 } elseif (ll_tools_quiz_pages_catalog_latest_set_manifest(
                     $publish_scope,
                     (string) ($state['generation'] ?? ''),
@@ -1367,7 +1480,7 @@ function ll_tools_quiz_pages_catalog_refresh_event(string $scope_id): void {
                     throw new RuntimeException('Quiz catalog refresh lock expired.');
                 }
                 update_option($state_option, $state, false);
-                $reschedule_scope = $current_scope;
+                $reschedule_scope = $working_scope;
             }
         }
     } catch (Throwable $error) {
@@ -1449,6 +1562,52 @@ function ll_tools_quiz_pages_catalog_warmup_ajax(): void {
 }
 add_action('wp_ajax_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_warmup_ajax');
 add_action('wp_ajax_nopriv_ll_quiz_pages_catalog_warmup', 'll_tools_quiz_pages_catalog_warmup_ajax');
+
+function ll_tools_quiz_pages_catalog_remove_cron_spawn_callbacks(): void {
+    // WordPress 6.9+ registers the callback on shutdown; older versions and
+    // ALTERNATE_WP_CRON use wp_loaded instead.
+    remove_action('shutdown', '_wp_cron', 10);
+    remove_action('wp_loaded', '_wp_cron', 20);
+}
+
+function ll_tools_quiz_pages_catalog_manual_refresh_scope_id(): string {
+    $scope_id = isset($_GET['ll_quiz_catalog_refresh']) && is_scalar($_GET['ll_quiz_catalog_refresh'])
+        ? strtolower(sanitize_text_field(wp_unslash((string) $_GET['ll_quiz_catalog_refresh'])))
+        : '';
+    $nonce = isset($_GET['ll_quiz_catalog_nonce']) && is_scalar($_GET['ll_quiz_catalog_nonce'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_quiz_catalog_nonce']))
+        : '';
+    if (
+        !preg_match('/^[a-f0-9]{32}$/D', $scope_id)
+        || !wp_verify_nonce($nonce, 'll_quiz_catalog_manual_refresh_' . $scope_id)
+    ) {
+        return '';
+    }
+
+    return $scope_id;
+}
+
+/**
+ * The warmup request already advances one catalog batch synchronously. Do not
+ * also launch unrelated due WP-Cron jobs during its shutdown, because large
+ * maintenance queues can contend with the foreground batch and turn a bounded
+ * poll into a long user-facing request.
+ */
+function ll_tools_quiz_pages_catalog_avoid_cron_contention(): void {
+    $is_ajax_warmup = false;
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        $action = isset($_REQUEST['action']) && is_scalar($_REQUEST['action'])
+            ? sanitize_key(wp_unslash((string) $_REQUEST['action']))
+            : '';
+        $is_ajax_warmup = $action === 'll_quiz_pages_catalog_warmup';
+    }
+    if (!$is_ajax_warmup && ll_tools_quiz_pages_catalog_manual_refresh_scope_id() === '') {
+        return;
+    }
+
+    ll_tools_quiz_pages_catalog_remove_cron_spawn_callbacks();
+}
+add_action('init', 'll_tools_quiz_pages_catalog_avoid_cron_contention', 11);
 
 /**
  * Rebuild the complete materialized quiz-page catalog synchronously.
@@ -1822,6 +1981,28 @@ function ll_tools_quiz_pages_catalog_loading_notice(): string {
         return '';
     }
 
+    $manual_scope_id = ll_tools_quiz_pages_catalog_manual_refresh_scope_id();
+    if (
+        hash_equals($scope_id, $manual_scope_id)
+    ) {
+        // JavaScript-free fallback: each signed refresh advances one bounded
+        // worker batch directly, so disabling traffic-driven cron below cannot
+        // strand a cold catalog.
+        static $manual_refreshes = [];
+        if (empty($manual_refreshes[$scope_id])) {
+            $manual_refreshes[$scope_id] = true;
+            ll_tools_quiz_pages_catalog_warmup_status($scope_id);
+        }
+    }
+
+    $manual_refresh_url = add_query_arg([
+        'll_quiz_catalog_refresh' => $scope_id,
+        'll_quiz_catalog_nonce' => wp_create_nonce('ll_quiz_catalog_manual_refresh_' . $scope_id),
+    ], $refresh_url);
+
+    // The browser warmup loop owns this cold generation. Do not launch the
+    // site's unrelated due maintenance queue when the loading shell exits.
+    ll_tools_quiz_pages_catalog_remove_cron_spawn_callbacks();
     ll_enqueue_asset_by_timestamp('/js/quiz-pages-shortcodes.js', 'll-quiz-pages-shortcodes-js', [], true);
 
     return '<p class="ll-quiz-pages-catalog-status" role="status" aria-live="polite"'
@@ -1833,7 +2014,7 @@ function ll_tools_quiz_pages_catalog_loading_notice(): string {
         . ' data-refresh-url="' . esc_url($refresh_url) . '"'
         . ' data-retry-ms="1200" data-max-attempts="' . esc_attr((string) ll_tools_quiz_pages_catalog_warmup_max_attempts()) . '">'
         . esc_html__('Loading quiz...', 'll-tools-text-domain')
-        . ' <a href="' . esc_url($refresh_url) . '">'
+        . ' <a href="' . esc_url($manual_refresh_url) . '">'
         . esc_html__('Refresh', 'll-tools-text-domain')
         . '</a></p>';
 }
@@ -1890,7 +2071,7 @@ function ll_get_default_wordset_id_for_category($category, int $min_word_count =
         return $default_id;
     }
 
-    $store_result = static function (int $wordset_id) use ($cache_key, $cache_group, $cache_ttl, &$request_cache): int {
+    $store_result = static function (int $wordset_id) use ($cache_key, $cache_group, $cache_ttl, $term_id, &$request_cache): int {
         $wordset_id = max(0, $wordset_id);
         $payload = [
             '__ll_default_quiz_wordset_cache' => 1,
@@ -1899,7 +2080,15 @@ function ll_get_default_wordset_id_for_category($category, int $min_word_count =
 
         $request_cache[$cache_key] = $wordset_id;
         wp_cache_set($cache_key, $payload, $cache_group, $cache_ttl);
-        set_transient($cache_key, $payload, $cache_ttl);
+        if ((bool) apply_filters(
+            'll_tools_default_quiz_wordset_persist_transient',
+            true,
+            $cache_key,
+            $term_id,
+            $wordset_id
+        )) {
+            set_transient($cache_key, $payload, $cache_ttl);
+        }
 
         return $wordset_id;
     };

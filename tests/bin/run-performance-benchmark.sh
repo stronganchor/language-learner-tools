@@ -335,9 +335,12 @@ verify_seeded_perf_fixture() {
         return 1
     fi
 
-    if ! printf '%s' "$stored_fixture_json" | "$SCRIPT_DIR/php-local.sh" \
+    # Passing the small JSON payload as an explicit argument is intentional.
+    # When WSL launches Windows php.exe, redirected/piped stdin can arrive empty
+    # or be transcoded even though WP-CLI returned valid UTF-8 JSON.
+    if ! "$SCRIPT_DIR/php-local.sh" \
         "$TESTS_DIR/performance/verify-performance-manifest.php" \
-        --verify-stored "$PERF_MANIFEST_PATH"; then
+        --verify-stored "$PERF_MANIFEST_PATH" "$stored_fixture_json"; then
         echo "Stored LL Tools performance fixture does not match the selected profile; reseed before benchmarking." >&2
         return 1
     fi

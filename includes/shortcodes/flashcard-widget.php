@@ -147,7 +147,15 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
 
     $request_cache[$cache_key] = $processed;
     wp_cache_set($cache_key, $processed, $cache_group, $cache_ttl);
-    set_transient($cache_key, $processed, $cache_ttl);
+    if ((bool) apply_filters(
+        'll_tools_flashcard_categories_persist_transient',
+        true,
+        $cache_key,
+        $term_ids,
+        $wordset_ids
+    )) {
+        set_transient($cache_key, $processed, $cache_ttl);
+    }
 
     return $processed;
 }

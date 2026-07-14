@@ -20,7 +20,9 @@ The runner:
    fixture-tagged content and users.
 4. Always verifies the stored fixture option after seeding. With
    `LL_PERF_SKIP_SEED=1`, this is a read-only check that fails on missing,
-   legacy, or mismatched version/checksum state.
+   legacy, or mismatched version/checksum state. The runner passes this small
+   JSON value as an explicit verifier argument because piped stdin is not a
+   reliable UTF-8 transport when WSL launches Windows PHP.
 5. Locks every currently exported `LL_E2E_PERF_*` value before `run-e2e.sh`
    reloads environment files, requiring the manifest, history, report, and
    verified checksum values.
@@ -30,9 +32,11 @@ The runner:
 Manifest checksums use recursively key-sorted canonical JSON, so Git/Windows
 CRLF conversion, indentation, and object-key order do not split otherwise
 comparable benchmark history. Run the lightweight PHP contract directly with
-`php tests/performance/verify-performance-manifest.php`. Numeric manifest fields
-must be integers within JavaScript's safe integer range so PHP and Node produce
-the same canonical representation.
+`php tests/performance/verify-performance-manifest.php`. In
+`--verify-stored` mode the stored JSON may be supplied as the third argument
+(the runner's cross-runtime-safe path) or through stdin for compatibility.
+Numeric manifest fields must be integers within JavaScript's safe integer range
+so PHP and Node produce the same canonical representation.
 
 The default fixture is intentionally modest for routine release-to-release
 checks. For thousands-of-words coverage, use the opt-in XL profile:
@@ -79,7 +83,9 @@ batches. The lazy-completion samples retain the category counts observed when
 the driver takes over, the exact final count, and the bounded AJAX request
 count since navigation began. The run fails if it does not expose at least six
 initial categories, finish with all 209, or exceeds eleven 20-category summary
-requests. Genç history is written to
+requests. The stream generation depends on ordered category identities and
+recorder/wordset/filter scope, so ordinary per-category content invalidation
+refreshes affected cards without restarting those eleven batches. Genç history is written to
 `tests/performance/history/performance-history-genc.jsonl`; latest reports are
 written to `tests/performance/reports/performance-latest-genc.*`. Set
 `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` in `tests/.env.local`; these are the

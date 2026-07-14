@@ -226,6 +226,9 @@ Full Playwright run times out under an automation cap:
   runner's `Using LL Tools performance profile: genc` confirmation before
   accepting or allowing a seed.
 - Named profiles override conflicting fixture/history/report path values, while caller-supplied run counts, comparison/write flags, and budgets remain configurable. `LL_PERF_SKIP_SEED=1` never promotes a missing or legacy checksum; it fails until a normal seed writes the exact selected version and canonical checksum. The benchmark runner locks all exported `LL_E2E_PERF_*` values before invoking `run-e2e.sh`.
+- The runner passes the small stored-fixture JSON to `verify-performance-manifest.php`
+  as an explicit third argument. Preserve this argv transport: redirected or
+  piped stdin can arrive empty or transcoded when WSL launches Windows PHP.
 - For benchmark-runner or manifest-contract changes, run:
 
   ```bash

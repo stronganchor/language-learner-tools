@@ -30,6 +30,24 @@ const fixtureSeederPath = path.join(
 );
 const benchmarkRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-performance-benchmark.sh');
 const e2eRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-e2e.sh');
+const manifestVerifierPath = path.join(
+  pluginRoot,
+  'tests',
+  'performance',
+  'verify-performance-manifest.php'
+);
+
+function phpBinary() {
+  const configured = String(process.env.PHP_BIN || '').trim();
+  if (configured) {
+    return configured;
+  }
+
+  const localWindowsPhp = 'C:\\php\\8.4\\php.exe';
+  return process.platform === 'win32' && fs.existsSync(localWindowsPhp)
+    ? localWindowsPhp
+    : 'php';
+}
 
 function phpFunctionBlock(source, name) {
   const start = source.indexOf(`function ${name}(`);
@@ -69,6 +87,33 @@ test('performance manifest checksum is canonical across formatting, key order, a
   expect(() => canonicalManifestJson({ fraction: 0.5 })).toThrow(/safe integer range/);
   expect(manifestChecksum(leftPath)).toBe(expectedChecksum);
   expect(manifestChecksum(rightPath)).toBe(expectedChecksum);
+});
+
+test('stored fixture verifier accepts explicit JSON when cross-runtime stdin is unusable', async ({}, testInfo) => {
+  const manifestPath = testInfo.outputPath('argv-contract-manifest.json');
+  const manifest = {
+    fixtureVersion: 'argv-contract-v1',
+    benchmarkTargetSize: 'small',
+    wordsets: [{ size: 'small', slug: 'argv-contract', categoryCount: 1, wordsPerCategory: 1 }]
+  };
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`, 'utf8');
+
+  const storedFixture = JSON.stringify({
+    fixture_version: manifest.fixtureVersion,
+    manifest_sha256: manifestChecksum(manifestPath),
+    manifest_checksum_format: MANIFEST_CHECKSUM_FORMAT
+  });
+  const output = execFileSync(
+    phpBinary(),
+    [manifestVerifierPath, '--verify-stored', manifestPath, storedFixture],
+    {
+      encoding: 'utf8',
+      input: '{invalid redirected stdin'
+    }
+  );
+
+  expect(output).toContain('Stored performance fixture verified: version argv-contract-v1');
 });
 
 test('benchmark runtime rejects a manifest changed after runner verification', async ({}, testInfo) => {
@@ -121,6 +166,7 @@ test('profile runner locks one authoritative manifest history and report through
   expect(runner).toContain('export LL_E2E_PERF_CONFIG_LOCKED=1');
   expect(runner).toContain('option get ll_tools_performance_fixture_manifest');
   expect(runner).toContain('--verify-stored "$PERF_MANIFEST_PATH"');
+  expect(runner).toContain('"$stored_fixture_json"; then');
   expect(runner).not.toContain('declare -A');
   expect(e2eRunner).not.toContain('declare -A');
 

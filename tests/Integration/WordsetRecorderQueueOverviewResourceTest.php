@@ -502,6 +502,135 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_summary_generation_tracks_compact_catalog_and_scope_not_card_content(): void
+    {
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $categories = $fixture['categories'];
+        $recorder_user_id = 417;
+        $content_epoch_name = 'll_tools_wordset_recorder_queue_content_epoch';
+        $recording_type_epoch_name = 'll_tools_wordset_recorder_queue_recording_type_epoch';
+        $content_epoch_backup = get_option($content_epoch_name, null);
+        $recording_type_epoch_backup = get_option($recording_type_epoch_name, null);
+
+        try {
+            $baseline = ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                $wordset_id,
+                $recorder_user_id,
+                $categories,
+                'question,isolation',
+                ''
+            );
+
+            update_term_meta((int) $categories[0]['id'], '_ll_wc_cache_version', 93);
+            update_option($content_epoch_name, 'content-changed', false);
+            update_option($recording_type_epoch_name, 'recording-types-changed', false);
+            $this->assertSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    $categories,
+                    'isolation,question,isolation',
+                    ''
+                ),
+                'Card-content invalidation must not restart the compact catalog stream.'
+            );
+
+            $this->assertNotSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    array_reverse($categories),
+                    'question,isolation',
+                    ''
+                )
+            );
+            $renamed_categories = $categories;
+            $renamed_categories[0]['name'] .= ' renamed';
+            $this->assertNotSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    $renamed_categories,
+                    'question,isolation',
+                    ''
+                )
+            );
+            $this->assertNotSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id + 1,
+                    $recorder_user_id,
+                    $categories,
+                    'question,isolation',
+                    ''
+                )
+            );
+            $this->assertNotSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id + 1,
+                    $categories,
+                    'question,isolation',
+                    ''
+                )
+            );
+            $this->assertNotSame(
+                $baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    $categories,
+                    'isolation',
+                    ''
+                )
+            );
+            $excluded_baseline = ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                $wordset_id,
+                $recorder_user_id,
+                $categories,
+                'question,isolation',
+                'beta,alpha'
+            );
+            $this->assertSame(
+                $excluded_baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    $categories,
+                    'question,isolation',
+                    'alpha,beta,alpha'
+                )
+            );
+            $this->assertNotSame($baseline, $excluded_baseline);
+            $this->assertNotSame(
+                $excluded_baseline,
+                ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                    $wordset_id,
+                    $recorder_user_id,
+                    $categories,
+                    'question,isolation',
+                    'alpha'
+                )
+            );
+        } finally {
+            if ($content_epoch_backup === null) {
+                delete_option($content_epoch_name);
+            } else {
+                update_option($content_epoch_name, $content_epoch_backup, false);
+            }
+            if ($recording_type_epoch_backup === null) {
+                delete_option($recording_type_epoch_name);
+            } else {
+                update_option($recording_type_epoch_name, $recording_type_epoch_backup, false);
+            }
+        }
+    }
+
     public function test_structural_mutations_change_the_compact_recorder_category_cache_key(): void
     {
         $option_name = 'll_tools_wordset_recorder_queue_structure_epoch';

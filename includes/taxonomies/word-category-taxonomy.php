@@ -5248,7 +5248,16 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         ];
         $request_cache[$count_cache_key] = (int) $count;
         wp_cache_set($count_cache_key, $payload, $count_cache_group, $cache_ttl);
-        set_transient($count_cache_key, $payload, $cache_ttl);
+        if ((bool) apply_filters(
+            'll_tools_words_count_persist_transient',
+            true,
+            'quiz',
+            $count_cache_key,
+            $term_id,
+            $wordset_terms
+        )) {
+            set_transient($count_cache_key, $payload, $cache_ttl);
+        }
         return (int) $count;
     }
 
@@ -5486,7 +5495,16 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     ];
     $request_cache[$count_cache_key] = (int) $count;
     wp_cache_set($count_cache_key, $payload, $count_cache_group, $cache_ttl);
-    set_transient($count_cache_key, $payload, $cache_ttl);
+    if ((bool) apply_filters(
+        'll_tools_words_count_persist_transient',
+        true,
+        'quiz',
+        $count_cache_key,
+        $term_id,
+        $wordset_terms
+    )) {
+        set_transient($count_cache_key, $payload, $cache_ttl);
+    }
 
     return (int) $count;
 }
@@ -5619,7 +5637,16 @@ function ll_tools_count_gender_eligible_words_for_category($categoryName, $words
         ];
         $request_cache[$count_cache_key] = (int) $count;
         wp_cache_set($count_cache_key, $payload, $count_cache_group, $cache_ttl);
-        set_transient($count_cache_key, $payload, $cache_ttl);
+        if ((bool) apply_filters(
+            'll_tools_words_count_persist_transient',
+            true,
+            'gender',
+            $count_cache_key,
+            $term_id,
+            $wordset_terms
+        )) {
+            set_transient($count_cache_key, $payload, $cache_ttl);
+        }
         return (int) $count;
     }
 
@@ -5700,7 +5727,16 @@ function ll_tools_count_gender_eligible_words_for_category($categoryName, $words
     ];
     $request_cache[$count_cache_key] = (int) $count;
     wp_cache_set($count_cache_key, $payload, $count_cache_group, $cache_ttl);
-    set_transient($count_cache_key, $payload, $cache_ttl);
+    if ((bool) apply_filters(
+        'll_tools_words_count_persist_transient',
+        true,
+        'gender',
+        $count_cache_key,
+        $term_id,
+        $wordset_terms
+    )) {
+        set_transient($count_cache_key, $payload, $cache_ttl);
+    }
 
     return $count;
 }
@@ -7241,6 +7277,13 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         'user_id' => (int) get_current_user_id(),
     ]));
     $persistent_cache_group = 'll_tools_quiz_category';
+    $persist_transient = (bool) apply_filters(
+        'll_tools_can_category_generate_quiz_persist_transient',
+        true,
+        $term_id,
+        $wordset_key_parts,
+        (int) $min_word_count
+    );
     $persistent_cached = wp_cache_get($persistent_cache_key, $persistent_cache_group);
     if ($persistent_cached === false) {
         $persistent_cached = get_transient($persistent_cache_key);
@@ -7265,7 +7308,9 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         $request_cache[$request_cache_key] = true;
         $payload = ['can_generate' => true];
         wp_cache_set($persistent_cache_key, $payload, $persistent_cache_group, HOUR_IN_SECONDS);
-        set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+        if ($persist_transient) {
+            set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+        }
         return true;
     }
 
@@ -7278,7 +7323,9 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
             $request_cache[$request_cache_key] = true;
             $payload = ['can_generate' => true];
             wp_cache_set($persistent_cache_key, $payload, $persistent_cache_group, HOUR_IN_SECONDS);
-            set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+            if ($persist_transient) {
+                set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+            }
             return true;
         }
     }
@@ -7286,7 +7333,9 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
     $request_cache[$request_cache_key] = false;
     $payload = ['can_generate' => false];
     wp_cache_set($persistent_cache_key, $payload, $persistent_cache_group, HOUR_IN_SECONDS);
-    set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+    if ($persist_transient) {
+        set_transient($persistent_cache_key, $payload, HOUR_IN_SECONDS);
+    }
     return false;
 }
 

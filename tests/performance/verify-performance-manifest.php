@@ -50,7 +50,9 @@ if ($mode === '--describe' || $mode === '--verify-stored') {
         exit(0);
     }
 
-    $stored_json = (string) stream_get_contents(STDIN);
+    $stored_json = array_key_exists(3, $argv)
+        ? (string) $argv[3]
+        : (string) stream_get_contents(STDIN);
     $stored = json_decode($stored_json, true);
     if (!is_array($stored)) {
         fwrite(STDERR, sprintf(
