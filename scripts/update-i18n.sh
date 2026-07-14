@@ -63,7 +63,7 @@ fi
 "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-pot . "$POT_FILE" \
   --slug=language-learner-tools \
   --domain=ll-tools-text-domain \
-  --exclude=offline-app-builder,tests \
+  --exclude=offline-app-builder,tests,_codex_temp \
   --skip-audit
 
 # When WP-CLI runs through Windows PHP, it may emit absolute drive-letter paths in

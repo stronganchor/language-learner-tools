@@ -824,6 +824,12 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_recorder_encode_queue_cursor_token($oversized_state, $context));
     }
 
+    public function test_recorder_queue_cursor_decoder_rejects_noncanonical_base64url_aliases(): void
+    {
+        $this->assertSame("\0", ll_tools_recorder_queue_cursor_base64url_decode('AA'));
+        $this->assertSame('', ll_tools_recorder_queue_cursor_base64url_decode('AB'));
+    }
+
     public function test_queue_response_never_advertises_more_without_a_signed_cursor(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Cursor Encoding Failure Queue', 'cursor-encoding-failure-queue');

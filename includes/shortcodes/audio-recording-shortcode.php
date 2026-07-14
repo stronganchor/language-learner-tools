@@ -3270,13 +3270,20 @@ function ll_tools_recorder_queue_cursor_base64url_decode(string $value): string 
         return '';
     }
 
+    $encoded_value = $value;
     $padding = strlen($value) % 4;
     if ($padding > 0) {
         $value .= str_repeat('=', 4 - $padding);
     }
     $decoded = base64_decode(strtr($value, '-_', '+/'), true);
+    if (!is_string($decoded) || ll_tools_recorder_queue_cursor_base64url_encode($decoded) !== $encoded_value) {
+        // Unpadded base64 can otherwise accept alternate final characters
+        // whose unused bits decode to the same signed bytes. Require the one
+        // canonical representation so any token-string mutation is rejected.
+        return '';
+    }
 
-    return is_string($decoded) ? $decoded : '';
+    return $decoded;
 }
 
 /**

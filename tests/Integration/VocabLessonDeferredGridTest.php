@@ -1155,6 +1155,8 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $category_id = (int) $fixture['category_id'];
         $lesson_id = (int) $fixture['lesson_id'];
         ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        wp_set_post_terms((int) $fixture['word_id'], [$wordset_id], 'wordset', false);
+        wp_set_post_terms((int) $fixture['word_id'], [$category_id], 'word-category', false);
 
         for ($index = 2; $index <= 12; $index++) {
             $word_id = self::factory()->post->create([
@@ -1162,14 +1164,16 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
                 'post_status' => 'publish',
                 'post_title' => 'Full Count Shell Word ' . $index,
             ]);
-            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
             wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            $this->createAudioRecording($word_id, 'isolation', 'full-count-shell-word-' . $index . '.mp3');
         }
         ll_tools_bump_category_cache_version([$category_id]);
         ll_tools_bump_wordset_cache_epoch([$wordset_id]);
         $category = get_term($category_id, 'word-category');
         $this->assertInstanceOf(WP_Term::class, $category);
-        $expected_count = ll_tools_get_vocab_lesson_category_word_count($category, $wordset_id);
+        $this->assertFalse(ll_tools_vocab_lesson_category_requires_images($category, $wordset_id));
+        $expected_count = ll_tools_get_vocab_lesson_category_word_count_targeted($category, $wordset_id);
         $this->assertGreaterThan(6, $expected_count);
 
         $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
@@ -1557,6 +1561,7 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $category = wp_insert_term($prefix . ' Category', 'word-category', ['slug' => $slug . '-category']);
         $this->assertIsArray($category);
         $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
 
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
@@ -1567,8 +1572,8 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => $prefix . ' Word',
         ]);
-        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         update_post_meta($word_id, 'word_translation', $prefix . ' Translation');
         $this->createAudioRecording($word_id, 'isolation', $slug . '.mp3');
 
