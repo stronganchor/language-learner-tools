@@ -48,15 +48,15 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertNotFalse($header_pos);
             $this->assertLessThan($header_pos, $close_pos, 'Close button should render before the popup header so results do not depend on header visibility.');
 
-            $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
-            $this->assertIsString($localized_main);
-            $this->assertStringContainsString('llToolsFlashcardsData', $localized_main);
-            $this->assertStringContainsString('Primary Flow Category', $localized_main);
-            $this->assertStringContainsString('Flow Word', $localized_main);
-            $this->assertStringContainsString('Flow Translation', $localized_main);
-            $this->assertStringContainsString('"listeningCategoryLoadWindow":3', $localized_main);
+            $localized_data = wp_scripts()->get_data('ll-tools-flashcard-audio', 'data');
+            $this->assertIsString($localized_data);
+            $this->assertStringContainsString('llToolsFlashcardsData', $localized_data);
+            $this->assertStringContainsString('Primary Flow Category', $localized_data);
+            $this->assertStringContainsString('Flow Word', $localized_data);
+            $this->assertStringContainsString('Flow Translation', $localized_data);
+            $this->assertStringContainsString('"listeningCategoryLoadWindow":3', $localized_data);
 
-            $localized_messages = wp_scripts()->get_data('ll-flc-main', 'data');
+            $localized_messages = wp_scripts()->get_data('ll-flc-util', 'data');
             $this->assertIsString($localized_messages);
             $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_messages);
             $this->assertStringContainsString('closeQuizConfirm', $localized_messages);
@@ -69,10 +69,27 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertStringContainsString('learningModeText', $localized_messages);
             $this->assertStringContainsString('practiceModeShort', $localized_messages);
 
-            $localized_mode_config = wp_scripts()->get_data('ll-flc-mode-config', 'data');
-            $this->assertIsString($localized_mode_config);
-            $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_mode_config);
-            $this->assertStringContainsString('selfCheckSwitchLabel', $localized_mode_config);
+            $this->assertStringContainsString('selfCheckSwitchLabel', $localized_messages);
+
+            $scripts = wp_scripts();
+            foreach (['ll-tools-flashcard-loader', 'll-tools-flashcard-options', 'll-flc-util'] as $handle) {
+                $this->assertContains(
+                    'll-tools-flashcard-audio',
+                    (array) ($scripts->registered[$handle]->deps ?? []),
+                    $handle . ' must load after the single-owner flashcard data bootstrap.'
+                );
+            }
+
+            $registered_data = '';
+            foreach ((array) $scripts->registered as $dependency) {
+                if (is_object($dependency) && isset($dependency->extra['data'])) {
+                    $registered_data .= "\n" . (string) $dependency->extra['data'];
+                }
+            }
+            $this->assertSame(1, substr_count($registered_data, 'var llToolsFlashcardsData ='));
+            $this->assertSame(1, substr_count($registered_data, 'var llToolsFlashcardsMessages ='));
+            $this->assertFalse($scripts->get_data('ll-flc-main', 'data'));
+            $this->assertFalse($scripts->get_data('ll-flc-mode-config', 'data'));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

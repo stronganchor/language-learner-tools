@@ -59,9 +59,16 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             $shells = array_values((array) ($config['lazyCards']['shells'] ?? []));
             $first_shell = isset($shells[0]) && is_array($shells[0]) ? $shells[0] : [];
             $this->assertSame('category', (string) ($first_shell['type'] ?? ''));
-            $this->assertStringContainsString('Lazy Ajax Category G', (string) ($first_shell['name'] ?? ''));
-            $this->assertSame(5, (int) ($first_shell['count'] ?? 0));
-            $this->assertArrayNotHasKey('preview', $first_shell);
+            $this->assertSame(['type', 'id'], array_keys($first_shell));
+            $category_lookup = [];
+            foreach ((array) ($config['categories'] ?? []) as $category_config) {
+                if (is_array($category_config) && (int) ($category_config['id'] ?? 0) > 0) {
+                    $category_lookup[(int) $category_config['id']] = $category_config;
+                }
+            }
+            $referenced_category = $category_lookup[(int) ($first_shell['id'] ?? 0)] ?? [];
+            $this->assertStringContainsString('Lazy Ajax Category G', (string) ($referenced_category['name'] ?? ''));
+            $this->assertSame(5, (int) ($referenced_category['count'] ?? 0));
         } finally {
             $_GET = $original_get;
             set_query_var('ll_wordset_page', $original_wordset_page);
@@ -69,6 +76,153 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
             remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
         }
+    }
+
+    public function test_runtime_category_payload_omits_defaults_without_losing_explicit_state(): void
+    {
+        $base = [
+            'id' => 123,
+            'wordset_id' => 77,
+            'default_order' => 4,
+            'slug' => 'sparse-category',
+            'name' => 'Sparse Category',
+            'translation' => 'Sparse Category',
+            'count' => 12,
+            'url' => 'https://example.test/wordset/sparse-category/',
+            'mode' => 'image',
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            'learning_prompt_type' => '',
+            'learning_option_type' => '',
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'sign_language_mode' => false,
+            'gender_supported' => false,
+            'is_public' => true,
+            'public_note' => '',
+            'public_note_label' => '',
+            'word_image_count' => 0,
+            'prompt_card_count' => 0,
+            'content_count' => 0,
+            'can_manage_inactive' => false,
+            'can_hide' => false,
+            'can_preview' => false,
+            'can_delete' => false,
+            'delete_reason' => '',
+            'deletion_status' => '',
+            'deletion_progress' => [],
+            'deletion_message' => '',
+            'inactive_action_nonce' => '',
+            'inactive_action_url' => '',
+            'inactive_preview_url' => '',
+            'inactive_link_allowed' => false,
+            'is_virtual_category' => false,
+            'virtual_category_type' => '',
+            'aspect_bucket' => 'no-image',
+            'hidden' => false,
+            'has_images' => false,
+            'preview_deferred' => true,
+            'preview_limit' => 2,
+            'preview_requires_images' => true,
+            'preview_aspect_ratio' => '',
+            'preview' => [],
+            'mastered_words' => 0,
+            'studied_words' => 0,
+            'new_words' => 12,
+            'last_seen_at' => '',
+        ];
+
+        $compact = ll_tools_wordset_page_compact_runtime_category_payload($base, 77);
+        $this->assertSame(123, (int) ($compact['id'] ?? 0));
+        $this->assertSame(4, (int) ($compact['default_order'] ?? -1));
+        $this->assertSame('Sparse Category', (string) ($compact['name'] ?? ''));
+        $this->assertTrue((bool) ($compact['preview_deferred'] ?? false));
+        $this->assertTrue((bool) ($compact['preview_requires_images'] ?? false));
+        foreach ([
+            'wordset_id', 'translation', 'mode', 'prompt_type', 'option_type',
+            'learning_supported', 'self_check_supported', 'is_public',
+            'word_image_count', 'prompt_card_count', 'content_count',
+            'can_delete', 'deletion_progress', 'preview_limit', 'preview',
+            'mastered_words', 'studied_words', 'new_words', 'last_seen_at',
+        ] as $omitted_key) {
+            $this->assertArrayNotHasKey($omitted_key, $compact, $omitted_key);
+        }
+
+        $explicit = array_merge($base, [
+            'translation' => 'Translated Category',
+            'learning_supported' => false,
+            'self_check_supported' => false,
+            'is_public' => false,
+            'can_delete' => true,
+            'deletion_status' => 'running',
+            'deletion_progress' => ['processed' => 3, 'total' => 12, 'percent' => 25],
+            'deletion_message' => 'Deleting category',
+            'inactive_action_nonce' => 'nonce-value',
+            'inactive_action_url' => 'https://example.test/action',
+            'preview' => [['type' => 'text', 'label' => 'Preview']],
+            'mastered_words' => 2,
+            'studied_words' => 5,
+            'new_words' => 0,
+            'last_seen_at' => '2026-07-14 08:00:00',
+        ]);
+        $explicit_compact = ll_tools_wordset_page_compact_runtime_category_payload($explicit, 77);
+
+        $this->assertSame('Translated Category', $explicit_compact['translation'] ?? '');
+        $this->assertFalse((bool) ($explicit_compact['learning_supported'] ?? true));
+        $this->assertFalse((bool) ($explicit_compact['self_check_supported'] ?? true));
+        $this->assertFalse((bool) ($explicit_compact['is_public'] ?? true));
+        $this->assertTrue((bool) ($explicit_compact['can_delete'] ?? false));
+        $this->assertSame('running', $explicit_compact['deletion_status'] ?? '');
+        $this->assertSame(25, (int) ($explicit_compact['deletion_progress']['percent'] ?? 0));
+        $this->assertSame(0, (int) ($explicit_compact['new_words'] ?? -1));
+        $this->assertNotEmpty($explicit_compact['preview'] ?? []);
+
+        $foreign_scope = ll_tools_wordset_page_compact_runtime_category_payload($base, 88);
+        $this->assertSame(77, (int) ($foreign_scope['wordset_id'] ?? 0));
+
+        $empty_fallbacks = ll_tools_wordset_page_compact_runtime_category_payload(array_merge($base, [
+            'wordset_id' => 0,
+            'translation' => '',
+            'deletion_progress' => ['processed' => 0, 'total' => 0, 'percent' => 0],
+        ]), 77);
+        $this->assertArrayNotHasKey('wordset_id', $empty_fallbacks);
+        $this->assertArrayNotHasKey('translation', $empty_fallbacks);
+        $this->assertArrayNotHasKey('deletion_progress', $empty_fallbacks);
+    }
+
+    public function test_large_runtime_category_registry_stays_within_sparse_payload_budget(): void
+    {
+        $categories = [];
+        for ($index = 0; $index < 209; $index++) {
+            $count = 5 + ($index % 20);
+            $categories[] = ll_tools_wordset_page_compact_runtime_category_payload([
+                'id' => 1000 + $index,
+                'wordset_id' => 77,
+                'default_order' => $index,
+                'slug' => 'large-category-' . $index,
+                'name' => 'Large Category ' . $index,
+                'translation' => 'Large Category ' . $index,
+                'count' => $count,
+                'url' => 'https://example.test/wordset/large-category-' . $index . '/',
+                'mode' => 'image',
+                'prompt_type' => 'audio',
+                'option_type' => 'image',
+                'learning_supported' => true,
+                'self_check_supported' => true,
+                'is_public' => true,
+                'preview_deferred' => true,
+                'preview_limit' => 2,
+                'preview_requires_images' => true,
+                'preview' => [],
+                'mastered_words' => 0,
+                'studied_words' => 0,
+                'new_words' => $count,
+            ], 77);
+        }
+
+        $json = wp_json_encode($categories);
+        $this->assertIsString($json);
+        $this->assertLessThan(100000, strlen((string) $json));
     }
 
     public function test_main_wordset_route_renders_all_deferred_cards_when_lazy_payload_cannot_persist(): void

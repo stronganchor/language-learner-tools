@@ -1606,7 +1606,7 @@
                 default_order: Math.max(0, parseInt(cat && cat.default_order, 10) || index),
                 slug: String((cat && cat.slug) || ''),
                 name: String((cat && cat.name) || ''),
-                translation: String((cat && cat.translation) || ''),
+                translation: String((cat && cat.translation) || (cat && cat.name) || ''),
                 aspect_bucket: String((cat && cat.aspect_bucket) || 'no-image') || 'no-image',
                 count: Math.max(0, parseInt(cat && cat.count, 10) || 0),
                 url: String((cat && cat.url) || ''),
@@ -1633,7 +1633,9 @@
                 search_text: String((cat && cat.search_text) || ''),
                 mastered_words: Math.max(0, parseInt(cat && cat.mastered_words, 10) || 0),
                 studied_words: Math.max(0, parseInt(cat && cat.studied_words, 10) || 0),
-                new_words: Math.max(0, parseInt(cat && cat.new_words, 10) || Math.max(0, parseInt(cat && cat.count, 10) || 0)),
+                new_words: cat && Object.prototype.hasOwnProperty.call(cat, 'new_words')
+                    ? Math.max(0, parseInt(cat.new_words, 10) || 0)
+                    : Math.max(0, parseInt(cat && cat.count, 10) || 0),
                 last_seen_at: String((cat && cat.last_seen_at) || ''),
                 wordset_id: parseInt(cat && cat.wordset_id, 10) || wordsetId,
                 can_manage_inactive: normalizeBooleanFlag(cat && cat.can_manage_inactive),
@@ -1681,54 +1683,12 @@
                 };
             }
 
+            // Category shells are ordered references into the complete category
+            // registry. Expanding absent fields into defaults here would
+            // overwrite the real registry values when the shell is merged.
             return {
                 type: 'category',
-                id: Math.max(0, parseInt(source.id, 10) || 0),
-                name: String(source.name || ''),
-                translation: String(source.translation || source.name || ''),
-                count: Math.max(0, parseInt(source.count, 10) || 0),
-                search_text: String(source.search_text || ''),
-                url: String(source.url || ''),
-                mode: String(source.mode || 'image'),
-                prompt_type: String(source.prompt_type || 'audio'),
-                option_type: String(source.option_type || 'image'),
-                is_public: Object.prototype.hasOwnProperty.call(source, 'is_public')
-                    ? normalizeBooleanFlag(source.is_public)
-                    : true,
-                public_note: String(source.public_note || ''),
-                public_note_label: String(source.public_note_label || ''),
-                has_images: normalizeBooleanFlag(source.has_images),
-                wordset_id: parseInt(source.wordset_id, 10) || wordsetId,
-                can_manage_inactive: normalizeBooleanFlag(source.can_manage_inactive),
-                can_hide: normalizeBooleanFlag(source.can_hide),
-                can_delete: normalizeBooleanFlag(source.can_delete),
-                can_preview: normalizeBooleanFlag(source.can_preview),
-                delete_reason: String(source.delete_reason || ''),
-                deletion_status: String(source.deletion_status || ''),
-                deletion_progress: (source.deletion_progress && typeof source.deletion_progress === 'object')
-                    ? {
-                        processed: Math.max(0, parseInt(source.deletion_progress.processed, 10) || 0),
-                        total: Math.max(0, parseInt(source.deletion_progress.total, 10) || 0),
-                        percent: Math.max(0, Math.min(100, parseInt(source.deletion_progress.percent, 10) || 0))
-                    }
-                    : { processed: 0, total: 0, percent: 0 },
-                deletion_message: String(source.deletion_message || ''),
-                inactive_action_nonce: String(source.inactive_action_nonce || ''),
-                inactive_action_url: String(source.inactive_action_url || ''),
-                inactive_preview_url: String(source.inactive_preview_url || ''),
-                inactive_link_allowed: normalizeBooleanFlag(source.inactive_link_allowed),
-                is_virtual_category: normalizeBooleanFlag(source.is_virtual_category),
-                virtual_category_type: String(source.virtual_category_type || ''),
-                preview_limit: Math.max(1, parseInt(source.preview_limit, 10) || 2),
-                preview_requires_images: normalizeBooleanFlag(source.preview_requires_images),
-                preview_aspect_ratio: String(source.preview_aspect_ratio || ''),
-                learning_supported: Object.prototype.hasOwnProperty.call(source, 'learning_supported')
-                    ? normalizeBooleanFlag(source.learning_supported)
-                    : true,
-                self_check_supported: Object.prototype.hasOwnProperty.call(source, 'self_check_supported')
-                    ? normalizeBooleanFlag(source.self_check_supported)
-                    : true,
-                gender_supported: normalizeBooleanFlag(source.gender_supported)
+                id: Math.max(0, parseInt(source.id, 10) || 0)
             };
         });
     }
