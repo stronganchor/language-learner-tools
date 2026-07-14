@@ -29,7 +29,20 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK);
         wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK);
         wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+        delete_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
+        delete_option('ll_vocab_lesson_wordsets');
         delete_option('ll_tools_word_option_rules');
+        if (function_exists('ll_tools_reset_category_maintenance_runtime')) {
+            ll_tools_reset_category_maintenance_runtime();
+        }
 
         parent::tearDown();
     }
@@ -138,6 +151,365 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertGreaterThanOrEqual(2, (int) ($result['categories_created'] ?? 0));
         $this->assertGreaterThanOrEqual(2, (int) ($result['images_created'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($result['images_relinked'] ?? 0));
+    }
+
+    public function test_migration_defers_eager_category_maintenance_and_queues_bounded_reconciliation(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Deferred Migration Wordset', 'deferred-migration-wordset');
+        $category_id = $this->ensure_term('word-category', 'Deferred Migration Category', 'deferred-migration-category');
+        $this->createWordInWordsetCategory('Deferred Migration Word', $wordset_id, $category_id);
+
+        update_option('ll_vocab_lesson_wordsets', [$wordset_id], false);
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        ll_tools_reset_category_maintenance_runtime();
+
+        $created_category_deferred_states = [];
+        $observe_created_category = static function () use (&$created_category_deferred_states): void {
+            $created_category_deferred_states[] = ll_tools_category_maintenance_is_deferred();
+        };
+        $unbounded_count_queries = [];
+        $observe_queries = static function (string $sql) use (&$unbounded_count_queries): string {
+            if (
+                strpos($sql, 'COUNT(DISTINCT posts.ID) AS total') !== false
+                && strpos($sql, 'category_taxonomy.term_id IN') === false
+            ) {
+                $unbounded_count_queries[] = $sql;
+            }
+            return $sql;
+        };
+
+        add_action('created_word-category', $observe_created_category, 1);
+        add_filter('query', $observe_queries);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration();
+        } finally {
+            remove_action('created_word-category', $observe_created_category, 1);
+            remove_filter('query', $observe_queries);
+        }
+
+        $this->assertSame('completed', $result['status']);
+        $this->assertNotEmpty($created_category_deferred_states);
+        $this->assertNotContains(false, $created_category_deferred_states);
+        $this->assertSame([], $unbounded_count_queries);
+
+        $this->assertFalse(get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, false));
+        $this->assertFalse(get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, false));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $quiz_sync_state = get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, []);
+        $vocab_sync_state = get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, []);
+        $this->assertSame('queued', (string) ($quiz_sync_state['status'] ?? ''));
+        $this->assertSame('queued', (string) ($vocab_sync_state['status'] ?? ''));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+        $reconciliation_state = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('launched', (string) ($reconciliation_state['status'] ?? ''));
+        $this->assertSame(
+            (string) ($reconciliation_state['token'] ?? ''),
+            (string) ($quiz_sync_state['wordset_isolation_reconciliation_token'] ?? '')
+        );
+        $this->assertSame(
+            (string) ($reconciliation_state['token'] ?? ''),
+            (string) ($vocab_sync_state['wordset_isolation_reconciliation_token'] ?? '')
+        );
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+
+        $quiz_sync_state['status'] = 'completed';
+        $quiz_sync_state['completed_at'] = time();
+        $vocab_sync_state['status'] = 'completed';
+        $vocab_sync_state['completed_at'] = time();
+        update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $quiz_sync_state, false);
+        update_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, $vocab_sync_state, false);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $this->assertFalse(get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+
+        $maintenance_runtime = ll_tools_get_category_maintenance_runtime();
+        $this->assertSame(0, (int) ($maintenance_runtime['defer_depth'] ?? -1));
+        $this->assertSame([], (array) ($maintenance_runtime['queued_category_ids'] ?? []));
+    }
+
+    public function test_generated_page_reconciliation_waits_for_existing_workers_then_starts_fresh_passes(): void
+    {
+        $wordset_id = $this->ensure_term(
+            'wordset',
+            'Deferred Reconciliation Wordset',
+            'deferred-reconciliation-wordset'
+        );
+        update_option('ll_vocab_lesson_wordsets', [$wordset_id], false);
+
+        $existing_quiz_state = [
+            'status' => 'running',
+            'phase' => 'sync',
+            'cursor' => 321,
+            'queued_at' => 123,
+        ];
+        $existing_vocab_state = [
+            'status' => 'queued',
+            'phase' => 'sync',
+            'wordset_ids' => [$wordset_id],
+            'wordset_index' => 1,
+            'category_cursor' => 654,
+            'queued_at' => 456,
+        ];
+        update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $existing_quiz_state, false);
+        update_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, $existing_vocab_state, false);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $this->assertSame($existing_quiz_state, get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION));
+        $this->assertSame($existing_vocab_state, get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+
+        update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, ['status' => 'completed'], false);
+        update_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, ['status' => 'completed'], false);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $fresh_quiz_state = get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, []);
+        $fresh_vocab_state = get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, []);
+        $this->assertSame('queued', (string) ($fresh_quiz_state['status'] ?? ''));
+        $this->assertSame(0, (int) ($fresh_quiz_state['cursor'] ?? -1));
+        $this->assertSame('queued', (string) ($fresh_vocab_state['status'] ?? ''));
+        $this->assertSame(0, (int) ($fresh_vocab_state['wordset_index'] ?? -1));
+        $this->assertSame(0, (int) ($fresh_vocab_state['category_cursor'] ?? -1));
+        $this->assertContains($wordset_id, array_map('intval', (array) ($fresh_vocab_state['wordset_ids'] ?? [])));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+        $fresh_request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('launched', (string) ($fresh_request['status'] ?? ''));
+        $this->assertSame(
+            (string) ($fresh_request['token'] ?? ''),
+            (string) ($fresh_quiz_state['wordset_isolation_reconciliation_token'] ?? '')
+        );
+        $this->assertSame(
+            (string) ($fresh_request['token'] ?? ''),
+            (string) ($fresh_vocab_state['wordset_isolation_reconciliation_token'] ?? '')
+        );
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+
+        $fresh_quiz_state['status'] = 'completed';
+        $fresh_vocab_state['status'] = 'completed';
+        update_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, $fresh_quiz_state, false);
+        update_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, $fresh_vocab_state, false);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $this->assertFalse(get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+    }
+
+    public function test_reconciliation_hook_scheduling_failure_prevents_version_publication(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'queued';
+        $state['phase'] = 'finalize';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+
+        $reject_owned_event = static function ($pre, $event) {
+            return is_object($event) && (string) ($event->hook ?? '') === LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK
+                ? false
+                : $pre;
+        };
+        add_filter('pre_schedule_event', $reject_owned_event, 10, 2);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('pre_schedule_event', $reject_owned_event, 10);
+        }
+
+        $this->assertSame('failed', (string) ($result['status'] ?? ''));
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+        $this->assertFalse(get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+    }
+
+    public function test_child_event_scheduling_failure_retains_durable_reconciliation_intent(): void
+    {
+        $wordset_id = $this->ensure_term(
+            'wordset',
+            'Partial Reconciliation Wordset',
+            'partial-reconciliation-wordset'
+        );
+        update_option('ll_vocab_lesson_wordsets', [$wordset_id], false);
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        $reject_vocab_event = static function ($pre, $event) {
+            return is_object($event) && (string) ($event->hook ?? '') === LL_TOOLS_VOCAB_LESSON_SYNC_EVENT
+                ? false
+                : $pre;
+        };
+        add_filter('pre_schedule_event', $reject_vocab_event, 10, 2);
+        try {
+            ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+        } finally {
+            remove_filter('pre_schedule_event', $reject_vocab_event, 10);
+        }
+
+        $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('waiting', (string) ($request['status'] ?? ''));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+        $this->assertSame(
+            (string) ($request['token'] ?? ''),
+            (string) (get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, [])['wordset_isolation_reconciliation_token'] ?? '')
+        );
+    }
+
+    public function test_reconciliation_request_supersedes_every_prior_generation(): void
+    {
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        $first = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $first['status'] = 'launched';
+        $first['quiz_queued_at'] = 123;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, $first, false);
+
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        $second = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+
+        $this->assertNotSame((string) ($first['token'] ?? ''), (string) ($second['token'] ?? ''));
+        $this->assertSame('waiting', (string) ($second['status'] ?? ''));
+        $this->assertSame(0, (int) ($second['quiz_queued_at'] ?? -1));
+        $this->assertSame(0, (int) ($second['vocab_queued_at'] ?? -1));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+    }
+
+    public function test_reconciliation_refuses_to_tag_a_scoped_vocab_worker_as_the_full_fresh_pass(): void
+    {
+        $wordset_one = $this->ensure_term('wordset', 'Full Pass Wordset One', 'full-pass-wordset-one');
+        $wordset_two = $this->ensure_term('wordset', 'Full Pass Wordset Two', 'full-pass-wordset-two');
+        update_option('ll_vocab_lesson_wordsets', [$wordset_one, $wordset_two], false);
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+
+        $scoped_state = [
+            'status' => 'queued',
+            'phase' => 'sync',
+            'wordset_ids' => [$wordset_one],
+            'wordset_index' => 0,
+            'category_cursor' => 0,
+            'queued_at' => time(),
+        ];
+        update_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, $scoped_state, false);
+        wp_schedule_single_event(time() + 1, LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+
+        $tagged_at = ll_tools_wordset_isolation_reconciliation_tag_fresh_child(
+            LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION,
+            (string) ($request['token'] ?? ''),
+            (int) ($request['requested_at'] ?? 0),
+            LL_TOOLS_VOCAB_LESSON_SYNC_EVENT,
+            'vocab'
+        );
+
+        $this->assertSame(0, $tagged_at);
+        $stored = get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, []);
+        $this->assertArrayNotHasKey('wordset_isolation_reconciliation_token', $stored);
+    }
+
+    public function test_reconciliation_worker_lock_contention_keeps_owned_retry_pending(): void
+    {
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        set_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK, 1, MINUTE_IN_SECONDS);
+        try {
+            ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+        } finally {
+            delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+        }
+
+        $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('waiting', (string) ($request['status'] ?? ''));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+        $this->assertFalse(get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, false));
+        $this->assertFalse(get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, false));
+    }
+
+    public function test_launched_reconciliation_repairs_a_stranded_child_event(): void
+    {
+        delete_option('ll_vocab_lesson_wordsets');
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        $this->assertTrue(ll_tools_wordset_isolation_request_bounded_category_reconciliation());
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $before = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('launched', (string) ($before['status'] ?? ''));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        delete_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+        ll_tools_wordset_isolation_run_bounded_category_reconciliation();
+
+        $after = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, []);
+        $this->assertSame('launched', (string) ($after['status'] ?? ''));
+        $this->assertSame((string) ($before['token'] ?? ''), (string) ($after['token'] ?? ''));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+    }
+
+    public function test_migration_discards_only_its_categories_inside_an_outer_deferral_scope(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Nested Deferral Wordset', 'nested-deferral-wordset');
+        $category_id = $this->ensure_term('word-category', 'Nested Deferral Category', 'nested-deferral-category');
+        $this->createWordInWordsetCategory('Nested Deferral Word', $wordset_id, $category_id);
+
+        ll_tools_reset_category_maintenance_runtime();
+        ll_tools_begin_deferred_category_maintenance('outer-test-scope');
+        ll_tools_queue_deferred_category_maintenance([$category_id]);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration();
+            $runtime = ll_tools_get_category_maintenance_runtime();
+        } finally {
+            ll_tools_end_deferred_category_maintenance(false);
+        }
+
+        $this->assertSame('completed', (string) ($result['status'] ?? ''));
+        $this->assertSame(1, (int) ($runtime['defer_depth'] ?? -1));
+        $this->assertSame([$category_id => true], (array) ($runtime['queued_category_ids'] ?? []));
     }
 
     public function test_wordset_isolation_migration_resumes_in_bounded_keyset_batches(): void
@@ -1267,6 +1639,14 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $state['status'] = 'queued';
         $state['phase'] = 'finalize';
         update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+        delete_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION);
+        ll_tools_reset_category_maintenance_runtime();
 
         $drop_completed_state = static function (string $sql) use ($wpdb): string {
             if (
@@ -1291,6 +1671,17 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
             'completed',
             (string) (ll_tools_get_wordset_isolation_migration_state()['status'] ?? '')
         );
+        $this->assertFalse(get_option(LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION, false));
+        $this->assertFalse(get_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION, false));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK));
+        $this->assertFalse(get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false));
+        $this->assertFalse(get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION, false));
+
+        $maintenance_runtime = ll_tools_get_category_maintenance_runtime();
+        $this->assertSame(0, (int) ($maintenance_runtime['defer_depth'] ?? -1));
+        $this->assertSame([], (array) ($maintenance_runtime['queued_category_ids'] ?? []));
     }
 
     public function test_background_migration_refuses_an_oversized_word_option_rules_store(): void

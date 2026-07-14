@@ -19,6 +19,15 @@ if (!defined('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_LOCK_OPTION')) {
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK')) {
     define('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK', 'll_tools_wordset_isolation_migration_batch');
 }
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK', 'll_tools_wordset_isolation_reconcile_generated_pages');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION', 'll_tools_wordset_isolation_reconciliation_state');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION', 'll_tools_wordset_isolation_reconciliation_lock');
+}
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT')) {
     define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT', 'll_tools_wordset_isolation_health_report');
 }
@@ -2710,6 +2719,362 @@ function ll_tools_wordset_isolation_migration_advance_phase(array &$state): void
     $state['cursor'] = 0;
 }
 
+function ll_tools_wordset_isolation_schedule_bounded_category_reconciliation(int $delay = MINUTE_IN_SECONDS): bool {
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK)) {
+        wp_schedule_single_event(
+            time() + max(1, $delay),
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK
+        );
+    }
+
+    return wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK) !== false;
+}
+
+function ll_tools_wordset_isolation_reconciliation_update_option_exact(string $option_name, array $before, array $after): bool {
+    global $wpdb;
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = %s
+         WHERE option_name = %s
+           AND option_value = %s",
+        maybe_serialize($after),
+        $option_name,
+        maybe_serialize($before)
+    ));
+    wp_cache_delete($option_name, 'options');
+    return $updated === 1 && get_option($option_name, false) === $after;
+}
+
+function ll_tools_wordset_isolation_reconciliation_delete_option_exact(string $option_name, $before): bool {
+    global $wpdb;
+
+    if ($before === false) {
+        return true;
+    }
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options}
+         WHERE option_name = %s
+           AND option_value = %s",
+        $option_name,
+        maybe_serialize($before)
+    ));
+    wp_cache_delete($option_name, 'options');
+    return $deleted === 1 || get_option($option_name, false) === false;
+}
+
+function ll_tools_wordset_isolation_request_bounded_category_reconciliation(): bool {
+    $state = [
+        'schema' => 1,
+        'token' => strtolower(wp_generate_password(24, false, false)),
+        'status' => 'waiting',
+        'requested_at' => time(),
+        'updated_at' => time(),
+        'attempts' => 0,
+        'quiz_queued_at' => 0,
+        'vocab_queued_at' => 0,
+    ];
+    $saved = false;
+    for ($attempt = 0; $attempt < 3 && !$saved; $attempt++) {
+        $existing = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false);
+        if ($existing === false) {
+            $saved = add_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, $state, '', false);
+        } elseif (is_array($existing)) {
+            $saved = ll_tools_wordset_isolation_reconciliation_update_option_exact(
+                LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+                $existing,
+                $state
+            );
+        } else {
+            $saved = ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+                LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+                $existing
+            ) && add_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, $state, '', false);
+        }
+        wp_cache_delete(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, 'options');
+    }
+    if (!$saved) {
+        return false;
+    }
+    $stored = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false);
+    if (!is_array($stored) || !hash_equals($state['token'], (string) ($stored['token'] ?? ''))) {
+        return false;
+    }
+
+    if (!ll_tools_wordset_isolation_schedule_bounded_category_reconciliation(MINUTE_IN_SECONDS)) {
+        ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+            $stored
+        );
+        return false;
+    }
+    return true;
+}
+
+function ll_tools_wordset_isolation_reconciliation_acquire_lock(): string {
+    $now = time();
+    $existing = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION, false);
+    if (is_array($existing) && (int) ($existing['expires_at'] ?? 0) > $now) {
+        return '';
+    }
+    if (
+        $existing !== false
+        && !ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION,
+            $existing
+        )
+    ) {
+        return '';
+    }
+
+    $token = strtolower(wp_generate_password(24, false, false));
+    $lock = [
+        'token' => $token,
+        'expires_at' => $now + 5 * MINUTE_IN_SECONDS,
+    ];
+    return add_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION, $lock, '', false)
+        ? $token
+        : '';
+}
+
+function ll_tools_wordset_isolation_reconciliation_release_lock(string $token): void {
+    $lock = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION, false);
+    if (
+        $token !== ''
+        && is_array($lock)
+        && hash_equals((string) ($lock['token'] ?? ''), $token)
+    ) {
+        ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_LOCK_OPTION,
+            $lock
+        );
+    }
+}
+
+function ll_tools_wordset_isolation_reconciliation_state_is_active(array $state): bool {
+    return in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true);
+}
+
+function ll_tools_wordset_isolation_reconciliation_tag_fresh_child(
+    string $option_name,
+    string $token,
+    int $requested_at,
+    string $event_hook,
+    string $kind
+): int {
+    $state = get_option($option_name, false);
+    if (!is_array($state) || wp_next_scheduled($event_hook) === false) {
+        return 0;
+    }
+    $queued_at = (int) ($state['queued_at'] ?? 0);
+    $status = (string) ($state['status'] ?? '');
+    if ($queued_at < $requested_at || $status !== 'queued') {
+        return 0;
+    }
+    if ($kind === 'quiz') {
+        if ((string) ($state['phase'] ?? '') !== 'cleanup' || (int) ($state['cursor'] ?? -1) !== 0) {
+            return 0;
+        }
+    } elseif (
+        (string) ($state['phase'] ?? '') !== 'sync'
+        || (int) ($state['wordset_index'] ?? -1) !== 0
+        || (int) ($state['category_cursor'] ?? -1) !== 0
+    ) {
+        return 0;
+    } elseif (function_exists('ll_tools_get_vocab_lesson_wordset_ids')) {
+        $actual_wordset_ids = array_values(array_unique(array_filter(array_map(
+            'intval',
+            (array) ($state['wordset_ids'] ?? [])
+        ), static fn(int $wordset_id): bool => $wordset_id > 0)));
+        $expected_wordset_ids = array_values(array_unique(array_filter(array_map(
+            'intval',
+            (array) ll_tools_get_vocab_lesson_wordset_ids()
+        ), static fn(int $wordset_id): bool => $wordset_id > 0)));
+        sort($actual_wordset_ids, SORT_NUMERIC);
+        sort($expected_wordset_ids, SORT_NUMERIC);
+        if ($actual_wordset_ids !== $expected_wordset_ids) {
+            return 0;
+        }
+    }
+
+    $tagged = $state;
+    $tagged['wordset_isolation_reconciliation_token'] = $token;
+    return ll_tools_wordset_isolation_reconciliation_update_option_exact($option_name, $state, $tagged)
+        ? $queued_at
+        : 0;
+}
+
+function ll_tools_wordset_isolation_run_bounded_category_reconciliation(): void {
+    $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false);
+    if (!is_array($request) || (string) ($request['token'] ?? '') === '') {
+        if ($request !== false) {
+            ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+                LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+                $request
+            );
+        }
+        return;
+    }
+
+    // WP-Cron consumes a single event before invoking its callback. Re-arm first;
+    // durable intent remains until both tagged child passes complete.
+    if (!ll_tools_wordset_isolation_schedule_bounded_category_reconciliation(MINUTE_IN_SECONDS)) {
+        return;
+    }
+
+    $lock_token = ll_tools_wordset_isolation_reconciliation_acquire_lock();
+    if ($lock_token === '') {
+        return;
+    }
+
+    try {
+        $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false);
+        if (!is_array($request) || (string) ($request['token'] ?? '') === '') {
+            return;
+        }
+        $token = (string) $request['token'];
+        $vocab_enabled = !function_exists('ll_tools_vocab_lessons_enabled') || ll_tools_vocab_lessons_enabled();
+        $quiz_state = function_exists('ll_tools_get_quiz_page_sync_state')
+            ? ll_tools_get_quiz_page_sync_state()
+            : [];
+        $vocab_state = $vocab_enabled && function_exists('ll_tools_get_vocab_lesson_reconciliation_state')
+            ? ll_tools_get_vocab_lesson_reconciliation_state()
+            : [];
+        $quiz_active = ll_tools_wordset_isolation_reconciliation_state_is_active($quiz_state);
+        $vocab_active = $vocab_enabled && ll_tools_wordset_isolation_reconciliation_state_is_active($vocab_state);
+        $quiz_locked = defined('LL_TOOLS_QUIZ_PAGE_SYNC_LOCK')
+            && (bool) get_transient(LL_TOOLS_QUIZ_PAGE_SYNC_LOCK);
+        $vocab_locked = $vocab_enabled
+            && defined('LL_TOOLS_VOCAB_LESSON_SYNC_LOCK')
+            && (bool) get_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
+
+        if ((string) ($request['status'] ?? '') === 'launched') {
+            $quiz_complete = (string) ($quiz_state['status'] ?? '') === 'completed'
+                && hash_equals($token, (string) ($quiz_state['wordset_isolation_reconciliation_token'] ?? ''))
+                && (int) ($quiz_state['queued_at'] ?? 0) === (int) ($request['quiz_queued_at'] ?? 0);
+            $vocab_complete = !$vocab_enabled || (
+                (string) ($vocab_state['status'] ?? '') === 'completed'
+                && hash_equals($token, (string) ($vocab_state['wordset_isolation_reconciliation_token'] ?? ''))
+                && (int) ($vocab_state['queued_at'] ?? 0) === (int) ($request['vocab_queued_at'] ?? 0)
+            );
+            if ($quiz_complete && $vocab_complete) {
+                ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+                    LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+                    $request
+                );
+                return;
+            }
+            if ($quiz_active || $quiz_locked || $vocab_active || $vocab_locked) {
+                if (
+                    $quiz_active
+                    && !$quiz_locked
+                    && wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT) === false
+                    && function_exists('ll_tools_schedule_quiz_page_full_sync')
+                ) {
+                    ll_tools_schedule_quiz_page_full_sync(1);
+                }
+                if (
+                    $vocab_active
+                    && !$vocab_locked
+                    && wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT) === false
+                    && function_exists('ll_tools_schedule_vocab_lesson_full_sync')
+                ) {
+                    ll_tools_schedule_vocab_lesson_full_sync(1);
+                }
+                return;
+            }
+
+            $waiting = $request;
+            $waiting['status'] = 'waiting';
+            $waiting['updated_at'] = time();
+            $waiting['quiz_queued_at'] = 0;
+            $waiting['vocab_queued_at'] = 0;
+            ll_tools_wordset_isolation_reconciliation_update_option_exact(
+                LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+                $request,
+                $waiting
+            );
+            return;
+        }
+
+        if ($quiz_active || $quiz_locked || $vocab_active || $vocab_locked) {
+            if ($quiz_active && function_exists('ll_tools_schedule_quiz_page_full_sync')) {
+                ll_tools_schedule_quiz_page_full_sync(1);
+            }
+            if ($vocab_active && function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
+                ll_tools_schedule_vocab_lesson_full_sync(1);
+            }
+            return;
+        }
+
+        if (!function_exists('ll_tools_schedule_quiz_page_full_sync')) {
+            return;
+        }
+        ll_tools_schedule_quiz_page_full_sync(1);
+        if ($vocab_enabled) {
+            if (!function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
+                return;
+            }
+            ll_tools_schedule_vocab_lesson_full_sync(1);
+        }
+
+        $requested_at = max(1, (int) ($request['requested_at'] ?? 0));
+        $quiz_queued_at = ll_tools_wordset_isolation_reconciliation_tag_fresh_child(
+            LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION,
+            $token,
+            $requested_at,
+            LL_TOOLS_QUIZ_PAGE_SYNC_EVENT,
+            'quiz'
+        );
+        $vocab_queued_at = $vocab_enabled
+            ? ll_tools_wordset_isolation_reconciliation_tag_fresh_child(
+                LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION,
+                $token,
+                $requested_at,
+                LL_TOOLS_VOCAB_LESSON_SYNC_EVENT,
+                'vocab'
+            )
+            : 0;
+        if ($quiz_queued_at <= 0 || ($vocab_enabled && $vocab_queued_at <= 0)) {
+            return;
+        }
+
+        $launched = $request;
+        $launched['status'] = 'launched';
+        $launched['updated_at'] = time();
+        $launched['attempts'] = max(0, (int) ($request['attempts'] ?? 0)) + 1;
+        $launched['quiz_queued_at'] = $quiz_queued_at;
+        $launched['vocab_queued_at'] = $vocab_queued_at;
+        ll_tools_wordset_isolation_reconciliation_update_option_exact(
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+            $request,
+            $launched
+        );
+    } finally {
+        ll_tools_wordset_isolation_reconciliation_release_lock($lock_token);
+    }
+}
+add_action(
+    LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK,
+    'll_tools_wordset_isolation_run_bounded_category_reconciliation'
+);
+
+function ll_tools_wordset_isolation_maybe_schedule_bounded_category_reconciliation(): void {
+    $request = get_option(LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION, false);
+    if ($request === false) {
+        return;
+    }
+    if (!is_array($request) || (string) ($request['token'] ?? '') === '') {
+        ll_tools_wordset_isolation_reconciliation_delete_option_exact(
+            LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION,
+            $request
+        );
+        return;
+    }
+    ll_tools_wordset_isolation_schedule_bounded_category_reconciliation(1);
+}
+add_action('admin_init', 'll_tools_wordset_isolation_maybe_schedule_bounded_category_reconciliation', 6);
+
 function ll_tools_run_wordset_isolation_migration_batch(): array {
     if (!ll_tools_is_wordset_isolation_enabled()) {
         return ll_tools_get_wordset_isolation_migration_state();
@@ -2727,7 +3092,23 @@ function ll_tools_run_wordset_isolation_migration_batch(): array {
         return $state;
     }
 
+    $deferred_category_maintenance = false;
+    $deferred_category_maintenance_queue_before = [];
     try {
+        if (
+            function_exists('ll_tools_begin_deferred_category_maintenance')
+            && function_exists('ll_tools_end_deferred_category_maintenance')
+        ) {
+            if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+                $maintenance_runtime = &ll_tools_get_category_maintenance_runtime();
+                $deferred_category_maintenance_queue_before = is_array($maintenance_runtime['queued_category_ids'] ?? null)
+                    ? $maintenance_runtime['queued_category_ids']
+                    : [];
+            }
+            ll_tools_begin_deferred_category_maintenance('wordset-isolation-migration');
+            $deferred_category_maintenance = true;
+        }
+
         $state = ll_tools_get_wordset_isolation_migration_state();
         if ($state['status'] === 'failed') {
             return $state;
@@ -2858,19 +3239,26 @@ function ll_tools_run_wordset_isolation_migration_batch(): array {
                 if (ll_tools_wordset_isolation_migration_refresh_lease($lease_token) <= 0) {
                     return ll_tools_get_wordset_isolation_migration_state();
                 }
-                update_option(
-                    LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION,
-                    LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION,
-                    false
-                );
-                if (ll_tools_get_wordset_isolation_migration_version() !== LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION) {
+                if (!ll_tools_wordset_isolation_request_bounded_category_reconciliation()) {
                     ll_tools_wordset_isolation_migration_fail(
                         $state,
-                        __('The wordset isolation migration version could not be saved.', 'll-tools-text-domain')
+                        __('Generated-page reconciliation could not be scheduled after the isolation migration.', 'll-tools-text-domain')
                     );
                 } else {
-                    wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK);
-                    return $state;
+                    update_option(
+                        LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION,
+                        LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION,
+                        false
+                    );
+                    if (ll_tools_get_wordset_isolation_migration_version() !== LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION) {
+                        ll_tools_wordset_isolation_migration_fail(
+                            $state,
+                            __('The wordset isolation migration version could not be saved.', 'll-tools-text-domain')
+                        );
+                    } else {
+                        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK);
+                        return $state;
+                    }
                 }
             }
         }
@@ -2892,7 +3280,19 @@ function ll_tools_run_wordset_isolation_migration_batch(): array {
             ? $state
             : ll_tools_get_wordset_isolation_migration_state();
     } finally {
-        ll_tools_wordset_isolation_migration_release_lease($lease_token);
+        try {
+            if ($deferred_category_maintenance) {
+                // Migration mutations can touch thousands of categories. Their generated-page
+                // maintenance is reconciled by the migration-owned follow-up queued at finalization.
+                ll_tools_end_deferred_category_maintenance(false);
+                if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+                    $maintenance_runtime = &ll_tools_get_category_maintenance_runtime();
+                    $maintenance_runtime['queued_category_ids'] = $deferred_category_maintenance_queue_before;
+                }
+            }
+        } finally {
+            ll_tools_wordset_isolation_migration_release_lease($lease_token);
+        }
     }
 }
 add_action(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK, 'll_tools_run_wordset_isolation_migration_batch');
