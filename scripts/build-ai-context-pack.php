@@ -165,7 +165,7 @@ function ll_tools_context_pack_definitions(): array
                 'The wordset-isolation migration is a bounded, resumable, lease-fenced state machine; exact checkpoints must persist before the target version is published.',
                 'Each isolation-migration batch defers eager generated-page maintenance while preserving any outer queue; only a durable completed checkpoint may persist a new locked coordinator generation that tags complete fresh quiz/vocab passes, repairs child transport, and supervises exact completion.',
                 'Category isolation is mode-specific: explicit category writes preserve valid owned assignments, wordset events expand sources only into actually added scopes, migration keeps full source-by-wordset expansion, and legacy or out-of-scope rows remap across the active set.',
-                'Before user-meta repair, preflight every required category mapping; global goal lists preserve the bounded already-materialized family expansion without crossing preferred wordsets, and exact-prev-value CAS failures must not advance the cursor.',
+                'Before user-meta repair, preflight every required category mapping; global goal lists preserve the bounded already-materialized family expansion without crossing preferred wordsets, deleted-category progress is allowed only when the production repair is exactly identity-preserving, and exact-prev-value CAS failures must not advance the cursor.',
                 'Recommendation deferrals retain bounded session word IDs for exact signature re-keying; only legacy rows whose categories change without enough information for an exact re-key may be dropped.',
             ],
             'sources' => [

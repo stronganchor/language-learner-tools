@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.68\n"
+"Project-Id-Version: Language Learner Tools 6.6.69\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-14T20:03:35+00:00\n"
+"POT-Creation-Date: 2026-07-14T20:52:59+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -297,7 +297,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:23520
 #: includes/post-types/words-post-type.php:21
 #: includes/post-types/words-post-type.php:26
-#: includes/wordset-isolation.php:3460
+#: includes/wordset-isolation.php:3520
 msgid "Words"
 msgstr ""
 
@@ -13148,7 +13148,7 @@ msgid "Missing required --set=<field>=<value> argument."
 msgstr ""
 
 #: includes/cli/class-ll-tools-cli-command.php:453
-#: includes/wordset-isolation.php:4315
+#: includes/wordset-isolation.php:4375
 msgid "unknown"
 msgstr ""
 
@@ -15933,7 +15933,7 @@ msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
 #: includes/pages/vocab-lesson-pages.php:5998
-#: includes/wordset-isolation.php:3474
+#: includes/wordset-isolation.php:3534
 msgid "Unknown error."
 msgstr ""
 
@@ -17549,7 +17549,7 @@ msgid "Default Word Set"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:118
-#: includes/wordset-isolation.php:3464
+#: includes/wordset-isolation.php:3524
 msgid "Lessons"
 msgstr ""
 
@@ -26704,247 +26704,250 @@ msgstr ""
 #: includes/wordset-isolation.php:2393
 #: includes/wordset-isolation.php:2412
 #: includes/wordset-isolation.php:2435
-#: includes/wordset-isolation.php:2603
-#: includes/wordset-isolation.php:2771
+#: includes/wordset-isolation.php:2514
+#: includes/wordset-isolation.php:2523
+#: includes/wordset-isolation.php:2543
+#: includes/wordset-isolation.php:2663
+#: includes/wordset-isolation.php:2831
 #, php-format
 msgid "Isolated category data could not be saved for user %d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3256
+#: includes/wordset-isolation.php:3316
 msgid "Could not inspect word option rules for the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3264
+#: includes/wordset-isolation.php:3324
 msgid "Word option rules are too large for the background migration. Run the WP-CLI migration with --allow-large-option-rules."
 msgstr ""
 
-#: includes/wordset-isolation.php:3279
+#: includes/wordset-isolation.php:3339
 msgid "Isolated word option rules could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:3288
+#: includes/wordset-isolation.php:3348
 msgid "Wordset isolation migration has unresolved errors."
 msgstr ""
 
-#: includes/wordset-isolation.php:3322
+#: includes/wordset-isolation.php:3382
 msgid "Generated-page reconciliation could not be scheduled after the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3333
+#: includes/wordset-isolation.php:3393
 msgid "The wordset isolation migration version could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:3439
+#: includes/wordset-isolation.php:3499
 msgid "You are not allowed to retry this migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3461
+#: includes/wordset-isolation.php:3521
 msgid "Word images"
 msgstr ""
 
-#: includes/wordset-isolation.php:3462
+#: includes/wordset-isolation.php:3522
 msgid "Word sets"
 msgstr ""
 
-#: includes/wordset-isolation.php:3463
+#: includes/wordset-isolation.php:3523
 msgid "Word option rules"
 msgstr ""
 
-#: includes/wordset-isolation.php:3465
+#: includes/wordset-isolation.php:3525
 msgid "Users"
 msgstr ""
 
-#: includes/wordset-isolation.php:3466
+#: includes/wordset-isolation.php:3526
 msgid "Finalizing"
 msgstr ""
 
 #. translators: 1: migration phase, 2: error message.
-#: includes/wordset-isolation.php:3472
+#: includes/wordset-isolation.php:3532
 #, php-format
 msgid "Wordset isolation migration stopped in phase %1$s: %2$s"
 msgstr ""
 
 #. translators: 1: migration phase, 2: number of words scanned.
-#: includes/wordset-isolation.php:3478
+#: includes/wordset-isolation.php:3538
 #, php-format
 msgid "Wordset isolation migration is continuing in the background. Phase: %1$s. Words scanned: %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3487
+#: includes/wordset-isolation.php:3547
 msgid "Retry migration"
 msgstr ""
 
-#: includes/wordset-isolation.php:3506
+#: includes/wordset-isolation.php:3566
 #, php-format
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3703
+#: includes/wordset-isolation.php:3763
 msgid "You are not allowed to run this maintenance check."
 msgstr ""
 
-#: includes/wordset-isolation.php:3718
+#: includes/wordset-isolation.php:3778
 msgid "You are not allowed to run this maintenance repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:3738
+#: includes/wordset-isolation.php:3798
 msgid "Health check queued or running."
 msgstr ""
 
-#: includes/wordset-isolation.php:3743
+#: includes/wordset-isolation.php:3803
 msgid "Check now"
 msgstr ""
 
-#: includes/wordset-isolation.php:3750
+#: includes/wordset-isolation.php:3810
 #, php-format
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
 msgstr ""
 
-#: includes/wordset-isolation.php:3758
+#: includes/wordset-isolation.php:3818
 msgid "Repair vocab lessons"
 msgstr ""
 
-#: includes/wordset-isolation.php:3770
-#: includes/wordset-isolation.php:3787
-#: includes/wordset-isolation.php:3809
 #: includes/wordset-isolation.php:3830
+#: includes/wordset-isolation.php:3847
+#: includes/wordset-isolation.php:3869
+#: includes/wordset-isolation.php:3890
 msgid "none"
 msgstr ""
 
-#: includes/wordset-isolation.php:4300
+#: includes/wordset-isolation.php:4360
 msgid "LL Tools Maintenance"
 msgstr ""
 
-#: includes/wordset-isolation.php:4301
+#: includes/wordset-isolation.php:4361
 msgid "Wordset isolation health has not been checked since the last data change or cache expiry."
 msgstr ""
 
-#: includes/wordset-isolation.php:4326
+#: includes/wordset-isolation.php:4386
 #, php-format
 msgid "Stored migration version is %1$d, expected %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:4335
+#: includes/wordset-isolation.php:4395
 #, php-format
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4348
+#: includes/wordset-isolation.php:4408
 #, php-format
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4361
+#: includes/wordset-isolation.php:4421
 #, php-format
 msgid "%d vocab lesson points at a non-owned category."
 msgid_plural "%d vocab lessons point at non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4374
+#: includes/wordset-isolation.php:4434
 #, php-format
 msgid "%d wordset has category ordering or prerequisite metadata that still references non-owned categories."
 msgid_plural "%d wordsets have category ordering or prerequisite metadata that still reference non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4385
+#: includes/wordset-isolation.php:4445
 msgid "LL Tools Maintenance Alert"
 msgstr ""
 
-#: includes/wordset-isolation.php:4386
+#: includes/wordset-isolation.php:4446
 msgid "Wordset isolation health checks found data that may need repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:4388
+#: includes/wordset-isolation.php:4448
 #, php-format
 msgid "Last checked: %1$s. Stored migration version: %2$d. Expected version: %3$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:4402
+#: includes/wordset-isolation.php:4462
 msgid "Debug details"
 msgstr ""
 
-#: includes/wordset-isolation.php:4405
+#: includes/wordset-isolation.php:4465
 msgid "Word samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4413
+#: includes/wordset-isolation.php:4473
 #, php-format
 msgid "Wordsets: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4414
-#: includes/wordset-isolation.php:4448
+#: includes/wordset-isolation.php:4474
+#: includes/wordset-isolation.php:4508
 #, php-format
 msgid "Categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4417
-#: includes/wordset-isolation.php:4451
+#: includes/wordset-isolation.php:4477
+#: includes/wordset-isolation.php:4511
 #, php-format
 msgid "Shared categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4420
-#: includes/wordset-isolation.php:4454
+#: includes/wordset-isolation.php:4480
+#: includes/wordset-isolation.php:4514
 #, php-format
 msgid "Foreign-owner categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4423
-#: includes/wordset-isolation.php:4457
+#: includes/wordset-isolation.php:4483
+#: includes/wordset-isolation.php:4517
 #, php-format
 msgid "Missing owned copies: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4439
+#: includes/wordset-isolation.php:4499
 msgid "Word image samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4447
+#: includes/wordset-isolation.php:4507
 #, php-format
 msgid "Owner wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4473
+#: includes/wordset-isolation.php:4533
 msgid "Vocab lesson samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4481
+#: includes/wordset-isolation.php:4541
 #, php-format
 msgid "Wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4482
+#: includes/wordset-isolation.php:4542
 #, php-format
 msgid "Category: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4485
+#: includes/wordset-isolation.php:4545
 #, php-format
 msgid "Existing owned copy: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4501
+#: includes/wordset-isolation.php:4561
 msgid "Wordset metadata samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4510
+#: includes/wordset-isolation.php:4570
 #, php-format
 msgid "Manual order refs: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4513
+#: includes/wordset-isolation.php:4573
 #, php-format
 msgid "Prerequisite keys: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4516
+#: includes/wordset-isolation.php:4576
 #, php-format
 msgid "Prerequisite dependencies: %s."
 msgstr ""

@@ -2442,6 +2442,28 @@ function ll_tools_wordset_isolation_migration_require_user_goal_category_mapping
     return true;
 }
 
+function ll_tools_wordset_isolation_migration_has_source_category_family_row(int $source_category_id): ?bool {
+    global $wpdb;
+
+    $source_category_id = max(0, $source_category_id);
+    if ($source_category_id <= 0) {
+        return null;
+    }
+    $found = $wpdb->get_var($wpdb->prepare(
+        "SELECT term_id
+         FROM {$wpdb->termmeta}
+         WHERE meta_key = %s
+           AND meta_value = %s
+         LIMIT 1",
+        LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY,
+        (string) $source_category_id
+    ));
+    if ($wpdb->last_error !== '') {
+        return null;
+    }
+    return $found !== null;
+}
+
 function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(int $user_id, array &$state): bool {
     $user_wordset_id = defined('LL_TOOLS_USER_WORDSET_META')
         ? (int) get_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, true)
@@ -2481,12 +2503,50 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
     if (defined('LL_TOOLS_USER_CATEGORY_PROGRESS_META')) {
         $progress = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
         if (is_array($progress)) {
-            foreach ($progress as $category_id => $entry) {
-                if (!is_array($entry)) {
-                    continue;
+            $expected_progress = function_exists('ll_tools_repair_user_category_progress_store_for_isolation')
+                ? ll_tools_repair_user_category_progress_store_for_isolation($progress)
+                : null;
+            foreach ($progress as $raw_category_id => $entry) {
+                $category_id = (int) $raw_category_id;
+                if ($category_id <= 0 || !is_array($entry) || !is_array($expected_progress)) {
+                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
+                        /* translators: %d is a WordPress user ID. */
+                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+                        $user_id
+                    ));
+                    return false;
+                }
+                $term = get_term($category_id, 'word-category');
+                if (is_wp_error($term)) {
+                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
+                        /* translators: %d is a WordPress user ID. */
+                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+                        $user_id
+                    ));
+                    return false;
+                }
+                if (!($term instanceof WP_Term)) {
+                    $wordset_id = (int) ($entry['wordset_id'] ?? 0);
+                    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+                    $has_family_row = ll_tools_wordset_isolation_migration_has_source_category_family_row($category_id);
+                    $preserved = ($entry['category_id'] ?? null) === $category_id
+                        && ($wordset instanceof WP_Term)
+                        && !is_wp_error($wordset)
+                        && $has_family_row === false
+                        && array_key_exists($category_id, $expected_progress)
+                        && $expected_progress[$category_id] === $entry;
+                    if ($preserved) {
+                        continue;
+                    }
+                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
+                        /* translators: %d is a WordPress user ID. */
+                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+                        $user_id
+                    ));
+                    return false;
                 }
                 if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
-                    [(int) $category_id],
+                    [$category_id],
                     [(int) ($entry['wordset_id'] ?? 0)],
                     $user_id,
                     $state

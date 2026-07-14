@@ -1182,6 +1182,191 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertSame($stored_goals, get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true));
     }
 
+    public function test_deleted_category_progress_is_preserved_exactly_without_a_user_meta_write(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Historical Progress Wordset', 'historical-progress-wordset');
+        $deleted_category_id = $this->ensure_term('word-category', 'Historical Deleted Category', 'historical-deleted-category');
+        $entry = [
+            'category_id' => $deleted_category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 339,
+            'exposure_by_mode' => [
+                'learning' => 0,
+                'practice' => 278,
+                'listening' => 46,
+                'gender' => 0,
+                'self-check' => 15,
+            ],
+            'last_mode' => 'practice',
+            'last_seen_at' => '2026-05-25 19:47:28',
+        ];
+        $stored_progress = [$deleted_category_id => $entry];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $writes = 0;
+        $watch_write = static function ($check, $object_id, $meta_key) use (&$writes, $user_id) {
+            if ((int) $object_id === $user_id && $meta_key === LL_TOOLS_USER_CATEGORY_PROGRESS_META) {
+                $writes++;
+            }
+            return $check;
+        };
+        add_filter('update_user_metadata', $watch_write, 10, 3);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('update_user_metadata', $watch_write, 10);
+        }
+
+        $this->assertTrue($processed);
+        $this->assertSame('running', $state['status']);
+        $this->assertSame(0, $writes);
+        $this->assertSame(0, (int) ($state['counters']['user_data_repaired'] ?? -1));
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_deleted_category_progress_rejects_a_noncanonical_entry_without_writing(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Malformed Historical Progress Wordset', 'malformed-historical-progress-wordset');
+        $deleted_category_id = $this->ensure_term('word-category', 'Malformed Historical Category', 'malformed-historical-category');
+        $stored_progress = [
+            $deleted_category_id => [
+                'category_id' => $deleted_category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 4,
+                'exposure_by_mode' => ['practice' => 4],
+                'last_mode' => 'practice',
+                'last_seen_at' => '2026-05-25 19:47:28',
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 91;
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(91, (int) $state['cursor']);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_deleted_category_progress_rejects_a_recoverable_family_copy(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recoverable Historical Progress Wordset', 'recoverable-historical-progress-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Recoverable Historical Category', 'recoverable-historical-category');
+        $copy_category_id = $this->ensure_term('word-category', 'Recoverable Historical Copy', 'recoverable-historical-copy');
+        ll_tools_set_category_wordset_owner($copy_category_id, $wordset_id, $source_category_id);
+        $entry = [
+            'category_id' => $source_category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 8,
+            'exposure_by_mode' => array_fill_keys(ll_tools_progress_modes(), 0),
+            'last_mode' => 'practice',
+            'last_seen_at' => '2026-05-25 19:47:28',
+        ];
+        $entry['exposure_by_mode']['practice'] = 8;
+        $stored_progress = [$source_category_id => $entry];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($source_category_id, 'word-category'));
+        $this->assertInstanceOf(WP_Term::class, get_term($copy_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_deleted_category_progress_rejects_an_ownerless_family_copy(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Ownerless Historical Progress Wordset', 'ownerless-historical-progress-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Ownerless Historical Category', 'ownerless-historical-category');
+        $copy_category_id = $this->ensure_term('word-category', 'Ownerless Historical Copy', 'ownerless-historical-copy');
+        ll_tools_set_category_wordset_owner($copy_category_id, $wordset_id, $source_category_id);
+        delete_term_meta($copy_category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY);
+        $entry = [
+            'category_id' => $source_category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 8,
+            'exposure_by_mode' => array_fill_keys(ll_tools_progress_modes(), 0),
+            'last_mode' => 'practice',
+            'last_seen_at' => '2026-05-25 19:47:28',
+        ];
+        $entry['exposure_by_mode']['practice'] = 8;
+        $stored_progress = [$source_category_id => $entry];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($source_category_id, 'word-category'));
+        $this->assertSame(0, ll_tools_get_category_wordset_owner_id($copy_category_id));
+        $this->assertTrue(ll_tools_wordset_isolation_migration_has_source_category_family_row($source_category_id));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_mixed_category_progress_remaps_live_rows_and_preserves_deleted_history(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Mixed Historical Progress Wordset', 'mixed-historical-progress-wordset');
+        $live_category_id = $this->ensure_term('word-category', 'Mixed Live Category', 'mixed-live-category');
+        $deleted_category_id = $this->ensure_term('word-category', 'Mixed Deleted Category', 'mixed-deleted-category');
+        $make_entry = static function (int $category_id, int $total) use ($wordset_id): array {
+            $by_mode = array_fill_keys(ll_tools_progress_modes(), 0);
+            $by_mode['practice'] = $total;
+            return [
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => $total,
+                'exposure_by_mode' => $by_mode,
+                'last_mode' => 'practice',
+                'last_seen_at' => '2026-05-25 19:47:28',
+            ];
+        };
+        $deleted_entry = $make_entry($deleted_category_id, 19);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, [
+            $live_category_id => $make_entry($live_category_id, 7),
+            $deleted_category_id => $deleted_entry,
+        ]);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $live_copy_id = ll_tools_get_or_create_isolated_category_copy($live_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $live_copy_id);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+
+        $progress = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
+        $this->assertArrayHasKey($live_copy_id, $progress);
+        $this->assertArrayNotHasKey($live_category_id, $progress);
+        $this->assertSame(7, (int) ($progress[$live_copy_id]['exposure_total'] ?? 0));
+        $this->assertArrayHasKey($deleted_category_id, $progress);
+        $this->assertSame($deleted_entry, $progress[$deleted_category_id]);
+    }
+
     public function test_historical_progress_events_stay_visible_when_category_ids_were_saved_before_isolation(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
