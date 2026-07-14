@@ -703,6 +703,9 @@ function ll_tools_effective_word_image_presence_sql(string $word_id_sql, int $wo
             ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
             : 'll_word_image_isolation_source_id';
 
+        // DISTINCT makes the wordset-owned source lookup an uncorrelated
+        // materialized set. Without it, MariaDB can rescan every owner/source
+        // postmeta row for every candidate word in a large wordset.
         $effective_copy_has_thumb_sql = "
             OR EXISTS (
                 SELECT 1
@@ -716,22 +719,30 @@ function ll_tools_effective_word_image_presence_sql(string $word_id_sql, int $wo
                    AND linked_image_source.meta_key = %s
                    AND linked_image_source.meta_value <> ''
                    AND CAST(linked_image_source.meta_value AS UNSIGNED) > 0
-                INNER JOIN {$wpdb->postmeta} effective_owner
-                    ON effective_owner.meta_key = %s
-                   AND CAST(effective_owner.meta_value AS UNSIGNED) = %d
-                INNER JOIN {$wpdb->postmeta} effective_source
-                    ON effective_source.post_id = effective_owner.post_id
-                   AND effective_source.meta_key = %s
-                   AND CAST(effective_source.meta_value AS UNSIGNED) = COALESCE(NULLIF(CAST(linked_image_source.meta_value AS UNSIGNED), 0), image_posts.ID)
-                INNER JOIN {$wpdb->posts} effective_image_posts
-                    ON effective_image_posts.ID = effective_owner.post_id
-                   AND effective_image_posts.post_type = %s
-                   AND effective_image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
-                INNER JOIN {$wpdb->postmeta} effective_image_thumb
-                    ON effective_image_thumb.post_id = effective_image_posts.ID
-                   AND effective_image_thumb.meta_key = %s
-                   AND effective_image_thumb.meta_value <> ''
-                   AND CAST(effective_image_thumb.meta_value AS UNSIGNED) > 0
+                INNER JOIN (
+                    SELECT DISTINCT CAST(effective_source.meta_value AS UNSIGNED) AS source_image_id
+                    FROM {$wpdb->postmeta} effective_owner
+                    INNER JOIN {$wpdb->postmeta} effective_source
+                        ON effective_source.post_id = effective_owner.post_id
+                       AND effective_source.meta_key = %s
+                       AND effective_source.meta_value <> ''
+                       AND CAST(effective_source.meta_value AS UNSIGNED) > 0
+                    INNER JOIN {$wpdb->posts} effective_image_posts
+                        ON effective_image_posts.ID = effective_owner.post_id
+                       AND effective_image_posts.post_type = %s
+                       AND effective_image_posts.post_status IN ('publish', 'draft', 'pending', 'future', 'private')
+                    INNER JOIN {$wpdb->postmeta} effective_image_thumb
+                        ON effective_image_thumb.post_id = effective_image_posts.ID
+                       AND effective_image_thumb.meta_key = %s
+                       AND effective_image_thumb.meta_value <> ''
+                       AND CAST(effective_image_thumb.meta_value AS UNSIGNED) > 0
+                    WHERE effective_owner.meta_key = %s
+                      AND CAST(effective_owner.meta_value AS UNSIGNED) = %d
+                ) effective_copy_sources
+                    ON effective_copy_sources.source_image_id = COALESCE(
+                        NULLIF(CAST(linked_image_source.meta_value AS UNSIGNED), 0),
+                        image_posts.ID
+                    )
                 WHERE linked_image.post_id = {$word_id_sql}
                   AND linked_image.meta_key = %s
                   AND linked_image.meta_value <> ''
@@ -741,11 +752,11 @@ function ll_tools_effective_word_image_presence_sql(string $word_id_sql, int $wo
         $effective_copy_params = [
             'word_images',
             $source_meta_key,
-            $owner_meta_key,
-            $wordset_id,
             $source_meta_key,
             'word_images',
             '_thumbnail_id',
+            $owner_meta_key,
+            $wordset_id,
             '_ll_autopicked_image_id',
         ];
     }

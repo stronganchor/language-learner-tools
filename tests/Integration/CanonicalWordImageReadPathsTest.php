@@ -175,6 +175,197 @@ final class CanonicalWordImageReadPathsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_aggregate_image_presence_materializes_owned_copy_sources_once(): void
+    {
+        global $wpdb;
+
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+            ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+            : 'll_wordset_owner_id';
+        $source_meta_key = defined('LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY')
+            ? (string) LL_TOOLS_WORD_IMAGE_ISOLATION_SOURCE_META_KEY
+            : 'll_word_image_isolation_source_id';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '1');
+
+        try {
+            $params = [];
+            $sql = ll_tools_effective_word_image_presence_sql('posts.ID', 7970, $params);
+
+            $this->assertStringContainsString(
+                'SELECT DISTINCT CAST(effective_source.meta_value AS UNSIGNED) AS source_image_id',
+                $sql
+            );
+            $this->assertStringContainsString(') effective_copy_sources', $sql);
+            $this->assertStringContainsString(
+                'effective_copy_sources.source_image_id = COALESCE(',
+                $sql
+            );
+            $this->assertStringNotContainsString(
+                "INNER JOIN {$wpdb->postmeta} effective_owner\n                    ON effective_owner.meta_key",
+                $sql
+            );
+            $this->assertSame([
+                '_thumbnail_id',
+                'word_images',
+                '_thumbnail_id',
+                '_ll_autopicked_image_id',
+                'word_images',
+                $source_meta_key,
+                $source_meta_key,
+                'word_images',
+                '_thumbnail_id',
+                $owner_meta_key,
+                7970,
+                '_ll_autopicked_image_id',
+            ], $params);
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
+    public function test_aggregate_image_counts_ignore_foreign_wordset_copy_without_creating_target_copy(): void
+    {
+        global $wpdb;
+
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '1');
+
+        try {
+            $source_wordset_id = $this->ensureTerm('wordset', 'Foreign Copy Source Wordset', 'foreign-copy-source-wordset');
+            $target_wordset_id = $this->ensureTerm('wordset', 'Foreign Copy Target Wordset', 'foreign-copy-target-wordset');
+            $foreign_wordset_id = $this->ensureTerm('wordset', 'Foreign Copy Owner Wordset', 'foreign-copy-owner-wordset');
+            $category_id = $this->ensureTerm('word-category', 'Foreign Copy Aggregate Category', 'foreign-copy-aggregate-category');
+
+            update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+            update_term_meta($category_id, 'll_quiz_option_type', 'image');
+            if (function_exists('ll_tools_set_category_wordset_owner')) {
+                ll_tools_set_category_wordset_owner($category_id, $target_wordset_id, $category_id);
+            }
+
+            $attachment_id = $this->createImageAttachment('foreign-effective-copy-count.png');
+            $source_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Foreign Copy Source Without Thumb',
+            ]);
+            $foreign_copy_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Foreign Wordset Copy With Thumb',
+            ]);
+            set_post_thumbnail($foreign_copy_image_id, $attachment_id);
+
+            if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+                ll_tools_set_word_image_wordset_owner($source_image_id, $source_wordset_id, $source_image_id);
+                ll_tools_set_word_image_wordset_owner($foreign_copy_image_id, $foreign_wordset_id, $source_image_id);
+            } else {
+                update_post_meta($source_image_id, 'll_wordset_owner_id', $source_wordset_id);
+                update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+                update_post_meta($foreign_copy_image_id, 'll_wordset_owner_id', $foreign_wordset_id);
+                update_post_meta($foreign_copy_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            }
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Foreign Copy Count Word',
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$target_wordset_id], 'wordset', false);
+            update_post_meta($word_id, '_ll_autopicked_image_id', $source_image_id);
+            delete_post_meta($word_id, '_thumbnail_id');
+
+            $before_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s",
+                'word_images'
+            ));
+            $this->assertSame(0, (int) ll_tools_get_existing_isolated_word_image_copy_id($source_image_id, $target_wordset_id));
+
+            $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($target_wordset_id, true);
+
+            $after_count = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s",
+                'word_images'
+            ));
+            $this->assertSame(1, (int) ($counts['all'][$category_id] ?? 0));
+            $this->assertSame(0, (int) ($counts['with_images'][$category_id] ?? 0));
+            $this->assertSame(0, (int) ll_tools_get_existing_isolated_word_image_copy_id($source_image_id, $target_wordset_id));
+            $this->assertSame($before_count, $after_count);
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
+    public function test_aggregate_image_counts_ignore_copy_only_images_when_isolation_is_disabled(): void
+    {
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '0');
+
+        try {
+            $source_wordset_id = $this->ensureTerm('wordset', 'Disabled Copy Source Wordset', 'disabled-copy-source-wordset');
+            $target_wordset_id = $this->ensureTerm('wordset', 'Disabled Copy Target Wordset', 'disabled-copy-target-wordset');
+            $category_id = $this->ensureTerm('word-category', 'Disabled Copy Aggregate Category', 'disabled-copy-aggregate-category');
+            $attachment_id = $this->createImageAttachment('disabled-effective-copy-count.png');
+            $source_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Disabled Copy Source Without Thumb',
+            ]);
+            $target_copy_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Disabled Target Copy With Thumb',
+            ]);
+            set_post_thumbnail($target_copy_image_id, $attachment_id);
+            update_post_meta($source_image_id, 'll_wordset_owner_id', $source_wordset_id);
+            update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            update_post_meta($target_copy_image_id, 'll_wordset_owner_id', $target_wordset_id);
+            update_post_meta($target_copy_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Disabled Copy Count Word',
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$target_wordset_id], 'wordset', false);
+            update_post_meta($word_id, '_ll_autopicked_image_id', $source_image_id);
+            delete_post_meta($word_id, '_thumbnail_id');
+
+            $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($target_wordset_id, true);
+
+            $this->assertSame(1, (int) ($counts['all'][$category_id] ?? 0));
+            $this->assertSame(0, (int) ($counts['with_images'][$category_id] ?? 0));
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
     public function test_editor_image_aggregate_does_not_create_missing_isolated_copy(): void
     {
         global $wpdb;

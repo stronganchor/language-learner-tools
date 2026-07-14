@@ -29,6 +29,75 @@ final class VocabLessonPromptCardCountTest extends LL_Tools_TestCase
         $this->assertContains($effective_prompt_category_id, ll_tools_get_vocab_lesson_category_ids_for_wordset($wordset_id, true));
     }
 
+    public function test_prompt_card_image_count_uses_target_wordset_copy_for_correct_answer(): void
+    {
+        $isolation_option = defined('LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION')
+            ? (string) LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION
+            : 'll_tools_wordset_isolation_enabled';
+        $missing_sentinel = '__ll_tools_missing_option__';
+        $previous_isolation = get_option($isolation_option, $missing_sentinel);
+        update_option($isolation_option, '1');
+
+        try {
+            $asset_category_id = $this->createCategory('Prompt Copy Assets ' . wp_generate_password(5, false), 'text_title', 'text_title');
+            $prompt_category_id = $this->createCategory('Prompt Copy Lesson ' . wp_generate_password(5, false), 'text_title', 'text_title');
+            $source_wordset_id = $this->createWordset('Prompt Copy Source ' . wp_generate_password(5, false));
+            $target_wordset_id = $this->createWordset('Prompt Copy Target ' . wp_generate_password(5, false));
+            $effective_prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $target_wordset_id);
+
+            $attachment_id = self::factory()->post->create([
+                'post_type' => 'attachment',
+                'post_status' => 'inherit',
+                'post_title' => 'Prompt Copy Attachment',
+                'post_mime_type' => 'image/jpeg',
+            ]);
+            update_post_meta($attachment_id, '_wp_attached_file', '2026/07/prompt-copy-attachment.jpg');
+            $source_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Prompt Copy Source Without Thumb',
+            ]);
+            $target_copy_image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Prompt Copy Target With Thumb',
+            ]);
+            set_post_thumbnail($target_copy_image_id, $attachment_id);
+            $this->assertSame($attachment_id, (int) get_post_meta($target_copy_image_id, '_thumbnail_id', true));
+            if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+                ll_tools_set_word_image_wordset_owner($source_image_id, $source_wordset_id, $source_image_id);
+                ll_tools_set_word_image_wordset_owner($target_copy_image_id, $target_wordset_id, $source_image_id);
+            } else {
+                update_post_meta($source_image_id, 'll_wordset_owner_id', $source_wordset_id);
+                update_post_meta($source_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+                update_post_meta($target_copy_image_id, 'll_wordset_owner_id', $target_wordset_id);
+                update_post_meta($target_copy_image_id, 'll_word_image_isolation_source_id', $source_image_id);
+            }
+
+            $answer_word_id = $this->createWord($asset_category_id, 'Prompt Copy Answer');
+            $wrong_word_id = $this->createWord($asset_category_id, 'Prompt Copy Wrong');
+            update_post_meta($answer_word_id, '_ll_autopicked_image_id', $source_image_id);
+            delete_post_meta($answer_word_id, '_thumbnail_id');
+            $this->createPromptCard($effective_prompt_category_id, $target_wordset_id, [
+                'title' => 'Prompt Copy Lesson',
+                'prompt_text' => 'Prompt copy question',
+                'correct_answer_word_id' => $answer_word_id,
+                'wrong_answer_word_ids' => [$wrong_word_id],
+            ]);
+
+            $counts = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($target_wordset_id, true);
+
+            $this->assertSame(1, (int) ($counts['all'][$effective_prompt_category_id] ?? 0));
+            $this->assertSame(1, (int) ($counts['with_images'][$effective_prompt_category_id] ?? 0));
+        } finally {
+            if ($previous_isolation === $missing_sentinel) {
+                delete_option($isolation_option);
+            } else {
+                update_option($isolation_option, $previous_isolation);
+            }
+        }
+    }
+
     public function test_deepest_counts_use_bounded_relationship_queries_without_depth_union_tables(): void
     {
         global $wpdb;

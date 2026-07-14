@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.69\n"
+"Project-Id-Version: Language Learner Tools 6.6.70\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-14T20:52:59+00:00\n"
+"POT-Creation-Date: 2026-07-14T22:43:37+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -6846,7 +6846,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:23287
 #: includes/pages/wordset-pages.php:23519
 #: includes/post-types/word-audio-post-type.php:114
-#: includes/post-types/word-image-post-type.php:1209
+#: includes/post-types/word-image-post-type.php:1220
 #: includes/post-types/words-post-type.php:1049
 #: includes/shortcodes/flashcard-widget.php:542
 #: includes/shortcodes/word-grid-shortcode.php:5698
@@ -22058,7 +22058,7 @@ msgid "Audio File"
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:208
-#: includes/post-types/word-image-post-type.php:1061
+#: includes/post-types/word-image-post-type.php:1072
 #: includes/post-types/words-post-type.php:1278
 msgid "All Categories"
 msgstr ""
@@ -22138,44 +22138,44 @@ msgstr ""
 msgid "Recording Date"
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:799
-#: includes/post-types/word-image-post-type.php:818
+#: includes/post-types/word-image-post-type.php:810
+#: includes/post-types/word-image-post-type.php:829
 #: includes/shortcodes/word-grid-shortcode.php:4153
 #: includes/shortcodes/word-grid-shortcode.php:8910
 msgid "Invalid word."
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:830
+#: includes/post-types/word-image-post-type.php:841
 msgid "Untitled image"
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:846
+#: includes/post-types/word-image-post-type.php:857
 msgid "Could not create the linked word image."
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:961
+#: includes/post-types/word-image-post-type.php:972
 msgid "Word Image Metadata"
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:981
+#: includes/post-types/word-image-post-type.php:992
 msgid "Copyright Info:"
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:985
+#: includes/post-types/word-image-post-type.php:996
 #: includes/shortcodes/word-grid-shortcode.php:5711
 msgid "Edit or add any copyright or source info for this image."
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:986
+#: includes/post-types/word-image-post-type.php:997
 msgid "Replacing this featured image also updates connected word posts automatically."
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:1210
+#: includes/post-types/word-image-post-type.php:1221
 #: includes/shortcodes/word-grid-shortcode.php:5710
 msgid "Copyright Info"
 msgstr ""
 
-#: includes/post-types/word-image-post-type.php:1211
+#: includes/post-types/word-image-post-type.php:1222
 #: includes/post-types/words-post-type.php:1050
 msgid "Featured Image"
 msgstr ""
