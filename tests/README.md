@@ -163,10 +163,13 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 
 - Audio recorder role creation and required capabilities.
 - `ll_tools_user_can_record()` permission behavior.
-- `WordsetPageSavedSortInitialChunkTest` verifies that a 227-category saved metric sort preserves canonical initial/lazy offsets while analytics is deferred, retains the client sort preference, and performs no full metrics-collector or `word_audio` hydration.
+- `WordsetPageSavedSortInitialChunkTest` verifies that a 227-category saved metric sort preserves canonical initial/lazy offsets while analytics is deferred, retains the client sort preference, keeps the full localized runtime config under its sparse-payload budget, and performs no full metrics-collector or `word_audio` hydration.
+- `WordsetPageLazyCardsAjaxTest` verifies lazy category shells are ID-only ordered references into a sparse complete registry, explicit negative capability/progress state survives compaction, Genç-scale registry JSON stays bounded, and lazy payload persistence failures retain a complete non-AJAX fallback.
+- `WordsetSettingsCustomUiTest` verifies the settings hub uses a cheap Advanced summary without entering the flashcard category-ordering catalog or answer-option preview sampler, while the opened Advanced tool keeps its dedicated runtime.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
 - `[flashcard_widget]` primary render path with localized initial words/categories.
+  - `FlashcardWidgetFlowTest` also guards single-owner data/message localization and the dependency edges that make those globals available before startup consumers execute.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
@@ -272,7 +275,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/wordset-page-category-search.spec.js`
   - Verifies main wordset category search uses the tokenized async word/translation lookup while preserving hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
-  - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
+  - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`

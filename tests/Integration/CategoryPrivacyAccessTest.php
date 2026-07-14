@@ -98,12 +98,12 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
             $shortcode = do_shortcode('[flashcard_widget category="Public Flashcard Category" wordset="private-flashcard-wordset" wordset_fallback="false"]');
             $this->assertStringContainsString('id="ll-tools-flashcard-container"', $shortcode);
 
-            $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
-            $this->assertIsString($localized_main);
-            $this->assertStringContainsString('"wordsetIds":[]', $localized_main);
-            $this->assertStringNotContainsString('Private Flashcard Word', $localized_main);
-            $this->assertStringNotContainsString('Private Flashcard Translation', $localized_main);
-            $this->assertStringNotContainsString('"Public Flashcard Category"', $localized_main);
+            $localized_data = wp_scripts()->get_data('ll-tools-flashcard-audio', 'data');
+            $this->assertIsString($localized_data);
+            $this->assertStringContainsString('"wordsetIds":[]', $localized_data);
+            $this->assertStringNotContainsString('Private Flashcard Word', $localized_data);
+            $this->assertStringNotContainsString('Private Flashcard Translation', $localized_data);
+            $this->assertStringNotContainsString('"Public Flashcard Category"', $localized_data);
 
             $_POST = [
                 'category' => 'Public Flashcard Category',

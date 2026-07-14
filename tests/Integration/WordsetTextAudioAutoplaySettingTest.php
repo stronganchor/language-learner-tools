@@ -75,9 +75,9 @@ final class WordsetTextAudioAutoplaySettingTest extends LL_Tools_TestCase
                 $wordset_term->slug
             ));
 
-            $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
-            $this->assertIsString($localized_main);
-            $this->assertStringContainsString('"autoplayTextAudioAnswerOptions":"1"', $localized_main);
+            $localized_data = wp_scripts()->get_data('ll-tools-flashcard-audio', 'data');
+            $this->assertIsString($localized_data);
+            $this->assertStringContainsString('"autoplayTextAudioAnswerOptions":"1"', $localized_data);
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

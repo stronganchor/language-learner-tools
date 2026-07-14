@@ -5895,44 +5895,129 @@ function ll_tools_wordset_page_build_lazy_card_shell(array $card): array {
         ];
     }
 
+    // Category details already live in the complete frontend category registry.
+    // Preserve only the mixed-card ordering reference here; repeating the full
+    // category payload made large-wordset HTML grow with two copies of the same
+    // data before any lazy request ran.
     return [
         'type' => 'category',
         'id' => max(0, (int) ($data['id'] ?? 0)),
-        'slug' => (string) ($data['slug'] ?? ''),
-        'name' => (string) ($data['name'] ?? ($data['raw_name'] ?? '')),
-        'translation' => (string) ($data['translation'] ?? ($data['name'] ?? '')),
-        'count' => max(0, (int) ($data['count'] ?? 0)),
-        'search_text' => (string) ($data['search_text'] ?? ''),
-        'url' => (string) ($data['url'] ?? ''),
-        'mode' => (string) ($data['mode'] ?? ''),
-        'prompt_type' => (string) ($data['prompt_type'] ?? ''),
-        'option_type' => (string) ($data['option_type'] ?? ''),
-        'is_public' => !array_key_exists('is_public', $data) || !empty($data['is_public']),
-        'public_note' => (string) ($data['public_note'] ?? ''),
-        'public_note_label' => (string) ($data['public_note_label'] ?? ''),
-        'has_images' => !empty($data['has_images']),
-        'wordset_id' => max(0, (int) ($data['wordset_id'] ?? 0)),
-        'can_manage_inactive' => !empty($data['can_manage_inactive']),
-        'can_hide' => !empty($data['can_hide']),
-        'can_delete' => !empty($data['can_delete']),
-        'can_preview' => !empty($data['can_preview']),
-        'delete_reason' => (string) ($data['delete_reason'] ?? ''),
-        'deletion_status' => (string) ($data['deletion_status'] ?? ''),
-        'deletion_progress' => is_array($data['deletion_progress'] ?? null) ? $data['deletion_progress'] : [],
-        'deletion_message' => (string) ($data['deletion_message'] ?? ''),
-        'inactive_action_nonce' => (string) ($data['inactive_action_nonce'] ?? ''),
-        'inactive_action_url' => (string) ($data['inactive_action_url'] ?? ''),
-        'inactive_preview_url' => (string) ($data['inactive_preview_url'] ?? ''),
-        'inactive_link_allowed' => !empty($data['inactive_link_allowed']),
-        'is_virtual_category' => !empty($data['is_virtual_category']),
-        'virtual_category_type' => (string) ($data['virtual_category_type'] ?? ''),
-        'preview_limit' => max(1, (int) ($data['preview_limit'] ?? 2)),
-        'preview_requires_images' => !empty($data['preview_requires_images']),
-        'preview_aspect_ratio' => (string) ($data['preview_aspect_ratio'] ?? ''),
-        'learning_supported' => !array_key_exists('learning_supported', $data) || !empty($data['learning_supported']),
-        'self_check_supported' => !array_key_exists('self_check_supported', $data) || !empty($data['self_check_supported']),
-        'gender_supported' => !empty($data['gender_supported']),
     ];
+}
+
+/**
+ * Remove frontend category fields whose value is already defined by the
+ * JavaScript normalizer or by the top-level wordset context.
+ *
+ * Explicit negative capability/public flags remain in the payload. Avoid a
+ * generic array_filter() here: false is meaningful for those fields.
+ */
+function ll_tools_wordset_page_compact_runtime_category_payload(array $category, int $wordset_id): array {
+    unset(
+        $category['word_image_count'],
+        $category['prompt_card_count'],
+        $category['content_count']
+    );
+
+    $category_wordset_id = (int) ($category['wordset_id'] ?? 0);
+    if ($category_wordset_id <= 0 || $category_wordset_id === $wordset_id) {
+        unset($category['wordset_id']);
+    }
+    $translation = (string) ($category['translation'] ?? '');
+    if ($translation === '' || $translation === (string) ($category['name'] ?? '')) {
+        unset($category['translation']);
+    }
+
+    $string_defaults = [
+        'mode' => 'image',
+        'prompt_type' => 'audio',
+        'option_type' => 'image',
+        'aspect_bucket' => 'no-image',
+    ];
+    foreach ($string_defaults as $key => $default) {
+        if (!array_key_exists($key, $category) || (string) $category[$key] === '' || (string) $category[$key] === $default) {
+            unset($category[$key]);
+        }
+    }
+
+    foreach ([
+        'learning_prompt_type',
+        'learning_option_type',
+        'public_note',
+        'public_note_label',
+        'delete_reason',
+        'deletion_status',
+        'deletion_message',
+        'inactive_action_nonce',
+        'inactive_action_url',
+        'inactive_preview_url',
+        'virtual_category_type',
+        'preview_aspect_ratio',
+        'last_seen_at',
+    ] as $key) {
+        if (!array_key_exists($key, $category) || (string) $category[$key] === '') {
+            unset($category[$key]);
+        }
+    }
+
+    foreach ([
+        'sign_language_mode',
+        'gender_supported',
+        'can_manage_inactive',
+        'can_hide',
+        'can_preview',
+        'can_delete',
+        'inactive_link_allowed',
+        'is_virtual_category',
+        'hidden',
+        'has_images',
+        'preview_deferred',
+        'preview_requires_images',
+    ] as $key) {
+        if (empty($category[$key])) {
+            unset($category[$key]);
+        }
+    }
+
+    foreach (['learning_supported', 'self_check_supported', 'is_public'] as $key) {
+        if (!array_key_exists($key, $category) || !empty($category[$key])) {
+            unset($category[$key]);
+        }
+    }
+
+    $deletion_progress = is_array($category['deletion_progress'] ?? null)
+        ? $category['deletion_progress']
+        : [];
+    if (
+        empty($deletion_progress)
+        || (
+            (int) ($deletion_progress['processed'] ?? 0) === 0
+            && (int) ($deletion_progress['total'] ?? 0) === 0
+            && (int) ($deletion_progress['percent'] ?? 0) === 0
+        )
+    ) {
+        unset($category['deletion_progress']);
+    }
+    if (empty($category['preview']) || !is_array($category['preview'])) {
+        unset($category['preview']);
+    }
+    if ((int) ($category['preview_limit'] ?? 2) === 2) {
+        unset($category['preview_limit']);
+    }
+    if ((int) ($category['mastered_words'] ?? 0) === 0) {
+        unset($category['mastered_words']);
+    }
+    if ((int) ($category['studied_words'] ?? 0) === 0) {
+        unset($category['studied_words']);
+    }
+    if (
+        array_key_exists('new_words', $category)
+        && (int) $category['new_words'] === max(0, (int) ($category['count'] ?? 0))
+    ) {
+        unset($category['new_words']);
+    }
+
+    return $category;
 }
 
 function ll_tools_wordset_page_build_lazy_card_shells(array $cards, int $limit = 0): array {
@@ -13338,6 +13423,39 @@ function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_
     <?php
 
     return (string) ob_get_clean();
+}
+
+/**
+ * Return only the stored values displayed on the settings-hub Advanced card.
+ *
+ * The full Advanced tool also builds the category-ordering catalog, discovers
+ * fonts, and samples answer-option text. Those operations are useful on the
+ * tool itself but are wasted on the hub, where none of their output is shown.
+ */
+function ll_tools_wordset_page_get_advanced_settings_summary(int $wordset_id): array {
+    $button_image_preview = function_exists('ll_tools_get_wordset_button_image_preview_data')
+        ? ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)
+        : ['attachment_id' => 0];
+
+    return [
+        'games_image_size' => function_exists('ll_tools_get_wordset_games_image_size')
+            ? ll_tools_get_wordset_games_image_size($wordset_id)
+            : 'default',
+        'button_image_attachment_id' => (int) ($button_image_preview['attachment_id'] ?? 0),
+        'profile_blurb' => function_exists('ll_tools_get_wordset_profile_blurb')
+            ? ll_tools_get_wordset_profile_blurb($wordset_id)
+            : '',
+        'category_ordering_mode' => function_exists('ll_tools_wordset_get_category_ordering_mode')
+            ? ll_tools_wordset_get_category_ordering_mode($wordset_id)
+            : 'none',
+        'keep_original_audio' => function_exists('ll_tools_should_keep_original_audio_for_wordset')
+            ? ll_tools_should_keep_original_audio_for_wordset($wordset_id)
+            : false,
+        'has_gender' => (bool) get_term_meta($wordset_id, 'll_wordset_has_gender', true),
+        'has_plurality' => (bool) get_term_meta($wordset_id, 'll_wordset_has_plurality', true),
+        'has_verb_tense' => (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_tense', true),
+        'has_verb_mood' => (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_mood', true),
+    ];
 }
 
 function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
@@ -22120,7 +22238,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             ]);
         }
     }
-    if ($view === 'settings' && ($is_settings_hub || $settings_tool === 'advanced') && $can_manage_wordset_content) {
+    if ($view === 'settings' && $is_settings_hub && $can_manage_wordset_content) {
+        $advanced_settings = ll_tools_wordset_page_get_advanced_settings_summary($wordset_id);
+    } elseif ($view === 'settings' && $settings_tool === 'advanced' && $can_manage_wordset_content) {
         $advanced_settings = ll_tools_wordset_page_get_advanced_settings($wordset_id);
     }
     if ($view === 'settings' && $is_settings_hub && $can_manage_wordset_categories) {
@@ -22538,7 +22658,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         $script_categories_source = ll_tools_wordset_page_sort_categories_for_main_sort($script_categories_source, $server_main_category_sort);
     }
 
-    $script_categories = array_map(function (array $cat) use ($category_metrics_lookup): array {
+    $script_categories = array_map(function (array $cat) use ($category_metrics_lookup, $wordset_id): array {
         $cat = ll_tools_wordset_page_ensure_inactive_category_actions($cat);
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
@@ -22570,7 +22690,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             ? $category_metrics_lookup[$category_id]
             : [];
 
-        return [
+        $payload = [
             'id' => $category_id,
             'wordset_id' => (int) ($cat['wordset_id'] ?? 0),
             'default_order' => (int) ($cat['default_order'] ?? 0),
@@ -22621,6 +22741,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'new_words' => (int) ($metrics['new_words'] ?? max(0, (int) ($cat['count'] ?? 0))),
             'last_seen_at' => (string) ($metrics['last_seen_at'] ?? ''),
         ];
+        return ll_tools_wordset_page_compact_runtime_category_payload(
+            $payload,
+            $wordset_id
+        );
     }, $script_categories_source);
 
     $games_frontend_config = ($view === 'games' && function_exists('ll_tools_get_wordset_games_frontend_config'))

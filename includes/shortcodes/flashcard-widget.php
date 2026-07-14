@@ -757,11 +757,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     // Core & modules - enqueue in dependency order
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'audio.js',    'll-tools-flashcard-audio',   ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery'], true);
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'loader.js',   'll-tools-flashcard-loader',  ['jquery', 'll-tools-flashcard-audio'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'options.js',  'll-tools-flashcard-options', ['jquery', 'll-tools-flashcard-audio'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'option-conflicts.js', 'll-tools-option-conflicts', [], true);
 
-    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery'], true);
+    ll_enqueue_asset_by_timestamp($shortcode_folder . 'util.js',       'll-flc-util',        ['jquery', 'll-tools-flashcard-audio'], true);
     ll_enqueue_asset_by_timestamp('/js/self-check-shared.js', 'll-tools-self-check-shared-script', ['jquery'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'mode-config.js','ll-flc-mode-config', ['ll-flc-util'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'state.js',      'll-flc-state',       ['ll-flc-mode-config'], true);
@@ -820,7 +820,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
       });
     JS);
 
-    // Data: print early on 'options' and again on 'main' (belt & suspenders)
+    // Build one bootstrap payload. It is localized once on the audio handle,
+    // which is an explicit dependency of every module that reads it at startup.
     $wordset_ids = [];
     if (isset($atts['wordset_ids_for_popup'])) {
         $wordset_ids = array_map('intval', (array) $atts['wordset_ids_for_popup']);
@@ -989,16 +990,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ];
 
     wp_localize_script('ll-tools-flashcard-audio', 'llToolsFlashcardsData', $localized_data);
-    // Keep the main handle localized as well for existing consumers/tests that
-    // inspect the bootstrap globals there, while the early handle preserves
-    // dependency-order availability for mode-config/util scripts.
-    wp_localize_script('ll-flc-main', 'llToolsFlashcardsData', $localized_data);
 
-    // Localize translatable messages (must happen after scripts are enqueued)
+    // Messages are also single-owner. The mode/state chain depends on util, so
+    // later modules do not need duplicate assignments on their own handles.
     $messages = ll_flashcards_get_messages();
     wp_localize_script('ll-flc-util', 'llToolsFlashcardsMessages', $messages);
-    wp_localize_script('ll-flc-main', 'llToolsFlashcardsMessages', $messages);
-    wp_localize_script('ll-flc-mode-config', 'llToolsFlashcardsMessages', $messages);
 
     return $localized_data;
 }

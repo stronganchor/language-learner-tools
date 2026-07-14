@@ -76,6 +76,47 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
     }
 
+    public function test_settings_hub_advanced_status_ignores_an_image_attachment_without_a_resolvable_url(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $attachment_id = $this->createImageAttachment('unresolvable-profile-image.png');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $attachment_id);
+
+        $this->assertSame($attachment_id, ll_tools_get_wordset_button_image_attachment_id($wordset_id));
+        $url_filter = static function ($url, int $candidate_attachment_id) use ($attachment_id) {
+            return $candidate_attachment_id === $attachment_id ? false : $url;
+        };
+        add_filter('wp_get_attachment_url', $url_filter, 10, 2);
+        try {
+            $this->assertSame(0, (int) (ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)['attachment_id'] ?? 0));
+            $this->assertSame(0, (int) (ll_tools_wordset_page_get_advanced_settings_summary($wordset_id)['button_image_attachment_id'] ?? 0));
+            $this->assertSame(0, (int) (ll_tools_wordset_page_get_advanced_settings($wordset_id)['button_image_attachment_id'] ?? 0));
+
+            $_GET = [];
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+            set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+            set_query_var('ll_wordset_view', 'settings');
+
+            $html = ll_tools_render_wordset_page_content($wordset_id);
+        } finally {
+            remove_filter('wp_get_attachment_url', $url_filter, 10);
+        }
+        $matched = preg_match(
+            '/<a[^>]*class="[^"]*ll-wordset-settings-tool-card--advanced[^"]*"[^>]*>.*?<\/a>/s',
+            $html,
+            $advanced_card
+        );
+        $this->assertSame(1, $matched);
+        $this->assertStringNotContainsString('Profile image', (string) ($advanced_card[0] ?? ''));
+    }
+
     public function test_settings_hub_skips_full_category_catalog_and_unbounded_card_counts(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -92,6 +133,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_view', 'settings');
 
         $full_category_catalog_calls = 0;
+        $alternate_flashcard_catalog_calls = 0;
+        $answer_preview_sampling_calls = 0;
         $unbounded_card_queries = [];
         $catalog_filter = static function ($enabled) use (&$full_category_catalog_calls) {
             $full_category_catalog_calls++;
@@ -106,17 +149,31 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
                 $unbounded_card_queries[] = $query->query_vars;
             }
         };
+        $flashcard_catalog_filter = static function ($ttl) use (&$alternate_flashcard_catalog_calls) {
+            $alternate_flashcard_catalog_calls++;
+            return $ttl;
+        };
+        $answer_preview_filter = static function ($limit) use (&$answer_preview_sampling_calls) {
+            $answer_preview_sampling_calls++;
+            return $limit;
+        };
 
         add_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
+        add_filter('ll_tools_flashcard_categories_cache_ttl', $flashcard_catalog_filter);
+        add_filter('ll_tools_wordset_preview_max_candidate_words', $answer_preview_filter);
         add_action('pre_get_posts', $post_watcher);
         try {
             $html = ll_tools_render_wordset_page_content($wordset_id);
         } finally {
             remove_action('pre_get_posts', $post_watcher);
+            remove_filter('ll_tools_wordset_preview_max_candidate_words', $answer_preview_filter);
+            remove_filter('ll_tools_flashcard_categories_cache_ttl', $flashcard_catalog_filter);
             remove_filter('ll_tools_wordset_page_user_categories_cache_enabled', $catalog_filter);
         }
 
         $this->assertSame(0, $full_category_catalog_calls, 'The settings hub must not build the learner category catalog.');
+        $this->assertSame(0, $alternate_flashcard_catalog_calls, 'The settings hub must not build category-ordering rows through the flashcard catalog.');
+        $this->assertSame(0, $answer_preview_sampling_calls, 'The settings hub must not sample answer-option preview words.');
         $this->assertSame([], $unbounded_card_queries, 'Settings card labels must not hydrate every word or image.');
         $this->assertStringContainsString('ll_wordset_tool=editor', $html);
         $this->assertStringContainsString('ll_wordset_tool=template', $html);

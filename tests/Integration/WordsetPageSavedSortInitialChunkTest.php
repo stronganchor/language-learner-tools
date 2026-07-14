@@ -243,6 +243,11 @@ final class WordsetPageSavedSortInitialChunkTest extends LL_Tools_TestCase
             $this->assertSame('progress-desc', (string) ($config['initialMainCategorySort'] ?? ''));
             $this->assertTrue((bool) ($config['summaryCountsDeferred'] ?? false));
             $this->assertCount(227, (array) ($config['categories'] ?? []));
+            $this->assertLessThan(
+                100000,
+                strlen((string) wp_json_encode($config)),
+                'The Genç-scale inline runtime config should remain sparse instead of repeating full category rows in lazy shells.'
+            );
             $this->assertTrue((bool) ($config['lazyCards']['enabled'] ?? false));
             $this->assertSame(6, (int) ($config['lazyCards']['initialCount'] ?? 0));
             $this->assertSame(227, (int) ($config['lazyCards']['total'] ?? 0));

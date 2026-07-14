@@ -55,6 +55,29 @@ of sending the whole plugin to an external model.
 | Imports, site sync, automation | `includes/api/automation-rest.php`, `includes/lib/site-sync.php`, `includes/admin/export-import.php` | Treat heavy work as server-owned jobs. REST endpoints should control, enqueue, and report status instead of doing unbounded work inline. |
 | Performance benchmark | `tests/performance/`, `tests/e2e/specs/performance-benchmark.spec.js`, `tests/e2e/helpers/performance-benchmark.js` | Keep the default benchmark affordable. Use the Genç profile for the production-shaped 209-category/2,717-word settings and recorder paths, XL for generic 3,000-word coverage, and stress-2x for 5,000-word saturation checks. Named profiles authoritatively select their fixture manifest, history, and report paths. Skip-seed verifies the stored fixture version and canonical checksum without mutation, and the E2E child restores all locked parent-selected performance variables after loading `.env` files. |
 
+### Inline wordset and settings-hub contracts
+
+The browser needs the complete wordset category registry for selection, sorting,
+unloaded search placeholders, and launch configuration. Keep that registry sparse
+by omitting values supplied by the JavaScript normalizer or top-level wordset
+context. Lazy category shells are ordered `{type, id}` references into the
+registry; do not serialize a second copy of each category row in the shell list.
+Content-lesson shells retain their bounded title, excerpt, and media fields
+because unloaded-content search uses them before hydration.
+
+The settings hub's Advanced card reads only the stored values it displays. It
+must not call the full Advanced builder, category-ordering catalog, font
+discovery, or answer-option preview sampler before that tool is opened. Keep the
+focused `WordsetSettingsCustomUiTest` guards and the Genç-scale localized-config
+wire-size budget when changing either path.
+
+Flashcard bootstrap globals are single-owner payloads. Localize
+`llToolsFlashcardsData` once on `ll-tools-flashcard-audio` and
+`llToolsFlashcardsMessages` once on `ll-flc-util`; every startup consumer must
+depend on the corresponding owner. Repeating those assignments on main or mode
+handles grows every quiz-capable page and can overwrite mutations made by an
+earlier responsive-options module.
+
 ## Evidence workflow
 
 1. Identify the surface and the growth dimension: categories, words, media,
