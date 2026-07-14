@@ -3093,7 +3093,14 @@ function ll_tools_word_grid_get_category_editor_word_ids_by_category(int $wordse
         $query_id_to_category_ids[$category_id][$category_id] = true;
         if (function_exists('ll_tools_get_category_isolation_source_id')) {
             $source_id = (int) ll_tools_get_category_isolation_source_id($category_id);
-            if ($source_id > 0 && $source_id !== $category_id) {
+            $source_owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+                ? (int) ll_tools_get_category_wordset_owner_id($source_id)
+                : 0;
+            if ($source_id > 0 && $source_id !== $category_id && $source_owner_id <= 0) {
+                // A still-unowned legacy source may stand in for its isolated
+                // copy until migration repairs the assignment. A source owned
+                // by another wordset is an intentional foreign assignment and
+                // must not count toward this current-scope category.
                 $query_id_to_category_ids[$source_id][$category_id] = true;
             }
         }
@@ -3375,6 +3382,12 @@ function ll_tools_word_grid_get_selected_category_ids_for_editor(int $word_id, i
         if ($term_id <= 0) {
             continue;
         }
+        $category_owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($term_id)
+            : 0;
+        if ($category_owner_id > 0 && $category_owner_id !== $wordset_id) {
+            continue;
+        }
         $effective_id = $term_id;
         if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
             $resolved_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, false);
@@ -3423,6 +3436,18 @@ function ll_tools_word_grid_update_word_categories_for_wordset(int $word_id, int
 
     $preserved_ids = [];
     foreach ($previous_ids as $category_id) {
+        $category_owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($category_id)
+            : 0;
+        if ($category_owner_id > 0 && $category_owner_id !== $wordset_id) {
+            // A category explicitly owned by another wordset is outside this
+            // editor's replacement scope. Its isolation origin may also have
+            // a current-wordset copy, but that must not erase the foreign
+            // assignment from a word shared across wordsets.
+            $preserved_ids[] = $category_id;
+            continue;
+        }
+
         $effective_id = $category_id;
         if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
             $resolved_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);

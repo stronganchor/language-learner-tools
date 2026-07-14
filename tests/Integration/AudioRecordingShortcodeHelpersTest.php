@@ -391,6 +391,38 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame((int) $word_id, (int) $existing_word_id);
     }
 
+    public function test_existing_word_lookup_preserves_intentionally_empty_wordset_category_scope(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_one = $this->ensure_term('wordset', 'Recorder Existing WS One', 'rec-existing-ws-one');
+        $wordset_two = $this->ensure_term('wordset', 'Recorder Existing WS Two', 'rec-existing-ws-two');
+        $category_id = $this->ensure_term('word-category', 'Recorder Existing Category', 'rec-existing-category');
+        ll_tools_set_category_wordset_owner($category_id, $wordset_one, $category_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type'   => 'words',
+            'post_status' => 'publish',
+            'post_title'  => 'Recorder Existing Independent Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_one, $wordset_two], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $resolved_word_id = ll_find_or_create_word_by_title(
+            'Recorder Existing Independent Word',
+            [$wordset_one, $wordset_two]
+        );
+
+        $this->assertSame((int) $word_id, (int) $resolved_word_id);
+        $this->assertSame(
+            [$category_id],
+            array_map('intval', wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']))
+        );
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($category_id, $wordset_two));
+    }
+
     public function test_recording_wordset_request_scope_can_require_an_explicit_accessible_wordset(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Explicit Recorder Scope', 'explicit-recorder-scope');

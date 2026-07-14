@@ -898,6 +898,8 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertSame($wordset_one, ll_tools_get_category_wordset_owner_id($first_categories[0]));
 
         wp_set_object_terms($word_id, [$wordset_one, $wordset_two], 'wordset', false);
+        $assignment_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertCount(2, $assignment_categories, 'Adding a wordset should expand existing category sources into the new scope.');
         $expanded_state = ll_tools_wordset_isolation_migration_new_state();
         $this->assertTrue(ll_tools_wordset_isolation_migration_process_word($word_id, $expanded_state));
         $expanded_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
@@ -908,6 +910,54 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         foreach ($expanded_categories as $category_id) {
             $this->assertSame($source_category_id, ll_tools_get_category_isolation_source_id($category_id));
         }
+    }
+
+    public function test_explicit_category_assignment_stays_independent_until_missing_scope_expansion(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_one = $this->ensure_term('wordset', 'Independent Wordset One', 'independent-wordset-one');
+        $wordset_two = $this->ensure_term('wordset', 'Independent Wordset Two', 'independent-wordset-two');
+        $wordset_three = $this->ensure_term('wordset', 'Independent Wordset Three', 'independent-wordset-three');
+        $source_category_id = $this->ensure_term('word-category', 'Independent Source Category', 'independent-source-category');
+        ll_tools_set_category_wordset_owner($source_category_id, $wordset_one, $source_category_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Independent Category Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_one, $wordset_two], 'wordset', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        wp_set_object_terms($word_id, [$source_category_id], 'word-category', false);
+
+        $explicit_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertSame([$source_category_id], $explicit_categories);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $wordset_two));
+
+        wp_set_object_terms($word_id, [$wordset_one, $wordset_two], 'wordset', false);
+        $resaved_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertSame([$source_category_id], $resaved_categories, 'Re-saving unchanged wordsets must preserve an intentionally empty scope.');
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $wordset_two));
+
+        wp_set_object_terms($word_id, [$wordset_two], 'wordset', true);
+        $duplicate_append_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertSame([$source_category_id], $duplicate_append_categories, 'Appending an existing wordset must not fill intentionally empty scopes.');
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $wordset_two));
+
+        wp_set_object_terms($word_id, [$wordset_three], 'wordset', true);
+        $new_append_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $new_append_owners = array_map('ll_tools_get_category_wordset_owner_id', $new_append_categories);
+        sort($new_append_owners, SORT_NUMERIC);
+        $this->assertSame([$wordset_one, $wordset_three], $new_append_owners, 'Append expansion must target only the newly related wordset.');
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $wordset_two));
+        $this->assertGreaterThan(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $wordset_three));
+
+        $expanded_categories = ll_tools_normalize_word_categories_for_isolation($word_id, true);
+        $this->assertCount(3, $expanded_categories);
+        $owners = array_map('ll_tools_get_category_wordset_owner_id', $expanded_categories);
+        sort($owners, SORT_NUMERIC);
+        $this->assertSame([$wordset_one, $wordset_two, $wordset_three], $owners);
     }
 
     public function test_migration_discovery_query_failure_does_not_advance_the_phase(): void

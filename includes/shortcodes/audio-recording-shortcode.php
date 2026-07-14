@@ -9150,7 +9150,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
         if (!empty($linked_words)) {
             $linked_word_id = (int) $linked_words[0];
             if ($linked_word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
-                ll_tools_normalize_word_categories_for_isolation($linked_word_id);
+                ll_tools_normalize_word_categories_for_isolation($linked_word_id, false);
             }
             return $linked_word_id;
         }
@@ -9182,7 +9182,7 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     if (!empty($existing_words)) {
         $existing_word_id = (int) $existing_words[0];
         if ($existing_word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
-            ll_tools_normalize_word_categories_for_isolation($existing_word_id);
+            ll_tools_normalize_word_categories_for_isolation($existing_word_id, false);
         }
         if ($existing_word_id > 0 && $image_id > 0) {
             update_post_meta($existing_word_id, '_ll_autopicked_image_id', (int) $image_id);
@@ -9265,7 +9265,7 @@ function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
         if ($matching_post instanceof WP_Post) {
             $word_id = (int) $matching_post->ID;
             if ($word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
-                ll_tools_normalize_word_categories_for_isolation($word_id);
+                ll_tools_normalize_word_categories_for_isolation($word_id, false);
             }
             return $word_id;
         }

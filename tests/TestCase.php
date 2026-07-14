@@ -56,6 +56,21 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         unset($GLOBALS['ll_tools_active_rest_request']);
         unset($GLOBALS['ll_tools_active_rest_request_depth']);
         unset($GLOBALS['ll_tools_generic_page_cache_bypass_reason']);
+        unset($GLOBALS['ll_tools_wordset_isolation_added_tt_ids']);
+
+        // PHPUnit reuses one WP_Scripts registry across simulated requests.
+        // wp_localize_script() appends to a handle's existing data, so clear
+        // the plugin-owned flashcard localization slots between tests while
+        // leaving production request behavior untouched.
+        $scripts = $GLOBALS['wp_scripts'] ?? null;
+        if ($scripts instanceof WP_Scripts) {
+            foreach (['ll-tools-flashcard-audio', 'll-flc-util', 'll-flc-main', 'll-flc-mode-config'] as $handle) {
+                if (isset($scripts->registered[$handle]->extra['data'])) {
+                    unset($scripts->registered[$handle]->extra['data']);
+                }
+            }
+        }
+
         if (function_exists('ll_tools_reset_category_maintenance_runtime')) {
             ll_tools_reset_category_maintenance_runtime();
         }

@@ -98,6 +98,13 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
         $fixture = $this->createCategoryEditFixture();
         $this->loginEditor();
 
+        $foreign_current_copy_id = ll_tools_get_or_create_isolated_category_copy(
+            (int) $fixture['foreign_category_id'],
+            (int) $fixture['wordset_id']
+        );
+        $this->assertGreaterThan(0, $foreign_current_copy_id);
+        $this->assertNotSame((int) $fixture['foreign_category_id'], $foreign_current_copy_id);
+
         wp_set_post_terms(
             (int) $fixture['word_id'],
             [(int) $fixture['wordset_id'], (int) $fixture['foreign_wordset_id']],
@@ -109,6 +116,27 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
             [(int) $fixture['category_a_id'], (int) $fixture['foreign_category_id']],
             'word-category',
             false
+        );
+
+        $selected_ids = ll_tools_word_grid_get_selected_category_ids_for_editor(
+            (int) $fixture['word_id'],
+            (int) $fixture['wordset_id'],
+            [(int) $fixture['category_a_id'], (int) $fixture['category_b_id'], $foreign_current_copy_id]
+        );
+        $this->assertContains((int) $fixture['category_a_id'], $selected_ids);
+        $this->assertNotContains(
+            $foreign_current_copy_id,
+            $selected_ids,
+            'A foreign-owned assignment must not make its current-wordset alias appear selected.'
+        );
+        $word_ids_by_category = ll_tools_word_grid_get_category_editor_word_ids_by_category(
+            (int) $fixture['wordset_id'],
+            [$foreign_current_copy_id]
+        );
+        $this->assertSame(
+            [],
+            $word_ids_by_category[$foreign_current_copy_id] ?? [],
+            'A foreign-owned source assignment must not count as a word in its current-wordset copy.'
         );
 
         $_POST = [
@@ -138,10 +166,15 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
 
         $assigned_ids = wp_get_post_terms((int) $fixture['word_id'], 'word-category', ['fields' => 'ids']);
         $assigned_ids = array_values(array_map('intval', is_wp_error($assigned_ids) ? [] : (array) $assigned_ids));
+        sort($assigned_ids, SORT_NUMERIC);
+        $expected_ids = [(int) $fixture['category_b_id'], (int) $fixture['foreign_category_id']];
+        sort($expected_ids, SORT_NUMERIC);
 
-        $this->assertContains((int) $fixture['category_b_id'], $assigned_ids);
-        $this->assertContains((int) $fixture['foreign_category_id'], $assigned_ids, 'Out-of-scope categories from another wordset should be preserved.');
-        $this->assertNotContains((int) $fixture['category_a_id'], $assigned_ids);
+        $this->assertSame(
+            $expected_ids,
+            $assigned_ids,
+            'Only the current wordset assignments should be replaced; foreign-owned categories must remain independent.'
+        );
     }
 
     public function test_ajax_word_update_rejects_category_outside_current_wordset_scope(): void
