@@ -9,6 +9,57 @@ if (!class_exists('WP_CLI_Command')) {
 
 class LL_Tools_CLI_Command extends WP_CLI_Command {
     /**
+     * Resume the durable wordset-isolation migration until completion.
+     *
+     * ## OPTIONS
+     *
+     * [--format=<format>]
+     * : Output format: table or json.
+     *
+     * [--allow-large-option-rules]
+     * : Permit explicit CLI maintenance to load an option-rules store above the background safety limit.
+     *
+     * ## EXAMPLES
+     *
+     *     wp ll-tools wordset-isolation-migrate
+     *     wp ll-tools wordset-isolation-migrate --format=json
+     *     wp ll-tools wordset-isolation-migrate --allow-large-option-rules
+     */
+    public function wordset_isolation_migrate(array $args, array $assoc_args): void {
+        unset($args);
+        if (!function_exists('ll_tools_run_wordset_isolation_migration')) {
+            WP_CLI::error('Wordset isolation migration is unavailable.');
+        }
+
+        $allow_large_option_rules = !empty($assoc_args['allow-large-option-rules']);
+        $allow_large_filter = static function (): int {
+            return PHP_INT_MAX;
+        };
+        if ($allow_large_option_rules) {
+            add_filter('ll_tools_wordset_isolation_migration_word_option_rules_max_bytes', $allow_large_filter);
+        }
+        try {
+            $result = ll_tools_run_wordset_isolation_migration();
+        } finally {
+            if ($allow_large_option_rules) {
+                remove_filter('ll_tools_wordset_isolation_migration_word_option_rules_max_bytes', $allow_large_filter);
+            }
+        }
+        $format = isset($assoc_args['format']) ? sanitize_key((string) $assoc_args['format']) : 'table';
+        if ($format === 'json') {
+            WP_CLI::line(ll_tools_cli_json_encode($result));
+        } else {
+            $row = $result;
+            $row['errors'] = implode('; ', (array) ($result['errors'] ?? []));
+            \WP_CLI\Utils\format_items('table', [$row], array_keys($row));
+        }
+
+        if ((string) ($result['status'] ?? '') !== 'completed') {
+            WP_CLI::error((string) (($result['errors'][0] ?? '') ?: 'Wordset isolation migration did not complete.'));
+        }
+    }
+
+    /**
      * Create a word set, optionally from a template.
      *
      * ## OPTIONS

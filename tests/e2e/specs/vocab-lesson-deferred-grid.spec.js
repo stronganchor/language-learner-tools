@@ -20,6 +20,17 @@ const shellPreviewImage = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 
 function buildDeferredLessonMarkup() {
+  const boundedBlankShells = Array.from({ length: 4 }, () => `
+    <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true">
+      <div class="ll-vocab-lesson-skeleton-media"></div>
+    </article>
+  `).join('');
+  const countPlaceholders = Array.from({ length: 6 }, () => `
+    <article class="word-item ll-vocab-lesson-skeleton-card ll-vocab-lesson-skeleton-card--count-placeholder" aria-hidden="true">
+      <div class="ll-vocab-lesson-skeleton-media"></div>
+    </article>
+  `).join('');
+
   return `
     <div class="ll-vocab-lesson-page">
       <div class="ll-vocab-lesson-bulk" data-ll-word-grid-bulk>
@@ -45,7 +56,7 @@ function buildDeferredLessonMarkup() {
           <div class="screen-reader-text" data-ll-vocab-lesson-grid-status role="status" aria-live="polite">
             Loading lesson words...
           </div>
-          <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99">
+          <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99" data-ll-expected-card-count="12">
             <article class="word-item ll-vocab-lesson-skeleton-card ll-vocab-lesson-skeleton-card--audio-ready" data-ll-shell-word-id="11">
               <div class="ll-vocab-lesson-skeleton-media ll-vocab-lesson-skeleton-media--preview">
                 <img class="ll-vocab-lesson-shell-preview-image" src="${shellPreviewImage}" alt="" aria-hidden="true" loading="eager" decoding="async" fetchpriority="low" width="150" height="150">
@@ -62,6 +73,8 @@ function buildDeferredLessonMarkup() {
               </div>
             </article>
             <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true"></article>
+            ${boundedBlankShells}
+            ${countPlaceholders}
           </div>
           <div class="ll-vocab-lesson-grid-feedback" data-ll-vocab-lesson-grid-feedback hidden></div>
         </div>
@@ -100,6 +113,20 @@ test('deferred vocab lesson shell exposes useful content before hydration', asyn
   expect(shellMetrics.buttonTabIndex).toBeNull();
   expect(shellMetrics.buttonDisabled).toBe(false);
   expect(shellMetrics.cardPointerEvents).toBe('auto');
+});
+
+test('deferred lesson exposes blank loading cards for the full expected lesson count', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(buildDeferredLessonMarkup());
+  await page.addStyleTag({ content: vocabLessonCssSource });
+
+  const grid = page.locator('[data-ll-expected-card-count="12"]');
+  await expect(grid.locator('.ll-vocab-lesson-skeleton-card')).toHaveCount(12);
+  await expect(grid.locator('.ll-vocab-lesson-skeleton-card--count-placeholder')).toHaveCount(6);
+
+  const lastPlaceholder = grid.locator('.ll-vocab-lesson-skeleton-card--count-placeholder').last();
+  await expect(lastPlaceholder).toBeVisible();
+  expect(await lastPlaceholder.locator('.ll-vocab-lesson-skeleton-media').evaluate((node) => node.getBoundingClientRect().height)).toBeGreaterThan(40);
 });
 
 test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) => {

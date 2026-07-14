@@ -2861,6 +2861,23 @@ body.ll-vocab-lesson-category-settings-open {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
+.ll-vocab-lesson-skeleton-card--remaining-count .ll-vocab-lesson-skeleton-media {
+    display: grid;
+    place-items: center;
+}
+
+.ll-vocab-lesson-skeleton-remaining-count {
+    position: relative;
+    z-index: 1;
+    padding: 6px 9px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.88);
+    color: #344054;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .ll-vocab-lesson-skeleton-media--preview {
     isolation: isolate;
     background: #e2e8f0;

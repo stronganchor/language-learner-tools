@@ -131,6 +131,7 @@ if (defined('WP_CLI') && WP_CLI) {
 
         $ll_tools_cli_aliases = [
             'll-tools wordset-create' => 'wordset_create',
+            'll-tools wordset-isolation-migrate' => 'wordset_isolation_migrate',
             'll-tools wordset-missing-meta' => 'wordset_missing_meta',
             'll-tools word-bulk-update' => 'word_bulk_update',
             'll-tools wordset-report' => 'wordset_report',

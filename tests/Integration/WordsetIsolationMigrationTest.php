@@ -17,6 +17,8 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION);
+        delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_LOCK_OPTION);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT);
@@ -26,6 +28,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         delete_option(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_STATE_OPTION);
         wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_HEALTH_REFRESH_HOOK);
         wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_VOCAB_REPAIR_HOOK);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK);
         delete_option('ll_tools_word_option_rules');
 
         parent::tearDown();
@@ -135,6 +138,155 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertGreaterThanOrEqual(2, (int) ($result['categories_created'] ?? 0));
         $this->assertGreaterThanOrEqual(2, (int) ($result['images_created'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($result['images_relinked'] ?? 0));
+    }
+
+    public function test_wordset_isolation_migration_resumes_in_bounded_keyset_batches(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Bounded Isolation Wordset', 'bounded-isolation-wordset');
+        $category_id = $this->ensure_term('word-category', 'Bounded Isolation Category', 'bounded-isolation-category');
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createWordInWordsetCategory('Bounded Isolation Word ' . $index, $wordset_id, $category_id);
+        }
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $batch_size = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_isolation_migration_batch_size', $batch_size);
+        try {
+            $queued = ll_tools_queue_wordset_isolation_migration();
+            $this->assertSame('queued', $queued['status']);
+            $this->assertSame(0, (int) $queued['counters']['words_scanned']);
+            $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+
+            $first = ll_tools_run_wordset_isolation_migration_batch();
+            $this->assertSame('queued', $first['status']);
+            $this->assertSame('words', $first['phase']);
+            $this->assertSame(2, (int) $first['counters']['words_scanned']);
+            $this->assertGreaterThan(0, (int) $first['cursor']);
+            $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+
+            $first_cursor = (int) $first['cursor'];
+            $second = ll_tools_run_wordset_isolation_migration_batch();
+            $this->assertSame(4, (int) $second['counters']['words_scanned']);
+            $this->assertGreaterThan($first_cursor, (int) $second['cursor']);
+
+            $result = ll_tools_run_wordset_isolation_migration();
+        } finally {
+            remove_filter('ll_tools_wordset_isolation_migration_batch_size', $batch_size);
+        }
+
+        $this->assertSame('completed', $result['status']);
+        $this->assertSame(5, (int) $result['words_scanned']);
+        $this->assertSame(LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION, ll_tools_get_wordset_isolation_migration_version());
+        $this->assertSame('completed', ll_tools_get_wordset_isolation_migration_state()['status']);
+    }
+
+    public function test_synchronous_migration_drain_stops_without_progress_when_another_worker_holds_the_lease(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_queue_wordset_isolation_migration();
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_LOCK_OPTION, [
+            'token' => 'another-worker',
+            'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+        ], false);
+
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $this->assertSame('queued', $result['status']);
+        $this->assertSame('words', $result['phase']);
+        $this->assertSame(0, (int) $result['words_scanned']);
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_HOOK));
+    }
+
+    public function test_queue_request_does_not_overwrite_an_active_workers_progress(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'images';
+        $state['cursor'] = 321;
+        $state['counters']['words_scanned'] = 17;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_LOCK_OPTION, [
+            'token' => 'active-worker',
+            'expires_at' => time() + 5 * MINUTE_IN_SECONDS,
+        ], false);
+
+        $queued = ll_tools_queue_wordset_isolation_migration();
+        $stored = ll_tools_get_wordset_isolation_migration_state();
+
+        $this->assertSame('running', $queued['status']);
+        $this->assertSame('images', $queued['phase']);
+        $this->assertSame(321, (int) $queued['cursor']);
+        $this->assertSame(17, (int) $queued['counters']['words_scanned']);
+        $this->assertSame('running', $stored['status']);
+        $this->assertSame(321, (int) $stored['cursor']);
+    }
+
+    public function test_completed_version_marker_recovers_an_interrupted_final_state_save(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'finalize';
+        $state['started_at'] = time() - MINUTE_IN_SECONDS;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+        update_option(
+            LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION,
+            LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION,
+            false
+        );
+
+        $result = ll_tools_run_wordset_isolation_migration_batch();
+        $stored = ll_tools_get_wordset_isolation_migration_state();
+
+        $this->assertSame('completed', $result['status']);
+        $this->assertSame('finalize', $result['phase']);
+        $this->assertGreaterThan(0, (int) $result['completed_at']);
+        $this->assertSame('completed', $stored['status']);
+        $this->assertGreaterThan(0, (int) $stored['completed_at']);
+    }
+
+    public function test_migration_does_not_advance_after_an_isolated_category_write_is_lost(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Write Failure', 'isolation-write-failure');
+        $category_id = $this->ensure_term('word-category', 'Isolation Write Failure Category', 'isolation-write-failure-category');
+        $word_id = $this->createWordInWordsetCategory('Isolation Write Failure Word', $wordset_id, $category_id);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $discard_category_write = static function ($object_id, $terms, $tt_ids, $taxonomy) use ($wpdb, $word_id): void {
+            if ((int) $object_id !== $word_id || $taxonomy !== 'word-category') {
+                return;
+            }
+            $wpdb->query($wpdb->prepare(
+                "DELETE relationships
+                 FROM {$wpdb->term_relationships} AS relationships
+                 INNER JOIN {$wpdb->term_taxonomy} AS taxonomy
+                    ON taxonomy.term_taxonomy_id = relationships.term_taxonomy_id
+                 WHERE relationships.object_id = %d
+                   AND taxonomy.taxonomy = 'word-category'",
+                $word_id
+            ));
+            clean_object_term_cache($word_id, 'words');
+        };
+        add_action('set_object_terms', $discard_category_write, PHP_INT_MAX, 6);
+        try {
+            ll_tools_queue_wordset_isolation_migration();
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_action('set_object_terms', $discard_category_write, PHP_INT_MAX);
+        }
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('words', $result['phase']);
+        $this->assertSame(0, (int) $result['cursor']);
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+        $this->assertStringContainsString('could not be saved', strtolower((string) $result['last_error']));
     }
 
     public function test_wordset_isolation_migration_repairs_category_ordering_meta_to_isolated_category_ids(): void
@@ -615,6 +767,503 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertMatchesRegularExpression('/<option value="' . preg_quote((string) $isolated_one, '/') . '".*selected/', $html);
         $this->assertStringNotContainsString('value="' . $shared_category_id . '"', $html);
         $this->assertStringNotContainsString('value="' . $isolated_two . '"', $html);
+    }
+
+    public function test_migration_version_five_requeues_sites_that_already_completed_legacy_version_four(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION, 4, false);
+        $legacy_state = ll_tools_wordset_isolation_migration_new_state();
+        $legacy_state['target_version'] = 4;
+        $legacy_state['status'] = 'completed';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $legacy_state, false);
+
+        $queued = ll_tools_queue_wordset_isolation_migration();
+
+        $this->assertSame(5, LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION);
+        $this->assertSame('queued', $queued['status']);
+        $this->assertSame(5, (int) $queued['target_version']);
+        $this->assertSame(4, ll_tools_get_wordset_isolation_migration_version());
+    }
+
+    public function test_user_discovery_repairs_prompt_progress_and_rekeys_recommendation_deferrals(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Isolated Auxiliary User Stores', 'isolated-auxiliary-user-stores');
+        $category_id = $this->ensure_term('word-category', 'Auxiliary User Store Category', 'auxiliary-user-store-category');
+        $prompt_user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $deferral_user_id = self::factory()->user->create(['role' => 'subscriber']);
+
+        $prompt_progress = [
+            98765 => [
+                'prompt_card_id' => 98765,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 2,
+                'updated_at' => '2026-07-14 10:00:00',
+            ],
+        ];
+        update_user_meta($prompt_user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $prompt_progress);
+
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => [321, 654, 987, 111, 222],
+        ];
+        $old_signature = ll_tools_recommendation_activity_queue_id($activity);
+        $legacy_signature = 'legacy-without-session-words';
+        update_user_meta($deferral_user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, [
+            (string) $wordset_id => [
+                $old_signature => [
+                    'count' => 2,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$category_id],
+                    'session_word_ids' => $activity['session_word_ids'],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+                $legacy_signature => [
+                    'count' => 1,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$category_id],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+            ],
+        ]);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        $this->assertSame('completed', (string) ($result['status'] ?? ''));
+        $this->assertSame(
+            $isolated_category_id,
+            (int) get_user_meta($prompt_user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true)[98765]['category_id']
+        );
+
+        $activity['category_ids'] = [$isolated_category_id];
+        $new_signature = ll_tools_recommendation_activity_queue_id($activity);
+        $this->assertNotSame($old_signature, $new_signature);
+        $deferrals = ll_tools_get_user_recommendation_deferrals($deferral_user_id, $wordset_id);
+        $this->assertArrayHasKey($new_signature, $deferrals);
+        $this->assertArrayNotHasKey($old_signature, $deferrals);
+        $this->assertArrayNotHasKey($legacy_signature, $deferrals);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) $deferrals[$new_signature]['category_ids']));
+        $this->assertSame([321, 654, 987, 111, 222], array_map('intval', (array) $deferrals[$new_signature]['session_word_ids']));
+    }
+
+    public function test_migration_skips_legacy_words_without_a_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $category_id = $this->ensure_term('word-category', 'No Wordset Migration Category', 'no-wordset-migration-category');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'No Wordset Migration Word',
+        ]);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $this->assertSame('completed', $result['status']);
+        $this->assertGreaterThanOrEqual(1, (int) $result['words_scanned']);
+        $this->assertSame([$category_id], array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids'])));
+    }
+
+    public function test_migration_expands_an_existing_isolated_category_to_a_new_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_one = $this->ensure_term('wordset', 'Expansion Wordset One', 'expansion-wordset-one');
+        $wordset_two = $this->ensure_term('wordset', 'Expansion Wordset Two', 'expansion-wordset-two');
+        $source_category_id = $this->ensure_term('word-category', 'Expansion Source Category', 'expansion-source-category');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Expansion Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_one], 'wordset', false);
+        wp_set_object_terms($word_id, [$source_category_id], 'word-category', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $first_state = ll_tools_wordset_isolation_migration_new_state();
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_word($word_id, $first_state));
+        $first_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertCount(1, $first_categories);
+        $this->assertSame($wordset_one, ll_tools_get_category_wordset_owner_id($first_categories[0]));
+
+        wp_set_object_terms($word_id, [$wordset_one, $wordset_two], 'wordset', false);
+        $expanded_state = ll_tools_wordset_isolation_migration_new_state();
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_word($word_id, $expanded_state));
+        $expanded_categories = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $this->assertCount(2, $expanded_categories);
+        $owners = array_map('ll_tools_get_category_wordset_owner_id', $expanded_categories);
+        sort($owners, SORT_NUMERIC);
+        $this->assertSame([$wordset_one, $wordset_two], $owners);
+        foreach ($expanded_categories as $category_id) {
+            $this->assertSame($source_category_id, ll_tools_get_category_isolation_source_id($category_id));
+        }
+    }
+
+    public function test_migration_discovery_query_failure_does_not_advance_the_phase(): void
+    {
+        global $wpdb;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_queue_wordset_isolation_migration();
+        $break_discovery = static function (string $sql) use ($wpdb): string {
+            if (strpos($sql, "FROM {$wpdb->posts}") !== false && strpos($sql, "post_type = 'words'") !== false && strpos($sql, 'ORDER BY ID ASC') !== false) {
+                return "SELECT ID FROM {$wpdb->posts}_missing";
+            }
+            return $sql;
+        };
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_discovery);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('query', $break_discovery);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('words', $result['phase']);
+        $this->assertSame(0, (int) $result['cursor']);
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+        $this->assertStringContainsString('could not read posts', strtolower((string) $result['last_error']));
+    }
+
+    public function test_partial_category_copy_failure_preserves_all_original_word_categories(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Partial Mapping Wordset', 'partial-mapping-wordset');
+        $category_one = $this->ensure_term('word-category', 'Partial Mapping One', 'partial-mapping-one');
+        $category_two = $this->ensure_term('word-category', 'Partial Mapping Two', 'partial-mapping-two');
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Partial Mapping Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_one, $category_two], 'word-category', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $owner_write_count = 0;
+        $drop_second_owner = static function ($check, $object_id, $meta_key) use (&$owner_write_count) {
+            if ($meta_key !== LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY) {
+                return $check;
+            }
+            $owner_write_count++;
+            return $owner_write_count === 2 ? true : $check;
+        };
+        add_filter('update_term_metadata', $drop_second_owner, 10, 3);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        try {
+            $success = ll_tools_wordset_isolation_migration_process_word($word_id, $state);
+        } finally {
+            remove_filter('update_term_metadata', $drop_second_owner, 10);
+        }
+
+        $this->assertFalse($success);
+        $this->assertSame('failed', $state['status']);
+        $persisted = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        sort($persisted, SORT_NUMERIC);
+        $expected = [$category_one, $category_two];
+        sort($expected, SORT_NUMERIC);
+        $this->assertSame($expected, $persisted);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($category_two, $wordset_id));
+        $this->assertFalse(get_term_by('slug', ll_tools_build_isolated_category_slug('partial-mapping-two', $wordset_id), 'word-category'));
+    }
+
+    public function test_category_copy_does_not_claim_an_unrelated_slug_collision(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $target_wordset_id = $this->ensure_term('wordset', 'Collision Target Wordset', 'collision-target-wordset');
+        $other_wordset_id = $this->ensure_term('wordset', 'Collision Other Wordset', 'collision-other-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Collision Source Category', 'collision-source-category');
+        $collision = wp_insert_term('Collision Source Category', 'word-category', [
+            'slug' => ll_tools_build_isolated_category_slug('collision-source-category', $target_wordset_id),
+        ]);
+        $this->assertIsArray($collision);
+        $collision_id = (int) $collision['term_id'];
+        ll_tools_set_category_wordset_owner($collision_id, $other_wordset_id, $collision_id);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $this->assertSame(0, ll_tools_get_or_create_isolated_category_copy($source_category_id, $target_wordset_id));
+        $this->assertSame($other_wordset_id, ll_tools_get_category_wordset_owner_id($collision_id));
+        $this->assertSame($collision_id, ll_tools_get_category_isolation_source_id($collision_id));
+    }
+
+    public function test_failed_image_owner_write_removes_the_incomplete_copy(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Image Owner Failure Wordset', 'image-owner-failure-wordset');
+        $category_id = $this->ensure_term('word-category', 'Image Owner Failure Category', 'image-owner-failure-category');
+        $source_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Image Owner Failure Source',
+        ]);
+        wp_set_object_terms($source_image_id, [$category_id], 'word-category', false);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $created_copy_id = 0;
+        $drop_owner = static function ($check, $object_id, $meta_key) use (&$created_copy_id, $source_image_id) {
+            if ($meta_key === LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY && (int) $object_id !== $source_image_id) {
+                $created_copy_id = (int) $object_id;
+                return true;
+            }
+            return $check;
+        };
+        add_filter('update_post_metadata', $drop_owner, 10, 3);
+        try {
+            $copy_id = ll_tools_get_or_create_isolated_word_image_copy($source_image_id, $wordset_id);
+        } finally {
+            remove_filter('update_post_metadata', $drop_owner, 10);
+        }
+
+        $this->assertSame(0, $copy_id);
+        $this->assertGreaterThan(0, $created_copy_id);
+        $this->assertNull(get_post($created_copy_id));
+        $this->assertSame(0, ll_tools_get_existing_isolated_word_image_copy_id($source_image_id, $wordset_id));
+    }
+
+    public function test_user_meta_compare_and_swap_preserves_a_concurrent_write_and_stops_cursor(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Concurrent User Repair Wordset', 'concurrent-user-repair-wordset');
+        $category_id = $this->ensure_term('word-category', 'Concurrent User Repair Category', 'concurrent-user-repair-category');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $isolated_category_id = ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, [$category_id]);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'queued';
+        $state['phase'] = 'users';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+
+        $concurrent_value = [$category_id, 999999];
+        $interleave = null;
+        $interleave = static function ($check, $object_id, $meta_key) use (&$interleave, $user_id, $concurrent_value) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_CATEGORY_META) {
+                return $check;
+            }
+            remove_filter('update_user_metadata', $interleave, 10);
+            update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, $concurrent_value);
+            add_filter('update_user_metadata', $interleave, 10, 3);
+            return true;
+        };
+        add_filter('update_user_metadata', $interleave, 10, 3);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('update_user_metadata', $interleave, 10);
+        }
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('users', $result['phase']);
+        $this->assertLessThan($user_id, (int) $result['cursor']);
+        $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+    }
+
+    public function test_user_category_copy_failure_stops_the_cursor_without_legacy_success(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'User Mapping Failure Wordset', 'user-mapping-failure-wordset');
+        $category_id = $this->ensure_term('word-category', 'User Mapping Failure Category', 'user-mapping-failure-category');
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, [$category_id]);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'queued';
+        $state['phase'] = 'users';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+
+        $drop_owner = static function ($check, $object_id, $meta_key) {
+            return $meta_key === LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY ? true : $check;
+        };
+        add_filter('update_term_metadata', $drop_owner, 10, 3);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('update_term_metadata', $drop_owner, 10);
+        }
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('users', $result['phase']);
+        $this->assertLessThan($user_id, (int) $result['cursor']);
+        $this->assertSame([$category_id], get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+    }
+
+    public function test_every_category_bearing_user_store_requires_a_complete_isolated_mapping(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'User Store Mapping Wordset', 'user-store-mapping-wordset');
+        $category_id = $this->ensure_term('word-category', 'User Store Mapping Category', 'user-store-mapping-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => [123],
+            'details' => [],
+        ];
+        $stores = [
+            LL_TOOLS_USER_GOALS_META => [
+                'ignored_category_ids' => [$category_id],
+                'placement_known_category_ids' => [$category_id],
+                'preferred_wordset_ids' => [$wordset_id],
+            ],
+            LL_TOOLS_USER_CATEGORY_PROGRESS_META => [
+                $category_id => [
+                    'category_id' => $category_id,
+                    'wordset_id' => $wordset_id,
+                    'exposure_total' => 1,
+                ],
+            ],
+            LL_TOOLS_USER_RECOMMENDATION_QUEUE_META => [
+                (string) $wordset_id => [$activity],
+            ],
+            LL_TOOLS_USER_LAST_RECOMMENDATION_META => [
+                (string) $wordset_id => $activity,
+            ],
+            LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META => [
+                (string) $wordset_id => [
+                    ll_tools_recommendation_activity_queue_id($activity) => [
+                        'count' => 1,
+                        'available_after' => '2030-07-14 10:00:00',
+                        'last_dismissed_at' => '2026-07-14 10:00:00',
+                        'category_ids' => [$category_id],
+                        'session_word_ids' => $activity['session_word_ids'],
+                        'mode' => 'practice',
+                        'type' => 'review_chunk',
+                    ],
+                ],
+            ],
+            LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META => [
+                98765 => [
+                    'prompt_card_id' => 98765,
+                    'category_id' => $category_id,
+                    'wordset_id' => $wordset_id,
+                    'exposure_total' => 1,
+                ],
+            ],
+        ];
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        foreach ($stores as $meta_key => $stored_value) {
+            $user_id = self::factory()->user->create(['role' => 'subscriber']);
+            update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+            update_user_meta($user_id, $meta_key, $stored_value);
+            $state = ll_tools_wordset_isolation_migration_new_state();
+            $state['status'] = 'queued';
+            $state['phase'] = 'users';
+            $state['cursor'] = 77;
+
+            $drop_owner = static function ($check, $object_id, $checked_meta_key) {
+                return $checked_meta_key === LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY ? true : $check;
+            };
+            add_filter('update_term_metadata', $drop_owner, 10, 3);
+            try {
+                $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+            } finally {
+                remove_filter('update_term_metadata', $drop_owner, 10);
+            }
+
+            $this->assertFalse($processed, $meta_key);
+            $this->assertSame('failed', $state['status'], $meta_key);
+            $this->assertSame(77, (int) $state['cursor'], $meta_key);
+            $this->assertSame($stored_value, get_user_meta($user_id, $meta_key, true), $meta_key);
+            $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($category_id, $wordset_id), $meta_key);
+        }
+    }
+
+    public function test_state_checkpoint_write_failure_is_reported_without_overwriting_progress(): void
+    {
+        global $wpdb;
+        $before = ll_tools_wordset_isolation_migration_new_state();
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $before, false);
+        $next = $before;
+        $next['phase'] = 'images';
+        $next['cursor'] = 123;
+        $drop_state_update = static function (string $sql) use ($wpdb): string {
+            if (strpos($sql, "UPDATE {$wpdb->options}") !== false && strpos($sql, LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION) !== false) {
+                return "UPDATE {$wpdb->options} SET option_value = option_value WHERE 1 = 0";
+            }
+            return $sql;
+        };
+        add_filter('query', $drop_state_update);
+        try {
+            $this->assertFalse(ll_tools_wordset_isolation_migration_save_state($next));
+        } finally {
+            remove_filter('query', $drop_state_update);
+        }
+        $this->assertSame($before, get_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION));
+    }
+
+    public function test_final_completed_checkpoint_failure_prevents_version_publication(): void
+    {
+        global $wpdb;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'queued';
+        $state['phase'] = 'finalize';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+
+        $drop_completed_state = static function (string $sql) use ($wpdb): string {
+            if (
+                strpos($sql, "UPDATE {$wpdb->options}") !== false
+                && strpos($sql, LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION) !== false
+                && strpos($sql, 'completed') !== false
+            ) {
+                return "UPDATE {$wpdb->options} SET option_value = option_value WHERE 1 = 0";
+            }
+            return $sql;
+        };
+        add_filter('query', $drop_completed_state);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('query', $drop_completed_state);
+        }
+
+        $this->assertNotSame('completed', $result['status']);
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+        $this->assertNotSame(
+            'completed',
+            (string) (ll_tools_get_wordset_isolation_migration_state()['status'] ?? '')
+        );
+    }
+
+    public function test_background_migration_refuses_an_oversized_word_option_rules_store(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        update_option('ll_tools_word_option_rules', ['oversized' => str_repeat('x', 70 * KB_IN_BYTES)], false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'queued';
+        $state['phase'] = 'word_option_rules';
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION, $state, false);
+
+        $small_store_limit = static fn(): int => 64 * KB_IN_BYTES;
+        add_filter('ll_tools_wordset_isolation_migration_word_option_rules_max_bytes', $small_store_limit);
+        try {
+            $result = ll_tools_run_wordset_isolation_migration_batch();
+        } finally {
+            remove_filter('ll_tools_wordset_isolation_migration_word_option_rules_max_bytes', $small_store_limit);
+        }
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame('word_option_rules', $result['phase']);
+        $this->assertStringContainsString('too large', strtolower((string) $result['last_error']));
+        $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
     }
 
     private function ensure_term(string $taxonomy, string $name, string $slug): int

@@ -163,6 +163,11 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 
 - Audio recorder role creation and required capabilities.
 - `ll_tools_user_can_record()` permission behavior.
+- `WordsetIsolationMigrationTest` verifies version-4 replay into the durable version-5 migration, bounded keyset batches, exact checkpoint persistence, no-wordset skips, all-or-nothing category/image copies, unrelated slug-collision rejection, complete discovery/preflight of every category-bearing user store, prompt-progress remapping, exact recommendation-deferral re-keying with explicit legacy-drop policy, CAS user repair, oversized option-rule rejection, failure retry behavior, and completed-state persistence before lease-fenced target-version publication.
+- `OfflineAppSyncTest` verifies the full InnoDB column/index contract, indexed per-session authentication, exact-hash touch/revocation fencing, transactional eight-session eviction, raw-snapshot CAS for bounded legacy user-meta import, CAS-safe legacy revocation, table-first authentication, and fail-closed conflict behavior.
+- Recorder integration coverage verifies the recording interface renders bounded queue-summary shells and button cards with counts/previews while resolved empty categories disappear; the no-category shortcode query-shape regression forbids the legacy uncached relationship-wide discovery scans.
+- `WordsetPageCategorySearchIndexTest` verifies staff can find cards through pending `recording_text` using bounded published word/audio candidates without exposing the transcription, scanning for queries shorter than three characters, or changing anonymous results.
+- `VocabLessonDeferredGridTest` verifies the deferred shell exposes the exact cached expected lesson count while hydrating content for only the first six cards, keeps specific wrong-answer counting category-scoped, and bounds large-category placeholder DOM with one remainder card.
 - `WordsetPageSavedSortInitialChunkTest` verifies that a 227-category saved metric sort preserves canonical initial/lazy offsets while analytics is deferred, retains the client sort preference, and performs no full metrics-collector or `word_audio` hydration.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
@@ -221,6 +226,8 @@ Representative E2E coverage areas:
   - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/audio-image-matcher-pagination.spec.js`
   - Verifies the Audio/Image Matcher appends bounded candidate-image pages, sends the continuation offset, and hides Load more after the final page.
+- `tests/e2e/specs/audio-recorder-category-switch.spec.js`
+  - Verifies recorder queue continuation/switch races and the bounded category overview, including queued counts, resolved-empty category removal, and category-card selection.
 - `tests/e2e/specs/image-aspect-normalizer-worklist-pagination.spec.js`
   - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
@@ -232,7 +239,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
   - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
-  - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards.
+  - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards; white prompt images retain a visible shadow boundary on mobile and desktop.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
@@ -270,7 +277,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/wordset-page-category-search.spec.js`
-  - Verifies main wordset category search uses the tokenized async word/translation lookup while preserving hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching.
+  - Verifies main wordset category search uses the tokenized async word/translation lookup while preserving hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
@@ -290,7 +297,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/vocab-lesson-word-editor-mobile.spec.js`
   - Verifies the vocab lesson word editor keeps its save/cancel footer visible while the form body scrolls on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
-  - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
+  - Verifies ordinary deferred lesson shells expose image-sized shimmer cards for expected words before hydration, hydrate the word-grid markup, and keep hidden feedback hidden under theme overrides; large-count DOM bounds remain covered in PHP.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`

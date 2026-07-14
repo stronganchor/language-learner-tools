@@ -9,6 +9,22 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_install_user_progress_schema')) {
             ll_tools_install_user_progress_schema();
         }
+        if (function_exists('ll_tools_install_offline_app_session_schema')) {
+            ll_tools_install_offline_app_session_schema();
+        }
+        global $wpdb;
+        if (function_exists('ll_tools_offline_app_session_table') && ll_tools_offline_app_session_schema_ready()) {
+            $wpdb->query('DELETE FROM ' . ll_tools_offline_app_session_table());
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        global $wpdb;
+        if (function_exists('ll_tools_offline_app_session_table') && ll_tools_offline_app_session_schema_ready()) {
+            $wpdb->query('DELETE FROM ' . ll_tools_offline_app_session_table());
+        }
+        parent::tearDown();
     }
 
     public function test_offline_app_token_login_sync_dedupes_and_logout_revokes_token(): void
@@ -83,9 +99,10 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $this->assertNotSame('', $token);
             $this->assertSame($user_id, (int) (($login_data['user'] ?? [])['id'] ?? 0));
 
-            $sessions = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+            $sessions = ll_tools_offline_app_sessions_for_user($user_id);
             $this->assertIsArray($sessions);
             $this->assertNotEmpty($sessions);
+            $this->assertSame('', get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
 
             $_POST = [
                 'auth_token' => $token,
@@ -199,6 +216,560 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $_REQUEST = [];
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
+    }
+
+    public function test_offline_app_session_table_enforces_eight_session_limit_without_rewriting_user_meta(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $tokens = [];
+        for ($index = 1; $index <= 10; $index++) {
+            $session = ll_tools_offline_app_create_session($user_id, [
+                'device_id' => 'device-' . $index,
+                'profile_id' => 'profile-' . $index,
+            ]);
+            $tokens[] = (string) ($session['token'] ?? '');
+            usleep(1000);
+        }
+
+        $sessions = ll_tools_offline_app_sessions_for_user($user_id);
+        $this->assertCount(LL_TOOLS_OFFLINE_APP_MAX_SESSIONS, $sessions);
+        $this->assertNull(ll_tools_offline_app_authenticate_token($tokens[0], false));
+        $this->assertNull(ll_tools_offline_app_authenticate_token($tokens[1], false));
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token($tokens[9], false));
+        $this->assertSame('', get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $this->assertSame(
+            LL_TOOLS_OFFLINE_APP_MAX_SESSIONS,
+            (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d',
+                $user_id
+            ))
+        );
+    }
+
+    public function test_offline_app_legacy_sessions_import_once_with_verified_readback(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $session_key = 'legacysessionkey';
+        $secret = 'LegacySecret123456789';
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, [
+            $session_key => [
+                'secret_hash' => wp_hash_password($secret),
+                'created_at' => '2026-07-14 08:00:00',
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => '2026-07-14 08:00:00',
+                'device_id' => 'legacy-device',
+                'profile_id' => 'legacy-profile',
+            ],
+        ]);
+
+        $this->assertTrue(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+        $this->assertSame('', get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $auth = ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, $session_key, $secret),
+            false
+        );
+        $this->assertIsArray($auth);
+        $this->assertSame('legacy-device', (string) (($auth['session'] ?? [])['device_id'] ?? ''));
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s',
+            $user_id,
+            $session_key
+        )));
+    }
+
+    public function test_offline_app_legacy_import_keeps_only_eight_most_recent_combined_sessions(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $table = ll_tools_offline_app_session_table();
+        $expires_at = gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS);
+
+        for ($index = 1; $index <= LL_TOOLS_OFFLINE_APP_MAX_SESSIONS; $index++) {
+            $timestamp = gmdate('Y-m-d H:i:s', time() - $index * MINUTE_IN_SECONDS);
+            $inserted = $wpdb->insert($table, [
+                'user_id' => $user_id,
+                'session_key' => 'tablesession' . $index,
+                'secret_hash' => wp_hash_password('TableSecret' . $index),
+                'created_at' => $timestamp,
+                'expires_at' => $expires_at,
+                'last_used_at' => $timestamp,
+                'device_id' => '',
+                'profile_id' => '',
+            ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+            $this->assertSame(1, $inserted);
+        }
+
+        $legacy_sessions = [];
+        for ($index = 1; $index <= LL_TOOLS_OFFLINE_APP_MAX_SESSIONS; $index++) {
+            $timestamp = gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS - $index * MINUTE_IN_SECONDS);
+            $legacy_sessions['legacysession' . $index] = [
+                'secret_hash' => wp_hash_password('LegacySecret' . $index),
+                'created_at' => $timestamp,
+                'expires_at' => $expires_at,
+                'last_used_at' => $timestamp,
+            ];
+        }
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $legacy_sessions);
+
+        $this->assertTrue(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+        $this->assertSame('', get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $this->assertSame(
+            LL_TOOLS_OFFLINE_APP_MAX_SESSIONS,
+            (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $user_id))
+        );
+        $this->assertSame(
+            0,
+            (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND session_key LIKE %s",
+                $user_id,
+                'legacysession%'
+            ))
+        );
+    }
+
+    public function test_offline_app_legacy_import_keeps_meta_when_existing_row_hash_conflicts(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $session_key = 'conflictsession';
+        $legacy_secret = 'LegacySecret123';
+        $table_secret = 'TableSecret456';
+        $now = gmdate('Y-m-d H:i:s');
+        $expires_at = gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS);
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, [
+            $session_key => [
+                'secret_hash' => wp_hash_password($legacy_secret),
+                'created_at' => $now,
+                'expires_at' => $expires_at,
+                'last_used_at' => $now,
+            ],
+            'otherlegacysession' => [
+                'secret_hash' => wp_hash_password('OtherLegacySecret789'),
+                'created_at' => $now,
+                'expires_at' => $expires_at,
+                'last_used_at' => $now,
+            ],
+        ]);
+        $inserted = $wpdb->insert(ll_tools_offline_app_session_table(), [
+            'user_id' => $user_id,
+            'session_key' => $session_key,
+            'secret_hash' => wp_hash_password($table_secret),
+            'created_at' => $now,
+            'expires_at' => $expires_at,
+            'last_used_at' => $now,
+            'device_id' => '',
+            'profile_id' => '',
+        ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+        $this->assertSame(1, $inserted);
+
+        $this->assertFalse(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+        $this->assertIsArray(get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $this->assertNull(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, $session_key, $legacy_secret),
+            false
+        ));
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, $session_key, $table_secret),
+            false
+        ));
+        $this->assertNull(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, 'otherlegacysession', 'OtherLegacySecret789'),
+            false
+        ));
+        $this->assertTrue(ll_tools_offline_app_revoke_session($user_id, $session_key));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s',
+            $user_id,
+            $session_key
+        )));
+        $preserved_legacy_sessions = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+        $this->assertIsArray($preserved_legacy_sessions);
+        $this->assertArrayNotHasKey($session_key, $preserved_legacy_sessions);
+        $this->assertArrayHasKey('otherlegacysession', $preserved_legacy_sessions);
+        $this->assertNull(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, $session_key, $legacy_secret),
+            false
+        ));
+        $this->assertNull(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, $session_key, $table_secret),
+            false
+        ));
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token(
+            sprintf('llapp.%d.%s.%s', $user_id, 'otherlegacysession', 'OtherLegacySecret789'),
+            false
+        ));
+        $this->assertTrue(ll_tools_offline_app_revoke_session($user_id, 'otherlegacysession'));
+        $this->assertSame('', get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+    }
+
+    public function test_offline_app_schema_readiness_requires_all_runtime_indexes(): void
+    {
+        global $wpdb;
+        $table = ll_tools_offline_app_session_table();
+
+        $this->assertTrue(ll_tools_offline_app_session_schema_ready(true));
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} DROP INDEX user_activity"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $this->assertTrue(ll_tools_install_offline_app_session_schema());
+        }
+        $this->assertTrue(ll_tools_offline_app_session_schema_ready(true));
+    }
+
+    public function test_offline_app_schema_readiness_rejects_unique_prefix_column_and_engine_drift(): void
+    {
+        global $wpdb;
+        $table = ll_tools_offline_app_session_table();
+
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} DROP INDEX user_activity, ADD UNIQUE KEY user_activity (user_id, last_used_at)"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $wpdb->query("ALTER TABLE {$table} DROP INDEX user_activity, ADD KEY user_activity (user_id, last_used_at)");
+        }
+
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} DROP INDEX user_session, ADD KEY user_session (user_id, session_key)"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $wpdb->query("ALTER TABLE {$table} DROP INDEX user_session, ADD UNIQUE KEY user_session (user_id, session_key)");
+        }
+
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} DROP INDEX user_session, ADD UNIQUE KEY user_session (user_id, session_key(12))"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $wpdb->query("ALTER TABLE {$table} DROP INDEX user_session, ADD UNIQUE KEY user_session (user_id, session_key)");
+        }
+
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} MODIFY session_key varchar(16) NOT NULL"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $wpdb->query("ALTER TABLE {$table} MODIFY session_key varchar(32) NOT NULL");
+        }
+
+        $this->assertNotFalse($wpdb->query("ALTER TABLE {$table} ENGINE=MyISAM"));
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            $this->assertTrue(ll_tools_install_offline_app_session_schema());
+        }
+        $this->assertTrue(ll_tools_offline_app_session_schema_ready(true));
+    }
+
+    public function test_offline_app_session_cap_count_failures_roll_back_creation_and_legacy_import(): void
+    {
+        global $wpdb;
+        $table = ll_tools_offline_app_session_table();
+        $user_id = self::factory()->user->create();
+        $break_count = static function (string $sql) use ($table): string {
+            if (strpos($sql, "SELECT COUNT(*) FROM {$table} WHERE user_id =") !== false && strpos($sql, 'session_key') === false) {
+                return "SELECT COUNT(*) FROM {$table}_missing";
+            }
+            return $sql;
+        };
+
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_count);
+        try {
+            $this->assertSame([], ll_tools_offline_app_create_session($user_id));
+        } finally {
+            remove_filter('query', $break_count);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $user_id)));
+
+        $legacy_key = 'countfailurelegacy';
+        $legacy = [
+            $legacy_key => [
+                'secret_hash' => wp_hash_password('CountFailureSecret'),
+                'created_at' => gmdate('Y-m-d H:i:s'),
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => gmdate('Y-m-d H:i:s'),
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $legacy);
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_count);
+        try {
+            $this->assertFalse(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+        } finally {
+            remove_filter('query', $break_count);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+        $this->assertSame($legacy, get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $user_id)));
+    }
+
+    public function test_offline_app_auth_touch_rejects_a_replaced_session_row(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $created = ll_tools_offline_app_create_session($user_id);
+        $token = (string) ($created['token'] ?? '');
+        $session_key = (string) ($created['session_key'] ?? '');
+        $table = ll_tools_offline_app_session_table();
+        $replacement_hash = wp_hash_password('ReplacementSecret123');
+        $interleave = null;
+        $interleave = static function (string $sql) use (&$interleave, $wpdb, $table, $user_id, $session_key, $replacement_hash): string {
+            if (strpos($sql, "UPDATE `{$table}` SET") === false && strpos($sql, "UPDATE {$table} SET") === false) {
+                return $sql;
+            }
+            if (strpos($sql, '`last_used_at`') === false && strpos($sql, 'last_used_at') === false) {
+                return $sql;
+            }
+            remove_filter('query', $interleave);
+            $wpdb->delete($table, ['user_id' => $user_id, 'session_key' => $session_key], ['%d', '%s']);
+            $now = gmdate('Y-m-d H:i:s');
+            $wpdb->insert($table, [
+                'user_id' => $user_id,
+                'session_key' => $session_key,
+                'secret_hash' => $replacement_hash,
+                'created_at' => $now,
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => $now,
+                'device_id' => '',
+                'profile_id' => '',
+            ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+            add_filter('query', $interleave);
+            return $sql;
+        };
+        add_filter('query', $interleave);
+        try {
+            $this->assertNull(ll_tools_offline_app_authenticate_token($token, true));
+        } finally {
+            remove_filter('query', $interleave);
+        }
+        $this->assertSame($replacement_hash, (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT secret_hash FROM {$table} WHERE user_id = %d AND session_key = %s",
+            $user_id,
+            $session_key
+        )));
+    }
+
+    public function test_offline_app_hash_fenced_revoke_preserves_a_replacement_session(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $created = ll_tools_offline_app_create_session($user_id);
+        $auth = ll_tools_offline_app_authenticate_token((string) ($created['token'] ?? ''), false);
+        $this->assertIsArray($auth);
+        $session_key = (string) ($auth['session_key'] ?? '');
+        $old_hash = (string) (($auth['session'] ?? [])['secret_hash'] ?? '');
+        $replacement_hash = wp_hash_password('ReplacementRevokeSecret');
+        $table = ll_tools_offline_app_session_table();
+        $wpdb->delete($table, ['user_id' => $user_id, 'session_key' => $session_key], ['%d', '%s']);
+        $now = gmdate('Y-m-d H:i:s');
+        $this->assertSame(1, $wpdb->insert($table, [
+            'user_id' => $user_id,
+            'session_key' => $session_key,
+            'secret_hash' => $replacement_hash,
+            'created_at' => $now,
+            'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+            'last_used_at' => $now,
+            'device_id' => '',
+            'profile_id' => '',
+        ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']));
+
+        $this->assertTrue(ll_tools_offline_app_revoke_session($user_id, $session_key, $old_hash));
+        $this->assertSame($replacement_hash, (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT secret_hash FROM {$table} WHERE user_id = %d AND session_key = %s",
+            $user_id,
+            $session_key
+        )));
+    }
+
+    public function test_offline_app_legacy_import_cas_preserves_a_concurrent_legacy_writer(): void
+    {
+        global $wpdb;
+        $user_id = self::factory()->user->create();
+        $now = gmdate('Y-m-d H:i:s');
+        $raw = [
+            'snapshotlegacy' => [
+                'secret_hash' => wp_hash_password('SnapshotSecret'),
+                'created_at' => $now,
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => $now,
+            ],
+        ];
+        $concurrent = $raw;
+        $concurrent['concurrentlegacy'] = [
+            'secret_hash' => wp_hash_password('ConcurrentSecret'),
+            'created_at' => $now,
+            'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+            'last_used_at' => $now,
+        ];
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
+
+        $interleave = null;
+        $interleave = static function ($check, $object_id, $meta_key) use (&$interleave, $user_id, $concurrent) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_OFFLINE_APP_SESSION_META) {
+                return $check;
+            }
+            remove_filter('delete_user_metadata', $interleave, 10);
+            update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $concurrent);
+            add_filter('delete_user_metadata', $interleave, 10, 3);
+            return $check;
+        };
+        add_filter('delete_user_metadata', $interleave, 10, 3);
+        try {
+            $this->assertTrue(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+        } finally {
+            remove_filter('delete_user_metadata', $interleave, 10);
+        }
+        $this->assertSame($concurrent, get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s',
+            $user_id,
+            'snapshotlegacy'
+        )));
+    }
+
+    public function test_offline_app_legacy_revoke_cas_preserves_a_concurrent_session(): void
+    {
+        $user_id = self::factory()->user->create();
+        $now = gmdate('Y-m-d H:i:s');
+        $target_hash = wp_hash_password('TargetSecret');
+        $raw = [
+            'targetlegacy' => [
+                'secret_hash' => $target_hash,
+                'created_at' => $now,
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => $now,
+            ],
+        ];
+        $concurrent = $raw;
+        $concurrent['concurrentlegacy'] = [
+            'secret_hash' => wp_hash_password('ConcurrentSecret'),
+            'created_at' => $now,
+            'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+            'last_used_at' => $now,
+        ];
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
+
+        $interleave = null;
+        $interleave = static function ($check, $object_id, $meta_key) use (&$interleave, $user_id, $concurrent) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_OFFLINE_APP_SESSION_META) {
+                return $check;
+            }
+            remove_filter('delete_user_metadata', $interleave, 10);
+            update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $concurrent);
+            add_filter('delete_user_metadata', $interleave, 10, 3);
+            return $check;
+        };
+        add_filter('delete_user_metadata', $interleave, 10, 3);
+        try {
+            $this->assertTrue(ll_tools_offline_app_remove_legacy_session_key($user_id, 'targetlegacy', $target_hash));
+        } finally {
+            remove_filter('delete_user_metadata', $interleave, 10);
+        }
+
+        $persisted = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+        $this->assertIsArray($persisted);
+        $this->assertArrayNotHasKey('targetlegacy', $persisted);
+        $this->assertArrayHasKey('concurrentlegacy', $persisted);
+
+        $replacement = $raw;
+        $replacement['targetlegacy']['secret_hash'] = wp_hash_password('ReplacementSecret');
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
+        $replace_interleave = null;
+        $replace_interleave = static function ($check, $object_id, $meta_key) use (&$replace_interleave, $user_id, $replacement) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_OFFLINE_APP_SESSION_META) {
+                return $check;
+            }
+            remove_filter('delete_user_metadata', $replace_interleave, 10);
+            update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $replacement);
+            add_filter('delete_user_metadata', $replace_interleave, 10, 3);
+            return $check;
+        };
+        add_filter('delete_user_metadata', $replace_interleave, 10, 3);
+        try {
+            $this->assertTrue(ll_tools_offline_app_remove_legacy_session_key($user_id, 'targetlegacy', $target_hash));
+        } finally {
+            remove_filter('delete_user_metadata', $replace_interleave, 10);
+        }
+        $this->assertSame($replacement, get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+    }
+
+    public function test_offline_app_schema_unavailable_revoke_preserves_a_same_key_replacement(): void
+    {
+        $user_id = self::factory()->user->create();
+        $now = gmdate('Y-m-d H:i:s');
+        $old_hash = wp_hash_password('LegacyOldSecret');
+        $replacement_hash = wp_hash_password('LegacyReplacementSecret');
+        $raw = [
+            'legacyfallback' => [
+                'secret_hash' => $old_hash,
+                'created_at' => $now,
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS),
+                'last_used_at' => $now,
+            ],
+        ];
+        $replacement = $raw;
+        $replacement['legacyfallback']['secret_hash'] = $replacement_hash;
+        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
+
+        $hide_schema = static function (string $sql): string {
+            return stripos(ltrim($sql), 'SHOW TABLES LIKE') === 0 ? "SELECT ''" : $sql;
+        };
+        add_filter('query', $hide_schema);
+        try {
+            $this->assertFalse(ll_tools_offline_app_session_schema_ready(true));
+        } finally {
+            remove_filter('query', $hide_schema);
+        }
+
+        $interleave = null;
+        $interleave = static function ($check, $object_id, $meta_key) use (&$interleave, $user_id, $replacement) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_OFFLINE_APP_SESSION_META) {
+                return $check;
+            }
+            remove_filter('delete_user_metadata', $interleave, 10);
+            update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $replacement);
+            add_filter('delete_user_metadata', $interleave, 10, 3);
+            return $check;
+        };
+        add_filter('delete_user_metadata', $interleave, 10, 3);
+        try {
+            $this->assertTrue(ll_tools_offline_app_revoke_session(
+                $user_id,
+                'legacyfallback',
+                $old_hash
+            ));
+        } finally {
+            remove_filter('delete_user_metadata', $interleave, 10);
+            $this->assertTrue(ll_tools_offline_app_session_schema_ready(true));
+        }
+
+        $this->assertSame($replacement, get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true));
+    }
+
+    public function test_offline_app_logout_authentication_can_skip_sliding_expiry(): void
+    {
+        $user_id = self::factory()->user->create();
+        $created = ll_tools_offline_app_create_session($user_id);
+        $previous_post = $_POST;
+        $_POST = ['auth_token' => (string) ($created['token'] ?? '')];
+        $touch_queries = [];
+        $capture = static function (string $sql) use (&$touch_queries): string {
+            if (strpos($sql, 'last_used_at') !== false && strpos($sql, 'UPDATE') !== false) {
+                $touch_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_filter('query', $capture);
+        try {
+            $auth = ll_tools_offline_app_require_authenticated_user(false);
+        } finally {
+            remove_filter('query', $capture);
+            $_POST = $previous_post;
+        }
+        $this->assertIsArray($auth);
+        $this->assertSame([], $touch_queries);
     }
 
     public function test_offline_app_login_rate_limit_blocks_after_configured_attempts(): void

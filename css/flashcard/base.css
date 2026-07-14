@@ -289,8 +289,8 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     max-width: 250px;
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: none;
-    background: transparent;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background: #fff;
 }
 
 .ll-tools-prompt img {

@@ -8,7 +8,20 @@ const recorderJsSource = fs.readFileSync(
 );
 const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
-function buildRecorderMarkup() {
+function buildRecorderMarkup(includeCategoryOverview = false) {
+  const categoryOverviewMarkup = includeCategoryOverview ? `
+      <section data-ll-recorder-category-overview aria-busy="true">
+        <div data-ll-recorder-category-grid>
+          <article data-recorder-queue-category="ağaç-çeşitleri" data-ll-recorder-queue-summary-placeholder="true"></article>
+          <article data-recorder-queue-category="baby-animals" data-ll-recorder-queue-summary-placeholder="true"></article>
+          <article data-recorder-queue-category="colors" data-ll-recorder-queue-summary-placeholder="true"></article>
+        </div>
+        <p data-ll-recorder-category-empty hidden>No words currently need recordings.</p>
+        <span data-ll-recorder-category-status></span>
+        <button type="button" data-ll-recorder-category-retry hidden>Retry</button>
+      </section>
+  ` : '';
+
   return `
     <div class="ll-recording-interface">
       <div class="ll-recording-header">
@@ -18,12 +31,15 @@ function buildRecorderMarkup() {
           <select id="ll-category-select">
             <option value="ağaç-çeşitleri">Ağaç çeşitleri (1)</option>
             <option value="baby-animals" selected>Baby animals (1)</option>
+            ${includeCategoryOverview ? '<option value="colors">Colors</option>' : ''}
           </select>
         </div>
         <select id="ll-wordset-select">
           <option value="11" selected>Test wordset</option>
         </select>
       </div>
+
+      ${categoryOverviewMarkup}
 
       <div class="ll-recording-main" style="display:flex;">
         <div class="ll-recording-image-container">
@@ -91,15 +107,19 @@ function buildQueueItem(categorySlug, categoryName, title, overrides = {}) {
 
 async function mountRecorder(page, options = {}) {
   await page.goto('about:blank');
-  await page.setContent(buildRecorderMarkup());
+  await page.setContent(buildRecorderMarkup(!!options.categoryOverview));
 
-  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures }) => {
+  await page.evaluate(({ categoryPages, categoryResponseDelays, categoryFailures, categoryOverviewResponse, categoryOverviewDelay }) => {
     window.__requestedCategories = [];
     window.__requestedCategoryPages = [];
     window.__requestedQueueCursors = [];
     window.__categoryPages = categoryPages || {};
     window.__categoryResponseDelays = categoryResponseDelays || {};
     window.__categoryFailures = categoryFailures || {};
+    window.__categoryOverviewResponse = categoryOverviewResponse || null;
+    window.__categoryOverviewDelay = Math.max(0, Number(categoryOverviewDelay) || 0);
+    window.__categoryOverviewRequests = [];
+    window.__categoryOverviewTypeScopes = [];
 
     const makeJsonResponse = (payload) => ({
       ok: true,
@@ -118,6 +138,24 @@ async function mountRecorder(page, options = {}) {
     window.fetch = (url, options = {}) => {
       const body = options.body;
       const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      if (action === 'll_tools_recorder_queue_summaries') {
+        window.__categoryOverviewRequests.push(body.getAll('category_slugs[]').map(String));
+        window.__categoryOverviewTypeScopes.push({
+          include: String(body.get('include_recording_types') || ''),
+          exclude: String(body.get('exclude_recording_types') || '')
+        });
+        const response = makeJsonResponse({
+          success: true,
+          data: window.__categoryOverviewResponse || {
+            cards: [],
+            resolvedSlugs: [],
+            pendingSlugs: []
+          }
+        });
+        return window.__categoryOverviewDelay > 0
+          ? new Promise(resolve => setTimeout(() => resolve(response), window.__categoryOverviewDelay))
+          : Promise.resolve(response);
+      }
       if (action === 'll_get_images_for_recording') {
         const category = String(body.get('category') || '');
         const page = String(body.get('category_page') || '1');
@@ -220,20 +258,22 @@ async function mountRecorder(page, options = {}) {
   }, {
     categoryPages: options.categoryPages || null,
     categoryResponseDelays: options.categoryResponseDelays || null,
-    categoryFailures: options.categoryFailures || null
+    categoryFailures: options.categoryFailures || null,
+    categoryOverviewResponse: options.categoryOverviewResponse || null
   });
 
   const initialImages = Array.isArray(options.initialImages)
     ? options.initialImages
     : [options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf')];
-  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue }) => {
+  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue, categoryOverview, includeTypes, excludeTypes }) => {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
       images: initialImages,
       available_categories: {
         'ağaç-çeşitleri': 'Ağaç çeşitleri',
-        'baby-animals': 'Baby animals'
+        'baby-animals': 'Baby animals',
+        'colors': 'Colors'
       },
       language: '',
       wordset: '',
@@ -250,8 +290,8 @@ async function mountRecorder(page, options = {}) {
       user_display_name: 'Recorder Tester',
       require_all_types: true,
       initial_category: 'baby-animals',
-      include_types: '',
-      exclude_types: '',
+      include_types: includeTypes,
+      exclude_types: excludeTypes,
       auto_process_recordings: false,
       category_queue: categoryQueue || {
         category: 'baby-animals',
@@ -259,6 +299,12 @@ async function mountRecorder(page, options = {}) {
         per_page: 1,
         has_more: false
       },
+      category_overview: categoryOverview ? {
+        enabled: true,
+        action: 'll_tools_recorder_queue_summaries',
+        batch_size: 6,
+        max_auto_retries: 2
+      } : { enabled: false },
       stop_delay_ms: 0,
       current_user_id: 10,
       hidden_words: [],
@@ -270,13 +316,20 @@ async function mountRecorder(page, options = {}) {
         loading_more_category: 'Loading more words in this category...',
         no_images_in_category: 'No images need audio in this category.',
         category_switched: 'Category switched. Ready to record.',
+        category_overview_loading: 'Loading recording queues...',
+        category_overview_loaded: 'Recording queues loaded.',
+        category_overview_error: 'Some recording queues could not be loaded.',
         invalid_response: 'Server returned invalid response format'
       }
     };
   }, {
     initialImages,
     hideRecorderText: !!options.hideRecorderText,
-    categoryQueue: options.categoryQueue || null
+    categoryQueue: options.categoryQueue || null,
+    categoryOverview: !!options.categoryOverview,
+    categoryOverviewDelay: Number(options.categoryOverviewDelay) || 0,
+    includeTypes: String(options.includeTypes || ''),
+    excludeTypes: String(options.excludeTypes || '')
   });
 
   await page.addScriptTag({ content: recorderJsSource });
@@ -284,6 +337,106 @@ async function mountRecorder(page, options = {}) {
     document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
   });
 }
+
+test('recorder category overview shows queued counts, removes empty categories, and switches from a card', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    includeTypes: 'isolation,question',
+    excludeTypes: 'sentence',
+    categoryOverviewResponse: {
+      generation: 'overview-generation-1',
+      cards: [
+        {
+          slug: 'baby-animals',
+          name: 'Baby animals',
+          count: 3,
+          optionLabel: 'Baby animals (3)',
+          html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-count="3" aria-pressed="false"><span class="ll-wordset-card__title">Baby animals</span><span class="ll-wordset-settings-card__pill">3 words</span></button>'
+        },
+        {
+          slug: 'colors',
+          name: 'Colors',
+          count: 2,
+          optionLabel: 'Colors (2)',
+          html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="colors" data-recorder-queue-count="2" aria-pressed="false"><span class="ll-wordset-card__title">Colors</span><span class="ll-wordset-settings-card__pill">2 words</span></button>'
+        }
+      ],
+      resolvedSlugs: ['ağaç-çeşitleri', 'baby-animals', 'colors'],
+      pendingSlugs: []
+    }
+  });
+
+  await expect(page.locator('.ll-recorder-category-card')).toHaveCount(2);
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"] .ll-wordset-settings-card__pill')).toHaveText('3 words');
+  await expect(page.locator('#ll-category-select option[value="baby-animals"]')).toHaveText('Baby animals (3)');
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewTypeScopes[0])).toEqual({
+    include: 'isolation,question',
+    exclude: 'sentence'
+  });
+  await expect(page.locator('#ll-category-select option[value="ağaç-çeşitleri"]')).toHaveCount(0);
+
+  await page.locator('.ll-recorder-category-card[data-recorder-queue-category="colors"]').click();
+
+  await expect(page.locator('#ll-category-select')).toHaveValue('colors');
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategories.includes('colors'))).toBe(true);
+
+  await page.locator('#ll-skip-btn').click();
+
+  await expect(page.locator('.ll-recorder-category-card[data-recorder-queue-category="colors"]')).toHaveCount(0);
+  await expect(page.locator('#ll-category-select option[value="colors"]')).toHaveCount(0);
+  await expect(page.locator('#ll-category-select')).toHaveValue('baby-animals');
+  await expect(page.locator('.ll-next-category-btn')).toContainText('Baby animals');
+});
+
+test('a delayed overview response cannot resurrect a category completed before hydration', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewDelay: 250,
+    categoryOverviewResponse: {
+      generation: 'overview-generation-delayed-completion',
+      cards: [{
+        slug: 'baby-animals',
+        name: 'Baby animals',
+        count: 1,
+        optionLabel: 'Baby animals (1)',
+        html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-count="1" aria-pressed="false"><span class="ll-wordset-card__title">Baby animals</span></button>'
+      }],
+      resolvedSlugs: ['baby-animals'],
+      pendingSlugs: []
+    }
+  });
+
+  await page.locator('#ll-skip-btn').click();
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"][data-recorder-queue-category="baby-animals"]')).toHaveCount(0);
+  await page.waitForTimeout(350);
+  await expect(page.locator('.ll-recorder-category-card[data-recorder-queue-category="baby-animals"]')).toHaveCount(0);
+  await expect(page.locator('#ll-category-select option[value="baby-animals"]')).toHaveCount(0);
+});
+
+test('removing the selected empty overview category loads the first remaining queue', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewResponse: {
+      generation: 'overview-generation-selected-empty',
+      cards: [
+        {
+          slug: 'colors',
+          name: 'Colors',
+          count: 2,
+          optionLabel: 'Colors (2)',
+          html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="colors" data-recorder-queue-count="2" aria-pressed="false"><span class="ll-wordset-card__title">Colors</span><span class="ll-wordset-settings-card__pill">2 words</span></button>'
+        }
+      ],
+      resolvedSlugs: ['aÄŸaÃ§-Ã§eÅŸitleri', 'baby-animals', 'colors'],
+      pendingSlugs: []
+    }
+  });
+
+  await expect(page.locator('#ll-category-select option[value="baby-animals"]')).toHaveCount(0);
+  await expect(page.locator('#ll-category-select')).toHaveValue('colors');
+  await expect.poll(async () => page.evaluate(() => window.__requestedCategories.includes('colors'))).toBe(true);
+  await expect(page.locator('#ll-image-title')).toHaveText('calf');
+});
 
 test('initial empty queue follows its continuation before showing completion', async ({ page }) => {
   const continuedItem = buildQueueItem('baby-animals', 'Baby animals', 'foal', {

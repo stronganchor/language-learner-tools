@@ -5555,6 +5555,16 @@ function ll_tools_normalize_recommendation_deferral_entry(string $signature, $ra
         sort($category_ids, SORT_NUMERIC);
     }
 
+    $session_word_ids = array_values(array_unique(array_filter(array_map(
+        'intval',
+        (array) ($raw['session_word_ids'] ?? [])
+    ), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (function_exists('ll_tools_recommendation_enforce_session_word_bounds')) {
+        $session_word_ids = ll_tools_recommendation_enforce_session_word_bounds($session_word_ids);
+    }
+
     $mode = ll_tools_normalize_progress_mode((string) ($raw['mode'] ?? 'practice'));
     $type = sanitize_key((string) ($raw['type'] ?? ''));
 
@@ -5563,6 +5573,7 @@ function ll_tools_normalize_recommendation_deferral_entry(string $signature, $ra
         'available_after' => gmdate('Y-m-d H:i:s', (int) $available_after_ts),
         'last_dismissed_at' => $last_dismissed_at,
         'category_ids' => $category_ids,
+        'session_word_ids' => $session_word_ids,
         'mode' => $mode,
         'type' => $type,
     ];
@@ -5592,6 +5603,72 @@ function ll_tools_normalize_recommendation_deferral_map($raw_map, int $limit = 2
     }
 
     return $out;
+}
+
+function ll_tools_repair_recommendation_deferral_map_for_isolation(array $raw_map, int $wordset_id, int $limit = 256): array {
+    $wordset_id = max(0, $wordset_id);
+    $max_items = max(1, min(512, $limit));
+    $repaired = [];
+    $now_ts = time();
+
+    foreach ($raw_map as $raw_signature => $raw_entry) {
+        $old_signature = sanitize_key((string) $raw_signature);
+        $entry = ll_tools_normalize_recommendation_deferral_entry($old_signature, $raw_entry, $now_ts);
+        if ($old_signature === '' || !$entry) {
+            continue;
+        }
+
+        $source_category_ids = (array) ($entry['category_ids'] ?? []);
+        $target_category_ids = $source_category_ids;
+        if ($wordset_id > 0 && !empty($source_category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+            $mapped = ll_tools_wordset_isolation_remap_category_id_list_for_wordset(
+                $source_category_ids,
+                $wordset_id,
+                true
+            );
+            if (!empty($mapped)) {
+                $target_category_ids = $mapped;
+            }
+        }
+        $entry['category_ids'] = $target_category_ids;
+
+        $session_word_ids = (array) ($entry['session_word_ids'] ?? []);
+        if (empty($session_word_ids) && $target_category_ids !== $source_category_ids) {
+            // Legacy rows cannot be re-keyed exactly because their activity word IDs were not stored.
+            continue;
+        }
+
+        $new_signature = $old_signature;
+        if (!empty($session_word_ids)) {
+            $new_signature = ll_tools_recommendation_activity_queue_id([
+                'mode' => (string) ($entry['mode'] ?? 'practice'),
+                'category_ids' => $target_category_ids,
+                'session_word_ids' => $session_word_ids,
+            ]);
+        }
+        if ($new_signature === '') {
+            continue;
+        }
+
+        if (isset($repaired[$new_signature])) {
+            $existing = $repaired[$new_signature];
+            $entry['count'] = max((int) ($existing['count'] ?? 1), (int) ($entry['count'] ?? 1));
+            $entry['available_after'] = max(
+                (string) ($existing['available_after'] ?? ''),
+                (string) ($entry['available_after'] ?? '')
+            );
+            $entry['last_dismissed_at'] = max(
+                (string) ($existing['last_dismissed_at'] ?? ''),
+                (string) ($entry['last_dismissed_at'] ?? '')
+            );
+        }
+        $repaired[$new_signature] = $entry;
+        if (count($repaired) >= $max_items) {
+            break;
+        }
+    }
+
+    return $repaired;
 }
 
 function ll_tools_get_user_recommendation_deferrals($user_id = 0, $wordset_id = 0): array {
@@ -5679,6 +5756,7 @@ function ll_tools_defer_user_recommendation_activity($activity, $user_id = 0, $w
         'available_after' => gmdate('Y-m-d H:i:s', $now_ts + ll_tools_recommendation_deferral_delay_seconds($next_count)),
         'last_dismissed_at' => gmdate('Y-m-d H:i:s', $now_ts),
         'category_ids' => ll_tools_recommendation_activity_category_ids($normalized_activity),
+        'session_word_ids' => array_values(array_map('intval', (array) ($normalized_activity['session_word_ids'] ?? []))),
         'mode' => ll_tools_normalize_progress_mode((string) ($normalized_activity['mode'] ?? 'practice')),
         'type' => sanitize_key((string) ($normalized_activity['type'] ?? '')),
     ];
