@@ -3513,7 +3513,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:118",
-                "includes/wordset-isolation.php:3387"
+                "includes/wordset-isolation.php:3464"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:118"
@@ -6290,7 +6290,7 @@
                 "includes/pages/wordset-pages.php:23520",
                 "includes/post-types/words-post-type.php:21",
                 "includes/post-types/words-post-type.php:26",
-                "includes/wordset-isolation.php:3383"
+                "includes/wordset-isolation.php:3460"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:23288",

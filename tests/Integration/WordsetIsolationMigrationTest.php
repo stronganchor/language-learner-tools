@@ -1042,6 +1042,146 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertArrayHasKey((string) $wordset_id, (array) get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
     }
 
+    public function test_owned_goal_categories_do_not_require_copies_in_unrelated_preferred_wordsets(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $owner_wordset_id = $this->ensure_term('wordset', 'Owned Goal Category Wordset', 'owned-goal-category-wordset');
+        $preferred_wordset_id = $this->ensure_term('wordset', 'Unrelated Preferred Wordset', 'unrelated-preferred-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Owned Goal Category', 'owned-goal-category');
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $owned_category_id = ll_tools_get_or_create_isolated_category_copy($source_category_id, $owner_wordset_id);
+        $this->assertGreaterThan(0, $owned_category_id);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $preferred_wordset_id));
+
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $owner_wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_GOALS_META, [
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [$owned_category_id],
+            'preferred_wordset_ids' => [$preferred_wordset_id],
+            'placement_known_category_ids' => [$owned_category_id],
+            'daily_new_word_target' => 2,
+        ]);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('running', $state['status']);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $preferred_wordset_id));
+
+        $goals = get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true);
+        $this->assertSame([$owned_category_id], array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])));
+        $this->assertSame([$owned_category_id], array_map('intval', (array) ($goals['placement_known_category_ids'] ?? [])));
+        $this->assertSame([$preferred_wordset_id], array_map('intval', (array) ($goals['preferred_wordset_ids'] ?? [])));
+    }
+
+    public function test_legacy_goal_categories_expand_only_to_existing_family_copies(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $first_wordset_id = $this->ensure_term('wordset', 'Legacy Goal First Wordset', 'legacy-goal-first-wordset');
+        $second_wordset_id = $this->ensure_term('wordset', 'Legacy Goal Second Wordset', 'legacy-goal-second-wordset');
+        $unrelated_wordset_id = $this->ensure_term('wordset', 'Legacy Goal Unrelated Wordset', 'legacy-goal-unrelated-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Legacy Goal Category', 'legacy-goal-category');
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $first_copy_id = ll_tools_get_or_create_isolated_category_copy($source_category_id, $first_wordset_id);
+        $second_copy_id = ll_tools_get_or_create_isolated_category_copy($source_category_id, $second_wordset_id);
+        $this->assertGreaterThan(0, $first_copy_id);
+        $this->assertGreaterThan(0, $second_copy_id);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $unrelated_wordset_id));
+
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $first_wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_GOALS_META, [
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [$source_category_id],
+            'preferred_wordset_ids' => [$unrelated_wordset_id],
+            'placement_known_category_ids' => [$source_category_id],
+            'daily_new_word_target' => 2,
+        ]);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('running', $state['status']);
+        $this->assertSame(1, (int) ($state['counters']['user_data_repaired'] ?? 0));
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($source_category_id, $unrelated_wordset_id));
+
+        $expected_ids = [$first_copy_id, $second_copy_id];
+        sort($expected_ids, SORT_NUMERIC);
+        $goals = get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true);
+        $ignored_ids = array_map('intval', (array) ($goals['ignored_category_ids'] ?? []));
+        $placement_ids = array_map('intval', (array) ($goals['placement_known_category_ids'] ?? []));
+        sort($ignored_ids, SORT_NUMERIC);
+        sort($placement_ids, SORT_NUMERIC);
+        $this->assertSame($expected_ids, $ignored_ids);
+        $this->assertSame($expected_ids, $placement_ids);
+        $this->assertSame([$unrelated_wordset_id], array_map('intval', (array) ($goals['preferred_wordset_ids'] ?? [])));
+    }
+
+    public function test_goal_category_preflight_rejects_missing_terms_without_writing(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $missing_category_id = $this->ensure_term('word-category', 'Missing Goal Category', 'missing-goal-category');
+        $this->assertNotWPError(wp_delete_term($missing_category_id, 'word-category'));
+        $stored_goals = [
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [$missing_category_id],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [$missing_category_id],
+            'daily_new_word_target' => 2,
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_GOALS_META, $stored_goals);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 77;
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(77, (int) $state['cursor']);
+        $this->assertSame($stored_goals, get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true));
+    }
+
+    public function test_goal_category_preflight_rejects_owned_copies_with_missing_owner_metadata(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Malformed Goal Owner Wordset', 'malformed-goal-owner-wordset');
+        $source_category_id = $this->ensure_term('word-category', 'Malformed Goal Owner Category', 'malformed-goal-owner-category');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $copy_id = ll_tools_get_or_create_isolated_category_copy($source_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $copy_id);
+        $this->assertSame($source_category_id, ll_tools_get_category_isolation_source_id($copy_id));
+        delete_term_meta($copy_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY);
+        $this->assertSame(0, ll_tools_get_category_wordset_owner_id($copy_id));
+
+        $stored_goals = [
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [$copy_id],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [$copy_id],
+            'daily_new_word_target' => 2,
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_GOALS_META, $stored_goals);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 88;
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(88, (int) $state['cursor']);
+        $this->assertSame($stored_goals, get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true));
+    }
+
     public function test_historical_progress_events_stay_visible_when_category_ids_were_saved_before_isolation(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -1526,7 +1666,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
     }
 
-    public function test_every_category_bearing_user_store_requires_a_complete_isolated_mapping(): void
+    public function test_every_wordset_scoped_user_store_requires_a_complete_isolated_mapping(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $wordset_id = $this->ensure_term('wordset', 'User Store Mapping Wordset', 'user-store-mapping-wordset');
@@ -1539,11 +1679,6 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
             'details' => [],
         ];
         $stores = [
-            LL_TOOLS_USER_GOALS_META => [
-                'ignored_category_ids' => [$category_id],
-                'placement_known_category_ids' => [$category_id],
-                'preferred_wordset_ids' => [$wordset_id],
-            ],
             LL_TOOLS_USER_CATEGORY_PROGRESS_META => [
                 $category_id => [
                     'category_id' => $category_id,

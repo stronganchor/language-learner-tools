@@ -2361,6 +2361,87 @@ function ll_tools_wordset_isolation_migration_require_user_category_mapping(
     return true;
 }
 
+function ll_tools_wordset_isolation_migration_require_user_goal_category_mapping(
+    array $category_ids,
+    string $category_key,
+    int $user_id,
+    array &$state
+): bool {
+    $category_ids = ll_tools_wordset_isolation_parse_category_id_list($category_ids);
+    if (empty($category_ids)) {
+        return true;
+    }
+
+    foreach ($category_ids as $category_id) {
+        $term = get_term((int) $category_id, 'word-category');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            ll_tools_wordset_isolation_migration_fail($state, sprintf(
+                /* translators: %d is a WordPress user ID. */
+                __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+                $user_id
+            ));
+            return false;
+        }
+    }
+
+    $bounded_input = function_exists('ll_tools_sanitize_user_study_goal_id_array')
+        ? ll_tools_sanitize_user_study_goal_id_array($category_ids, $category_key)
+        : $category_ids;
+    if (count($bounded_input) !== count($category_ids)) {
+        ll_tools_wordset_isolation_migration_fail($state, sprintf(
+            /* translators: %d is a WordPress user ID. */
+            __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+            $user_id
+        ));
+        return false;
+    }
+
+    $expanded_ids = ll_tools_wordset_isolation_expand_category_id_list_across_wordsets($bounded_input);
+    $expanded_ids = ll_tools_wordset_isolation_parse_category_id_list($expanded_ids);
+    $bounded_expansion = function_exists('ll_tools_sanitize_user_study_goal_id_array')
+        ? ll_tools_sanitize_user_study_goal_id_array($expanded_ids, $category_key)
+        : $expanded_ids;
+    if (
+        empty($expanded_ids)
+        || count($bounded_expansion) !== count($expanded_ids)
+        || !empty(array_diff($expanded_ids, $bounded_expansion))
+        || !empty(array_diff($bounded_expansion, $expanded_ids))
+    ) {
+        ll_tools_wordset_isolation_migration_fail($state, sprintf(
+            /* translators: %d is a WordPress user ID. */
+            __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+            $user_id
+        ));
+        return false;
+    }
+
+    foreach ($bounded_expansion as $category_id) {
+        $category_id = (int) $category_id;
+        $owner_wordset_id = ll_tools_get_category_wordset_owner_id($category_id);
+        if ($owner_wordset_id > 0) {
+            if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
+                [$category_id],
+                [$owner_wordset_id],
+                $user_id,
+                $state
+            )) {
+                return false;
+            }
+            continue;
+        }
+        if (ll_tools_get_category_isolation_source_id($category_id) !== $category_id) {
+            ll_tools_wordset_isolation_migration_fail($state, sprintf(
+                /* translators: %d is a WordPress user ID. */
+                __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+                $user_id
+            ));
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(int $user_id, array &$state): bool {
     $user_wordset_id = defined('LL_TOOLS_USER_WORDSET_META')
         ? (int) get_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, true)
@@ -2384,14 +2465,10 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
     if (defined('LL_TOOLS_USER_GOALS_META')) {
         $goals = get_user_meta($user_id, LL_TOOLS_USER_GOALS_META, true);
         if (is_array($goals)) {
-            $goal_wordset_ids = array_merge(
-                [$user_wordset_id],
-                (array) ($goals['preferred_wordset_ids'] ?? [])
-            );
             foreach (['ignored_category_ids', 'placement_known_category_ids'] as $category_key) {
-                if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
+                if (!ll_tools_wordset_isolation_migration_require_user_goal_category_mapping(
                     (array) ($goals[$category_key] ?? []),
-                    $goal_wordset_ids,
+                    $category_key,
                     $user_id,
                     $state
                 )) {
