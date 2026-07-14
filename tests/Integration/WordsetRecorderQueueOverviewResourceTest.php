@@ -261,6 +261,57 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(['alpha-one', 'beta', 'gamma'], $normalized);
     }
 
+    public function test_summary_batch_can_render_recorder_category_buttons_with_counts_and_previews(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $category = $fixture['categories'][0];
+
+        $batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+            $wordset_id,
+            $wordset_term,
+            $admin_id,
+            [(string) $category['slug']],
+            '',
+            ['card_interaction' => 'button']
+        );
+
+        $this->assertSame([(string) $category['slug']], $batch['resolvedSlugs']);
+        $this->assertSame([], $batch['pendingSlugs']);
+        $this->assertCount(1, $batch['cards']);
+        $card = $batch['cards'][0];
+        $this->assertSame(1, (int) $card['count']);
+        $this->assertSame((string) $category['name'] . ' (1)', (string) $card['optionLabel']);
+        $this->assertStringContainsString('<button', (string) $card['html']);
+        $this->assertStringContainsString('ll-recorder-category-card', (string) $card['html']);
+        $this->assertStringContainsString('data-recorder-queue-count="1"', (string) $card['html']);
+        $this->assertStringContainsString('1 word', (string) $card['html']);
+        $this->assertStringNotContainsString('href=', (string) $card['html']);
+
+        $this->ensureRecordingType('Question', 'question');
+        $scoped_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+            $wordset_id,
+            $wordset_term,
+            $admin_id,
+            [(string) $category['slug']],
+            '',
+            [
+                'card_interaction' => 'button',
+                'include_recording_types' => 'question',
+                'exclude_recording_types' => '',
+            ]
+        );
+        $this->assertSame([(string) $category['slug']], $scoped_batch['resolvedSlugs']);
+        $this->assertSame([], $scoped_batch['cards'], 'Shortcode recording-type overrides must scope overview counts.');
+    }
+
     public function test_summary_stream_keeps_first_paint_small_and_uses_larger_background_batches(): void
     {
         $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());

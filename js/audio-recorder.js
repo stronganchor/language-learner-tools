@@ -48,6 +48,12 @@
     let categoryQueuePagination = null;
     let pendingCategoryQueuePageRequest = null;
     let categoryQueueRequestGeneration = 0;
+    let categoryOverviewRequest = null;
+    let categoryOverviewObserver = null;
+    let categoryOverviewRetryTimer = 0;
+    let categoryOverviewGeneration = '';
+    let categoryOverviewNeedsSelection = false;
+    const completedCategoryOverviewSlugs = new Set();
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -55,6 +61,12 @@
     const requireAll = !!window.ll_recorder_data?.require_all_types;
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
+    const categoryOverviewConfig = (window.ll_recorder_data?.category_overview && typeof window.ll_recorder_data.category_overview === 'object')
+        ? window.ll_recorder_data.category_overview
+        : {};
+    const categoryOverviewEnabled = !!categoryOverviewConfig.enabled;
+    const categoryOverviewBatchSize = Math.max(1, Math.min(20, parseInt(categoryOverviewConfig.batch_size, 10) || 6));
+    const categoryOverviewMaxAutoRetries = Math.max(1, Math.min(30, parseInt(categoryOverviewConfig.max_auto_retries, 10) || 12));
     const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
     const localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.createTextComparer === 'function')
         ? window.LLToolsLocaleSort
@@ -153,7 +165,7 @@
 
     images.forEach(normalizeImageRecordingTypeState);
 
-    if (images.length === 0 && !allowNewWords && hiddenWords.length === 0 && !categoryQueuePagination?.hasMore) return;
+    if (images.length === 0 && !allowNewWords && hiddenWords.length === 0 && !categoryQueuePagination?.hasMore && !categoryOverviewEnabled) return;
 
     const icons = {
         record: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white"><circle cx="12" cy="12" r="8"/></svg>',
@@ -386,6 +398,7 @@
         setupRecordingTypeChoices();
         setupWordsetSelector();
         setupCategorySelector();
+        setupCategoryOverview();
         setupNewWordMode();
         if (images.length > 0) {
             loadImage(0);
@@ -453,6 +466,11 @@
             completedCount: document.querySelector('.ll-completed-count'),
             mainScreen: document.querySelector('.ll-recording-main'),
             categorySelect: document.getElementById('ll-category-select'),
+            categoryOverview: document.querySelector('[data-ll-recorder-category-overview]'),
+            categoryOverviewGrid: document.querySelector('[data-ll-recorder-category-grid]'),
+            categoryOverviewStatus: document.querySelector('[data-ll-recorder-category-status]'),
+            categoryOverviewEmpty: document.querySelector('[data-ll-recorder-category-empty]'),
+            categoryOverviewRetry: document.querySelector('[data-ll-recorder-category-retry]'),
             wordsetSelect: document.getElementById('ll-wordset-select'),
             recordingTypeSelector: document.querySelector('.ll-recording-type-selector'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
@@ -1039,6 +1057,335 @@
         if (!shouldUseCustomCategorySelector() || select.disabled) {
             closeMobileCategorySelector();
         }
+        syncCategoryOverviewSelection();
+    }
+
+    function getCategoryOverviewPlaceholders() {
+        const grid = window.llRecorder?.categoryOverviewGrid;
+        return grid
+            ? Array.from(grid.querySelectorAll('[data-ll-recorder-queue-summary-placeholder="true"]'))
+            : [];
+    }
+
+    function getCategoryOverviewPlaceholder(slug) {
+        const normalizedSlug = String(slug || '');
+        return getCategoryOverviewPlaceholders().find(placeholder => (
+            String(placeholder.getAttribute('data-recorder-queue-category') || '') === normalizedSlug
+        )) || null;
+    }
+
+    function getLoadedCategoryOverviewCards() {
+        const grid = window.llRecorder?.categoryOverviewGrid;
+        return grid
+            ? Array.from(grid.querySelectorAll('.ll-recorder-category-card[data-recorder-queue-category]'))
+            : [];
+    }
+
+    function syncCategoryOverviewSelection() {
+        const el = window.llRecorder;
+        if (!el?.categoryOverviewGrid || !el.categorySelect) return;
+        const selectedSlug = String(el.categorySelect.value || '');
+        getLoadedCategoryOverviewCards().forEach(card => {
+            const selected = String(card.getAttribute('data-recorder-queue-category') || '') === selectedSlug;
+            card.classList.toggle('is-selected', selected);
+            card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            card.disabled = !!el.categorySelect.disabled;
+        });
+    }
+
+    function setCategoryOverviewState(state) {
+        const el = window.llRecorder;
+        if (!el?.categoryOverview) return;
+        const placeholders = getCategoryOverviewPlaceholders();
+        const loadedCards = getLoadedCategoryOverviewCards();
+        const isLoading = state === 'loading';
+        const hasError = state === 'error';
+        el.categoryOverview.classList.toggle('is-loading', isLoading);
+        el.categoryOverview.classList.toggle('has-error', hasError);
+        el.categoryOverview.setAttribute('aria-busy', isLoading || placeholders.length > 0 ? 'true' : 'false');
+        if (el.categoryOverviewStatus) {
+            if (isLoading) {
+                el.categoryOverviewStatus.textContent = i18n.category_overview_loading || '';
+            } else if (hasError) {
+                el.categoryOverviewStatus.textContent = i18n.category_overview_error || '';
+            } else {
+                el.categoryOverviewStatus.textContent = placeholders.length > 0
+                    ? (i18n.category_overview_loading || '')
+                    : (i18n.category_overview_loaded || '');
+            }
+        }
+        if (el.categoryOverviewRetry) {
+            el.categoryOverviewRetry.hidden = !hasError;
+            el.categoryOverviewRetry.disabled = isLoading;
+        }
+        if (el.categoryOverviewEmpty) {
+            el.categoryOverviewEmpty.hidden = placeholders.length > 0 || loadedCards.length > 0;
+        }
+    }
+
+    function updateCategoryOverviewOption(card) {
+        const select = window.llRecorder?.categorySelect;
+        if (!select || !card) return;
+        const slug = String(card.slug || '');
+        if (!slug || completedCategoryOverviewSlugs.has(slug)) return;
+        let option = Array.from(select.options).find(candidate => candidate.value === slug) || null;
+        if (!option) {
+            option = document.createElement('option');
+            option.value = slug;
+            select.appendChild(option);
+        }
+        const label = String(card.optionLabel || card.name || slug);
+        option.dataset.llFullLabel = label;
+        option.textContent = label;
+        option.title = label;
+        if (window.ll_recorder_data?.available_categories) {
+            window.ll_recorder_data.available_categories[slug] = String(card.name || slug);
+        }
+    }
+
+    function removeCategoryOverviewOption(slug) {
+        const select = window.llRecorder?.categorySelect;
+        const normalizedSlug = String(slug || '');
+        if (!select || !normalizedSlug) return;
+        const wasSelected = select.value === normalizedSlug;
+        const option = Array.from(select.options).find(candidate => candidate.value === normalizedSlug) || null;
+        if (option) option.remove();
+        if (window.ll_recorder_data?.available_categories) {
+            delete window.ll_recorder_data.available_categories[normalizedSlug];
+        }
+        if (wasSelected) {
+            categoryOverviewNeedsSelection = true;
+        }
+    }
+
+    function selectFirstLoadedCategoryOverviewCard() {
+        if (!categoryOverviewNeedsSelection) return;
+        const el = window.llRecorder;
+        const card = getLoadedCategoryOverviewCards()[0] || null;
+        if (!el?.categorySelect || !card) return;
+        const slug = String(card.getAttribute('data-recorder-queue-category') || '');
+        if (!slug) return;
+        categoryOverviewNeedsSelection = false;
+        el.categorySelect.value = slug;
+        syncCategorySelectorUi();
+        el.categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function replaceCategoryOverviewCard(card) {
+        const slug = String(card?.slug || '');
+        const html = String(card?.html || '');
+        const placeholder = getCategoryOverviewPlaceholder(slug);
+        const existingCard = getLoadedCategoryOverviewCards().find(candidate => (
+            candidate.getAttribute('data-recorder-queue-category') === slug
+        )) || null;
+        if (completedCategoryOverviewSlugs.has(slug)) {
+            placeholder?.remove();
+            existingCard?.remove();
+            removeCategoryOverviewOption(slug);
+            return false;
+        }
+        const replaceTarget = placeholder || existingCard;
+        if (!slug || !html || !replaceTarget) return false;
+        const template = document.createElement('template');
+        template.innerHTML = html.trim();
+        const cardElement = template.content.firstElementChild;
+        if (!cardElement) return false;
+        replaceTarget.replaceWith(cardElement);
+        updateCategoryOverviewOption(card);
+        return true;
+    }
+
+    function categoryOverviewElementIsNearViewport(element) {
+        if (!element || typeof element.getBoundingClientRect !== 'function') return false;
+        const rect = element.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        return rect.top <= viewportHeight + 720 && rect.bottom >= -720;
+    }
+
+    function observeNextCategoryOverviewPlaceholder() {
+        if (categoryOverviewObserver) {
+            categoryOverviewObserver.disconnect();
+        }
+        const nextPlaceholder = getCategoryOverviewPlaceholders()[0] || null;
+        if (!nextPlaceholder || categoryOverviewRequest) return;
+        if (typeof window.IntersectionObserver !== 'function') {
+            setCategoryOverviewState('idle');
+            return;
+        }
+        categoryOverviewObserver = new window.IntersectionObserver(entries => {
+            if (entries.some(entry => entry?.isIntersecting)) {
+                requestCategoryOverviewBatch();
+            }
+        }, {
+            root: null,
+            rootMargin: '720px 0px',
+            threshold: 0.01,
+        });
+        categoryOverviewObserver.observe(nextPlaceholder);
+    }
+
+    async function requestCategoryOverviewBatch(options = {}) {
+        const el = window.llRecorder;
+        if (!categoryOverviewEnabled || !el?.categoryOverview || categoryOverviewRequest) return;
+
+        const placeholders = getCategoryOverviewPlaceholders().filter(placeholder => (
+            placeholder.getAttribute('data-ll-recorder-queue-summary-loading') !== 'true'
+        ));
+        if (!placeholders.length) {
+            setCategoryOverviewState('idle');
+            return;
+        }
+
+        const selectedSlug = String(el.categorySelect?.value || '');
+        placeholders.sort((left, right) => {
+            const leftSelected = left.getAttribute('data-recorder-queue-category') === selectedSlug;
+            const rightSelected = right.getAttribute('data-recorder-queue-category') === selectedSlug;
+            return leftSelected === rightSelected ? 0 : (leftSelected ? -1 : 1);
+        });
+        const requested = placeholders.slice(0, categoryOverviewBatchSize);
+        const slugs = requested.map(placeholder => {
+            if (options.resetRetries) {
+                placeholder.removeAttribute('data-ll-recorder-queue-summary-retries');
+            }
+            placeholder.setAttribute('data-ll-recorder-queue-summary-loading', 'true');
+            return String(placeholder.getAttribute('data-recorder-queue-category') || '');
+        }).filter(Boolean);
+        if (!slugs.length) return;
+
+        if (categoryOverviewObserver) categoryOverviewObserver.disconnect();
+        if (categoryOverviewRetryTimer) {
+            clearTimeout(categoryOverviewRetryTimer);
+            categoryOverviewRetryTimer = 0;
+        }
+        setCategoryOverviewState('loading');
+
+        const formData = new FormData();
+        formData.append('action', String(categoryOverviewConfig.action || 'll_tools_recorder_queue_summaries'));
+        formData.append('nonce', nonce);
+        appendRequestLocale(formData);
+        formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
+        formData.append('include_recording_types', String(window.ll_recorder_data?.include_types || ''));
+        formData.append('exclude_recording_types', String(window.ll_recorder_data?.exclude_types || ''));
+        slugs.forEach(slug => formData.append('category_slugs[]', slug));
+
+        let retryAutomatically = false;
+        let pauseAutomaticLoading = false;
+        categoryOverviewRequest = fetch(ajaxUrl, { method: 'POST', body: formData });
+        try {
+            const response = await categoryOverviewRequest;
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const payload = await response.json();
+            if (!payload?.success || !payload.data) throw new Error('invalid_response');
+            const data = payload.data;
+            const responseGeneration = String(data.generation || '');
+            if (categoryOverviewGeneration && responseGeneration && categoryOverviewGeneration !== responseGeneration) {
+                throw new Error('stale_generation');
+            }
+            if (responseGeneration) categoryOverviewGeneration = responseGeneration;
+
+            const renderedSlugs = new Set();
+            (Array.isArray(data.cards) ? data.cards : []).forEach(card => {
+                if (replaceCategoryOverviewCard(card)) {
+                    renderedSlugs.add(String(card.slug || ''));
+                }
+            });
+            (Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : []).forEach(rawSlug => {
+                const slug = String(rawSlug || '');
+                if (!slug || renderedSlugs.has(slug)) return;
+                const placeholder = getCategoryOverviewPlaceholder(slug);
+                if (placeholder) placeholder.remove();
+                removeCategoryOverviewOption(slug);
+            });
+
+            const pendingSlugs = new Set((Array.isArray(data.pendingSlugs) ? data.pendingSlugs : []).map(String));
+            slugs.forEach(slug => {
+                const placeholder = getCategoryOverviewPlaceholder(slug);
+                if (!placeholder) return;
+                placeholder.removeAttribute('data-ll-recorder-queue-summary-loading');
+                if (!pendingSlugs.has(slug)) return;
+                const retries = Math.max(0, parseInt(placeholder.getAttribute('data-ll-recorder-queue-summary-retries'), 10) || 0) + 1;
+                placeholder.setAttribute('data-ll-recorder-queue-summary-retries', String(retries));
+                if (retries <= categoryOverviewMaxAutoRetries) {
+                    retryAutomatically = true;
+                } else {
+                    pauseAutomaticLoading = true;
+                }
+            });
+            selectFirstLoadedCategoryOverviewCard();
+            syncCategorySelectorUi();
+            setCategoryOverviewState(pauseAutomaticLoading ? 'error' : 'idle');
+        } catch (error) {
+            pauseAutomaticLoading = true;
+            slugs.forEach(slug => {
+                getCategoryOverviewPlaceholder(slug)?.removeAttribute('data-ll-recorder-queue-summary-loading');
+            });
+            setCategoryOverviewState('error');
+        } finally {
+            categoryOverviewRequest = null;
+            if (pauseAutomaticLoading) return;
+            if (retryAutomatically) {
+                const nextPlaceholder = getCategoryOverviewPlaceholders()[0] || null;
+                if (categoryOverviewElementIsNearViewport(nextPlaceholder)) {
+                    categoryOverviewRetryTimer = window.setTimeout(() => {
+                        categoryOverviewRetryTimer = 0;
+                        requestCategoryOverviewBatch();
+                    }, 180);
+                    return;
+                }
+            }
+            observeNextCategoryOverviewPlaceholder();
+        }
+    }
+
+    function setupCategoryOverview() {
+        const el = window.llRecorder;
+        if (!categoryOverviewEnabled || !el?.categoryOverview || !el.categoryOverviewGrid) return;
+        el.categoryOverviewGrid.addEventListener('click', event => {
+            const card = event.target?.closest?.('.ll-recorder-category-card[data-recorder-queue-category]');
+            if (!card || card.disabled || !el.categorySelect || el.categorySelect.disabled) return;
+            const slug = String(card.getAttribute('data-recorder-queue-category') || '');
+            if (!slug || slug === el.categorySelect.value) return;
+            el.categorySelect.value = slug;
+            syncCategorySelectorUi();
+            el.categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        if (el.categoryOverviewRetry) {
+            el.categoryOverviewRetry.addEventListener('click', () => {
+                categoryOverviewGeneration = '';
+                requestCategoryOverviewBatch({ resetRetries: true });
+            });
+        }
+        setCategoryOverviewState('idle');
+        requestCategoryOverviewBatch();
+    }
+
+    function removeCompletedCategoryOverview(slug, nextSlug = '') {
+        if (!categoryOverviewEnabled) return;
+        const normalizedSlug = String(slug || '');
+        if (!normalizedSlug) return;
+        completedCategoryOverviewSlugs.add(normalizedSlug);
+        getLoadedCategoryOverviewCards().forEach(card => {
+            if (card.getAttribute('data-recorder-queue-category') === normalizedSlug) {
+                card.remove();
+            }
+        });
+        getCategoryOverviewPlaceholders().forEach(placeholder => {
+            if (placeholder.getAttribute('data-recorder-queue-category') === normalizedSlug) {
+                placeholder.remove();
+            }
+        });
+
+        removeCategoryOverviewOption(normalizedSlug);
+        categoryOverviewNeedsSelection = false;
+
+        const select = window.llRecorder?.categorySelect;
+        const normalizedNextSlug = String(nextSlug || '');
+        if (select && normalizedNextSlug) {
+            const nextOption = Array.from(select.options).find(candidate => candidate.value === normalizedNextSlug) || null;
+            if (nextOption) select.value = normalizedNextSlug;
+        }
+        syncCategorySelectorUi();
+        setCategoryOverviewState('idle');
     }
 
     function setupCategorySelector() {
@@ -5316,9 +5663,14 @@
         if (el.processingReviewOverlay) el.processingReviewOverlay.setAttribute('hidden', 'hidden');
         if (el.mainScreen) el.mainScreen.style.display = 'none';
 
-        // Mark current category as exhausted since we completed all its images
+        let nextCategory = null;
+
+        // Determine the next category before removing the completed category
+        // from the selector and overview.
         if (currentCategory) {
             exhaustedCategories.add(currentCategory);
+            nextCategory = getNextCategory();
+            removeCompletedCategoryOverview(currentCategory, nextCategory?.slug || '');
         }
 
         if (el.completeScreen) {
@@ -5326,7 +5678,6 @@
             if (el.completedCount) el.completedCount.textContent = images.length;
 
             // Add next category button if there are other categories
-            const nextCategory = getNextCategory();
             let nextCategoryBtn = el.completeScreen.querySelector('.ll-next-category-btn');
 
             if (nextCategory) {

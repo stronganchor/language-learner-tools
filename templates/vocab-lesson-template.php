@@ -432,6 +432,53 @@ if (have_posts()) {
                     $grid_shell_spec['show_title'] = true;
                 }
                 $grid_shell_spec['attributes'] = $grid_shell_attributes;
+            } else {
+                $public_expected_count = function_exists('ll_tools_get_vocab_lesson_category_word_count_targeted')
+                    ? ll_tools_get_vocab_lesson_category_word_count_targeted($category, $wordset_id)
+                    : 0;
+                $expected_shell_count = !empty($grid_context['can_edit_words'])
+                    ? max($public_expected_count, $lesson_category_word_count)
+                    : $public_expected_count;
+                $shell_cards = isset($grid_shell_spec['cards']) && is_array($grid_shell_spec['cards'])
+                    ? array_values($grid_shell_spec['cards'])
+                    : [];
+                $expected_shell_count = max(count($shell_cards), $expected_shell_count);
+                if ($expected_shell_count > count($shell_cards)) {
+                    $shell_card_limit = min(120, max(6, (int) apply_filters(
+                        'll_tools_vocab_lesson_initial_shell_card_limit',
+                        60,
+                        $post_id,
+                        $expected_shell_count
+                    )));
+                    $placeholder_count = min(
+                        $expected_shell_count - count($shell_cards),
+                        max(0, $shell_card_limit - count($shell_cards))
+                    );
+                    $placeholder_ratio = function_exists('ll_tools_word_grid_get_shell_media_aspect_ratio')
+                        ? ll_tools_word_grid_get_shell_media_aspect_ratio($grid_context)
+                        : '';
+                    $shell_cards = array_merge($shell_cards, array_fill(0, $placeholder_count, [
+                        'media_aspect_ratio' => $placeholder_ratio,
+                        'title_width' => '68%',
+                        'recording_count' => 0,
+                        'count_placeholder' => true,
+                    ]));
+                    $unrendered_count = max(0, $expected_shell_count - count($shell_cards));
+                    if ($unrendered_count > 0) {
+                        $shell_cards[] = [
+                            'media_aspect_ratio' => $placeholder_ratio,
+                            'title_width' => '68%',
+                            'recording_count' => 0,
+                            'count_placeholder' => true,
+                            'remaining_count' => $unrendered_count,
+                        ];
+                    }
+                }
+                $grid_shell_spec['cards'] = $shell_cards;
+                $grid_shell_attributes = (array) ($grid_shell_spec['attributes'] ?? []);
+                $grid_shell_attributes['data-ll-expected-card-count'] = (string) $expected_shell_count;
+                $grid_shell_attributes['data-ll-rendered-shell-count'] = (string) count($shell_cards);
+                $grid_shell_spec['attributes'] = $grid_shell_attributes;
             }
             if (function_exists('ll_tools_vocab_lesson_grid_public_cache_get')) {
                 $cached_grid_html = ll_tools_vocab_lesson_grid_public_cache_get($post_id, $wordset_id, $category_id);
@@ -1469,6 +1516,9 @@ if (have_posts()) {
                         ?>
                         <?php foreach ($shell_cards as $shell_card) : ?>
                             <?php
+                            $is_count_placeholder = !empty($shell_card['count_placeholder']);
+                            $remaining_count = max(0, (int) ($shell_card['remaining_count'] ?? 0));
+                            $is_remaining_placeholder = $remaining_count > 0;
                             $shell_word_text = trim((string) ($shell_card['word_text'] ?? ''));
                             $shell_translation_text = trim((string) ($shell_card['translation_text'] ?? ''));
                             $shell_has_visible_text = !$is_custom_prompt_shell
@@ -1503,9 +1553,16 @@ if (have_posts()) {
                                 }
                             }
                             $card_attributes = [
-                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : '') . ($is_image_choice_shell ? ' ll-vocab-lesson-skeleton-card--image-choice' : '') . (!empty($shell_recordings) ? ' ll-vocab-lesson-skeleton-card--audio-ready' : ''),
+                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : '') . ($is_image_choice_shell ? ' ll-vocab-lesson-skeleton-card--image-choice' : '') . (!empty($shell_recordings) ? ' ll-vocab-lesson-skeleton-card--audio-ready' : '') . ($is_count_placeholder ? ' ll-vocab-lesson-skeleton-card--count-placeholder' : '') . ($is_remaining_placeholder ? ' ll-vocab-lesson-skeleton-card--remaining-count' : ''),
                             ];
-                            if (!$shell_has_visible_text && !$shell_has_preview && empty($shell_recordings)) {
+                            if ($is_remaining_placeholder) {
+                                $card_attributes['aria-label'] = sprintf(
+                                    /* translators: %s: number of additional lesson words being loaded. */
+                                    _n('%s more lesson word is loading', '%s more lesson words are loading', $remaining_count, 'll-tools-text-domain'),
+                                    number_format_i18n($remaining_count)
+                                );
+                                $card_attributes['data-ll-unrendered-card-count'] = (string) $remaining_count;
+                            } elseif (!$shell_has_visible_text && !$shell_has_preview && empty($shell_recordings)) {
                                 $card_attributes['aria-hidden'] = 'true';
                             }
                             $shell_word_id = (int) ($shell_card['word_id'] ?? 0);
@@ -1556,8 +1613,13 @@ if (have_posts()) {
                                         <span class="ll-vocab-lesson-skeleton-image-choice-thumb"></span>
                                         <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--image-choice-label"></span>
                                     </div>
-                                <?php elseif ($show_shell_media) : ?>
+                                <?php elseif ($show_shell_media || $is_count_placeholder) : ?>
                                     <div class="ll-vocab-lesson-skeleton-media<?php echo $shell_has_preview ? ' ll-vocab-lesson-skeleton-media--preview' : ''; ?>">
+                                        <?php if ($is_remaining_placeholder) : ?>
+                                            <span class="ll-vocab-lesson-skeleton-remaining-count" aria-hidden="true">
+                                                <?php echo esc_html('+' . number_format_i18n($remaining_count)); ?>
+                                            </span>
+                                        <?php endif; ?>
                                         <?php if ($shell_has_preview) : ?>
                                             <img
                                                 class="ll-vocab-lesson-shell-preview-image"

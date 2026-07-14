@@ -238,6 +238,112 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) ($first_match['match_rank'] ?? 0));
     }
 
+    public function test_staff_category_search_includes_only_pending_recording_text_transcriptions(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset = wp_insert_term('Pending Transcription Search ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = wp_insert_term('Pending Transcription Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+
+        $word_id = $this->createSearchWord('Unrelated Visible Word', 'Unrelated translation', $wordset_id, [$category_id]);
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Pending transcription recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'remembered pending needle');
+        update_post_meta($recording_id, 'll_auto_transcription_review_fields', ['recording_text' => true]);
+
+        $token = ll_tools_wordset_page_store_category_search_payload([
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$category_id],
+            'user_id' => $admin_id,
+        ]);
+        $transcription_queries = [];
+        $capture_query = static function (string $sql) use (&$transcription_queries): string {
+            if (strpos($sql, 'recording_text.meta_value') !== false) {
+                $transcription_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_filter('query', $capture_query);
+        try {
+            $response = $this->postCategorySearchAjax([
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'pending needle',
+            ]);
+        } finally {
+            remove_filter('query', $capture_query);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $word_matches = (array) (($response['data'] ?? [])['wordMatches'] ?? []);
+        $matches = (array) ($word_matches[$category_id] ?? $word_matches[(string) $category_id] ?? []);
+        $this->assertNotEmpty($matches);
+        $this->assertSame($word_id, (int) ($matches[0]['id'] ?? 0));
+        $this->assertSame('recording_text', (string) ($matches[0]['match_field'] ?? ''));
+        $this->assertArrayNotHasKey('matched_transcription', (array) $matches[0]);
+        $this->assertNotEmpty($transcription_queries);
+        $this->assertStringContainsString('SELECT DISTINCT', $transcription_queries[0]);
+        $this->assertStringContainsString('FROM ' . $GLOBALS['wpdb']->posts . ' AS audio', $transcription_queries[0]);
+        $this->assertStringContainsString('WHERE audio.ID IN (', $transcription_queries[0]);
+        $this->assertStringNotContainsString('STRAIGHT_JOIN', $transcription_queries[0]);
+
+        $short_query_sql = [];
+        $capture_short_query = static function (string $sql) use (&$short_query_sql): string {
+            if (strpos($sql, 'recording_text.meta_value') !== false) {
+                $short_query_sql[] = $sql;
+            }
+            return $sql;
+        };
+        add_filter('query', $capture_short_query);
+        try {
+            $short_response = $this->postCategorySearchAjax([
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'xy',
+            ]);
+        } finally {
+            remove_filter('query', $capture_short_query);
+        }
+        $this->assertSame([], $short_query_sql);
+        $this->assertSame([], (array) (($short_response['data'] ?? [])['categoryIds'] ?? []));
+
+        update_post_meta($recording_id, 'll_auto_transcription_review_fields', ['recording_ipa' => true]);
+        $reviewed_response = $this->postCategorySearchAjax([
+            'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+            'token' => $token,
+            'wordset_id' => $wordset_id,
+            'query' => 'pending needle',
+        ]);
+        $this->assertSame([], (array) (($reviewed_response['data'] ?? [])['categoryIds'] ?? []));
+
+        update_post_meta($recording_id, 'll_auto_transcription_review_fields', ['recording_text' => true]);
+        wp_set_current_user(0);
+        $public_token = ll_tools_wordset_page_store_category_search_payload([
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$category_id],
+            'user_id' => 0,
+        ]);
+        $public_response = $this->postCategorySearchAjax([
+            'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+            'token' => $public_token,
+            'wordset_id' => $wordset_id,
+            'query' => 'pending needle',
+        ]);
+        $this->assertSame([], (array) (($public_response['data'] ?? [])['categoryIds'] ?? []));
+    }
+
     public function test_uncategorized_virtual_category_uses_bounded_preview_and_ajax_search(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

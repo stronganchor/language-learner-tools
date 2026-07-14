@@ -8,6 +8,15 @@ if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_META')) {
 if (!defined('LL_TOOLS_OFFLINE_APP_MAX_SESSIONS')) {
     define('LL_TOOLS_OFFLINE_APP_MAX_SESSIONS', 8);
 }
+if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION')) {
+    define('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION', '1.0.0');
+}
+if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION')) {
+    define('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION', 'll_tools_offline_app_session_schema_version');
+}
+if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK')) {
+    define('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK', 'll_tools_offline_app_session_cleanup');
+}
 
 if (!function_exists('ll_tools_offline_app_public_ajax_actions')) {
     function ll_tools_offline_app_public_ajax_actions(): array {
@@ -643,13 +652,258 @@ if (!function_exists('ll_tools_offline_app_sanitize_state_id_array')) {
     }
 }
 
-if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
-    function ll_tools_offline_app_sessions_for_user(int $user_id): array {
-        if ($user_id <= 0) {
-            return [];
+if (!function_exists('ll_tools_offline_app_session_table')) {
+    function ll_tools_offline_app_session_table(): string {
+        global $wpdb;
+        return $wpdb->prefix . 'll_tools_offline_sessions';
+    }
+}
+
+if (!function_exists('ll_tools_install_offline_app_session_schema')) {
+    function ll_tools_install_offline_app_session_schema(): bool {
+        global $wpdb;
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $table = ll_tools_offline_app_session_table();
+        $charset_collate = $wpdb->get_charset_collate();
+        $sql = "CREATE TABLE {$table} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            session_key varchar(32) NOT NULL,
+            secret_hash varchar(255) NOT NULL,
+            created_at datetime NOT NULL,
+            expires_at datetime NOT NULL,
+            last_used_at datetime NOT NULL,
+            device_id varchar(191) NOT NULL DEFAULT '',
+            profile_id varchar(191) NOT NULL DEFAULT '',
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_session (user_id,session_key),
+            KEY user_expiry (user_id,expires_at),
+            KEY user_activity (user_id,last_used_at),
+            KEY expires_at (expires_at)
+        ) ENGINE=InnoDB {$charset_collate};";
+        dbDelta($sql);
+
+        $table_status = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)));
+        if (
+            is_object($table_status)
+            && strtoupper((string) ($table_status->Engine ?? '')) !== 'INNODB'
+        ) {
+            $wpdb->query("ALTER TABLE {$table} ENGINE=InnoDB");
         }
 
-        $raw = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+        $ready = ll_tools_offline_app_session_schema_ready(true);
+        if ($ready) {
+            update_option(
+                LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION,
+                LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION,
+                false
+            );
+        } else {
+            delete_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION);
+        }
+        return $ready;
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_session_schema_ready')) {
+    function ll_tools_offline_app_session_schema_ready(bool $refresh = false): bool {
+        global $wpdb;
+
+        static $ready = null;
+        if (!$refresh && is_bool($ready)) {
+            return $ready;
+        }
+
+        $table = ll_tools_offline_app_session_table();
+        if ((string) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) {
+            $ready = false;
+            return false;
+        }
+
+        $table_status = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)));
+        if (
+            !is_object($table_status)
+            || strtoupper((string) ($table_status->Engine ?? '')) !== 'INNODB'
+        ) {
+            $ready = false;
+            return false;
+        }
+
+        $column_rows = $wpdb->get_results("SHOW COLUMNS FROM {$table}");
+        if (!is_array($column_rows) || $wpdb->last_error !== '') {
+            $ready = false;
+            return false;
+        }
+        $columns = [];
+        foreach ($column_rows as $row) {
+            if (is_object($row) && !empty($row->Field)) {
+                $columns[(string) $row->Field] = $row;
+            }
+        }
+        $column_types = [
+            'id' => '/^bigint(?:\(\d+\))? unsigned$/',
+            'user_id' => '/^bigint(?:\(\d+\))? unsigned$/',
+            'session_key' => '/^varchar\(32\)$/',
+            'secret_hash' => '/^varchar\(255\)$/',
+            'created_at' => '/^datetime(?:\(0\))?$/',
+            'expires_at' => '/^datetime(?:\(0\))?$/',
+            'last_used_at' => '/^datetime(?:\(0\))?$/',
+            'device_id' => '/^varchar\(191\)$/',
+            'profile_id' => '/^varchar\(191\)$/',
+        ];
+        foreach ($column_types as $column_name => $type_pattern) {
+            $row = $columns[$column_name] ?? null;
+            $type = is_object($row)
+                ? strtolower(trim((string) ($row->Type ?? '')))
+                : '';
+            if (!is_object($row) || preg_match($type_pattern, $type) !== 1 || strtoupper((string) ($row->Null ?? '')) !== 'NO') {
+                $ready = false;
+                return false;
+            }
+        }
+        if (stripos((string) ($columns['id']->Extra ?? ''), 'auto_increment') === false) {
+            $ready = false;
+            return false;
+        }
+        foreach (['device_id', 'profile_id'] as $column_name) {
+            if (($columns[$column_name]->Default ?? null) !== '') {
+                $ready = false;
+                return false;
+            }
+        }
+
+        $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}");
+        if (!is_array($index_rows) || $wpdb->last_error !== '') {
+            $ready = false;
+            return false;
+        }
+        $index_columns = [];
+        $index_uniqueness = [];
+        $index_prefix_lengths = [];
+        foreach ($index_rows as $row) {
+            if (!is_object($row)) {
+                continue;
+            }
+            $key_name = (string) ($row->Key_name ?? '');
+            $column_name = (string) ($row->Column_name ?? '');
+            $sequence = max(1, (int) ($row->Seq_in_index ?? 1));
+            if ($key_name !== '' && $column_name !== '') {
+                $index_columns[$key_name][$sequence] = $column_name;
+                $index_uniqueness[$key_name] = (int) ($row->Non_unique ?? 1);
+                $index_prefix_lengths[$key_name][$sequence] = isset($row->Sub_part) && $row->Sub_part !== null
+                    ? (int) $row->Sub_part
+                    : 0;
+            }
+        }
+        foreach ($index_columns as &$columns_for_index) {
+            ksort($columns_for_index, SORT_NUMERIC);
+            $columns_for_index = array_values($columns_for_index);
+        }
+        unset($columns_for_index);
+        foreach ($index_prefix_lengths as &$prefixes_for_index) {
+            ksort($prefixes_for_index, SORT_NUMERIC);
+            $prefixes_for_index = array_values($prefixes_for_index);
+        }
+        unset($prefixes_for_index);
+
+        $required_indexes = [
+            'PRIMARY' => ['id'],
+            'user_session' => ['user_id', 'session_key'],
+            'user_expiry' => ['user_id', 'expires_at'],
+            'user_activity' => ['user_id', 'last_used_at'],
+            'expires_at' => ['expires_at'],
+        ];
+        foreach ($required_indexes as $key_name => $expected_columns) {
+            if (($index_columns[$key_name] ?? []) !== $expected_columns) {
+                $ready = false;
+                return false;
+            }
+            if (array_filter((array) ($index_prefix_lengths[$key_name] ?? []))) {
+                $ready = false;
+                return false;
+            }
+        }
+        $required_uniqueness = [
+            'PRIMARY' => 0,
+            'user_session' => 0,
+            'user_expiry' => 1,
+            'user_activity' => 1,
+            'expires_at' => 1,
+        ];
+        foreach ($required_uniqueness as $key_name => $expected_non_unique) {
+            if (($index_uniqueness[$key_name] ?? null) !== $expected_non_unique) {
+                $ready = false;
+                return false;
+            }
+        }
+
+        $ready = true;
+        return true;
+    }
+}
+
+if (!function_exists('ll_tools_maybe_install_offline_app_session_schema')) {
+    function ll_tools_maybe_install_offline_app_session_schema(): void {
+        if ((string) get_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION, '') === LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION) {
+            return;
+        }
+        ll_tools_install_offline_app_session_schema();
+    }
+}
+add_action('init', 'll_tools_maybe_install_offline_app_session_schema', 4);
+
+if (!function_exists('ll_tools_offline_app_schedule_session_cleanup')) {
+    function ll_tools_offline_app_schedule_session_cleanup(): void {
+        if (!wp_next_scheduled(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK)) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK);
+        }
+    }
+}
+add_action('init', 'll_tools_offline_app_schedule_session_cleanup', 20);
+
+if (!function_exists('ll_tools_offline_app_cleanup_expired_sessions')) {
+    function ll_tools_offline_app_cleanup_expired_sessions($continuation = null): int {
+        global $wpdb;
+
+        if (!ll_tools_offline_app_session_schema_ready()) {
+            return 0;
+        }
+        $limit = min(1000, max(1, (int) apply_filters('ll_tools_offline_app_session_cleanup_batch_size', 500)));
+        $table = ll_tools_offline_app_session_table();
+        $deleted = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$table}
+             WHERE expires_at < %s
+             ORDER BY expires_at ASC
+             LIMIT %d",
+            gmdate('Y-m-d H:i:s'),
+            $limit
+        ));
+        $deleted = $deleted === false ? 0 : (int) $deleted;
+        if ($deleted >= $limit && !wp_next_scheduled(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK, ['continuation'])) {
+            wp_schedule_single_event(time() + 5 * MINUTE_IN_SECONDS, LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK, ['continuation']);
+        }
+        return $deleted;
+    }
+}
+add_action(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK, 'll_tools_offline_app_cleanup_expired_sessions');
+
+if (!function_exists('ll_tools_offline_app_delete_user_sessions')) {
+    function ll_tools_offline_app_delete_user_sessions(int $user_id): void {
+        global $wpdb;
+        if ($user_id > 0 && ll_tools_offline_app_session_schema_ready()) {
+            $wpdb->delete(ll_tools_offline_app_session_table(), ['user_id' => $user_id], ['%d']);
+        }
+        delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META);
+    }
+}
+add_action('delete_user', 'll_tools_offline_app_delete_user_sessions');
+
+if (!function_exists('ll_tools_offline_app_sanitize_legacy_sessions')) {
+    function ll_tools_offline_app_sanitize_legacy_sessions(int $user_id, $raw_snapshot = null): array {
+        $raw = is_array($raw_snapshot)
+            ? $raw_snapshot
+            : ($user_id > 0 ? get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true) : []);
         if (!is_array($raw)) {
             return [];
         }
@@ -661,75 +915,309 @@ if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
             if ($session_key === '' || !is_array($session)) {
                 continue;
             }
-
-            $hash = isset($session['secret_hash']) ? (string) $session['secret_hash'] : '';
-            $expires_at = isset($session['expires_at']) ? (string) $session['expires_at'] : '';
+            $hash = trim((string) ($session['secret_hash'] ?? ''));
+            $expires_at = trim((string) ($session['expires_at'] ?? ''));
             $expires_ts = $expires_at !== '' ? strtotime($expires_at . ' UTC') : 0;
-            if ($hash === '' || ($expires_ts > 0 && $expires_ts < $now)) {
+            if ($hash === '' || $expires_ts <= $now) {
                 continue;
             }
-
+            $created_at = trim((string) ($session['created_at'] ?? ''));
+            $last_used_at = trim((string) ($session['last_used_at'] ?? ''));
             $clean[$session_key] = [
                 'secret_hash' => $hash,
-                'created_at' => isset($session['created_at']) ? (string) $session['created_at'] : '',
+                'created_at' => $created_at !== '' ? $created_at : gmdate('Y-m-d H:i:s'),
                 'expires_at' => $expires_at,
-                'last_used_at' => isset($session['last_used_at']) ? (string) $session['last_used_at'] : '',
+                'last_used_at' => $last_used_at !== '' ? $last_used_at : ($created_at !== '' ? $created_at : gmdate('Y-m-d H:i:s')),
                 'device_id' => ll_tools_offline_app_sanitize_instance_id($session['device_id'] ?? ''),
                 'profile_id' => ll_tools_offline_app_sanitize_instance_id($session['profile_id'] ?? ''),
             ];
         }
 
-        if (count($clean) > LL_TOOLS_OFFLINE_APP_MAX_SESSIONS) {
-            uasort($clean, static function (array $left, array $right): int {
-                return strcmp((string) ($right['last_used_at'] ?? ''), (string) ($left['last_used_at'] ?? ''));
-            });
-            $clean = array_slice($clean, 0, LL_TOOLS_OFFLINE_APP_MAX_SESSIONS, true);
-        }
-
-        if ($clean !== $raw) {
-            update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $clean);
-        }
-
-        return $clean;
+        uasort($clean, static function (array $left, array $right): int {
+            return strcmp((string) ($right['last_used_at'] ?? ''), (string) ($left['last_used_at'] ?? ''));
+        });
+        return array_slice($clean, 0, LL_TOOLS_OFFLINE_APP_MAX_SESSIONS, true);
     }
 }
 
-if (!function_exists('ll_tools_offline_app_store_sessions_for_user')) {
-    function ll_tools_offline_app_store_sessions_for_user(int $user_id, array $sessions): void {
+if (!function_exists('ll_tools_offline_app_acquire_user_session_lock')) {
+    function ll_tools_offline_app_acquire_user_session_lock(int $user_id): string {
+        global $wpdb;
         if ($user_id <= 0) {
-            return;
+            return '';
+        }
+        $lock_name = 'll_tools_offline_' . substr(hash('sha256', (string) $user_id), 0, 32);
+        $acquired = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $lock_name, 5));
+        return $acquired === 1 ? $lock_name : '';
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_release_user_session_lock')) {
+    function ll_tools_offline_app_release_user_session_lock(string $lock_name): void {
+        global $wpdb;
+        if ($lock_name !== '') {
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+        }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_count_user_sessions')) {
+    function ll_tools_offline_app_count_user_sessions(int $user_id): ?int {
+        global $wpdb;
+
+        $count = $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d',
+            $user_id
+        ));
+        return is_numeric($count) && $wpdb->last_error === '' ? max(0, (int) $count) : null;
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_import_legacy_sessions_for_user')) {
+    function ll_tools_offline_app_import_legacy_sessions_for_user(int $user_id): bool {
+        global $wpdb;
+
+        if ($user_id <= 0 || !ll_tools_offline_app_session_schema_ready()) {
+            return false;
+        }
+        $raw = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+        if (!is_array($raw) || empty($raw)) {
+            return true;
         }
 
-        if (empty($sessions)) {
-            delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META);
-            return;
+        $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($lock_name === '') {
+            return false;
+        }
+        try {
+            $raw = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+            if (!is_array($raw) || empty($raw)) {
+                return true;
+            }
+            $sessions = ll_tools_offline_app_sanitize_legacy_sessions($user_id, $raw);
+            $table = ll_tools_offline_app_session_table();
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return false;
+            }
+            foreach ($sessions as $session_key => $session) {
+                $inserted = $wpdb->query($wpdb->prepare(
+                    "INSERT IGNORE INTO {$table}
+                        (user_id, session_key, secret_hash, created_at, expires_at, last_used_at, device_id, profile_id)
+                     VALUES (%d, %s, %s, %s, %s, %s, %s, %s)",
+                    $user_id,
+                    $session_key,
+                    (string) $session['secret_hash'],
+                    (string) $session['created_at'],
+                    (string) $session['expires_at'],
+                    (string) $session['last_used_at'],
+                    (string) $session['device_id'],
+                    (string) $session['profile_id']
+                ));
+                if ($inserted === false) {
+                    $wpdb->query('ROLLBACK');
+                    return false;
+                }
+            }
+
+            $expected_keys = array_keys($sessions);
+            if (!empty($expected_keys)) {
+                $placeholders = implode(', ', array_fill(0, count($expected_keys), '%s'));
+                $params = array_merge([$user_id], $expected_keys);
+                $imported_rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT session_key, secret_hash FROM {$table} WHERE user_id = %d AND session_key IN ({$placeholders})",
+                    $params
+                ), ARRAY_A);
+                $imported_hashes = [];
+                foreach ((array) $imported_rows as $imported_row) {
+                    $imported_hashes[(string) ($imported_row['session_key'] ?? '')] = (string) ($imported_row['secret_hash'] ?? '');
+                }
+                foreach ($sessions as $expected_key => $expected_session) {
+                    if (
+                        !isset($imported_hashes[$expected_key])
+                        || !hash_equals((string) $expected_session['secret_hash'], $imported_hashes[$expected_key])
+                    ) {
+                        $wpdb->query('ROLLBACK');
+                        return false;
+                    }
+                }
+                if (count($imported_hashes) !== count($expected_keys)) {
+                    $wpdb->query('ROLLBACK');
+                    return false;
+                }
+            }
+
+            $now = gmdate('Y-m-d H:i:s');
+            if ($wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE user_id = %d AND expires_at < %s",
+                $user_id,
+                $now
+            )) === false) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+            $active_count = ll_tools_offline_app_count_user_sessions($user_id);
+            if ($active_count === null) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+            $delete_count = max(0, $active_count - LL_TOOLS_OFFLINE_APP_MAX_SESSIONS);
+            if ($delete_count > 0 && $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table}
+                 WHERE user_id = %d
+                 ORDER BY last_used_at ASC, created_at ASC, id ASC
+                 LIMIT %d",
+                $user_id,
+                $delete_count
+            )) === false) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+
+            if ($wpdb->query('COMMIT') === false) {
+                $wpdb->query('ROLLBACK');
+                return false;
+            }
+            delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
+            return get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true) !== $raw;
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($lock_name);
+        }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
+    function ll_tools_offline_app_sessions_for_user(int $user_id): array {
+        if ($user_id <= 0) {
+            return [];
+        }
+        if (!ll_tools_offline_app_session_schema_ready()) {
+            return ll_tools_offline_app_sanitize_legacy_sessions($user_id);
         }
 
-        update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $sessions);
+        ll_tools_offline_app_import_legacy_sessions_for_user($user_id);
+        global $wpdb;
+        $table = ll_tools_offline_app_session_table();
+        $now = gmdate('Y-m-d H:i:s');
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$table} WHERE user_id = %d AND expires_at < %s",
+            $user_id,
+            $now
+        ));
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT session_key, secret_hash, created_at, expires_at, last_used_at, device_id, profile_id
+             FROM {$table}
+             WHERE user_id = %d AND expires_at >= %s
+             ORDER BY last_used_at DESC, created_at DESC, id DESC
+             LIMIT %d",
+            $user_id,
+            $now,
+            LL_TOOLS_OFFLINE_APP_MAX_SESSIONS
+        ), ARRAY_A);
+        if (!is_array($rows)) {
+            return ll_tools_offline_app_sanitize_legacy_sessions($user_id);
+        }
+
+        $sessions = [];
+        foreach ($rows as $row) {
+            $session_key = sanitize_key((string) ($row['session_key'] ?? ''));
+            if ($session_key === '') {
+                continue;
+            }
+            $sessions[$session_key] = [
+                'secret_hash' => (string) ($row['secret_hash'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'expires_at' => (string) ($row['expires_at'] ?? ''),
+                'last_used_at' => (string) ($row['last_used_at'] ?? ''),
+                'device_id' => ll_tools_offline_app_sanitize_instance_id($row['device_id'] ?? ''),
+                'profile_id' => ll_tools_offline_app_sanitize_instance_id($row['profile_id'] ?? ''),
+            ];
+        }
+        foreach (ll_tools_offline_app_sanitize_legacy_sessions($user_id) as $session_key => $session) {
+            if (!isset($sessions[$session_key]) && count($sessions) < LL_TOOLS_OFFLINE_APP_MAX_SESSIONS) {
+                $sessions[$session_key] = $session;
+            }
+        }
+        return $sessions;
     }
 }
 
 if (!function_exists('ll_tools_offline_app_create_session')) {
     function ll_tools_offline_app_create_session(int $user_id, array $context = []): array {
-        $sessions = ll_tools_offline_app_sessions_for_user($user_id);
+        global $wpdb;
+        if ($user_id <= 0) {
+            return [];
+        }
+        if (!ll_tools_offline_app_session_schema_ready() && !ll_tools_install_offline_app_session_schema()) {
+            return [];
+        }
+        if (!ll_tools_offline_app_import_legacy_sessions_for_user($user_id)) {
+            return [];
+        }
+
         $session_key = sanitize_key(str_replace('-', '', wp_generate_uuid4()));
         $session_key = substr($session_key, 0, 24);
         if ($session_key === '') {
             $session_key = strtolower(wp_generate_password(20, false, false));
         }
-
         $secret = wp_generate_password(40, false, false);
         $now = gmdate('Y-m-d H:i:s');
         $expires_at = gmdate('Y-m-d H:i:s', time() + ll_tools_offline_app_session_ttl());
-        $sessions[$session_key] = [
-            'secret_hash' => wp_hash_password($secret),
-            'created_at' => $now,
-            'expires_at' => $expires_at,
-            'last_used_at' => $now,
-            'device_id' => ll_tools_offline_app_sanitize_instance_id($context['device_id'] ?? ''),
-            'profile_id' => ll_tools_offline_app_sanitize_instance_id($context['profile_id'] ?? ''),
-        ];
-        ll_tools_offline_app_store_sessions_for_user($user_id, $sessions);
+        $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($lock_name === '') {
+            return [];
+        }
+        try {
+            $table = ll_tools_offline_app_session_table();
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return [];
+            }
+            if ($wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE user_id = %d AND expires_at < %s",
+                $user_id,
+                $now
+            )) === false) {
+                $wpdb->query('ROLLBACK');
+                return [];
+            }
+            $current_count = ll_tools_offline_app_count_user_sessions($user_id);
+            if ($current_count === null) {
+                $wpdb->query('ROLLBACK');
+                return [];
+            }
+            $delete_count = max(0, $current_count - LL_TOOLS_OFFLINE_APP_MAX_SESSIONS + 1);
+            if ($delete_count > 0 && $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table}
+                 WHERE user_id = %d
+                 ORDER BY last_used_at ASC, created_at ASC, id ASC
+                 LIMIT %d",
+                $user_id,
+                $delete_count
+            )) === false) {
+                $wpdb->query('ROLLBACK');
+                return [];
+            }
+
+            $inserted = $wpdb->insert($table, [
+                'user_id' => $user_id,
+                'session_key' => $session_key,
+                'secret_hash' => wp_hash_password($secret),
+                'created_at' => $now,
+                'expires_at' => $expires_at,
+                'last_used_at' => $now,
+                'device_id' => ll_tools_offline_app_sanitize_instance_id($context['device_id'] ?? ''),
+                'profile_id' => ll_tools_offline_app_sanitize_instance_id($context['profile_id'] ?? ''),
+            ], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+            if ($inserted !== 1) {
+                $wpdb->query('ROLLBACK');
+                return [];
+            }
+            if ($wpdb->query('COMMIT') === false) {
+                $wpdb->query('ROLLBACK');
+                return [];
+            }
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($lock_name);
+        }
 
         return [
             'token' => sprintf('llapp.%d.%s.%s', $user_id, $session_key, $secret),
@@ -753,22 +1241,90 @@ if (!function_exists('ll_tools_offline_app_authenticate_token')) {
             return null;
         }
 
-        $sessions = ll_tools_offline_app_sessions_for_user($user_id);
-        if (empty($sessions[$session_key]) || !is_array($sessions[$session_key])) {
+        global $wpdb;
+        $session = null;
+        $table_session = false;
+        $legacy_import_succeeded = true;
+        if (ll_tools_offline_app_session_schema_ready()) {
+            $legacy_import_succeeded = ll_tools_offline_app_import_legacy_sessions_for_user($user_id);
+            $table = ll_tools_offline_app_session_table();
+            $row = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, secret_hash, created_at, expires_at, last_used_at, device_id, profile_id
+                 FROM {$table}
+                 WHERE user_id = %d AND session_key = %s
+                 LIMIT 1",
+                $user_id,
+                $session_key
+            ), ARRAY_A);
+            if (is_array($row)) {
+                $session = [
+                    'secret_hash' => (string) ($row['secret_hash'] ?? ''),
+                    'created_at' => (string) ($row['created_at'] ?? ''),
+                    'expires_at' => (string) ($row['expires_at'] ?? ''),
+                    'last_used_at' => (string) ($row['last_used_at'] ?? ''),
+                    'device_id' => ll_tools_offline_app_sanitize_instance_id($row['device_id'] ?? ''),
+                    'profile_id' => ll_tools_offline_app_sanitize_instance_id($row['profile_id'] ?? ''),
+                ];
+                $table_session = true;
+            }
+        }
+        if (!is_array($session)) {
+            if (!$legacy_import_succeeded) {
+                return null;
+            }
+            $legacy_sessions = ll_tools_offline_app_sanitize_legacy_sessions($user_id);
+            $session = isset($legacy_sessions[$session_key]) && is_array($legacy_sessions[$session_key])
+                ? $legacy_sessions[$session_key]
+                : null;
+        }
+        if (!is_array($session)) {
             return null;
         }
-
-        $session = $sessions[$session_key];
+        $expires_ts = strtotime((string) ($session['expires_at'] ?? '') . ' UTC');
+        if ($expires_ts <= time()) {
+            if ($table_session) {
+                $wpdb->query($wpdb->prepare(
+                    'DELETE FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s AND secret_hash = %s',
+                    $user_id,
+                    $session_key,
+                    (string) $session['secret_hash']
+                ));
+            }
+            return null;
+        }
         if (!wp_check_password($secret, (string) ($session['secret_hash'] ?? ''))) {
             return null;
         }
 
-        if ($touch) {
+        if ($touch && $table_session) {
             $now = gmdate('Y-m-d H:i:s');
             $session['last_used_at'] = $now;
             $session['expires_at'] = gmdate('Y-m-d H:i:s', time() + ll_tools_offline_app_session_ttl());
-            $sessions[$session_key] = $session;
-            ll_tools_offline_app_store_sessions_for_user($user_id, $sessions);
+            $updated = $wpdb->update(ll_tools_offline_app_session_table(), [
+                'last_used_at' => $session['last_used_at'],
+                'expires_at' => $session['expires_at'],
+            ], [
+                'user_id' => $user_id,
+                'session_key' => $session_key,
+                'secret_hash' => (string) $session['secret_hash'],
+            ], ['%s', '%s'], ['%d', '%s', '%s']);
+            if ($updated === false) {
+                return null;
+            }
+            if ($updated === 0) {
+                $persisted_hash = $wpdb->get_var($wpdb->prepare(
+                    'SELECT secret_hash FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s LIMIT 1',
+                    $user_id,
+                    $session_key
+                ));
+                if (
+                    !is_string($persisted_hash)
+                    || $wpdb->last_error !== ''
+                    || !hash_equals((string) $session['secret_hash'], $persisted_hash)
+                ) {
+                    return null;
+                }
+            }
         }
 
         return [
@@ -780,21 +1336,103 @@ if (!function_exists('ll_tools_offline_app_authenticate_token')) {
 }
 
 if (!function_exists('ll_tools_offline_app_revoke_session')) {
-    function ll_tools_offline_app_revoke_session(int $user_id, string $session_key): void {
-        $sessions = ll_tools_offline_app_sessions_for_user($user_id);
-        if (!isset($sessions[$session_key])) {
-            return;
+    function ll_tools_offline_app_remove_legacy_session_key(int $user_id, string $session_key, string $secret_hash = ''): bool {
+        $secret_hash = trim($secret_hash);
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $legacy_sessions = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+            if (!is_array($legacy_sessions) || !array_key_exists($session_key, $legacy_sessions)) {
+                return true;
+            }
+            $legacy_hash = is_array($legacy_sessions[$session_key] ?? null)
+                ? trim((string) ($legacy_sessions[$session_key]['secret_hash'] ?? ''))
+                : '';
+            if ($secret_hash !== '' && ($legacy_hash === '' || !hash_equals($secret_hash, $legacy_hash))) {
+                return true;
+            }
+
+            $next_sessions = $legacy_sessions;
+            unset($next_sessions[$session_key]);
+            $changed = empty($next_sessions)
+                ? delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $legacy_sessions)
+                : update_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $next_sessions, $legacy_sessions);
+            $persisted = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
+            if (!is_array($persisted) || !array_key_exists($session_key, $persisted)) {
+                return true;
+            }
+            $persisted_hash = is_array($persisted[$session_key] ?? null)
+                ? trim((string) ($persisted[$session_key]['secret_hash'] ?? ''))
+                : '';
+            if ($secret_hash !== '' && ($persisted_hash === '' || !hash_equals($secret_hash, $persisted_hash))) {
+                return true;
+            }
+            if (!$changed && $persisted === $legacy_sessions) {
+                return false;
+            }
         }
 
-        unset($sessions[$session_key]);
-        ll_tools_offline_app_store_sessions_for_user($user_id, $sessions);
+        return false;
+    }
+
+    function ll_tools_offline_app_revoke_session(int $user_id, string $session_key, string $secret_hash = ''): bool {
+        global $wpdb;
+        $session_key = sanitize_key($session_key);
+        if ($user_id <= 0 || $session_key === '') {
+            return false;
+        }
+        if (ll_tools_offline_app_session_schema_ready()) {
+            $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
+            if ($lock_name === '') {
+                return false;
+            }
+            try {
+                $secret_hash = trim($secret_hash);
+                if (!ll_tools_offline_app_remove_legacy_session_key($user_id, $session_key, $secret_hash)) {
+                    return false;
+                }
+                if ($secret_hash === '') {
+                    $current_hash = $wpdb->get_var($wpdb->prepare(
+                        'SELECT secret_hash FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s LIMIT 1',
+                        $user_id,
+                        $session_key
+                    ));
+                    if ($wpdb->last_error !== '') {
+                        return false;
+                    }
+                    $secret_hash = is_string($current_hash) ? $current_hash : '';
+                }
+                $deleted = $secret_hash === ''
+                    ? 0
+                    : $wpdb->query($wpdb->prepare(
+                        'DELETE FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s AND secret_hash = %s',
+                        $user_id,
+                        $session_key,
+                        $secret_hash
+                    ));
+                if ($deleted === false) {
+                    return false;
+                }
+                $remaining = $secret_hash === ''
+                    ? 0
+                    : $wpdb->get_var($wpdb->prepare(
+                        'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d AND session_key = %s AND secret_hash = %s',
+                        $user_id,
+                        $session_key,
+                        $secret_hash
+                    ));
+                return is_numeric($remaining) && $wpdb->last_error === '' && (int) $remaining === 0;
+            } finally {
+                ll_tools_offline_app_release_user_session_lock($lock_name);
+            }
+        }
+
+        return ll_tools_offline_app_remove_legacy_session_key($user_id, $session_key, $secret_hash);
     }
 }
 
 if (!function_exists('ll_tools_offline_app_require_authenticated_user')) {
-    function ll_tools_offline_app_require_authenticated_user(): array {
+    function ll_tools_offline_app_require_authenticated_user(bool $touch = true): array {
         $token = ll_tools_offline_app_request_string('auth_token');
-        $auth = ll_tools_offline_app_authenticate_token($token);
+        $auth = ll_tools_offline_app_authenticate_token($token, $touch);
         if (!$auth) {
             wp_send_json_error(['message' => __('Sign in required.', 'll-tools-text-domain')], 401);
         }
@@ -1047,6 +1685,9 @@ if (!function_exists('ll_tools_offline_app_login_ajax')) {
             'device_id' => ll_tools_offline_app_request_string('device_id'),
             'profile_id' => ll_tools_offline_app_request_string('profile_id'),
         ]);
+        if (empty($session['token'])) {
+            wp_send_json_error(['message' => __('Could not start an offline session right now.', 'll-tools-text-domain')], 503);
+        }
 
         wp_send_json_success([
             'auth_token' => (string) ($session['token'] ?? ''),
@@ -1061,8 +1702,14 @@ add_action('wp_ajax_ll_tools_offline_app_login', 'll_tools_offline_app_login_aja
 if (!function_exists('ll_tools_offline_app_logout_ajax')) {
     function ll_tools_offline_app_logout_ajax(): void {
         ll_tools_offline_app_prepare_json_response();
-        $auth = ll_tools_offline_app_require_authenticated_user();
-        ll_tools_offline_app_revoke_session((int) ($auth['user_id'] ?? 0), (string) ($auth['session_key'] ?? ''));
+        $auth = ll_tools_offline_app_require_authenticated_user(false);
+        if (!ll_tools_offline_app_revoke_session(
+            (int) ($auth['user_id'] ?? 0),
+            (string) ($auth['session_key'] ?? ''),
+            (string) (($auth['session'] ?? [])['secret_hash'] ?? '')
+        )) {
+            wp_send_json_error(['message' => __('Could not end this offline session right now.', 'll-tools-text-domain')], 503);
+        }
         wp_send_json_success(['logged_out' => true]);
     }
 }

@@ -233,6 +233,202 @@
     color: #2271b1;
 }
 
+.ll-recorder-category-overview {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 clamp(0.65rem, 1.5vw, 1rem);
+}
+
+.ll-recorder-category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+    gap: 10px;
+    align-items: stretch;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category-card {
+    position: relative;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 148px !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    display: grid !important;
+    grid-template-rows: auto 1fr !important;
+    gap: 8px !important;
+    border: 1px solid #d5dce5 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08) !important;
+    box-sizing: border-box !important;
+    font-family: inherit !important;
+    text-align: left !important;
+    text-decoration: none !important;
+    appearance: none;
+}
+
+.ll-recording-interface button.ll-recorder-category-card {
+    cursor: pointer !important;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled),
+.ll-recording-interface button.ll-recorder-category-card:focus-visible,
+.ll-recording-interface button.ll-recorder-category-card.is-selected {
+    border-color: #2271b1 !important;
+    box-shadow: 0 8px 18px rgba(34, 113, 177, 0.16), 0 0 0 2px rgba(34, 113, 177, 0.12) !important;
+    outline: none !important;
+}
+
+.ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.ll-recording-interface button.ll-recorder-category-card:disabled {
+    cursor: default !important;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__top {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category__name {
+    min-width: 0;
+    color: #1d2327 !important;
+    font-size: 0.86rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere;
+    white-space: normal !important;
+}
+
+.ll-recording-interface .ll-wordset-settings-card__pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef4fb;
+    color: #36506b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__preview-link,
+.ll-recording-interface .ll-wordset-recorder-queue-category__preview {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    pointer-events: none;
+}
+
+.ll-recording-interface .ll-wordset-preview-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    border-radius: 7px;
+    overflow: hidden;
+    background: #edf2f7;
+}
+
+.ll-recording-interface .ll-wordset-preview-item--image,
+.ll-recording-interface .ll-wordset-preview-item--text {
+    box-shadow: 0 3px 7px rgba(15, 23, 42, 0.16);
+}
+
+.ll-recording-interface .ll-wordset-preview-item--image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ll-recording-interface .ll-wordset-preview-item--text {
+    padding: 5px;
+    box-sizing: border-box;
+    background: #ffffff;
+    color: #1d2327;
+    text-align: center;
+}
+
+.ll-recording-interface .ll-wordset-preview-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ll-recording-interface .ll-wordset-preview-item--empty {
+    background: repeating-linear-gradient(135deg, #edf0f2, #edf0f2 6px, #f7f9fa 6px, #f7f9fa 12px);
+}
+
+.ll-recording-interface .ll-wordset-card--lazy-placeholder {
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.ll-recording-interface .ll-wordset-card--lazy-placeholder::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.82) 36%, rgba(255, 255, 255, 0.08) 54%);
+    background-size: 220% 100%;
+    animation: ll-recorder-category-sheen 1.15s linear infinite;
+    pointer-events: none;
+}
+
+.ll-recording-interface .ll-wordset-preview-item--lazy-skeleton,
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__count-skeleton {
+    background: #e5ebf1;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__count-skeleton {
+    width: 58px;
+}
+
+.ll-recorder-category-overview__status-row {
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    color: #646970;
+    font-size: 0.76rem;
+}
+
+.ll-recorder-category-overview__empty {
+    margin: 0 !important;
+    padding: 10px;
+    color: #50575e;
+    text-align: center;
+}
+
+.ll-recording-interface .ll-recorder-category-overview__retry {
+    min-height: 30px !important;
+    padding: 4px 9px !important;
+    font-size: 0.76rem !important;
+}
+
+@keyframes ll-recorder-category-sheen {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
 .ll-recorder-info {
     margin-left: auto;
     color: #50575e;
@@ -1111,6 +1307,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .ll-recording-interface .ll-wordset-card--lazy-placeholder::after,
     .ll-recording-image-container.is-loading .flashcard-container::after,
     .ll-recording-image-container.is-loading .ll-image-title::after,
     .ll-recording-image-container.is-loading .ll-image-category::after {

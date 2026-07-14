@@ -503,3 +503,35 @@ test('large embedded image quizzes keep the same image size as large standalone 
   expect(embedded.cards[0].imageRect.width).toBeCloseTo(standalone.cards[0].imageRect.width, 0);
   expect(embedded.cards[0].imageRect.width).toBeCloseTo(250, 0);
 });
+
+test('white prompt images retain a visible shadow boundary', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 700 }, { width: 900, height: 760 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('about:blank');
+    await page.setContent(`
+      <div class="ll-tools-prompt" style="display:block;padding:40px;background:#fff;text-align:center;">
+        <span class="ll-prompt-image-wrap">
+          <img alt="White" width="220" height="220" style="display:block;width:220px;height:220px;background:#fff;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Crect width='220' height='220' fill='white'/%3E%3C/svg%3E">
+        </span>
+      </div>
+    `);
+    await page.addStyleTag({ content: baseCssSource });
+
+    const boundary = await page.locator('.ll-prompt-image-wrap').evaluate((node) => {
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return {
+        boxShadow: style.boxShadow,
+        backgroundColor: style.backgroundColor,
+        width: rect.width,
+        height: rect.height
+      };
+    });
+
+    expect(boundary.boxShadow).not.toBe('none');
+    expect(boundary.boxShadow).toMatch(/rgba?\(/);
+    expect(boundary.backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(boundary.width).toBeGreaterThan(100);
+    expect(boundary.height).toBeGreaterThan(100);
+  }
+});

@@ -52,7 +52,19 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         wp_set_current_user($admin_id);
 
         $wordset_slug = 'recorder-ui-layout-wordset';
-        $this->ensure_term('wordset', 'Recorder UI Layout Wordset', $wordset_slug);
+        $wordset_id = $this->ensure_term('wordset', 'Recorder UI Layout Wordset', $wordset_slug);
+        $category_id = $this->ensure_term('word-category', 'Recorder UI Layout Category', 'recorder-ui-layout-category');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder UI Layout Word',
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
 
         $output = do_shortcode('[audio_recording_interface wordset="' . $wordset_slug . '" allow_new_words="1" auto_process_recordings="1"]');
 
@@ -77,11 +89,21 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('id="ll-new-word-start"', $output);
         $this->assertStringContainsString('id="ll-upload-feedback"', $output);
         $this->assertStringContainsString('id="ll-upload-progress-bar"', $output);
+        $this->assertStringContainsString('data-ll-recorder-category-overview', $output);
+        $this->assertStringContainsString('data-ll-recorder-category-grid', $output);
+        $this->assertStringContainsString('data-ll-recorder-queue-summary-placeholder="true"', $output);
 
         $this->assertTrue(wp_script_is('ll-audio-recorder', 'enqueued'));
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
         $this->assertIsString($localized);
         $this->assertStringContainsString('checking_upload', $localized);
+        $this->assertStringContainsString('"category_overview"', $localized);
+        $this->assertStringContainsString('"action":"ll_tools_recorder_queue_summaries"', $localized);
+
+        $fixed_category_output = do_shortcode(
+            '[audio_recording_interface wordset="' . $wordset_slug . '" category="recorder-ui-layout-category"]'
+        );
+        $this->assertStringNotContainsString('data-ll-recorder-category-overview', $fixed_category_output);
     }
 
     public function test_audio_recording_shortcode_launch_query_prioritizes_requested_word(): void
@@ -171,18 +193,35 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
             return 10;
         };
         $wordQueries = [];
+        $legacyCategoryDiscoveryQueries = [];
         $captureWordQueries = static function (WP_Query $query) use (&$wordQueries): void {
             if ((string) $query->get('post_type') === 'words') {
                 $wordQueries[] = $query->query_vars;
             }
         };
+        $captureLegacyCategoryDiscovery = static function (string $sql) use (&$legacyCategoryDiscoveryQueries): string {
+            $normalizedSql = preg_replace('/\s+/', ' ', $sql);
+            if (
+                is_string($normalizedSql)
+                && strpos($normalizedSql, 'SELECT DISTINCT category_taxonomy.term_id') !== false
+                && (
+                    strpos($normalizedSql, ' words INNER JOIN') !== false
+                    || strpos($normalizedSql, ' prompt_cards INNER JOIN') !== false
+                )
+            ) {
+                $legacyCategoryDiscoveryQueries[] = $normalizedSql;
+            }
+            return $sql;
+        };
         add_filter('ll_tools_recorder_category_switch_page_size', $pageSizeFilter);
         add_action('pre_get_posts', $captureWordQueries);
+        add_filter('query', $captureLegacyCategoryDiscovery);
         try {
             do_shortcode('[audio_recording_interface wordset="' . $wordset->slug . '" allow_new_words="1"]');
         } finally {
             remove_filter('ll_tools_recorder_category_switch_page_size', $pageSizeFilter);
             remove_action('pre_get_posts', $captureWordQueries);
+            remove_filter('query', $captureLegacyCategoryDiscovery);
         }
 
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
@@ -202,6 +241,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         foreach ($wordQueries as $queryVars) {
             $this->assertNotSame(-1, (int) ($queryVars['posts_per_page'] ?? 0));
         }
+        $this->assertSame([], $legacyCategoryDiscoveryQueries, 'Recorder bootstrap must not run the legacy uncached relationship scans.');
     }
 
     public function test_default_recorder_bootstrap_selects_categorized_prompt_card_without_category_attribute(): void

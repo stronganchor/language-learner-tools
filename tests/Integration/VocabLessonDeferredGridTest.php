@@ -1147,6 +1147,70 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_lesson_template_shell_exposes_the_full_expected_word_count_without_hydrating_every_word(): void
+    {
+        wp_set_current_user(0);
+        $fixture = $this->createDeferredGridFixture('Full Count Shell');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+        $lesson_id = (int) $fixture['lesson_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+
+        for ($index = 2; $index <= 12; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Full Count Shell Word ' . $index,
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
+        ll_tools_bump_category_cache_version([$category_id]);
+        ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+        $category = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+        $expected_count = ll_tools_get_vocab_lesson_category_word_count($category, $wordset_id);
+        $this->assertGreaterThan(6, $expected_count);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('data-ll-expected-card-count="' . $expected_count . '"', $html);
+        $this->assertSame($expected_count, substr_count($html, 'class="word-item ll-vocab-lesson-skeleton-card'));
+        $this->assertSame($expected_count - 6, substr_count($html, 'll-vocab-lesson-skeleton-card--count-placeholder'));
+        $this->assertLessThanOrEqual(6, substr_count($html, 'data-ll-shell-word-id='));
+        $this->assertLessThanOrEqual(6, substr_count($html, 'Full Count Shell Word '));
+        $this->assertStringNotContainsString('Full Count Shell Word 12', $html);
+        $this->assertSame(
+            $expected_count - 6,
+            preg_match_all('/<article[^>]*ll-vocab-lesson-skeleton-card--count-placeholder[^>]*>.*?ll-vocab-lesson-skeleton-media/s', $html)
+        );
+
+        $bounded_shell_limit = static function (): int {
+            return 8;
+        };
+        add_filter('ll_tools_vocab_lesson_initial_shell_card_limit', $bounded_shell_limit);
+        try {
+            $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+            $this->assertTrue(is_singular('ll_vocab_lesson'));
+            ob_start();
+            include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+            $bounded_html = (string) ob_get_clean();
+        } finally {
+            remove_filter('ll_tools_vocab_lesson_initial_shell_card_limit', $bounded_shell_limit);
+        }
+
+        $unrendered_count = $expected_count - 8;
+        $this->assertSame(9, substr_count($bounded_html, 'class="word-item ll-vocab-lesson-skeleton-card'));
+        $this->assertStringContainsString('data-ll-rendered-shell-count="9"', $bounded_html);
+        $this->assertStringContainsString('data-ll-unrendered-card-count="' . $unrendered_count . '"', $bounded_html);
+        $this->assertStringContainsString('+' . number_format_i18n($unrendered_count), $bounded_html);
+    }
+
     public function test_lesson_template_renders_warm_public_grid_cache_without_shell(): void
     {
         wp_set_current_user(0);

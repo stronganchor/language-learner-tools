@@ -1216,6 +1216,17 @@ function ll_audio_recording_interface_shortcode($atts) {
     ];
 
     $requested_category = sanitize_title((string) ($atts['category'] ?? ''));
+    $recorder_summary_categories = [];
+    if (
+        $requested_category === ''
+        && !empty($wordset_term_ids)
+        && function_exists('ll_tools_wordset_page_get_recorder_queue_summary_categories')
+    ) {
+        $recorder_summary_categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+            (int) $wordset_term_ids[0],
+            $current_user_id
+        );
+    }
     if ($requested_category !== '') {
         $queue_page = ll_tools_get_recording_category_queue_page($requested_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types'], 1, 0, $current_user_id);
         $images_needing_audio = (array) ($queue_page['items'] ?? []);
@@ -1258,8 +1269,25 @@ function ll_audio_recording_interface_shortcode($atts) {
             );
         }
     } else {
-        $available_categories = ll_tools_get_recording_category_summary_for_wordsets($wordset_term_ids);
-        $available_category_counts = array_fill_keys(array_keys($available_categories), -1);
+        $available_categories = [];
+        $available_category_counts = [];
+        foreach ($recorder_summary_categories as $summary_category) {
+            if (!is_array($summary_category)) {
+                continue;
+            }
+            $summary_slug = sanitize_title((string) ($summary_category['slug'] ?? ''));
+            if ($summary_slug === '') {
+                continue;
+            }
+            $summary_name = trim((string) ($summary_category['name'] ?? ''));
+            if ($summary_name === '') {
+                $summary_name = $summary_slug === 'uncategorized'
+                    ? __('Uncategorized', 'll-tools-text-domain')
+                    : $summary_slug;
+            }
+            $available_categories[$summary_slug] = $summary_name;
+            $available_category_counts[$summary_slug] = -1;
+        }
         if (empty($available_categories)) {
             $available_categories = [
                 'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
@@ -1303,6 +1331,16 @@ function ll_audio_recording_interface_shortcode($atts) {
             $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
         }
     }
+    if ($requested_category === '' && empty($recorder_summary_categories)) {
+        foreach ($available_categories as $summary_slug => $summary_name) {
+            $recorder_summary_categories[] = [
+                'id' => 0,
+                'slug' => (string) $summary_slug,
+                'name' => (string) $summary_name,
+            ];
+        }
+    }
+
     $available_category_labels = ll_tools_get_recording_category_dropdown_labels($available_categories, $available_category_counts);
 
     if (empty($images_needing_audio)
@@ -1393,6 +1431,17 @@ function ll_audio_recording_interface_shortcode($atts) {
         'category_queue' => array_merge($initial_queue_pagination, [
             'category' => $initial_category,
         ]),
+        'category_overview' => [
+            'enabled' => $requested_category === ''
+                && !empty($wordset_term_ids)
+                && !empty($recorder_summary_categories)
+                && function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch'),
+            'action' => 'll_tools_recorder_queue_summaries',
+            'batch_size' => function_exists('ll_tools_wordset_page_get_recorder_queue_summary_batch_size')
+                ? ll_tools_wordset_page_get_recorder_queue_summary_batch_size()
+                : 6,
+            'max_auto_retries' => 12,
+        ],
         'preserve_original_audio' => function_exists('ll_tools_should_keep_original_audio_for_wordsets')
             ? ll_tools_should_keep_original_audio_for_wordsets($wordset_term_ids)
             : false,
@@ -1433,6 +1482,11 @@ function ll_audio_recording_interface_shortcode($atts) {
             'category_switched'   => __('Category switched. Ready to record.', 'll-tools-text-domain'),
             'switch_failed'       => __('Switch failed:', 'll-tools-text-domain'),
             'switch_failed_message' => __('Switch failed', 'll-tools-text-domain'),
+            'category_overview_loading' => __('Loading recording queues...', 'll-tools-text-domain'),
+            'category_overview_loaded' => __('Recording queues loaded.', 'll-tools-text-domain'),
+            'category_overview_error' => __('Some recording queues could not be loaded.', 'll-tools-text-domain'),
+            'category_overview_retry' => __('Retry', 'll-tools-text-domain'),
+            'category_overview_empty' => __('No words currently need recordings.', 'll-tools-text-domain'),
             'new_word_preparing'  => __('Preparing new word...', 'll-tools-text-domain'),
             'new_word_failed'     => __('New word setup failed:', 'll-tools-text-domain'),
             'new_word_update_text_failed' => __('Failed to update word text', 'll-tools-text-domain'),
@@ -1570,6 +1624,32 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <?php echo esc_html($current_user->display_name); ?>
             </div>
         </div>
+
+        <?php if (!empty($recorder_summary_categories)) : ?>
+        <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="true">
+            <div class="ll-recorder-category-grid" data-ll-recorder-category-grid>
+                <?php foreach ($recorder_summary_categories as $summary_category) : ?>
+                    <?php
+                    if (!is_array($summary_category) || !function_exists('ll_tools_wordset_page_render_recorder_queue_category_placeholder')) {
+                        continue;
+                    }
+                    echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($summary_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    ?>
+                <?php endforeach; ?>
+            </div>
+            <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty hidden>
+                <?php esc_html_e('No words currently need recordings.', 'll-tools-text-domain'); ?>
+            </p>
+            <div class="ll-recorder-category-overview__status-row">
+                <span data-ll-recorder-category-status role="status" aria-live="polite">
+                    <?php esc_html_e('Loading recording queues...', 'll-tools-text-domain'); ?>
+                </span>
+                <button type="button" class="ll-btn ll-btn-secondary ll-recorder-category-overview__retry" data-ll-recorder-category-retry hidden>
+                    <?php esc_html_e('Retry', 'll-tools-text-domain'); ?>
+                </button>
+            </div>
+        </section>
+        <?php endif; ?>
 
         <div class="ll-hidden-words-overlay" id="ll-hidden-words-overlay" hidden>
             <div class="ll-hidden-words-overlay-backdrop" id="ll-hidden-words-backdrop"></div>
@@ -4100,6 +4180,78 @@ function ll_get_images_for_recording_handler() {
         'hide_name' => $hide_recorder_text,
         'hide_recorder_text' => $hide_recorder_text,
     ]);
+}
+
+add_action('wp_ajax_ll_tools_recorder_queue_summaries', 'll_tools_recorder_queue_summaries_handler');
+function ll_tools_recorder_queue_summaries_handler(): void {
+    check_ajax_referer('ll_upload_recording', 'nonce');
+    ll_tools_recorder_apply_ajax_locale();
+
+    if (!is_user_logged_in() || !ll_tools_user_can_record()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to view recording queues.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $posted_wordset_ids = isset($_POST['wordset_ids'])
+        ? json_decode((string) wp_unslash($_POST['wordset_ids']), true)
+        : [];
+    $wordset_ids = is_array($posted_wordset_ids) ? array_map('intval', $posted_wordset_ids) : [];
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $wordset_ids = ll_tools_filter_recording_wordset_ids_for_user($wordset_ids, get_current_user_id());
+    }
+    $wordset_id = !empty($wordset_ids) ? (int) reset($wordset_ids) : 0;
+    $wordset_term = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        wp_send_json_error([
+            'message' => __('No recording word set is assigned for this account.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $requested_slugs = [];
+    if (isset($_POST['category_slugs'])) {
+        $raw_slugs = wp_unslash($_POST['category_slugs']);
+        $requested_slugs = is_array($raw_slugs)
+            ? $raw_slugs
+            : preg_split('/\s*,\s*/', (string) $raw_slugs, -1, PREG_SPLIT_NO_EMPTY);
+    }
+    $requested_slugs = function_exists('ll_tools_wordset_page_normalize_recorder_queue_summary_slugs')
+        ? ll_tools_wordset_page_normalize_recorder_queue_summary_slugs((array) $requested_slugs)
+        : array_values(array_unique(array_filter(array_map('sanitize_title', (array) $requested_slugs))));
+    if (empty($requested_slugs)) {
+        wp_send_json_error([
+            'message' => __('No queue categories were requested.', 'll-tools-text-domain'),
+        ], 400);
+    }
+    if (!function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch')) {
+        wp_send_json_error([
+            'message' => __('Recording queues are not available right now.', 'll-tools-text-domain'),
+        ], 503);
+    }
+
+    $include_types = isset($_POST['include_recording_types']) && !is_array($_POST['include_recording_types'])
+        ? implode(',', ll_tools_wordset_page_recorder_queue_type_csv_to_slugs(
+            sanitize_text_field(wp_unslash((string) $_POST['include_recording_types']))
+        ))
+        : '';
+    $exclude_types = isset($_POST['exclude_recording_types']) && !is_array($_POST['exclude_recording_types'])
+        ? implode(',', ll_tools_wordset_page_recorder_queue_type_csv_to_slugs(
+            sanitize_text_field(wp_unslash((string) $_POST['exclude_recording_types']))
+        ))
+        : '';
+
+    wp_send_json_success(ll_tools_wordset_page_build_recorder_queue_summary_batch(
+        $wordset_id,
+        $wordset_term,
+        get_current_user_id(),
+        $requested_slugs,
+        '',
+        [
+            'card_interaction' => 'button',
+            'include_recording_types' => $include_types,
+            'exclude_recording_types' => $exclude_types,
+        ]
+    ));
 }
 
 // AJAX: hide a recorder word/image for the current user
