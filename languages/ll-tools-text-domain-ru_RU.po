@@ -5117,3 +5117,28 @@ msgstr "Загрузка слов из урока..."
 #: templates/vocab-lesson-template.php:386
 msgid "Lesson words loaded."
 msgstr "Слова для урока загружены."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "Загруженный TSV-файл превышает допустимый размер."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "Строка TSV превышает допустимый размер."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "Загруженный TSV-файл содержит слишком много строк."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "Подготовленный фрагмент импорта превышает допустимый размер."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "Группировка TSV для словаря недоступна."

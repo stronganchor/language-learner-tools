@@ -5089,3 +5089,28 @@ msgstr "Memuat kata-kata dalam pelajaran..."
 #: templates/vocab-lesson-template.php:386
 msgid "Lesson words loaded."
 msgstr "Kata-kata pelajaran telah dimuat."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "File TSV yang diunggah melebihi ukuran yang diizinkan."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "Baris TSV melebihi ukuran yang diizinkan."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "File TSV yang diunggah berisi terlalu banyak baris."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "Bagian impor yang disiapkan melebihi ukuran yang diizinkan."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "Pengelompokan TSV kamus tidak tersedia."

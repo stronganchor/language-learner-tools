@@ -5089,3 +5089,28 @@ msgstr "पाठ के शब्द लोड हो रहे हैं..."
 #: templates/vocab-lesson-template.php:386
 msgid "Lesson words loaded."
 msgstr "पाठ शब्द लोड हो गए।"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "अपलोड की गई TSV फ़ाइल अनुमत आकार से अधिक है।"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "TSV पंक्ति अनुमत आकार से अधिक है।"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "अपलोड की गई TSV फ़ाइल में बहुत अधिक पंक्तियाँ हैं।"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "तैयार किया गया आयात खंड अनुमत आकार से अधिक है।"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "शब्दकोश TSV समूहीकरण उपलब्ध नहीं है।"

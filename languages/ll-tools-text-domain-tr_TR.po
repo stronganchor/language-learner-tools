@@ -27825,3 +27825,28 @@ msgstr "Kategori silme ilerlemesi kaydedilemedi. Lütfen tekrar dene."
 #. ll-tools-maintenance: 2026-07-13 durable category deletion
 msgid "Another category deletion batch is already running for this word set. Please try again shortly."
 msgstr "Bu kelime seti için başka bir kategori silme işlemi zaten devam ediyor. Lütfen kısa süre sonra tekrar dene."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "Yüklenen TSV dosyası izin verilen boyutu aşıyor."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "Bir TSV satırı izin verilen boyutu aşıyor."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "Yüklenen TSV dosyası çok fazla satır içeriyor."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "Hazırlanan içe aktarma parçası izin verilen boyutu aşıyor."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "Sözlük TSV gruplaması kullanılamıyor."

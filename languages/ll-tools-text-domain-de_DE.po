@@ -27771,3 +27771,28 @@ msgstr "Wenn du eine Kategorie auswählst, wird nur diese Kategorie exportiert, 
 #: includes/pages/content-lesson-pages.php:650
 msgid "Text pages"
 msgstr "Textseiten"
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "Die hochgeladene TSV-Datei überschreitet die zulässige Größe."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "Eine TSV-Zeile überschreitet die zulässige Größe."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "Die hochgeladene TSV-Datei enthält zu viele Zeilen."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "Ein vorbereiteter Importabschnitt überschreitet die zulässige Größe."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "Die TSV-Gruppierung für das Wörterbuch ist nicht verfügbar."

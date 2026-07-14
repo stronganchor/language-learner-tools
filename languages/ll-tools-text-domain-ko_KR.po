@@ -5066,3 +5066,28 @@ msgstr "수업 단어 불러오는 중..."
 #: templates/vocab-lesson-template.php:386
 msgid "Lesson words loaded."
 msgstr "수업 단어 목록이 불러왔습니다."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:169 includes/admin/dictionary-import-admin.php:194
+msgid "The uploaded TSV file exceeds the allowed size."
+msgstr "업로드된 TSV 파일이 허용 크기를 초과했습니다."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:198
+msgid "A TSV row exceeds the allowed size."
+msgstr "TSV 행이 허용 크기를 초과했습니다."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:270
+msgid "The uploaded TSV file contains too many rows."
+msgstr "업로드된 TSV 파일에 행이 너무 많습니다."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:793
+msgid "A prepared import chunk exceeds the allowed size."
+msgstr "준비된 가져오기 청크가 허용 크기를 초과했습니다."
+
+#. Supplemental full-source upkeep batch: dictionary TSV import limits.
+#: includes/admin/dictionary-import-admin.php:928
+msgid "Dictionary TSV grouping is unavailable."
+msgstr "사전 TSV 그룹화를 사용할 수 없습니다."
