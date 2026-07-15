@@ -1042,6 +1042,89 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertArrayHasKey((string) $wordset_id, (array) get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
     }
 
+    public function test_deleted_selected_categories_are_dropped_while_live_siblings_are_remapped(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Selected Category Cleanup', 'selected-category-cleanup');
+        $live_category_id = $this->ensure_term('word-category', 'Selected Live Category', 'selected-live-category');
+        $deleted_category_id = $this->ensure_term('word-category', 'Selected Deleted Category', 'selected-deleted-category');
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $isolated_category_id = ll_tools_get_or_create_isolated_category_copy($live_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, [$isolated_category_id, $deleted_category_id]);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame([$isolated_category_id], get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+        $this->assertSame(1, (int) ($state['counters']['user_data_repaired'] ?? 0));
+    }
+
+    public function test_all_deleted_selected_categories_are_cleared(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Deleted Selection Cleanup', 'deleted-selection-cleanup');
+        $deleted_category_id = $this->ensure_term('word-category', 'Deleted Selection Category', 'deleted-selection-category');
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, [$deleted_category_id]);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame([], get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+        $this->assertSame(1, (int) ($state['counters']['user_data_repaired'] ?? 0));
+    }
+
+    public function test_selected_category_lookup_error_fails_without_pruning_user_meta(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Selection Lookup Failure', 'selection-lookup-failure');
+        $category_id = $this->ensure_term('word-category', 'Selection Lookup Failure Category', 'selection-lookup-failure-category');
+        $stored_categories = [$category_id];
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, $stored_categories);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id));
+
+        $break_lookup = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll-tools-existing-category-preflight') === false) {
+                return $query;
+            }
+            return str_replace($wpdb->term_taxonomy, $wpdb->term_taxonomy . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 91;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_lookup);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(91, (int) $state['cursor']);
+        $this->assertSame($stored_categories, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+    }
+
     public function test_deleted_category_recommendation_activities_are_dropped_while_valid_siblings_are_remapped(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -2124,6 +2207,212 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey($legacy_signature, $deferrals);
         $this->assertSame([$isolated_category_id], array_map('intval', (array) $deferrals[$new_signature]['category_ids']));
         $this->assertSame([321, 654, 987, 111, 222], array_map('intval', (array) $deferrals[$new_signature]['session_word_ids']));
+    }
+
+    public function test_deleted_category_deferrals_follow_the_durable_repair_policy(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Deleted Deferral Repair', 'deleted-deferral-repair');
+        $live_category_id = $this->ensure_term('word-category', 'Live Deferral Category', 'live-deferral-category');
+        $deleted_category_id = $this->ensure_term('word-category', 'Deleted Deferral Category', 'deleted-deferral-category');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+
+        $stored_deferrals = [
+            (string) $wordset_id => [
+                'legacy-mixed-without-session-words' => [
+                    'count' => 2,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$live_category_id, $deleted_category_id],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+                'all-deleted-with-session-words' => [
+                    'count' => 1,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$deleted_category_id],
+                    'session_word_ids' => [501, 502, 503, 504, 505],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, $stored_deferrals);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($live_category_id, $wordset_id));
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+
+        $this->assertSame([], get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true));
+        $this->assertSame(1, (int) ($state['counters']['user_data_repaired'] ?? 0));
+    }
+
+    public function test_deferral_category_lookup_error_fails_without_pruning_user_meta(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Deferral Lookup Failure', 'deferral-lookup-failure');
+        $category_id = $this->ensure_term('word-category', 'Deferral Lookup Failure Category', 'deferral-lookup-failure-category');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $stored_deferrals = [
+            (string) $wordset_id => [
+                'deferral-lookup-failure-row' => [
+                    'count' => 1,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$category_id],
+                    'session_word_ids' => [601, 602, 603, 604, 605],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, $stored_deferrals);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id));
+
+        $break_lookup = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll-tools-existing-category-preflight') === false) {
+                return $query;
+            }
+            return str_replace($wpdb->term_taxonomy, $wpdb->term_taxonomy . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 93;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_lookup);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(93, (int) $state['cursor']);
+        $this->assertSame($stored_deferrals, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true));
+    }
+
+    public function test_deferral_exact_repair_lookup_error_after_preflights_fails_without_a_write(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Deferral Exact Repair Failure', 'deferral-exact-repair-failure');
+        $category_id = $this->ensure_term('word-category', 'Deferral Exact Repair Category', 'deferral-exact-repair-category');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $stored_deferrals = [
+            (string) $wordset_id => [
+                'deferral-exact-repair-row' => [
+                    'count' => 1,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => [$category_id],
+                    'session_word_ids' => [701, 702, 703, 704, 705],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, $stored_deferrals);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id));
+
+        $lookup_count = 0;
+        $break_exact_lookup = static function (string $query) use ($wpdb, &$lookup_count): string {
+            if (strpos($query, 'll-tools-existing-category-preflight') === false) {
+                return $query;
+            }
+            $lookup_count++;
+            if ($lookup_count !== 2) {
+                return $query;
+            }
+            return str_replace($wpdb->term_taxonomy, $wpdb->term_taxonomy . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 94;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_exact_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_exact_lookup);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertSame(2, $lookup_count);
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(94, (int) $state['cursor']);
+        $this->assertSame(0, (int) ($state['counters']['user_data_repaired'] ?? 0));
+        $this->assertSame($stored_deferrals, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true));
+    }
+
+    public function test_oversized_deferral_bucket_fails_closed_without_truncating_user_meta(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Oversized Deferral Bucket', 'oversized-deferral-bucket');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $bucket = [];
+        for ($index = 1; $index <= 257; $index++) {
+            $bucket['oversized-deferral-' . $index] = [
+                'count' => 1,
+                'available_after' => '2030-07-14 10:00:00',
+                'last_dismissed_at' => '2026-07-14 10:00:00',
+                'category_ids' => [],
+                'session_word_ids' => [801, 802, 803, 804, 805],
+                'mode' => 'practice',
+                'type' => 'review_chunk',
+            ];
+        }
+        $stored_deferrals = [(string) $wordset_id => $bucket];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, $stored_deferrals);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(0, (int) ($state['counters']['user_data_repaired'] ?? 0));
+        $this->assertSame($stored_deferrals, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true));
+    }
+
+    public function test_oversized_deferral_category_list_fails_closed_without_truncating_user_meta(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Oversized Deferral Categories', 'oversized-deferral-categories');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $stored_deferrals = [
+            (string) $wordset_id => [
+                'oversized-category-list' => [
+                    'count' => 1,
+                    'available_after' => '2030-07-14 10:00:00',
+                    'last_dismissed_at' => '2026-07-14 10:00:00',
+                    'category_ids' => range(1, 31),
+                    'session_word_ids' => [901, 902, 903, 904, 905],
+                    'mode' => 'practice',
+                    'type' => 'review_chunk',
+                ],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, $stored_deferrals);
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(0, (int) ($state['counters']['user_data_repaired'] ?? 0));
+        $this->assertSame($stored_deferrals, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true));
     }
 
     public function test_migration_skips_legacy_words_without_a_wordset(): void

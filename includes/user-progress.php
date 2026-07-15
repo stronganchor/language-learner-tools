@@ -5709,11 +5709,18 @@ function ll_tools_normalize_recommendation_deferral_map($raw_map, int $limit = 2
     return $out;
 }
 
-function ll_tools_repair_recommendation_deferral_map_for_isolation(array $raw_map, int $wordset_id, int $limit = 256): array {
+function ll_tools_repair_recommendation_deferral_map_for_isolation(
+    array $raw_map,
+    int $wordset_id,
+    int $limit = 256,
+    ?callable $category_mapper = null,
+    ?string &$repair_status = null
+): array {
     $wordset_id = max(0, $wordset_id);
     $max_items = max(1, min(512, $limit));
     $repaired = [];
     $now_ts = time();
+    $repair_status = 'ok';
 
     foreach ($raw_map as $raw_signature => $raw_entry) {
         $old_signature = sanitize_key((string) $raw_signature);
@@ -5724,7 +5731,21 @@ function ll_tools_repair_recommendation_deferral_map_for_isolation(array $raw_ma
 
         $source_category_ids = (array) ($entry['category_ids'] ?? []);
         $target_category_ids = $source_category_ids;
-        if ($wordset_id > 0 && !empty($source_category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        if ($wordset_id > 0 && !empty($source_category_ids) && $category_mapper !== null) {
+            $mapped = $category_mapper($source_category_ids, $wordset_id);
+            if (!is_array($mapped)) {
+                $repair_status = 'error';
+                return [];
+            }
+            $target_category_ids = array_values(array_unique(array_filter(array_map('intval', $mapped), static function (int $id): bool {
+                return $id > 0;
+            })));
+            if (empty($target_category_ids)) {
+                // The caller's complete snapshot confirmed that every category
+                // in this derived scheduling hint has been deleted.
+                continue;
+            }
+        } elseif ($wordset_id > 0 && !empty($source_category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
             $mapped = ll_tools_wordset_isolation_remap_category_id_list_for_wordset(
                 $source_category_ids,
                 $wordset_id,

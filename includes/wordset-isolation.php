@@ -2637,6 +2637,236 @@ function ll_tools_wordset_isolation_migration_has_source_category_family_row(int
     return $found !== null;
 }
 
+/**
+ * Resolve category IDs that still have word-category taxonomy rows.
+ *
+ * Chunked fail-closed reads distinguish confirmed deletions from lookup
+ * failures without constructing an unbounded IN clause.
+ *
+ * @return array<int,int>|null Null when a bounded lookup fails.
+ */
+function ll_tools_wordset_isolation_migration_existing_category_ids(
+    array $raw_category_ids,
+    int $user_id,
+    array &$state
+): ?array {
+    global $wpdb;
+
+    $category_ids = ll_tools_wordset_isolation_parse_category_id_list($raw_category_ids);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    $batch_size = max(1, min(500, (int) apply_filters(
+        'll_tools_wordset_isolation_migration_category_lookup_batch_size',
+        250
+    )));
+    $current_ids = [];
+    foreach (array_chunk($category_ids, $batch_size) as $category_id_batch) {
+        $placeholders = implode(', ', array_fill(0, count($category_id_batch), '%d'));
+        try {
+            $current_ids = array_merge($current_ids, ll_tools_wordset_isolation_migration_query_ids($wpdb->prepare(
+                "SELECT /* ll-tools-existing-category-preflight */ taxonomy.term_id
+                 FROM {$wpdb->term_taxonomy} AS taxonomy
+                 WHERE taxonomy.taxonomy = %s
+                   AND taxonomy.term_id IN ({$placeholders})
+                 GROUP BY taxonomy.term_id",
+                array_merge(['word-category'], $category_id_batch)
+            ), $failure_message));
+        } catch (Throwable $error) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+    }
+
+    $current_lookup = array_fill_keys($current_ids, true);
+    return array_values(array_filter($category_ids, static function (int $category_id) use ($current_lookup): bool {
+        return isset($current_lookup[$category_id]);
+    }));
+}
+
+/**
+ * Keep only current terms from a user's active category selection.
+ *
+ * Deleted selections are transient UI state, unlike historical progress.
+ */
+function ll_tools_wordset_isolation_migration_current_user_category_ids(
+    $raw_category_ids,
+    int $user_id,
+    array &$state
+): ?array {
+    $category_ids = function_exists('ll_tools_user_study_sanitize_state_id_array')
+        ? ll_tools_user_study_sanitize_state_id_array($raw_category_ids, 'category_ids')
+        : ll_tools_wordset_isolation_parse_category_id_list($raw_category_ids);
+
+    return ll_tools_wordset_isolation_migration_existing_category_ids($category_ids, $user_id, $state);
+}
+
+/**
+ * Repair one bounded deferral bucket from a complete category snapshot.
+ *
+ * The migration cannot reuse the shared runtime helper's lossy lookup: a
+ * transient empty or partial read after preflight could otherwise delete
+ * durable deferrals. Build and validate the exact source-to-target map once,
+ * then pass a snapshot-only mapper into the shared normalization/re-key logic.
+ *
+ * @return array<string,mixed>|null Null when discovery or exact mapping fails.
+ */
+function ll_tools_wordset_isolation_migration_prepare_recommendation_deferral_entries(
+    array $entries,
+    int $wordset_id,
+    int $user_id,
+    array &$state
+): ?array {
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    if (count($entries) > 256) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    $all_category_ids = [];
+    foreach ($entries as $signature => $raw_entry) {
+        if (!is_array($raw_entry)) {
+            continue;
+        }
+        $raw_category_ids = (array) ($raw_entry['category_ids'] ?? []);
+        // One recommendation activity has at most thirty session words, so a
+        // larger category list cannot be legitimate generated state.
+        if (count($raw_category_ids) > 30) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+        $entry = function_exists('ll_tools_normalize_recommendation_deferral_entry')
+            ? ll_tools_normalize_recommendation_deferral_entry((string) $signature, $raw_entry)
+            : $raw_entry;
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $entry_category_ids = ll_tools_wordset_isolation_parse_category_id_list(
+            (array) ($entry['category_ids'] ?? [])
+        );
+        foreach ($entry_category_ids as $category_id) {
+            $all_category_ids[(int) $category_id] = true;
+        }
+    }
+
+    $current_category_ids = ll_tools_wordset_isolation_migration_existing_category_ids(
+        array_map('intval', array_keys($all_category_ids)),
+        $user_id,
+        $state
+    );
+    if (
+        $current_category_ids === null
+        || !ll_tools_wordset_isolation_migration_require_user_category_mapping(
+            $current_category_ids,
+            [$wordset_id],
+            $user_id,
+            $state
+        )
+    ) {
+        return null;
+    }
+
+    $current_lookup = array_fill_keys($current_category_ids, true);
+    $category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
+        $wordset_id,
+        $current_category_ids,
+        false
+    );
+    $requires_owned_targets = $wordset_id > 0 && ll_tools_is_wordset_isolation_enabled();
+    foreach ($current_category_ids as $source_category_id) {
+        $source_category_id = (int) $source_category_id;
+        $target_category_id = (int) ($category_id_map[$source_category_id] ?? 0);
+        if ($target_category_id <= 0) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+        if (!$requires_owned_targets) {
+            continue;
+        }
+
+        $source_origin_id = ll_tools_get_category_isolation_source_id($source_category_id);
+        if (
+            $source_origin_id <= 0
+            || ll_tools_get_category_wordset_owner_id($target_category_id) !== $wordset_id
+            || ll_tools_get_category_isolation_source_id($target_category_id) !== $source_origin_id
+        ) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+    }
+
+    $snapshot_mapper = static function (array $source_category_ids, int $requested_wordset_id) use (
+        $wordset_id,
+        $current_lookup,
+        $category_id_map
+    ): ?array {
+        if ($requested_wordset_id !== $wordset_id) {
+            return null;
+        }
+
+        $mapped = [];
+        foreach (ll_tools_wordset_isolation_parse_category_id_list($source_category_ids) as $source_category_id) {
+            $source_category_id = (int) $source_category_id;
+            if (!isset($current_lookup[$source_category_id])) {
+                continue;
+            }
+            $target_category_id = (int) ($category_id_map[$source_category_id] ?? 0);
+            if ($target_category_id <= 0) {
+                return null;
+            }
+            if (!in_array($target_category_id, $mapped, true)) {
+                $mapped[] = $target_category_id;
+            }
+        }
+        return $mapped;
+    };
+    $repair_status = null;
+    $repaired = ll_tools_repair_recommendation_deferral_map_for_isolation(
+        $entries,
+        $wordset_id,
+        256,
+        $snapshot_mapper,
+        $repair_status
+    );
+    if ($repair_status !== 'ok') {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    return $repaired;
+}
+
+function ll_tools_wordset_isolation_migration_preflight_recommendation_deferral_snapshot(
+    array $deferrals,
+    int $user_id,
+    array &$state
+): bool {
+    foreach ($deferrals as $wordset_id => $entries) {
+        $wordset_id = (int) $wordset_id;
+        if (ll_tools_wordset_isolation_migration_prepare_recommendation_deferral_entries(
+            (array) $entries,
+            $wordset_id,
+            $user_id,
+            $state
+        ) === null) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(int $user_id, array &$state): bool {
     $user_wordset_id = defined('LL_TOOLS_USER_WORDSET_META')
         ? (int) get_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, true)
@@ -2644,16 +2874,23 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
 
     if (defined('LL_TOOLS_USER_CATEGORY_META')) {
         $categories = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true);
-        if (
-            is_array($categories)
-            && !ll_tools_wordset_isolation_migration_require_user_category_mapping(
+        if (is_array($categories)) {
+            $current_categories = ll_tools_wordset_isolation_migration_current_user_category_ids(
                 $categories,
+                $user_id,
+                $state
+            );
+            if (
+                $current_categories === null
+                || !ll_tools_wordset_isolation_migration_require_user_category_mapping(
+                $current_categories,
                 [$user_wordset_id],
                 $user_id,
                 $state
-            )
-        ) {
-            return false;
+                )
+            ) {
+                return false;
+            }
         }
     }
 
@@ -2754,22 +2991,15 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
 
     if (defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META')) {
         $deferrals = get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true);
-        if (is_array($deferrals)) {
-            foreach ($deferrals as $wordset_id => $entries) {
-                foreach ((array) $entries as $entry) {
-                    if (!is_array($entry)) {
-                        continue;
-                    }
-                    if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
-                        (array) ($entry['category_ids'] ?? []),
-                        [(int) $wordset_id],
-                        $user_id,
-                        $state
-                    )) {
-                        return false;
-                    }
-                }
-            }
+        if (
+            is_array($deferrals)
+            && !ll_tools_wordset_isolation_migration_preflight_recommendation_deferral_snapshot(
+                $deferrals,
+                $user_id,
+                $state
+            )
+        ) {
+            return false;
         }
     }
 
@@ -2806,9 +3036,22 @@ function ll_tools_wordset_isolation_migration_process_user(int $user_id, array &
             $wordset_id = defined('LL_TOOLS_USER_WORDSET_META')
                 ? (int) get_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, true)
                 : 0;
-            $sanitized = function_exists('ll_tools_user_study_sanitize_state_id_array')
-                ? ll_tools_user_study_sanitize_state_id_array($before, 'category_ids')
-                : array_values(array_filter(array_map('intval', $before)));
+            $sanitized = ll_tools_wordset_isolation_migration_current_user_category_ids(
+                $before,
+                $user_id,
+                $state
+            );
+            if (
+                $sanitized === null
+                || !ll_tools_wordset_isolation_migration_require_user_category_mapping(
+                    $sanitized,
+                    [$wordset_id],
+                    $user_id,
+                    $state
+                )
+            ) {
+                return false;
+            }
             $expected = $sanitized;
             if ($wordset_id > 0 && !empty($sanitized)) {
                 $repaired = ll_tools_get_isolated_category_ids_for_wordsets($sanitized, [$wordset_id]);
@@ -2824,7 +3067,7 @@ function ll_tools_wordset_isolation_migration_process_user(int $user_id, array &
                     ? ll_tools_user_study_sanitize_state_id_array($repaired, 'category_ids')
                     : array_values(array_filter(array_map('intval', $repaired)));
             }
-            if ($expected !== $sanitized && !ll_tools_wordset_isolation_migration_write_user_meta(
+            if ($expected !== $before && !ll_tools_wordset_isolation_migration_write_user_meta(
                 $user_id,
                 LL_TOOLS_USER_CATEGORY_META,
                 $before,
@@ -2988,7 +3231,15 @@ function ll_tools_wordset_isolation_migration_process_user(int $user_id, array &
                 $bucket = isset($expected[$bucket_key]) && is_array($expected[$bucket_key])
                     ? $expected[$bucket_key]
                     : [];
-                $repaired = ll_tools_repair_recommendation_deferral_map_for_isolation($bucket, $wordset_id, 256);
+                $repaired = ll_tools_wordset_isolation_migration_prepare_recommendation_deferral_entries(
+                    $bucket,
+                    $wordset_id,
+                    $user_id,
+                    $state
+                );
+                if ($repaired === null) {
+                    return false;
+                }
                 if (empty($repaired)) {
                     unset($expected[$bucket_key]);
                 } else {
