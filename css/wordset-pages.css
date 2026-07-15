@@ -814,6 +814,41 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     width: min(100%, 380px);
 }
 
+.ll-wordset-buttons-shortcode__loading-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: 72px;
+    padding: 14px 18px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 16px;
+    background: #f8fafc;
+    box-sizing: border-box;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.ll-wordset-buttons-shortcode__loading-line {
+    display: block;
+    height: 12px;
+    max-width: 100%;
+    border-radius: 999px;
+    background: linear-gradient(100deg, #e2e8f0 16%, #f8fafc 34%, #e2e8f0 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-wordset-buttons-shortcode__loading-line--label {
+    width: min(68%, 220px);
+}
+
+.ll-wordset-buttons-shortcode__loading-line--count {
+    width: min(34%, 110px);
+    height: 10px;
+}
+
 .ll-wordset-page .ll-wordset-buttons-shortcode__button {
     width: 100% !important;
     min-width: 0 !important;
@@ -10255,6 +10290,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-next-thumb--loading,
     .ll-wordset-next-card__line--skeleton,
+    .ll-wordset-buttons-shortcode__loading-line,
     .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton,
     .ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill::after,
     .ll-wordset-card__progress-track.is-loading::after,

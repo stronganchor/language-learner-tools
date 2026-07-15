@@ -100,7 +100,11 @@ function ll_tools_bump_wordset_buttons_shortcode_generation_epoch(): int {
     return $next;
 }
 
-function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag = ''): string {
+function ll_tools_wordset_buttons_shortcode_cache_key(
+    array $atts,
+    string $tag = '',
+    string $plugin_version = ''
+): string {
     $hide_empty = ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0') ? '1' : '0';
     $extra_classes = function_exists('ll_tools_wordset_page_sanitize_class_list')
         ? ll_tools_wordset_page_sanitize_class_list([(string) ($atts['class'] ?? '')])
@@ -119,7 +123,9 @@ function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag =
 
     $payload = [
         'schema' => 5,
-        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'plugin_version' => $plugin_version !== ''
+            ? $plugin_version
+            : (defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : ''),
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
         'wordset_epoch' => $wordset_epoch,
@@ -139,10 +145,11 @@ function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag =
 /**
  * Key for the most recent complete anonymous render.
  *
- * Quiz/content changes intentionally do not rotate this key. The payload is a
- * short-lived bridge while the exact new generation is rebuilt in bounded
- * batches. Structural epochs remain part of the key so visibility, labels,
- * URLs, and presentation changes can never reuse an older render.
+ * Quiz/content and plugin-version changes intentionally do not rotate this
+ * key. The payload is a short-lived bridge while the exact new generation is
+ * rebuilt in bounded batches. Structural epochs and an explicit markup schema
+ * remain part of the key so visibility, labels, URLs, and presentation changes
+ * can never reuse an incompatible render.
  */
 function ll_tools_wordset_buttons_shortcode_stale_key(array $atts, string $tag = ''): string {
     $hide_empty = ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0') ? '1' : '0';
@@ -152,8 +159,8 @@ function ll_tools_wordset_buttons_shortcode_stale_key(array $atts, string $tag =
     sort($extra_classes, SORT_STRING);
 
     $payload = [
-        'schema' => 1,
-        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'schema' => 2,
+        'markup_schema' => 1,
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch')
@@ -170,6 +177,50 @@ function ll_tools_wordset_buttons_shortcode_stale_key(array $atts, string $tag =
     ];
 
     return 'll_ws_buttons_lkg_' . md5((string) wp_json_encode($payload));
+}
+
+/**
+ * One-release bridge to the last complete 6.6.74 exact anonymous render.
+ *
+ * 6.6.75 gives last-known-good markup a version-independent key. Reading the
+ * prior exact cache prevents a blank response while the first user-scoped
+ * count generation is rebuilt. This bridge never writes and closes after
+ * 6.6.75.
+ */
+function ll_tools_wordset_buttons_shortcode_previous_version_bridge_enabled(string $current_version = ''): bool {
+    if ($current_version === '') {
+        $current_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
+    }
+
+    return $current_version === '6.6.75';
+}
+
+function ll_tools_wordset_buttons_shortcode_previous_version_cache_get(array $atts, string $tag = ''): string {
+    if (!ll_tools_wordset_buttons_shortcode_previous_version_bridge_enabled()) {
+        return '';
+    }
+
+    $previous_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, $tag, '6.6.74');
+    $html = get_transient($previous_key);
+
+    return is_string($html) && strpos($html, 'll-wordset-buttons-shortcode__button') !== false
+        ? $html
+        : '';
+}
+
+/**
+ * Read the complete anonymous exact render for the current release.
+ *
+ * Logged-in renders never write this cache, so it is a safe public subset when
+ * an authorization-specific count generation is still incomplete.
+ */
+function ll_tools_wordset_buttons_shortcode_anonymous_cache_get(array $atts, string $tag = ''): string {
+    $anonymous_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, $tag);
+    $html = get_transient($anonymous_key);
+
+    return is_string($html) && strpos($html, 'll-wordset-buttons-shortcode__button') !== false
+        ? $html
+        : '';
 }
 
 function ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled(string $current_version = ''): bool {
@@ -190,8 +241,12 @@ function ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled(string $curren
  * bridge closes after 6.6.74, and every structural/request dimension still
  * has to match exactly.
  */
-function ll_tools_wordset_buttons_shortcode_legacy_cache_key(array $atts, string $tag = ''): string {
-    if (!ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled()) {
+function ll_tools_wordset_buttons_shortcode_legacy_cache_key(
+    array $atts,
+    string $tag = '',
+    string $current_version = ''
+): string {
+    if (!ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled($current_version)) {
         return '';
     }
 
@@ -222,8 +277,12 @@ function ll_tools_wordset_buttons_shortcode_legacy_cache_key(array $atts, string
     return 'll_ws_buttons_' . md5((string) wp_json_encode($payload));
 }
 
-function ll_tools_wordset_buttons_shortcode_legacy_cache_get(array $atts, string $tag = ''): string {
-    $legacy_key = ll_tools_wordset_buttons_shortcode_legacy_cache_key($atts, $tag);
+function ll_tools_wordset_buttons_shortcode_legacy_cache_get(
+    array $atts,
+    string $tag = '',
+    string $current_version = ''
+): string {
+    $legacy_key = ll_tools_wordset_buttons_shortcode_legacy_cache_key($atts, $tag, $current_version);
     if ($legacy_key === '') {
         return '';
     }
@@ -420,6 +479,13 @@ function ll_tools_wordset_button_quiz_min_word_count(): int {
     return max(1, $min_word_count);
 }
 
+function ll_tools_wordset_button_count_builder_schema(): int {
+    return max(1, (int) apply_filters(
+        'll_tools_wordset_buttons_shortcode_count_builder_schema',
+        2
+    ));
+}
+
 function ll_tools_wordset_button_eligibility_batch_size(): int {
     return min(25, max(1, (int) apply_filters(
         'll_tools_wordset_buttons_shortcode_eligibility_batch_size',
@@ -430,7 +496,8 @@ function ll_tools_wordset_button_eligibility_batch_size(): int {
 function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $min_word_count): string {
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     $payload = [
-        'schema' => 1,
+        'schema' => 2,
+        'builder_schema' => ll_tools_wordset_button_count_builder_schema(),
         'wordsets' => $wordset_ids,
         'min' => max(1, $min_word_count),
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch')
@@ -443,6 +510,8 @@ function ll_tools_wordset_button_counts_generation_key(array $wordset_ids, int $
             ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
             : 'unavailable',
         'buttons_generation_epoch' => ll_tools_wordset_buttons_shortcode_generation_epoch(),
+        // Category and wordset grants can differ even when the visible wordset
+        // ID vector is identical, so the authorization scope must remain exact.
         'user_id' => (int) get_current_user_id(),
     ];
 
@@ -797,12 +866,12 @@ function ll_tools_schedule_wordset_button_count_refresh(
     bool $replace = false
 ): void {
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
-    if (empty($wordset_ids) || get_current_user_id() !== 0 || !function_exists('wp_next_scheduled')) {
+    if (empty($wordset_ids) || !function_exists('wp_next_scheduled')) {
         return;
     }
 
     $hook = 'll_tools_refresh_wordset_button_lesson_counts';
-    $args = [$wordset_ids];
+    $args = [$wordset_ids, (int) get_current_user_id()];
     if ($schedule) {
         $logical_now = ll_tools_wordset_button_now();
         $delay = $run_at > $logical_now
@@ -904,7 +973,7 @@ function ll_tools_process_wordset_button_active_pair(
 }
 
 /**
- * Advance an exact anonymous lesson-count generation by one bounded pair page.
+ * Advance one exact visible-wordset lesson-count generation by one bounded pair page.
  * Incomplete progress is durable but never returned as authoritative counts.
  */
 function ll_tools_get_wordset_button_lesson_counts_bounded(array $wordset_ids, ?bool &$complete = null): array {
@@ -1204,11 +1273,29 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     return (array) $state['counts'];
 }
 
-function ll_tools_refresh_wordset_button_lesson_counts($wordset_ids = []): void {
-    $complete = false;
-    ll_tools_get_wordset_button_lesson_counts_bounded((array) $wordset_ids, $complete);
+function ll_tools_refresh_wordset_button_lesson_counts($wordset_ids = [], ?int $user_id = null): void {
+    $previous_user_id = (int) get_current_user_id();
+    $worker_user_id = $user_id === null ? $previous_user_id : max(0, $user_id);
+    if ($worker_user_id > 0) {
+        $worker_user = get_userdata($worker_user_id);
+        if (!$worker_user instanceof WP_User || !$worker_user->exists()) {
+            return;
+        }
+    }
+
+    if ($worker_user_id !== $previous_user_id) {
+        wp_set_current_user($worker_user_id);
+    }
+    try {
+        $complete = false;
+        ll_tools_get_wordset_button_lesson_counts_bounded((array) $wordset_ids, $complete);
+    } finally {
+        if ($worker_user_id !== $previous_user_id) {
+            wp_set_current_user($previous_user_id);
+        }
+    }
 }
-add_action('ll_tools_refresh_wordset_button_lesson_counts', 'll_tools_refresh_wordset_button_lesson_counts', 10, 1);
+add_action('ll_tools_refresh_wordset_button_lesson_counts', 'll_tools_refresh_wordset_button_lesson_counts', 10, 2);
 
 function ll_tools_get_wordset_button_lesson_counts(array $wordset_ids, ?bool &$complete = null): array {
     global $wpdb;
@@ -1399,6 +1486,48 @@ function ll_tools_get_wordset_button_items(
     return $items;
 }
 
+function ll_tools_wordset_buttons_shortcode_classes(array $atts, bool $loading = false): array {
+    $classes = ['ll-wordset-page', 'll-wordset-page--shortcode', 'll-wordset-buttons-shortcode'];
+    if ($loading) {
+        $classes[] = 'll-wordset-buttons-shortcode--loading';
+    }
+
+    $extra_classes = function_exists('ll_tools_wordset_page_sanitize_class_list')
+        ? ll_tools_wordset_page_sanitize_class_list([(string) ($atts['class'] ?? '')])
+        : array_filter(array_map(
+            'sanitize_html_class',
+            preg_split('/\s+/', trim((string) ($atts['class'] ?? ''))) ?: []
+        ));
+
+    return array_values(array_unique(array_merge($classes, $extra_classes)));
+}
+
+/**
+ * Keep a genuine cold rebuild visible without publishing partial counts.
+ */
+function ll_tools_wordset_buttons_shortcode_loading_html(array $atts): string {
+    $classes = ll_tools_wordset_buttons_shortcode_classes($atts, true);
+
+    ob_start();
+    ?>
+    <div class="<?php echo esc_attr(implode(' ', $classes)); ?>" aria-busy="true">
+        <span class="screen-reader-text"><?php echo esc_html__('Loading categories...', 'll-tools-text-domain'); ?></span>
+        <ul class="ll-wordset-buttons-shortcode__list ll-wordset-buttons-shortcode__loading-list" aria-hidden="true">
+            <?php for ($index = 0; $index < 3; $index++) : ?>
+                <li class="ll-wordset-buttons-shortcode__item ll-wordset-buttons-shortcode__loading-item">
+                    <span class="ll-wordset-buttons-shortcode__loading-card">
+                        <span class="ll-wordset-buttons-shortcode__loading-line ll-wordset-buttons-shortcode__loading-line--label"></span>
+                        <span class="ll-wordset-buttons-shortcode__loading-line ll-wordset-buttons-shortcode__loading-line--count"></span>
+                    </span>
+                </li>
+            <?php endfor; ?>
+        </ul>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
 function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string $tag = ''): string {
     $atts = shortcode_atts([
         'class' => '',
@@ -1412,15 +1541,18 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
         ll_tools_wordset_page_enqueue_styles();
     }
 
+    // The stable LKG is written only by complete anonymous renders, but is a
+    // safe public subset for logged-in visitors while their wider scope builds.
+    $stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, $tag);
     $cache_key = ll_tools_wordset_buttons_shortcode_cache_enabled()
         ? ll_tools_wordset_buttons_shortcode_cache_key($atts, $tag)
-        : '';
-    $stale_key = $cache_key !== ''
-        ? ll_tools_wordset_buttons_shortcode_stale_key($atts, $tag)
         : '';
     if ($cache_key !== '') {
         $cached_html = get_transient($cache_key);
         if (is_string($cached_html) && $cached_html !== '') {
+            if (ll_tools_wordset_buttons_shortcode_stale_get($stale_key) === '') {
+                ll_tools_wordset_buttons_shortcode_stale_set($stale_key, $cached_html);
+            }
             return $cached_html;
         }
     }
@@ -1432,25 +1564,29 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
         $items_complete
     );
     if (!$items_complete) {
-        $stale_html = $stale_key !== ''
-            ? ll_tools_wordset_buttons_shortcode_stale_get($stale_key)
-            : '';
-        if ($stale_html === '' && $cache_key !== '') {
+        // Eligibility work can invalidate structural visibility while a bounded
+        // batch is running. Re-read the key after that work so a racing request
+        // can never serve markup from the pre-change public scope.
+        $stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, $tag);
+        $stale_html = ll_tools_wordset_buttons_shortcode_stale_get($stale_key);
+        if ($stale_html === '') {
+            $stale_html = ll_tools_wordset_buttons_shortcode_anonymous_cache_get($atts, $tag);
+        }
+        if ($stale_html === '') {
+            $stale_html = ll_tools_wordset_buttons_shortcode_previous_version_cache_get($atts, $tag);
+        }
+        if ($stale_html === '') {
             $stale_html = ll_tools_wordset_buttons_shortcode_legacy_cache_get($atts, $tag);
         }
-        return $stale_html;
+        return $stale_html !== ''
+            ? $stale_html
+            : ll_tools_wordset_buttons_shortcode_loading_html($atts);
     }
     if (empty($items)) {
         return '';
     }
 
-    $classes = ['ll-wordset-page', 'll-wordset-page--shortcode', 'll-wordset-buttons-shortcode'];
-    $extra_classes = function_exists('ll_tools_wordset_page_sanitize_class_list')
-        ? ll_tools_wordset_page_sanitize_class_list([(string) ($atts['class'] ?? '')])
-        : [];
-    if (!empty($extra_classes)) {
-        $classes = array_merge($classes, $extra_classes);
-    }
+    $classes = ll_tools_wordset_buttons_shortcode_classes($atts);
 
     ob_start();
     ?>

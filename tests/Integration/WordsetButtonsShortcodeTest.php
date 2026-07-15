@@ -160,8 +160,19 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         ], 'll_wordset_buttons');
         $cached_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Cached wordsets</a></div>';
         ll_tools_wordset_buttons_shortcode_cache_set($cache_key, $cached_html);
+        $stale_key = ll_tools_wordset_buttons_shortcode_stale_key([
+            'class' => '',
+            'hide_empty' => '0',
+        ], 'll_wordset_buttons');
+        $stable_payload = [
+            'schema' => 1,
+            'stored_at' => time() - 10,
+            'html' => $cached_html,
+        ];
+        set_transient($stale_key, $stable_payload, HOUR_IN_SECONDS);
 
         $this->assertSame($cached_html, do_shortcode('[ll_wordset_buttons]'));
+        $this->assertSame($stable_payload, get_transient($stale_key), 'A warm exact hit must not rewrite a still-valid LKG transient.');
 
         ll_tools_purge_wordset_buttons_shortcode_cache();
         $this->assertFalse(get_transient($cache_key));
@@ -230,7 +241,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertIsString(get_transient($next_exact_key));
     }
 
-    public function test_cold_anonymous_rebuild_fails_closed_until_all_pair_batches_are_complete(): void
+    public function test_cold_anonymous_rebuild_shows_loading_shell_until_all_pair_batches_are_complete(): void
     {
         wp_set_current_user(0);
         $term = wp_insert_term('Buttons Cold Wordset', 'wordset');
@@ -241,7 +252,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             $this->createPublishedLessonForWordset($wordset_id, 'Buttons Cold Lesson ' . $index);
         }
 
-        $atts = ['class' => '', 'hide_empty' => '0'];
+        $atts = ['class' => 'homepage-wordsets', 'hide_empty' => '0'];
         $exact_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, 'll_wordset_buttons');
         $stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, 'll_wordset_buttons');
         $this->assertFalse(get_transient($exact_key));
@@ -257,16 +268,24 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         add_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $capture_pair, 10, 2);
         add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
         try {
-            $this->assertSame('', do_shortcode('[ll_wordset_buttons]'));
+            $first_html = do_shortcode('[ll_wordset_buttons class="homepage-wordsets"]');
             $this->assertFalse(get_transient($exact_key));
-            $this->assertSame('', do_shortcode('[ll_wordset_buttons]'));
+            $second_html = do_shortcode('[ll_wordset_buttons class="homepage-wordsets"]');
             $this->assertFalse(get_transient($exact_key));
-            $complete_html = do_shortcode('[ll_wordset_buttons]');
+            $complete_html = do_shortcode('[ll_wordset_buttons class="homepage-wordsets"]');
         } finally {
             remove_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
             remove_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $capture_pair, 10);
         }
 
+        foreach ([$first_html, $second_html] as $loading_html) {
+            $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $loading_html);
+            $this->assertStringContainsString('homepage-wordsets', $loading_html);
+            $this->assertStringContainsString('aria-busy="true"', $loading_html);
+            $this->assertStringContainsString(esc_html__('Loading categories...', 'll-tools-text-domain'), $loading_html);
+            $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $loading_html);
+            $this->assertSame(3, substr_count($loading_html, 'll-wordset-buttons-shortcode__loading-card'));
+        }
         $this->assertStringContainsString('Buttons Cold Wordset', $complete_html);
         $this->assertStringContainsString('3 lessons', $complete_html);
         $this->assertCount(3, $scanned_pairs);
@@ -302,42 +321,108 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertSame('', do_shortcode('[ll_wordset_buttons]'));
     }
 
-    public function test_finite_schema_three_bridge_serves_only_while_exact_rebuild_is_incomplete(): void
+    public function test_structural_privacy_change_during_rebuild_never_serves_the_previous_public_render(): void
     {
         wp_set_current_user(0);
+        $term = wp_insert_term('Buttons Racing Privacy Wordset', 'wordset');
+        $this->assertIsArray($term);
+        $this->assertFalse(is_wp_error($term));
+        $wordset_id = (int) ($term['term_id'] ?? 0);
+        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Racing Privacy Lesson A');
+        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Racing Privacy Lesson B');
+
+        $atts = ['class' => '', 'hide_empty' => '0'];
+        $public_html = do_shortcode('[ll_wordset_buttons]');
+        $old_stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, 'll_wordset_buttons');
+        $this->assertStringContainsString('Buttons Racing Privacy Wordset', $public_html);
+        $this->assertSame($public_html, ll_tools_wordset_buttons_shortcode_stale_get($old_stale_key));
+
+        ll_tools_bump_quiz_content_cache_epoch([$wordset_id], true);
+        $visibility_changed = false;
+        $make_private_after_first_scan = static function () use (&$visibility_changed, $wordset_id): void {
+            if ($visibility_changed) {
+                return;
+            }
+            $visibility_changed = true;
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+        };
+
+        add_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $make_private_after_first_scan, 10, 0);
+        try {
+            $racing_html = do_shortcode('[ll_wordset_buttons]');
+        } finally {
+            remove_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $make_private_after_first_scan, 10);
+        }
+
+        $new_stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, 'll_wordset_buttons');
+        $this->assertTrue($visibility_changed);
+        $this->assertNotSame($old_stale_key, $new_stale_key);
+        $this->assertSame('', ll_tools_wordset_buttons_shortcode_stale_get($new_stale_key));
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $racing_html);
+        $this->assertStringNotContainsString('Buttons Racing Privacy Wordset', $racing_html);
+        $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $racing_html);
+    }
+
+    public function test_previous_version_exact_cache_bridges_only_the_6_6_75_rebuild(): void
+    {
+        wp_set_current_user(0);
+        $this->assertFalse(ll_tools_wordset_buttons_shortcode_previous_version_bridge_enabled('6.6.74'));
+        $this->assertTrue(ll_tools_wordset_buttons_shortcode_previous_version_bridge_enabled('6.6.75'));
+        $this->assertFalse(ll_tools_wordset_buttons_shortcode_previous_version_bridge_enabled('6.6.76'));
         $this->assertFalse(ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled('6.6.71'));
         $this->assertTrue(ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled('6.6.72'));
         $this->assertTrue(ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled('6.6.73'));
         $this->assertTrue(ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled('6.6.74'));
         $this->assertFalse(ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled('6.6.75'));
 
-        $term = wp_insert_term('Buttons Legacy Bridge Wordset', 'wordset');
+        $legacy_atts = ['class' => '', 'hide_empty' => '0'];
+        $legacy_key = ll_tools_wordset_buttons_shortcode_legacy_cache_key(
+            $legacy_atts,
+            'll_wordset_buttons',
+            '6.6.74'
+        );
+        $legacy_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Schema 3 complete render</a></div>';
+        $this->assertNotSame('', $legacy_key);
+        $this->assertSame('', ll_tools_wordset_buttons_shortcode_legacy_cache_key(
+            $legacy_atts,
+            'll_wordset_buttons',
+            '6.6.75'
+        ));
+        set_transient($legacy_key, $legacy_html, HOUR_IN_SECONDS);
+        $this->assertSame(
+            $legacy_html,
+            ll_tools_wordset_buttons_shortcode_legacy_cache_get($legacy_atts, 'll_wordset_buttons', '6.6.74')
+        );
+        delete_transient($legacy_key);
+
+        $term = wp_insert_term('Buttons Previous Version Bridge Wordset', 'wordset');
         $this->assertIsArray($term);
         $this->assertFalse(is_wp_error($term));
         $wordset_id = (int) ($term['term_id'] ?? 0);
-        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Legacy Bridge Lesson 1');
-        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Legacy Bridge Lesson 2');
+        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Previous Version Bridge Lesson 1');
+        $this->createPublishedLessonForWordset($wordset_id, 'Buttons Previous Version Bridge Lesson 2');
 
         $atts = ['class' => '', 'hide_empty' => '0'];
-        $legacy_key = ll_tools_wordset_buttons_shortcode_legacy_cache_key($atts, 'll_wordset_buttons');
-        $legacy_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Schema 3 complete render</a></div>';
-        $this->assertNotSame('', $legacy_key);
-        set_transient($legacy_key, $legacy_html, HOUR_IN_SECONDS);
+        $previous_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, 'll_wordset_buttons', '6.6.74');
+        $previous_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">6.6.74 complete render</a></div>';
+        set_transient($previous_key, $previous_html, HOUR_IN_SECONDS);
+        $this->assertSame($previous_html, ll_tools_wordset_buttons_shortcode_previous_version_cache_get($atts, 'll_wordset_buttons'));
 
         $batch_size = static function (): int {
             return 1;
         };
         add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
         try {
-            $this->assertSame($legacy_html, do_shortcode('[ll_wordset_buttons]'));
+            $this->assertSame($previous_html, do_shortcode('[ll_wordset_buttons]'));
             $current_html = do_shortcode('[ll_wordset_buttons]');
         } finally {
             remove_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
-            delete_transient($legacy_key);
+            delete_transient($previous_key);
         }
 
-        $this->assertStringContainsString('Buttons Legacy Bridge Wordset', $current_html);
-        $this->assertStringNotContainsString('Schema 3 complete render', $current_html);
+        $this->assertStringContainsString('Buttons Previous Version Bridge Wordset', $current_html);
+        $this->assertStringNotContainsString('6.6.74 complete render', $current_html);
     }
 
     public function test_incomplete_pair_is_retried_without_publishing_partial_counts(): void
@@ -377,13 +462,15 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         add_filter('ll_tools_wordset_buttons_shortcode_now', $now_filter);
         add_action('ll_tools_wordset_buttons_shortcode_eligibility_pair_scanned', $capture_pair, 10, 2);
         try {
-            $this->assertSame('', do_shortcode('[ll_wordset_buttons]'));
+            $failed_html = do_shortcode('[ll_wordset_buttons]');
         } finally {
             remove_filter('query', $break_query);
             $wpdb->suppress_errors($previous_suppress);
         }
         $this->assertTrue($injected);
         $this->assertFalse(get_transient($exact_key));
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $failed_html);
+        $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $failed_html);
 
         $generation_key = ll_tools_wordset_button_counts_generation_key(
             [$wordset_id],
@@ -394,7 +481,9 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertIsArray($failed_state);
         $this->assertSame(1, (int) ($failed_state['attempts'] ?? 0));
         $this->assertGreaterThan($logical_now, (int) ($failed_state['next_retry_at'] ?? 0));
-        $this->assertSame('', do_shortcode('[ll_wordset_buttons]'), 'Backoff must suppress an immediate source retry.');
+        $backoff_html = do_shortcode('[ll_wordset_buttons]');
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $backoff_html);
+        $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $backoff_html);
         $this->assertCount(1, $scanned_pairs);
 
         try {
@@ -473,8 +562,8 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             remove_filter('query', $capture_raw_query);
         }
 
-        $this->assertSame('', $first_html);
-        $this->assertSame('', $second_html);
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $first_html);
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $second_html);
         $this->assertSame('', $third_html);
         $this->assertSame('', $fourth_html);
         $this->assertSame(1, $first_query_count);
@@ -498,7 +587,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_logged_in_render_is_bounded_and_does_not_schedule_anonymous_cron(): void
+    public function test_logged_in_render_is_bounded_and_schedules_scoped_continuation(): void
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($user_id);
@@ -532,7 +621,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $ten_rows = static function (): int {
             return 10;
         };
-        $cron_args = [[$wordset_id]];
+        $cron_args = [[$wordset_id], $user_id];
 
         add_filter('query', $capture_raw_query);
         add_filter('ll_tools_quiz_min_words', $minimum);
@@ -568,12 +657,132 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         foreach ($query_deltas as $query_delta) {
             $this->assertLessThanOrEqual(1, $query_delta, 'Each logged-in request must share the same strict raw-query cap.');
         }
-        foreach ($scheduled as $timestamp) {
-            $this->assertFalse($timestamp, 'Logged-in progress must not enqueue an anonymous cron event.');
-        }
+        $this->assertNotEmpty(array_filter($scheduled), 'Incomplete logged-in progress must enqueue its scoped continuation.');
         $this->assertGreaterThanOrEqual(2, $queries_at_completion);
         $this->assertSame($completed_html, $cached_state_html);
         $this->assertSame($queries_at_completion, $queries_after_cached_state);
+    }
+
+    public function test_logged_in_incomplete_scope_uses_public_lkg_then_cron_resumes_exact_private_access(): void
+    {
+        wp_set_current_user(0);
+        $public_term = wp_insert_term('Buttons LKG Public Wordset', 'wordset');
+        $private_term = wp_insert_term('Buttons LKG Private Wordset', 'wordset');
+        $this->assertIsArray($public_term);
+        $this->assertIsArray($private_term);
+        $this->assertFalse(is_wp_error($public_term));
+        $this->assertFalse(is_wp_error($private_term));
+        $public_wordset_id = (int) ($public_term['term_id'] ?? 0);
+        $private_wordset_id = (int) ($private_term['term_id'] ?? 0);
+        update_term_meta($private_wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+        $this->createPublishedLessonForWordset($public_wordset_id, 'Buttons LKG Public Lesson');
+        for ($index = 1; $index <= 2; $index++) {
+            $lesson_id = $this->createPublishedLessonForWordset(
+                $private_wordset_id,
+                'Buttons LKG Private Lesson ' . $index
+            );
+            $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+            $this->assertGreaterThan(0, $category_id);
+            update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        }
+
+        $anonymous_generation = ll_tools_wordset_button_counts_generation_key(
+            [$public_wordset_id],
+            ll_tools_wordset_button_quiz_min_word_count()
+        );
+        $anonymous_html = do_shortcode('[ll_wordset_buttons]');
+        $this->assertStringContainsString('Buttons LKG Public Wordset', $anonymous_html);
+        $this->assertStringNotContainsString('Buttons LKG Private Wordset', $anonymous_html);
+        $atts = ['class' => '', 'hide_empty' => '0'];
+        $anonymous_exact_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, 'll_wordset_buttons');
+        $public_lkg_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, 'll_wordset_buttons');
+        $this->assertSame($anonymous_html, get_transient($anonymous_exact_key));
+        $this->assertSame($anonymous_html, ll_tools_wordset_buttons_shortcode_stale_get($public_lkg_key));
+        delete_transient($public_lkg_key);
+        $this->assertSame('', ll_tools_wordset_buttons_shortcode_stale_get($public_lkg_key));
+
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+        $private_scope_ids = ll_tools_wordset_button_normalize_wordset_ids([
+            $public_wordset_id,
+            $private_wordset_id,
+        ]);
+        $logged_in_generation = ll_tools_wordset_button_counts_generation_key(
+            $private_scope_ids,
+            ll_tools_wordset_button_quiz_min_word_count()
+        );
+        $one_pair = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $one_pair);
+        try {
+            $incomplete_html = do_shortcode('[ll_wordset_buttons]');
+            $scheduled_at = wp_next_scheduled(
+                'll_tools_refresh_wordset_button_lesson_counts',
+                [$private_scope_ids, $user_id]
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $one_pair);
+        }
+
+        $this->assertNotSame($anonymous_generation, $logged_in_generation, 'Authorization-specific count scopes must remain isolated.');
+        $this->assertSame($anonymous_html, $incomplete_html, 'An expired LKG must fall back to the current complete anonymous exact render.');
+        $this->assertIsInt($scheduled_at);
+
+        wp_set_current_user(0);
+        ll_tools_refresh_wordset_button_lesson_counts($private_scope_ids, $user_id);
+        $this->assertSame(0, get_current_user_id(), 'The cron worker must restore its prior authorization context.');
+
+        wp_set_current_user($user_id);
+        $complete_html = do_shortcode('[ll_wordset_buttons]');
+        $this->assertStringContainsString('Buttons LKG Public Wordset', $complete_html);
+        $this->assertStringContainsString('Buttons LKG Private Wordset', $complete_html);
+        $this->assertStringContainsString('2 lessons', $complete_html);
+        $this->assertFalse(wp_next_scheduled(
+            'll_tools_refresh_wordset_button_lesson_counts',
+            [$private_scope_ids, $user_id]
+        ));
+        wp_set_current_user(0);
+    }
+
+    public function test_count_builder_schema_rotates_the_generation_key(): void
+    {
+        wp_set_current_user(0);
+        $wordset_ids = [19, 7, 19];
+        $minimum = 5;
+        $current_generation = ll_tools_wordset_button_counts_generation_key($wordset_ids, $minimum);
+        $next_schema = static function (): int {
+            return 3;
+        };
+
+        add_filter('ll_tools_wordset_buttons_shortcode_count_builder_schema', $next_schema);
+        try {
+            $next_generation = ll_tools_wordset_button_counts_generation_key($wordset_ids, $minimum);
+        } finally {
+            remove_filter('ll_tools_wordset_buttons_shortcode_count_builder_schema', $next_schema);
+        }
+
+        $this->assertNotSame($current_generation, $next_generation);
+    }
+
+    public function test_count_generation_separates_users_with_the_same_wordset_ids(): void
+    {
+        $first_user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $second_user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_ids = [19, 7];
+
+        wp_set_current_user($first_user_id);
+        $first_generation = ll_tools_wordset_button_counts_generation_key($wordset_ids, 5);
+        wp_set_current_user($second_user_id);
+        $second_generation = ll_tools_wordset_button_counts_generation_key($wordset_ids, 5);
+        wp_set_current_user(0);
+
+        $this->assertNotSame(
+            $first_generation,
+            $second_generation,
+            'Private-category grants can differ even when two users have the same visible wordset IDs.'
+        );
     }
 
     public function test_completed_primary_phase_does_not_starve_budgeted_text_fallback(): void
@@ -718,7 +927,8 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         }
 
         $this->assertTrue($bumped);
-        $this->assertSame('', $stale_worker_html);
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $stale_worker_html);
+        $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $stale_worker_html);
         $this->assertNotSame($old_generation, $new_generation);
         $this->assertNotSame($old_exact_key, $new_exact_key);
         $this->assertNull(ll_tools_get_wordset_button_count_state($old_state_key));

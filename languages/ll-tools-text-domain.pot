@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.74\n"
+"Project-Id-Version: Language Learner Tools 6.6.75\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-15T15:14:02+00:00\n"
+"POT-Creation-Date: 2026-07-15T20:34:34+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -1237,7 +1237,7 @@ msgstr ""
 #: includes/admin/word-images-fixer.php:125
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:465
-#: includes/taxonomies/word-category-taxonomy.php:9630
+#: includes/taxonomies/word-category-taxonomy.php:9632
 msgid "Permission denied"
 msgstr ""
 
@@ -5540,6 +5540,7 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:134
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:692
+#: includes/shortcodes/wordset-buttons-shortcode.php:1514
 msgid "Loading categories..."
 msgstr ""
 
@@ -21493,7 +21494,7 @@ msgid "Enabled when selected recordings all share the same recording types."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:474
-#: includes/taxonomies/word-category-taxonomy.php:9639
+#: includes/taxonomies/word-category-taxonomy.php:9641
 msgid "No posts selected"
 msgstr ""
 
@@ -24923,23 +24924,23 @@ msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1486
+#: includes/shortcodes/wordset-buttons-shortcode.php:1618
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:1489
+#: includes/shortcodes/wordset-buttons-shortcode.php:1621
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1493
+#: includes/shortcodes/wordset-buttons-shortcode.php:1625
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1499
+#: includes/shortcodes/wordset-buttons-shortcode.php:1631
 msgid "%1$s, %2$s"
 msgstr ""
 
@@ -25228,33 +25229,33 @@ msgstr ""
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8884
+#: includes/taxonomies/word-category-taxonomy.php:8886
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8890
+#: includes/taxonomies/word-category-taxonomy.php:8892
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8898
-#: includes/taxonomies/word-category-taxonomy.php:8904
+#: includes/taxonomies/word-category-taxonomy.php:8900
+#: includes/taxonomies/word-category-taxonomy.php:8906
 msgid "Bulk Add Categories"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8902
+#: includes/taxonomies/word-category-taxonomy.php:8904
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8916
+#: includes/taxonomies/word-category-taxonomy.php:8918
 msgid "Permission denied or invalid nonce."
 msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
-#: includes/taxonomies/word-category-taxonomy.php:9068
+#: includes/taxonomies/word-category-taxonomy.php:9070
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""

@@ -520,6 +520,7 @@ wordset can opt into it.
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
 - `[wordset_buttons]` / `[ll_wordset_buttons]` (`includes/shortcodes/wordset-buttons-shortcode.php`).
+  - Count generations are bounded and keyed by user identity plus current structural/content epochs because private-category grants can differ even for identical visible wordset IDs. An incomplete signed-in scope may render only complete anonymous public HTML from the structurally scoped LKG or the exact current/prior-release anonymous cache; it must never publish partial counts or private markup to that fallback. Continuation cron events carry the initiating user ID, restore that context only around the worker, and restore the prior user afterward. A genuinely cold scope renders a loading shell rather than an empty section, while an authoritative complete-empty scope remains empty. Direct role-change invalidation is tracked separately in the maintenance backlog.
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
