@@ -1038,12 +1038,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $resume_context = [
             'schema' => 1,
             'enabled' => true,
-            'phases' => [
-                'primary' => [
-                    'schema' => 1,
-                    'prompt_support_ids' => [$word_ids[1]],
-                ],
-            ],
+            'phases' => [],
             'budget' => [
                 'max_prompt_queries' => 1,
                 'max_prompt_cards' => 10,
@@ -1071,6 +1066,52 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertTrue($resumable_complete);
         $this->assertSame($default_count, $resumable_count);
         $this->assertArrayNotHasKey('prompt_support_ids', $resume_context['phases']['primary'] ?? []);
+        $this->assertContains($word_ids[1], $resume_context['phases']['primary']['seen_ids'] ?? []);
+
+        $legacy_seen_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($word_ids): bool {
+            return $word_id !== $word_ids[1];
+        }));
+        $legacy_resume_context = [
+            'schema' => 1,
+            'enabled' => true,
+            'phases' => [
+                'primary' => [
+                    'schema' => 1,
+                    'count' => count($legacy_seen_ids),
+                    'seen_ids' => $legacy_seen_ids,
+                    'prompt_cursor_id' => $prompt_card_id,
+                    'prompt_source_complete' => true,
+                    'raw_cursor_id' => max($word_ids),
+                    'source_complete' => true,
+                    'prompt_support_ids' => [$word_ids[0], $word_ids[1]],
+                ],
+            ],
+            'budget' => [
+                'max_prompt_queries' => 1,
+                'max_prompt_cards' => 10,
+                'prompt_queries_used' => 0,
+                'prompt_cards_used' => 0,
+                'max_raw_queries' => 1,
+                'max_raw_rows' => 10,
+                'raw_queries_used' => 0,
+                'raw_rows_used' => 0,
+            ],
+        ];
+        $legacy_complete = true;
+        $legacy_count = ll_get_words_by_category_count(
+            $category_term,
+            'text_title',
+            [$wordset_id],
+            $config,
+            $legacy_complete,
+            $this->quizMinWordCount(),
+            $legacy_resume_context
+        );
+
+        $this->assertTrue($legacy_complete);
+        $this->assertSame($this->quizMinWordCount(), $legacy_count);
+        $this->assertArrayNotHasKey('prompt_support_ids', $legacy_resume_context['phases']['primary'] ?? []);
+        $this->assertContains($word_ids[1], $legacy_resume_context['phases']['primary']['seen_ids'] ?? []);
     }
 
     private function createPublishedLessonForWordset(int $wordset_id, string $title): int

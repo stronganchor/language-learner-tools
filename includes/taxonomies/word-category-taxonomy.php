@@ -6351,6 +6351,12 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         return ['count' => 0, 'reached' => false];
     };
 
+    $track_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    if ($resumable && !$track_support_only && array_key_exists('prompt_support_ids', $phase_state)) {
+        unset($phase_state['prompt_support_ids']);
+        unset($phase_state['raw_cursor_id'], $phase_state['source_complete']);
+        $resume_context['phases'][$phase] = $phase_state;
+    }
     if ($resumable && !empty($phase_state['source_complete'])) {
         return [
             'count' => min($count, $stop_at),
@@ -6366,7 +6372,6 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         $wordset_terms
     )));
     $prompt_answer_ids = [];
-    $track_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
     $prompt_support_lookup = [];
     $persist_prompt_support_state = static function () use (
         &$phase_state,
@@ -6379,9 +6384,6 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         }
         $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
     };
-    if (!$track_support_only) {
-        unset($phase_state['prompt_support_ids']);
-    }
     if ($resumable) {
         if (!isset($resume_context['budget']) || !is_array($resume_context['budget'])) {
             $resume_context['budget'] = [];
