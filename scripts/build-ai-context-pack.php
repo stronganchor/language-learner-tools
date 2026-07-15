@@ -261,8 +261,8 @@ function ll_tools_context_pack_definitions(): array
             ],
         ],
         'wordset-vocab-manager' => [
-            'description' => 'Wordset pages, lazy cards, search, editor/settings UI, recorder queue overviews, vocab lessons, and word grid.',
-            'load_when' => 'A change touches public wordset pages, category shells, search, recommendations, editor rows, recorder queue overview/settings, or vocab lesson cards.',
+            'description' => 'Wordset pages and buttons, lazy cards, search, editor/settings UI, recorder queue overviews, vocab lessons, and word grid.',
+            'load_when' => 'A change touches public wordset pages or buttons, category shells, search, recommendations, editor rows, recorder queue overview/settings, or vocab lesson cards.',
             'signals' => [
                 'wordset page',
                 'wordset manager',
@@ -291,6 +291,10 @@ function ll_tools_context_pack_definitions(): array
                 'll_tools_wordset_page_get_server_main_sort',
                 'recommendations',
                 'large wordset first paint',
+                'wordset buttons',
+                'll_wordset_buttons',
+                'anonymous lesson count',
+                'resumable aggregate',
                 'recorder queue overview',
                 'queue summary lazy loading',
                 'recorder summary generation',
@@ -321,6 +325,7 @@ function ll_tools_context_pack_definitions(): array
                 'Global vocab-lesson settings and cron syncs queue the durable reconciliation job; each continuation must cap cleanup rows and one wordset category cursor.',
                 'Interactive category deletion uses one wordset-scoped persisted job, bridges the previous per-category lock namespace with a rollback-expiring marker, transactionally revalidates both lease rows on state writes, saves before mutation, reconciles remaining rows after interruption, and keeps Continue/Retry visible until completion.',
                 'Word-grid bulk edits prepare rollback chunks before mutation, revalidate persisted targets, fence state writes by lease, verify mutation/restore readback, and delete expired chunks in bounded scheduled batches.',
+                'Public wordset-button counts use bounded keyset discovery plus resumable prompt-card and raw-word budgets; partial generations are never authoritative and anonymous last-known-good HTML remains structurally scoped.',
             ],
             'sources' => [
                 'includes/pages/wordset-pages.php',
@@ -600,6 +605,10 @@ function ll_tools_context_pack_definitions(): array
                 'expired transient',
                 'wp_options cleanup',
                 'external object cache',
+                'wordset buttons',
+                'anonymous lesson count',
+                'resumable aggregate',
+                'prompt-card cursor',
             ],
             'invariants' => [
                 'Default benchmark runs must stay affordable.',
@@ -608,10 +617,13 @@ function ll_tools_context_pack_definitions(): array
                 'History comparisons must only compare compatible fixture shapes and throttle profiles.',
                 'Named profiles own one manifest/history/report tuple; skip-seed verifies the stored canonical fixture contract read-only, passes the small stored JSON as an explicit verifier argument across WSL/Windows PHP boundaries, and run-e2e preserves every locked parent LL_E2E_PERF_* value across env loading.',
                 'Expired transient maintenance must remain exact-prefix allowlisted, cron-only, database-only, renewed-timeout protected, and hard bounded.',
+                'Cold public wordset-button renders must remain request-bounded across lesson pairs, prompt cards, and raw words; only a generation- and lock-fenced complete aggregate may replace last-known-good output.',
             ],
             'sources' => [
                 'docs/PERFORMANCE_ARCHITECTURE.md',
                 'includes/lib/expired-transient-maintenance.php',
+                'includes/shortcodes/wordset-buttons-shortcode.php',
+                'includes/taxonomies/word-category-taxonomy.php',
                 'tests/performance/README.md',
                 'tests/performance/fixtures/performance-wordsets*.json',
                 'tests/performance/lib/performance-manifest.php',
@@ -626,6 +638,7 @@ function ll_tools_context_pack_definitions(): array
                 'tests/e2e/specs/page-speed-throttled-load.spec.js',
                 'tests/e2e/specs/wordset-page-speed-large-wordset.spec.js',
                 'tests/Integration/ExpiredTransientMaintenanceTest.php',
+                'tests/Integration/WordsetButtonsShortcodeTest.php',
             ],
             'tests' => [
                 'tests/e2e/specs/performance-benchmark.spec.js',
@@ -633,6 +646,7 @@ function ll_tools_context_pack_definitions(): array
                 'tests/e2e/specs/page-speed-throttled-load.spec.js',
                 'tests/e2e/specs/wordset-page-speed-large-wordset.spec.js',
                 'tests/Integration/ExpiredTransientMaintenanceTest.php',
+                'tests/Integration/WordsetButtonsShortcodeTest.php',
             ],
         ],
     ];

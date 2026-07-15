@@ -6099,7 +6099,136 @@ function ll_tools_get_renderable_category_item_ids($categoryName, $displayMode =
 }
 
 /**
+ * Read one bounded taxonomy-scoped ID-keyset page for resumable eligibility.
+ *
+ * @return int[]
+ */
+function ll_tools_get_quiz_eligibility_post_id_batch(
+    string $post_type,
+    int $category_term_id,
+    array $wordset_term_ids,
+    int $after_word_id,
+    int $limit,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $post_type = sanitize_key($post_type);
+    $category_term_id = max(0, $category_term_id);
+    $wordset_term_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_term_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+    sort($wordset_term_ids, SORT_NUMERIC);
+    $limit = max(1, $limit);
+    if ($post_type === '' || $category_term_id <= 0) {
+        $complete = false;
+        return [];
+    }
+
+    $join_wordsets = '';
+    $wordset_where = '';
+    $prepare_args = ['word-category', $category_term_id];
+    if (!empty($wordset_term_ids)) {
+        $wordset_placeholders = implode(',', array_fill(0, count($wordset_term_ids), '%d'));
+        $join_wordsets = "
+            INNER JOIN {$wpdb->term_relationships} wordset_rel
+                ON wordset_rel.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} wordset_tt
+                ON wordset_tt.term_taxonomy_id = wordset_rel.term_taxonomy_id
+               AND wordset_tt.taxonomy = %s";
+        $wordset_where = " AND wordset_tt.term_id IN ($wordset_placeholders)";
+        $prepare_args[] = 'wordset';
+    }
+    $prepare_args[] = $post_type;
+    $prepare_args[] = 'publish';
+    if (!empty($wordset_term_ids)) {
+        $prepare_args = array_merge($prepare_args, $wordset_term_ids);
+    }
+    $prepare_args[] = max(0, $after_word_id);
+    $prepare_args[] = $limit;
+
+    $sql = $wpdb->prepare(
+        "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} category_rel
+            ON category_rel.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} category_tt
+            ON category_tt.term_taxonomy_id = category_rel.term_taxonomy_id
+           AND category_tt.taxonomy = %s
+           AND category_tt.term_id = %d
+        {$join_wordsets}
+        WHERE p.post_type = %s
+          AND p.post_status = %s
+          {$wordset_where}
+          AND p.ID > %d
+        ORDER BY p.ID ASC
+        LIMIT %d
+        ",
+        $prepare_args
+    );
+
+    $wpdb->last_error = '';
+    $word_ids = $wpdb->get_col($sql);
+    if (!is_array($word_ids) || $wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+}
+
+/**
+ * @return int[]
+ */
+function ll_tools_get_quiz_eligibility_raw_word_id_batch(
+    int $category_term_id,
+    array $wordset_term_ids,
+    int $after_word_id,
+    int $limit,
+    ?bool &$complete = null
+): array {
+    return ll_tools_get_quiz_eligibility_post_id_batch(
+        'words',
+        $category_term_id,
+        $wordset_term_ids,
+        $after_word_id,
+        $limit,
+        $complete
+    );
+}
+
+/**
+ * @return int[]
+ */
+function ll_tools_get_quiz_eligibility_prompt_card_id_batch(
+    int $category_term_id,
+    array $wordset_term_ids,
+    int $after_prompt_card_id,
+    int $limit,
+    ?bool &$complete = null
+): array {
+    $post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+        ? (string) LL_TOOLS_PROMPT_CARD_POST_TYPE
+        : 'll_prompt_card';
+    return ll_tools_get_quiz_eligibility_post_id_batch(
+        $post_type,
+        $category_term_id,
+        $wordset_term_ids,
+        $after_prompt_card_id,
+        $limit,
+        $complete
+    );
+}
+
+/**
  * Count renderable rows in bounded candidate windows until a threshold is met.
+ *
+ * The optional resume context is used only by explicitly budgeted callers. The
+ * default path retains the existing behavior byte-for-behavior.
  *
  * @return array{count:int,reached:bool}
  */
@@ -6114,14 +6243,35 @@ function ll_tools_count_category_rows_to_threshold_bounded(
     bool $require_prompt_image,
     callable $is_promptable_row,
     int $stop_at,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    ?array &$resume_context = null
 ): array {
     global $wpdb;
 
     $complete = true;
     $stop_at = max(1, $stop_at);
-    $count = 0;
+    $resumable = is_array($resume_context)
+        && !empty($resume_context['enabled'])
+        && (int) ($resume_context['schema'] ?? 0) === 1;
+    $phase = $resumable ? sanitize_key((string) ($resume_context['phase'] ?? 'primary')) : 'primary';
+    if ($phase === '') {
+        $phase = 'primary';
+    }
+    $phase_state = $resumable && isset($resume_context['phases'][$phase]) && is_array($resume_context['phases'][$phase])
+        ? $resume_context['phases'][$phase]
+        : [];
+    $count = $resumable ? max(0, (int) ($phase_state['count'] ?? 0)) : 0;
     $seen_ids = [];
+    if ($resumable) {
+        foreach ((array) ($phase_state['seen_ids'] ?? []) as $seen_id_raw) {
+            $seen_id = (int) $seen_id_raw;
+            if ($seen_id > 0) {
+                $seen_ids[$seen_id] = true;
+            }
+        }
+        $resume_context['budget_exhausted'] = false;
+        $resume_context['failure_reason'] = '';
+    }
     $prompt_cards = [];
     $consume = static function (array $candidate_ids) use (
         $category_name,
@@ -6174,47 +6324,38 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         return $count >= $stop_at;
     };
 
-    $prompt_answer_ids = [];
-    $prompt_support_lookup = [];
-    if (function_exists('ll_tools_get_prompt_card_reference_data_for_category_context')) {
-        $prompt_cards_complete = true;
-        $prompt_cards = ll_tools_get_prompt_card_reference_data_for_category_context(
-            $category_context,
-            $wordset_terms,
-            ll_tools_quiz_prompt_type_has_audio($prompt_type),
-            $prompt_cards_complete
-        );
-        if (!$prompt_cards_complete) {
-            $complete = false;
-            return ['count' => 0, 'reached' => false];
+    $persist_resume_state = static function () use (
+        &$resume_context,
+        $resumable,
+        $phase,
+        &$phase_state,
+        &$count,
+        &$seen_ids
+    ): void {
+        if (!$resumable || !is_array($resume_context)) {
+            return;
         }
-        foreach ((array) $prompt_cards as $card) {
-            if (!is_array($card)) {
-                continue;
-            }
-            $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
-            if ($answer_word_id > 0) {
-                $prompt_answer_ids[] = $answer_word_id;
-                $prompt_support_lookup[$answer_word_id] = true;
-            }
-            $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
-            if ($prompt_image_word_id > 0) {
-                $prompt_support_lookup[$prompt_image_word_id] = true;
-            }
-            foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
-                $wrong_word_id = (int) $wrong_word_id_raw;
-                if ($wrong_word_id > 0) {
-                    $prompt_support_lookup[$wrong_word_id] = true;
-                }
-            }
-        }
-    }
+        $phase_state['schema'] = 1;
+        $phase_state['count'] = max(0, (int) $count);
+        $phase_state['seen_ids'] = array_values(array_map('intval', array_keys($seen_ids)));
+        $resume_context['phases'][$phase] = $phase_state;
+    };
 
-    if (!empty($prompt_answer_ids) && $consume($prompt_answer_ids)) {
-        return ['count' => $stop_at, 'reached' => true];
-    }
-    if (!$complete) {
+    $mark_budget_exhausted = static function () use (&$resume_context, $resumable, &$complete, $persist_resume_state): array {
+        if ($resumable && is_array($resume_context)) {
+            $resume_context['budget_exhausted'] = true;
+            $resume_context['failure_reason'] = 'budget';
+        }
+        $complete = false;
+        $persist_resume_state();
         return ['count' => 0, 'reached' => false];
+    };
+
+    if ($resumable && !empty($phase_state['source_complete'])) {
+        return [
+            'count' => min($count, $stop_at),
+            'reached' => $count >= $stop_at,
+        ];
     }
 
     $term_id = (int) ($category_context['term_id'] ?? 0);
@@ -6224,8 +6365,249 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         $term_id,
         $wordset_terms
     )));
+    $prompt_answer_ids = [];
+    $prompt_support_lookup = [];
+    if ($resumable) {
+        if (!isset($resume_context['budget']) || !is_array($resume_context['budget'])) {
+            $resume_context['budget'] = [];
+        }
+        $budget = &$resume_context['budget'];
+        $budget['max_raw_queries'] = max(1, (int) ($budget['max_raw_queries'] ?? 1));
+        $budget['max_raw_rows'] = max(1, (int) ($budget['max_raw_rows'] ?? 25));
+        $budget['raw_queries_used'] = max(0, (int) ($budget['raw_queries_used'] ?? 0));
+        $budget['raw_rows_used'] = max(0, (int) ($budget['raw_rows_used'] ?? 0));
+        $budget['max_prompt_queries'] = max(1, (int) ($budget['max_prompt_queries'] ?? $budget['max_raw_queries']));
+        $budget['max_prompt_cards'] = max(1, (int) ($budget['max_prompt_cards'] ?? $budget['max_raw_rows']));
+        $budget['prompt_queries_used'] = max(0, (int) ($budget['prompt_queries_used'] ?? 0));
+        $budget['prompt_cards_used'] = max(0, (int) ($budget['prompt_cards_used'] ?? 0));
+
+        foreach ((array) ($phase_state['prompt_support_ids'] ?? []) as $support_word_id_raw) {
+            $support_word_id = (int) $support_word_id_raw;
+            if ($support_word_id > 0) {
+                $prompt_support_lookup[$support_word_id] = true;
+            }
+        }
+        $prompt_support_limit = min(5000, max(50, (int) apply_filters(
+            'll_tools_quiz_eligibility_resume_support_limit',
+            1000,
+            $term_id,
+            $wordset_terms
+        )));
+        $prompt_cursor_id = max(0, (int) ($phase_state['prompt_cursor_id'] ?? 0));
+        $prompt_source_complete = !empty($phase_state['prompt_source_complete'])
+            || !function_exists('ll_tools_get_prompt_card_reference_data_for_ids');
+        while (!$prompt_source_complete) {
+            $remaining_queries = $budget['max_prompt_queries'] - $budget['prompt_queries_used'];
+            $remaining_rows = $budget['max_prompt_cards'] - $budget['prompt_cards_used'];
+            if ($remaining_queries <= 0 || $remaining_rows <= 0) {
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                return $mark_budget_exhausted();
+            }
+
+            $query_limit = min($batch_size, $remaining_rows);
+            $prompt_ids_complete = true;
+            $prompt_card_ids = ll_tools_get_quiz_eligibility_prompt_card_id_batch(
+                $term_id,
+                $wordset_terms,
+                $prompt_cursor_id,
+                $query_limit,
+                $prompt_ids_complete
+            );
+            $budget['prompt_queries_used']++;
+            if (!$prompt_ids_complete) {
+                $complete = false;
+                $resume_context['failure_reason'] = 'prompt_card_query';
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+
+            $prompt_card_count = count($prompt_card_ids);
+            $budget['prompt_cards_used'] += $prompt_card_count;
+            $prompt_batch_cursor_id = $prompt_card_count > 0
+                ? max($prompt_cursor_id, (int) end($prompt_card_ids))
+                : $prompt_cursor_id;
+            $prompt_cards_complete = true;
+            $prompt_cards = ll_tools_get_prompt_card_reference_data_for_ids(
+                $prompt_card_ids,
+                ll_tools_quiz_prompt_type_has_audio($prompt_type),
+                $prompt_cards_complete
+            );
+            if (!$prompt_cards_complete) {
+                $complete = false;
+                $resume_context['failure_reason'] = 'prompt_card_data';
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+
+            $prompt_answer_ids = [];
+            $prompt_support_lookup_before_page = $prompt_support_lookup;
+            foreach ((array) $prompt_cards as $card) {
+                if (!is_array($card)) {
+                    continue;
+                }
+                $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+                if ($answer_word_id > 0) {
+                    $prompt_answer_ids[] = $answer_word_id;
+                    $prompt_support_lookup[$answer_word_id] = true;
+                }
+                $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+                if ($prompt_image_word_id > 0) {
+                    $prompt_support_lookup[$prompt_image_word_id] = true;
+                }
+                foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                    $wrong_word_id = (int) $wrong_word_id_raw;
+                    if ($wrong_word_id > 0) {
+                        $prompt_support_lookup[$wrong_word_id] = true;
+                    }
+                }
+            }
+            if (count($prompt_support_lookup) > $prompt_support_limit) {
+                $prompt_support_lookup = $prompt_support_lookup_before_page;
+                $complete = false;
+                $resume_context['failure_reason'] = 'state_limit';
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+            if (!empty($prompt_answer_ids) && $consume($prompt_answer_ids)) {
+                $prompt_cursor_id = $prompt_batch_cursor_id;
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_resume_state();
+                return ['count' => $stop_at, 'reached' => true];
+            }
+            if (!$complete) {
+                $resume_context['failure_reason'] = 'candidate_projection';
+                $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+
+            $prompt_cursor_id = $prompt_batch_cursor_id;
+            $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
+            $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+            if ($prompt_card_count < $query_limit) {
+                $prompt_source_complete = true;
+                $phase_state['prompt_source_complete'] = true;
+            }
+            $persist_resume_state();
+        }
+
+        // Every prompt-card support word was already projected with its bounded
+        // card page. Excluding it from the raw pass prevents a context-free
+        // duplicate while keeping the persisted state to compact integer IDs.
+        $prompt_cards = [];
+    } else {
+        if (function_exists('ll_tools_get_prompt_card_reference_data_for_category_context')) {
+            $prompt_cards_complete = true;
+            $prompt_cards = ll_tools_get_prompt_card_reference_data_for_category_context(
+                $category_context,
+                $wordset_terms,
+                ll_tools_quiz_prompt_type_has_audio($prompt_type),
+                $prompt_cards_complete
+            );
+            if (!$prompt_cards_complete) {
+                $complete = false;
+                return ['count' => 0, 'reached' => false];
+            }
+            foreach ((array) $prompt_cards as $card) {
+                if (!is_array($card)) {
+                    continue;
+                }
+                $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+                if ($answer_word_id > 0) {
+                    $prompt_answer_ids[] = $answer_word_id;
+                    $prompt_support_lookup[$answer_word_id] = true;
+                }
+                $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+                if ($prompt_image_word_id > 0) {
+                    $prompt_support_lookup[$prompt_image_word_id] = true;
+                }
+                foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                    $wrong_word_id = (int) $wrong_word_id_raw;
+                    if ($wrong_word_id > 0) {
+                        $prompt_support_lookup[$wrong_word_id] = true;
+                    }
+                }
+            }
+        }
+        if (!empty($prompt_answer_ids) && $consume($prompt_answer_ids)) {
+            return ['count' => $stop_at, 'reached' => true];
+        }
+        if (!$complete) {
+            return ['count' => 0, 'reached' => false];
+        }
+    }
+
     $page = 1;
     $track_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    if ($resumable) {
+        $raw_cursor_id = max(0, (int) ($phase_state['raw_cursor_id'] ?? 0));
+        while (true) {
+            $remaining_queries = $budget['max_raw_queries'] - $budget['raw_queries_used'];
+            $remaining_rows = $budget['max_raw_rows'] - $budget['raw_rows_used'];
+            if ($remaining_queries <= 0 || $remaining_rows <= 0) {
+                $phase_state['raw_cursor_id'] = $raw_cursor_id;
+                return $mark_budget_exhausted();
+            }
+
+            $query_limit = min($batch_size, $remaining_rows);
+            $raw_complete = true;
+            $batch_ids = ll_tools_get_quiz_eligibility_raw_word_id_batch(
+                $term_id,
+                $wordset_terms,
+                $raw_cursor_id,
+                $query_limit,
+                $raw_complete
+            );
+            $budget['raw_queries_used']++;
+            if (!$raw_complete) {
+                $complete = false;
+                $resume_context['failure_reason'] = 'raw_word_query';
+                $phase_state['raw_cursor_id'] = $raw_cursor_id;
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+
+            $raw_batch_count = count($batch_ids);
+            $budget['raw_rows_used'] += $raw_batch_count;
+            $batch_cursor_id = $raw_batch_count > 0
+                ? max($raw_cursor_id, (int) end($batch_ids))
+                : $raw_cursor_id;
+            if (($resumable || $track_support_only) && !empty($prompt_support_lookup)) {
+                $batch_ids = array_values(array_filter($batch_ids, static function (int $word_id) use ($prompt_support_lookup): bool {
+                    return empty($prompt_support_lookup[$word_id]);
+                }));
+            }
+            if (!empty($batch_ids) && $consume($batch_ids)) {
+                $raw_cursor_id = $batch_cursor_id;
+                $phase_state['raw_cursor_id'] = $raw_cursor_id;
+                $persist_resume_state();
+                return ['count' => $stop_at, 'reached' => true];
+            }
+            if (!$complete) {
+                $resume_context['failure_reason'] = 'candidate_projection';
+                $persist_resume_state();
+                return ['count' => 0, 'reached' => false];
+            }
+            $raw_cursor_id = $batch_cursor_id;
+            $phase_state['raw_cursor_id'] = $raw_cursor_id;
+            $persist_resume_state();
+            if ($raw_batch_count < $query_limit) {
+                $phase_state['source_complete'] = true;
+                $persist_resume_state();
+                return ['count' => $count, 'reached' => false];
+            }
+        }
+    }
+
     while (true) {
         $query_args = [
             'post_type'              => 'words',
@@ -6293,7 +6675,15 @@ function ll_tools_count_category_rows_to_threshold_bounded(
  * This is primarily used by category list / mode-selection code paths that only
  * need counts to decide eligibility or fallback modes.
  */
-function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = [], ?bool &$complete = null, int $stop_at = 0) {
+function ll_get_words_by_category_count(
+    $categoryName,
+    $displayMode = 'image',
+    $wordset_id = null,
+    $quiz_config = [],
+    ?bool &$complete = null,
+    int $stop_at = 0,
+    ?array &$resume_context = null
+) {
     $complete = true;
     $sources_complete = true;
     $category_context = ll_tools_get_word_category_query_context($categoryName);
@@ -6505,7 +6895,8 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
             $require_prompt_image,
             $is_promptable_row,
             $stop_at,
-            $bounded_complete
+            $bounded_complete,
+            $resume_context
         );
         if (!$bounded_complete) {
             $complete = false;
@@ -8752,7 +9143,13 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
  * @param array|int $wordset_ids Optional wordset term IDs to scope counts.
  * @return bool True if the category can generate a quiz, false otherwise.
  */
-function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_ids = [], ?bool &$complete = null) {
+function ll_can_category_generate_quiz(
+    $category,
+    $min_word_count = 5,
+    $wordset_ids = [],
+    ?bool &$complete = null,
+    ?array &$resume_context = null
+) {
     global $wpdb;
 
     $complete = true;
@@ -8885,6 +9282,10 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         }
     }
 
+    if (is_array($resume_context) && !empty($resume_context['enabled'])) {
+        $resume_context['schema'] = 1;
+        $resume_context['phase'] = 'primary';
+    }
     $primary_complete = true;
     $primary_count = ll_get_words_by_category_count(
         $term,
@@ -8892,7 +9293,8 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         $wordset_ids,
         $config,
         $primary_complete,
-        $min_word_count
+        $min_word_count,
+        $resume_context
     );
     if (!$primary_complete) {
         $complete = false;
@@ -8912,6 +9314,9 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
     if (in_array($option_type, ['audio', 'text_audio'], true)) {
         $fallback_config = $config;
         $fallback_config['option_type'] = 'text_translation';
+        if (is_array($resume_context) && !empty($resume_context['enabled'])) {
+            $resume_context['phase'] = 'fallback';
+        }
         $fallback_complete = true;
         $text_count = ll_get_words_by_category_count(
             $term,
@@ -8919,7 +9324,8 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
             $wordset_ids,
             $fallback_config,
             $fallback_complete,
-            $min_word_count
+            $min_word_count,
+            $resume_context
         );
         if (!$fallback_complete) {
             $complete = false;
