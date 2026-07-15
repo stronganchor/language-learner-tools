@@ -5288,26 +5288,130 @@ function ll_tools_normalize_recommendation_activity($raw): ?array {
     return $activity;
 }
 
-function ll_tools_repair_recommendation_activity_for_isolation($raw, int $wordset_id): ?array {
+/**
+ * Classify category references before an isolation repair.
+ *
+ * Recommendation activities are derived, regenerable scheduling hints. A
+ * definitely deleted category makes the whole saved activity stale, but a
+ * lookup error must remain fail-closed so migration never mistakes a storage
+ * failure for safe cleanup.
+ *
+ * @return string One of valid, missing, or error.
+ */
+function ll_tools_recommendation_activity_category_reference_state_for_isolation($raw): string {
     if (!is_array($raw)) {
+        return 'valid';
+    }
+
+    $raw_category_ids = (array) ($raw['category_ids'] ?? []);
+    // One activity has at most thirty session words, so more category
+    // references cannot be legitimate generated state. Reject before queries.
+    if (count($raw_category_ids) > 30) {
+        return 'error';
+    }
+
+    $category_ids = ll_tools_recommendation_activity_category_ids([
+        'category_ids' => $raw_category_ids,
+    ]);
+    if (empty($category_ids)) {
+        return 'valid';
+    }
+
+    global $wpdb;
+    $placeholders = implode(', ', array_fill(0, count($category_ids), '%d'));
+    $sql = $wpdb->prepare(
+        "SELECT term_id
+         FROM {$wpdb->term_taxonomy}
+         WHERE taxonomy = %s
+           AND term_id IN ({$placeholders})
+         /* ll_tools_recommendation_category_reference_state */",
+        array_merge(['word-category'], $category_ids)
+    );
+    if (!is_string($sql) || $sql === '') {
+        return 'error';
+    }
+
+    $found_ids = $wpdb->get_col($sql);
+    if ($wpdb->last_error !== '' || !is_array($found_ids)) {
+        return 'error';
+    }
+    $found_ids = array_values(array_unique(array_filter(array_map('intval', $found_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+
+    return count($found_ids) === count($category_ids) ? 'valid' : 'missing';
+}
+
+function ll_tools_repair_recommendation_activity_for_isolation($raw, int $wordset_id, ?string &$repair_status = null): ?array {
+    $repair_status = 'ok';
+    if (!is_array($raw)) {
+        $repair_status = 'dropped';
         return null;
     }
 
-    if ($wordset_id > 0 && !empty($raw['category_ids']) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
-        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset((array) $raw['category_ids'], $wordset_id, true);
-        if (!empty($repaired_category_ids)) {
-            $raw['category_ids'] = $repaired_category_ids;
+    $category_reference_state = $wordset_id > 0
+        ? ll_tools_recommendation_activity_category_reference_state_for_isolation($raw)
+        : 'valid';
+    if ($category_reference_state === 'missing') {
+        $repair_status = 'dropped';
+        return null;
+    }
+
+    if ($category_reference_state === 'error') {
+        $repair_status = 'error';
+    }
+
+    if (
+        $wordset_id > 0
+        && $category_reference_state === 'valid'
+        && !empty($raw['category_ids'])
+    ) {
+        if (!function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete')) {
+            $repair_status = 'error';
+        } else {
+            $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
+                (array) $raw['category_ids'],
+                $wordset_id,
+                true
+            );
+            if (is_array($repaired_category_ids) && !empty($repaired_category_ids)) {
+                $raw['category_ids'] = $repaired_category_ids;
+            } else {
+                $repair_status = 'error';
+            }
         }
     }
 
     unset($raw['queue_id']);
-    return ll_tools_normalize_recommendation_activity($raw);
+    $normalized = ll_tools_normalize_recommendation_activity($raw);
+    if ($normalized === null && $repair_status === 'ok') {
+        $repair_status = 'dropped';
+    }
+    return $normalized;
 }
 
-function ll_tools_repair_recommendation_queue_for_isolation(array $raw_queue, int $wordset_id, int $limit = 8): array {
+function ll_tools_repair_recommendation_queue_for_isolation(
+    array $raw_queue,
+    int $wordset_id,
+    int $limit = 8,
+    ?string &$repair_status = null
+): array {
+    $repair_status = 'ok';
+    // Persisted recommendation queues are generated with at most eight items,
+    // and all queue helpers accept at most sixteen. Preserve an unexpected
+    // oversized value so callers can fail closed without scanning it.
+    if (count($raw_queue) > 16) {
+        $repair_status = 'error';
+        return $raw_queue;
+    }
+
     $repaired = [];
     foreach ($raw_queue as $raw_activity) {
-        $activity = ll_tools_repair_recommendation_activity_for_isolation($raw_activity, $wordset_id);
+        $activity_status = null;
+        $activity = ll_tools_repair_recommendation_activity_for_isolation($raw_activity, $wordset_id, $activity_status);
+        if ($activity_status === 'error') {
+            $repair_status = 'error';
+        }
         if ($activity) {
             $repaired[] = $activity;
         }
@@ -5320,7 +5424,7 @@ function ll_tools_normalize_recommendation_queue(array $raw_queue, int $limit = 
     $out = [];
     $seen = [];
     $max_items = max(1, min(16, (int) $limit));
-    foreach ($raw_queue as $raw_activity) {
+    foreach (array_slice($raw_queue, 0, 16) as $raw_activity) {
         $activity = ll_tools_normalize_recommendation_activity($raw_activity);
         if (!$activity) {
             continue;
@@ -5764,25 +5868,90 @@ function ll_tools_defer_user_recommendation_activity($activity, $user_id = 0, $w
     return ll_tools_save_user_recommendation_deferrals($deferrals, $uid, $wordset_id);
 }
 
+/**
+ * Replace one user-meta value only when the exact value read by the caller is
+ * still current. This keeps read-time recommendation repair from overwriting a
+ * queue regenerated by another request between the read and write.
+ */
+function ll_tools_user_progress_compare_and_swap_user_meta(
+    int $user_id,
+    string $meta_key,
+    $before,
+    $expected,
+    bool $delete_expected = false
+): bool {
+    if (!$delete_expected && $before === $expected) {
+        return true;
+    }
+
+    if ($delete_expected) {
+        delete_user_meta($user_id, $meta_key, $before);
+        wp_cache_delete($user_id, 'user_meta');
+        return !metadata_exists('user', $user_id, $meta_key);
+    }
+
+    update_user_meta($user_id, $meta_key, $expected, $before);
+    wp_cache_delete($user_id, 'user_meta');
+    return get_user_meta($user_id, $meta_key, true) === $expected;
+}
+
 function ll_tools_get_user_recommendation_queue($user_id = 0, $wordset_id = 0): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     $wordset_id = (int) $wordset_id;
     if ($uid <= 0 || $wordset_id <= 0) {
         return [];
     }
-    $raw = get_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true);
-    if (!is_array($raw)) {
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $raw = get_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true);
+        if (!is_array($raw)) {
+            return [];
+        }
+        $queue_raw = isset($raw[(string) $wordset_id]) && is_array($raw[(string) $wordset_id])
+            ? $raw[(string) $wordset_id]
+            : [];
+        if (count($queue_raw) > 16) {
+            // Do not serve a partial unverified view. Preserve the stored value
+            // for migration diagnostics and let the caller regenerate a queue.
+            return [];
+        }
+        $repair_status = null;
+        $queue = ll_tools_repair_recommendation_queue_for_isolation($queue_raw, $wordset_id, 8, $repair_status);
+        if ($repair_status === 'error') {
+            return [];
+        }
+        if ($queue === $queue_raw) {
+            return ll_tools_recommendation_queue_ensure_length($queue, 8);
+        }
+
+        $expected = $raw;
+        $expected[(string) $wordset_id] = $queue;
+        if (ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_RECOMMENDATION_QUEUE_META,
+            $raw,
+            $expected
+        )) {
+            return ll_tools_recommendation_queue_ensure_length($queue, 8);
+        }
+    }
+
+    // A second concurrent writer wins. Return a bounded repaired view of the
+    // newest value without making a third write attempt.
+    $latest = get_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true);
+    if (!is_array($latest)) {
         return [];
     }
-    $queue_raw = isset($raw[(string) $wordset_id]) && is_array($raw[(string) $wordset_id])
-        ? $raw[(string) $wordset_id]
+    $latest_queue = isset($latest[(string) $wordset_id]) && is_array($latest[(string) $wordset_id])
+        ? $latest[(string) $wordset_id]
         : [];
-    $queue = ll_tools_repair_recommendation_queue_for_isolation($queue_raw, $wordset_id, 8);
-    if ($queue !== $queue_raw) {
-        $raw[(string) $wordset_id] = $queue;
-        update_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $raw);
+    if (count($latest_queue) > 16) {
+        return [];
     }
-    return ll_tools_recommendation_queue_ensure_length($queue, 8);
+    $repair_status = null;
+    $repaired_queue = ll_tools_repair_recommendation_queue_for_isolation($latest_queue, $wordset_id, 8, $repair_status);
+    return $repair_status === 'error'
+        ? []
+        : ll_tools_recommendation_queue_ensure_length($repaired_queue, 8);
 }
 
 function ll_tools_save_user_recommendation_queue(array $queue, $user_id = 0, $wordset_id = 0): array {
@@ -5795,7 +5964,16 @@ function ll_tools_save_user_recommendation_queue(array $queue, $user_id = 0, $wo
     if (!is_array($raw)) {
         $raw = [];
     }
-    $normalized = ll_tools_repair_recommendation_queue_for_isolation($queue, $wordset_id);
+    $repair_status = null;
+    $normalized = ll_tools_repair_recommendation_queue_for_isolation(
+        ll_tools_normalize_recommendation_queue($queue, 16),
+        $wordset_id,
+        8,
+        $repair_status
+    );
+    if ($repair_status === 'error') {
+        return [];
+    }
     $raw[(string) $wordset_id] = $normalized;
     update_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $raw);
     return $normalized;
@@ -5808,26 +5986,48 @@ function ll_tools_get_user_last_recommendation_activity($user_id = 0, $wordset_i
         return null;
     }
 
-    $raw = get_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true);
-    if (!is_array($raw)) {
-        return null;
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $raw = get_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true);
+        if (!is_array($raw)) {
+            return null;
+        }
+
+        $entry = isset($raw[(string) $wordset_id]) ? $raw[(string) $wordset_id] : null;
+        $repair_status = null;
+        $normalized = ll_tools_repair_recommendation_activity_for_isolation($entry, $wordset_id, $repair_status);
+        if ($repair_status === 'error') {
+            return null;
+        }
+        if ($normalized === $entry) {
+            return $normalized ?: null;
+        }
+
+        $expected = $raw;
+        if ($normalized) {
+            $expected[(string) $wordset_id] = $normalized;
+        } else {
+            unset($expected[(string) $wordset_id]);
+        }
+        $delete_expected = empty($expected);
+        if (ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_LAST_RECOMMENDATION_META,
+            $raw,
+            $expected,
+            $delete_expected
+        )) {
+            return $normalized ?: null;
+        }
     }
 
-    $entry = isset($raw[(string) $wordset_id]) ? $raw[(string) $wordset_id] : null;
-    $normalized = ll_tools_repair_recommendation_activity_for_isolation($entry, $wordset_id);
-    if ($normalized !== $entry) {
-        if ($normalized) {
-            $raw[(string) $wordset_id] = $normalized;
-        } else {
-            unset($raw[(string) $wordset_id]);
-        }
-        if (empty($raw)) {
-            delete_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META);
-        } else {
-            update_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META, $raw);
-        }
+    $latest = get_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true);
+    if (!is_array($latest)) {
+        return null;
     }
-    return $normalized ?: null;
+    $latest_entry = isset($latest[(string) $wordset_id]) ? $latest[(string) $wordset_id] : null;
+    $repair_status = null;
+    $normalized = ll_tools_repair_recommendation_activity_for_isolation($latest_entry, $wordset_id, $repair_status);
+    return $repair_status === 'error' ? null : $normalized;
 }
 
 function ll_tools_save_user_last_recommendation_activity($activity, $user_id = 0, $wordset_id = 0): ?array {
@@ -5842,7 +6042,11 @@ function ll_tools_save_user_last_recommendation_activity($activity, $user_id = 0
         $raw = [];
     }
 
-    $normalized = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id);
+    $repair_status = null;
+    $normalized = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id, $repair_status);
+    if ($repair_status === 'error') {
+        return null;
+    }
     if ($normalized) {
         $raw[(string) $wordset_id] = $normalized;
     } else {

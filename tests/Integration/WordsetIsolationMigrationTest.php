@@ -1042,6 +1042,578 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertArrayHasKey((string) $wordset_id, (array) get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
     }
 
+    public function test_deleted_category_recommendation_activities_are_dropped_while_valid_siblings_are_remapped(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Stale Recommendation Wordset', 'stale-recommendation-wordset');
+        $live_category_id = $this->ensure_term('word-category', 'Live Recommendation Category', 'live-recommendation-category');
+        $deleted_category_id = $this->ensure_term('word-category', 'Deleted Recommendation Category', 'deleted-recommendation-category');
+        $word_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $word_ids[] = $this->createWordInWordsetCategory(
+                'Stale Recommendation Word ' . $index,
+                $wordset_id,
+                $live_category_id
+            );
+        }
+
+        $valid_activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$live_category_id],
+            'session_word_ids' => $word_ids,
+            'details' => [],
+        ];
+        $deleted_activity = $valid_activity;
+        $deleted_activity['category_ids'] = [$deleted_category_id];
+        $mixed_activity = $valid_activity;
+        $mixed_activity['category_ids'] = [$live_category_id, $deleted_category_id];
+
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, [
+            (string) $wordset_id => [$valid_activity, $deleted_activity, $mixed_activity],
+        ]);
+        update_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, [
+            (string) $wordset_id => $deleted_activity,
+        ]);
+        $deleted = wp_delete_term($deleted_category_id, 'word-category');
+        $this->assertNotWPError($deleted);
+        $this->assertNotFalse($deleted);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $this->assertSame('valid', ll_tools_recommendation_activity_category_reference_state_for_isolation($valid_activity));
+        $this->assertSame('missing', ll_tools_recommendation_activity_category_reference_state_for_isolation($deleted_activity));
+        $this->assertSame('missing', ll_tools_recommendation_activity_category_reference_state_for_isolation($mixed_activity));
+        $this->assertNull(ll_tools_repair_recommendation_activity_for_isolation($deleted_activity, $wordset_id));
+        $this->assertNull(ll_tools_repair_recommendation_activity_for_isolation($mixed_activity, $wordset_id));
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+        $this->assertSame('running', $state['status']);
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($live_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        $stored_queues = get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true);
+        $this->assertIsArray($stored_queues);
+        $this->assertArrayHasKey((string) $wordset_id, $stored_queues);
+        $this->assertCount(1, $stored_queues[(string) $wordset_id]);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($stored_queues[(string) $wordset_id][0]['category_ids'] ?? [])));
+        $this->assertSame($word_ids, array_map('intval', (array) ($stored_queues[(string) $wordset_id][0]['session_word_ids'] ?? [])));
+        $this->assertNotSame('', (string) ($stored_queues[(string) $wordset_id][0]['queue_id'] ?? ''));
+        $this->assertArrayNotHasKey((string) $wordset_id, (array) get_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true));
+        $this->assertSame(2, (int) ($state['counters']['user_data_repaired'] ?? 0));
+
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, [
+            (string) $wordset_id => [$deleted_activity],
+        ]);
+        update_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, [
+            (string) $wordset_id => $deleted_activity,
+        ]);
+        $this->assertSame([], ll_tools_get_user_recommendation_queue($user_id, $wordset_id));
+        $this->assertSame([], (array) (get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true)[(string) $wordset_id] ?? []));
+        $this->assertNull(ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id));
+        $this->assertSame('', get_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true));
+    }
+
+    public function test_deleted_category_recommendation_cleanup_preserves_a_concurrent_queue_write(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Stale Recommendation CAS Wordset', 'stale-recommendation-cas-wordset');
+        $deleted_category_id = $this->ensure_term('word-category', 'Stale Recommendation CAS Category', 'stale-recommendation-cas-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$deleted_category_id],
+            'session_word_ids' => [101, 102, 103, 104, 105],
+            'details' => [],
+        ];
+        $before = [(string) $wordset_id => [$activity]];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $before);
+        $deleted = wp_delete_term($deleted_category_id, 'word-category');
+        $this->assertNotWPError($deleted);
+        $this->assertNotFalse($deleted);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $concurrent_activity = $activity;
+        $concurrent_activity['category_ids'] = [];
+        $concurrent_activity['reason_code'] = 'concurrent_refresh';
+        $concurrent_value = [(string) $wordset_id => [$concurrent_activity]];
+        $interleave = null;
+        $observed_previous = null;
+        $interleave = static function ($check, $object_id, $meta_key, $meta_value, $previous_value) use (&$interleave, &$observed_previous, $user_id, $concurrent_value) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) {
+                return $check;
+            }
+            remove_filter('update_user_metadata', $interleave, 10);
+            $observed_previous = $previous_value;
+            update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $concurrent_value);
+            return $check;
+        };
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 77;
+        add_filter('update_user_metadata', $interleave, 10, 5);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('update_user_metadata', $interleave, 10);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(77, (int) $state['cursor']);
+        $this->assertSame($before, $observed_previous);
+        $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
+    public function test_recommendation_category_lookup_errors_never_trigger_partial_stale_cleanup(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Lookup Error Wordset', 'recommendation-lookup-error-wordset');
+        $first_category_id = $this->ensure_term('word-category', 'Recommendation Lookup First', 'recommendation-lookup-first');
+        $error_category_id = $this->ensure_term('word-category', 'Recommendation Lookup Error', 'recommendation-lookup-error');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$first_category_id, $error_category_id],
+            'session_word_ids' => [201, 202, 203, 204, 205],
+            'details' => [],
+        ];
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $force_lookup_error = static function ($term, $taxonomy) use ($error_category_id) {
+            if (
+                $taxonomy === 'word-category'
+                && $term instanceof WP_Term
+                && (int) $term->term_id === $error_category_id
+            ) {
+                return new WP_Error('forced_recommendation_category_lookup_error');
+            }
+            return $term;
+        };
+
+        add_filter('get_term', $force_lookup_error, 10, 2);
+        try {
+            $this->assertSame('valid', ll_tools_recommendation_activity_category_reference_state_for_isolation($activity));
+            $repaired = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id);
+            $state = ll_tools_wordset_isolation_migration_new_state();
+            $state['status'] = 'running';
+            $state['phase'] = 'users';
+            $preflight = ll_tools_wordset_isolation_migration_preflight_recommendation_activity(
+                $activity,
+                $wordset_id,
+                $user_id,
+                $state
+            );
+        } finally {
+            remove_filter('get_term', $force_lookup_error, 10);
+        }
+
+        $this->assertIsArray($repaired);
+        $this->assertSame([$first_category_id, $error_category_id], array_map('intval', (array) ($repaired['category_ids'] ?? [])));
+        $this->assertFalse($preflight);
+        $this->assertSame('failed', $state['status']);
+        $this->assertGreaterThan(0, ll_tools_get_existing_isolated_category_copy_id($first_category_id, $wordset_id));
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($error_category_id, $wordset_id));
+    }
+
+    public function test_recommendation_category_database_errors_fail_closed_without_partial_cleanup(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Database Error Wordset', 'recommendation-database-error-wordset');
+        $category_id = $this->ensure_term('word-category', 'Recommendation Database Error Category', 'recommendation-database-error-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => [211, 212, 213, 214, 215],
+            'details' => [],
+        ];
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $failed_queries = 0;
+        $break_lookup = static function (string $sql) use ($wpdb, &$failed_queries): string {
+            if (strpos($sql, 'll_tools_recommendation_category_reference_state') === false) {
+                return $sql;
+            }
+            $failed_queries++;
+            return "SELECT ll_tools_missing_category_column FROM {$wpdb->term_taxonomy} /* ll_tools_recommendation_category_reference_state */";
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_lookup);
+        try {
+            $reference_state = ll_tools_recommendation_activity_category_reference_state_for_isolation($activity);
+            $repaired = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id);
+            $preflight = ll_tools_wordset_isolation_migration_preflight_recommendation_activity(
+                $activity,
+                $wordset_id,
+                $user_id,
+                $state
+            );
+        } finally {
+            remove_filter('query', $break_lookup);
+            $wpdb->get_var('SELECT 1');
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertSame('error', $reference_state);
+        $this->assertIsArray($repaired);
+        $this->assertSame([$category_id], array_map('intval', (array) ($repaired['category_ids'] ?? [])));
+        $this->assertFalse($preflight);
+        $this->assertSame('failed', $state['status']);
+        $this->assertGreaterThanOrEqual(3, $failed_queries);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($category_id, $wordset_id));
+    }
+
+    public function test_recommendation_repair_time_database_error_stops_migration_without_writing(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Repair Error Wordset', 'recommendation-repair-error-wordset');
+        $category_id = $this->ensure_term('word-category', 'Recommendation Repair Error Category', 'recommendation-repair-error-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => [216, 217, 218, 219, 220],
+            'details' => [],
+        ];
+        $before = [(string) $wordset_id => [$activity]];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $before);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $classifier_queries = 0;
+        $break_repair_lookup = static function (string $sql) use ($wpdb, &$classifier_queries): string {
+            if (strpos($sql, 'll_tools_recommendation_category_reference_state') === false) {
+                return $sql;
+            }
+            $classifier_queries++;
+            if ($classifier_queries === 3) {
+                return "SELECT ll_tools_missing_category_column FROM {$wpdb->term_taxonomy} /* ll_tools_recommendation_category_reference_state */";
+            }
+            return $sql;
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_repair_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_repair_lookup);
+            $wpdb->get_var('SELECT 1');
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(3, $classifier_queries);
+        $this->assertSame($before, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
+    public function test_recommendation_partial_mapping_failure_preserves_the_complete_category_list(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Complete Mapping Wordset', 'recommendation-complete-mapping-wordset');
+        $first_category_id = $this->ensure_term('word-category', 'Recommendation Complete Mapping First', 'recommendation-complete-mapping-first');
+        $second_category_id = $this->ensure_term('word-category', 'Recommendation Complete Mapping Second', 'recommendation-complete-mapping-second');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$first_category_id, $second_category_id],
+            'session_word_ids' => [221, 222, 223, 224, 225],
+            'details' => [],
+        ];
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $second_slug = ll_tools_build_isolated_category_slug('recommendation-complete-mapping-second', $wordset_id);
+        $blocked_writes = 0;
+        $drop_second_owner = static function ($check, $object_id, $meta_key, $meta_value) use ($wordset_id, $second_slug, &$blocked_writes) {
+            if ($meta_key !== LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY || (int) $meta_value !== $wordset_id) {
+                return $check;
+            }
+            $term = get_term((int) $object_id, 'word-category');
+            if ($term instanceof WP_Term && $term->slug === $second_slug) {
+                $blocked_writes++;
+                return true;
+            }
+            return $check;
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        add_filter('update_term_metadata', $drop_second_owner, 10, 4);
+        try {
+            $repaired = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id);
+            $preflight = ll_tools_wordset_isolation_migration_preflight_recommendation_activity(
+                $activity,
+                $wordset_id,
+                $user_id,
+                $state
+            );
+        } finally {
+            remove_filter('update_term_metadata', $drop_second_owner, 10);
+        }
+
+        $this->assertIsArray($repaired);
+        $this->assertSame(
+            [$first_category_id, $second_category_id],
+            array_map('intval', (array) ($repaired['category_ids'] ?? []))
+        );
+        $this->assertFalse($preflight);
+        $this->assertSame('failed', $state['status']);
+        $this->assertGreaterThanOrEqual(1, $blocked_writes);
+        $this->assertGreaterThan(0, ll_tools_get_existing_isolated_category_copy_id($first_category_id, $wordset_id));
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($second_category_id, $wordset_id));
+    }
+
+    public function test_runtime_recommendation_queue_repair_preserves_a_concurrent_refresh(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Runtime Queue CAS Wordset', 'runtime-queue-cas-wordset');
+        $deleted_category_id = $this->ensure_term('word-category', 'Runtime Queue CAS Category', 'runtime-queue-cas-category');
+        $stale_activity = ll_tools_normalize_recommendation_activity([
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$deleted_category_id],
+            'session_word_ids' => [231, 232, 233, 234, 235],
+            'details' => [],
+        ]);
+        $before = [(string) $wordset_id => [$stale_activity]];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $before);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $concurrent_activity = ll_tools_normalize_recommendation_activity([
+            'type' => 'review_chunk',
+            'reason_code' => 'concurrent_refresh',
+            'mode' => 'practice',
+            'category_ids' => [],
+            'session_word_ids' => [241, 242, 243, 244, 245],
+            'details' => [],
+        ]);
+        $concurrent_value = [(string) $wordset_id => [$concurrent_activity]];
+        $observed_previous = null;
+        $raw_interleave_writes = null;
+        $interleave = null;
+        $interleave = static function ($check, $object_id, $meta_key, $meta_value, $previous_value) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) {
+                return $check;
+            }
+            remove_filter('update_user_metadata', $interleave, 10);
+            $observed_previous = $previous_value;
+            // Simulate another PHP request: update the row without invalidating
+            // this request's user-meta cache.
+            $raw_interleave_writes = $wpdb->update(
+                $wpdb->usermeta,
+                ['meta_value' => maybe_serialize($concurrent_value)],
+                [
+                    'user_id' => $user_id,
+                    'meta_key' => LL_TOOLS_USER_RECOMMENDATION_QUEUE_META,
+                ],
+                ['%s'],
+                ['%d', '%s']
+            );
+            return $check;
+        };
+        add_filter('update_user_metadata', $interleave, 10, 5);
+        try {
+            $queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
+        } finally {
+            remove_filter('update_user_metadata', $interleave, 10);
+        }
+
+        $this->assertSame($before, $observed_previous);
+        $this->assertSame(1, $raw_interleave_writes);
+        $this->assertNotEmpty($queue);
+        $this->assertSame('concurrent_refresh', (string) ($queue[0]['reason_code'] ?? ''));
+        $this->assertSame([241, 242, 243, 244, 245], array_map('intval', (array) ($queue[0]['session_word_ids'] ?? [])));
+        $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
+    public function test_runtime_last_recommendation_cleanup_preserves_a_concurrent_refresh(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Runtime Last CAS Wordset', 'runtime-last-cas-wordset');
+        $deleted_category_id = $this->ensure_term('word-category', 'Runtime Last CAS Category', 'runtime-last-cas-category');
+        $stale_activity = ll_tools_normalize_recommendation_activity([
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$deleted_category_id],
+            'session_word_ids' => [251, 252, 253, 254, 255],
+            'details' => [],
+        ]);
+        $before = [(string) $wordset_id => $stale_activity];
+        update_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, $before);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $concurrent_activity = ll_tools_normalize_recommendation_activity([
+            'type' => 'review_chunk',
+            'reason_code' => 'concurrent_refresh',
+            'mode' => 'practice',
+            'category_ids' => [],
+            'session_word_ids' => [261, 262, 263, 264, 265],
+            'details' => [],
+        ]);
+        $concurrent_value = [(string) $wordset_id => $concurrent_activity];
+        $observed_previous = null;
+        $raw_interleave_writes = null;
+        $interleave = null;
+        $interleave = static function ($delete, $object_id, $meta_key, $meta_value) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_LAST_RECOMMENDATION_META) {
+                return $delete;
+            }
+            remove_filter('delete_user_metadata', $interleave, 10);
+            $observed_previous = $meta_value;
+            $raw_interleave_writes = $wpdb->update(
+                $wpdb->usermeta,
+                ['meta_value' => maybe_serialize($concurrent_value)],
+                [
+                    'user_id' => $user_id,
+                    'meta_key' => LL_TOOLS_USER_LAST_RECOMMENDATION_META,
+                ],
+                ['%s'],
+                ['%d', '%s']
+            );
+            return $delete;
+        };
+        add_filter('delete_user_metadata', $interleave, 10, 5);
+        try {
+            $activity = ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id);
+        } finally {
+            remove_filter('delete_user_metadata', $interleave, 10);
+        }
+
+        $this->assertSame($before, $observed_previous);
+        $this->assertSame(1, $raw_interleave_writes);
+        $this->assertIsArray($activity);
+        $this->assertSame('concurrent_refresh', (string) ($activity['reason_code'] ?? ''));
+        $this->assertSame([261, 262, 263, 264, 265], array_map('intval', (array) ($activity['session_word_ids'] ?? [])));
+        $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, true));
+    }
+
+    public function test_recommendation_category_and_queue_inspection_limits_fail_closed(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Bounds Wordset', 'recommendation-bounds-wordset');
+        $category_id = $this->ensure_term('word-category', 'Recommendation Bounds Category', 'recommendation-bounds-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => array_fill(0, 31, $category_id),
+            'session_word_ids' => [271, 272, 273, 274, 275],
+            'details' => [],
+        ];
+        $queue_activity = $activity;
+        $queue_activity['category_ids'] = [$category_id];
+        $oversized_queue = array_fill(0, 17, $queue_activity);
+        $stored = [(string) $wordset_id => $oversized_queue];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $stored);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $reference_queries = 0;
+        $observe_queries = static function (string $sql) use (&$reference_queries): string {
+            if (strpos($sql, 'll_tools_recommendation_category_reference_state') !== false) {
+                $reference_queries++;
+            }
+            return $sql;
+        };
+        add_filter('query', $observe_queries);
+        try {
+            $this->assertSame('error', ll_tools_recommendation_activity_category_reference_state_for_isolation($activity));
+            $queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
+            $state = ll_tools_wordset_isolation_migration_new_state();
+            $state['status'] = 'running';
+            $state['phase'] = 'users';
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $observe_queries);
+        }
+
+        $this->assertSame([], $queue);
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(0, $reference_queries);
+        $this->assertSame($stored, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
+    public function test_exact_recommendation_snapshot_is_repreflighted_before_migration_write(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Recommendation Snapshot Wordset', 'recommendation-snapshot-wordset');
+        $category_id = $this->ensure_term('word-category', 'Recommendation Snapshot Category', 'recommendation-snapshot-category');
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$category_id],
+            'session_word_ids' => [281, 282, 283, 284, 285],
+            'details' => [],
+        ];
+        $before = [(string) $wordset_id => [$activity]];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $before);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $invalid_activity = $activity;
+        $invalid_activity['category_ids'] = array_fill(0, 31, $category_id);
+        $concurrent_value = [(string) $wordset_id => [$invalid_activity]];
+        $queue_reads = 0;
+        $interleave = null;
+        $interleave = static function ($value, $object_id, $meta_key) use (&$interleave, &$queue_reads, $user_id, $concurrent_value) {
+            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) {
+                return $value;
+            }
+            $queue_reads++;
+            if ($queue_reads === 2) {
+                remove_filter('get_user_metadata', $interleave, 10);
+                update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $concurrent_value);
+            }
+            return $value;
+        };
+        add_filter('get_user_metadata', $interleave, 10, 5);
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('get_user_metadata', $interleave, 10);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertGreaterThanOrEqual(2, $queue_reads);
+        $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
     public function test_owned_goal_categories_do_not_require_copies_in_unrelated_preferred_wordsets(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -1860,7 +2432,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
             'type' => 'review_chunk',
             'mode' => 'practice',
             'category_ids' => [$category_id],
-            'session_word_ids' => [123],
+            'session_word_ids' => [123, 124, 125, 126, 127],
             'details' => [],
         ];
         $stores = [

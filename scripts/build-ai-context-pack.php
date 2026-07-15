@@ -153,6 +153,9 @@ function ll_tools_context_pack_definitions(): array
                 'wordset-isolation-migrate',
                 'allow-large-option-rules',
                 'prompt card progress',
+                'stale recommendation activity',
+                'recommendation queue',
+                'last recommendation',
                 'recommendation deferrals',
                 'source docs contract',
                 'direct include order',
@@ -166,6 +169,7 @@ function ll_tools_context_pack_definitions(): array
                 'Each isolation-migration batch defers eager generated-page maintenance while preserving any outer queue; only a durable completed checkpoint may persist a new locked coordinator generation that tags complete fresh quiz/vocab passes, repairs child transport, and supervises exact completion.',
                 'Category isolation is mode-specific: explicit category writes preserve valid owned assignments, wordset events expand sources only into actually added scopes, migration keeps full source-by-wordset expansion, and legacy or out-of-scope rows remap across the active set.',
                 'Before user-meta repair, preflight every required category mapping; global goal lists preserve the bounded already-materialized family expansion without crossing preferred wordsets, deleted-category progress is allowed only when the production repair is exactly identity-preserving, and exact-prev-value CAS failures must not advance the cursor.',
+                'Recommendation queues and last activities may drop a whole regenerable activity only when the shared classifier proves that a referenced category term is absent; lookup errors and all-live mapping failures remain fail-closed, and durable stores never inherit this exception. Queue inspection is capped at sixteen, oversized runtime views regenerate from empty without mutating evidence, self-repair uses cache-aware exact-value CAS, and migration re-preflights the exact baseline plus rejects repair-time errors.',
                 'Recommendation deferrals retain bounded session word IDs for exact signature re-keying; only legacy rows whose categories change without enough information for an exact re-key may be dropped.',
             ],
             'sources' => [
