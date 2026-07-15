@@ -6351,6 +6351,12 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         return ['count' => 0, 'reached' => false];
     };
 
+    $track_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
+    if ($resumable && !$track_support_only && array_key_exists('prompt_support_ids', $phase_state)) {
+        unset($phase_state['prompt_support_ids']);
+        unset($phase_state['raw_cursor_id'], $phase_state['source_complete']);
+        $resume_context['phases'][$phase] = $phase_state;
+    }
     if ($resumable && !empty($phase_state['source_complete'])) {
         return [
             'count' => min($count, $stop_at),
@@ -6367,6 +6373,17 @@ function ll_tools_count_category_rows_to_threshold_bounded(
     )));
     $prompt_answer_ids = [];
     $prompt_support_lookup = [];
+    $persist_prompt_support_state = static function () use (
+        &$phase_state,
+        &$prompt_support_lookup,
+        $track_support_only
+    ): void {
+        if (!$track_support_only) {
+            unset($phase_state['prompt_support_ids']);
+            return;
+        }
+        $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+    };
     if ($resumable) {
         if (!isset($resume_context['budget']) || !is_array($resume_context['budget'])) {
             $resume_context['budget'] = [];
@@ -6381,18 +6398,22 @@ function ll_tools_count_category_rows_to_threshold_bounded(
         $budget['prompt_queries_used'] = max(0, (int) ($budget['prompt_queries_used'] ?? 0));
         $budget['prompt_cards_used'] = max(0, (int) ($budget['prompt_cards_used'] ?? 0));
 
-        foreach ((array) ($phase_state['prompt_support_ids'] ?? []) as $support_word_id_raw) {
-            $support_word_id = (int) $support_word_id_raw;
-            if ($support_word_id > 0) {
-                $prompt_support_lookup[$support_word_id] = true;
+        if ($track_support_only) {
+            foreach ((array) ($phase_state['prompt_support_ids'] ?? []) as $support_word_id_raw) {
+                $support_word_id = (int) $support_word_id_raw;
+                if ($support_word_id > 0) {
+                    $prompt_support_lookup[$support_word_id] = true;
+                }
             }
         }
-        $prompt_support_limit = min(5000, max(50, (int) apply_filters(
-            'll_tools_quiz_eligibility_resume_support_limit',
-            1000,
-            $term_id,
-            $wordset_terms
-        )));
+        $prompt_support_limit = $track_support_only
+            ? min(5000, max(50, (int) apply_filters(
+                'll_tools_quiz_eligibility_resume_support_limit',
+                1000,
+                $term_id,
+                $wordset_terms
+            )))
+            : 0;
         $prompt_cursor_id = max(0, (int) ($phase_state['prompt_cursor_id'] ?? 0));
         $prompt_source_complete = !empty($phase_state['prompt_source_complete'])
             || !function_exists('ll_tools_get_prompt_card_reference_data_for_ids');
@@ -6401,7 +6422,7 @@ function ll_tools_count_category_rows_to_threshold_bounded(
             $remaining_rows = $budget['max_prompt_cards'] - $budget['prompt_cards_used'];
             if ($remaining_queries <= 0 || $remaining_rows <= 0) {
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 return $mark_budget_exhausted();
             }
 
@@ -6419,7 +6440,7 @@ function ll_tools_count_category_rows_to_threshold_bounded(
                 $complete = false;
                 $resume_context['failure_reason'] = 'prompt_card_query';
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 $persist_resume_state();
                 return ['count' => 0, 'reached' => false];
             }
@@ -6439,7 +6460,7 @@ function ll_tools_count_category_rows_to_threshold_bounded(
                 $complete = false;
                 $resume_context['failure_reason'] = 'prompt_card_data';
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 $persist_resume_state();
                 return ['count' => 0, 'reached' => false];
             }
@@ -6453,46 +6474,50 @@ function ll_tools_count_category_rows_to_threshold_bounded(
                 $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
                 if ($answer_word_id > 0) {
                     $prompt_answer_ids[] = $answer_word_id;
-                    $prompt_support_lookup[$answer_word_id] = true;
                 }
-                $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
-                if ($prompt_image_word_id > 0) {
-                    $prompt_support_lookup[$prompt_image_word_id] = true;
-                }
-                foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
-                    $wrong_word_id = (int) $wrong_word_id_raw;
-                    if ($wrong_word_id > 0) {
-                        $prompt_support_lookup[$wrong_word_id] = true;
+                if ($track_support_only) {
+                    if ($answer_word_id > 0) {
+                        $prompt_support_lookup[$answer_word_id] = true;
+                    }
+                    $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+                    if ($prompt_image_word_id > 0) {
+                        $prompt_support_lookup[$prompt_image_word_id] = true;
+                    }
+                    foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                        $wrong_word_id = (int) $wrong_word_id_raw;
+                        if ($wrong_word_id > 0) {
+                            $prompt_support_lookup[$wrong_word_id] = true;
+                        }
                     }
                 }
             }
-            if (count($prompt_support_lookup) > $prompt_support_limit) {
+            if ($track_support_only && count($prompt_support_lookup) > $prompt_support_limit) {
                 $prompt_support_lookup = $prompt_support_lookup_before_page;
                 $complete = false;
                 $resume_context['failure_reason'] = 'state_limit';
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 $persist_resume_state();
                 return ['count' => 0, 'reached' => false];
             }
             if (!empty($prompt_answer_ids) && $consume($prompt_answer_ids)) {
                 $prompt_cursor_id = $prompt_batch_cursor_id;
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 $persist_resume_state();
                 return ['count' => $stop_at, 'reached' => true];
             }
             if (!$complete) {
                 $resume_context['failure_reason'] = 'candidate_projection';
                 $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-                $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+                $persist_prompt_support_state();
                 $persist_resume_state();
                 return ['count' => 0, 'reached' => false];
             }
 
             $prompt_cursor_id = $prompt_batch_cursor_id;
             $phase_state['prompt_cursor_id'] = $prompt_cursor_id;
-            $phase_state['prompt_support_ids'] = array_values(array_map('intval', array_keys($prompt_support_lookup)));
+            $persist_prompt_support_state();
             if ($prompt_card_count < $query_limit) {
                 $prompt_source_complete = true;
                 $phase_state['prompt_source_complete'] = true;
@@ -6524,16 +6549,20 @@ function ll_tools_count_category_rows_to_threshold_bounded(
                 $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
                 if ($answer_word_id > 0) {
                     $prompt_answer_ids[] = $answer_word_id;
-                    $prompt_support_lookup[$answer_word_id] = true;
                 }
-                $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
-                if ($prompt_image_word_id > 0) {
-                    $prompt_support_lookup[$prompt_image_word_id] = true;
-                }
-                foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
-                    $wrong_word_id = (int) $wrong_word_id_raw;
-                    if ($wrong_word_id > 0) {
-                        $prompt_support_lookup[$wrong_word_id] = true;
+                if ($track_support_only) {
+                    if ($answer_word_id > 0) {
+                        $prompt_support_lookup[$answer_word_id] = true;
+                    }
+                    $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+                    if ($prompt_image_word_id > 0) {
+                        $prompt_support_lookup[$prompt_image_word_id] = true;
+                    }
+                    foreach ((array) ($card['wrong_answer_word_ids'] ?? []) as $wrong_word_id_raw) {
+                        $wrong_word_id = (int) $wrong_word_id_raw;
+                        if ($wrong_word_id > 0) {
+                            $prompt_support_lookup[$wrong_word_id] = true;
+                        }
                     }
                 }
             }
@@ -6547,7 +6576,6 @@ function ll_tools_count_category_rows_to_threshold_bounded(
     }
 
     $page = 1;
-    $track_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
     if ($resumable) {
         $raw_cursor_id = max(0, (int) ($phase_state['raw_cursor_id'] ?? 0));
         while (true) {
@@ -6581,7 +6609,7 @@ function ll_tools_count_category_rows_to_threshold_bounded(
             $batch_cursor_id = $raw_batch_count > 0
                 ? max($raw_cursor_id, (int) end($batch_ids))
                 : $raw_cursor_id;
-            if (($resumable || $track_support_only) && !empty($prompt_support_lookup)) {
+            if ($track_support_only && !empty($prompt_support_lookup)) {
                 $batch_ids = array_values(array_filter($batch_ids, static function (int $word_id) use ($prompt_support_lookup): bool {
                     return empty($prompt_support_lookup[$word_id]);
                 }));
