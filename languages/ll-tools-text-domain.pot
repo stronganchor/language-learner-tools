@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.73\n"
+"Project-Id-Version: Language Learner Tools 6.6.74\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-15T08:07:03+00:00\n"
+"POT-Creation-Date: 2026-07-15T15:14:02+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -63,7 +63,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:154
 #: includes/admin/admin-dashboard-menu.php:842
 #: includes/admin/settings.php:25
-#: includes/admin/settings.php:376
+#: includes/admin/settings.php:383
 msgid "Language Learning Tools Settings"
 msgstr ""
 
@@ -297,7 +297,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24645
 #: includes/post-types/words-post-type.php:21
 #: includes/post-types/words-post-type.php:26
-#: includes/wordset-isolation.php:3716
+#: includes/wordset-isolation.php:3967
 msgid "Words"
 msgstr ""
 
@@ -939,7 +939,7 @@ msgstr ""
 #: includes/post-types/dictionary-entry-post-type.php:1328
 #: includes/post-types/dictionary-entry-post-type.php:1471
 #: includes/post-types/dictionary-entry-post-type.php:1958
-#: includes/post-types/words-post-type.php:1985
+#: includes/post-types/words-post-type.php:1992
 #: includes/shortcodes/editor-hub-shortcode.php:511
 #: includes/shortcodes/editor-hub-shortcode.php:668
 #: includes/shortcodes/editor-hub-shortcode.php:1053
@@ -1013,7 +1013,7 @@ msgid "Remove \"%s\" from this batch? It will remain unprocessed."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:181
-#: includes/admin/settings.php:675
+#: includes/admin/settings.php:682
 #: includes/pages/default-shortcode-page-helper.php:358
 #: includes/pages/default-shortcode-page-helper.php:362
 #: includes/shortcodes/audio-recording-shortcode.php:1580
@@ -1237,7 +1237,7 @@ msgstr ""
 #: includes/admin/word-images-fixer.php:125
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:465
-#: includes/taxonomies/word-category-taxonomy.php:9198
+#: includes/taxonomies/word-category-taxonomy.php:9630
 msgid "Permission denied"
 msgstr ""
 
@@ -2452,7 +2452,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:14214
 #: includes/pages/wordset-pages.php:22947
 #: includes/post-types/dictionary-entry-post-type.php:1961
-#: includes/post-types/words-post-type.php:1988
+#: includes/post-types/words-post-type.php:1995
 #: includes/taxonomies/wordset-taxonomy.php:1374
 #: includes/user-roles/audio-recorder-role.php:129
 #: includes/user-roles/audio-recorder-role.php:263
@@ -4894,7 +4894,7 @@ msgstr ""
 #. translators: %d word post ID
 #: includes/admin/export-import.php:8871
 #: includes/pages/wordset-pages.php:1662
-#: includes/post-types/words-post-type.php:1729
+#: includes/post-types/words-post-type.php:1736
 #: includes/shortcodes/word-grid-shortcode.php:7483
 msgid "Word #%d"
 msgstr ""
@@ -6395,8 +6395,8 @@ msgstr ""
 #: includes/admin/split-word-admin.php:407
 #: includes/admin/split-word-admin.php:414
 #: includes/pages/wordset-editor.php:4524
-#: includes/post-types/words-post-type.php:2044
-#: includes/post-types/words-post-type.php:2047
+#: includes/post-types/words-post-type.php:2051
+#: includes/post-types/words-post-type.php:2054
 #: includes/shortcodes/editor-hub-shortcode.php:653
 #: includes/shortcodes/word-grid-shortcode.php:7657
 #: templates/vocab-lesson-template.php:1207
@@ -6589,7 +6589,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24644
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/word-image-post-type.php:1220
-#: includes/post-types/words-post-type.php:1986
+#: includes/post-types/words-post-type.php:1993
 #: includes/shortcodes/flashcard-widget.php:617
 #: includes/shortcodes/word-grid-shortcode.php:5702
 msgid "Categories"
@@ -7802,7 +7802,7 @@ msgid "No headers selected for matching."
 msgstr ""
 
 #: includes/admin/missing-audio-admin-page.php:253
-#: includes/pages/quiz-pages.php:1908
+#: includes/pages/quiz-pages.php:1907
 msgid "Security check failed."
 msgstr ""
 
@@ -9396,252 +9396,252 @@ msgstr ""
 msgid "Deleting a recording type will not delete associated recordings, but they will lose their type classification"
 msgstr ""
 
-#: includes/admin/settings.php:321
-#: includes/admin/settings.php:348
+#: includes/admin/settings.php:328
+#: includes/admin/settings.php:355
 #: includes/shortcodes/site-tools-shortcode.php:435
 msgid "You do not have permission to run maintenance actions."
 msgstr ""
 
-#: includes/admin/settings.php:323
+#: includes/admin/settings.php:330
 msgid "Purge failed security check. Please try again."
 msgstr ""
 
 #. translators: %d: number of deleted rows
-#: includes/admin/settings.php:330
+#: includes/admin/settings.php:337
 msgid "Purged %d legacy meta rows."
 msgstr ""
 
 #. translators: %d: number of word categories
-#: includes/admin/settings.php:338
+#: includes/admin/settings.php:345
 msgid "Cache bumped for %d word categories."
 msgstr ""
 
-#: includes/admin/settings.php:350
+#: includes/admin/settings.php:357
 msgid "Cache flush failed security check. Please try again."
 msgstr ""
 
-#: includes/admin/settings.php:353
+#: includes/admin/settings.php:360
 msgid "Flushed quiz caches and bumped category cache versions."
 msgstr ""
 
-#: includes/admin/settings.php:390
+#: includes/admin/settings.php:397
 msgid "Word set language settings:"
 msgstr ""
 
-#: includes/admin/settings.php:393
+#: includes/admin/settings.php:400
 msgid "Target language, translation language, category-name translation settings, and word-title language now live on each word set."
 msgstr ""
 
-#: includes/admin/settings.php:396
+#: includes/admin/settings.php:403
 msgid "Open Word Sets"
 msgstr ""
 
-#: includes/admin/settings.php:401
+#: includes/admin/settings.php:408
 msgid "Auto-detect Browser Language:"
 msgstr ""
 
-#: includes/admin/settings.php:409
+#: includes/admin/settings.php:416
 msgid "Use a visitor's browser language on the front end until they explicitly choose a different language. Logged-in user locale preferences and the language switcher still take priority."
 msgstr ""
 
-#: includes/admin/settings.php:413
+#: includes/admin/settings.php:420
 msgid "Language Switcher Visible Buttons:"
 msgstr ""
 
-#: includes/admin/settings.php:422
+#: includes/admin/settings.php:429
 msgid "Number of languages to show before the more button. Use 0 to show all available languages."
 msgstr ""
 
-#: includes/admin/settings.php:426
+#: includes/admin/settings.php:433
 msgid "Language Switcher Order:"
 msgstr ""
 
-#: includes/admin/settings.php:435
+#: includes/admin/settings.php:442
 msgid "Optional comma-separated locale order for the language switcher. Listed locales appear first; unlisted available languages follow in the default order."
 msgstr ""
 
-#: includes/admin/settings.php:439
+#: includes/admin/settings.php:446
 msgid "Max Number of Options:"
 msgstr ""
 
-#: includes/admin/settings.php:442
+#: includes/admin/settings.php:449
 msgid "Set the maximum number of options in flashcards. Minimum is 2."
 msgstr ""
 
-#: includes/admin/settings.php:446
+#: includes/admin/settings.php:453
 msgid "Flashcard Image Size:"
 msgstr ""
 
-#: includes/admin/settings.php:452
+#: includes/admin/settings.php:459
 #: includes/shortcodes/site-tools-shortcode.php:1124
 msgid "Small (150×150)"
 msgstr ""
 
-#: includes/admin/settings.php:453
+#: includes/admin/settings.php:460
 #: includes/shortcodes/site-tools-shortcode.php:1125
 msgid "Medium (200×200)"
 msgstr ""
 
-#: includes/admin/settings.php:454
+#: includes/admin/settings.php:461
 #: includes/shortcodes/site-tools-shortcode.php:1126
 msgid "Large (250×250)"
 msgstr ""
 
-#: includes/admin/settings.php:459
+#: includes/admin/settings.php:466
 msgid "Hide Word Titles in Recording Interface:"
 msgstr ""
 
-#: includes/admin/settings.php:462
+#: includes/admin/settings.php:469
 msgid "Fallback for recorder pages without a wordset-specific text visibility setting. Wordset managers can override this in wordset study settings."
 msgstr ""
 
-#: includes/admin/settings.php:466
+#: includes/admin/settings.php:473
 msgid "Allow Learner Registration:"
 msgstr ""
 
-#: includes/admin/settings.php:474
+#: includes/admin/settings.php:481
 msgid "Allow new users to create learner accounts from learner-facing progress sign-in screens. This also turns WordPress user registration on or off for the site."
 msgstr ""
 
-#: includes/admin/settings.php:478
+#: includes/admin/settings.php:485
 msgid "Show Generated Registration Password:"
 msgstr ""
 
-#: includes/admin/settings.php:486
+#: includes/admin/settings.php:493
 msgid "Show the auto-generated learner password in plain text by default on sign-up forms. Disable this to keep it masked until the learner chooses to reveal it."
 msgstr ""
 
-#: includes/admin/settings.php:490
+#: includes/admin/settings.php:497
 msgid "Quiz Font (for text mode):"
 msgstr ""
 
-#: includes/admin/settings.php:497
+#: includes/admin/settings.php:504
 msgid "-- Select a Font --"
 msgstr ""
 
-#: includes/admin/settings.php:503
+#: includes/admin/settings.php:510
 msgid "No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin."
 msgstr ""
 
-#: includes/admin/settings.php:507
+#: includes/admin/settings.php:514
 msgid "Choose one of the fonts that are already loaded on your site. If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually."
 msgstr ""
 
-#: includes/admin/settings.php:510
+#: includes/admin/settings.php:517
 msgid "Font stylesheet URL (Google Fonts or local CSS)"
 msgstr ""
 
-#: includes/admin/settings.php:522
+#: includes/admin/settings.php:529
 msgid "Paste a Google Fonts CSS URL (or another font stylesheet URL) to make that font available to LL Tools admin previews, quizzes, and wordset font overrides."
 msgstr ""
 
-#: includes/admin/settings.php:525
+#: includes/admin/settings.php:532
 msgid "Example (Heebo): https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap"
 msgstr ""
 
-#: includes/admin/settings.php:530
+#: includes/admin/settings.php:537
 msgid "Update Branch:"
 msgstr ""
 
-#: includes/admin/settings.php:533
+#: includes/admin/settings.php:540
 msgid "Main (stable)"
 msgstr ""
 
-#: includes/admin/settings.php:534
+#: includes/admin/settings.php:541
 msgid "Dev (testing)"
 msgstr ""
 
-#: includes/admin/settings.php:536
+#: includes/admin/settings.php:543
 msgid "Use Main for packaged production releases. Switch to Dev only to pull the GitHub dev branch for testing."
 msgstr ""
 
-#: includes/admin/settings.php:548
+#: includes/admin/settings.php:555
 #: includes/shortcodes/site-tools-shortcode.php:1500
 msgid "Flush quiz caches"
 msgstr ""
 
-#: includes/admin/settings.php:550
+#: includes/admin/settings.php:557
 msgid "Clears cached quiz word payload transients and increments cache versions for all word-category terms."
 msgstr ""
 
-#: includes/admin/settings.php:557
+#: includes/admin/settings.php:564
 msgid "Flush Quiz Caches"
 msgstr ""
 
-#: includes/admin/settings.php:561
+#: includes/admin/settings.php:568
 msgid "Transient rows deleted:"
 msgstr ""
 
-#: includes/admin/settings.php:562
+#: includes/admin/settings.php:569
 msgid "Categories bumped:"
 msgstr ""
 
-#: includes/admin/settings.php:563
+#: includes/admin/settings.php:570
 msgid "Object cache flushed:"
 msgstr ""
 
-#: includes/admin/settings.php:563
+#: includes/admin/settings.php:570
 #: includes/shortcodes/site-tools-shortcode.php:355
 msgid "yes"
 msgstr ""
 
-#: includes/admin/settings.php:563
+#: includes/admin/settings.php:570
 #: includes/shortcodes/site-tools-shortcode.php:355
 msgid "no"
 msgstr ""
 
-#: includes/admin/settings.php:569
+#: includes/admin/settings.php:576
 #: includes/shortcodes/site-tools-shortcode.php:1512
 msgid "Purge legacy word audio meta"
 msgstr ""
 
-#: includes/admin/settings.php:571
+#: includes/admin/settings.php:578
 msgid "Removes word_audio_file meta from words posts now that audio is stored in word_audio children. This is irreversible. Make a backup first."
 msgstr ""
 
-#: includes/admin/settings.php:578
+#: includes/admin/settings.php:585
 msgid "Purge Legacy Meta"
 msgstr ""
 
-#: includes/admin/settings.php:582
+#: includes/admin/settings.php:589
 msgid "Legacy rows found:"
 msgstr ""
 
-#: includes/admin/settings.php:583
+#: includes/admin/settings.php:590
 msgid "Deleted:"
 msgstr ""
 
-#: includes/admin/settings.php:587
+#: includes/admin/settings.php:594
 msgid "Maintenance actions"
 msgstr ""
 
-#: includes/admin/settings.php:588
+#: includes/admin/settings.php:595
 msgid "Quiz cache flushing and legacy meta purges require administrator-level access."
 msgstr ""
 
-#: includes/admin/settings.php:645
+#: includes/admin/settings.php:652
 msgid "Category Translations:"
 msgstr ""
 
 #. translators: 1: source language code, 2: target language code
-#: includes/admin/settings.php:648
+#: includes/admin/settings.php:655
 msgid "Translating from %1$s to %2$s."
 msgstr ""
 
-#: includes/admin/settings.php:658
+#: includes/admin/settings.php:665
 msgid "Translation Results:"
 msgstr ""
 
-#: includes/admin/settings.php:661
-#: includes/admin/settings.php:674
+#: includes/admin/settings.php:668
+#: includes/admin/settings.php:681
 msgid "Original:"
 msgstr ""
 
-#: includes/admin/settings.php:662
+#: includes/admin/settings.php:669
 msgid "Translated:"
 msgstr ""
 
-#: includes/admin/settings.php:671
+#: includes/admin/settings.php:678
 msgid "Translation Errors:"
 msgstr ""
 
@@ -9836,13 +9836,13 @@ msgid "(none)"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1144
-#: includes/post-types/words-post-type.php:2255
+#: includes/post-types/words-post-type.php:2262
 #: includes/privacy.php:204
 msgid "Yes"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1144
-#: includes/post-types/words-post-type.php:2256
+#: includes/post-types/words-post-type.php:2263
 #: includes/privacy.php:204
 msgid "No"
 msgstr ""
@@ -12713,7 +12713,7 @@ msgid "Missing required --set=<field>=<value> argument."
 msgstr ""
 
 #: includes/cli/class-ll-tools-cli-command.php:453
-#: includes/wordset-isolation.php:4571
+#: includes/wordset-isolation.php:4822
 msgid "unknown"
 msgstr ""
 
@@ -12798,7 +12798,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:20830
 #: includes/pages/wordset-pages.php:21024
 #: includes/pages/wordset-pages.php:21149
-#: includes/post-types/words-post-type.php:2221
+#: includes/post-types/words-post-type.php:2228
 #: includes/shortcodes/audio-recording-shortcode.php:1367
 #: includes/shortcodes/audio-recording-shortcode.php:1406
 #: includes/shortcodes/audio-recording-shortcode.php:1414
@@ -12958,7 +12958,7 @@ msgstr ""
 
 #: includes/flashcard-shell.php:112
 #: includes/flashcard-shell.php:117
-#: includes/pages/quiz-pages.php:1835
+#: includes/pages/quiz-pages.php:1834
 #: includes/pages/vocab-lesson-pages.php:4459
 #: includes/pages/wordset-pages.php:12972
 #: includes/shortcodes/audio-recording-shortcode.php:1780
@@ -15461,7 +15461,7 @@ msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
 #: includes/pages/vocab-lesson-pages.php:6674
-#: includes/wordset-isolation.php:3730
+#: includes/wordset-isolation.php:3981
 msgid "Unknown error."
 msgstr ""
 
@@ -15620,7 +15620,7 @@ msgid "%1$s | %2$s"
 msgstr ""
 
 #: includes/pages/quiz-pages.php:900
-#: includes/pages/quiz-pages.php:1836
+#: includes/pages/quiz-pages.php:1835
 #: templates/quiz-page-template.php:16
 msgid "Quiz Content"
 msgstr ""
@@ -15641,46 +15641,46 @@ msgstr ""
 msgid "Quiz page synchronization paused because category eligibility was incomplete."
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1834
+#: includes/pages/quiz-pages.php:1833
 #: templates/vocab-lesson-template.php:1154
 msgid "Quiz"
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1837
+#: includes/pages/quiz-pages.php:1836
 #: includes/shortcodes/flashcard-widget.php:686
 msgid "Close this quiz? Your current progress in this popup will be lost."
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1876
-#: includes/pages/quiz-pages.php:2003
+#: includes/pages/quiz-pages.php:1875
+#: includes/pages/quiz-pages.php:2002
 msgid "Quiz page maintenance queued: %1$d pages checked, %2$d categories checked, %3$d pages removed."
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1887
-#: includes/pages/quiz-pages.php:2014
+#: includes/pages/quiz-pages.php:1886
+#: includes/pages/quiz-pages.php:2013
 msgid "Quiz page maintenance is running: %1$d pages checked, %2$d categories checked."
+msgstr ""
+
+#: includes/pages/quiz-pages.php:1893
+#: includes/pages/quiz-pages.php:2019
+msgid "Quiz Page Management"
 msgstr ""
 
 #: includes/pages/quiz-pages.php:1894
 #: includes/pages/quiz-pages.php:2020
-msgid "Quiz Page Management"
-msgstr ""
-
-#: includes/pages/quiz-pages.php:1895
-#: includes/pages/quiz-pages.php:2021
 msgid "Clean up quiz pages for categories that can no longer generate valid quizzes and sync pages for valid categories."
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1898
-#: includes/pages/quiz-pages.php:2024
+#: includes/pages/quiz-pages.php:1897
+#: includes/pages/quiz-pages.php:2023
 msgid "Clean Up & Sync Quiz Pages"
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1916
+#: includes/pages/quiz-pages.php:1915
 msgid "Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far."
 msgstr ""
 
-#: includes/pages/quiz-pages.php:1923
+#: includes/pages/quiz-pages.php:1922
 msgid "Go to Quiz Pages"
 msgstr ""
 
@@ -17010,12 +17010,12 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:8616
-#: includes/user-progress.php:8659
-#: includes/user-progress.php:8681
-#: includes/user-progress.php:8819
+#: includes/user-progress.php:8637
+#: includes/user-progress.php:8680
+#: includes/user-progress.php:8702
 #: includes/user-progress.php:8840
-#: includes/user-progress.php:8892
+#: includes/user-progress.php:8861
+#: includes/user-progress.php:8913
 #: includes/user-study.php:1236
 #: includes/user-study.php:1268
 #: includes/user-study.php:1292
@@ -17057,7 +17057,7 @@ msgid "Default Word Set"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:118
-#: includes/wordset-isolation.php:3720
+#: includes/wordset-isolation.php:3971
 msgid "Lessons"
 msgstr ""
 
@@ -21105,7 +21105,7 @@ msgstr ""
 
 #: includes/post-types/dictionary-entry-post-type.php:1970
 #: includes/post-types/word-audio-post-type.php:118
-#: includes/post-types/words-post-type.php:1990
+#: includes/post-types/words-post-type.php:1997
 msgid "Date"
 msgstr ""
 
@@ -21123,7 +21123,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: includes/post-types/dictionary-entry-post-type.php:2243
-#: includes/post-types/words-post-type.php:2246
+#: includes/post-types/words-post-type.php:2253
 #: includes/taxonomies/wordset-taxonomy.php:1391
 msgid "All Word Sets"
 msgstr ""
@@ -21454,7 +21454,7 @@ msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:208
 #: includes/post-types/word-image-post-type.php:1072
-#: includes/post-types/words-post-type.php:2215
+#: includes/post-types/words-post-type.php:2222
 msgid "All Categories"
 msgstr ""
 
@@ -21493,7 +21493,7 @@ msgid "Enabled when selected recordings all share the same recording types."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:474
-#: includes/taxonomies/word-category-taxonomy.php:9207
+#: includes/taxonomies/word-category-taxonomy.php:9639
 msgid "No posts selected"
 msgstr ""
 
@@ -21571,7 +21571,7 @@ msgid "Copyright Info"
 msgstr ""
 
 #: includes/post-types/word-image-post-type.php:1222
-#: includes/post-types/words-post-type.php:1987
+#: includes/post-types/words-post-type.php:1994
 msgid "Featured Image"
 msgstr ""
 
@@ -21615,90 +21615,90 @@ msgstr ""
 msgid "Use the linked image record or the frontend word editor to change images. The standard Featured Image box is hidden during migration."
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1636
+#: includes/post-types/words-post-type.php:1643
 msgid "Specific Wrong Answers"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1706
+#: includes/post-types/words-post-type.php:1713
 msgid "Choose words that should appear only as wrong answers for this word."
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1738
+#: includes/post-types/words-post-type.php:1745
 msgid "Selected words are excluded from prompt rounds across quiz modes and only appear as wrong answers for this word."
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1739
+#: includes/post-types/words-post-type.php:1746
 msgid "Or enter custom wrong-answer text (one per line):"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1743
+#: includes/post-types/words-post-type.php:1750
 msgid "Text entries are used directly for text-based quiz options and do not need separate word posts."
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1911
+#: includes/post-types/words-post-type.php:1918
 msgid "Word categories:"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1945
+#: includes/post-types/words-post-type.php:1952
 msgid "Meaning:"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:1989
+#: includes/post-types/words-post-type.php:1996
 msgid "Audio Recordings"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2228
+#: includes/post-types/words-post-type.php:2235
 msgid "All Quiz Category Statuses"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2233
+#: includes/post-types/words-post-type.php:2240
 msgid "No Quizzable Category"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2254
+#: includes/post-types/words-post-type.php:2261
 msgid "Has Featured Image"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2626
+#: includes/post-types/words-post-type.php:2633
 msgid "Mark for Audio Reprocessing"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2684
+#: includes/post-types/words-post-type.php:2691
 msgid "%d word marked for audio reprocessing."
 msgid_plural "%d words marked for audio reprocessing."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/post-types/words-post-type.php:2695
+#: includes/post-types/words-post-type.php:2702
 msgid "%d word skipped (no audio file)."
 msgid_plural "%d words skipped (no audio file)."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/post-types/words-post-type.php:2709
+#: includes/post-types/words-post-type.php:2716
 msgid "Go to Audio Processor"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2717
+#: includes/post-types/words-post-type.php:2724
 msgid "%d word skipped (no audio recordings)."
 msgid_plural "%d words skipped (no audio recordings)."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/post-types/words-post-type.php:2889
+#: includes/post-types/words-post-type.php:2896
 msgid "Select a word set to edit categories."
 msgstr ""
 
-#: includes/post-types/words-post-type.php:2890
+#: includes/post-types/words-post-type.php:2897
 msgid "This category is currently assigned but does not belong to the selected word set."
 msgstr ""
 
 #. translators: 1: blocked word title, 2: edit post URL
-#: includes/post-types/words-post-type.php:3380
+#: includes/post-types/words-post-type.php:3387
 msgid "\"%1$s\" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href=\"%2$s\">Edit post</a>"
 msgstr ""
 
-#: includes/post-types/words-post-type.php:3386
+#: includes/post-types/words-post-type.php:3393
 msgid "Publishing Blocked:"
 msgstr ""
 
@@ -24923,23 +24923,23 @@ msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:411
+#: includes/shortcodes/wordset-buttons-shortcode.php:1486
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:414
+#: includes/shortcodes/wordset-buttons-shortcode.php:1489
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:418
+#: includes/shortcodes/wordset-buttons-shortcode.php:1493
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:424
+#: includes/shortcodes/wordset-buttons-shortcode.php:1499
 msgid "%1$s, %2$s"
 msgstr ""
 
@@ -25228,33 +25228,33 @@ msgstr ""
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8467
+#: includes/taxonomies/word-category-taxonomy.php:8884
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8473
+#: includes/taxonomies/word-category-taxonomy.php:8890
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8481
-#: includes/taxonomies/word-category-taxonomy.php:8487
+#: includes/taxonomies/word-category-taxonomy.php:8898
+#: includes/taxonomies/word-category-taxonomy.php:8904
 msgid "Bulk Add Categories"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8485
+#: includes/taxonomies/word-category-taxonomy.php:8902
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:8499
+#: includes/taxonomies/word-category-taxonomy.php:8916
 msgid "Permission denied or invalid nonce."
 msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
-#: includes/taxonomies/word-category-taxonomy.php:8651
+#: includes/taxonomies/word-category-taxonomy.php:9068
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""
@@ -25991,230 +25991,232 @@ msgstr ""
 #: includes/wordset-isolation.php:2566
 #: includes/wordset-isolation.php:2585
 #: includes/wordset-isolation.php:2608
-#: includes/wordset-isolation.php:2687
-#: includes/wordset-isolation.php:2696
-#: includes/wordset-isolation.php:2716
-#: includes/wordset-isolation.php:2818
-#: includes/wordset-isolation.php:2911
-#: includes/wordset-isolation.php:2955
-#: includes/wordset-isolation.php:3027
+#: includes/wordset-isolation.php:2662
+#: includes/wordset-isolation.php:2728
+#: includes/wordset-isolation.php:2924
+#: includes/wordset-isolation.php:2933
+#: includes/wordset-isolation.php:2953
+#: includes/wordset-isolation.php:3061
+#: includes/wordset-isolation.php:3154
+#: includes/wordset-isolation.php:3198
+#: includes/wordset-isolation.php:3278
 msgid "Isolated category data could not be saved for user %d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3512
+#: includes/wordset-isolation.php:3763
 msgid "Could not inspect word option rules for the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3520
+#: includes/wordset-isolation.php:3771
 msgid "Word option rules are too large for the background migration. Run the WP-CLI migration with --allow-large-option-rules."
 msgstr ""
 
-#: includes/wordset-isolation.php:3535
+#: includes/wordset-isolation.php:3786
 msgid "Isolated word option rules could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:3544
+#: includes/wordset-isolation.php:3795
 msgid "Wordset isolation migration has unresolved errors."
 msgstr ""
 
-#: includes/wordset-isolation.php:3578
+#: includes/wordset-isolation.php:3829
 msgid "Generated-page reconciliation could not be scheduled after the isolation migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3589
+#: includes/wordset-isolation.php:3840
 msgid "The wordset isolation migration version could not be saved."
 msgstr ""
 
-#: includes/wordset-isolation.php:3695
+#: includes/wordset-isolation.php:3946
 msgid "You are not allowed to retry this migration."
 msgstr ""
 
-#: includes/wordset-isolation.php:3717
+#: includes/wordset-isolation.php:3968
 msgid "Word images"
 msgstr ""
 
-#: includes/wordset-isolation.php:3718
+#: includes/wordset-isolation.php:3969
 msgid "Word sets"
 msgstr ""
 
-#: includes/wordset-isolation.php:3719
+#: includes/wordset-isolation.php:3970
 msgid "Word option rules"
 msgstr ""
 
-#: includes/wordset-isolation.php:3721
+#: includes/wordset-isolation.php:3972
 msgid "Users"
 msgstr ""
 
-#: includes/wordset-isolation.php:3722
+#: includes/wordset-isolation.php:3973
 msgid "Finalizing"
 msgstr ""
 
 #. translators: 1: migration phase, 2: error message.
-#: includes/wordset-isolation.php:3728
+#: includes/wordset-isolation.php:3979
 msgid "Wordset isolation migration stopped in phase %1$s: %2$s"
 msgstr ""
 
 #. translators: 1: migration phase, 2: number of words scanned.
-#: includes/wordset-isolation.php:3734
+#: includes/wordset-isolation.php:3985
 msgid "Wordset isolation migration is continuing in the background. Phase: %1$s. Words scanned: %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3743
+#: includes/wordset-isolation.php:3994
 msgid "Retry migration"
 msgstr ""
 
-#: includes/wordset-isolation.php:3762
+#: includes/wordset-isolation.php:4013
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:3959
+#: includes/wordset-isolation.php:4210
 msgid "You are not allowed to run this maintenance check."
 msgstr ""
 
-#: includes/wordset-isolation.php:3974
+#: includes/wordset-isolation.php:4225
 msgid "You are not allowed to run this maintenance repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:3994
+#: includes/wordset-isolation.php:4245
 msgid "Health check queued or running."
 msgstr ""
 
-#: includes/wordset-isolation.php:3999
+#: includes/wordset-isolation.php:4250
 msgid "Check now"
 msgstr ""
 
-#: includes/wordset-isolation.php:4006
+#: includes/wordset-isolation.php:4257
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
 msgstr ""
 
-#: includes/wordset-isolation.php:4014
+#: includes/wordset-isolation.php:4265
 msgid "Repair vocab lessons"
 msgstr ""
 
-#: includes/wordset-isolation.php:4026
-#: includes/wordset-isolation.php:4043
-#: includes/wordset-isolation.php:4065
-#: includes/wordset-isolation.php:4086
+#: includes/wordset-isolation.php:4277
+#: includes/wordset-isolation.php:4294
+#: includes/wordset-isolation.php:4316
+#: includes/wordset-isolation.php:4337
 msgid "none"
 msgstr ""
 
-#: includes/wordset-isolation.php:4556
+#: includes/wordset-isolation.php:4807
 msgid "LL Tools Maintenance"
 msgstr ""
 
-#: includes/wordset-isolation.php:4557
+#: includes/wordset-isolation.php:4808
 msgid "Wordset isolation health has not been checked since the last data change or cache expiry."
 msgstr ""
 
-#: includes/wordset-isolation.php:4582
+#: includes/wordset-isolation.php:4833
 msgid "Stored migration version is %1$d, expected %2$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:4591
+#: includes/wordset-isolation.php:4842
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4604
+#: includes/wordset-isolation.php:4855
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4617
+#: includes/wordset-isolation.php:4868
 msgid "%d vocab lesson points at a non-owned category."
 msgid_plural "%d vocab lessons point at non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4630
+#: includes/wordset-isolation.php:4881
 msgid "%d wordset has category ordering or prerequisite metadata that still references non-owned categories."
 msgid_plural "%d wordsets have category ordering or prerequisite metadata that still reference non-owned categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/wordset-isolation.php:4641
+#: includes/wordset-isolation.php:4892
 msgid "LL Tools Maintenance Alert"
 msgstr ""
 
-#: includes/wordset-isolation.php:4642
+#: includes/wordset-isolation.php:4893
 msgid "Wordset isolation health checks found data that may need repair."
 msgstr ""
 
-#: includes/wordset-isolation.php:4644
+#: includes/wordset-isolation.php:4895
 msgid "Last checked: %1$s. Stored migration version: %2$d. Expected version: %3$d."
 msgstr ""
 
-#: includes/wordset-isolation.php:4658
+#: includes/wordset-isolation.php:4909
 msgid "Debug details"
 msgstr ""
 
-#: includes/wordset-isolation.php:4661
+#: includes/wordset-isolation.php:4912
 msgid "Word samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4669
+#: includes/wordset-isolation.php:4920
 msgid "Wordsets: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4670
-#: includes/wordset-isolation.php:4704
+#: includes/wordset-isolation.php:4921
+#: includes/wordset-isolation.php:4955
 msgid "Categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4673
-#: includes/wordset-isolation.php:4707
+#: includes/wordset-isolation.php:4924
+#: includes/wordset-isolation.php:4958
 msgid "Shared categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4676
-#: includes/wordset-isolation.php:4710
+#: includes/wordset-isolation.php:4927
+#: includes/wordset-isolation.php:4961
 msgid "Foreign-owner categories: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4679
-#: includes/wordset-isolation.php:4713
+#: includes/wordset-isolation.php:4930
+#: includes/wordset-isolation.php:4964
 msgid "Missing owned copies: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4695
+#: includes/wordset-isolation.php:4946
 msgid "Word image samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4703
+#: includes/wordset-isolation.php:4954
 msgid "Owner wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4729
+#: includes/wordset-isolation.php:4980
 msgid "Vocab lesson samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4737
+#: includes/wordset-isolation.php:4988
 msgid "Wordset: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4738
+#: includes/wordset-isolation.php:4989
 msgid "Category: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4741
+#: includes/wordset-isolation.php:4992
 msgid "Existing owned copy: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4757
+#: includes/wordset-isolation.php:5008
 msgid "Wordset metadata samples"
 msgstr ""
 
-#: includes/wordset-isolation.php:4766
+#: includes/wordset-isolation.php:5017
 msgid "Manual order refs: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4769
+#: includes/wordset-isolation.php:5020
 msgid "Prerequisite keys: %s."
 msgstr ""
 
-#: includes/wordset-isolation.php:4772
+#: includes/wordset-isolation.php:5023
 msgid "Prerequisite dependencies: %s."
 msgstr ""
 

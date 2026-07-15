@@ -664,7 +664,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:1328",
                 "includes/post-types/dictionary-entry-post-type.php:1471",
                 "includes/post-types/dictionary-entry-post-type.php:1958",
-                "includes/post-types/words-post-type.php:1985",
+                "includes/post-types/words-post-type.php:1992",
                 "includes/shortcodes/editor-hub-shortcode.php:1053",
                 "includes/shortcodes/editor-hub-shortcode.php:1080",
                 "includes/shortcodes/editor-hub-shortcode.php:511",
@@ -2482,11 +2482,11 @@
             "msgid": "Quiz",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:1834",
+                "includes/pages/quiz-pages.php:1833",
                 "templates/vocab-lesson-template.php:1154"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:1834"
+                "includes/pages/quiz-pages.php:1833"
             ]
         },
         {
@@ -2497,14 +2497,14 @@
             "references": [
                 "includes/flashcard-shell.php:112",
                 "includes/flashcard-shell.php:117",
-                "includes/pages/quiz-pages.php:1835",
+                "includes/pages/quiz-pages.php:1834",
                 "includes/pages/vocab-lesson-pages.php:4459",
                 "includes/pages/wordset-pages.php:12972",
                 "includes/shortcodes/audio-recording-shortcode.php:1780",
                 "includes/shortcodes/audio-recording-shortcode.php:1805"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:1835",
+                "includes/pages/quiz-pages.php:1834",
                 "includes/pages/wordset-pages.php:12972"
             ]
         },
@@ -2514,12 +2514,12 @@
             "msgid": "Quiz Content",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:1836",
+                "includes/pages/quiz-pages.php:1835",
                 "includes/pages/quiz-pages.php:900",
                 "templates/quiz-page-template.php:16"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:1836",
+                "includes/pages/quiz-pages.php:1835",
                 "includes/pages/quiz-pages.php:900",
                 "templates/quiz-page-template.php:16"
             ]
@@ -2530,11 +2530,11 @@
             "msgid": "Close this quiz? Your current progress in this popup will be lost.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/quiz-pages.php:1837",
+                "includes/pages/quiz-pages.php:1836",
                 "includes/shortcodes/flashcard-widget.php:686"
             ],
             "public_references": [
-                "includes/pages/quiz-pages.php:1837",
+                "includes/pages/quiz-pages.php:1836",
                 "includes/shortcodes/flashcard-widget.php:686"
             ]
         },
@@ -3389,12 +3389,12 @@
             "references": [
                 "includes/pages/wordset-games.php:6126",
                 "includes/pages/wordset-games.php:6399",
-                "includes/user-progress.php:8616",
-                "includes/user-progress.php:8659",
-                "includes/user-progress.php:8681",
-                "includes/user-progress.php:8819",
+                "includes/user-progress.php:8637",
+                "includes/user-progress.php:8680",
+                "includes/user-progress.php:8702",
                 "includes/user-progress.php:8840",
-                "includes/user-progress.php:8892",
+                "includes/user-progress.php:8861",
+                "includes/user-progress.php:8913",
                 "includes/user-study.php:1236",
                 "includes/user-study.php:1268",
                 "includes/user-study.php:1292"
@@ -3513,7 +3513,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:118",
-                "includes/wordset-isolation.php:3720"
+                "includes/wordset-isolation.php:3971"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:118"
@@ -5212,7 +5212,7 @@
                 "includes/pages/wordset-pages.php:24644",
                 "includes/post-types/word-audio-post-type.php:114",
                 "includes/post-types/word-image-post-type.php:1220",
-                "includes/post-types/words-post-type.php:1986",
+                "includes/post-types/words-post-type.php:1993",
                 "includes/shortcodes/flashcard-widget.php:617",
                 "includes/shortcodes/word-grid-shortcode.php:5702"
             ],
@@ -6291,7 +6291,7 @@
                 "includes/pages/wordset-pages.php:24645",
                 "includes/post-types/words-post-type.php:21",
                 "includes/post-types/words-post-type.php:26",
-                "includes/wordset-isolation.php:3716"
+                "includes/wordset-isolation.php:3967"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24413",
@@ -9798,8 +9798,8 @@
                 "includes/admin/split-word-admin.php:407",
                 "includes/admin/split-word-admin.php:414",
                 "includes/pages/wordset-editor.php:4524",
-                "includes/post-types/words-post-type.php:2044",
-                "includes/post-types/words-post-type.php:2047",
+                "includes/post-types/words-post-type.php:2051",
+                "includes/post-types/words-post-type.php:2054",
                 "includes/shortcodes/editor-hub-shortcode.php:653",
                 "includes/shortcodes/word-grid-shortcode.php:7657",
                 "templates/vocab-lesson-template.php:1207"
@@ -9814,10 +9814,10 @@
             "msgid": "%d lesson",
             "msgid_plural": "%d lessons",
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:411"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1486"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:411"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1486"
             ]
         },
         {
@@ -9826,10 +9826,10 @@
             "msgid": "Private word set",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:414"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1489"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:414"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1489"
             ]
         },
         {
@@ -9838,10 +9838,10 @@
             "msgid": "%1$s, private word set, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:418"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1493"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:418"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1493"
             ]
         },
         {
@@ -9850,10 +9850,10 @@
             "msgid": "%1$s, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:424"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1499"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:424"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1499"
             ]
         },
         {

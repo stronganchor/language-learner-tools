@@ -977,6 +977,102 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertSame($before_cached_raw, $raw_query_count);
     }
 
+    public function test_resumable_non_sign_count_preserves_raw_prompt_support_words(): void
+    {
+        wp_set_current_user(0);
+        $wordset_term = wp_insert_term('Buttons Prompt Support Wordset', 'wordset');
+        $this->assertIsArray($wordset_term);
+        $this->assertFalse(is_wp_error($wordset_term));
+        $wordset_id = (int) ($wordset_term['term_id'] ?? 0);
+        $category_id = $this->createCustomLessonCategoryForWordset(
+            $wordset_id,
+            'Buttons Prompt Support Category',
+            0,
+            true,
+            'audio',
+            'text_title'
+        );
+
+        $word_ids = [];
+        for ($index = 1; $index <= $this->quizMinWordCount(); $index++) {
+            $word_ids[] = $this->createWordWithAudio(
+                'Buttons Prompt Support Word ' . $index,
+                'Buttons Prompt Support Translation ' . $index,
+                $category_id,
+                $wordset_id,
+                'buttons-prompt-support-' . $index . '.mp3'
+            );
+        }
+        $this->assertGreaterThanOrEqual(2, count($word_ids));
+
+        $category_context = ll_tools_get_word_category_query_context($category_id);
+        $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, [$wordset_id]);
+        $scoped_category_id = (int) ($category_context['term_id'] ?? $category_id);
+        $prompt_category_ids = array_values(array_unique(array_filter([$category_id, $scoped_category_id])));
+        $prompt_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+            ? (string) LL_TOOLS_PROMPT_CARD_POST_TYPE
+            : 'll_prompt_card';
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => $prompt_post_type,
+            'post_status' => 'publish',
+            'post_title' => 'Buttons Prompt Support Card',
+        ]);
+        wp_set_post_terms($prompt_card_id, $prompt_category_ids, 'word-category', false);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, $word_ids[0]);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, [$word_ids[1]]);
+
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $config = ll_tools_get_category_quiz_config($category_term);
+        $default_complete = true;
+        $default_count = ll_get_words_by_category_count(
+            $category_term,
+            'text_title',
+            [$wordset_id],
+            $config,
+            $default_complete,
+            $this->quizMinWordCount()
+        );
+
+        $resume_context = [
+            'schema' => 1,
+            'enabled' => true,
+            'phases' => [
+                'primary' => [
+                    'schema' => 1,
+                    'prompt_support_ids' => [$word_ids[1]],
+                ],
+            ],
+            'budget' => [
+                'max_prompt_queries' => 1,
+                'max_prompt_cards' => 10,
+                'prompt_queries_used' => 0,
+                'prompt_cards_used' => 0,
+                'max_raw_queries' => 1,
+                'max_raw_rows' => 10,
+                'raw_queries_used' => 0,
+                'raw_rows_used' => 0,
+            ],
+        ];
+        $resumable_complete = true;
+        $resumable_count = ll_get_words_by_category_count(
+            $category_term,
+            'text_title',
+            [$wordset_id],
+            $config,
+            $resumable_complete,
+            $this->quizMinWordCount(),
+            $resume_context
+        );
+
+        $this->assertTrue($default_complete);
+        $this->assertSame($this->quizMinWordCount(), $default_count);
+        $this->assertTrue($resumable_complete);
+        $this->assertSame($default_count, $resumable_count);
+        $this->assertArrayNotHasKey('prompt_support_ids', $resume_context['phases']['primary'] ?? []);
+    }
+
     private function createPublishedLessonForWordset(int $wordset_id, string $title): int
     {
         $category_id = $this->createLessonCategoryForWordset($wordset_id, $title, $this->quizMinWordCount());
