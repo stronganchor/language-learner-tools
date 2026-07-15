@@ -92,14 +92,18 @@ function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag =
     $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
         ? max(1, (int) ll_tools_get_category_cache_epoch())
         : 1;
+    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+        ? ll_tools_get_quiz_content_cache_epoch()
+        : (string) $category_epoch;
 
     $payload = [
-        'schema' => 3,
+        'schema' => 4,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
         'wordset_epoch' => $wordset_epoch,
         'category_epoch' => $category_epoch,
+        'quiz_content_epoch' => $quiz_content_epoch,
         'tag' => sanitize_key($tag !== '' ? $tag : 'll_wordset_buttons'),
         'atts' => [
             'class' => $extra_classes,

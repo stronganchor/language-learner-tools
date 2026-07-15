@@ -84,11 +84,15 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
             ? max(1, (int) ll_tools_get_wordset_cache_epoch())
             : 1;
+        $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+            ? ll_tools_get_quiz_content_cache_epoch([$wordset_id])
+            : (string) $category_epoch;
         $cache_key = ll_tools_wordset_page_build_cache_key('category_search', [
             'wordset_id' => $wordset_id,
             'allowed_category_ids' => [$allowed_category_id],
             'category_epoch' => $category_epoch,
             'wordset_epoch' => $wordset_epoch,
+            'quiz_content_epoch' => $quiz_content_epoch,
         ]);
         $lock_option = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
 
@@ -108,8 +112,9 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
 
         add_filter('query', $capture);
         add_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
+        $complete = true;
         try {
-            $index = ll_tools_get_wordset_page_category_search_index($wordset_id, [$allowed_category_id]);
+            $index = ll_tools_get_wordset_page_category_search_index($wordset_id, [$allowed_category_id], $complete);
         } finally {
             remove_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
             remove_filter('query', $capture);
@@ -117,6 +122,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         }
 
         $this->assertSame([], $index);
+        $this->assertFalse($complete);
         $queries_sql = implode("\n", $queries);
         $this->assertStringNotContainsString('category_taxonomy.term_id AS category_id', $queries_sql);
         $this->assertStringNotContainsString($wpdb->posts . ' AS posts', $queries_sql);
@@ -213,6 +219,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => 0,
+            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
         ]);
         $this->assertNotSame('', $token);
 
@@ -265,6 +272,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => $admin_id,
+            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, $admin_id),
         ]);
         $transcription_queries = [];
         $capture_query = static function (string $sql) use (&$transcription_queries): string {
@@ -334,6 +342,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => 0,
+            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
         ]);
         $public_response = $this->postCategorySearchAjax([
             'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
@@ -392,6 +401,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$virtual_category_id],
             'user_id' => $admin_id,
+            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, $admin_id),
         ]);
         $this->assertNotSame('', $token);
 

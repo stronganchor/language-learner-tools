@@ -237,6 +237,111 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('>Continue<', $html);
     }
 
+    public function test_incomplete_stream_catalog_renders_retry_instead_of_authoritative_empty_state(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $injected = false;
+        $term_failure = static function ($terms, array $taxonomies) use (&$injected) {
+            if (!$injected && in_array('word-category', $taxonomies, true)) {
+                $injected = true;
+                return new WP_Error('ll_tools_test_incomplete_recorder_catalog');
+            }
+            return $terms;
+        };
+        add_filter('get_terms', $term_failure, 10, 2);
+        try {
+            $page_complete = true;
+            $failed_page = ll_tools_wordset_page_get_recorder_queue_summary_category_page(
+                $wordset_id,
+                1,
+                6,
+                get_current_user_id(),
+                $page_complete
+            );
+        } finally {
+            remove_filter('get_terms', $term_failure, 10);
+        }
+        $this->assertTrue($injected);
+        $this->assertFalse($page_complete);
+        $this->assertFalse((bool) ($failed_page['complete'] ?? true));
+        $this->assertSame([], $failed_page['categories'] ?? null);
+
+        $recovered_complete = false;
+        $recovered_page = ll_tools_wordset_page_get_recorder_queue_summary_category_page(
+            $wordset_id,
+            1,
+            6,
+            get_current_user_id(),
+            $recovered_complete
+        );
+        $this->assertTrue($recovered_complete);
+        $this->assertTrue((bool) ($recovered_page['complete'] ?? false));
+        $this->assertNotEmpty($recovered_page['categories'] ?? []);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Catalog Retry Recorder',
+        ]);
+        $recorder = get_userdata($recorder_id);
+        $this->assertInstanceOf(WP_User::class, $recorder);
+
+        $rows = ll_tools_wordset_page_get_recorder_queue_rows(
+            $wordset_id,
+            $wordset_term,
+            [$recorder],
+            [
+                'stream_view' => true,
+                'focused_user_id' => $recorder_id,
+                'summary_categories' => [],
+                'summary_categories_complete' => false,
+            ]
+        );
+
+        $_GET = ['ll_wordset_tool' => 'recorder-queues'];
+        $html = ll_tools_wordset_page_render_settings_recorder_queues_tool(
+            $wordset_term,
+            $wordset_id,
+            '',
+            $rows,
+            [
+                'stream_view' => true,
+                'selected_recorder_user_id' => $recorder_id,
+                'assigned_audio_recorders' => [$recorder],
+                'stream_categories' => [],
+                'stream_catalog_complete' => false,
+            ]
+        );
+
+        $this->assertStringContainsString(
+            'The category catalog is temporarily unavailable. Please try again.',
+            $html
+        );
+        $this->assertMatchesRegularExpression('/>\s*Retry\s*<\/a>/', $html);
+        $this->assertStringNotContainsString('data-ll-recorder-queue-summary-root', $html);
+        $this->assertStringNotContainsString('No words currently need recordings for this recorder.', $html);
+
+        $page_source = $this->getFunctionSource('ll_tools_wordset_page_get_recorder_queue_summary_category_page');
+        $this->assertStringContainsString('$complete', $page_source);
+        $this->assertStringContainsString("'complete' => \$complete", $page_source);
+
+        $controller_source = $this->getFunctionSource('ll_tools_render_wordset_page_content');
+        $this->assertStringContainsString("'enabled' => \$recorder_queue_stream_catalog_complete", $controller_source);
+        $this->assertStringContainsString("'stream_catalog_complete' => \$recorder_queue_stream_catalog_complete", $controller_source);
+
+        $script_source = file_get_contents(LL_TOOLS_BASE_PATH . 'js/wordset-pages.js');
+        $this->assertIsString($script_source);
+        $this->assertStringContainsString('const recorderQueueCatalogComplete =', $script_source);
+        $this->assertStringContainsString('ll-tools-recorder-catalog-retry', $script_source);
+        $this->assertStringContainsString('window.location.reload();', $script_source);
+    }
+
     public function test_summary_batch_slug_normalization_deduplicates_and_caps_the_request(): void
     {
         $batch_size = static function (): int {
@@ -377,7 +482,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $fixture = $this->createWordsetWithCategories(1);
         $wordset_id = (int) $fixture['wordset_id'];
         $category = $fixture['categories'][0];
-        $original_using_ext_cache = wp_using_ext_object_cache();
+        $original_using_ext_cache = (bool) wp_using_ext_object_cache();
         $original_posts_last_changed = wp_cache_get('last_changed', 'posts');
         $original_terms_last_changed = wp_cache_get('last_changed', 'terms');
 
@@ -426,7 +531,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         foreach ($option_names as $option_name) {
             $option_backups[$option_name] = get_option($option_name, null);
         }
-        $original_using_ext_cache = wp_using_ext_object_cache();
+        $original_using_ext_cache = (bool) wp_using_ext_object_cache();
         $fixture = $this->createWordsetWithCategories(2);
         $other_fixture = $this->createWordsetWithCategories(1);
         $wordset_id = (int) $fixture['wordset_id'];
@@ -498,6 +603,58 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 } else {
                     update_option($option_name, $value, false);
                 }
+            }
+        }
+    }
+
+    public function test_categorized_summary_signatures_ignore_quiz_unknown_scope_but_track_failed_category_writes(): void
+    {
+        $unknown_option = 'll_tools_quiz_content_unknown_epoch';
+        $failsafe_option = 'll_tools_quiz_content_failsafe_epoch';
+        $unknown_backup = get_option($unknown_option, null);
+        $failsafe_backup = get_option($failsafe_option, null);
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+
+        try {
+            update_option($unknown_option, 41001, false);
+            update_option($failsafe_option, 51001, false);
+            $baseline_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $baseline_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+
+            update_option($unknown_option, 41002, false);
+            $this->assertSame(
+                $baseline_a,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a),
+                'A conservative wordset-scope fallback must not evict an exactly versioned recorder category.'
+            );
+            $this->assertSame(
+                $baseline_b,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+            );
+
+            update_option($failsafe_option, 51002, false);
+            $this->assertNotSame(
+                $baseline_a,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a),
+                'A failed category-version write must still invalidate categorized recorder summaries.'
+            );
+            $this->assertNotSame(
+                $baseline_b,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b)
+            );
+        } finally {
+            if ($unknown_backup === null) {
+                delete_option($unknown_option);
+            } else {
+                update_option($unknown_option, $unknown_backup, false);
+            }
+            if ($failsafe_backup === null) {
+                delete_option($failsafe_option);
+            } else {
+                update_option($failsafe_option, $failsafe_backup, false);
             }
         }
     }
@@ -2049,6 +2206,155 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }, (array) $summary['scan_state']['candidates']));
     }
 
+    public function test_candidate_hydrators_propagate_bounded_source_completeness_contract(): void
+    {
+        foreach (['ll_tools_get_recording_queue_items', 'll_get_images_needing_audio'] as $function_name) {
+            $reflection = new ReflectionFunction($function_name);
+            $parameters = $reflection->getParameters();
+            $complete_parameter = end($parameters);
+
+            $this->assertInstanceOf(ReflectionParameter::class, $complete_parameter);
+            $this->assertSame('complete', $complete_parameter->getName());
+            $this->assertTrue(
+                $complete_parameter->isPassedByReference(),
+                $function_name . ' must return source completeness through its final argument.'
+            );
+        }
+
+        $queue_source = $this->getFunctionSource('ll_tools_get_recording_queue_items');
+        $this->assertStringContainsString('$image_complete = true;', $queue_source);
+        $this->assertStringContainsString(
+            'll_get_images_needing_audio($category_slug, $wordset_term_ids, $include_types_csv, $exclude_types_csv, $include_hidden, $user_id, $candidate_word_ids, $options, $image_complete)',
+            $queue_source
+        );
+        $this->assertStringContainsString('$prompt_complete = true;', $queue_source);
+        $this->assertStringContainsString('$complete = $image_complete && $prompt_complete;', $queue_source);
+
+        $image_source = $this->getFunctionSource('ll_get_images_needing_audio');
+        $this->assertStringContainsString(
+            '$candidate_scope_is_limited = $candidate_word_ids_limited || !empty($candidate_word_ids) || !empty($candidate_image_ids);',
+            $image_source
+        );
+        $this->assertStringContainsString("'cache_results'  => false", $image_source);
+        $this->assertStringContainsString('$referenced_images_complete = true;', $image_source);
+        $this->assertStringContainsString('$candidate_map_complete = true;', $image_source);
+        $this->assertMatchesRegularExpression(
+            '/if \(!\$referenced_images_complete\) \{\s*\$complete = false;\s*return \[\];\s*\}/',
+            $image_source
+        );
+        $this->assertMatchesRegularExpression(
+            '/if \(!\$candidate_map_complete\) \{\s*\$complete = false;\s*return \[\];\s*\}/',
+            $image_source
+        );
+
+        $candidate_hydrator = new ReflectionFunction('ll_tools_recorder_get_candidate_queue_items_for_matches');
+        $candidate_parameters = $candidate_hydrator->getParameters();
+        $candidate_complete_parameter = end($candidate_parameters);
+        $this->assertInstanceOf(ReflectionParameter::class, $candidate_complete_parameter);
+        $this->assertSame('complete', $candidate_complete_parameter->getName());
+        $this->assertTrue($candidate_complete_parameter->isPassedByReference());
+
+        $candidate_source = $this->getFunctionSource('ll_tools_recorder_get_candidate_queue_items_for_matches');
+        $this->assertStringContainsString('$hydration_complete = true;', $candidate_source);
+        $this->assertMatchesRegularExpression(
+            '/ll_tools_get_recording_queue_items\([\s\S]*?\$hydration_complete\s*\)/',
+            $candidate_source
+        );
+        $this->assertMatchesRegularExpression(
+            '/if \(!\$hydration_complete\) \{\s*\$complete = false;\s*return \[\];\s*\}/',
+            $candidate_source
+        );
+    }
+
+    public function test_focused_candidate_hydration_failure_retries_without_advancing_the_cursor(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_get_recording_category_queue_page');
+        $failure_offset = strpos($source, 'if (!$candidate_hydration_complete) {');
+        $advance_offset = strpos($source, '$candidate_page_delivered = count($candidate_matches);');
+        $this->assertIsInt($failure_offset);
+        $this->assertIsInt($advance_offset);
+        $this->assertLessThan(
+            $advance_offset,
+            $failure_offset,
+            'Incomplete hydration must return before the delivered cursor advances.'
+        );
+
+        $failure_branch = substr($source, $failure_offset, $advance_offset - $failure_offset);
+        foreach ([
+            '$items = $items_before_candidate_hydration;',
+            "\$flags['candidate_hydration_incomplete'] = true;",
+            "'page_delivered' => \$page_delivered,",
+            "'candidate_page_delivered' => \$candidate_page_delivered,",
+            "\$candidate_scan_state['cursor']",
+            "\$candidate_scan_state['resume_cursor']",
+            'return $finalize(',
+        ] as $required_retry_state) {
+            $this->assertStringContainsString($required_retry_state, $failure_branch);
+        }
+        $this->assertStringNotContainsString("'candidate_cursor' => \$candidate_cursor", $failure_branch);
+    }
+
+    public function test_recorder_switcher_catalog_requires_complete_term_owner_visibility_and_label_reads(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_wordset_page_get_recorder_queue_summary_categories');
+        foreach ([
+            "\$wpdb->last_error = '';",
+            "is_wp_error(\$terms) || \$wpdb->last_error !== ''",
+            '$owner_complete = true;',
+            'll_tools_get_category_wordset_owner_id($term, $owner_complete)',
+            '$visibility_complete = true;',
+            'll_tools_user_can_view_category($term, $user_id, $visibility_complete)',
+            '$display_name_complete = true;',
+            '$catalog_complete = $catalog_complete && $display_name_complete;',
+            'if (!$catalog_complete) {',
+        ] as $required_contract) {
+            $this->assertStringContainsString($required_contract, $source);
+        }
+
+        $incomplete_offset = strrpos($source, 'if (!$catalog_complete) {');
+        $store_offset = strrpos($source, 'll_tools_wordset_page_store_cached_payload(');
+        $this->assertIsInt($incomplete_offset);
+        $this->assertIsInt($store_offset);
+        $this->assertLessThan($store_offset, $incomplete_offset);
+    }
+
+    public function test_incomplete_summary_hydration_preserves_candidates_and_cannot_cache_as_final(): void
+    {
+        $summary_source = $this->getFunctionSource('ll_tools_wordset_page_build_recorder_queue_summary_group');
+        $this->assertStringContainsString('$hydration_complete = true;', $summary_source);
+        $this->assertMatchesRegularExpression(
+            '/ll_tools_get_recording_queue_items\([\s\S]*?\$hydration_complete\s*\)/',
+            $summary_source
+        );
+
+        $incomplete_offset = strpos($summary_source, "if (empty(\$hydrated['complete']))");
+        $rejection_offset = strpos($summary_source, '$rejected_count = max(');
+        $this->assertIsInt($incomplete_offset);
+        $this->assertIsInt($rejection_offset);
+        $this->assertLessThan(
+            $rejection_offset,
+            $incomplete_offset,
+            'Hydration completeness must be checked before candidates can be classified as rejected.'
+        );
+
+        $incomplete_branch = substr($summary_source, $incomplete_offset, $rejection_offset - $incomplete_offset);
+        $this->assertStringContainsString("\$scan_state['complete'] = false;", $incomplete_branch);
+        $this->assertStringContainsString("\$scan_state['truncated'] = true;", $incomplete_branch);
+        $this->assertStringContainsString('break;', $incomplete_branch);
+        $this->assertStringNotContainsString("\$scan_state['candidates'] =", $incomplete_branch);
+        $this->assertStringNotContainsString("\$scan_state['valid_seen'] =", $incomplete_branch);
+        $this->assertStringContainsString(
+            "\$summary_complete = !empty(\$scan_state['complete']) && \$prompt_scan_complete;",
+            $summary_source
+        );
+
+        $groups_source = $this->getFunctionSource('ll_tools_wordset_page_build_recorder_queue_summary_groups');
+        $this->assertStringContainsString("\$scan_complete = !empty(\$summary['complete']);", $groups_source);
+        $this->assertStringContainsString("'generated_at' => \$scan_complete ? \$now : 0,", $groups_source);
+        $this->assertStringContainsString("'scan_complete' => \$scan_complete,", $groups_source);
+        $this->assertStringContainsString("&& !empty(\$payload['scan_complete'])", $groups_source);
+    }
+
     public function test_focused_candidate_page_resumes_bounded_word_and_image_scans_without_losing_partial_state(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
@@ -2285,6 +2591,21 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             remove_action('pre_get_posts', $query_watcher);
             remove_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
         }
+    }
+
+    private function getFunctionSource(string $function_name): string
+    {
+        $reflection = new ReflectionFunction($function_name);
+        $file_name = $reflection->getFileName();
+        $this->assertIsString($file_name);
+        $lines = file($file_name);
+        $this->assertIsArray($lines);
+
+        return implode('', array_slice(
+            $lines,
+            $reflection->getStartLine() - 1,
+            $reflection->getEndLine() - $reflection->getStartLine() + 1
+        ));
     }
 
     /**

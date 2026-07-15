@@ -74,5 +74,13 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         if (function_exists('ll_tools_reset_category_maintenance_runtime')) {
             ll_tools_reset_category_maintenance_runtime();
         }
+        if (function_exists('ll_tools_epoch_request_cache_reset')) {
+            ll_tools_epoch_request_cache_reset();
+        }
+        unset($GLOBALS['ll_tools_epoch_bump_failed']);
+        unset($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete']);
+        unset($GLOBALS['ll_tools_specific_wrong_answer_owner_map_rebuild_complete']);
+        unset($GLOBALS['ll_tools_quiz_content_final_invalidation_state']);
+        remove_action('shutdown', 'll_tools_finalize_quiz_content_cache_invalidation', PHP_INT_MAX);
     }
 }

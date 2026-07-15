@@ -705,6 +705,197 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_mid_build_metadata_failure_keeps_latest_manifest_and_partial_cursor_unchanged(): void
+    {
+        global $wpdb;
+
+        $min_words_filter = static fn (): int => 1;
+        $batch_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        add_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+
+        try {
+            $first_fixture = $this->createCatalogFixture('Atomic Catalog Existing');
+            $initial_scope = $this->trackAndClearScope([], 1);
+            $scope_id = (string) $initial_scope['id'];
+            $latest_option = ll_tools_quiz_pages_catalog_option_name('latest', $scope_id);
+            $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
+
+            $this->assertSame([], ll_get_all_quiz_pages_data([]));
+            $this->assertTrue((bool) ($this->runWarmupUntilReady($scope_id, 12)['ready'] ?? false));
+            $latest_before = get_option($latest_option, []);
+            $this->assertCount(1, ll_tools_quiz_pages_catalog_snapshot_items($latest_before));
+            $this->assertSame(
+                $first_fixture['page_id'],
+                (int) (ll_tools_quiz_pages_catalog_snapshot_items($latest_before)[0]['post_id'] ?? 0)
+            );
+
+            $second_fixture = $this->createCatalogFixture('Atomic Catalog New');
+            ll_tools_bump_category_cache_version([(int) $second_fixture['category_id']]);
+            $current_scope = $this->trackAndClearCurrentCacheOnly([], 1);
+            $this->assertSame($scope_id, (string) $current_scope['id']);
+            $this->assertNotSame(
+                (string) ($latest_before['cache_key'] ?? ''),
+                (string) $current_scope['cache_key']
+            );
+
+            // Serve the old complete manifest while creating the replacement
+            // generation, then let its first bounded row persist successfully.
+            $stale_items = ll_get_all_quiz_pages_data([]);
+            $this->assertCount(1, $stale_items);
+            ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            $state_before_failure = get_option($state_option, []);
+            $this->assertSame(1, (int) ($state_before_failure['processed'] ?? 0));
+            $this->assertCount(1, (array) ($state_before_failure['chunks'] ?? []));
+
+            // Force the uncached second category's term-meta read to fail after
+            // the first replacement chunk already exists. The worker must not
+            // append this partial batch or advance past its page row.
+            wp_cache_delete((int) $second_fixture['category_id'], 'term_meta');
+            $injected = false;
+            $missing_table = $wpdb->prefix . 'll_tools_missing_quiz_catalog_meta';
+            $break_second_category_meta = static function (string $query) use (
+                $wpdb,
+                $second_fixture,
+                $missing_table,
+                &$injected
+            ): string {
+                $category_id = (int) $second_fixture['category_id'];
+                if (
+                    !$injected
+                    && stripos($query, 'FROM ' . $wpdb->termmeta) !== false
+                    && preg_match('/\\bterm_id\\s+IN\\s*\\(\\s*' . preg_quote((string) $category_id, '/') . '\\s*\\)/i', $query) === 1
+                ) {
+                    $injected = true;
+                    return str_replace($wpdb->termmeta, $missing_table, $query);
+                }
+                return $query;
+            };
+
+            $previous_suppress_errors = $wpdb->suppress_errors(true);
+            add_filter('query', $break_second_category_meta, 10, 1);
+            try {
+                ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            } finally {
+                remove_filter('query', $break_second_category_meta, 10);
+                $wpdb->suppress_errors($previous_suppress_errors);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertTrue($injected, 'The fixture must interrupt the intended category metadata read.');
+            $this->assertSame($latest_before, get_option($latest_option, []));
+
+            $state_after_failure = get_option($state_option, []);
+            foreach (['processed', 'cursor', 'source_index', 'chunk_index', 'item_count'] as $field) {
+                $this->assertSame(
+                    (int) ($state_before_failure[$field] ?? 0),
+                    (int) ($state_after_failure[$field] ?? 0),
+                    'An incomplete row batch must not advance ' . $field . '.'
+                );
+            }
+            $this->assertSame(
+                array_values((array) ($state_before_failure['chunks'] ?? [])),
+                array_values((array) ($state_after_failure['chunks'] ?? []))
+            );
+            $this->assertStringContainsString('incomplete', strtolower((string) ($state_after_failure['last_error'] ?? '')));
+
+            $status = $this->runWarmupUntilReady($scope_id, 12);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $this->assertCount(2, ll_tools_quiz_pages_catalog_snapshot_items(get_option($latest_option, [])));
+        } finally {
+            remove_filter('ll_tools_quiz_pages_catalog_rebuild_batch_size', $batch_filter);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_explicit_wordset_isolation_scope_failure_retries_without_advancing_or_publishing(): void
+    {
+        global $wpdb;
+
+        $min_words_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        try {
+            $fixture = $this->createCatalogFixture('Isolation Scope Atomic');
+            $source_category_id = (int) $fixture['category_id'];
+            $isolated_category_id = (int) ll_tools_get_or_create_isolated_category_copy(
+                $source_category_id,
+                (int) $fixture['wordset_id']
+            );
+            $this->assertGreaterThan(0, $isolated_category_id);
+            $this->assertNotSame($source_category_id, $isolated_category_id);
+            wp_set_post_terms((int) $fixture['word_id'], [$isolated_category_id], 'word-category', false);
+            ll_tools_bump_category_cache_version([$source_category_id, $isolated_category_id]);
+
+            $opts = ['wordset' => (string) $fixture['wordset_slug']];
+            $scope = $this->trackAndClearScope($opts, 1);
+            $scope_id = (string) $scope['id'];
+            $state_option = ll_tools_quiz_pages_catalog_option_name('state', $scope_id);
+            $latest_option = ll_tools_quiz_pages_catalog_option_name('latest', $scope_id);
+
+            $this->assertSame([], ll_get_all_quiz_pages_data($opts));
+            $state_before = get_option($state_option, []);
+            $this->assertSame(0, (int) ($state_before['processed'] ?? -1));
+            $this->assertSame([], (array) ($state_before['chunks'] ?? []));
+            $this->assertFalse(get_option($latest_option, false));
+
+            clean_term_cache([$source_category_id, $isolated_category_id], 'word-category');
+            wp_cache_delete($source_category_id, 'term_meta');
+            wp_cache_delete($isolated_category_id, 'term_meta');
+            $injected = false;
+            $missing_table = $wpdb->prefix . 'll_tools_missing_isolation_scope_meta';
+            $break_isolation_meta = static function (string $query) use (
+                $wpdb,
+                $isolated_category_id,
+                $missing_table,
+                &$injected
+            ): string {
+                if (
+                    !$injected
+                    && stripos($query, 'FROM ' . $wpdb->termmeta) !== false
+                    && preg_match('/\\bterm_id\\s+IN\\s*\\([^)]*\\b' . preg_quote((string) $isolated_category_id, '/') . '\\b[^)]*\\)/i', $query) === 1
+                ) {
+                    $injected = true;
+                    return str_replace($wpdb->termmeta, $missing_table, $query);
+                }
+                return $query;
+            };
+
+            $previous_suppress_errors = $wpdb->suppress_errors(true);
+            add_filter('query', $break_isolation_meta, 10, 1);
+            try {
+                ll_tools_quiz_pages_catalog_refresh_event($scope_id);
+            } finally {
+                remove_filter('query', $break_isolation_meta, 10);
+                $wpdb->suppress_errors($previous_suppress_errors);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertTrue($injected, 'The fixture must interrupt the isolation scope remap read.');
+            $state_after_failure = get_option($state_option, []);
+            foreach (['processed', 'cursor', 'source_index', 'chunk_index', 'item_count'] as $field) {
+                $this->assertSame(
+                    (int) ($state_before[$field] ?? 0),
+                    (int) ($state_after_failure[$field] ?? 0),
+                    'An incomplete isolation scope must not advance ' . $field . '.'
+                );
+            }
+            $this->assertSame((array) ($state_before['chunks'] ?? []), (array) ($state_after_failure['chunks'] ?? []));
+            $this->assertFalse(get_option($latest_option, false));
+            $this->assertStringContainsString('source query failed', strtolower((string) ($state_after_failure['last_error'] ?? '')));
+
+            $status = $this->runWarmupUntilReady($scope_id, 12);
+            $this->assertTrue((bool) ($status['ready'] ?? false));
+            $items = ll_tools_quiz_pages_catalog_snapshot_items(get_option($latest_option, []));
+            $this->assertCount(1, $items);
+            $this->assertSame((int) $fixture['page_id'], (int) ($items[0]['post_id'] ?? 0));
+            $this->assertSame($isolated_category_id, (int) ($items[0]['term_id'] ?? 0));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
     public function test_interrupted_manifest_replacement_retains_and_cleans_old_chunks_on_retry(): void
     {
         $scope = $this->trackAndClearScope([], LL_TOOLS_MIN_WORDS_PER_QUIZ);
@@ -961,7 +1152,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{wordset_id:int,wordset_slug:string,category_id:int,page_id:int}
+     * @return array{wordset_id:int,wordset_slug:string,category_id:int,word_id:int,page_id:int}
      */
     private function createCatalogFixture(string $base_name, bool $with_gender = false): array
     {
@@ -1019,6 +1210,7 @@ final class QuizPagesShortcodeCatalogTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'wordset_slug' => (string) $wordset_term->slug,
             'category_id' => $category_id,
+            'word_id' => (int) $word_id,
             'page_id' => (int) $page_id,
         ];
     }

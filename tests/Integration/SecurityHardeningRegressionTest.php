@@ -185,6 +185,10 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
     {
         $first_fixture = $this->create_flashcard_word_with_audio(111);
         $second_fixture = $this->create_flashcard_word_with_audio(222);
+        $category = get_term_by('name', $first_fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+        update_term_meta((int) $category->term_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta((int) $category->term_id, 'll_quiz_option_type', 'text_translation');
         wp_set_current_user(0);
 
         $base_post = [

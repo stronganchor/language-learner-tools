@@ -32,7 +32,7 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         $wordset_id = function_exists('ll_tools_get_active_wordset_id')
             ? (int) ll_tools_get_active_wordset_id()
             : 0;
-        if ($wordset_id > 0) {
+        if ($wordset_id > 0 && term_exists($wordset_id, 'wordset')) {
             return $wordset_id;
         }
 
@@ -219,7 +219,9 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         update_post_meta($candidate_ids[1], LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY, ['Nested typed distractor']);
 
         $owner_option = LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION;
+        $integrity_option = LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION;
         $original_owner_map = get_option($owner_option, null);
+        $original_integrity = get_option($integrity_option, null);
         $owner_map = [];
         foreach ($candidate_ids as $candidate_id) {
             $owner_map[$candidate_id] = [$owner_id];
@@ -229,7 +231,13 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         $owner_map[$unrequested_id] = [$owner_id];
         clean_post_cache($unrequested_id);
         wp_cache_delete($unrequested_id, 'post_meta');
-        update_option($owner_option, $owner_map, false);
+        $generation = 'payload-batch-' . wp_generate_uuid4();
+        update_option(
+            $owner_option,
+            ll_tools_specific_wrong_answer_owner_map_pack($owner_map, $generation),
+            false
+        );
+        update_option($integrity_option, 'v2:' . $generation, false);
 
         $captured_queries = [];
         $capture = static function (string $query) use (&$captured_queries): string {
@@ -246,6 +254,11 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
                 delete_option($owner_option);
             } else {
                 update_option($owner_option, $original_owner_map, false);
+            }
+            if ($original_integrity === null) {
+                delete_option($integrity_option);
+            } else {
+                update_option($integrity_option, $original_integrity, false);
             }
         }
 

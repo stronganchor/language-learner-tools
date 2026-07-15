@@ -1020,6 +1020,34 @@ test('manager recorder queue uses compact category cards and focused prompt edit
   await assertPageFitsViewport(page);
 });
 
+test('recorder queue runtime does not request an unrelated study recommendation', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueToolMarkup(), { width: 1280, height: 900 });
+  await page.evaluate(() => {
+    window.llWordsetPageData = {
+      view: 'settings',
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'study-nonce',
+      isLoggedIn: true,
+      wordsetId: 22,
+      categories: [],
+      i18n: {}
+    };
+  });
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.__settingsRuntimeAjaxActions = [];
+    window.jQuery.post = function captureSettingsRuntimePost(_url, payload) {
+      window.__settingsRuntimeAjaxActions.push(String((payload && payload.action) || ''));
+      return window.jQuery.Deferred().resolve({ success: true, data: {} }).promise();
+    };
+  });
+  await page.addScriptTag({ content: wordsetPagesJsSource });
+  await page.waitForTimeout(50);
+
+  const actions = await page.evaluate(() => window.__settingsRuntimeAjaxActions.slice());
+  expect(actions).not.toContain('ll_user_study_recommendation');
+});
+
 test('manager recorder queue streams one recorder category queue in bounded ordered batches', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
 

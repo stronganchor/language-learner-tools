@@ -66,6 +66,15 @@ if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY')) {
 if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION')) {
     define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION', 'll_tools_specific_wrong_answer_owner_map');
 }
+if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION')) {
+    define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION', 'll_tools_specific_wrong_answer_owner_map_integrity');
+}
+if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION')) {
+    define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION', 'll_tools_specific_wrong_answer_owner_map_rebuild_state');
+}
+if (!defined('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION')) {
+    define('LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION', 'll_tools_specific_wrong_answer_owner_map_source_epoch');
+}
 
 // Hook to add the meta boxes
 add_action('add_meta_boxes', 'll_tools_add_similar_words_metabox');
@@ -185,7 +194,8 @@ function ll_tools_render_words_linked_image_metabox(WP_Post $post): void {
  * @param bool $validate_existing_words Whether to keep only existing `words` posts.
  * @return array
  */
-function ll_tools_normalize_specific_wrong_answer_ids($raw_ids, $self_word_id = 0, bool $validate_existing_words = false): array {
+function ll_tools_normalize_specific_wrong_answer_ids($raw_ids, $self_word_id = 0, bool $validate_existing_words = false, ?bool &$complete = null): array {
+    $complete = true;
     $tokens = [];
     if (is_string($raw_ids)) {
         $tokens = preg_split('/[\s,]+/', $raw_ids);
@@ -222,6 +232,8 @@ function ll_tools_normalize_specific_wrong_answer_ids($raw_ids, $self_word_id = 
         return $ids;
     }
 
+    global $wpdb;
+    $wpdb->last_error = '';
     $existing = get_posts([
         'post_type'        => 'words',
         'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
@@ -230,8 +242,13 @@ function ll_tools_normalize_specific_wrong_answer_ids($raw_ids, $self_word_id = 
         'fields'           => 'ids',
         'orderby'          => 'post__in',
         'no_found_rows'    => true,
+        'cache_results'    => false,
         'suppress_filters' => true,
     ]);
+    $complete = $wpdb->last_error === '';
+    if (!$complete) {
+        return $ids;
+    }
     $existing_lookup = [];
     foreach ((array) $existing as $existing_id) {
         $existing_lookup[(int) $existing_id] = true;
@@ -337,18 +354,529 @@ function ll_tools_get_word_specific_wrong_answer_ids($word_id): array {
     return ll_tools_normalize_specific_wrong_answer_ids($raw, $word_id, false);
 }
 
+function ll_tools_specific_wrong_answer_owner_map_hash(array $map): string {
+    return 'v1:' . md5(maybe_serialize($map));
+}
+
+function ll_tools_specific_wrong_answer_owner_map_payload_generation($map): string {
+    if (!is_array($map)) {
+        return '';
+    }
+    $generation = isset($map['__ll_tools_generation']) && is_scalar($map['__ll_tools_generation'])
+        ? sanitize_key((string) $map['__ll_tools_generation'])
+        : '';
+    return $generation;
+}
+
+/** @return array<int|string,mixed> */
+function ll_tools_specific_wrong_answer_owner_map_pack(
+    array $map,
+    string $generation,
+    ?int $source_epoch = null
+): array {
+    $payload = ll_tools_specific_wrong_answer_owner_map_normalize($map);
+    $payload['__ll_tools_generation'] = sanitize_key($generation);
+    $payload['__ll_tools_schema'] = 2;
+    $payload['__ll_tools_source_epoch'] = $source_epoch !== null
+        ? max(0, $source_epoch)
+        : ll_tools_specific_wrong_answer_owner_map_source_epoch();
+    return $payload;
+}
+
+function ll_tools_specific_wrong_answer_owner_map_payload_source_epoch($map): int {
+    if (!is_array($map) || !isset($map['__ll_tools_source_epoch']) || !is_numeric($map['__ll_tools_source_epoch'])) {
+        return -1;
+    }
+    return max(0, (int) $map['__ll_tools_source_epoch']);
+}
+
+function ll_tools_specific_wrong_answer_owner_map_source_epoch(bool $fresh = false): int {
+    if (!$fresh) {
+        return max(0, (int) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION, 0));
+    }
+    global $wpdb;
+    $wpdb->last_error = '';
+    $value = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION
+    ));
+    return $wpdb->last_error === '' && ($value === null || is_numeric($value))
+        ? max(0, (int) $value)
+        : -1;
+}
+
+function ll_tools_specific_wrong_answer_owner_map_integrity(bool $fresh = false): string {
+    if (!$fresh) {
+        return (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '');
+    }
+    global $wpdb;
+    $wpdb->last_error = '';
+    $value = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION
+    ));
+    return $wpdb->last_error === '' && is_scalar($value) ? (string) $value : '';
+}
+
+function ll_tools_specific_wrong_answer_owner_map_payload_fresh() {
+    global $wpdb;
+    $wpdb->last_error = '';
+    $value = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION
+    ));
+    return $wpdb->last_error === '' ? maybe_unserialize($value) : null;
+}
+
+function ll_tools_bump_specific_wrong_answer_owner_map_source_epoch(): int {
+    global $wpdb;
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "INSERT INTO {$wpdb->options} (option_name, option_value, autoload)
+         VALUES (%s, %s, %s)
+         ON DUPLICATE KEY UPDATE option_value = CAST(option_value AS UNSIGNED) + 1",
+        LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION,
+        '1',
+        'no'
+    ));
+    wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION, 'options');
+    wp_cache_delete('alloptions', 'options');
+    if ($updated === false) {
+        return -1;
+    }
+    return ll_tools_specific_wrong_answer_owner_map_source_epoch(true);
+}
+
+function ll_tools_specific_wrong_answer_owner_map_is_complete($map, bool $fresh_integrity = false): bool {
+    if (!is_array($map)) {
+        return false;
+    }
+    $integrity = ll_tools_specific_wrong_answer_owner_map_integrity($fresh_integrity);
+    $generation = ll_tools_specific_wrong_answer_owner_map_payload_generation($map);
+    $payload_source_epoch = ll_tools_specific_wrong_answer_owner_map_payload_source_epoch($map);
+    $current_source_epoch = ll_tools_specific_wrong_answer_owner_map_source_epoch($fresh_integrity);
+    // The stable marker must name the generation embedded in the map option.
+    // This keeps the hot-path check O(1) while making a stale-writer overwrite
+    // fail closed instead of trusting whichever array happened to land last.
+    return $generation !== ''
+        && $payload_source_epoch >= 0
+        && $payload_source_epoch === $current_source_epoch
+        && hash_equals('v2:' . $generation, $integrity);
+}
+
+/** @return array<int,int[]> */
+function ll_tools_specific_wrong_answer_owner_map_normalize($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($raw as $wrong_id_raw => $owner_ids_raw) {
+        $wrong_id = (int) $wrong_id_raw;
+        if ($wrong_id <= 0 || !is_array($owner_ids_raw)) {
+            continue;
+        }
+        $owner_lookup = [];
+        foreach ($owner_ids_raw as $owner_id_raw) {
+            $owner_id = (int) $owner_id_raw;
+            if ($owner_id > 0) {
+                $owner_lookup[$owner_id] = true;
+            }
+        }
+        if ($owner_lookup === []) {
+            continue;
+        }
+        $owner_ids = array_map('intval', array_keys($owner_lookup));
+        sort($owner_ids, SORT_NUMERIC);
+        $normalized[$wrong_id] = $owner_ids;
+    }
+    ksort($normalized, SORT_NUMERIC);
+    return $normalized;
+}
+
+/**
+ * Acquire the reverse-map writer fence without displacing another writer.
+ *
+ * @param string|null $expected_integrity Null accepts the current stable marker.
+ * @return string Dirty token, or an empty string when another writer won.
+ */
+function ll_tools_specific_wrong_answer_owner_map_acquire_writer(?string $expected_integrity = null): string {
+    global $wpdb;
+
+    $current_raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, null);
+    $current = is_scalar($current_raw) ? (string) $current_raw : '';
+    if ($expected_integrity !== null && !hash_equals($expected_integrity, $current)) {
+        return '';
+    }
+    if (strpos($current, 'stale-error:') === 0) {
+        return '';
+    }
+    if (strpos($current, 'dirty:') === 0) {
+        $parts = explode(':', $current, 3);
+        $started_at = isset($parts[1]) && ctype_digit((string) $parts[1]) ? (int) $parts[1] : 0;
+        $stale_after = max(300, (int) apply_filters('ll_tools_specific_wrong_answer_owner_writer_stale_after', 10 * MINUTE_IN_SECONDS));
+        if ($started_at > 0 && (time() - $started_at) < $stale_after) {
+            return '';
+        }
+        // Pre-fence dirty markers carried no timestamp. Treat those as stale so
+        // the scheduled maintenance rebuild can recover an interrupted upgrade.
+    }
+
+    $dirty_marker = 'dirty:' . time() . ':' . wp_generate_uuid4();
+    if ($current_raw === null) {
+        if (!add_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, $dirty_marker, '', false)) {
+            return '';
+        }
+    } else {
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $dirty_marker,
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $current
+        ));
+        if ($updated !== 1) {
+            return '';
+        }
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+    }
+
+    return (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') === $dirty_marker
+        ? $dirty_marker
+        : '';
+}
+
+/** Restore the previous stable marker when a writer failed before publishing. */
+function ll_tools_specific_wrong_answer_owner_map_abandon_writer(string $dirty_marker, ?string $fallback_integrity): void {
+    global $wpdb;
+
+    if ($dirty_marker === '') {
+        return;
+    }
+    if ($fallback_integrity === null) {
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $dirty_marker
+        ));
+    } else {
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $fallback_integrity,
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $dirty_marker
+        ));
+    }
+    wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+    wp_cache_delete('alloptions', 'options');
+}
+
+/** Publish one normalized map while the caller owns the dirty-token fence. */
+function ll_tools_specific_wrong_answer_owner_map_publish(array $map, string $dirty_marker, ?int $expected_source_epoch = null): bool {
+    global $wpdb;
+
+    if ($dirty_marker === ''
+        || ($expected_source_epoch !== null && $expected_source_epoch < 0)
+        || (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') !== $dirty_marker
+        || ($expected_source_epoch !== null && ll_tools_specific_wrong_answer_owner_map_source_epoch(true) !== $expected_source_epoch)) {
+        return false;
+    }
+
+    $map = ll_tools_specific_wrong_answer_owner_map_normalize($map);
+    $generation = sanitize_key(wp_generate_uuid4());
+    if ($generation === '') {
+        return false;
+    }
+    $publish_source_epoch = $expected_source_epoch !== null
+        ? max(0, $expected_source_epoch)
+        : ll_tools_specific_wrong_answer_owner_map_source_epoch(true);
+    if ($publish_source_epoch < 0) {
+        return false;
+    }
+    $payload = ll_tools_specific_wrong_answer_owner_map_pack($map, $generation, $publish_source_epoch);
+    update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $payload, false);
+    $stored_map = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (!is_array($stored_map)
+        || ll_tools_specific_wrong_answer_owner_map_payload_generation($stored_map) !== $generation
+        || ll_tools_specific_wrong_answer_owner_map_payload_source_epoch($stored_map) !== $publish_source_epoch
+        || ll_tools_specific_wrong_answer_owner_map_normalize($stored_map) !== $map
+        || (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') !== $dirty_marker
+        || ($expected_source_epoch !== null && ll_tools_specific_wrong_answer_owner_map_source_epoch(true) !== $expected_source_epoch)) {
+        return false;
+    }
+
+    $integrity = 'v2:' . $generation;
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = %s
+         WHERE option_name = %s AND option_value = %s",
+        $integrity,
+        LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+        $dirty_marker
+    ));
+    wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+    wp_cache_delete('alloptions', 'options');
+
+    if ($updated !== 1) {
+        return false;
+    }
+
+    // A stale writer may have passed its pre-write token check immediately
+    // before another worker took over. Re-read both rows after the integrity
+    // CAS; a generation mismatch is never considered complete.
+    $published_payload = ll_tools_specific_wrong_answer_owner_map_payload_fresh();
+    $published_integrity = ll_tools_specific_wrong_answer_owner_map_integrity(true);
+    $published = is_array($published_payload)
+        && hash_equals($generation, ll_tools_specific_wrong_answer_owner_map_payload_generation($published_payload))
+        && ll_tools_specific_wrong_answer_owner_map_payload_source_epoch($published_payload) === $publish_source_epoch
+        && hash_equals($integrity, $published_integrity)
+        && ($expected_source_epoch === null || ll_tools_specific_wrong_answer_owner_map_source_epoch(true) === $expected_source_epoch);
+    if (!$published) {
+        $recovery_marker = 'dirty:' . time() . ':' . wp_generate_uuid4();
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $recovery_marker,
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $integrity
+        ));
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+        return false;
+    }
+
+    return true;
+}
+
+function ll_tools_specific_wrong_answer_owner_map_repair_failed(): void {
+    ll_tools_schedule_specific_wrong_answer_owner_map_rebuild();
+    if (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        ll_tools_bump_quiz_content_cache_epoch([], false);
+    }
+}
+
+/**
+ * Apply one bounded mutation to the last complete materialization.
+ *
+ * @param callable $mutator function(array<int,int[]>): array<int,int[]>
+ */
+function ll_tools_specific_wrong_answer_owner_map_mutate(callable $mutator): bool {
+    $source_epoch = ll_tools_specific_wrong_answer_owner_map_source_epoch(true);
+    if ($source_epoch < 0) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        return false;
+    }
+    $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (!is_array($raw)) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        return false;
+    }
+
+    $raw_generation = ll_tools_specific_wrong_answer_owner_map_payload_generation($raw);
+    $raw_source_epoch = ll_tools_specific_wrong_answer_owner_map_payload_source_epoch($raw);
+    $integrity = ll_tools_specific_wrong_answer_owner_map_integrity(true);
+    $expected_integrity = $raw_generation !== '' ? 'v2:' . $raw_generation : '';
+    $stable_snapshot = $expected_integrity !== ''
+        && hash_equals($expected_integrity, $integrity)
+        && $raw_source_epoch === $source_epoch;
+    $recoverable_single_mutation = $source_epoch > 0
+        && $raw_source_epoch === ($source_epoch - 1)
+        && strpos($integrity, 'stale:' . $source_epoch . ':') === 0;
+    if (!$stable_snapshot && !$recoverable_single_mutation) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        return false;
+    }
+    $current = ll_tools_specific_wrong_answer_owner_map_normalize($raw);
+    $next = ll_tools_specific_wrong_answer_owner_map_normalize($mutator($current));
+    if ($next === $current && !$recoverable_single_mutation) {
+        return true;
+    }
+
+    $dirty_marker = ll_tools_specific_wrong_answer_owner_map_acquire_writer($integrity);
+    if ($dirty_marker === '') {
+        ll_tools_specific_wrong_answer_owner_map_repair_failed();
+        return false;
+    }
+    if (!ll_tools_specific_wrong_answer_owner_map_publish($next, $dirty_marker, $source_epoch)) {
+        if ((string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') === $dirty_marker) {
+            $fallback = ll_tools_specific_wrong_answer_owner_map_source_epoch(true) === $source_epoch
+                ? $integrity
+                : 'stale:' . ll_tools_specific_wrong_answer_owner_map_source_epoch(true) . ':' . wp_generate_uuid4();
+            ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, $fallback);
+        }
+        ll_tools_specific_wrong_answer_owner_map_repair_failed();
+        return false;
+    }
+    return true;
+}
+
+function ll_tools_repair_specific_wrong_answer_owner_map_for_owner(int $owner_id, array $previous_ids, array $next_ids): bool {
+    $owner_id = max(0, $owner_id);
+    if ($owner_id <= 0) {
+        return false;
+    }
+    $previous_ids = ll_tools_normalize_specific_wrong_answer_ids($previous_ids, $owner_id, false);
+    $next_ids = ll_tools_normalize_specific_wrong_answer_ids($next_ids, $owner_id, false);
+
+    return ll_tools_specific_wrong_answer_owner_map_mutate(static function (array $map) use ($owner_id, $previous_ids, $next_ids): array {
+        foreach ($previous_ids as $wrong_id) {
+            $wrong_id = (int) $wrong_id;
+            $owners = array_values(array_filter(array_map('intval', (array) ($map[$wrong_id] ?? [])), static function (int $candidate_owner_id) use ($owner_id): bool {
+                return $candidate_owner_id > 0 && $candidate_owner_id !== $owner_id;
+            }));
+            if ($owners === []) {
+                unset($map[$wrong_id]);
+            } else {
+                $map[$wrong_id] = $owners;
+            }
+        }
+        foreach ($next_ids as $wrong_id) {
+            $wrong_id = (int) $wrong_id;
+            if ($wrong_id <= 0) {
+                continue;
+            }
+            $owners = array_values(array_unique(array_merge((array) ($map[$wrong_id] ?? []), [$owner_id])));
+            sort($owners, SORT_NUMERIC);
+            $map[$wrong_id] = $owners;
+        }
+        return $map;
+    });
+}
+
+function ll_tools_repair_specific_wrong_answer_owner_map_for_deleted_word(int $word_id, array $owned_wrong_ids): bool {
+    $word_id = max(0, $word_id);
+    if ($word_id <= 0) {
+        return false;
+    }
+    $owned_wrong_ids = ll_tools_normalize_specific_wrong_answer_ids($owned_wrong_ids, $word_id, false);
+
+    return ll_tools_specific_wrong_answer_owner_map_mutate(static function (array $map) use ($word_id, $owned_wrong_ids): array {
+        foreach ($owned_wrong_ids as $wrong_id) {
+            $wrong_id = (int) $wrong_id;
+            $owners = array_values(array_filter(array_map('intval', (array) ($map[$wrong_id] ?? [])), static function (int $candidate_owner_id) use ($word_id): bool {
+                return $candidate_owner_id > 0 && $candidate_owner_id !== $word_id;
+            }));
+            if ($owners === []) {
+                unset($map[$wrong_id]);
+            } else {
+                $map[$wrong_id] = $owners;
+            }
+        }
+        unset($map[$word_id]);
+        return $map;
+    });
+}
+
+/**
+ * Establish a durable empty materialization with a bounded existence probe.
+ * This keeps fresh sites and tests on the narrow path without triggering the
+ * full maintenance rebuild from a public read.
+ */
+function ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused(): bool {
+    $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (is_array($raw)) {
+        $complete = ll_tools_specific_wrong_answer_owner_map_is_complete($raw);
+        if (!$complete) {
+            // Legacy/unverified arrays must fail closed, but they must also
+            // have a path to recovery from an anonymous quiz-catalog request.
+            // The scheduled worker is bounded and publishes atomically.
+            ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        }
+        return $complete;
+    }
+    if ((string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') !== '') {
+        return false;
+    }
+
+    global $wpdb;
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+    $has_owner = static function () use ($wpdb, $statuses, $status_placeholders): ?bool {
+        $wpdb->last_error = '';
+        $found = (bool) $wpdb->get_var($wpdb->prepare(
+            "SELECT 1
+             FROM {$wpdb->postmeta} AS postmeta
+             INNER JOIN {$wpdb->posts} AS posts ON posts.ID = postmeta.post_id
+             WHERE postmeta.meta_key = %s
+               AND posts.post_type = %s
+               AND posts.post_status IN ({$status_placeholders})
+             LIMIT 1",
+            array_merge([LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, 'words'], $statuses)
+        ));
+        return $wpdb->last_error === '' ? $found : null;
+    };
+
+    $initial_probe = $has_owner();
+    if ($initial_probe !== false) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild();
+        return false;
+    }
+
+    $dirty_marker = ll_tools_specific_wrong_answer_owner_map_acquire_writer('');
+    if ($dirty_marker === '') {
+        return false;
+    }
+
+    // Fence the probe-to-publish race. A concurrent first owner observes the
+    // dirty marker, fails its incremental repair closed, and queues a rebuild.
+    $fenced_probe = $has_owner();
+    if ($fenced_probe !== false) {
+        ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, null);
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild();
+        return false;
+    }
+
+    $published = ll_tools_specific_wrong_answer_owner_map_publish(
+        [],
+        $dirty_marker,
+        ll_tools_specific_wrong_answer_owner_map_source_epoch(true)
+    );
+    if (!$published && (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') === $dirty_marker) {
+        ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, null);
+    }
+    return $published;
+}
+
 /**
  * Build and persist reverse ownership map: wrong-answer word ID => owner word IDs.
  *
  * @return array
  */
 function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
+    global $wpdb;
+    $source_epoch = ll_tools_specific_wrong_answer_owner_map_source_epoch(true);
+    $last_known_map = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, []);
+    $last_known_map = ll_tools_specific_wrong_answer_owner_map_normalize($last_known_map);
+    if ($source_epoch < 0) {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_rebuild_complete'] = false;
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild();
+        return $last_known_map;
+    }
+    $previous_integrity_raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, null);
+    $previous_integrity = is_scalar($previous_integrity_raw) ? (string) $previous_integrity_raw : '';
+    $fallback_integrity = $previous_integrity !== '' && strpos($previous_integrity, 'dirty:') !== 0
+        ? $previous_integrity
+        : null;
+    $dirty_marker = ll_tools_specific_wrong_answer_owner_map_acquire_writer();
+    if ($dirty_marker === '') {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_rebuild_complete'] = false;
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild();
+        return $last_known_map;
+    }
+
+    $wpdb->last_error = '';
     $owner_ids = get_posts([
         'post_type'        => 'words',
         'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
         'posts_per_page'   => -1,
         'fields'           => 'ids',
         'no_found_rows'    => true,
+        'cache_results'    => false,
         'suppress_filters' => true,
         'meta_query'       => [
             [
@@ -357,6 +885,7 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
             ],
         ],
     ]);
+    $rebuild_complete = $wpdb->last_error === '';
 
     $owner_to_wrong_ids = [];
     $all_wrong_ids = [];
@@ -377,6 +906,7 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
 
     $existing_wrong_lookup = [];
     if (!empty($all_wrong_ids)) {
+        $wpdb->last_error = '';
         $existing_wrong_ids = get_posts([
             'post_type'        => 'words',
             'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
@@ -385,8 +915,10 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
             'fields'           => 'ids',
             'orderby'          => 'post__in',
             'no_found_rows'    => true,
+            'cache_results'    => false,
             'suppress_filters' => true,
         ]);
+        $rebuild_complete = $rebuild_complete && $wpdb->last_error === '';
         foreach ((array) $existing_wrong_ids as $wrong_id_raw) {
             $existing_wrong_lookup[(int) $wrong_id_raw] = true;
         }
@@ -414,46 +946,32 @@ function ll_tools_rebuild_specific_wrong_answer_owner_map(): array {
             $normalized[(int) $wrong_id] = $owners;
         }
     }
-    ksort($normalized, SORT_NUMERIC);
+    $normalized = ll_tools_specific_wrong_answer_owner_map_normalize($normalized);
 
-    update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, $normalized, false);
-
-    if (function_exists('ll_tools_bump_category_cache_version')) {
-        $touched_word_ids = [];
-        foreach (array_keys($owner_to_wrong_ids) as $owner_id_raw) {
-            $owner_id = (int) $owner_id_raw;
-            if ($owner_id > 0) {
-                $touched_word_ids[$owner_id] = true;
-            }
-        }
-        foreach (array_keys($existing_wrong_lookup) as $wrong_id_raw) {
-            $wrong_id = (int) $wrong_id_raw;
-            if ($wrong_id > 0) {
-                $touched_word_ids[$wrong_id] = true;
-            }
-        }
-
-        if (!empty($touched_word_ids)) {
-            $touched_category_ids = [];
-            foreach (array_keys($touched_word_ids) as $word_id) {
-                $category_ids = wp_get_post_terms((int) $word_id, 'word-category', ['fields' => 'ids']);
-                if (is_wp_error($category_ids)) {
-                    continue;
-                }
-                foreach ((array) $category_ids as $category_id_raw) {
-                    $category_id = (int) $category_id_raw;
-                    if ($category_id > 0) {
-                        $touched_category_ids[$category_id] = true;
-                    }
-                }
-            }
-            if (!empty($touched_category_ids)) {
-                ll_tools_bump_category_cache_version(array_keys($touched_category_ids));
-            }
+    if (!$rebuild_complete) {
+        ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, $fallback_integrity);
+    } else {
+        $rebuild_complete = ll_tools_specific_wrong_answer_owner_map_publish($normalized, $dirty_marker, $source_epoch);
+        if (!$rebuild_complete && (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') === $dirty_marker) {
+            $publish_fallback = ll_tools_specific_wrong_answer_owner_map_source_epoch(true) === $source_epoch
+                ? $fallback_integrity
+                : 'stale:' . ll_tools_specific_wrong_answer_owner_map_source_epoch(true) . ':' . wp_generate_uuid4();
+            ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, $publish_fallback);
         }
     }
+    $GLOBALS['ll_tools_specific_wrong_answer_owner_map_rebuild_complete'] = $rebuild_complete;
+    if (!$rebuild_complete) {
+        ll_tools_specific_wrong_answer_owner_map_repair_failed();
+    }
 
-    return $normalized;
+    if ($rebuild_complete && function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        // A maintenance rebuild can affect arbitrary owner/reference scopes.
+        // Rotate one conservative content epoch instead of issuing one term
+        // query and version write per word in the site-wide materialization.
+        ll_tools_bump_quiz_content_cache_epoch([], false);
+    }
+
+    return $rebuild_complete ? $normalized : $last_known_map;
 }
 
 /**
@@ -473,8 +991,14 @@ function ll_tools_get_specific_wrong_answer_owner_map(?array $candidate_word_ids
     }
 
     $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
-    if (!is_array($raw)) {
-        $raw = ll_tools_rebuild_specific_wrong_answer_owner_map();
+    $snapshot = $raw;
+    $map_complete = ll_tools_specific_wrong_answer_owner_map_is_complete($raw);
+    $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = $map_complete;
+    if (!$map_complete) {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = false;
+        $raw = [];
+    } else {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = true;
     }
     if ($candidate_word_ids !== null) {
         $raw = array_intersect_key($raw, array_fill_keys($candidate_word_ids, true));
@@ -501,8 +1025,313 @@ function ll_tools_get_specific_wrong_answer_owner_map(?array $candidate_word_ids
         $normalized[$wrong_id] = $owners;
     }
     ksort($normalized, SORT_NUMERIC);
+    if (!ll_tools_specific_wrong_answer_owner_map_is_complete($snapshot, true)) {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = false;
+        return [];
+    }
     return $normalized;
 }
+
+/**
+ * Read the materialized reverse map while preserving whether a fallback
+ * rebuild observed every owner row.
+ *
+ * @return array{owner_map:array<int,int[]>,complete:bool}
+ */
+function ll_tools_get_specific_wrong_answer_owner_scope(array $candidate_word_ids): array {
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($candidate_word_ids)) {
+        return ['owner_map' => [], 'complete' => true];
+    }
+
+    unset($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete']);
+    $owner_map = ll_tools_get_specific_wrong_answer_owner_map($candidate_word_ids);
+    $read_complete = !empty($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete']);
+
+    $owner_limit = max(50, min(5000, (int) apply_filters('ll_tools_specific_wrong_answer_scope_owner_limit', 500)));
+    $bounded_owner_map = [];
+    $owner_lookup = [];
+    $owner_overflow = false;
+    foreach ($owner_map as $wrong_id => $owner_ids) {
+        foreach ((array) $owner_ids as $owner_id_raw) {
+            $owner_id = (int) $owner_id_raw;
+            if ($owner_id <= 0) {
+                continue;
+            }
+            if (!isset($owner_lookup[$owner_id]) && count($owner_lookup) >= $owner_limit) {
+                $owner_overflow = true;
+                continue;
+            }
+            $owner_lookup[$owner_id] = true;
+            $bounded_owner_map[(int) $wrong_id][] = $owner_id;
+        }
+    }
+
+    return [
+        'owner_map' => $bounded_owner_map,
+        'complete' => !$owner_overflow && $read_complete,
+    ];
+}
+
+/**
+ * Process one bounded batch of the durable reverse-index rebuild.
+ *
+ * The staging map is checkpointed between cron runs. Source-meta mutations
+ * advance a separate epoch; a worker that did not observe a stable epoch is
+ * discarded and restarted instead of publishing a stale generation.
+ */
+function ll_tools_run_specific_wrong_answer_owner_map_rebuild_batch(): void {
+    global $wpdb;
+
+    $integrity = ll_tools_specific_wrong_answer_owner_map_integrity(true);
+    if (strpos($integrity, 'stale-error:') === 0) {
+        $repaired_source_epoch = ll_tools_bump_specific_wrong_answer_owner_map_source_epoch();
+        if ($repaired_source_epoch < 0) {
+            ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+            return;
+        }
+        $repaired_marker = 'stale:' . $repaired_source_epoch . ':' . wp_generate_uuid4();
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $repaired_marker,
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $integrity
+        ));
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+        if ($updated !== 1) {
+            ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+            return;
+        }
+        delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION);
+    }
+
+    $source_epoch = ll_tools_specific_wrong_answer_owner_map_source_epoch(true);
+    if ($source_epoch < 0) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+        return;
+    }
+    $state = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION, []);
+    if (!is_array($state)
+        || (int) ($state['schema'] ?? 0) !== 1
+        || (int) ($state['source_epoch'] ?? -1) !== $source_epoch
+        || !isset($state['map'])
+        || !is_array($state['map'])) {
+        $state = [
+            'schema' => 1,
+            'source_epoch' => $source_epoch,
+            'cursor' => 0,
+            'map' => [],
+            'started_at' => time(),
+            'updated_at' => time(),
+        ];
+    }
+
+    $batch_size = max(25, min(250, (int) apply_filters(
+        'll_tools_specific_wrong_answer_owner_rebuild_batch_size',
+        100
+    )));
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+    $cursor = max(0, (int) ($state['cursor'] ?? 0));
+    $wpdb->last_error = '';
+    $owner_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT posts.ID
+         FROM {$wpdb->postmeta} AS postmeta
+         INNER JOIN {$wpdb->posts} AS posts ON posts.ID = postmeta.post_id
+         WHERE postmeta.meta_key = %s
+           AND posts.post_type = %s
+           AND posts.post_status IN ({$status_placeholders})
+           AND posts.ID > %d
+         ORDER BY posts.ID ASC
+         LIMIT %d",
+        array_merge(
+            [LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, 'words'],
+            $statuses,
+            [$cursor, $batch_size + 1]
+        )
+    ));
+    if ($wpdb->last_error !== '') {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+        return;
+    }
+
+    $owner_ids = array_values(array_filter(array_map('intval', (array) $owner_ids), static function (int $owner_id): bool {
+        return $owner_id > 0;
+    }));
+    $has_more = count($owner_ids) > $batch_size;
+    if ($has_more) {
+        $owner_ids = array_slice($owner_ids, 0, $batch_size);
+    }
+
+    $owner_to_wrong_ids = [];
+    $candidate_wrong_ids = [];
+    if (!empty($owner_ids)) {
+        $wpdb->last_error = '';
+        update_meta_cache('post', $owner_ids);
+        if ($wpdb->last_error !== '') {
+            ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+            return;
+        }
+        foreach ($owner_ids as $owner_id) {
+            $wrong_ids = ll_tools_get_word_specific_wrong_answer_ids($owner_id);
+            if (empty($wrong_ids)) {
+                continue;
+            }
+            $owner_to_wrong_ids[$owner_id] = $wrong_ids;
+            foreach ($wrong_ids as $wrong_id) {
+                $wrong_id = (int) $wrong_id;
+                if ($wrong_id > 0) {
+                    $candidate_wrong_ids[$wrong_id] = true;
+                }
+            }
+        }
+    }
+
+    $existing_wrong_lookup = [];
+    foreach (array_chunk(array_map('intval', array_keys($candidate_wrong_ids)), 500) as $wrong_id_chunk) {
+        if (empty($wrong_id_chunk)) {
+            continue;
+        }
+        $id_placeholders = implode(',', array_fill(0, count($wrong_id_chunk), '%d'));
+        $wpdb->last_error = '';
+        $existing_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT ID
+             FROM {$wpdb->posts}
+             WHERE post_type = %s
+               AND post_status IN ({$status_placeholders})
+               AND ID IN ({$id_placeholders})",
+            array_merge(['words'], $statuses, $wrong_id_chunk)
+        ));
+        if ($wpdb->last_error !== '') {
+            ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+            return;
+        }
+        foreach ((array) $existing_ids as $existing_id) {
+            $existing_wrong_lookup[(int) $existing_id] = true;
+        }
+    }
+
+    $map = ll_tools_specific_wrong_answer_owner_map_normalize((array) $state['map']);
+    foreach ($owner_to_wrong_ids as $owner_id => $wrong_ids) {
+        foreach ($wrong_ids as $wrong_id) {
+            $wrong_id = (int) $wrong_id;
+            if ($wrong_id <= 0 || empty($existing_wrong_lookup[$wrong_id])) {
+                continue;
+            }
+            $owners = array_values(array_unique(array_merge((array) ($map[$wrong_id] ?? []), [(int) $owner_id])));
+            sort($owners, SORT_NUMERIC);
+            $map[$wrong_id] = $owners;
+        }
+    }
+
+    if (!empty($owner_ids)) {
+        $state['cursor'] = max($owner_ids);
+    }
+    $state['map'] = ll_tools_specific_wrong_answer_owner_map_normalize($map);
+    $state['updated_at'] = time();
+
+    if ($has_more) {
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION, $state, false);
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        return;
+    }
+
+    if (ll_tools_specific_wrong_answer_owner_map_source_epoch(true) !== $source_epoch) {
+        delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION);
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+        return;
+    }
+
+    $previous_integrity = (string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '');
+    $dirty_marker = ll_tools_specific_wrong_answer_owner_map_acquire_writer();
+    if ($dirty_marker === '') {
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION, $state, false);
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+        return;
+    }
+    if (!ll_tools_specific_wrong_answer_owner_map_publish($state['map'], $dirty_marker, $source_epoch)) {
+        if ((string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') === $dirty_marker) {
+            $publish_fallback = ll_tools_specific_wrong_answer_owner_map_source_epoch(true) === $source_epoch
+                ? ($previous_integrity !== '' && strpos($previous_integrity, 'dirty:') !== 0 ? $previous_integrity : null)
+                : 'stale:' . ll_tools_specific_wrong_answer_owner_map_source_epoch(true) . ':' . wp_generate_uuid4();
+            ll_tools_specific_wrong_answer_owner_map_abandon_writer($dirty_marker, $publish_fallback);
+        }
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION, $state, false);
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(MINUTE_IN_SECONDS);
+        return;
+    }
+
+    delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION);
+    if (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        ll_tools_bump_quiz_content_cache_epoch([], false);
+    }
+}
+
+function ll_tools_retry_specific_wrong_answer_owner_map_rebuild(): void {
+    ll_tools_run_specific_wrong_answer_owner_map_rebuild_batch();
+}
+add_action('ll_tools_retry_specific_wrong_answer_owner_map_rebuild', 'll_tools_retry_specific_wrong_answer_owner_map_rebuild');
+
+function ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(int $delay = MINUTE_IN_SECONDS): void {
+    if (!wp_next_scheduled('ll_tools_retry_specific_wrong_answer_owner_map_rebuild')) {
+        wp_schedule_single_event(time() + max(1, $delay), 'll_tools_retry_specific_wrong_answer_owner_map_rebuild');
+    }
+}
+
+/** Mark the materialization stale whenever its authoritative owner meta changes. */
+function ll_tools_note_specific_wrong_answer_owner_source_mutation($meta_id, $object_id, $meta_key, $meta_value = null): void {
+    if ((string) $meta_key !== LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY) {
+        return;
+    }
+    $object_id = (int) $object_id;
+    if ($object_id <= 0) {
+        return;
+    }
+
+    $source_epoch = ll_tools_bump_specific_wrong_answer_owner_map_source_epoch();
+    $integrity = ll_tools_specific_wrong_answer_owner_map_integrity(true);
+    if ($integrity !== '' && ($source_epoch < 0 || strpos($integrity, 'stale:') !== 0)) {
+        global $wpdb;
+        $stale_marker = $source_epoch >= 0
+            ? 'stale:' . $source_epoch . ':' . wp_generate_uuid4()
+            : 'stale-error:' . time() . ':' . wp_generate_uuid4();
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $stale_marker,
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            $integrity
+        ));
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+    }
+
+    ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+    if (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        ll_tools_bump_quiz_content_cache_epoch([], false);
+    }
+}
+add_action('added_post_meta', 'll_tools_note_specific_wrong_answer_owner_source_mutation', 10, 4);
+add_action('updated_post_meta', 'll_tools_note_specific_wrong_answer_owner_source_mutation', 10, 4);
+add_action('deleted_post_meta', 'll_tools_note_specific_wrong_answer_owner_source_mutation', 10, 4);
+
+/** Queue first-time/legacy repair from an authenticated maintenance request. */
+function ll_tools_maybe_schedule_specific_wrong_answer_owner_map_rebuild(): void {
+    if (!is_admin() || !current_user_can('view_ll_tools')) {
+        return;
+    }
+    $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+    if (!ll_tools_specific_wrong_answer_owner_map_is_complete($raw, true)) {
+        ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+    }
+}
+add_action('admin_init', 'll_tools_maybe_schedule_specific_wrong_answer_owner_map_rebuild', 50);
 
 /**
  * Return only the integer keys present in the reverse owner option.
@@ -515,13 +1344,20 @@ function ll_tools_get_specific_wrong_answer_owner_map(?array $candidate_word_ids
  */
 function ll_tools_get_specific_wrong_answer_owner_candidate_word_ids(): array {
     $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
-    if (!is_array($raw)) {
-        $raw = ll_tools_rebuild_specific_wrong_answer_owner_map();
+    $map_complete = ll_tools_specific_wrong_answer_owner_map_is_complete($raw);
+    $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = $map_complete;
+    if (!$map_complete) {
+        $raw = [];
     }
 
-    return array_values(array_unique(array_filter(array_map('intval', array_keys($raw)), static function (int $word_id): bool {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', array_keys($raw)), static function (int $word_id): bool {
         return $word_id > 0;
     })));
+    if (!ll_tools_specific_wrong_answer_owner_map_is_complete($raw, true)) {
+        $GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'] = false;
+        return [];
+    }
+    return $word_ids;
 }
 
 /**
@@ -534,7 +1370,8 @@ function ll_tools_get_specific_wrong_answer_owner_candidate_word_ids(): array {
  * @param array<int,int>|null $candidate_word_ids
  * @return array<int,bool> Map of word_id => true.
  */
-function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_word_ids = null): array {
+function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_word_ids = null, ?bool &$complete = null): array {
+    $complete = true;
     if ($candidate_word_ids !== null) {
         $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function ($word_id): bool {
             return $word_id > 0;
@@ -544,7 +1381,10 @@ function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_w
         }
     }
 
+    unset($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete']);
     $owner_map = ll_tools_get_specific_wrong_answer_owner_map($candidate_word_ids);
+    $complete = isset($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete'])
+        && !empty($GLOBALS['ll_tools_specific_wrong_answer_owner_map_read_complete']);
     if (empty($owner_map)) {
         return [];
     }
@@ -568,6 +1408,8 @@ function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_w
             $candidate_wrong_ids[] = $wrong_id;
         }
     }
+    global $wpdb;
+    $wpdb->last_error = '';
     if (!empty($candidate_wrong_ids)) {
         // The semantic pass below reads both metadata and the title for every
         // candidate. Prime exactly that already-bounded owner-map set so a
@@ -575,6 +1417,7 @@ function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_w
         // word.
         _prime_post_caches($candidate_wrong_ids, false, true);
     }
+    $complete = $complete && $wpdb->last_error === '';
 
     $lookup = [];
     foreach ($bounded_owner_map as $wrong_id_raw => $owners_raw) {
@@ -599,6 +1442,7 @@ function ll_tools_get_specific_wrong_answer_only_word_lookup(?array $candidate_w
             $lookup[$wrong_id] = true;
         }
     }
+    $complete = $complete && $wpdb->last_error === '';
 
     return $lookup;
 }
@@ -659,29 +1503,53 @@ function ll_tools_collect_specific_wrong_answer_related_category_ids($owner_word
     return array_map('intval', array_keys($category_lookup));
 }
 
-function ll_tools_collect_word_quiz_cache_category_ids(array $word_ids): array {
+/**
+ * Resolve direct and prompt-reference scope for word-content invalidation.
+ *
+ * @return array{category_ids:int[],wordset_ids:int[],complete:bool}
+ */
+function ll_tools_collect_word_quiz_cache_scope(array $word_ids): array {
+    global $wpdb;
+
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
         return $id > 0;
     })));
     if (empty($word_ids)) {
-        return [];
+        return ['category_ids' => [], 'wordset_ids' => [], 'complete' => true];
     }
 
     $category_lookup = [];
-    foreach ($word_ids as $word_id) {
-        $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-        if (!is_wp_error($term_ids)) {
-            foreach ((array) $term_ids as $term_id_raw) {
-                $term_id = (int) $term_id_raw;
-                if ($term_id > 0) {
-                    $category_lookup[$term_id] = true;
+    $wordset_lookup = [];
+    $complete = true;
+
+    // A referenced distractor affects the quiz payload of each reverse owner,
+    // which can live in an entirely different category or wordset.
+    $scope_word_lookup = array_fill_keys($word_ids, true);
+    if (function_exists('ll_tools_get_specific_wrong_answer_owner_scope')) {
+        $owner_scope = ll_tools_get_specific_wrong_answer_owner_scope($word_ids);
+        foreach ((array) ($owner_scope['owner_map'] ?? []) as $owner_ids) {
+            foreach ((array) $owner_ids as $owner_id_raw) {
+                $owner_id = (int) $owner_id_raw;
+                if ($owner_id > 0) {
+                    $scope_word_lookup[$owner_id] = true;
                 }
             }
         }
+        $complete = $complete && !empty($owner_scope['complete']);
     }
+    $scope_word_ids = array_map('intval', array_keys($scope_word_lookup));
 
-    if (function_exists('ll_tools_prompt_card_get_category_ids_for_word_references')) {
-        foreach (ll_tools_prompt_card_get_category_ids_for_word_references($word_ids) as $term_id_raw) {
+    // Resolve each taxonomy once for the complete bounded word chunk instead
+    // of issuing two taxonomy queries per word during saves/imports.
+    $wpdb->last_error = '';
+    $term_ids = wp_get_object_terms($scope_word_ids, 'word-category', [
+        'fields' => 'ids',
+        'cache_results' => false,
+    ]);
+    if (is_wp_error($term_ids) || $wpdb->last_error !== '') {
+        $complete = false;
+    } else {
+        foreach ((array) $term_ids as $term_id_raw) {
             $term_id = (int) $term_id_raw;
             if ($term_id > 0) {
                 $category_lookup[$term_id] = true;
@@ -689,15 +1557,78 @@ function ll_tools_collect_word_quiz_cache_category_ids(array $word_ids): array {
         }
     }
 
+    $wpdb->last_error = '';
+    $direct_wordset_ids = wp_get_object_terms($scope_word_ids, 'wordset', [
+        'fields' => 'ids',
+        'cache_results' => false,
+    ]);
+    if (is_wp_error($direct_wordset_ids) || $wpdb->last_error !== '') {
+        $complete = false;
+    } else {
+        foreach ((array) $direct_wordset_ids as $wordset_id_raw) {
+            $wordset_id = (int) $wordset_id_raw;
+            if ($wordset_id > 0) {
+                $wordset_lookup[$wordset_id] = true;
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_prompt_card_get_scope_for_word_references')) {
+        $reference_scope = ll_tools_prompt_card_get_scope_for_word_references($scope_word_ids);
+        foreach ((array) ($reference_scope['category_ids'] ?? []) as $term_id_raw) {
+            $term_id = (int) $term_id_raw;
+            if ($term_id > 0) {
+                $category_lookup[$term_id] = true;
+            }
+        }
+        foreach ((array) ($reference_scope['wordset_ids'] ?? []) as $wordset_id_raw) {
+            $wordset_id = (int) $wordset_id_raw;
+            if ($wordset_id > 0) {
+                $wordset_lookup[$wordset_id] = true;
+            }
+        }
+        $complete = $complete && !empty($reference_scope['complete']);
+    } elseif (function_exists('ll_tools_prompt_card_get_category_ids_for_word_references')) {
+        foreach (ll_tools_prompt_card_get_category_ids_for_word_references($word_ids) as $term_id_raw) {
+            $term_id = (int) $term_id_raw;
+            if ($term_id > 0) {
+                $category_lookup[$term_id] = true;
+            }
+        }
+        // The compatibility helper cannot prove direct prompt-card wordsets.
+        $complete = false;
+    }
+
     $category_ids = array_map('intval', array_keys($category_lookup));
+    $wordset_ids = array_map('intval', array_keys($wordset_lookup));
     sort($category_ids, SORT_NUMERIC);
-    return $category_ids;
+    sort($wordset_ids, SORT_NUMERIC);
+    return [
+        'category_ids' => $category_ids,
+        'wordset_ids' => $wordset_ids,
+        'complete' => $complete,
+    ];
+}
+
+function ll_tools_collect_word_quiz_cache_category_ids(array $word_ids): array {
+    $scope = ll_tools_collect_word_quiz_cache_scope($word_ids);
+    return (array) ($scope['category_ids'] ?? []);
 }
 
 function ll_tools_bump_word_quiz_cache_for_words(array $word_ids): array {
-    $category_ids = ll_tools_collect_word_quiz_cache_category_ids($word_ids);
+    $scope = ll_tools_collect_word_quiz_cache_scope($word_ids);
+    $category_ids = (array) ($scope['category_ids'] ?? []);
     if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($category_ids);
+        ll_tools_bump_category_cache_version(
+            $category_ids,
+            (array) ($scope['wordset_ids'] ?? []),
+            !empty($scope['complete'])
+        );
+    } elseif (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        ll_tools_bump_quiz_content_cache_epoch(
+            (array) ($scope['wordset_ids'] ?? []),
+            !empty($scope['complete'])
+        );
     }
 
     return $category_ids;
@@ -846,7 +1777,13 @@ function ll_tools_save_specific_wrong_answers_metabox($post_id, $post, $update):
         ? ll_tools_get_word_specific_wrong_answer_texts((int) $post_id)
         : [];
     $incoming = isset($_POST['ll_specific_wrong_answer_ids']) ? (array) wp_unslash($_POST['ll_specific_wrong_answer_ids']) : [];
-    $next_ids = ll_tools_normalize_specific_wrong_answer_ids($incoming, (int) $post_id, true);
+    $ids_validation_complete = true;
+    $next_ids = ll_tools_normalize_specific_wrong_answer_ids($incoming, (int) $post_id, true, $ids_validation_complete);
+    if (!$ids_validation_complete) {
+        // Never erase a configured relationship because its validation query
+        // timed out. The next successful save can safely retry.
+        return;
+    }
     $incoming_text = isset($_POST['ll_specific_wrong_answer_texts']) ? wp_unslash($_POST['ll_specific_wrong_answer_texts']) : '';
     $exclude_text = (string) get_the_title((int) $post_id);
     $next_texts = function_exists('ll_tools_normalize_specific_wrong_answer_texts')
@@ -864,15 +1801,16 @@ function ll_tools_save_specific_wrong_answers_metabox($post_id, $post, $update):
         delete_post_meta($post_id, LL_TOOLS_SPECIFIC_WRONG_ANSWER_TEXTS_META_KEY);
     }
 
-    $changed = (count($previous_ids) !== count($next_ids));
-    if (!$changed) {
+    $ids_changed = (count($previous_ids) !== count($next_ids));
+    if (!$ids_changed) {
         foreach ($previous_ids as $idx => $value) {
             if (!isset($next_ids[$idx]) || (int) $next_ids[$idx] !== (int) $value) {
-                $changed = true;
+                $ids_changed = true;
                 break;
             }
         }
     }
+    $changed = $ids_changed;
     if (!$changed && count($previous_texts) !== count($next_texts)) {
         $changed = true;
     }
@@ -888,7 +1826,9 @@ function ll_tools_save_specific_wrong_answers_metabox($post_id, $post, $update):
         return;
     }
 
-    ll_tools_rebuild_specific_wrong_answer_owner_map();
+    if ($ids_changed) {
+        ll_tools_repair_specific_wrong_answer_owner_map_for_owner((int) $post_id, $previous_ids, $next_ids);
+    }
     if (function_exists('ll_tools_bump_category_cache_version')) {
         $related_category_ids = ll_tools_collect_specific_wrong_answer_related_category_ids((int) $post_id, array_merge($previous_ids, $next_ids));
         if (!empty($related_category_ids)) {
@@ -914,6 +1854,7 @@ function ll_tools_before_delete_word_specific_wrong_answers($post_id): void {
     $category_ids = ll_tools_collect_specific_wrong_answer_related_category_ids((int) $post_id, $related_word_ids);
     $GLOBALS['ll_tools_specific_wrong_answer_delete_ctx'][(int) $post_id] = [
         'category_ids' => $category_ids,
+        'owned_wrong_ids' => $related_word_ids,
     ];
 }
 add_action('before_delete_post', 'll_tools_before_delete_word_specific_wrong_answers', 10, 1);
@@ -936,7 +1877,10 @@ function ll_tools_after_delete_word_specific_wrong_answers($post_id): void {
     unset($ctx_all[$post_id]);
     $GLOBALS['ll_tools_specific_wrong_answer_delete_ctx'] = $ctx_all;
 
-    ll_tools_rebuild_specific_wrong_answer_owner_map();
+    $owned_wrong_ids = isset($ctx['owned_wrong_ids']) && is_array($ctx['owned_wrong_ids'])
+        ? $ctx['owned_wrong_ids']
+        : [];
+    ll_tools_repair_specific_wrong_answer_owner_map_for_deleted_word($post_id, $owned_wrong_ids);
     if (!function_exists('ll_tools_bump_category_cache_version')) {
         return;
     }

@@ -279,8 +279,316 @@ final class WordsetPageDurableCacheTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_identical_authenticated_payloads_do_not_rewrite_durable_rows_before_refresh_window(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $payloads = [
+            [
+                'token' => 'private_' . md5(wp_generate_password(20, false, false)),
+                'cache_key' => null,
+                'payload' => [
+                    'cards' => [['id' => 17]],
+                    'render_context' => [],
+                    'batch_size' => 18,
+                    'base_offset' => 18,
+                    'total' => 19,
+                    'user_id' => $user_id,
+                ],
+                'store' => 'll_tools_wordset_page_store_lazy_cards_payload',
+            ],
+            [
+                'token' => 'private_' . md5(wp_generate_password(20, false, false)),
+                'cache_key' => null,
+                'payload' => [
+                    'wordset_id' => 7970,
+                    'category_ids' => [11, 12],
+                    'user_id' => $user_id,
+                ],
+                'store' => 'll_tools_wordset_page_store_category_search_payload',
+            ],
+        ];
+        $payloads[0]['cache_key'] = ll_tools_wordset_page_lazy_cards_cache_key($payloads[0]['token']);
+        $payloads[1]['cache_key'] = ll_tools_wordset_page_category_search_payload_cache_key($payloads[1]['token']);
+
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries): string {
+            $captured_queries[] = $query;
+            return $query;
+        };
+
+        try {
+            foreach ($payloads as $fixture) {
+                $this->assertSame(
+                    $fixture['token'],
+                    call_user_func($fixture['store'], $fixture['payload'], 5 * MINUTE_IN_SECONDS, $fixture['token'])
+                );
+            }
+
+            add_filter('query', $capture);
+            foreach ($payloads as $fixture) {
+                $this->assertSame(
+                    $fixture['token'],
+                    call_user_func($fixture['store'], $fixture['payload'], 5 * MINUTE_IN_SECONDS, $fixture['token'])
+                );
+            }
+            remove_filter('query', $capture);
+
+            $option_names = [];
+            foreach ($payloads as $fixture) {
+                $option_names[] = '_transient_' . $fixture['cache_key'];
+                $option_names[] = '_transient_timeout_' . $fixture['cache_key'];
+            }
+            $mutations = array_values(array_filter($captured_queries, static function (string $query) use ($option_names): bool {
+                if (!preg_match('/^\s*(?:INSERT|UPDATE|DELETE|REPLACE)\b/i', $query)) {
+                    return false;
+                }
+                foreach ($option_names as $option_name) {
+                    if (strpos($query, $option_name) !== false) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+            $this->assertSame([], $mutations, 'A warm deterministic private token must not rewrite identical transient rows.');
+        } finally {
+            remove_filter('query', $capture);
+            foreach ($payloads as $fixture) {
+                ll_tools_wordset_page_delete_durable_cached_payload($fixture['cache_key']);
+            }
+        }
+    }
+
+    public function test_authenticated_payload_refreshes_when_durable_expiry_enters_refresh_window(): void
+    {
+        $token = 'private_' . md5(wp_generate_password(20, false, false));
+        $cache_key = ll_tools_wordset_page_lazy_cards_cache_key($token);
+        $timeout_option = '_transient_timeout_' . $cache_key;
+        $payload = [
+            'cards' => [['id' => 29]],
+            'render_context' => [],
+            'batch_size' => 18,
+            'base_offset' => 18,
+            'total' => 19,
+            'user_id' => self::factory()->user->create(['role' => 'subscriber']),
+        ];
+
+        try {
+            $this->assertSame($token, ll_tools_wordset_page_store_lazy_cards_payload($payload, 5 * MINUTE_IN_SECONDS, $token));
+            update_option($timeout_option, time() + 30, false);
+
+            $this->assertSame($token, ll_tools_wordset_page_store_lazy_cards_payload($payload, 5 * MINUTE_IN_SECONDS, $token));
+            $this->assertGreaterThanOrEqual(time() + (5 * MINUTE_IN_SECONDS) - 5, (int) get_option($timeout_option, 0));
+        } finally {
+            ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+        }
+    }
+
+    public function test_authenticated_payload_is_not_reused_when_external_cache_hides_remaining_ttl(): void
+    {
+        $payload = [
+            'cards' => [['id' => 41]],
+            'user_id' => self::factory()->user->create(['role' => 'subscriber']),
+        ];
+        $previous = (bool) wp_using_ext_object_cache();
+
+        try {
+            wp_using_ext_object_cache(true);
+            $this->assertFalse(ll_tools_wordset_page_authenticated_payload_cache_is_reusable(
+                $this->uniqueCacheKey('external-cache-ttl'),
+                $payload,
+                $payload,
+                5 * MINUTE_IN_SECONDS
+            ));
+        } finally {
+            wp_using_ext_object_cache($previous);
+        }
+    }
+
+    public function test_category_preview_completeness_covers_resolvers_and_bounded_hydration_before_cache_store(): void
+    {
+        $reflection = new ReflectionFunction('ll_tools_get_wordset_category_preview');
+        $parameters = $reflection->getParameters();
+        $complete_parameter = end($parameters);
+
+        $this->assertInstanceOf(ReflectionParameter::class, $complete_parameter);
+        $this->assertSame('complete', $complete_parameter->getName());
+        $this->assertTrue($complete_parameter->isPassedByReference());
+
+        $source = $this->getFunctionSource('ll_tools_get_wordset_category_preview');
+
+        $this->assertMatchesRegularExpression(
+            '/\$wpdb->last_error\s*=\s*\'\';\s*\$effective_category_id\s*=.*?ll_tools_get_effective_category_id_for_wordset\(\$category_id, \$wordset_id, false\);\s*if \(\$wpdb->last_error !== \'\'\) \{\s*\$sources_complete = false;/s',
+            $source
+        );
+        $this->assertStringContainsString('$quiz_config_complete = true;', $source);
+        $this->assertStringContainsString(
+            'll_tools_get_category_quiz_config($category_id, $quiz_config_complete)',
+            $source
+        );
+        $this->assertStringContainsString('!$quiz_config_complete', $source);
+        $this->assertStringContainsString('$images_complete = true;', $source);
+        $this->assertStringContainsString(
+            'll_tools_vocab_lesson_category_requires_images($category_id, $wordset_id, $images_complete)',
+            $source
+        );
+        $this->assertStringContainsString(
+            '$sources_complete = $sources_complete && $images_complete;',
+            $source
+        );
+
+        $this->assertStringContainsString('$image_query_limit = min(50, max($query_limit, $limit * 8));', $source);
+        preg_match_all('/\'cache_results\'\s*=>\s*false/', $source, $cache_result_matches);
+        $this->assertGreaterThanOrEqual(
+            2,
+            count($cache_result_matches[0]),
+            'Both bounded candidate queries must bypass WP_Query result caching so a failed read can be retried.'
+        );
+        $this->assertStringContainsString(
+            '$prime_preview_posts = static function (array $post_ids, bool $prime_terms = true) use (&$sources_complete, $wpdb): void',
+            $source
+        );
+        $this->assertStringContainsString('$sources_complete = $sources_complete && $wpdb->last_error === \'\';', $source);
+
+        $this->assertSourceFragmentsInOrder($source, [
+            '$payload = [',
+            'if (!$sources_complete) {',
+            '$complete = false;',
+            'return $payload;',
+            'return ll_tools_wordset_page_store_cached_payload($preview_cache_key, $payload, $cache_ttl, $request_cache);',
+        ], 'An incomplete category preview must return retryable data before the only durable cache store.');
+    }
+
+    public function test_owned_category_term_and_count_queries_treat_wpdb_errors_as_incomplete(): void
+    {
+        $terms_source = $this->getFunctionSource('ll_tools_wordset_page_get_owned_category_terms');
+        $count_source = $this->getFunctionSource('ll_tools_wordset_page_count_owned_category_terms');
+
+        $this->assertSourceFragmentsInOrder($terms_source, [
+            '$wpdb->last_error = \'\';',
+            '$terms = get_terms($query_args);',
+            'if (is_wp_error($terms) || $wpdb->last_error !== \'\') {',
+            '$complete = false;',
+            'return [];',
+        ], 'Owned-term discovery must fail open when WordPress returns a partial term result after a database error.');
+        $this->assertStringContainsString(
+            '$owner_id = (int) ll_tools_get_category_wordset_owner_id($term);',
+            $terms_source
+        );
+        $this->assertMatchesRegularExpression(
+            '/\$owner_id\s*=.*?ll_tools_get_category_wordset_owner_id\(\$term\);\s*if \(\$wpdb->last_error !== \'\'\) \{\s*\$complete = false;\s*continue;/s',
+            $terms_source
+        );
+
+        $this->assertSourceFragmentsInOrder($count_source, [
+            '$wpdb->last_error = \'\';',
+            '$count = get_terms($query_args);',
+            'if (is_wp_error($count) || $wpdb->last_error !== \'\') {',
+            '$complete = false;',
+            'return 0;',
+        ], 'Owned-term counts must not turn a database failure into a durable zero.');
+    }
+
+    public function test_inactive_public_note_completeness_reaches_rows_and_outer_category_cache_boundary(): void
+    {
+        $note_reflection = new ReflectionFunction('ll_tools_wordset_page_get_inactive_category_public_note');
+        $note_parameters = $note_reflection->getParameters();
+        $note_complete_parameter = end($note_parameters);
+        $this->assertInstanceOf(ReflectionParameter::class, $note_complete_parameter);
+        $this->assertSame('complete', $note_complete_parameter->getName());
+        $this->assertTrue($note_complete_parameter->isPassedByReference());
+
+        $note_source = $this->getFunctionSource('ll_tools_wordset_page_get_inactive_category_public_note');
+        $this->assertStringContainsString('ll_tools_get_category_quiz_config($category, $config_complete)', $note_source);
+        $this->assertStringContainsString('!$config_complete', $note_source);
+        $this->assertStringContainsString(
+            'll_tools_vocab_lesson_category_requires_images($category, $wordset_id, $images_complete)',
+            $note_source
+        );
+        $this->assertStringContainsString('if ($wpdb->last_error !== \'\') {', $note_source);
+        $this->assertStringContainsString('$complete = false;', $note_source);
+
+        $rows_source = $this->getFunctionSource('ll_tools_get_wordset_page_category_rows');
+        $this->assertSourceFragmentsInOrder($rows_source, [
+            '$public_note_complete = true;',
+            'll_tools_wordset_page_get_inactive_category_public_note(',
+            '$public_note_complete',
+            '$sources_complete = $sources_complete && $public_note_complete;',
+            'if (!$sources_complete) {',
+            '$complete = false;',
+            'return $rows;',
+            'return ll_tools_wordset_page_store_cached_payload($cache_key, $rows, $cache_ttl, $request_cache);',
+        ], 'An incomplete inactive note must make the entire category-row payload non-durable.');
+
+        $categories_source = $this->getFunctionSource('ll_tools_get_wordset_page_categories');
+        $this->assertSourceFragmentsInOrder($categories_source, [
+            '$rows_complete = true;',
+            'll_tools_get_wordset_page_category_rows($wordset_id, $preview_limit, $include_inactive, $rows_complete);',
+            '$sources_complete = $sources_complete && $rows_complete;',
+            "if (\$category_cache_key !== '' && \$sources_complete) {",
+            'return ll_tools_wordset_page_store_cached_payload($category_cache_key, $items, $category_cache_ttl, $category_request_cache);',
+        ], 'Incomplete category rows must reach and close the outer durable category-cache gate.');
+    }
+
+    public function test_uncategorized_preview_primes_four_ids_and_blocks_incomplete_outer_cache(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_wordset_page_build_uncategorized_virtual_category');
+
+        $this->assertStringContainsString('$preview_limit = max(1, max(4, (int) $preview_limit));', $source);
+        $this->assertSourceFragmentsInOrder($source, [
+            '$ids_complete = true;',
+            'll_tools_wordset_page_get_uncategorized_word_ids($wordset_id, $preview_limit, $ids_complete);',
+            '$complete = $complete && $ids_complete;',
+            'if (!empty($word_ids)) {',
+            '$wpdb->last_error = \'\';',
+            '_prime_post_caches($word_ids, true, true);',
+            'if ($wpdb->last_error !== \'\') {',
+            '$complete = false;',
+            'foreach ($word_ids as $word_id) {',
+        ], 'The four-word uncategorized preview must prime its exact hydration set and expose incomplete reads.');
+        $this->assertStringNotContainsString('ll_tools_wordset_page_store_cached_payload(', $source);
+
+        $categories_source = $this->getFunctionSource('ll_tools_get_wordset_page_categories');
+        $this->assertSourceFragmentsInOrder($categories_source, [
+            '$uncategorized_complete = true;',
+            'll_tools_wordset_page_build_uncategorized_virtual_category($wordset_id, $preview_limit, $uncategorized_complete);',
+            '$sources_complete = $sources_complete && $uncategorized_complete;',
+            "if (\$category_cache_key !== '' && \$sources_complete) {",
+            'return ll_tools_wordset_page_store_cached_payload($category_cache_key, $items, $category_cache_ttl, $category_request_cache);',
+        ], 'An incomplete uncategorized hydration must close the outer durable category-cache gate.');
+    }
+
     private function uniqueCacheKey(string $suffix): string
     {
         return 'll_wsp_test_' . sanitize_key($suffix) . '_' . md5(wp_generate_password(20, false, false));
+    }
+
+    private function getFunctionSource(string $function_name): string
+    {
+        $reflection = new ReflectionFunction($function_name);
+        $file_name = $reflection->getFileName();
+        $this->assertIsString($file_name);
+        $lines = file($file_name);
+        $this->assertIsArray($lines);
+
+        return implode('', array_slice(
+            $lines,
+            $reflection->getStartLine() - 1,
+            $reflection->getEndLine() - $reflection->getStartLine() + 1
+        ));
+    }
+
+    /**
+     * @param string[] $fragments
+     */
+    private function assertSourceFragmentsInOrder(string $source, array $fragments, string $message): void
+    {
+        $offset = 0;
+        foreach ($fragments as $fragment) {
+            $position = strpos($source, $fragment, $offset);
+            if ($position === false) {
+                $this->fail($message . ' Missing or out-of-order fragment: ' . $fragment);
+            }
+            $offset = $position + strlen($fragment);
+        }
     }
 }

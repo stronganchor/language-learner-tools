@@ -5091,3 +5091,13 @@ msgstr "준비된 가져오기 청크가 허용 크기를 초과했습니다."
 #: includes/admin/dictionary-import-admin.php:928
 msgid "Dictionary TSV grouping is unavailable."
 msgstr "사전 TSV 그룹화를 사용할 수 없습니다."
+
+#. ll-tools-public-key: ea7b614965be8423e5c777f1f63ce9a026c0eaca
+#: includes/pages/wordset-pages.php:25609
+msgid "Search is still preparing. Please try again."
+msgstr "검색을 준비하는 중입니다. 잠시 후 다시 시도해 주세요."
+
+#. ll-tools-public-key: 051692938a541fd2e0f0151e61e9e0f082913821
+#: includes/shortcodes/flashcard-widget.php:1497
+msgid "The category catalog is temporarily unavailable. Please try again."
+msgstr "카테고리 카탈로그를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요."

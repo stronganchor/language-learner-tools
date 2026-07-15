@@ -90,7 +90,14 @@ function ll_flashcards_resolve_wordset_ids(string $wordset_spec = '', bool $fall
  * @param array $terms Array of WP_Term objects.
  * @return array
  */
-function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_translations, int $min_word_count, array $wordset_ids = []): array {
+function ll_flashcards_get_processed_categories_cached(
+    array $terms,
+    bool $use_translations,
+    int $min_word_count,
+    array $wordset_ids = [],
+    ?bool &$complete = null
+): array {
+    $complete = true;
     $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
         return $id > 0;
     }));
@@ -106,21 +113,36 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
         }
     }
 
-    $cache_epoch = function_exists('ll_tools_get_category_cache_epoch')
+    $structure_epoch = function_exists('ll_tools_get_category_cache_epoch')
         ? (int) ll_tools_get_category_cache_epoch()
         : 1;
-    if ($cache_epoch < 1) {
-        $cache_epoch = 1;
+    if ($structure_epoch < 1) {
+        $structure_epoch = 1;
     }
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+
+    $category_versions = function_exists('ll_tools_get_category_cache_versions')
+        ? ll_tools_get_category_cache_versions($term_ids)
+        : array_fill_keys($term_ids, 1);
+    $content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+        // An empty caller scope is genuinely site-wide; category-owner
+        // metadata alone cannot prove every legacy/direct wordset consumer.
+        ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
+        : 'qce0:' . $structure_epoch;
 
     $cache_key = 'll_fc_proc_cats_' . md5(wp_json_encode([
         'term_ids' => $term_ids,
+        'category_versions' => $category_versions,
         'use_translations' => $use_translations ? 1 : 0,
         'min_word_count' => $min_word_count,
         'wordset_ids' => $wordset_ids,
-        'epoch' => $cache_epoch,
+        'structure_epoch' => $structure_epoch,
+        'wordset_epoch' => $wordset_epoch,
+        'content_epoch' => $content_epoch,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 2,
+        'schema' => 6,
     ]));
     $cache_group = 'll_tools_flashcards';
     $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);
@@ -142,9 +164,20 @@ function ll_flashcards_get_processed_categories_cached(array $terms, bool $use_t
         return $cached;
     }
 
-    $processed = ll_process_categories($terms, $use_translations, $min_word_count, $wordset_ids);
+    $processing_complete = true;
+    $processed = ll_process_categories(
+        $terms,
+        $use_translations,
+        $min_word_count,
+        $wordset_ids,
+        $processing_complete
+    );
     $processed = is_array($processed) ? $processed : [];
 
+    if (!$processing_complete) {
+        $complete = false;
+        return $processed;
+    }
     $request_cache[$cache_key] = $processed;
     wp_cache_set($cache_key, $processed, $cache_group, $cache_ttl);
     if ((bool) apply_filters(
@@ -169,7 +202,15 @@ function ll_flashcards_catalog_page_size(): int {
     return max(6, min(48, $page_size));
 }
 
-function ll_flashcards_build_categories(?string $raw, bool $use_translations, array $wordset_ids = [], int $offset = 0, bool $bounded_catalog = false): array {
+function ll_flashcards_build_categories(
+    ?string $raw,
+    bool $use_translations,
+    array $wordset_ids = [],
+    int $offset = 0,
+    bool $bounded_catalog = false,
+    ?bool &$complete = null
+): array {
+    $complete = true;
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
     $offset = max(0, min(10000, $offset));
     $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $id): bool {
@@ -182,12 +223,14 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
 
     $allowed_term_ids = null;
     if (!empty($wordset_ids) && function_exists('ll_collect_wc_ids_for_wordset_term_ids')) {
-        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($wordset_ids);
+        $allowed_terms_complete = true;
+        $allowed_term_ids = ll_collect_wc_ids_for_wordset_term_ids($wordset_ids, $allowed_terms_complete);
+        $complete = $complete && $allowed_terms_complete;
         $allowed_term_ids = array_map('intval', (array) $allowed_term_ids);
         $allowed_term_ids = array_values(array_unique(array_filter($allowed_term_ids, function ($id) { return $id > 0; })));
     }
 
-    $fetch_terms = static function (array $args = []) use ($allowed_term_ids): array {
+    $fetch_terms = static function (array $args = []) use ($allowed_term_ids, &$complete): array {
         $query_args = array_merge([
             'taxonomy'   => 'word-category',
             'hide_empty' => false,
@@ -212,7 +255,11 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
         }
 
         $terms = get_terms($query_args);
-        return is_wp_error($terms) ? [] : array_values((array) $terms);
+        if (is_wp_error($terms)) {
+            $complete = false;
+            return [];
+        }
+        return array_values((array) $terms);
     };
 
     if (!empty($wanted)) {
@@ -254,6 +301,10 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
                 }
 
                 $term = get_term($effective_id, 'word-category');
+                if (is_wp_error($term)) {
+                    $complete = false;
+                    continue;
+                }
                 if ($term instanceof WP_Term && !is_wp_error($term)) {
                     $resolved_ids_by_wanted[strtolower($w)] = (int) $term->term_id;
                     $add_candidate_terms([$term]);
@@ -357,7 +408,15 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
             }
         }
 
-        $all_processed = ll_flashcards_get_processed_categories_cached($requested_terms, $use_translations, $min_word_count, $wordset_ids);
+        $processing_complete = true;
+        $all_processed = ll_flashcards_get_processed_categories_cached(
+            $requested_terms,
+            $use_translations,
+            $min_word_count,
+            $wordset_ids,
+            $processing_complete
+        );
+        $complete = $complete && $processing_complete;
 
         $processed_by_id = [];
         $processed_by_slug = [];
@@ -412,7 +471,15 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
             $all_terms = ll_tools_filter_category_terms_for_user((array) $all_terms);
         }
 
-        $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
+        $processing_complete = true;
+        $all_processed = ll_flashcards_get_processed_categories_cached(
+            $all_terms,
+            $use_translations,
+            $min_word_count,
+            $wordset_ids,
+            $processing_complete
+        );
+        $complete = $complete && $processing_complete;
         return [$all_processed, false, [
             'has_more' => false,
             'next_offset' => 0,
@@ -437,7 +504,15 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
     }
 
     // No specific categories provided: return one bounded picker page.
-    $all_processed = ll_flashcards_get_processed_categories_cached($all_terms, $use_translations, $min_word_count, $wordset_ids);
+    $processing_complete = true;
+    $all_processed = ll_flashcards_get_processed_categories_cached(
+        $all_terms,
+        $use_translations,
+        $min_word_count,
+        $wordset_ids,
+        $processing_complete
+    );
+    $complete = $complete && $processing_complete;
     return [$all_processed, false, [
         'has_more' => $has_more,
         'next_offset' => $offset + $raw_term_count,
@@ -1117,17 +1192,28 @@ function ll_tools_flashcard_widget($atts) {
 /**
  * Determines display mode by counts.
  */
-function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
+function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = [], ?bool &$complete = null) {
+    $complete = true;
     $term = function_exists('ll_tools_resolve_word_category_term')
         ? ll_tools_resolve_word_category_term($categoryName)
         : null;
-    $config = ($term instanceof WP_Term) ? ll_tools_get_category_quiz_config($term) : ['prompt_type' => 'audio', 'option_type' => 'image'];
+    $config_complete = true;
+    $config = ($term instanceof WP_Term) ? ll_tools_get_category_quiz_config($term, $config_complete) : ['prompt_type' => 'audio', 'option_type' => 'image'];
+    $complete = $complete && $config_complete;
     if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
-        $config = ll_tools_apply_wordset_quiz_presentation_overrides((array) $config, $wordset_ids);
+        $presentation_complete = true;
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides(
+            (array) $config,
+            $wordset_ids,
+            $presentation_complete
+        );
+        $complete = $complete && $presentation_complete;
     }
 
     $option_type = $config['option_type'] ?? 'image';
-    $words_in_mode_count = ll_get_words_by_category_count($categoryName, $option_type, $wordset_ids, $config);
+    $primary_complete = true;
+    $words_in_mode_count = ll_get_words_by_category_count($categoryName, $option_type, $wordset_ids, $config, $primary_complete, $min_word_count);
+    $complete = $complete && $primary_complete;
     if ($words_in_mode_count >= $min_word_count) {
         return $option_type;
     }
@@ -1136,15 +1222,20 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
     if (in_array($option_type, ['audio', 'text_audio'], true)) {
         $fallback_config = $config;
         $fallback_config['option_type'] = 'text_translation';
-        $text_count = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, $fallback_config);
+        $fallback_complete = true;
+        $text_count = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, $fallback_config, $fallback_complete, $min_word_count);
+        $complete = $complete && $fallback_complete;
         if ($text_count >= $min_word_count) {
             return 'text_translation';
         }
     }
 
     // Last resort: compare image/text availability to pick the better one
-    $image_count = ll_get_words_by_category_count($categoryName, 'image', $wordset_ids, $config);
-    $text_count  = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, array_merge($config, ['option_type' => 'text_translation']));
+    $image_complete = true;
+    $text_complete = true;
+    $image_count = ll_get_words_by_category_count($categoryName, 'image', $wordset_ids, $config, $image_complete, $min_word_count);
+    $text_count  = ll_get_words_by_category_count($categoryName, 'text', $wordset_ids, array_merge($config, ['option_type' => 'text_translation']), $text_complete, $min_word_count);
+    $complete = $complete && $image_complete && $text_complete;
 
     if ($image_count < $min_word_count && $text_count < $min_word_count) return null;
     if ($image_count < $min_word_count) return 'text';
@@ -1156,7 +1247,13 @@ function ll_determine_display_mode($categoryName, $min_word_count = LL_TOOLS_MIN
  * Resolve the effective quiz config for a category, including the audio-to-text
  * fallback used by category availability checks and dashboard card metadata.
  */
-function ll_tools_resolve_effective_category_quiz_config($category, int $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, array $wordset_ids = []): array {
+function ll_tools_resolve_effective_category_quiz_config(
+    $category,
+    int $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ,
+    array $wordset_ids = [],
+    ?bool &$complete = null
+): array {
+    $complete = true;
     if (!($category instanceof WP_Term)) {
         $category = function_exists('ll_tools_resolve_word_category_term')
             ? ll_tools_resolve_word_category_term($category)
@@ -1173,20 +1270,46 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
         ];
     }
 
-    $config = ll_tools_get_category_quiz_config($category);
+    $config_complete = true;
+    $config = ll_tools_get_category_quiz_config($category, $config_complete);
+    $complete = $complete && $config_complete;
     if (function_exists('ll_tools_apply_wordset_quiz_presentation_overrides')) {
-        $config = ll_tools_apply_wordset_quiz_presentation_overrides($config, $wordset_ids);
+        $presentation_complete = true;
+        $config = ll_tools_apply_wordset_quiz_presentation_overrides(
+            $config,
+            $wordset_ids,
+            $presentation_complete
+        );
+        $complete = $complete && $presentation_complete;
     }
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
     $learning_supported = !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']);
     $self_check_supported = !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']);
-    $word_count = ll_get_words_by_category_count($category, $option_type, $wordset_ids, $config);
+    $primary_complete = true;
+    $word_count = ll_get_words_by_category_count(
+        $category,
+        $option_type,
+        $wordset_ids,
+        $config,
+        $primary_complete,
+        $min_word_count
+    );
+    $complete = $complete && $primary_complete;
 
     if ($word_count < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
         $fallback_config = $config;
         $fallback_config['option_type'] = 'text_translation';
-        $fallback_count = ll_get_words_by_category_count($category, 'text', $wordset_ids, $fallback_config);
+        $fallback_complete = true;
+        $fallback_count = ll_get_words_by_category_count(
+            $category,
+            'text',
+            $wordset_ids,
+            $fallback_config,
+            $fallback_complete,
+            $min_word_count
+        );
+        $complete = $complete && $fallback_complete;
         if ($fallback_count >= $min_word_count) {
             $option_type = 'text_translation';
             $learning_supported = (function_exists('ll_tools_quiz_prompt_type_has_image') && ll_tools_quiz_prompt_type_has_image($prompt_type))
@@ -1209,7 +1332,14 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
 /**
  * Processes categories for the flashcard widget.
  */
-function ll_process_categories($categories, $use_translations, $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ, $wordset_ids = []) {
+function ll_process_categories(
+    $categories,
+    $use_translations,
+    $min_word_count = LL_TOOLS_MIN_WORDS_PER_QUIZ,
+    $wordset_ids = [],
+    ?bool &$complete = null
+) {
+    $complete = true;
     $processed = [];
     $gender_wordset_id = (count((array) $wordset_ids) === 1) ? (int) $wordset_ids[0] : 0;
     $gender_enabled = ($gender_wordset_id > 0 && function_exists('ll_tools_wordset_has_grammatical_gender'))
@@ -1227,7 +1357,14 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             continue;
         }
 
-        $config = ll_tools_resolve_effective_category_quiz_config($category, $min_word_count, $wordset_ids);
+        $config_complete = true;
+        $config = ll_tools_resolve_effective_category_quiz_config(
+            $category,
+            $min_word_count,
+            $wordset_ids,
+            $config_complete
+        );
+        $complete = $complete && $config_complete;
         $learning_supported = !empty($config['learning_supported']);
         $self_check_supported = !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']);
         $option_type = (string) ($config['option_type'] ?? 'image');
@@ -1252,7 +1389,15 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
         $gender_word_count = 0;
         if ($gender_enabled && function_exists('ll_tools_count_gender_eligible_words_for_category')) {
-            $gender_word_count = ll_tools_count_gender_eligible_words_for_category($category, $wordset_ids, $config, $gender_options);
+            $gender_complete = true;
+            $gender_word_count = ll_tools_count_gender_eligible_words_for_category(
+                $category,
+                $wordset_ids,
+                $config,
+                $gender_options,
+                $gender_complete
+            );
+            $complete = $complete && $gender_complete;
         }
 
         $processed[] = [
@@ -1329,16 +1474,29 @@ function ll_tools_get_flashcard_category_catalog_ajax(): void {
         ll_tools_flashcards_public_ajax_send_build_lock_response();
     }
 
+    $catalog_complete = true;
     try {
         [$categories, , $catalog_page] = ll_flashcards_build_categories(
             '',
             !empty($lock_args['use_translations']),
             $wordset_ids,
             $offset,
-            true
+            true,
+            $catalog_complete
         );
     } finally {
         ll_tools_flashcards_public_ajax_release_build_lock($lock_args);
+    }
+
+    if (!$catalog_complete) {
+        if (!headers_sent()) {
+            header('Retry-After: 2');
+        }
+        wp_send_json_error([
+            'code' => 'source_incomplete',
+            'message' => __('The category catalog is temporarily unavailable. Please try again.', 'll-tools-text-domain'),
+            'retry_after' => 2,
+        ], 503);
     }
 
     wp_send_json_success([
@@ -1387,10 +1545,31 @@ function ll_tools_flashcards_public_ajax_cache_enabled(): bool {
     return !is_user_logged_in();
 }
 
-function ll_tools_flashcards_public_ajax_cache_epoch_args(): array {
+function ll_tools_flashcards_public_ajax_cache_epoch_args(array $args = []): array {
+    $term_id = isset($args['term_id']) ? max(0, (int) $args['term_id']) : 0;
+    $wordset_ids = isset($args['wordset_ids'])
+        ? array_values(array_filter(array_map('intval', (array) $args['wordset_ids']), static function (int $wordset_id): bool {
+            return $wordset_id > 0;
+        }))
+        : [];
+    if (empty($wordset_ids) && $term_id > 0 && function_exists('ll_tools_get_quiz_content_wordset_scope_for_categories')) {
+        $content_scope = ll_tools_get_quiz_content_wordset_scope_for_categories([$term_id]);
+        if (!empty($content_scope['complete'])) {
+            $wordset_ids = (array) ($content_scope['wordset_ids'] ?? []);
+        }
+    }
+
     return [
         'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
+        'category_version' => $term_id > 0
+            ? (function_exists('ll_tools_get_category_cache_version')
+                ? max(1, (int) ll_tools_get_category_cache_version($term_id))
+                : max(1, (int) get_term_meta($term_id, '_ll_wc_cache_version', true)))
+            : 1,
+        'quiz_content_epoch' => function_exists('ll_tools_get_quiz_content_cache_epoch')
+            ? ll_tools_get_quiz_content_cache_epoch($wordset_ids)
+            : '',
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
     ];
@@ -1457,7 +1636,7 @@ function ll_tools_flashcards_normalize_public_ajax_cache_value($value) {
 
 function ll_tools_flashcards_public_ajax_cache_key(array $args): string {
     $payload = array_merge(
-        ll_tools_flashcards_public_ajax_cache_epoch_args(),
+        ll_tools_flashcards_public_ajax_cache_epoch_args($args),
         ll_tools_flashcards_normalize_public_ajax_cache_value($args)
     );
 

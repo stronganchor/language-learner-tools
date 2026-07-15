@@ -4178,7 +4178,7 @@ function ll_tools_rest_automation_word_category_updates(WP_REST_Request $request
         sort($changed_category_ids, SORT_NUMERIC);
         $summary['invalidated_category_ids'] = array_values(array_map('intval', $changed_category_ids));
         if (function_exists('ll_tools_bump_category_cache_version')) {
-            ll_tools_bump_category_cache_version($summary['invalidated_category_ids']);
+            ll_tools_bump_category_cache_version($summary['invalidated_category_ids'], [$wordset_id], true);
         }
         if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
             ll_tools_bump_wordset_cache_epoch([$wordset_id]);
@@ -4779,7 +4779,7 @@ function ll_tools_rest_automation_word_category_terms(WP_REST_Request $request) 
         sort($changed_category_ids, SORT_NUMERIC);
         $summary['invalidated_category_ids'] = $changed_category_ids;
         if (function_exists('ll_tools_bump_category_cache_version')) {
-            ll_tools_bump_category_cache_version($changed_category_ids);
+            ll_tools_bump_category_cache_version($changed_category_ids, [$wordset_id], true);
         }
         if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
             ll_tools_bump_wordset_cache_epoch([$wordset_id]);
@@ -5130,7 +5130,7 @@ function ll_tools_rest_automation_word_image_category_ownership(WP_REST_Request 
     if ((int) $summary['changed_count'] > 0) {
         $summary['invalidated_category_ids'] = [$category_id];
         if (function_exists('ll_tools_bump_category_cache_version')) {
-            ll_tools_bump_category_cache_version([$category_id]);
+            ll_tools_bump_category_cache_version([$category_id], [$wordset_id], true);
         }
         if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
             ll_tools_bump_wordset_cache_epoch([$wordset_id]);

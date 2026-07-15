@@ -1310,7 +1310,7 @@ function ll_tools_handle_duplicate_category_words_save() {
     }
 
     if (!empty($touched_categories) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_keys($touched_categories));
+        ll_tools_bump_category_cache_version(array_keys($touched_categories), [$wordset_id], true);
     }
 
     $success_args = [

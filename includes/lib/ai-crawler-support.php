@@ -237,7 +237,7 @@ function ll_tools_ai_crawler_export_cache_args(array $export): array {
     $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
 
     return [
-        'schema' => 1,
+        'schema' => 2,
         'key' => sanitize_key((string) ($export['key'] ?? '')),
         'letter' => isset($export['letter']) ? ll_tools_ai_crawler_normalize_dictionary_letter((string) $export['letter']) : '',
         'locale' => (string) $locale,
@@ -245,6 +245,7 @@ function ll_tools_ai_crawler_export_cache_args(array $export): array {
         'dictionary_version' => function_exists('ll_tools_get_dictionary_browser_cache_version') ? max(1, (int) ll_tools_get_dictionary_browser_cache_version()) : 1,
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
         'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
+        'quiz_content_epoch' => function_exists('ll_tools_get_quiz_content_cache_epoch') ? ll_tools_get_quiz_content_cache_epoch() : '',
     ];
 }
 

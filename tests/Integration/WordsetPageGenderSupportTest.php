@@ -135,6 +135,166 @@ final class WordsetPageGenderSupportTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($category_map[$audio_category_id]['gender_supported'] ?? true));
     }
 
+    public function test_gender_support_lookup_uses_bounded_grouped_aggregates_without_word_hydration(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_wordset_page_collect_gender_supported_lookup');
+
+        $this->assertStringContainsString('COUNT(DISTINCT posts.ID) AS eligible_count', $source);
+        $this->assertStringContainsString(
+            'GROUP BY category_taxonomy.term_id, gender_meta.meta_value',
+            $source
+        );
+        $this->assertStringContainsString(
+            'foreach ($category_ids_by_requirements as $requirements_key => $group_category_ids)',
+            $source
+        );
+        $this->assertSame(
+            1,
+            substr_count($source, '$wpdb->get_results('),
+            'Each requirement group should execute one aggregate query.'
+        );
+
+        $requirements_key_start = strpos($source, '$requirements_key =');
+        $this->assertIsInt($requirements_key_start);
+        $requirements_key_end = strpos($source, ';', $requirements_key_start);
+        $this->assertIsInt($requirements_key_end);
+        $requirements_key_source = substr(
+            $source,
+            $requirements_key_start,
+            $requirements_key_end - $requirements_key_start + 1
+        );
+        $this->assertSame(1, substr_count($requirements_key_source, "requires_audio"));
+        $this->assertSame(1, substr_count($requirements_key_source, "requires_image"));
+        $this->assertSame(
+            2,
+            substr_count($requirements_key_source, "? '1' : '0'"),
+            'Two binary requirement flags must cap the grouped aggregate path at four queries.'
+        );
+        $this->assertStringContainsString(
+            ".':'.",
+            (string) preg_replace('/\s+/', '', $requirements_key_source)
+        );
+
+        foreach ([
+            'll_tools_wordset_page_get_category_word_ids(',
+            'll_tools_user_study_renderable_word_ids_by_category(',
+            '$wpdb->get_col(',
+            'SELECT posts.ID',
+            'new WP_Query(',
+            'get_posts(',
+            '_prime_post_caches(',
+            'update_meta_cache(',
+            'get_post_meta(',
+        ] as $unbounded_hydration_source) {
+            $this->assertStringNotContainsString(
+                $unbounded_hydration_source,
+                $source,
+                'Gender support must stay aggregate-only on the interactive wordset path.'
+            );
+        }
+    }
+
+    public function test_gender_support_lookup_failures_are_incomplete_and_skip_durable_cache_writes(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_wordset_page_collect_gender_supported_lookup');
+
+        $prepare_guard = "if (!is_string(\$prepared) || \$prepared === '') {";
+        $prepare_guard_offset = strpos($source, $prepare_guard);
+        $this->assertIsInt($prepare_guard_offset);
+        $query_offset = strpos($source, "\$wpdb->last_error = '';", $prepare_guard_offset);
+        $this->assertIsInt($query_offset);
+        $prepare_failure_branch = substr(
+            $source,
+            $prepare_guard_offset,
+            $query_offset - $prepare_guard_offset
+        );
+        $this->assertStringContainsString('$sources_complete = false;', $prepare_failure_branch);
+        $this->assertStringContainsString('continue;', $prepare_failure_branch);
+
+        $query_guard = "if (\$wpdb->last_error !== '' || !is_array(\$rows)) {";
+        $query_guard_offset = strpos($source, $query_guard, $query_offset);
+        $this->assertIsInt($query_guard_offset);
+        $row_loop_offset = strpos($source, 'foreach ($rows as $row)', $query_guard_offset);
+        $this->assertIsInt($row_loop_offset);
+        $query_failure_branch = substr(
+            $source,
+            $query_guard_offset,
+            $row_loop_offset - $query_guard_offset
+        );
+        $this->assertStringContainsString('$sources_complete = false;', $query_failure_branch);
+        $this->assertStringContainsString('continue;', $query_failure_branch);
+
+        $incomplete_guard_offset = strrpos($source, 'if (!$sources_complete) {');
+        $this->assertIsInt($incomplete_guard_offset);
+        $cache_store_offset = strpos(
+            $source,
+            'll_tools_wordset_page_store_cached_payload(',
+            $incomplete_guard_offset
+        );
+        $this->assertIsInt($cache_store_offset);
+        $this->assertLessThan(
+            $cache_store_offset,
+            $incomplete_guard_offset,
+            'The incomplete-source guard must run before the only durable cache write.'
+        );
+
+        $incomplete_branch = substr(
+            $source,
+            $incomplete_guard_offset,
+            $cache_store_offset - $incomplete_guard_offset
+        );
+        $this->assertStringContainsString('$complete = false;', $incomplete_branch);
+        $this->assertStringContainsString('return $supported_lookup;', $incomplete_branch);
+        $this->assertStringNotContainsString(
+            'll_tools_wordset_page_store_cached_payload(',
+            $incomplete_branch
+        );
+        $this->assertSame(
+            1,
+            substr_count($source, 'll_tools_wordset_page_store_cached_payload('),
+            'Incomplete aggregate results must have no alternate request or durable cache write path.'
+        );
+    }
+
+    public function test_wordset_category_cache_requires_complete_gender_and_sign_meta_reads(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_get_wordset_page_categories');
+
+        foreach ([
+            '$gender_enabled_complete = true;',
+            'll_tools_wordset_has_grammatical_gender($wordset_id, $gender_enabled_complete)',
+            '$sources_complete = $sources_complete && $gender_enabled_complete;',
+            '$gender_options_complete = true;',
+            'll_tools_wordset_get_gender_options($wordset_id, $gender_options_complete)',
+            '$sources_complete = $sources_complete && $gender_options_complete;',
+            '$presentation_complete = true;',
+            '$sources_complete = $sources_complete && $presentation_complete;',
+        ] as $required_contract) {
+            $this->assertStringContainsString($required_contract, $source);
+        }
+
+        $presentation_offset = strpos($source, '$presentation_complete = true;');
+        $cache_store_offset = strpos($source, "if (\$category_cache_key !== '' && \$sources_complete) {");
+        $this->assertIsInt($presentation_offset);
+        $this->assertIsInt($cache_store_offset);
+        $this->assertLessThan($cache_store_offset, $presentation_offset);
+    }
+
+    private function getFunctionSource(string $function_name): string
+    {
+        $reflection = new ReflectionFunction($function_name);
+        $file_name = $reflection->getFileName();
+        $this->assertIsString($file_name);
+        $lines = file($file_name);
+        $this->assertIsArray($lines);
+
+        return implode('', array_slice(
+            $lines,
+            $reflection->getStartLine() - 1,
+            $reflection->getEndLine() - $reflection->getStartLine() + 1
+        ));
+    }
+
     private function createCategoryWithLesson(int $wordset_id, string $base_name, string $prompt_type, string $option_type): int
     {
         $category = wp_insert_term($base_name . ' ' . wp_generate_password(6, false), 'word-category');

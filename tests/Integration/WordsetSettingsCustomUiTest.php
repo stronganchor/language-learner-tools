@@ -117,6 +117,116 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Profile image', (string) ($advanced_card[0] ?? ''));
     }
 
+    public function test_settings_hub_reuses_durable_managed_category_summary_across_object_cache_flushes(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+
+        $goals = ll_tools_default_user_study_goals();
+        $goals['ignored_category_ids'] = [$category_id];
+        ll_tools_save_user_study_goals($goals, $admin_id);
+
+        $summary_query_count = 0;
+        $query_watcher = static function (WP_Term_Query $query) use (&$summary_query_count): void {
+            $taxonomies = array_map('strval', (array) ($query->query_vars['taxonomy'] ?? []));
+            if (
+                in_array('word-category', $taxonomies, true)
+                && (string) ($query->query_vars['fields'] ?? '') === 'count'
+                && !empty($query->query_vars['meta_query'])
+            ) {
+                $summary_query_count++;
+            }
+        };
+
+        add_action('pre_get_terms', $query_watcher);
+        try {
+            $first = ll_tools_wordset_page_get_managed_category_summary($wordset_id);
+            $first_query_count = $summary_query_count;
+
+            $this->assertSame(1, (int) ($first['total'] ?? -1));
+            $this->assertSame(0, (int) ($first['translated'] ?? -1));
+            $this->assertSame(1, (int) ($first['hidden'] ?? -1));
+            $this->assertGreaterThanOrEqual(3, $first_query_count);
+
+            // The default WordPress object cache is request-local. Flushing it
+            // here verifies that the durable transient, rather than wp_cache,
+            // prevents the term-meta count joins on the next request.
+            wp_cache_flush();
+            $second = ll_tools_wordset_page_get_managed_category_summary($wordset_id);
+
+            $this->assertSame($first, $second);
+            $this->assertSame($first_query_count, $summary_query_count);
+
+            $goals['ignored_category_ids'] = [];
+            ll_tools_save_user_study_goals($goals, $admin_id);
+            wp_cache_flush();
+            $before_goal_refresh = $summary_query_count;
+            $visible_summary = ll_tools_wordset_page_get_managed_category_summary($wordset_id);
+
+            $this->assertSame(0, (int) ($visible_summary['hidden'] ?? -1));
+            $this->assertGreaterThan($before_goal_refresh, $summary_query_count);
+
+            update_term_meta($category_id, 'term_translation', 'Cached translated category');
+            wp_cache_flush();
+            $before_epoch_refresh = $summary_query_count;
+            $translated_summary = ll_tools_wordset_page_get_managed_category_summary($wordset_id);
+
+            $this->assertSame(1, (int) ($translated_summary['translated'] ?? -1));
+            $this->assertGreaterThan($before_epoch_refresh, $summary_query_count);
+        } finally {
+            remove_action('pre_get_terms', $query_watcher);
+        }
+    }
+
+    public function test_settings_hub_skips_audio_recorder_discovery_while_recorder_tool_keeps_it(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Hub Discovery Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $user_query_count = 0;
+        $user_watcher = static function () use (&$user_query_count): void {
+            $user_query_count++;
+        };
+        add_action('pre_get_users', $user_watcher);
+        try {
+            $this->setWordsetSettingsRoute($wordset_term);
+            $hub_html = ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertSame(0, $user_query_count);
+            $this->assertStringNotContainsString('Hub Discovery Recorder', $hub_html);
+            $this->assertMatchesRegularExpression(
+                '/<a[^>]*class="[^"]*ll-wordset-settings-tool-card--recorder-queues[^"]*"[^>]*>/',
+                $hub_html
+            );
+
+            $this->setWordsetSettingsRoute($wordset_term, 'recorder');
+            $recorder_html = ll_tools_render_wordset_page_content($wordset_id);
+
+            $this->assertGreaterThan(0, $user_query_count);
+            $this->assertStringContainsString('Hub Discovery Recorder', $recorder_html);
+        } finally {
+            remove_action('pre_get_users', $user_watcher);
+        }
+    }
+
     public function test_settings_hub_skips_full_category_catalog_and_unbounded_card_counts(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

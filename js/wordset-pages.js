@@ -586,6 +586,8 @@
         && String(recorderQueueSummariesCfg.nonce || '') !== ''
         && (parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0) > 0
         && (parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0) > 0;
+    const recorderQueueCatalogComplete = !Object.prototype.hasOwnProperty.call(recorderQueueSummariesCfg, 'catalogComplete')
+        || !!recorderQueueSummariesCfg.catalogComplete;
     const recorderQueueSummaryBatchSize = Math.max(1, Math.min(20, parseInt(recorderQueueSummariesCfg.batchSize, 10) || 20));
     const recorderQueueSummaryMaxAutoRetries = Math.max(1, Math.min(12, parseInt(recorderQueueSummariesCfg.maxAutoRetries, 10) || 6));
     let recorderQueueSummaryRequest = null;
@@ -16436,6 +16438,31 @@
             }
         });
 
+        if (!recorderQueueCatalogComplete) {
+            const retryKey = [
+                'll-tools-recorder-catalog-retry',
+                String(recorderQueueSummariesCfg.wordsetId || ''),
+                String(recorderQueueSummariesCfg.recorderUserId || '')
+            ].join(':');
+            let lastRetryAt = 0;
+            let retryStorageAvailable = true;
+            try {
+                lastRetryAt = parseInt(window.sessionStorage.getItem(retryKey), 10) || 0;
+            } catch (_) {
+                retryStorageAvailable = false;
+            }
+            if (retryStorageAvailable && (!lastRetryAt || Date.now() - lastRetryAt >= 60000)) {
+                try {
+                    window.sessionStorage.setItem(retryKey, String(Date.now()));
+                } catch (_) {
+                    return;
+                }
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 900);
+            }
+            return;
+        }
         if (!recorderQueueSummariesEnabled || !$recorderQueueSummaryRoot.length) {
             return;
         }
@@ -16864,7 +16891,7 @@
         refreshRecommendation({ forceRefresh: false });
     }
 
-    if (view === 'settings') {
+    if (view === 'settings' && $settingsQueueList.length) {
         refreshRecommendation({ forceRefresh: false });
     }
 })(jQuery);

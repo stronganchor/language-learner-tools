@@ -27850,3 +27850,11 @@ msgstr "Hazırlanan içe aktarma parçası izin verilen boyutu aşıyor."
 #: includes/admin/dictionary-import-admin.php:928
 msgid "Dictionary TSV grouping is unavailable."
 msgstr "Sözlük TSV gruplaması kullanılamıyor."
+
+#: includes/pages/wordset-pages.php:21818 includes/shortcodes/flashcard-widget.php:1497
+msgid "The category catalog is temporarily unavailable. Please try again."
+msgstr "Kategori kataloğu geçici olarak kullanılamıyor. Lütfen tekrar deneyin."
+
+#: includes/pages/wordset-pages.php:25609
+msgid "Search is still preparing. Please try again."
+msgstr "Arama hâlâ hazırlanıyor. Lütfen tekrar deneyin."

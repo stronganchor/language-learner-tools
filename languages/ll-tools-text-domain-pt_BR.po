@@ -5114,3 +5114,13 @@ msgstr "Um bloco de importação preparado excede o tamanho permitido."
 #: includes/admin/dictionary-import-admin.php:928
 msgid "Dictionary TSV grouping is unavailable."
 msgstr "O agrupamento TSV do dicionário não está disponível."
+
+#. ll-tools-public-key: ea7b614965be8423e5c777f1f63ce9a026c0eaca
+#: includes/pages/wordset-pages.php:25609
+msgid "Search is still preparing. Please try again."
+msgstr "A pesquisa ainda está sendo preparada. Por favor, tente novamente."
+
+#. ll-tools-public-key: 051692938a541fd2e0f0151e61e9e0f082913821
+#: includes/shortcodes/flashcard-widget.php:1497
+msgid "The category catalog is temporarily unavailable. Please try again."
+msgstr "O catálogo de categorias está temporariamente indisponível. Por favor, tente novamente."

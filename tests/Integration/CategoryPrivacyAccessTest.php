@@ -63,6 +63,51 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_user_can_view_category($category_id, $admin_id));
     }
 
+    public function test_category_visibility_meta_failure_fails_closed_and_recovers(): void
+    {
+        global $wpdb;
+
+        $category_id = $this->ensure_term(
+            'word-category',
+            'Visibility Failure Category',
+            'visibility-failure-category'
+        );
+        wp_cache_delete($category_id, 'term_meta');
+
+        $injected = false;
+        $query_filter = static function (string $query) use ($category_id, &$injected): string {
+            if (
+                !$injected
+                && stripos($query, 'termmeta') !== false
+                && preg_match('/term_id\\s+IN\\s*\\(\\s*' . preg_quote((string) $category_id, '/') . '\\s*\\)/i', $query) === 1
+            ) {
+                $injected = true;
+                return 'SELECT term_id, meta_key, meta_value FROM ll_tools_missing_termmeta_table';
+            }
+
+            return $query;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $query_filter);
+
+        try {
+            $complete = true;
+            $this->assertFalse(ll_tools_user_can_view_category($category_id, 0, $complete));
+            $this->assertFalse($complete);
+            $this->assertTrue($injected, 'Expected the category metadata query failure to be injected.');
+        } finally {
+            remove_filter('query', $query_filter);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            wp_cache_delete($category_id, 'term_meta');
+        }
+
+        $complete = false;
+        $this->assertTrue(ll_tools_user_can_view_category($category_id, 0, $complete));
+        $this->assertTrue($complete);
+    }
+
     public function test_private_wordset_is_hidden_from_public_flashcard_queries_and_initial_render(): void
     {
         $min_words_filter = static function (): int {

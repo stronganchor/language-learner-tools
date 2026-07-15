@@ -219,26 +219,51 @@ function ll_tools_find_existing_word_post_by_title_in_wordsets(string $title, ar
     return null;
 }
 
-function ll_tools_get_category_wordset_owner_id($category): int {
+function ll_tools_get_category_wordset_owner_id($category, ?bool &$complete = null): int {
+    global $wpdb;
+
+    $complete = true;
+    $wpdb->last_error = '';
     $term = function_exists('ll_tools_resolve_word_category_term')
         ? ll_tools_resolve_word_category_term($category)
         : get_term($category, 'word-category');
-    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $wpdb->last_error !== '') {
+        if (is_wp_error($term) || $wpdb->last_error !== '') {
+            $complete = false;
+        }
         return 0;
     }
 
-    return max(0, (int) get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true));
+    $wpdb->last_error = '';
+    $owner_id = max(0, (int) get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, true));
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return 0;
+    }
+    return $owner_id;
 }
 
-function ll_tools_get_category_isolation_source_id($category): int {
+function ll_tools_get_category_isolation_source_id($category, ?bool &$complete = null): int {
+    global $wpdb;
+
+    $complete = true;
+    $wpdb->last_error = '';
     $term = function_exists('ll_tools_resolve_word_category_term')
         ? ll_tools_resolve_word_category_term($category)
         : get_term($category, 'word-category');
-    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $wpdb->last_error !== '') {
+        if (is_wp_error($term) || $wpdb->last_error !== '') {
+            $complete = false;
+        }
         return 0;
     }
 
+    $wpdb->last_error = '';
     $origin_id = max(0, (int) get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY, true));
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return 0;
+    }
     return $origin_id > 0 ? $origin_id : (int) $term->term_id;
 }
 

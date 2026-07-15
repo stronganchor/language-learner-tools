@@ -55,6 +55,14 @@ of sending the whole plugin to an external model.
 | Imports, site sync, automation | `includes/api/automation-rest.php`, `includes/lib/site-sync.php`, `includes/admin/export-import.php` | Treat heavy work as server-owned jobs. REST endpoints should control, enqueue, and report status instead of doing unbounded work inline. |
 | Performance benchmark | `tests/performance/`, `tests/e2e/specs/performance-benchmark.spec.js`, `tests/e2e/helpers/performance-benchmark.js` | Keep the default benchmark affordable. Use the Genç profile for the production-shaped 209-category/2,717-word settings and recorder paths, XL for generic 3,000-word coverage, and stress-2x for 5,000-word saturation checks. Named profiles authoritatively select their fixture manifest, history, and report paths. Skip-seed verifies the stored fixture version and canonical checksum without mutation; pass the small stored-fixture JSON as an explicit verifier argument because redirected stdin is unreliable when WSL launches Windows PHP. The E2E child restores all locked parent-selected performance variables after loading `.env` files. |
 
+### Derived-cache integrity
+
+Every normal-page derived payload must distinguish a proven empty result from an incomplete read. Reset and check `$wpdb->last_error` at each source boundary and thread completeness through term, meta, visibility, default-wordset, sign-mode, prompt, media, and owner-map helpers. Never publish a transient, durable chunk, summary, processed-category list, or page cursor from incomplete sources; preserve the previous complete state and retry the same key or cursor.
+
+Keep structural and content generations separate. Structural taxonomy identity/order changes advance the structural epoch. Fully scoped word, audio, image, and prompt mutations advance affected category versions and wordset content epochs. Unknown scope advances the unknown component; any failed narrow generation write advances the failsafe. Scoped keys include the relevant wordsets plus unknown/failsafe components, keeping unrelated wordsets warm without allowing stale content.
+
+Completeness is also cursor state: recorder prompt batches, quiz-catalog row batches, and quiz/vocab maintenance batches must not advance past an incomplete read. Missing or invalid recommendation queues hydrate at most 12 categories, hard-capped at 24, from the materialized wordset category scope; incomplete refreshes do not persist a queue.
+
 Recorder overview stream generations key the ordered category `{id,name,slug}`
 identities plus recorder, wordset, and include/exclude scope. Per-category content
 signatures remain on the summary cards themselves. Ordinary word, audio, image,

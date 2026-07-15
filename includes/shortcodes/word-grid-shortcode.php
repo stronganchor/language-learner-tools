@@ -5118,14 +5118,17 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
     if ($lesson_id > 0 && function_exists('ll_tools_get_vocab_lesson_manual_word_order')) {
         $manual_order_hash = md5((string) wp_json_encode(ll_tools_get_vocab_lesson_manual_word_order($lesson_id)));
     }
+    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+        ? ll_tools_get_quiz_content_cache_epoch($wordset_id > 0 ? [$wordset_id] : [])
+        : '';
 
-    $cache_key = $category_id . ':' . $wordset_id . ':' . $lesson_id . ':' . ($deepest_only ? '1' : '0') . ':' . ($is_text_based ? '1' : '0') . ':' . $preview_limit . ':' . $manual_order_hash;
+    $cache_key = $category_id . ':' . $wordset_id . ':' . $lesson_id . ':' . ($deepest_only ? '1' : '0') . ':' . ($is_text_based ? '1' : '0') . ':' . $preview_limit . ':' . $manual_order_hash . ':' . $quiz_content_epoch;
     if (isset($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
 
     $persistent_cache_key = 'll_wg_shell_cards_' . md5(wp_json_encode([
-        'schema' => 4,
+        'schema' => 5,
         'category_id' => $category_id,
         'wordset_id' => $wordset_id,
         'lesson_id' => $lesson_id,
@@ -5139,6 +5142,7 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
         'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
+        'quiz_content_epoch' => $quiz_content_epoch,
     ]));
     $cached_cards = wp_cache_get($persistent_cache_key, 'll_tools');
     if (!is_array($cached_cards)) {
@@ -7870,34 +7874,30 @@ function ll_tools_fill_missing_word_fields_from_recording(int $word_id, string $
 }
 
 function ll_tools_word_grid_bump_category_cache_for_words(array $word_ids, int $fallback_category_id = 0): void {
-    if (!function_exists('ll_tools_bump_category_cache_version')) {
+    if (!function_exists('ll_tools_collect_word_quiz_cache_scope')) {
         return;
     }
 
-    $touched = [];
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-        $term_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-        if (is_wp_error($term_ids)) {
-            continue;
-        }
-        foreach ($term_ids as $term_id) {
-            $term_id = (int) $term_id;
-            if ($term_id > 0) {
-                $touched[$term_id] = true;
-            }
-        }
+    $scope = ll_tools_collect_word_quiz_cache_scope($word_ids);
+    $category_ids = ll_tools_word_grid_normalize_category_id_list((array) ($scope['category_ids'] ?? []));
+    if (empty($category_ids) && $fallback_category_id > 0) {
+        $category_ids = [$fallback_category_id];
+        // A fallback category is useful for its row cache, but cannot prove
+        // that every direct/reference wordset was recovered after deletion.
+        $scope['complete'] = false;
     }
 
-    if (empty($touched) && $fallback_category_id > 0) {
-        $touched[$fallback_category_id] = true;
-    }
-
-    if (!empty($touched)) {
-        ll_tools_bump_category_cache_version(array_keys($touched));
+    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version(
+            $category_ids,
+            (array) ($scope['wordset_ids'] ?? []),
+            !empty($scope['complete'])
+        );
+    } elseif (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+        ll_tools_bump_quiz_content_cache_epoch(
+            (array) ($scope['wordset_ids'] ?? []),
+            !empty($scope['complete'])
+        );
     }
 }
 
@@ -8163,9 +8163,6 @@ function ll_tools_word_grid_create_lesson_word_handler() {
     update_post_meta($word_id, '_ll_created_from_vocab_lesson_id', $lesson_id);
     clean_post_cache($word_id);
 
-    if (function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version(array_values(array_unique(array_filter([$lesson_category_id, $category_id]))));
-    }
     if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
         ll_tools_invalidate_wordset_page_lesson_cache();
     }
@@ -8808,9 +8805,6 @@ function ll_tools_word_grid_update_word_handler() {
             (array) ($category_update_result['previous_category_ids'] ?? []),
             (array) ($category_update_result['all_category_ids'] ?? [])
         ));
-        if (!empty($touched_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-            ll_tools_bump_category_cache_version($touched_category_ids);
-        }
         if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
             ll_tools_invalidate_wordset_page_lesson_cache();
         }
@@ -8926,9 +8920,6 @@ function ll_tools_word_grid_delete_word_handler() {
         wp_send_json_error(__('Unable to delete word.', 'll-tools-text-domain'), 500);
     }
 
-    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($category_ids);
-    }
     if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
         ll_tools_invalidate_wordset_page_lesson_cache();
     }
@@ -9004,9 +8995,6 @@ function ll_tools_word_grid_delete_recording_handler() {
 
     if (function_exists('ll_tools_sync_parent_word_status_by_children')) {
         ll_tools_sync_parent_word_status_by_children($word_id);
-    }
-    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($category_ids);
     }
     if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
         ll_tools_invalidate_wordset_page_lesson_cache();
@@ -9104,9 +9092,6 @@ function ll_tools_word_grid_move_recording_handler() {
     if (function_exists('ll_tools_sync_parent_word_status_by_children')) {
         ll_tools_sync_parent_word_status_by_children($source_word_id);
         ll_tools_sync_parent_word_status_by_children($target_word_id);
-    }
-    if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($category_ids);
     }
     if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
         ll_tools_invalidate_wordset_page_lesson_cache();

@@ -1020,11 +1020,23 @@ function ll_tools_rest_word_metadata_plan_invalidate_after_chunk(int $wordset_id
     foreach ($changed_word_ids as $changed_word_id) {
         clean_post_cache($changed_word_id);
     }
-    if (!empty($changed_word_ids) && function_exists('ll_tools_word_grid_bump_category_cache_for_words')) {
-        ll_tools_word_grid_bump_category_cache_for_words($changed_word_ids);
-    }
-    if (!empty($changed_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version($changed_category_ids);
+    if ((!empty($changed_word_ids) || !empty($changed_category_ids)) && function_exists('ll_tools_bump_category_cache_version')) {
+        $scope = !empty($changed_word_ids) && function_exists('ll_tools_collect_word_quiz_cache_scope')
+            ? ll_tools_collect_word_quiz_cache_scope($changed_word_ids)
+            : ['category_ids' => [], 'wordset_ids' => [], 'complete' => false];
+        $category_ids = ll_tools_rest_automation_prepare_id_list(array_merge(
+            $changed_category_ids,
+            (array) ($scope['category_ids'] ?? [])
+        ));
+        $wordset_ids = ll_tools_rest_automation_prepare_id_list(array_merge(
+            [$wordset_id],
+            (array) ($scope['wordset_ids'] ?? [])
+        ));
+        if (!empty($category_ids)) {
+            ll_tools_bump_category_cache_version($category_ids, $wordset_ids, !empty($scope['complete']));
+        } elseif (function_exists('ll_tools_bump_quiz_content_cache_epoch')) {
+            ll_tools_bump_quiz_content_cache_epoch($wordset_ids, !empty($scope['complete']));
+        }
     }
     if ((!empty($changed_word_ids) || !empty($changed_category_ids)) && function_exists('ll_tools_bump_wordset_cache_epoch')) {
         ll_tools_bump_wordset_cache_epoch([$wordset_id]);

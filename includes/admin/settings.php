@@ -253,6 +253,13 @@ function ll_tools_bump_word_category_cache() {
         'word-category'
     ) );
 
+    // The maintenance update intentionally uses bulk SQL. Drop the bounded
+    // request snapshot so later reads in this request observe the generations
+    // that were just persisted instead of the pre-maintenance values.
+    if ( function_exists( 'll_tools_epoch_request_cache_reset' ) ) {
+        ll_tools_epoch_request_cache_reset();
+    }
+
     $wordset_ids = array();
     if ( defined( 'LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY' ) ) {
         $wordset_ids = $wpdb->get_col( $wpdb->prepare(

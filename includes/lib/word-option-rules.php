@@ -467,7 +467,7 @@ function ll_tools_update_word_option_rules(int $wordset_id, int $category_id, ar
 
     update_option('ll_tools_word_option_rules', $store, false);
     if (function_exists('ll_tools_bump_category_cache_version')) {
-        ll_tools_bump_category_cache_version([$category_id]);
+        ll_tools_bump_category_cache_version([$category_id], [$wordset_id], true);
     }
 
     return true;

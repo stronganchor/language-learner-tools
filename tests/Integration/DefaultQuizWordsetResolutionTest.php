@@ -115,6 +115,52 @@ final class DefaultQuizWordsetResolutionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_default_wordset_resolution_does_not_request_cache_a_failed_zero_result(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createIsolatedQuizCategoryFixture();
+        $source_category_id = (int) $fixture['source_category_id'];
+        $injected = false;
+        $break_wordset_query = static function (array $clauses, array $taxonomies, array $args) use (&$injected): array {
+            if (
+                !$injected
+                && in_array('wordset', $taxonomies, true)
+                && (string) ($args['fields'] ?? '') === 'ids'
+            ) {
+                $clauses['where'] .= ' AND ll_tools_missing_default_wordset.term_id = 1';
+                $injected = true;
+            }
+            return $clauses;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('terms_clauses', $break_wordset_query, 10, 3);
+        try {
+            $failed_complete = true;
+            $this->assertSame(
+                0,
+                ll_get_default_wordset_id_for_category($source_category_id, 1, $failed_complete)
+            );
+        } finally {
+            remove_filter('terms_clauses', $break_wordset_query, 10);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertTrue($injected, 'The fixture must interrupt the intended wordset catalog read.');
+        $this->assertFalse($failed_complete);
+
+        // A transient failure is not a real "no owner" result. Retrying the
+        // exact same key in this request must perform the source reads again.
+        $retry_complete = false;
+        $this->assertSame(
+            (int) $fixture['wordset_id'],
+            ll_get_default_wordset_id_for_category($source_category_id, 1, $retry_complete)
+        );
+        $this->assertTrue($retry_complete);
+    }
+
     public function test_embed_context_re_resolves_legacy_source_slug_after_default_wordset_lookup(): void
     {
         $min_words_filter = static function (): int {

@@ -198,13 +198,24 @@ function ll_tools_user_study_wordsets(): array {
 /**
  * Build category data (mirrors flashcard widget structure) for a wordset scope.
  */
-function ll_tools_user_study_categories_for_wordset($wordset_id): array {
+function ll_tools_user_study_categories_for_wordset($wordset_id, ?bool &$complete = null): array {
+    global $wpdb;
+
+    $complete = true;
+    do_action('ll_tools_user_study_categories_for_wordset_before_build', (int) $wordset_id);
     $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
     $use_translations = function_exists('ll_flashcards_should_use_translations') ? ll_flashcards_should_use_translations($wordset_ids) : false;
     if (!function_exists('ll_flashcards_build_categories')) {
+        $complete = false;
         return [];
     }
-    [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
+    $build_complete = true;
+    $wpdb->last_error = '';
+    [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids, 0, false, $build_complete);
+    $complete = $build_complete && $wpdb->last_error === '';
+    if (!$complete) {
+        return [];
+    }
     $normalized = array_map(function ($cat) {
         $cat['id']    = (int) $cat['id'];
         $cat['name']  = (string) $cat['name'];
@@ -277,32 +288,73 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
  * @param int[] $category_ids
  * @return int[]
  */
-function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, $wordset_id): array {
+function ll_tools_user_study_filter_quizzable_category_ids(
+    array $category_ids,
+    $wordset_id,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
     $category_ids = ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids');
     $wordset_id = (int) $wordset_id;
-    if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
-        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
-        if (!empty($repaired_category_ids)) {
-            $category_ids = ll_tools_user_study_sanitize_state_id_array($repaired_category_ids, 'category_ids');
+    if ($wordset_id > 0 && !empty($category_ids)) {
+        if (!function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete')) {
+            $complete = false;
+            return [];
         }
+        $wpdb->last_error = '';
+        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
+            $category_ids,
+            $wordset_id,
+            true
+        );
+        if ($repaired_category_ids === null || $wpdb->last_error !== '') {
+            $complete = false;
+            foreach ($category_ids as $category_id) {
+                wp_cache_delete((int) $category_id, 'terms');
+                wp_cache_delete((int) $category_id, 'term_meta');
+            }
+            return [];
+        }
+        $category_ids = ll_tools_user_study_sanitize_state_id_array($repaired_category_ids, 'category_ids');
     }
     if (empty($category_ids)) {
         return [];
     }
 
     if (function_exists('ll_tools_filter_category_ids_for_user')) {
-        $category_ids = ll_tools_filter_category_ids_for_user($category_ids);
+        $visibility_complete = true;
+        $visible_source_ids = $category_ids;
+        $wpdb->last_error = '';
+        $category_ids = ll_tools_filter_category_ids_for_user(
+            $category_ids,
+            (int) get_current_user_id(),
+            $visibility_complete
+        );
+        if (!$visibility_complete || $wpdb->last_error !== '') {
+            $complete = false;
+            foreach ($visible_source_ids as $category_id) {
+                wp_cache_delete((int) $category_id, 'term_meta');
+            }
+            return [];
+        }
         if (empty($category_ids)) {
             return [];
         }
     }
 
+    $wpdb->last_error = '';
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
         'include'    => $category_ids,
     ]);
-    if (is_wp_error($terms) || empty($terms)) {
+    if (is_wp_error($terms) || $wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    if (empty($terms)) {
         return [];
     }
 
@@ -318,17 +370,29 @@ function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, 
     $wordset_ids = ($wordset_id > 0) ? [$wordset_id] : [];
     $allowed = [];
 
+    if (function_exists('ll_tools_get_category_cache_versions')) {
+        ll_tools_get_category_cache_versions(array_keys($terms_by_id));
+    }
+
     foreach ($category_ids as $category_id) {
         if (!isset($terms_by_id[$category_id])) {
             continue;
         }
 
-        if (!function_exists('ll_can_category_generate_quiz') || ll_can_category_generate_quiz($terms_by_id[$category_id], $min_word_count, $wordset_ids)) {
+        $category_complete = true;
+        if (!function_exists('ll_can_category_generate_quiz')
+            || ll_can_category_generate_quiz(
+                $terms_by_id[$category_id],
+                $min_word_count,
+                $wordset_ids,
+                $category_complete
+            )) {
             $allowed[] = (int) $category_id;
         }
+        $complete = $complete && $category_complete;
     }
 
-    return $allowed;
+    return $complete ? $allowed : [];
 }
 
 /**
@@ -363,13 +427,9 @@ function ll_tools_user_study_renderable_word_ids_cache_key(array $category_ids, 
 
     sort($category_ids, SORT_NUMERIC);
 
-    $category_versions = [];
-    foreach ($category_ids as $category_id) {
-        $version = function_exists('ll_tools_get_category_cache_version')
-            ? (int) ll_tools_get_category_cache_version($category_id)
-            : 1;
-        $category_versions[$category_id] = max(1, $version);
-    }
+    $category_versions = function_exists('ll_tools_get_category_cache_versions')
+        ? ll_tools_get_category_cache_versions($category_ids)
+        : array_fill_keys($category_ids, 1);
 
     $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
         ? max(1, (int) ll_tools_get_category_cache_epoch())
@@ -377,14 +437,18 @@ function ll_tools_user_study_renderable_word_ids_cache_key(array $category_ids, 
     $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
+    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+        ? (string) ll_tools_get_quiz_content_cache_epoch($wordset_id > 0 ? [$wordset_id] : [])
+        : 'qce-unavailable';
 
     $payload = [
-        'schema' => 1,
+        'schema' => 3,
         'wordset_id' => max(0, $wordset_id),
         'category_ids' => $category_ids,
         'category_versions' => $category_versions,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
+        'quiz_content_epoch' => $quiz_content_epoch,
         'min_word_count' => max(0, $min_word_count),
         'user_id' => function_exists('get_current_user_id') ? max(0, (int) get_current_user_id()) : 0,
     ];
@@ -436,14 +500,241 @@ function ll_tools_user_study_order_ids_by_category(array $ids_by_category, array
     return $ordered;
 }
 
-function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids, $wordset_id): array {
-    $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, (int) $wordset_id);
+/**
+ * Build the small category payload needed to regenerate a recommendation queue.
+ *
+ * The normal wordset page already submits its ordered visible category IDs. A
+ * recommendation needs only a few of those categories, so do not rebuild the
+ * full flashcard catalog (and every category's quiz projection) when a new user
+ * has no persisted queue yet. The wordset category-ID aggregate remains the
+ * authoritative materialized scope; only a bounded window is hydrated.
+ *
+ * @param int[] $requested_category_ids
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_user_study_recommendation_categories_for_wordset(
+    int $wordset_id,
+    array $requested_category_ids = [],
+    int $user_id = 0,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $wordset_id = max(0, $wordset_id);
+    $user_id = max(0, $user_id ?: (int) get_current_user_id());
+    if ($wordset_id <= 0 || !function_exists('ll_flashcards_build_categories')) {
+        $complete = false;
+        return [];
+    }
+
+    $requested_category_ids = array_values(array_unique(array_filter(array_map('intval', $requested_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (!empty($requested_category_ids) && function_exists('ll_tools_recommendation_remap_category_ids_for_wordset')) {
+        $remap_complete = true;
+        $requested_category_ids = ll_tools_recommendation_remap_category_ids_for_wordset(
+            $requested_category_ids,
+            $wordset_id,
+            $remap_complete
+        );
+        if (!$remap_complete) {
+            $complete = false;
+            return [];
+        }
+    }
+
+    $allowed_complete = true;
+    $allowed_category_ids = function_exists('ll_collect_wc_ids_for_wordset_term_ids')
+        ? ll_collect_wc_ids_for_wordset_term_ids([$wordset_id], $allowed_complete)
+        : $requested_category_ids;
+    $allowed_category_ids = array_values(array_unique(array_filter(array_map('intval', (array) $allowed_category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (!$allowed_complete) {
+        $complete = false;
+        return [];
+    }
+
+    $allowed_lookup = array_fill_keys($allowed_category_ids, true);
+    $category_ids = [];
+    foreach ($requested_category_ids as $category_id) {
+        if (isset($allowed_lookup[$category_id])) {
+            $category_ids[] = $category_id;
+        }
+    }
+    if (empty($requested_category_ids)) {
+        $category_ids = $allowed_category_ids;
+        if (count($category_ids) > 1 && function_exists('ll_tools_wordset_sort_category_ids')) {
+            $wpdb->last_error = '';
+            $category_ids = ll_tools_wordset_sort_category_ids($category_ids, $wordset_id);
+            if ($wpdb->last_error !== '') {
+                $complete = false;
+                return [];
+            }
+        }
+    }
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $wpdb->last_error = '';
+    $goals = ($user_id > 0 && function_exists('ll_tools_get_user_study_goals'))
+        ? ll_tools_get_user_study_goals($user_id)
+        : [];
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    $ignored_lookup = [];
+    foreach ((array) ($goals['ignored_category_ids'] ?? []) as $ignored_category_id) {
+        $ignored_category_id = (int) $ignored_category_id;
+        if ($ignored_category_id > 0) {
+            $ignored_lookup[$ignored_category_id] = true;
+        }
+    }
+    if (!empty($ignored_lookup)) {
+        $category_ids = array_values(array_filter($category_ids, static function (int $category_id) use ($ignored_lookup): bool {
+            return empty($ignored_lookup[$category_id]);
+        }));
+    }
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $wpdb->last_error = '';
+    $ordering_mode = function_exists('ll_tools_wordset_get_category_ordering_mode')
+        ? (string) ll_tools_wordset_get_category_ordering_mode($wordset_id)
+        : 'none';
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    if ($ordering_mode === 'none' && function_exists('ll_tools_recommendation_rotate_category_ids')) {
+        $wpdb->last_error = '';
+        $category_ids = ll_tools_recommendation_rotate_category_ids($category_ids, $user_id, $wordset_id);
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+    } elseif ($user_id > 0 && function_exists('ll_tools_get_user_last_recommendation_activity')) {
+        // Keep the logical-order anchor in the window. The recommendation
+        // planner can then decide whether it still needs study or whether the
+        // following categories have become the next frontier.
+        $wpdb->last_error = '';
+        $last_activity = ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id);
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+        $anchor_ids = is_array($last_activity) && function_exists('ll_tools_recommendation_activity_category_ids')
+            ? ll_tools_recommendation_activity_category_ids($last_activity)
+            : [];
+        $anchor_index = null;
+        $index_lookup = array_flip($category_ids);
+        foreach ($anchor_ids as $anchor_id) {
+            $anchor_id = (int) $anchor_id;
+            if (isset($index_lookup[$anchor_id])) {
+                $anchor_index = (int) $index_lookup[$anchor_id];
+                break;
+            }
+        }
+        if ($anchor_index !== null && $anchor_index > 0) {
+            $category_ids = array_merge(
+                array_slice($category_ids, $anchor_index),
+                array_slice($category_ids, 0, $anchor_index)
+            );
+        }
+    }
+
+    $window_size = (int) apply_filters(
+        'll_tools_user_study_recommendation_category_window_size',
+        12,
+        $wordset_id,
+        $user_id
+    );
+    $window_size = max(1, min(24, $window_size));
+    $category_ids = array_slice($category_ids, 0, $window_size);
+
+    if (function_exists('ll_tools_filter_category_ids_for_user')) {
+        $visibility_complete = true;
+        $visibility_source_ids = $category_ids;
+        $wpdb->last_error = '';
+        $category_ids = ll_tools_filter_category_ids_for_user(
+            $category_ids,
+            $user_id,
+            $visibility_complete
+        );
+        if (!$visibility_complete || $wpdb->last_error !== '') {
+            $complete = false;
+            foreach ($visibility_source_ids as $category_id) {
+                wp_cache_delete((int) $category_id, 'terms');
+                wp_cache_delete((int) $category_id, 'term_meta');
+            }
+            return [];
+        }
+    }
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    do_action(
+        'll_tools_user_study_recommendation_categories_for_wordset_before_build',
+        $wordset_id,
+        $category_ids,
+        $user_id
+    );
+
+    $wordset_ids = [$wordset_id];
+    $use_translations = function_exists('ll_flashcards_should_use_translations')
+        ? ll_flashcards_should_use_translations($wordset_ids)
+        : false;
+    $build_complete = true;
+    $wpdb->last_error = '';
+    [$categories] = ll_flashcards_build_categories(
+        implode(',', $category_ids),
+        $use_translations,
+        $wordset_ids,
+        0,
+        false,
+        $build_complete
+    );
+    $complete = $build_complete && $wpdb->last_error === '';
+    if (!$complete) {
+        return [];
+    }
+
+    return array_values(array_filter((array) $categories, static function ($category): bool {
+        return is_array($category) && (int) ($category['id'] ?? 0) > 0;
+    }));
+}
+
+function ll_tools_user_study_renderable_word_ids_by_category(
+    array $category_ids,
+    $wordset_id,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $eligibility_complete = true;
+    $category_ids = ll_tools_user_study_filter_quizzable_category_ids(
+        $category_ids,
+        (int) $wordset_id,
+        $eligibility_complete
+    );
+    $complete = $complete && $eligibility_complete;
     if (empty($category_ids) || !function_exists('ll_tools_get_renderable_category_item_ids')) {
         return [];
     }
 
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $wpdb->last_error = '';
     $cache_key = ll_tools_user_study_renderable_word_ids_cache_key($category_ids, (int) $wordset_id, $min_word_count);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
     $cache_group = 'll_tools_user_study';
     $cache_ttl = 30 * MINUTE_IN_SECONDS;
 
@@ -453,9 +744,14 @@ function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids
     }
 
     if ($cache_key !== '') {
+        $wpdb->last_error = '';
         $cached = wp_cache_get($cache_key, $cache_group);
         if ($cached === false) {
             $cached = get_transient($cache_key);
+        }
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
         }
         $cached_ids_by_category = ll_tools_user_study_normalize_cached_renderable_word_ids($cached);
         if (is_array($cached_ids_by_category)) {
@@ -465,12 +761,14 @@ function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids
     }
 
     $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
+    $wpdb->last_error = '';
     $terms = get_terms([
         'taxonomy'   => 'word-category',
         'hide_empty' => false,
         'include'    => $category_ids,
     ]);
-    if (is_wp_error($terms)) {
+    if (is_wp_error($terms) || $wpdb->last_error !== '') {
+        $complete = false;
         $terms = [];
     }
 
@@ -489,11 +787,23 @@ function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids
         }
 
         $term = $by_id[$cid];
-        $config = function_exists('ll_tools_get_category_quiz_config')
-            ? ll_tools_get_category_quiz_config($term)
-            : ['prompt_type' => 'audio', 'option_type' => 'image'];
         if (function_exists('ll_tools_resolve_effective_category_quiz_config')) {
-            $config = ll_tools_resolve_effective_category_quiz_config($term, $min_word_count, $wordset_ids);
+            $config_complete = true;
+            $wpdb->last_error = '';
+            $config = ll_tools_resolve_effective_category_quiz_config(
+                $term,
+                $min_word_count,
+                $wordset_ids,
+                $config_complete
+            );
+            $complete = $complete && $config_complete && $wpdb->last_error === '';
+        } elseif (function_exists('ll_tools_get_category_quiz_config')) {
+            $config_complete = true;
+            $wpdb->last_error = '';
+            $config = ll_tools_get_category_quiz_config($term, $config_complete);
+            $complete = $complete && $config_complete && $wpdb->last_error === '';
+        } else {
+            $config = ['prompt_type' => 'audio', 'option_type' => 'image'];
         }
         $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
         $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
@@ -502,10 +812,27 @@ function ll_tools_user_study_renderable_word_ids_by_category(array $category_ids
             'prompt_type' => $prompt_type,
         ]);
 
-        $ids = ll_tools_get_renderable_category_item_ids($term, $option_type, $wordset_ids, $merged_config);
+        $ids_complete = true;
+        $wpdb->last_error = '';
+        $ids = ll_tools_get_renderable_category_item_ids(
+            $term,
+            $option_type,
+            $wordset_ids,
+            $merged_config,
+            $ids_complete
+        );
+        $complete = $complete && $ids_complete && $wpdb->last_error === '';
         $result[$cid] = array_values(array_unique(array_filter(array_map('intval', (array) $ids), static function (int $id): bool {
             return $id > 0;
         })));
+    }
+
+    if (!$complete) {
+        foreach ($category_ids as $category_id) {
+            wp_cache_delete((int) $category_id, 'terms');
+            wp_cache_delete((int) $category_id, 'term_meta');
+        }
+        return [];
     }
 
     if ($cache_key !== '') {

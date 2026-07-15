@@ -27796,3 +27796,11 @@ msgstr "Ein vorbereiteter Importabschnitt überschreitet die zulässige Größe.
 #: includes/admin/dictionary-import-admin.php:928
 msgid "Dictionary TSV grouping is unavailable."
 msgstr "Die TSV-Gruppierung für das Wörterbuch ist nicht verfügbar."
+
+#: includes/pages/wordset-pages.php:21818 includes/shortcodes/flashcard-widget.php:1497
+msgid "The category catalog is temporarily unavailable. Please try again."
+msgstr "Der Kategorienkatalog ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+
+#: includes/pages/wordset-pages.php:25609
+msgid "Search is still preparing. Please try again."
+msgstr "Die Suche wird noch vorbereitet. Bitte versuchen Sie es erneut."
