@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.76\n"
+"Project-Id-Version: Language Learner Tools 6.6.77\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-16T08:20:20+00:00\n"
+"POT-Creation-Date: 2026-07-16T09:58:11+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -604,8 +604,8 @@ msgid "AssemblyAI transcript status check failed."
 msgstr ""
 
 #: includes/admin/api/assemblyai-api.php:296
-#: includes/shortcodes/audio-recording-shortcode.php:5612
-#: includes/shortcodes/audio-recording-shortcode.php:5671
+#: includes/shortcodes/audio-recording-shortcode.php:5617
+#: includes/shortcodes/audio-recording-shortcode.php:5676
 #: includes/shortcodes/word-grid-shortcode.php:11257
 msgid "AssemblyAI transcription failed."
 msgstr ""
@@ -1051,7 +1051,7 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:190
 #: includes/admin/uploads/audio-upload-form.php:326
-#: includes/shortcodes/audio-recording-shortcode.php:1936
+#: includes/shortcodes/audio-recording-shortcode.php:1941
 #: includes/taxonomies/recording-type-taxonomy.php:11
 msgid "Recording Type"
 msgstr ""
@@ -1226,7 +1226,7 @@ msgid "No recordings with preserved original audio are ready to reprocess."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:992
-#: includes/shortcodes/audio-recording-shortcode.php:2020
+#: includes/shortcodes/audio-recording-shortcode.php:2025
 msgid "Review Processed Audio"
 msgstr ""
 
@@ -1274,8 +1274,8 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:1130
 #: includes/pages/wordset-games.php:6212
 #: includes/shortcodes/audio-recording-shortcode.php:462
-#: includes/shortcodes/audio-recording-shortcode.php:5576
-#: includes/shortcodes/audio-recording-shortcode.php:9472
+#: includes/shortcodes/audio-recording-shortcode.php:5581
+#: includes/shortcodes/audio-recording-shortcode.php:9477
 #: includes/shortcodes/word-grid-shortcode.php:7976
 msgid "Invalid audio upload."
 msgstr ""
@@ -1287,15 +1287,15 @@ msgstr ""
 
 #. translators: %s: upload subsystem error message
 #: includes/admin/audio-processor-admin.php:1178
-#: includes/shortcodes/audio-recording-shortcode.php:8656
-#: includes/shortcodes/audio-recording-shortcode.php:9682
+#: includes/shortcodes/audio-recording-shortcode.php:8661
+#: includes/shortcodes/audio-recording-shortcode.php:9687
 #: includes/shortcodes/word-grid-shortcode.php:8035
 msgid "Failed to save file: %s"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1184
-#: includes/shortcodes/audio-recording-shortcode.php:8659
-#: includes/shortcodes/audio-recording-shortcode.php:9688
+#: includes/shortcodes/audio-recording-shortcode.php:8664
+#: includes/shortcodes/audio-recording-shortcode.php:9693
 msgid "Failed to save file"
 msgstr ""
 
@@ -1457,7 +1457,7 @@ msgstr ""
 #: includes/privacy.php:427
 #: includes/privacy.php:516
 #: includes/privacy.php:598
-#: includes/shortcodes/audio-recording-shortcode.php:1803
+#: includes/shortcodes/audio-recording-shortcode.php:1808
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
 #: includes/shortcodes/image-copyright-grid-shortcode.php:222
@@ -4036,7 +4036,7 @@ msgstr ""
 #: includes/privacy.php:429
 #: includes/privacy.php:518
 #: includes/privacy.php:600
-#: includes/shortcodes/audio-recording-shortcode.php:1657
+#: includes/shortcodes/audio-recording-shortcode.php:1662
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:123
 #: templates/content-lesson-template.php:129
@@ -7573,7 +7573,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:10399
 #: includes/admin/ipa-keyboard-admin.php:10436
 #: includes/admin/ipa-keyboard-admin.php:10557
-#: includes/shortcodes/audio-recording-shortcode.php:9464
+#: includes/shortcodes/audio-recording-shortcode.php:9469
 #: includes/shortcodes/word-grid-shortcode.php:11062
 msgid "Missing data"
 msgstr ""
@@ -9707,7 +9707,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:22287
 #: includes/pages/wordset-pages.php:26887
 #: includes/shortcodes/audio-recording-shortcode.php:1579
-#: includes/shortcodes/audio-recording-shortcode.php:1741
+#: includes/shortcodes/audio-recording-shortcode.php:1746
 #: templates/vocab-lesson-template.php:388
 msgid "Retry"
 msgstr ""
@@ -9811,8 +9811,8 @@ msgid "Sync IDs"
 msgstr ""
 
 #: includes/admin/site-sync-admin.php:1060
-#: includes/shortcodes/audio-recording-shortcode.php:1877
-#: includes/shortcodes/audio-recording-shortcode.php:1966
+#: includes/shortcodes/audio-recording-shortcode.php:1882
+#: includes/shortcodes/audio-recording-shortcode.php:1971
 msgid "Record"
 msgstr ""
 
@@ -10838,7 +10838,7 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:475
 #: includes/admin/uploads/image-upload-form.php:656
-#: includes/shortcodes/audio-recording-shortcode.php:1832
+#: includes/shortcodes/audio-recording-shortcode.php:1837
 msgid "New Category Name"
 msgstr ""
 
@@ -10973,7 +10973,7 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:517
 #: includes/admin/uploads/image-upload-form.php:698
-#: includes/shortcodes/audio-recording-shortcode.php:1836
+#: includes/shortcodes/audio-recording-shortcode.php:1841
 #: includes/taxonomies/word-category-taxonomy.php:3023
 #: includes/taxonomies/word-category-taxonomy.php:3058
 msgid "Desired Recording Types"
@@ -12068,7 +12068,7 @@ msgstr ""
 #: includes/api/automation-rest.php:3388
 #: includes/api/automation-rest.php:3988
 #: includes/api/word-metadata-plan-rest.php:1685
-#: includes/shortcodes/audio-recording-shortcode.php:5287
+#: includes/shortcodes/audio-recording-shortcode.php:5292
 #: includes/shortcodes/word-grid-shortcode.php:8899
 msgid "Missing word ID."
 msgstr ""
@@ -12802,14 +12802,14 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:1382
 #: includes/shortcodes/audio-recording-shortcode.php:1421
 #: includes/shortcodes/audio-recording-shortcode.php:1557
-#: includes/shortcodes/audio-recording-shortcode.php:1806
-#: includes/shortcodes/audio-recording-shortcode.php:2061
-#: includes/shortcodes/audio-recording-shortcode.php:3428
-#: includes/shortcodes/audio-recording-shortcode.php:4844
-#: includes/shortcodes/audio-recording-shortcode.php:5944
-#: includes/shortcodes/audio-recording-shortcode.php:6305
-#: includes/shortcodes/audio-recording-shortcode.php:6548
-#: includes/shortcodes/audio-recording-shortcode.php:6939
+#: includes/shortcodes/audio-recording-shortcode.php:1811
+#: includes/shortcodes/audio-recording-shortcode.php:2066
+#: includes/shortcodes/audio-recording-shortcode.php:3433
+#: includes/shortcodes/audio-recording-shortcode.php:4849
+#: includes/shortcodes/audio-recording-shortcode.php:5949
+#: includes/shortcodes/audio-recording-shortcode.php:6310
+#: includes/shortcodes/audio-recording-shortcode.php:6553
+#: includes/shortcodes/audio-recording-shortcode.php:6944
 #: includes/shortcodes/editor-hub-shortcode.php:199
 #: includes/shortcodes/editor-hub-shortcode.php:742
 #: includes/shortcodes/editor-hub-shortcode.php:776
@@ -12959,8 +12959,8 @@ msgstr ""
 #: includes/pages/quiz-pages.php:1834
 #: includes/pages/vocab-lesson-pages.php:4459
 #: includes/pages/wordset-pages.php:12972
-#: includes/shortcodes/audio-recording-shortcode.php:1760
-#: includes/shortcodes/audio-recording-shortcode.php:1785
+#: includes/shortcodes/audio-recording-shortcode.php:1765
+#: includes/shortcodes/audio-recording-shortcode.php:1790
 msgid "Close"
 msgstr ""
 
@@ -14684,15 +14684,15 @@ msgid "The rollback was applied, but its progress could not be saved. Reload to 
 msgstr ""
 
 #: includes/lib/word-grid-bulk-operations.php:1111
-#: includes/shortcodes/audio-recording-shortcode.php:4487
-#: includes/shortcodes/audio-recording-shortcode.php:4651
-#: includes/shortcodes/audio-recording-shortcode.php:4709
-#: includes/shortcodes/audio-recording-shortcode.php:4742
-#: includes/shortcodes/audio-recording-shortcode.php:4813
-#: includes/shortcodes/audio-recording-shortcode.php:5278
-#: includes/shortcodes/audio-recording-shortcode.php:5560
-#: includes/shortcodes/audio-recording-shortcode.php:5634
-#: includes/shortcodes/audio-recording-shortcode.php:5693
+#: includes/shortcodes/audio-recording-shortcode.php:4492
+#: includes/shortcodes/audio-recording-shortcode.php:4656
+#: includes/shortcodes/audio-recording-shortcode.php:4714
+#: includes/shortcodes/audio-recording-shortcode.php:4747
+#: includes/shortcodes/audio-recording-shortcode.php:4818
+#: includes/shortcodes/audio-recording-shortcode.php:5283
+#: includes/shortcodes/audio-recording-shortcode.php:5565
+#: includes/shortcodes/audio-recording-shortcode.php:5639
+#: includes/shortcodes/audio-recording-shortcode.php:5698
 msgid "You must be logged in."
 msgstr ""
 
@@ -14713,9 +14713,9 @@ msgstr ""
 
 #: includes/lib/word-translations.php:206
 #: includes/post-types/dictionary-entry-post-type.php:1023
-#: includes/shortcodes/audio-recording-shortcode.php:5292
-#: includes/shortcodes/audio-recording-shortcode.php:5801
-#: includes/shortcodes/audio-recording-shortcode.php:8805
+#: includes/shortcodes/audio-recording-shortcode.php:5297
+#: includes/shortcodes/audio-recording-shortcode.php:5806
+#: includes/shortcodes/audio-recording-shortcode.php:8810
 msgid "Invalid word ID."
 msgstr ""
 
@@ -16165,7 +16165,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:147
 #: includes/pages/wordset-editor.php:152
-#: includes/shortcodes/audio-recording-shortcode.php:9320
+#: includes/shortcodes/audio-recording-shortcode.php:9325
 msgid "Unknown user"
 msgstr ""
 
@@ -17029,7 +17029,7 @@ msgid "This speaking set is not configured for server-side transcription."
 msgstr ""
 
 #: includes/pages/wordset-games.php:6204
-#: includes/shortcodes/audio-recording-shortcode.php:5568
+#: includes/shortcodes/audio-recording-shortcode.php:5573
 msgid "Missing audio file."
 msgstr ""
 
@@ -17865,7 +17865,7 @@ msgid "You do not have permission to view this recorder queue."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:11927
-#: includes/shortcodes/audio-recording-shortcode.php:4610
+#: includes/shortcodes/audio-recording-shortcode.php:4615
 msgid "No queue categories were requested."
 msgstr ""
 
@@ -18217,7 +18217,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:12957
 #: includes/pages/wordset-pages.php:26759
-#: includes/shortcodes/audio-recording-shortcode.php:1969
+#: includes/shortcodes/audio-recording-shortcode.php:1974
 #: includes/shortcodes/editor-hub-shortcode.php:1073
 #: includes/shortcodes/editor-hub-shortcode.php:1146
 #: templates/audio-image-matcher-template.php:52
@@ -19400,7 +19400,7 @@ msgid "No category (optional)"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:17062
-#: includes/shortcodes/audio-recording-shortcode.php:1701
+#: includes/shortcodes/audio-recording-shortcode.php:1706
 #: includes/shortcodes/word-grid-shortcode.php:6238
 msgid "Hidden"
 msgstr ""
@@ -19681,7 +19681,8 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: includes/pages/wordset-pages.php:22241
-#: includes/shortcodes/audio-recording-shortcode.php:1645
+#: includes/shortcodes/audio-recording-shortcode.php:1644
+#: includes/shortcodes/audio-recording-shortcode.php:1650
 msgid "Back to categories"
 msgstr ""
 
@@ -22180,7 +22181,7 @@ msgid "Switch failed"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1576
-#: includes/shortcodes/audio-recording-shortcode.php:1736
+#: includes/shortcodes/audio-recording-shortcode.php:1741
 msgid "Loading recording queues..."
 msgstr ""
 
@@ -22189,12 +22190,12 @@ msgid "Recording queues loaded."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1578
-#: includes/shortcodes/audio-recording-shortcode.php:1734
+#: includes/shortcodes/audio-recording-shortcode.php:1739
 msgid "Some recording queues could not be loaded."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1580
-#: includes/shortcodes/audio-recording-shortcode.php:1728
+#: includes/shortcodes/audio-recording-shortcode.php:1733
 msgid "No words currently need recordings."
 msgstr ""
 
@@ -22336,13 +22337,13 @@ msgid "Stop recording before hiding this word."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1616
-#: includes/shortcodes/audio-recording-shortcode.php:1692
-#: includes/shortcodes/audio-recording-shortcode.php:1759
+#: includes/shortcodes/audio-recording-shortcode.php:1697
+#: includes/shortcodes/audio-recording-shortcode.php:1764
 msgid "Hidden words"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1617
-#: includes/shortcodes/audio-recording-shortcode.php:1767
+#: includes/shortcodes/audio-recording-shortcode.php:1772
 msgid "No hidden words yet."
 msgstr ""
 
@@ -22382,471 +22383,471 @@ msgstr ""
 msgid "Say:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1656
+#: includes/shortcodes/audio-recording-shortcode.php:1661
 msgid "Set"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1672
+#: includes/shortcodes/audio-recording-shortcode.php:1677
 #: includes/shortcodes/editor-hub-shortcode.php:1076
 #: includes/shortcodes/editor-hub-shortcode.php:1129
 msgid "Set:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1680
+#: includes/shortcodes/audio-recording-shortcode.php:1685
 msgid "Record New Word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1778
+#: includes/shortcodes/audio-recording-shortcode.php:1783
 msgid "Record a New Word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1783
+#: includes/shortcodes/audio-recording-shortcode.php:1788
 msgid "Cancel automatic transcription"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1798
+#: includes/shortcodes/audio-recording-shortcode.php:1803
 msgid "Create a new category for these words"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1833
+#: includes/shortcodes/audio-recording-shortcode.php:1838
 msgid "e.g., Food"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1856
+#: includes/shortcodes/audio-recording-shortcode.php:1861
 msgid "No recording types available."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1863
+#: includes/shortcodes/audio-recording-shortcode.php:1868
 msgid "Target Word (optional)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1864
+#: includes/shortcodes/audio-recording-shortcode.php:1869
 msgid "Enter the word in the target language"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1867
+#: includes/shortcodes/audio-recording-shortcode.php:1872
 msgid "Translation (optional)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1868
+#: includes/shortcodes/audio-recording-shortcode.php:1873
 msgid "Enter the translation"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1901
-#: includes/shortcodes/audio-recording-shortcode.php:2003
-#: includes/shortcodes/audio-recording-shortcode.php:2023
+#: includes/shortcodes/audio-recording-shortcode.php:1906
+#: includes/shortcodes/audio-recording-shortcode.php:2008
+#: includes/shortcodes/audio-recording-shortcode.php:2028
 msgid "Record again"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1902
-#: includes/shortcodes/audio-recording-shortcode.php:2005
-#: includes/shortcodes/audio-recording-shortcode.php:2024
+#: includes/shortcodes/audio-recording-shortcode.php:1907
+#: includes/shortcodes/audio-recording-shortcode.php:2010
+#: includes/shortcodes/audio-recording-shortcode.php:2029
 msgid "Save and continue"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:1975
+#: includes/shortcodes/audio-recording-shortcode.php:1980
 msgid "Hide this word"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2035
+#: includes/shortcodes/audio-recording-shortcode.php:2040
 msgid "recordings completed"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:2151
+#: includes/shortcodes/audio-recording-shortcode.php:2156
 msgid "%1$s (%2$d)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4370
+#: includes/shortcodes/audio-recording-shortcode.php:4375
 msgid "No word images have been created yet. Please create some word images first."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4374
+#: includes/shortcodes/audio-recording-shortcode.php:4379
 msgid "Create a word image"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4397
+#: includes/shortcodes/audio-recording-shortcode.php:4402
 msgid "You have %d word image(s), but none have a featured image set."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4400
+#: includes/shortcodes/audio-recording-shortcode.php:4405
 msgid "<strong>To fix this:</strong> Edit each word image and set a featured image using the \"Featured Image\" panel on the right side of the editor."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4404
-#: includes/shortcodes/audio-recording-shortcode.php:4434
+#: includes/shortcodes/audio-recording-shortcode.php:4409
+#: includes/shortcodes/audio-recording-shortcode.php:4439
 msgid "Edit Word Images"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4427
+#: includes/shortcodes/audio-recording-shortcode.php:4432
 msgid "You have %d word image(s) with featured images, but none are assigned to any word categories."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4430
+#: includes/shortcodes/audio-recording-shortcode.php:4435
 msgid "<strong>To fix this:</strong> Edit each word image and assign it to at least one word category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4449
+#: includes/shortcodes/audio-recording-shortcode.php:4454
 msgid "No recording types are configured in your system."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4453
+#: includes/shortcodes/audio-recording-shortcode.php:4458
 msgid "Set Up Recording Types"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4460
+#: includes/shortcodes/audio-recording-shortcode.php:4465
 msgid "You have %d word image(s) with featured images in categories (%s), but all images in the selected wordset already have recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4468
+#: includes/shortcodes/audio-recording-shortcode.php:4473
 msgid "Current wordset filter: <strong>%s</strong>"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4472
+#: includes/shortcodes/audio-recording-shortcode.php:4477
 msgid "This means all available images already have the required recording types. Great work!"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4490
-#: includes/shortcodes/audio-recording-shortcode.php:4654
-#: includes/shortcodes/audio-recording-shortcode.php:4712
-#: includes/shortcodes/audio-recording-shortcode.php:4746
-#: includes/shortcodes/audio-recording-shortcode.php:4817
+#: includes/shortcodes/audio-recording-shortcode.php:4495
+#: includes/shortcodes/audio-recording-shortcode.php:4659
+#: includes/shortcodes/audio-recording-shortcode.php:4717
+#: includes/shortcodes/audio-recording-shortcode.php:4751
+#: includes/shortcodes/audio-recording-shortcode.php:4822
 msgid "You do not have permission to record audio."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4494
+#: includes/shortcodes/audio-recording-shortcode.php:4499
 msgid "Missing parameters."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4504
-#: includes/shortcodes/audio-recording-shortcode.php:4594
+#: includes/shortcodes/audio-recording-shortcode.php:4509
+#: includes/shortcodes/audio-recording-shortcode.php:4599
 msgid "No recording word set is assigned for this account."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4579
+#: includes/shortcodes/audio-recording-shortcode.php:4584
 msgid "You do not have permission to view recording queues."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4615
+#: includes/shortcodes/audio-recording-shortcode.php:4620
 msgid "Recording queues are not available right now."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4670
-#: includes/shortcodes/audio-recording-shortcode.php:4723
+#: includes/shortcodes/audio-recording-shortcode.php:4675
+#: includes/shortcodes/audio-recording-shortcode.php:4728
 msgid "Missing hide key."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4752
+#: includes/shortcodes/audio-recording-shortcode.php:4757
 msgid "No accessible recording word set was selected."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4757
-#: includes/shortcodes/audio-recording-shortcode.php:4840
+#: includes/shortcodes/audio-recording-shortcode.php:4762
+#: includes/shortcodes/audio-recording-shortcode.php:4845
 msgid "No recording types are configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4775
-#: includes/shortcodes/audio-recording-shortcode.php:4887
-#: includes/shortcodes/audio-recording-shortcode.php:4917
-#: includes/shortcodes/audio-recording-shortcode.php:9490
-#: includes/shortcodes/audio-recording-shortcode.php:9514
-#: includes/shortcodes/audio-recording-shortcode.php:9537
-#: includes/shortcodes/audio-recording-shortcode.php:9558
+#: includes/shortcodes/audio-recording-shortcode.php:4780
+#: includes/shortcodes/audio-recording-shortcode.php:4892
+#: includes/shortcodes/audio-recording-shortcode.php:4922
+#: includes/shortcodes/audio-recording-shortcode.php:9495
+#: includes/shortcodes/audio-recording-shortcode.php:9519
+#: includes/shortcodes/audio-recording-shortcode.php:9542
+#: includes/shortcodes/audio-recording-shortcode.php:9563
 msgid "You do not have access to that category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4780
-#: includes/shortcodes/audio-recording-shortcode.php:4922
+#: includes/shortcodes/audio-recording-shortcode.php:4785
+#: includes/shortcodes/audio-recording-shortcode.php:4927
 msgid "Recording is disabled for this category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4795
-#: includes/shortcodes/audio-recording-shortcode.php:4936
+#: includes/shortcodes/audio-recording-shortcode.php:4800
+#: includes/shortcodes/audio-recording-shortcode.php:4941
 msgid "No recording types are available for this category."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4823
+#: includes/shortcodes/audio-recording-shortcode.php:4828
 msgid "New word recording is not enabled for your account."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4851
+#: includes/shortcodes/audio-recording-shortcode.php:4856
 msgid "Missing new category name."
 msgstr ""
 
 #. translators: %s: category creation error message
-#: includes/shortcodes/audio-recording-shortcode.php:4859
-#: includes/shortcodes/audio-recording-shortcode.php:4876
+#: includes/shortcodes/audio-recording-shortcode.php:4864
+#: includes/shortcodes/audio-recording-shortcode.php:4881
 msgid "Failed to create category: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:4940
+#: includes/shortcodes/audio-recording-shortcode.php:4945
 msgid "New word %s"
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:4955
-#: includes/shortcodes/audio-recording-shortcode.php:5808
+#: includes/shortcodes/audio-recording-shortcode.php:4960
+#: includes/shortcodes/audio-recording-shortcode.php:5813
 msgid "Failed to create word: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5282
-#: includes/shortcodes/audio-recording-shortcode.php:5299
-#: includes/shortcodes/audio-recording-shortcode.php:5564
-#: includes/shortcodes/audio-recording-shortcode.php:5638
-#: includes/shortcodes/audio-recording-shortcode.php:5697
+#: includes/shortcodes/audio-recording-shortcode.php:5287
+#: includes/shortcodes/audio-recording-shortcode.php:5304
+#: includes/shortcodes/audio-recording-shortcode.php:5569
+#: includes/shortcodes/audio-recording-shortcode.php:5643
+#: includes/shortcodes/audio-recording-shortcode.php:5702
 msgid "Forbidden."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5501
+#: includes/shortcodes/audio-recording-shortcode.php:5506
 msgid "Unknown recorder error."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5521
+#: includes/shortcodes/audio-recording-shortcode.php:5526
 msgid "No transcript text returned."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5585
-#: includes/shortcodes/audio-recording-shortcode.php:5647
+#: includes/shortcodes/audio-recording-shortcode.php:5590
+#: includes/shortcodes/audio-recording-shortcode.php:5652
 msgid "AssemblyAI integration not available."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5643
+#: includes/shortcodes/audio-recording-shortcode.php:5648
 msgid "Missing transcript ID."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5702
+#: includes/shortcodes/audio-recording-shortcode.php:5707
 msgid "Missing text."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5709
+#: includes/shortcodes/audio-recording-shortcode.php:5714
 msgid "DeepL API key not configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5717
+#: includes/shortcodes/audio-recording-shortcode.php:5722
 msgid "Translation language is not configured."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5722
+#: includes/shortcodes/audio-recording-shortcode.php:5727
 msgid "Translation failed."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5740
+#: includes/shortcodes/audio-recording-shortcode.php:5745
 msgid "You must be logged in to verify recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5743
+#: includes/shortcodes/audio-recording-shortcode.php:5748
 msgid "You do not have permission to verify recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5758
-#: includes/shortcodes/audio-recording-shortcode.php:8553
+#: includes/shortcodes/audio-recording-shortcode.php:5763
+#: includes/shortcodes/audio-recording-shortcode.php:8558
 msgid "You do not have access to that prompt card."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5779
-#: includes/shortcodes/audio-recording-shortcode.php:8783
+#: includes/shortcodes/audio-recording-shortcode.php:5784
+#: includes/shortcodes/audio-recording-shortcode.php:8788
 msgid "Missing image_id or word_id."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:5786
-#: includes/shortcodes/audio-recording-shortcode.php:8790
+#: includes/shortcodes/audio-recording-shortcode.php:5791
+#: includes/shortcodes/audio-recording-shortcode.php:8795
 msgid "Invalid image ID."
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:5792
+#: includes/shortcodes/audio-recording-shortcode.php:5797
 msgid "Failed to find/create word: %s"
 msgstr ""
 
 #. translators: %d: prompt card post ID
-#: includes/shortcodes/audio-recording-shortcode.php:6755
-#: includes/shortcodes/audio-recording-shortcode.php:8614
+#: includes/shortcodes/audio-recording-shortcode.php:6760
+#: includes/shortcodes/audio-recording-shortcode.php:8619
 msgid "Prompt card #%d"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8603
-#: includes/shortcodes/audio-recording-shortcode.php:9582
+#: includes/shortcodes/audio-recording-shortcode.php:8608
+#: includes/shortcodes/audio-recording-shortcode.php:9587
 msgid "This recording is already uploading. Please wait a moment and try again."
 msgstr ""
 
 #. translators: %s: prompt text or prompt card title
-#: includes/shortcodes/audio-recording-shortcode.php:8674
+#: includes/shortcodes/audio-recording-shortcode.php:8679
 msgid "Prompt audio: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8693
+#: includes/shortcodes/audio-recording-shortcode.php:8698
 msgid "Unknown insert failure"
 msgstr ""
 
 #. translators: %s: attachment creation error
-#: includes/shortcodes/audio-recording-shortcode.php:8696
+#: includes/shortcodes/audio-recording-shortcode.php:8701
 msgid "Failed to create prompt audio attachment: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8767
+#: includes/shortcodes/audio-recording-shortcode.php:8772
 msgid "You must be logged in to skip recordings."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8770
+#: includes/shortcodes/audio-recording-shortcode.php:8775
 msgid "You do not have permission to skip recordings."
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:8796
-#: includes/shortcodes/audio-recording-shortcode.php:9522
+#: includes/shortcodes/audio-recording-shortcode.php:8801
+#: includes/shortcodes/audio-recording-shortcode.php:9527
 msgid "Failed to find/create word post: %s"
 msgstr ""
 
 #. translators: %s: word creation error
-#: includes/shortcodes/audio-recording-shortcode.php:8812
-#: includes/shortcodes/audio-recording-shortcode.php:9546
+#: includes/shortcodes/audio-recording-shortcode.php:8817
+#: includes/shortcodes/audio-recording-shortcode.php:9551
 msgid "Failed to create word post: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8968
+#: includes/shortcodes/audio-recording-shortcode.php:8973
 msgid "Admin Notification Email"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8978
+#: includes/shortcodes/audio-recording-shortcode.php:8983
 msgid "Used for recording summaries and user registration alerts."
 msgstr ""
 
 #. translators: %s: admin email address
-#: includes/shortcodes/audio-recording-shortcode.php:8985
+#: includes/shortcodes/audio-recording-shortcode.php:8990
 msgid "Leave blank to use the site admin email (%s)."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:8989
+#: includes/shortcodes/audio-recording-shortcode.php:8994
 msgid "Leave blank to use the site admin email."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9006
+#: includes/shortcodes/audio-recording-shortcode.php:9011
 msgid "Recording Notification First Email Delay (minutes)"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9018
+#: includes/shortcodes/audio-recording-shortcode.php:9023
 msgid "For the first recording email sent each day, wait this many quiet minutes after the most recent upload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9021
+#: includes/shortcodes/audio-recording-shortcode.php:9026
 msgid "After the first email is sent that day, follow-up summaries wait about 2 hours after recording activity stops."
 msgstr ""
 
 #. translators: %d: term ID
-#: includes/shortcodes/audio-recording-shortcode.php:9068
+#: includes/shortcodes/audio-recording-shortcode.php:9073
 msgid "Category #%d"
 msgstr ""
 
 #. translators: 1: total distinct categories, 2: shown category names, 3: remaining category count
-#: includes/shortcodes/audio-recording-shortcode.php:9133
+#: includes/shortcodes/audio-recording-shortcode.php:9138
 msgid "Categories (%1$d total): %2$s (+%3$d more category)"
 msgid_plural "Categories (%1$d total): %2$s (+%3$d more categories)"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: total distinct categories, 2: category names
-#: includes/shortcodes/audio-recording-shortcode.php:9146
+#: includes/shortcodes/audio-recording-shortcode.php:9151
 msgid "Categories (%1$d total): %2$s"
 msgstr ""
 
 #. translators: %d: recording count
-#: includes/shortcodes/audio-recording-shortcode.php:9158
+#: includes/shortcodes/audio-recording-shortcode.php:9163
 msgid "Uncategorized recording: %d"
 msgid_plural "Uncategorized recordings: %d"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: user ID
-#: includes/shortcodes/audio-recording-shortcode.php:9231
+#: includes/shortcodes/audio-recording-shortcode.php:9236
 msgid "User #%d"
 msgstr ""
 
 #. translators: 1: site name, 2: number of recordings
-#: includes/shortcodes/audio-recording-shortcode.php:9289
+#: includes/shortcodes/audio-recording-shortcode.php:9294
 msgid "[%1$s] %2$d new recording is ready for processing"
 msgid_plural "[%1$s] %2$d new recordings are ready for processing"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of new recordings
-#: includes/shortcodes/audio-recording-shortcode.php:9307
+#: includes/shortcodes/audio-recording-shortcode.php:9312
 msgid "%d new audio recording was uploaded through the recording interface."
 msgid_plural "%d new audio recordings were uploaded through the recording interface."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9318
+#: includes/shortcodes/audio-recording-shortcode.php:9323
 msgid "Recorders:"
 msgstr ""
 
 #. translators: 1: display name, 2: recording count
-#: includes/shortcodes/audio-recording-shortcode.php:9324
+#: includes/shortcodes/audio-recording-shortcode.php:9329
 msgid "- %1$s (%2$d recording)"
 msgid_plural "- %1$s (%2$d recordings)"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: date/time
-#: includes/shortcodes/audio-recording-shortcode.php:9348
+#: includes/shortcodes/audio-recording-shortcode.php:9353
 msgid "Batch started: %s"
 msgstr ""
 
 #. translators: %s: date/time
-#: includes/shortcodes/audio-recording-shortcode.php:9355
+#: includes/shortcodes/audio-recording-shortcode.php:9360
 msgid "Most recent upload: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9360
+#: includes/shortcodes/audio-recording-shortcode.php:9365
 msgid "Review and process recordings:"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9387
+#: includes/shortcodes/audio-recording-shortcode.php:9392
 msgid "Invalid original audio upload."
 msgstr ""
 
 #. translators: %s: upload subsystem error message
-#: includes/shortcodes/audio-recording-shortcode.php:9418
+#: includes/shortcodes/audio-recording-shortcode.php:9423
 msgid "Failed to save original audio: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9421
+#: includes/shortcodes/audio-recording-shortcode.php:9426
 msgid "Failed to save original audio."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9445
+#: includes/shortcodes/audio-recording-shortcode.php:9450
 msgid "You must be logged in to upload recordings"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9448
-#: includes/shortcodes/audio-recording-shortcode.php:9451
+#: includes/shortcodes/audio-recording-shortcode.php:9453
+#: includes/shortcodes/audio-recording-shortcode.php:9456
 msgid "You do not have permission to upload recordings"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9501
+#: includes/shortcodes/audio-recording-shortcode.php:9506
 msgid "Missing image_id or word_id"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9509
+#: includes/shortcodes/audio-recording-shortcode.php:9514
 msgid "Invalid image ID"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9532
+#: includes/shortcodes/audio-recording-shortcode.php:9537
 #: includes/shortcodes/word-grid-shortcode.php:8225
 msgid "Invalid word ID"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9628
+#: includes/shortcodes/audio-recording-shortcode.php:9633
 msgid "Original audio source was not included with the processed upload."
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9718
+#: includes/shortcodes/audio-recording-shortcode.php:9723
 msgid "Failed to create word_audio post: %s"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:9949
+#: includes/shortcodes/audio-recording-shortcode.php:9954
 msgid "Image has no attachment"
 msgstr ""
 
-#: includes/shortcodes/audio-recording-shortcode.php:10086
+#: includes/shortcodes/audio-recording-shortcode.php:10091
 msgid "Missing word title"
 msgstr ""
 

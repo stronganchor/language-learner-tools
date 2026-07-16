@@ -119,6 +119,12 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
             '[audio_recording_interface wordset="' . $wordset_slug . '"]'
         );
         $this->assertStringContainsString('data-ll-recorder-category-back', $launched_category_output);
+        $this->assertStringContainsString('<a class="ll-recorder-category-back"', $launched_category_output);
+        $this->assertStringNotContainsString('ll-btn-secondary ll-recorder-category-back', $launched_category_output);
+        $this->assertStringContainsString('aria-label="Back to categories"', $launched_category_output);
+        $this->assertStringContainsString('class="ll-recorder-category-back__icon" aria-hidden="true"', $launched_category_output);
+        $this->assertStringContainsString('d="M9.8 3.2L5 8l4.8 4.8"', $launched_category_output);
+        $this->assertStringContainsString('<span class="ll-recorder-category-back__label">Back to categories</span>', $launched_category_output);
         $this->assertStringContainsString('id="ll-record-btn"', $launched_category_output);
     }
 

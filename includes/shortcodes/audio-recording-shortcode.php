@@ -1641,8 +1641,13 @@ function ll_audio_recording_interface_shortcode($atts) {
         <div class="ll-recording-header">
             <?php if ($recorder_view === 'category') : ?>
             <?php if ($show_recorder_overview_back) : ?>
-            <a class="ll-btn ll-btn-secondary ll-recorder-category-back" href="<?php echo esc_url($recorder_overview_url); ?>" data-ll-recorder-category-back>
-                <?php esc_html_e('Back to categories', 'll-tools-text-domain'); ?>
+            <a class="ll-recorder-category-back" href="<?php echo esc_url($recorder_overview_url); ?>" data-ll-recorder-category-back aria-label="<?php esc_attr_e('Back to categories', 'll-tools-text-domain'); ?>">
+                <span class="ll-recorder-category-back__icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                        <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                <span class="ll-recorder-category-back__label"><?php esc_html_e('Back to categories', 'll-tools-text-domain'); ?></span>
             </a>
             <?php endif; ?>
             <div class="ll-recording-progress">

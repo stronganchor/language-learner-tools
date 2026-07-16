@@ -6,6 +6,10 @@ const recorderJsSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/audio-recorder.js'),
   'utf8'
 );
+const recorderCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/recording-interface.css'),
+  'utf8'
+);
 const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
 function buildRecorderMarkup(view = 'category') {
@@ -27,7 +31,14 @@ function buildRecorderMarkup(view = 'category') {
   ` : '';
 
   const focusedHeaderMarkup = !isOverview ? `
-        <a href="https://ll-recorder-fixture.test/record/?ll_record_wordset=11" data-ll-recorder-category-back>Back</a>
+        <a class="ll-recorder-category-back" href="https://ll-recorder-fixture.test/record/?ll_record_wordset=11" data-ll-recorder-category-back aria-label="Back to categories">
+          <span class="ll-recorder-category-back__icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+              <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </span>
+          <span class="ll-recorder-category-back__label">Back to categories</span>
+        </a>
         <div class="ll-recording-progress">
           <span class="ll-current-num">1</span>
           <span aria-hidden="true">/</span>
@@ -506,6 +517,7 @@ test('initial empty queue follows its continuation before showing completion', a
 
 test('focused category page keeps only hidden active-category state and a clean back link', async ({ page }) => {
   await mountRecorder(page);
+  await page.addStyleTag({ content: recorderCssSource });
 
   await expect(page.locator('select#ll-category-select')).toHaveCount(0);
   await expect(page.locator('input[type="hidden"]#ll-category-select')).toHaveValue('baby-animals');
@@ -515,6 +527,21 @@ test('focused category page keeps only hidden active-category state and a clean 
     'href',
     'https://ll-recorder-fixture.test/record/?ll_record_wordset=11'
   );
+  const backLink = page.locator('[data-ll-recorder-category-back]');
+  await expect(backLink).toHaveText('Back to categories');
+  // Flex items are blockified by the browser, so the declared inline-flex
+  // computes to flex inside the recorder header.
+  await expect(backLink).toHaveCSS('display', 'flex');
+  await expect(backLink).toHaveCSS('border-radius', '999px');
+  await expect(backLink).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(backLink).toHaveCSS('color', 'rgb(29, 77, 153)');
+
+  const backIcon = backLink.locator('.ll-recorder-category-back__icon');
+  await expect(backIcon).toHaveCSS('width', '24px');
+  await expect(backIcon).toHaveCSS('height', '24px');
+  await expect(backIcon).toHaveCSS('border-radius', '50%');
+  await expect(backIcon).toHaveCSS('background-color', 'rgb(216, 232, 255)');
+  await expect(backIcon.locator('svg')).toBeVisible();
 });
 
 test('focused category bootstrap does not request a category switch', async ({ page }) => {

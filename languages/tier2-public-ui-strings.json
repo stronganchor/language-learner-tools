@@ -2500,8 +2500,8 @@
                 "includes/pages/quiz-pages.php:1834",
                 "includes/pages/vocab-lesson-pages.php:4459",
                 "includes/pages/wordset-pages.php:12972",
-                "includes/shortcodes/audio-recording-shortcode.php:1760",
-                "includes/shortcodes/audio-recording-shortcode.php:1785"
+                "includes/shortcodes/audio-recording-shortcode.php:1765",
+                "includes/shortcodes/audio-recording-shortcode.php:1790"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:1834",
@@ -3435,7 +3435,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-games.php:6204",
-                "includes/shortcodes/audio-recording-shortcode.php:5568"
+                "includes/shortcodes/audio-recording-shortcode.php:5573"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:6204"
@@ -3450,8 +3450,8 @@
                 "includes/admin/audio-processor-admin.php:1130",
                 "includes/pages/wordset-games.php:6212",
                 "includes/shortcodes/audio-recording-shortcode.php:462",
-                "includes/shortcodes/audio-recording-shortcode.php:5576",
-                "includes/shortcodes/audio-recording-shortcode.php:9472",
+                "includes/shortcodes/audio-recording-shortcode.php:5581",
+                "includes/shortcodes/audio-recording-shortcode.php:9477",
                 "includes/shortcodes/word-grid-shortcode.php:7976"
             ],
             "public_references": [
@@ -4281,7 +4281,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:12957",
                 "includes/pages/wordset-pages.php:26759",
-                "includes/shortcodes/audio-recording-shortcode.php:1969",
+                "includes/shortcodes/audio-recording-shortcode.php:1974",
                 "includes/shortcodes/editor-hub-shortcode.php:1073",
                 "includes/shortcodes/editor-hub-shortcode.php:1146",
                 "templates/audio-image-matcher-template.php:52"
@@ -4549,7 +4549,7 @@
                 "includes/pages/wordset-pages.php:22287",
                 "includes/pages/wordset-pages.php:26887",
                 "includes/shortcodes/audio-recording-shortcode.php:1579",
-                "includes/shortcodes/audio-recording-shortcode.php:1741",
+                "includes/shortcodes/audio-recording-shortcode.php:1746",
                 "templates/vocab-lesson-template.php:388"
             ],
             "public_references": [
@@ -6185,7 +6185,7 @@
                 "includes/privacy.php:427",
                 "includes/privacy.php:516",
                 "includes/privacy.php:598",
-                "includes/shortcodes/audio-recording-shortcode.php:1803",
+                "includes/shortcodes/audio-recording-shortcode.php:1808",
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222",
@@ -9372,7 +9372,7 @@
                 "includes/privacy.php:429",
                 "includes/privacy.php:518",
                 "includes/privacy.php:600",
-                "includes/shortcodes/audio-recording-shortcode.php:1657",
+                "includes/shortcodes/audio-recording-shortcode.php:1662",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:207",
                 "templates/content-lesson-template.php:123",
                 "templates/content-lesson-template.php:129",

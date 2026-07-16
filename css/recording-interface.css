@@ -450,10 +450,61 @@
 }
 
 .ll-recording-interface .ll-recorder-category-back {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
     flex: 0 0 auto;
-    min-height: 34px !important;
-    padding: 0.42rem 0.72rem !important;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 42px !important;
+    padding: 8px 14px !important;
+    border: 1px solid #e6ded1 !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #1d4d99 !important;
     text-decoration: none !important;
+    font-family: inherit !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    text-align: left !important;
+    text-transform: none !important;
+    box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08) !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.ll-recording-interface .ll-recorder-category-back:hover,
+.ll-recording-interface .ll-recorder-category-back:focus-visible {
+    border-color: rgba(29, 77, 153, 0.4) !important;
+    box-shadow: 0 10px 20px rgba(46, 42, 36, 0.12) !important;
+    transform: translateY(-2px);
+    outline: none;
+}
+
+.ll-recording-interface .ll-recorder-category-back__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #d8e8ff;
+    color: #1d4d99;
+}
+
+.ll-recording-interface .ll-recorder-category-back__icon svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+}
+
+.ll-recording-interface .ll-recorder-category-back__label {
+    min-width: 0;
 }
 
 .ll-recording-interface .ll-recorder-category-overview__retry {
