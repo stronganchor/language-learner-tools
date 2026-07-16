@@ -284,13 +284,82 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             $this->assertStringContainsString('aria-busy="true"', $loading_html);
             $this->assertStringContainsString(esc_html__('Loading categories...', 'll-tools-text-domain'), $loading_html);
             $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $loading_html);
+            $this->assertStringNotContainsString('data-ll-wordset-buttons-refresh', $loading_html);
             $this->assertSame(3, substr_count($loading_html, 'll-wordset-buttons-shortcode__loading-card'));
         }
+        $this->assertFalse(has_action(
+            'wp_ajax_nopriv_ll_tools_wordset_buttons_refresh',
+            'll_tools_wordset_buttons_shortcode_refresh_ajax'
+        ));
         $this->assertStringContainsString('Buttons Cold Wordset', $complete_html);
         $this->assertStringContainsString('3 lessons', $complete_html);
         $this->assertCount(3, $scanned_pairs);
         $this->assertCount(3, array_unique($scanned_pairs));
         $this->assertIsString(get_transient($exact_key));
+    }
+
+    public function test_logged_in_recorder_loader_advances_bounded_batches_until_exact_cards_are_ready(): void
+    {
+        $term = wp_insert_term('Buttons Recorder Refresh Wordset', 'wordset');
+        $this->assertIsArray($term);
+        $this->assertFalse(is_wp_error($term));
+        $wordset_id = (int) ($term['term_id'] ?? 0);
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createPublishedLessonForWordset(
+                $wordset_id,
+                'Buttons Recorder Refresh Lesson ' . $index
+            );
+        }
+
+        $user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        wp_set_current_user($user_id);
+        $atts = ['class' => 'homepage-wordsets recorder-home', 'hide_empty' => '0'];
+        $one_pair = static function (): int {
+            return 1;
+        };
+
+        add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $one_pair);
+        try {
+            $initial_html = do_shortcode('[ll_wordset_buttons class="homepage-wordsets recorder-home"]');
+            $this->assertStringContainsString('data-ll-wordset-buttons-refresh', $initial_html);
+            $this->assertStringContainsString('data-shortcode-tag="ll_wordset_buttons"', $initial_html);
+            $this->assertStringContainsString('data-shortcode-class="homepage-wordsets recorder-home"', $initial_html);
+            $this->assertStringContainsString('aria-busy="true"', $initial_html);
+            $this->assertTrue(wp_script_is('ll-tools-wordset-buttons-refresh', 'enqueued'));
+            $this->assertNotFalse(has_action(
+                'wp_ajax_ll_tools_wordset_buttons_refresh',
+                'll_tools_wordset_buttons_shortcode_refresh_ajax'
+            ));
+            $this->assertFalse(has_action(
+                'wp_ajax_nopriv_ll_tools_wordset_buttons_refresh',
+                'll_tools_wordset_buttons_shortcode_refresh_ajax'
+            ));
+
+            $localized_data = (string) wp_scripts()->get_data('ll-tools-wordset-buttons-refresh', 'data');
+            $this->assertStringContainsString('llToolsWordsetButtonsRefresh', $localized_data);
+            $this->assertStringContainsString('ll_tools_wordset_buttons_refresh', $localized_data);
+
+            $payload = ['complete' => false, 'html' => ''];
+            for ($attempt = 0; $attempt < 10 && empty($payload['complete']); $attempt++) {
+                $payload = ll_tools_wordset_buttons_shortcode_refresh_payload($atts, 'll_wordset_buttons');
+                $this->assertArrayHasKey('complete', $payload);
+                $this->assertArrayHasKey('html', $payload);
+                $this->assertArrayHasKey('retryAfterMs', $payload);
+                $this->assertStringNotContainsString(
+                    'data-ll-wordset-buttons-refresh',
+                    (string) $payload['html'],
+                    'AJAX payloads must not nest another polling root.'
+                );
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $one_pair);
+            wp_set_current_user(0);
+        }
+
+        $this->assertTrue((bool) ($payload['complete'] ?? false));
+        $this->assertStringContainsString('Buttons Recorder Refresh Wordset', (string) ($payload['html'] ?? ''));
+        $this->assertStringContainsString('3 lessons', (string) ($payload['html'] ?? ''));
+        $this->assertGreaterThanOrEqual(500, (int) ($payload['retryAfterMs'] ?? 0));
     }
 
     public function test_structural_privacy_epoch_never_reuses_the_previous_complete_render(): void
@@ -719,7 +788,12 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         }
 
         $this->assertNotSame($anonymous_generation, $logged_in_generation, 'Authorization-specific count scopes must remain isolated.');
-        $this->assertSame($anonymous_html, $incomplete_html, 'An expired LKG must fall back to the current complete anonymous exact render.');
+        $this->assertStringContainsString(
+            $anonymous_html,
+            $incomplete_html,
+            'An expired LKG must remain the visible fallback inside the authenticated refresh root.'
+        );
+        $this->assertStringContainsString('data-ll-wordset-buttons-refresh', $incomplete_html);
         $this->assertIsInt($scheduled_at);
 
         wp_set_current_user(0);

@@ -9816,10 +9816,10 @@
             "msgid": "%d lesson",
             "msgid_plural": "%d lessons",
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1622"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1674"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1622"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1674"
             ]
         },
         {
@@ -9828,10 +9828,10 @@
             "msgid": "Private word set",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1625"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1677"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1625"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1677"
             ]
         },
         {
@@ -9840,10 +9840,10 @@
             "msgid": "%1$s, private word set, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1629"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1681"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1629"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1681"
             ]
         },
         {
@@ -9852,10 +9852,10 @@
             "msgid": "%1$s, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1635"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1687"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1635"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1687"
             ]
         },
         {

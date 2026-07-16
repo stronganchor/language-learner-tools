@@ -173,6 +173,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `WordsetPageSavedSortInitialChunkTest` verifies that a 227-category saved metric sort preserves canonical initial/lazy offsets while analytics is deferred, retains the client sort preference, keeps the full localized runtime config under its sparse-payload budget, and performs no full metrics-collector or `word_audio` hydration.
 - `WordsetPageLazyCardsAjaxTest` verifies lazy category shells are ID-only ordered references into a sparse complete registry, explicit negative capability/progress state survives compaction, Genç-scale registry JSON stays bounded, and lazy payload persistence failures retain a complete non-AJAX fallback.
 - `WordsetSettingsCustomUiTest` verifies the settings hub uses a cheap Advanced summary without entering the flashcard category-ordering catalog or answer-option preview sampler, while the opened Advanced tool keeps its dedicated runtime.
+- `WordsetButtonsShortcodeTest` verifies incomplete signed-in count generations render a nonce-protected loader, expose no anonymous refresh action, advance only bounded user-scoped batches, and publish exact cards only after completion.
 - `WordGridCategoryEditTest` verifies a scoped category edit and selected-state read replace/show only the current wordset's assignments even when another wordset owns the same isolation source, and that explicit category writes do not cross-expand valid owned families.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
@@ -235,6 +236,8 @@ Representative E2E coverage areas:
   - Verifies the Audio/Image Matcher appends bounded candidate-image pages, sends the continuation offset, and hides Load more after the final page.
 - `tests/e2e/specs/audio-recorder-category-switch.spec.js`
   - Verifies the category-neutral recorder overview, three neutral loading shells plus overflow cue, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path.
+- `tests/e2e/specs/wordset-buttons-loading-refresh.spec.js`
+  - Verifies the logged-in wordset-button shell serially retries bounded authenticated refreshes, preserves shortcode attributes, replaces itself after exact completion, and never overlaps requests.
 - `tests/e2e/specs/image-aspect-normalizer-worklist-pagination.spec.js`
   - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`

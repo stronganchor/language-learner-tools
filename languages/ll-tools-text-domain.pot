@@ -2,41 +2,41 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.77\n"
+"Project-Id-Version: Language Learner Tools 6.6.78\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-16T09:58:11+00:00\n"
+"POT-Creation-Date: 2026-07-16T10:37:13+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
-#: language-learner-tools.php
+#: C:\Users\messy\Local Sites\ll-tools-wordset-buttons-recording-user-hotfix-20260716\language-learner-tools.php
 #: includes/privacy.php:777
 msgid "Language Learner Tools"
 msgstr ""
 
 #. Plugin URI of the plugin
-#: language-learner-tools.php
+#: C:\Users\messy\Local Sites\ll-tools-wordset-buttons-recording-user-hotfix-20260716\language-learner-tools.php
 msgid "https://github.com/stronganchor/language-learner-tools"
 msgstr ""
 
 #. Description of the plugin
-#: language-learner-tools.php
+#: C:\Users\messy\Local Sites\ll-tools-wordset-buttons-recording-user-hotfix-20260716\language-learner-tools.php
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr ""
 
 #. Author of the plugin
-#: language-learner-tools.php
+#: C:\Users\messy\Local Sites\ll-tools-wordset-buttons-recording-user-hotfix-20260716\language-learner-tools.php
 msgid "Strong Anchor Tech"
 msgstr ""
 
 #. Author URI of the plugin
-#: language-learner-tools.php
+#: C:\Users\messy\Local Sites\ll-tools-wordset-buttons-recording-user-hotfix-20260716\language-learner-tools.php
 msgid "https://stronganchortech.com"
 msgstr ""
 
@@ -24908,23 +24908,23 @@ msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1622
+#: includes/shortcodes/wordset-buttons-shortcode.php:1674
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:1625
+#: includes/shortcodes/wordset-buttons-shortcode.php:1677
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1629
+#: includes/shortcodes/wordset-buttons-shortcode.php:1681
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1635
+#: includes/shortcodes/wordset-buttons-shortcode.php:1687
 msgid "%1$s, %2$s"
 msgstr ""
 

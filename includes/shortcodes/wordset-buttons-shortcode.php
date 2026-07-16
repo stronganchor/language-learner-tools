@@ -1528,18 +1528,66 @@ function ll_tools_wordset_buttons_shortcode_loading_html(array $atts): string {
     return trim((string) ob_get_clean());
 }
 
-function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string $tag = ''): string {
-    $atts = shortcode_atts([
-        'class' => '',
-        'hide_empty' => '0',
-    ], $atts, $tag !== '' ? $tag : 'll_wordset_buttons');
+function ll_tools_wordset_buttons_shortcode_refresh_retry_ms(): int {
+    return min(10000, max(500, (int) apply_filters(
+        'll_tools_wordset_buttons_shortcode_refresh_retry_ms',
+        1500
+    )));
+}
 
-    if (function_exists('ll_tools_enqueue_public_assets')) {
-        ll_tools_enqueue_public_assets();
+function ll_tools_wordset_buttons_shortcode_enqueue_refresh_script(): void {
+    if (!is_user_logged_in() || !function_exists('ll_enqueue_asset_by_timestamp')) {
+        return;
     }
-    if (function_exists('ll_tools_wordset_page_enqueue_styles')) {
-        ll_tools_wordset_page_enqueue_styles();
+
+    $handle = 'll-tools-wordset-buttons-refresh';
+    $already_enqueued = wp_script_is($handle, 'enqueued');
+    ll_enqueue_asset_by_timestamp('/js/wordset-buttons-refresh.js', $handle, [], true);
+    if ($already_enqueued) {
+        return;
     }
+
+    wp_localize_script($handle, 'llToolsWordsetButtonsRefresh', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'action' => 'll_tools_wordset_buttons_refresh',
+        'nonce' => wp_create_nonce('ll_tools_wordset_buttons_refresh'),
+        'retryMs' => ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
+        'requestTimeoutMs' => 20000,
+        'maxAttempts' => 120,
+    ]);
+}
+
+function ll_tools_wordset_buttons_shortcode_refresh_html(
+    array $atts,
+    string $tag,
+    string $inner_html
+): string {
+    if (!is_user_logged_in()) {
+        return $inner_html;
+    }
+
+    ll_tools_wordset_buttons_shortcode_enqueue_refresh_script();
+
+    $shortcode_tag = in_array($tag, ll_tools_wordset_buttons_shortcode_tags(), true)
+        ? $tag
+        : 'll_wordset_buttons';
+
+    return sprintf(
+        '<div class="ll-wordset-buttons-refresh" data-ll-wordset-buttons-refresh data-shortcode-tag="%1$s" data-shortcode-class="%2$s" data-hide-empty="%3$s" aria-busy="true">%4$s</div>',
+        esc_attr($shortcode_tag),
+        esc_attr((string) ($atts['class'] ?? '')),
+        ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0') ? '1' : '0',
+        $inner_html
+    );
+}
+
+function ll_tools_wordset_buttons_shortcode_render(
+    array $atts,
+    string $tag = '',
+    bool $allow_refresh = true,
+    ?bool &$complete = null
+): string {
+    $complete = true;
 
     // The stable LKG is written only by complete anonymous renders, but is a
     // safe public subset for logged-in visitors while their wider scope builds.
@@ -1564,6 +1612,7 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
         $items_complete
     );
     if (!$items_complete) {
+        $complete = false;
         // Eligibility work can invalidate structural visibility while a bounded
         // batch is running. Re-read the key after that work so a racing request
         // can never serve markup from the pre-change public scope.
@@ -1578,9 +1627,12 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
         if ($stale_html === '') {
             $stale_html = ll_tools_wordset_buttons_shortcode_legacy_cache_get($atts, $tag);
         }
-        return $stale_html !== ''
+        $incomplete_html = $stale_html !== ''
             ? $stale_html
             : ll_tools_wordset_buttons_shortcode_loading_html($atts);
+        return $allow_refresh
+            ? ll_tools_wordset_buttons_shortcode_refresh_html($atts, $tag, $incomplete_html)
+            : $incomplete_html;
     }
     if (empty($items)) {
         return '';
@@ -1680,6 +1732,67 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
     }
 
     return $html;
+}
+
+function ll_tools_wordset_buttons_shortcode_refresh_payload(array $atts, string $tag = ''): array {
+    $complete = false;
+    $html = ll_tools_wordset_buttons_shortcode_render($atts, $tag, false, $complete);
+
+    return [
+        'complete' => $complete,
+        'html' => $html,
+        'retryAfterMs' => ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
+    ];
+}
+
+function ll_tools_wordset_buttons_shortcode_refresh_ajax(): void {
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['code' => 'authentication_required'], 403);
+    }
+
+    check_ajax_referer('ll_tools_wordset_buttons_refresh', 'nonce');
+
+    $tag = isset($_POST['tag']) && is_string($_POST['tag'])
+        ? sanitize_key(wp_unslash($_POST['tag']))
+        : 'll_wordset_buttons';
+    if (!in_array($tag, ll_tools_wordset_buttons_shortcode_tags(), true)) {
+        $tag = 'll_wordset_buttons';
+    }
+    $class_value = isset($_POST['class']) && is_string($_POST['class'])
+        ? sanitize_text_field(wp_unslash($_POST['class']))
+        : '';
+    $hide_empty_value = isset($_POST['hide_empty']) && is_string($_POST['hide_empty'])
+        ? wp_unslash($_POST['hide_empty'])
+        : '0';
+    $atts = shortcode_atts([
+        'class' => '',
+        'hide_empty' => '0',
+    ], [
+        'class' => $class_value,
+        'hide_empty' => ll_tools_wordset_buttons_shortcode_is_truthy($hide_empty_value) ? '1' : '0',
+    ], $tag);
+
+    wp_send_json_success(ll_tools_wordset_buttons_shortcode_refresh_payload($atts, $tag));
+}
+add_action('wp_ajax_ll_tools_wordset_buttons_refresh', 'll_tools_wordset_buttons_shortcode_refresh_ajax');
+
+function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string $tag = ''): string {
+    $tag = in_array($tag, ll_tools_wordset_buttons_shortcode_tags(), true)
+        ? $tag
+        : 'll_wordset_buttons';
+    $atts = shortcode_atts([
+        'class' => '',
+        'hide_empty' => '0',
+    ], $atts, $tag);
+
+    if (function_exists('ll_tools_enqueue_public_assets')) {
+        ll_tools_enqueue_public_assets();
+    }
+    if (function_exists('ll_tools_wordset_page_enqueue_styles')) {
+        ll_tools_wordset_page_enqueue_styles();
+    }
+
+    return ll_tools_wordset_buttons_shortcode_render($atts, $tag);
 }
 add_shortcode('wordset_buttons', 'll_tools_wordset_buttons_shortcode');
 add_shortcode('ll_wordset_buttons', 'll_tools_wordset_buttons_shortcode');
