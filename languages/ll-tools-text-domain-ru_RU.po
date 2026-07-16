@@ -5152,3 +5152,33 @@ msgstr "Поиск пока готовится. Пожалуйста, попро
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "Каталог категорий временно недоступен. Пожалуйста, попробуйте позже."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "В одной словарной лемме слишком много строк TSV."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "Одна словарная лемма превышает допустимый подготовленный размер."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "Загруженный TSV-файл содержит слишком много определений словарных источников."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "Не удалось подготовить строку TSV для возобновляемого импорта."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "Подготовленная строка TSV превышает допустимый размер."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "Блок группировки TSV превышает допустимый размер."

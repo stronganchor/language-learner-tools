@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-15T20:34:34+00:00\n"
+"POT-Creation-Date: 2026-07-16T04:49:33+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -24924,23 +24924,23 @@ msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1618
+#: includes/shortcodes/wordset-buttons-shortcode.php:1622
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:1621
+#: includes/shortcodes/wordset-buttons-shortcode.php:1625
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1625
+#: includes/shortcodes/wordset-buttons-shortcode.php:1629
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1631
+#: includes/shortcodes/wordset-buttons-shortcode.php:1635
 msgid "%1$s, %2$s"
 msgstr ""
 

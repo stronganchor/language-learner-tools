@@ -5124,3 +5124,33 @@ msgstr "A pesquisa ainda está sendo preparada. Por favor, tente novamente."
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "O catálogo de categorias está temporariamente indisponível. Por favor, tente novamente."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "Um verbete de dicionário contém linhas TSV demais."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "Um verbete de dicionário excede o tamanho preparado permitido."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "O arquivo TSV enviado contém definições de fontes de dicionário demais."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "Não foi possível preparar uma linha TSV para a importação retomável."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "Uma linha TSV preparada excede o tamanho permitido."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "Um bloco de agrupamento TSV excede o tamanho permitido."

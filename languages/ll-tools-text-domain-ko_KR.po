@@ -5101,3 +5101,33 @@ msgstr "검색을 준비하는 중입니다. 잠시 후 다시 시도해 주세�
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "카테고리 카탈로그를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "사전 표제어 하나에 TSV 행이 너무 많습니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "사전 표제어 하나가 허용된 준비 크기를 초과합니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "업로드된 TSV 파일에 사전 출처 정의가 너무 많습니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "재개 가능한 가져오기를 위한 TSV 행을 준비할 수 없습니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "준비된 TSV 행이 허용된 크기를 초과합니다."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "TSV 그룹화 버킷이 허용된 크기를 초과합니다."

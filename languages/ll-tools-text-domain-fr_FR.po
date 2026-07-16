@@ -5124,3 +5124,33 @@ msgstr "La recherche est toujours en cours. Veuillez réessayer."
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "Le catalogue des catégories est temporairement indisponible. Veuillez réessayer."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "Une entrée vedette du dictionnaire contient trop de lignes TSV."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "Une entrée vedette du dictionnaire dépasse la taille préparée autorisée."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "Le fichier TSV téléversé contient trop de définitions de sources de dictionnaire."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "Impossible de préparer une ligne TSV pour l'importation reprenable."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "Une ligne TSV préparée dépasse la taille autorisée."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "Un bloc de regroupement TSV dépasse la taille autorisée."

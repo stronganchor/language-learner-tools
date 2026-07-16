@@ -27804,3 +27804,33 @@ msgstr "Der Kategorienkatalog ist vorübergehend nicht verfügbar. Bitte versuch
 #: includes/pages/wordset-pages.php:25609
 msgid "Search is still preparing. Please try again."
 msgstr "Die Suche wird noch vorbereitet. Bitte versuchen Sie es erneut."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "Ein Wörterbuchstichwort enthält zu viele TSV-Zeilen."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "Ein Wörterbuchstichwort überschreitet die zulässige vorbereitete Größe."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "Die hochgeladene TSV-Datei enthält zu viele Wörterbuchquellendefinitionen."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "Eine TSV-Zeile konnte nicht für den fortsetzbaren Import vorbereitet werden."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "Eine vorbereitete TSV-Zeile überschreitet die zulässige Größe."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "Ein TSV-Gruppierungs-Bucket überschreitet die zulässige Größe."

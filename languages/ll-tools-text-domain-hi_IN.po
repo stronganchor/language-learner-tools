@@ -5124,3 +5124,33 @@ msgstr "खोज अभी भी तैयार हो रही है। �
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "श्रेणी कैटलॉग अस्थायी रूप से अनुपलब्ध है। कृपया फिर से प्रयास करें।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "एक शब्दकोश शीर्षशब्द में बहुत अधिक TSV पंक्तियाँ हैं।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "एक शब्दकोश शीर्षशब्द अनुमत तैयार आकार से अधिक है।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "अपलोड की गई TSV फ़ाइल में बहुत अधिक शब्दकोश स्रोत परिभाषाएँ हैं।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "फिर से शुरू किए जा सकने वाले आयात के लिए TSV पंक्ति तैयार नहीं की जा सकी।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "तैयार की गई TSV पंक्ति अनुमत आकार से अधिक है।"
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "TSV समूहीकरण बकेट अनुमत आकार से अधिक है।"

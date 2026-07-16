@@ -27858,3 +27858,33 @@ msgstr "Kategori kataloğu geçici olarak kullanılamıyor. Lütfen tekrar deney
 #: includes/pages/wordset-pages.php:25609
 msgid "Search is still preparing. Please try again."
 msgstr "Arama hâlâ hazırlanıyor. Lütfen tekrar deneyin."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1092 includes/admin/dictionary-import-admin.php:830
+msgid "One dictionary headword contains too many TSV rows."
+msgstr "Bir sözlük madde başı çok fazla TSV satırı içeriyor."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1099 includes/admin/dictionary-import-admin.php:1115 includes/admin/dictionary-import-admin.php:841
+msgid "One dictionary headword exceeds the allowed prepared size."
+msgstr "Bir sözlük madde başı izin verilen hazırlanmış boyutu aşıyor."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:982
+msgid "The uploaded TSV file contains too many dictionary source definitions."
+msgstr "Yüklenen TSV dosyası çok fazla sözlük kaynak tanımı içeriyor."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:990
+msgid "Could not prepare a TSV row for the resumable import."
+msgstr "Devam ettirilebilir içe aktarma için bir TSV satırı hazırlanamadı."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1074 includes/admin/dictionary-import-admin.php:993
+msgid "A prepared TSV row exceeds the allowed size."
+msgstr "Hazırlanmış bir TSV satırı izin verilen boyutu aşıyor."
+
+#. ll-tools-autonomous-upkeep: 2026-07-16 dictionary TSV source-backed batch
+#: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
+msgid "A TSV grouping bucket exceeds the allowed size."
+msgstr "Bir TSV gruplama bölümü izin verilen boyutu aşıyor."
