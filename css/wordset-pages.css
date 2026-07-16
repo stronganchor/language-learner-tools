@@ -2514,6 +2514,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: none !important;
 }
 
+/* Keep the main category grid at three columns on compact laptop viewports. */
+@media (min-width: 1000px) and (max-width: 1148px) {
+    .ll-wordset-page[data-ll-wordset-view="main"] .ll-wordset-grid[data-ll-wordset-main-grid],
+    .ll-wordset-page[data-ll-wordset-view="main"] .ll-wordset-grid-lazy__placeholders {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: clamp(16px, 1.6vw, 18px);
+    }
+}
+
 .ll-wordset-grid-lazy__sentinel {
     display: block;
     width: 1px;

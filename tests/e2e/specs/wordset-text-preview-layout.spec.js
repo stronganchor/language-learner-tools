@@ -382,3 +382,51 @@ test('text-based category loading preview keeps rectangular option slots', async
   expect(metrics.firstWidth).toBeGreaterThan(metrics.firstHeight * 2);
   expect(metrics.previewHeight).toBeLessThan(metrics.firstWidth * 1.2);
 });
+
+test('main category grid keeps three columns across compact laptop widths', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <style>
+      html, body { margin: 0; }
+      ${wordsetCss}
+    </style>
+    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="main">
+      <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
+        <article class="ll-wordset-card" role="listitem">One</article>
+        <article class="ll-wordset-card" role="listitem">Two</article>
+        <article class="ll-wordset-card" role="listitem">Three</article>
+        <article class="ll-wordset-card" role="listitem">Four</article>
+      </div>
+    </div>
+  `);
+
+  async function collectGridMetrics(width) {
+    await page.setViewportSize({ width, height: 720 });
+    return page.locator('[data-ll-wordset-main-grid]').evaluate((grid) => {
+      const cards = Array.from(grid.children).map((card) => card.getBoundingClientRect());
+      const columns = (window.getComputedStyle(grid).gridTemplateColumns || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      return {
+        columnCount: columns.length,
+        cardWidth: cards[0] ? cards[0].width : 0,
+        firstRowTops: cards.slice(0, 3).map((card) => Math.round(card.top)),
+        fourthTop: cards[3] ? Math.round(cards[3].top) : 0
+      };
+    });
+  }
+
+  for (const width of [1000, 1126]) {
+    const metrics = await collectGridMetrics(width);
+    expect(metrics.columnCount).toBe(3);
+    expect(new Set(metrics.firstRowTops).size).toBe(1);
+    expect(metrics.fourthTop).toBeGreaterThan(metrics.firstRowTops[0]);
+    expect(metrics.cardWidth).toBeGreaterThanOrEqual(280);
+    expect(metrics.cardWidth).toBeLessThanOrEqual(330);
+  }
+
+  const belowCompactLaptopRange = await collectGridMetrics(999);
+  expect(belowCompactLaptopRange.columnCount).toBe(2);
+});
