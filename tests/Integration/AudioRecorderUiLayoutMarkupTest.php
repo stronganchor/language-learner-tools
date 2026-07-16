@@ -79,12 +79,13 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-new-word-close', $output);
         $this->assertStringContainsString('id="ll-new-word-status"', $output);
 
-        // Compatibility guard: preserve critical IDs used by recorder JS.
-        $this->assertStringContainsString('id="ll-record-btn"', $output);
-        $this->assertStringContainsString('id="ll-category-select"', $output);
-        $this->assertStringContainsString('class="ll-recording-type-selector"', $output);
-        $this->assertStringContainsString('id="ll-recording-type"', $output);
-        $this->assertStringContainsString('id="ll-playback-controls"', $output);
+        // The initial route is a category overview, not a focused recorder.
+        $this->assertStringNotContainsString('id="ll-record-btn"', $output);
+        $this->assertStringNotContainsString('id="ll-category-select"', $output);
+        $this->assertStringNotContainsString('class="ll-recording-progress"', $output);
+        $this->assertStringNotContainsString('class="ll-recording-main"', $output);
+        $this->assertStringContainsString('id="ll-new-word-toggle"', $output);
+        $this->assertStringContainsString('id="ll-new-word-overlay" hidden', $output);
         $this->assertStringContainsString('id="ll-new-word-back"', $output);
         $this->assertStringContainsString('id="ll-new-word-start"', $output);
         $this->assertStringContainsString('id="ll-upload-feedback"', $output);
@@ -99,11 +100,26 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('checking_upload', $localized);
         $this->assertStringContainsString('"category_overview"', $localized);
         $this->assertStringContainsString('"action":"ll_tools_recorder_queue_summaries"', $localized);
+        $this->assertStringContainsString('"view":"overview"', $localized);
+        $this->assertStringContainsString('"images":[]', $localized);
+        $this->assertStringContainsString('"initial_category":""', $localized);
 
         $fixed_category_output = do_shortcode(
             '[audio_recording_interface wordset="' . $wordset_slug . '" category="recorder-ui-layout-category"]'
         );
         $this->assertStringNotContainsString('data-ll-recorder-category-overview', $fixed_category_output);
+        $this->assertStringContainsString('id="ll-record-btn"', $fixed_category_output);
+        $this->assertStringContainsString('type="hidden" id="ll-category-select" value="recorder-ui-layout-category"', $fixed_category_output);
+        $this->assertStringNotContainsString('<select id="ll-category-select"', $fixed_category_output);
+        $this->assertStringNotContainsString('data-ll-recorder-category-back', $fixed_category_output);
+        $this->assertStringContainsString('class="ll-recording-progress"', $fixed_category_output);
+
+        $_GET['ll_record_category'] = 'recorder-ui-layout-category';
+        $launched_category_output = do_shortcode(
+            '[audio_recording_interface wordset="' . $wordset_slug . '"]'
+        );
+        $this->assertStringContainsString('data-ll-recorder-category-back', $launched_category_output);
+        $this->assertStringContainsString('id="ll-record-btn"', $launched_category_output);
     }
 
     public function test_audio_recording_shortcode_launch_query_prioritizes_requested_word(): void
@@ -160,7 +176,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertLessThan($first_position, $start_position);
     }
 
-    public function test_default_recorder_bootstrap_localizes_only_bounded_initial_category_page(): void
+    public function test_default_recorder_bootstrap_is_category_neutral_and_does_not_hydrate_a_queue(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();
         $adminId = self::factory()->user->create(['role' => 'administrator']);
@@ -231,8 +247,10 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertGreaterThanOrEqual(1, $matchCount);
         $payload = json_decode((string) end($matches[1]), true);
         $this->assertIsArray($payload);
-        $this->assertCount(10, (array) ($payload['images'] ?? []));
-        $this->assertTrue((bool) ($payload['category_queue']['has_more'] ?? false));
+        $this->assertSame('overview', (string) ($payload['view'] ?? ''));
+        $this->assertSame([], (array) ($payload['images'] ?? []));
+        $this->assertSame('', (string) ($payload['initial_category'] ?? 'missing'));
+        $this->assertFalse((bool) ($payload['category_queue']['has_more'] ?? true));
         $availableCategories = (array) ($payload['available_categories'] ?? []);
         $this->assertCount(2, $availableCategories);
         $categoryLabels = implode(' ', array_map('strval', array_values($availableCategories)));
@@ -244,7 +262,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertSame([], $legacyCategoryDiscoveryQueries, 'Recorder bootstrap must not run the legacy uncached relationship scans.');
     }
 
-    public function test_default_recorder_bootstrap_selects_categorized_prompt_card_without_category_attribute(): void
+    public function test_default_recorder_bootstrap_lists_prompt_category_without_hydrating_its_queue(): void
     {
         if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')) {
             $this->markTestSkipped('Prompt card support is not loaded.');
@@ -282,7 +300,8 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
             remove_action('pre_get_posts', $capturePromptCardQueries);
         }
 
-        $this->assertStringContainsString('id="ll-record-btn"', $output);
+        $this->assertStringNotContainsString('id="ll-record-btn"', $output);
+        $this->assertStringContainsString('data-ll-recorder-category-overview', $output);
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
         $this->assertIsString($localized);
         $matches = [];
@@ -291,20 +310,20 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $payload = json_decode((string) end($matches[1]), true);
         $this->assertIsArray($payload);
 
-        $this->assertSame('prompt-only-recorder-category', (string) ($payload['initial_category'] ?? ''));
+        $this->assertSame('overview', (string) ($payload['view'] ?? ''));
+        $this->assertSame('', (string) ($payload['initial_category'] ?? 'missing'));
         $this->assertSame(
             ['prompt-only-recorder-category' => 'Prompt-only Recorder Category'],
             (array) ($payload['available_categories'] ?? [])
         );
-        $items = (array) ($payload['images'] ?? []);
-        $this->assertCount(1, $items);
-        $this->assertSame($promptCardId, (int) ($items[0]['prompt_card_id'] ?? 0));
-        $this->assertSame('prompt-only-recorder-category', (string) ($items[0]['category_slug'] ?? ''));
-
-        $this->assertNotEmpty($promptCardQueries);
+        $this->assertSame([], (array) ($payload['images'] ?? []));
         foreach ($promptCardQueries as $queryVars) {
-            $this->assertGreaterThan(0, (int) ($queryVars['posts_per_page'] ?? 0));
-            $this->assertLessThanOrEqual(100, (int) ($queryVars['posts_per_page'] ?? 0));
+            $this->assertSame('ids', (string) ($queryVars['fields'] ?? ''));
+            $this->assertLessThanOrEqual(
+                1,
+                (int) ($queryVars['posts_per_page'] ?? 0),
+                'Overview bootstrap may run only the compact prompt-category existence probe, not queue hydration.'
+            );
         }
     }
 

@@ -241,23 +241,28 @@
 
 .ll-recorder-category-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 330px));
+    gap: clamp(16px, 2vw, 22px);
     align-items: stretch;
+    justify-content: start;
+}
+
+.ll-recorder-category-grid > [hidden] {
+    display: none !important;
 }
 
 .ll-recording-interface .ll-wordset-recorder-queue-category-card {
     position: relative;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 148px !important;
+    min-height: 224px !important;
     margin: 0 !important;
-    padding: 10px !important;
+    padding: 14px !important;
     display: grid !important;
     grid-template-rows: auto 1fr !important;
-    gap: 8px !important;
+    gap: 12px !important;
     border: 1px solid #d5dce5 !important;
-    border-radius: 8px !important;
+    border-radius: 12px !important;
     background: #ffffff !important;
     color: #1d2327 !important;
     box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08) !important;
@@ -268,20 +273,23 @@
     appearance: none;
 }
 
-.ll-recording-interface button.ll-recorder-category-card {
+.ll-recording-interface .ll-recorder-category-card {
     cursor: pointer !important;
     transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled),
 .ll-recording-interface button.ll-recorder-category-card:focus-visible,
+.ll-recording-interface a.ll-recorder-category-card:hover,
+.ll-recording-interface a.ll-recorder-category-card:focus-visible,
 .ll-recording-interface button.ll-recorder-category-card.is-selected {
     border-color: #2271b1 !important;
     box-shadow: 0 8px 18px rgba(34, 113, 177, 0.16), 0 0 0 2px rgba(34, 113, 177, 0.12) !important;
     outline: none !important;
 }
 
-.ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled) {
+.ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled),
+.ll-recording-interface a.ll-recorder-category-card:hover {
     transform: translateY(-1px);
 }
 
@@ -322,13 +330,26 @@
     white-space: nowrap;
 }
 
-.ll-recording-interface .ll-wordset-recorder-queue-category-card__preview-link,
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__preview-link {
+    min-width: 0;
+    display: block;
+    pointer-events: none;
+}
+
 .ll-recording-interface .ll-wordset-recorder-queue-category__preview {
     min-width: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     pointer-events: none;
+}
+
+.ll-recording-interface .ll-wordset-recorder-queue-category-card__title-skeleton {
+    display: block;
+    width: min(62%, 132px);
+    height: 1rem;
+    border-radius: 999px;
+    background: #e5ebf1;
 }
 
 .ll-recording-interface .ll-wordset-preview-item {
@@ -416,6 +437,23 @@
     padding: 10px;
     color: #50575e;
     text-align: center;
+}
+
+.ll-recorder-category-overview__more {
+    align-self: center;
+    justify-self: center;
+    padding: 0 0.4rem;
+    color: #646970;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ll-recording-interface .ll-recorder-category-back {
+    flex: 0 0 auto;
+    min-height: 34px !important;
+    padding: 0.42rem 0.72rem !important;
+    text-decoration: none !important;
 }
 
 .ll-recording-interface .ll-recorder-category-overview__retry {

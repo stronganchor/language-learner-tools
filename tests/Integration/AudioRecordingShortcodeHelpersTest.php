@@ -799,6 +799,7 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
 
     public function test_recorder_queue_cursor_tokens_are_signed_and_request_bound(): void
     {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         $viewer_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($viewer_id);
         $context = ll_tools_recorder_queue_cursor_context(
@@ -820,9 +821,23 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
 
         $token = ll_tools_recorder_encode_queue_cursor_token($state, $context);
 
+        $this->assertSame(
+            'disabled-under-wordset-isolation-v1',
+            (string) ($context['legacy_source_mode'] ?? '')
+        );
         $this->assertNotSame('', $token);
         $this->assertSame($state, ll_tools_recorder_decode_queue_cursor_token($token, $context));
         $this->assertSame([], ll_tools_recorder_decode_queue_cursor_token($token . 'x', $context));
+
+        $pre_disable_context = $context;
+        unset($pre_disable_context['legacy_source_mode']);
+        $pre_disable_token = ll_tools_recorder_encode_queue_cursor_token($state, $pre_disable_context);
+        $this->assertNotSame('', $pre_disable_token);
+        $this->assertSame(
+            [],
+            ll_tools_recorder_decode_queue_cursor_token($pre_disable_token, $context),
+            'An isolated cursor that can retain legacy rows must rebase after that source is disabled.'
+        );
 
         $other_page_context = $context;
         $other_page_context['page'] = 3;
@@ -831,6 +846,19 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $other_viewer_context = $context;
         $other_viewer_context['viewer_user_id'] = $viewer_id + 1;
         $this->assertSame([], ll_tools_recorder_decode_queue_cursor_token($token, $other_viewer_context));
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $legacy_mode_context = ll_tools_recorder_queue_cursor_context(
+            'signed-recorder-category',
+            [91],
+            'isolation',
+            '',
+            2,
+            40,
+            71,
+            $viewer_id
+        );
+        $this->assertArrayNotHasKey('legacy_source_mode', $legacy_mode_context);
 
         $large_state = $state;
         $large_state['page_items'] = [];
@@ -1668,6 +1696,7 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
 
     public function test_legacy_missing_audio_pages_cap_results_and_do_not_repeat_numbered_rows(): void
     {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $wordset_id = $this->ensure_term('wordset', 'Recorder Legacy Missing Pages', 'recorder-legacy-missing-pages');
         $this->ensure_term('recording_type', 'Isolation', 'isolation');
         update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
@@ -1713,6 +1742,7 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
 
     public function test_legacy_missing_audio_cursor_resumes_after_the_hard_scan_cap(): void
     {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $wordset_id = $this->ensure_term('wordset', 'Recorder Legacy Missing Resume', 'recorder-legacy-missing-resume');
         $this->ensure_term('recording_type', 'Isolation', 'isolation');
         update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
@@ -1784,6 +1814,64 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($resumed_scan['has_more'] ?? true));
         $this->assertSame(2, (int) ($resumed_scan['raw_scanned'] ?? 0));
         $this->assertSame(5, (int) ($resumed_scan['cursor']['raw_offset'] ?? 0));
+    }
+
+    public function test_isolated_legacy_missing_audio_ignores_the_site_wide_option_even_for_a_matching_title(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Isolated Legacy Scope', 'recorder-isolated-legacy-scope');
+        $other_wordset_id = $this->ensure_term('wordset', 'Recorder Other Legacy Scope', 'recorder-other-legacy-scope');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
+
+        $local_title = 'Matching isolated legacy row';
+        $other_title = 'Other isolated legacy row';
+        $unmapped_title = 'Unmapped isolated legacy row';
+        $local_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $local_title,
+        ]);
+        $other_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $other_title,
+        ]);
+        wp_set_post_terms($local_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($other_word_id, [$other_wordset_id], 'wordset', false);
+        update_option('ll_missing_audio_instances', [
+            $local_title => 3000,
+            $other_title => 3001,
+            $unmapped_title => 3002,
+        ], false);
+
+        $option_reads = 0;
+        $read_guard = static function ($pre_option) use (&$option_reads) {
+            $option_reads++;
+            return $pre_option;
+        };
+        add_filter('pre_option_ll_missing_audio_instances', $read_guard, 10, 1);
+        try {
+            $page = ll_tools_get_legacy_missing_audio_instances_page(
+                'uncategorized',
+                [$wordset_id],
+                '',
+                '',
+                false,
+                0,
+                ['limit' => 10]
+            );
+        } finally {
+            remove_filter('pre_option_ll_missing_audio_instances', $read_guard, 10);
+        }
+        $titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($page['items'] ?? [])));
+
+        $this->assertSame([], $titles);
+        $this->assertSame(0, $option_reads, 'Isolated queues must not hydrate the site-wide legacy source.');
+        $this->assertSame(0, (int) ($page['eligible_seen'] ?? 0));
+        $this->assertTrue((bool) ($page['complete'] ?? false));
     }
 
     public function test_server_legacy_continuation_keeps_items_already_rendered_on_the_page(): void
@@ -1981,6 +2069,7 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
             $this->markTestSkipped('Prompt card support is not loaded.');
         }
 
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $wordset_id = $this->ensure_term('wordset', 'Recorder Legacy Source Order', 'recorder-legacy-source-order');
         $this->ensure_term('recording_type', 'Isolation', 'isolation');
         update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);

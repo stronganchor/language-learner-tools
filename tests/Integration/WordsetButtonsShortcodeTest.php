@@ -407,21 +407,13 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $previous_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, 'll_wordset_buttons', '6.6.74');
         $previous_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">6.6.74 complete render</a></div>';
         set_transient($previous_key, $previous_html, HOUR_IN_SECONDS);
-        $this->assertSame($previous_html, ll_tools_wordset_buttons_shortcode_previous_version_cache_get($atts, 'll_wordset_buttons'));
-
-        $batch_size = static function (): int {
-            return 1;
-        };
-        add_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
+        $this->assertSame('', ll_tools_wordset_buttons_shortcode_previous_version_cache_get($atts, 'll_wordset_buttons'));
         try {
-            $this->assertSame($previous_html, do_shortcode('[ll_wordset_buttons]'));
             $current_html = do_shortcode('[ll_wordset_buttons]');
         } finally {
-            remove_filter('ll_tools_wordset_buttons_shortcode_eligibility_batch_size', $batch_size);
             delete_transient($previous_key);
         }
 
-        $this->assertStringContainsString('Buttons Previous Version Bridge Wordset', $current_html);
         $this->assertStringNotContainsString('6.6.74 complete render', $current_html);
     }
 

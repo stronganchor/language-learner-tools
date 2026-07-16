@@ -152,27 +152,30 @@ async function installFakeRecorderRuntime(page) {
   });
 }
 
-async function openNewWordPanelIfNeeded(page) {
+async function openNewWordPanel(page) {
   const overlay = page.locator('#ll-new-word-overlay');
-  if (await overlay.isVisible()) {
-    return;
-  }
-
   const newWordToggle = page.locator('#ll-new-word-toggle');
-  if (
-    (await newWordToggle.count()) > 0
-    && await newWordToggle.isVisible()
-    && await newWordToggle.isEnabled()
-  ) {
-    await newWordToggle.click();
-  }
+  await expect(overlay).toBeHidden();
+  await expect(newWordToggle).toBeVisible();
+  await expect(newWordToggle).toBeEnabled();
+  await newWordToggle.click();
+  await expect(overlay).toBeVisible();
 }
+
+test('recorder overview keeps the new-word panel closed until its button is clicked', async ({ page }) => {
+  await mountNewWordRecorderFixture(page);
+
+  await expect(page.locator('.ll-recording-progress')).toHaveCount(0);
+  await expect(page.locator('.ll-current-num')).toHaveCount(0);
+  await expect(page.locator('.ll-total-num')).toHaveCount(0);
+  await openNewWordPanel(page);
+});
 
 test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
   await installFakeRecorderRuntime(page);
   await mountNewWordRecorderFixture(page);
 
-  await openNewWordPanelIfNeeded(page);
+  await openNewWordPanel(page);
 
   const recordButton = page.locator('#ll-new-word-record-btn');
   const recordIndicator = page.locator('#ll-new-word-recording-indicator');
@@ -205,6 +208,43 @@ test('new-word recorder shows startup state immediately and defers preparation u
   await expect.poll(() => page.evaluate(() => window.__llStartupTestState.prepareRequests)).toBe(0);
 });
 
+test('overview new-word recording submits the selected type and keeps later types in the panel', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page, {
+    recordingTypeOrder: ['introduction', 'isolation'],
+    remainingTypesAfterUpload: ['isolation']
+  });
+
+  await openNewWordPanel(page);
+
+  await page.locator('#ll-new-word-create-category').check();
+  await page.locator('#ll-new-word-category-name').fill('Two-type category');
+  await page.locator('.ll-new-word-types input[value="introduction"]').check();
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  await recordButton.click();
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+  await recordButton.click();
+
+  const saveButton = page.locator('#ll-new-word-start');
+  await expect(saveButton).toBeVisible();
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  await expect.poll(() => page.evaluate(() => window.__llStartupTestState.uploadRecordingTypes)).toEqual([
+    'introduction'
+  ]);
+  await expect(page.locator('#ll-new-word-overlay')).toBeVisible();
+  await expect(page.locator('#ll-new-word-panel')).toBeVisible();
+  await expect(page.locator('.ll-recording-main')).toHaveCount(0);
+  await expect(page.locator('#ll-recording-type')).toBeHidden();
+  await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
+  await expect(page.locator('#ll-new-word-recording-type-label')).toHaveText('Isolation');
+  await expect(recordButton).toBeVisible();
+  await expect(recordButton).toBeEnabled();
+});
+
 test('new-word redo keeps entered text and translation intact', async ({ page }) => {
   await installFakeRecorderRuntime(page);
   await mountNewWordRecorderFixture(page, {
@@ -214,7 +254,7 @@ test('new-word redo keeps entered text and translation intact', async ({ page })
     }
   });
 
-  await openNewWordPanelIfNeeded(page);
+  await openNewWordPanel(page);
 
   const targetInput = page.locator('#ll-new-word-text-target');
   const translationInput = page.locator('#ll-new-word-text-translation');
@@ -284,7 +324,7 @@ test('new-word recorder shows a visible error when no microphone is available', 
   });
   await mountNewWordRecorderFixture(page);
 
-  await openNewWordPanelIfNeeded(page);
+  await openNewWordPanel(page);
 
   const recordButton = page.locator('#ll-new-word-record-btn');
   const status = page.locator('#ll-new-word-status');
@@ -302,7 +342,7 @@ test('new-word recorder closes from the header button and backdrop on non-fullsc
   await page.setViewportSize({ width: 1280, height: 900 });
   await mountNewWordRecorderFixture(page);
 
-  await openNewWordPanelIfNeeded(page);
+  await openNewWordPanel(page);
 
   const overlay = page.locator('#ll-new-word-overlay');
   const panel = page.locator('#ll-new-word-panel');

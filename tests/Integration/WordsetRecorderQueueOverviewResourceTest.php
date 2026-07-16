@@ -378,6 +378,15 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
         $category = $fixture['categories'][0];
+        for ($index = 2; $index <= 5; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Exact Recorder Summary Word %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [(int) $category['id']], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        }
 
         $batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
             $wordset_id,
@@ -392,13 +401,23 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame([], $batch['pendingSlugs']);
         $this->assertCount(1, $batch['cards']);
         $card = $batch['cards'][0];
-        $this->assertSame(1, (int) $card['count']);
-        $this->assertSame((string) $category['name'] . ' (1)', (string) $card['optionLabel']);
+        $this->assertSame(5, (int) $card['count']);
+        $this->assertFalse((bool) $card['countIsLowerBound']);
+        $this->assertSame((string) $category['name'] . ' (5)', (string) $card['optionLabel']);
         $this->assertStringContainsString('<button', (string) $card['html']);
         $this->assertStringContainsString('ll-recorder-category-card', (string) $card['html']);
-        $this->assertStringContainsString('data-recorder-queue-count="1"', (string) $card['html']);
-        $this->assertStringContainsString('1 word', (string) $card['html']);
+        $this->assertStringContainsString('data-recorder-queue-count="5"', (string) $card['html']);
+        $this->assertStringContainsString('data-recorder-queue-count-lower-bound="0"', (string) $card['html']);
+        $this->assertStringContainsString('5 words', (string) $card['html']);
+        $this->assertStringNotContainsString('5+ words', (string) $card['html']);
         $this->assertStringNotContainsString('href=', (string) $card['html']);
+        $this->assertStringNotContainsString('aria-pressed', (string) $card['html']);
+
+        $placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category);
+        $this->assertStringContainsString('Loading recording category', $placeholder);
+        $this->assertStringNotContainsString((string) $category['name'], $placeholder);
+        $hidden_placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category, ['hidden' => true]);
+        $this->assertMatchesRegularExpression('/aria-busy="true"\s+hidden/', $hidden_placeholder);
 
         $this->ensureRecordingType('Question', 'question');
         $scoped_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
@@ -477,6 +496,101 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertContains((string) $fixture['categories'][0]['slug'], $recorder_slugs);
     }
 
+    public function test_admin_demotion_invalidates_private_category_catalog_maps_and_completed_summaries(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $recorder_id = self::factory()->user->create(['role' => 'administrator']);
+        $other_admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($recorder_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $private_category = $fixture['categories'][1];
+        $private_category_id = (int) $private_category['id'];
+        $private_category_slug = (string) $private_category['slug'];
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$other_admin_id]);
+
+        $before_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key(
+            $wordset_id,
+            $recorder_id
+        );
+        $before_categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+            $wordset_id,
+            $recorder_id
+        );
+        $before_category_map = ll_tools_recorder_get_category_id_map_for_wordsets([$wordset_id], $recorder_id);
+        $before_source_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+            $recorder_id,
+            $wordset_id,
+            $private_category
+        );
+        $before_status = [];
+        $before_states = [];
+        $before_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+            [$private_category],
+            $wordset_id,
+            $recorder_id,
+            'isolation',
+            '',
+            1,
+            $before_status,
+            $before_states
+        );
+
+        $this->assertSame('manage-options', ll_tools_wordset_page_get_recorder_category_access_signature($recorder_id));
+        $this->assertContains($private_category_slug, array_column($before_categories, 'slug'));
+        $this->assertArrayHasKey($private_category_id, $before_category_map);
+        $this->assertCount(1, $before_groups);
+        $this->assertSame(1, (int) ($before_groups[0]['count'] ?? 0));
+        $this->assertTrue((bool) ($before_states[$private_category_slug]['complete'] ?? false));
+
+        $recorder = get_userdata($recorder_id);
+        $this->assertInstanceOf(WP_User::class, $recorder);
+        $recorder->set_role('audio_recorder');
+        clean_user_cache($recorder_id);
+        wp_set_current_user(0);
+        wp_set_current_user($recorder_id);
+
+        $after_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key(
+            $wordset_id,
+            $recorder_id
+        );
+        $after_source_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+            $recorder_id,
+            $wordset_id,
+            $private_category
+        );
+        $after_categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+            $wordset_id,
+            $recorder_id
+        );
+        $after_category_map = ll_tools_recorder_get_category_id_map_for_wordsets([$wordset_id], $recorder_id);
+        $after_status = [];
+        $after_states = [];
+        $after_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+            [$private_category],
+            $wordset_id,
+            $recorder_id,
+            'isolation',
+            '',
+            1,
+            $after_status,
+            $after_states
+        );
+
+        $this->assertTrue(current_user_can('view_ll_tools'));
+        $this->assertFalse(current_user_can('manage_options'));
+        $this->assertSame('scoped', ll_tools_wordset_page_get_recorder_category_access_signature($recorder_id));
+        $this->assertNotSame($before_catalog_key, $after_catalog_key);
+        $this->assertNotSame($before_source_signature, $after_source_signature);
+        $this->assertNotContains($private_category_slug, array_column($after_categories, 'slug'));
+        $this->assertArrayNotHasKey($private_category_id, $after_category_map);
+        $this->assertSame([], $after_groups);
+        $this->assertTrue((bool) ($after_states[$private_category_slug]['complete'] ?? false));
+        $this->assertFalse((bool) ($after_states[$private_category_slug]['has_group'] ?? true));
+    }
+
     public function test_scoped_summary_source_signature_ignores_core_last_changed_tokens(): void
     {
         $fixture = $this->createWordsetWithCategories(1);
@@ -525,6 +639,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             'll_tools_wordset_recorder_queue_content_epoch',
             'll_tools_wordset_editor_image_aggregate_epoch',
             'll_tools_wordset_recorder_queue_recording_type_epoch',
+            'll_tools_wc_cache_epoch',
             'll_uncategorized_desired_recording_types',
         ];
         $option_backups = [];
@@ -546,6 +661,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             update_option('ll_tools_wordset_recorder_queue_content_epoch', 'content-a', false);
             update_option('ll_tools_wordset_editor_image_aggregate_epoch', 'image-a', false);
             update_option('ll_tools_wordset_recorder_queue_recording_type_epoch', 'recording-type-a', false);
+            update_option('ll_tools_wc_cache_epoch', 101, false);
             update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
             $signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
             $signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
@@ -559,6 +675,17 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a),
                 'Broad fallback epochs must not invalidate categorized summaries.'
             );
+
+            update_option('ll_tools_wc_cache_epoch', 102, false);
+            $eligibility_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
+            $eligibility_signature_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_b);
+            $eligibility_other_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category);
+            $this->assertNotSame($signature_a, $eligibility_signature_a);
+            $this->assertNotSame($signature_b, $eligibility_signature_b);
+            $this->assertNotSame($other_signature, $eligibility_other_signature);
+            $signature_a = $eligibility_signature_a;
+            $signature_b = $eligibility_signature_b;
+            $other_signature = $eligibility_other_signature;
 
             update_term_meta((int) $category_a['id'], 'll_desired_recording_types', ['question']);
             $configured_signature_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category_a);
@@ -605,6 +732,1030 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 }
             }
         }
+    }
+
+    public function test_summary_exact_count_combines_canonical_legacy_and_prompt_sources(): void
+    {
+        if (
+            !defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+            || !defined('LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY')
+        ) {
+            $this->markTestSkipped('Prompt card support is not loaded.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Mixed Recorder Summary ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Canonical mixed recorder word',
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Mixed recorder prompt',
+        ]);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+        update_post_meta(
+            $prompt_card_id,
+            LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY,
+            'Record this mixed-source prompt.'
+        );
+
+        $missing_backup = get_option('ll_missing_audio_instances', null);
+        $uncategorized_types_backup = get_option('ll_uncategorized_desired_recording_types', null);
+        update_option('ll_missing_audio_instances', [
+            'Legacy mixed recorder title without a word post' => 987654,
+        ], false);
+        update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
+
+        try {
+            $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                [
+                    'id' => 0,
+                    'name' => 'Uncategorized',
+                    'slug' => 'uncategorized',
+                ],
+                $wordset_id,
+                $admin_id
+            );
+        } finally {
+            if ($missing_backup === null) {
+                delete_option('ll_missing_audio_instances');
+            } else {
+                update_option('ll_missing_audio_instances', $missing_backup, false);
+            }
+            if ($uncategorized_types_backup === null) {
+                delete_option('ll_uncategorized_desired_recording_types');
+            } else {
+                update_option('ll_uncategorized_desired_recording_types', $uncategorized_types_backup, false);
+            }
+        }
+
+        $this->assertTrue((bool) $summary['complete']);
+        $this->assertSame(1, (int) $summary['scan_state']['canonical_total']);
+        $this->assertSame(1, (int) $summary['scan_state']['legacy_total']);
+        $this->assertSame(1, (int) $summary['scan_state']['prompt_total']);
+        $this->assertIsArray($summary['group']);
+        $this->assertSame(3, (int) $summary['group']['count']);
+        $this->assertFalse((bool) $summary['group']['count_is_lower_bound']);
+        $this->assertCount(2, $summary['group']['items']);
+
+        $html = ll_tools_wordset_page_render_recorder_queue_category_card(
+            $summary['group'],
+            home_url('/record/uncategorized/')
+        );
+        $this->assertStringContainsString('3 words', $html);
+        $this->assertStringNotContainsString('3+ words', $html);
+    }
+
+    public function test_legacy_title_map_failure_keeps_exact_summary_pending_without_advancing_its_cursor(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Failed Legacy Summary ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $word_title = 'Canonical and legacy title-map failure word';
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $word_title,
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $missing_backup = get_option('ll_missing_audio_instances', null);
+        $uncategorized_types_backup = get_option('ll_uncategorized_desired_recording_types', null);
+        update_option('ll_missing_audio_instances', [$word_title => 987655], false);
+        update_option('ll_uncategorized_desired_recording_types', ['isolation'], false);
+
+        $injected_failures = 0;
+        $break_legacy_title_map = static function (string $sql) use ($wpdb, &$injected_failures): string {
+            if (
+                stripos($sql, 'SELECT DISTINCT p.ID, p.post_title, tt.term_id') !== false
+                && stripos($sql, $wpdb->term_relationships) !== false
+                && stripos($sql, "tt.taxonomy = 'wordset'") !== false
+            ) {
+                $injected_failures++;
+                return "SELECT p.ID, p.post_title, 0 AS term_id FROM {$wpdb->posts}_ll_tools_missing_legacy_title_map";
+            }
+
+            return $sql;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_legacy_title_map);
+        try {
+            $failed_page = ll_tools_get_legacy_missing_audio_instances_page(
+                'uncategorized',
+                [$wordset_id],
+                '',
+                '',
+                false,
+                $admin_id,
+                ['limit' => 1]
+            );
+
+            $status = [];
+            $states = [];
+            $groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [[
+                    'id' => 0,
+                    'name' => 'Uncategorized',
+                    'slug' => 'uncategorized',
+                ]],
+                $wordset_id,
+                $admin_id,
+                '',
+                '',
+                1,
+                $status,
+                $states
+            );
+        } finally {
+            remove_filter('query', $break_legacy_title_map);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        try {
+            $this->assertGreaterThanOrEqual(2, $injected_failures, 'Both direct and summary scans must hit the guarded title-map query.');
+            $this->assertFalse((bool) ($failed_page['complete'] ?? true));
+            $this->assertTrue((bool) ($failed_page['truncated'] ?? false));
+            $this->assertSame([], (array) ($failed_page['items'] ?? []));
+            $this->assertSame(0, (int) ($failed_page['cursor']['raw_offset'] ?? -1));
+            $this->assertSame(0, (int) ($failed_page['cursor']['eligible_seen'] ?? -1));
+            $this->assertSame(0, (int) ($failed_page['eligible_seen'] ?? -1));
+
+            $this->assertSame([], $groups);
+            $this->assertSame(1, (int) ($status['pending'] ?? 0));
+            $this->assertFalse((bool) ($states['uncategorized']['complete'] ?? true));
+            $this->assertFalse((bool) ($states['uncategorized']['has_group'] ?? true));
+
+            $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
+                'schema' => 5,
+                'wordset_id' => $wordset_id,
+                'recorder_user_id' => $admin_id,
+                'category_slug' => 'uncategorized',
+                'category_name' => 'Uncategorized',
+                'include_types' => '',
+                'exclude_types' => '',
+                'locale' => sanitize_key((string) get_locale()),
+            ]);
+            $cache_request = [];
+            $cached_payload = ll_tools_wordset_page_get_cached_payload($cache_key, $cache_request);
+            $this->assertIsArray($cached_payload);
+            $this->assertFalse((bool) ($cached_payload['scan_complete'] ?? true));
+            $this->assertNull($cached_payload['group'] ?? null);
+            $this->assertSame(0, (int) ($cached_payload['scan_state']['legacy_cursor']['raw_offset'] ?? -1));
+            $this->assertSame(0, (int) ($cached_payload['scan_state']['legacy_cursor']['eligible_seen'] ?? -1));
+        } finally {
+            if ($missing_backup === null) {
+                delete_option('ll_missing_audio_instances');
+            } else {
+                update_option('ll_missing_audio_instances', $missing_backup, false);
+            }
+            if ($uncategorized_types_backup === null) {
+                delete_option('ll_uncategorized_desired_recording_types');
+            } else {
+                update_option('ll_uncategorized_desired_recording_types', $uncategorized_types_backup, false);
+            }
+        }
+    }
+
+    public function test_exact_summary_matches_focused_queue_when_target_category_inherits_word_recording_types(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Inherited Recorder Types ' . wp_generate_password(5, false), 'wordset');
+        $target_category = wp_insert_term('Empty Target Recorder Category ' . wp_generate_password(5, false), 'word-category');
+        $source_category = wp_insert_term('Inherited Source Recorder Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($target_category);
+        $this->assertIsArray($source_category);
+        $wordset_id = (int) $wordset['term_id'];
+        $target_category_id = (int) $target_category['term_id'];
+        $source_category_id = (int) $source_category['term_id'];
+        ll_tools_set_category_wordset_owner($target_category_id, $wordset_id, $target_category_id);
+        ll_tools_set_category_wordset_owner($source_category_id, $wordset_id, $source_category_id);
+        delete_term_meta($target_category_id, 'll_desired_recording_types');
+        update_term_meta($source_category_id, 'll_desired_recording_types', ['isolation']);
+
+        $target_term = get_term($target_category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target_term);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Word inheriting recording types',
+        ]);
+        wp_set_post_terms($word_id, [$target_category_id, $source_category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $focused_complete = true;
+        $focused_items = ll_tools_get_recording_queue_items(
+            (string) $target_term->slug,
+            [$wordset_id],
+            '',
+            '',
+            false,
+            $admin_id,
+            [$word_id],
+            [
+                'candidate_word_ids_limited' => true,
+                'include_prompt_cards' => false,
+            ],
+            $focused_complete
+        );
+        $this->assertTrue($focused_complete);
+        $this->assertCount(1, $focused_items);
+        $this->assertSame($word_id, (int) ($focused_items[0]['word_id'] ?? 0));
+        $this->assertSame((string) $target_term->slug, (string) ($focused_items[0]['category_slug'] ?? ''));
+
+        $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+            [
+                'id' => $target_category_id,
+                'name' => (string) $target_term->name,
+                'slug' => (string) $target_term->slug,
+            ],
+            $wordset_id,
+            $admin_id
+        );
+
+        $this->assertTrue((bool) ($summary['complete'] ?? false));
+        $this->assertSame(1, (int) ($summary['scan_state']['canonical_total'] ?? 0));
+        $this->assertIsArray($summary['group'] ?? null);
+        $this->assertSame(count($focused_items), (int) ($summary['group']['count'] ?? 0));
+        $this->assertFalse((bool) ($summary['group']['count_is_lower_bound'] ?? true));
+        $this->assertCount(1, (array) ($summary['group']['items'] ?? []));
+        $this->assertSame($word_id, (int) ($summary['group']['items'][0]['word_id'] ?? 0));
+    }
+
+    public function test_filtered_target_category_does_not_fall_back_to_a_sibling_word_category(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $this->ensureRecordingType('Question', 'question');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Filtered Target Recorder Types ' . wp_generate_password(5, false), 'wordset');
+        $target_category = wp_insert_term('Question Only Target ' . wp_generate_password(5, false), 'word-category');
+        $sibling_category = wp_insert_term('Isolation Sibling ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($target_category);
+        $this->assertIsArray($sibling_category);
+        $wordset_id = (int) $wordset['term_id'];
+        $target_category_id = (int) $target_category['term_id'];
+        $sibling_category_id = (int) $sibling_category['term_id'];
+        ll_tools_set_category_wordset_owner($target_category_id, $wordset_id, $target_category_id);
+        ll_tools_set_category_wordset_owner($sibling_category_id, $wordset_id, $sibling_category_id);
+        update_term_meta($target_category_id, 'll_desired_recording_types', ['question']);
+        update_term_meta($sibling_category_id, 'll_desired_recording_types', ['isolation']);
+
+        $target_term = get_term($target_category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target_term);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Filtered target must stay empty',
+        ]);
+        wp_set_post_terms($word_id, [$target_category_id, $sibling_category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $focused_complete = true;
+        $focused_items = ll_tools_get_recording_queue_items(
+            (string) $target_term->slug,
+            [$wordset_id],
+            'isolation',
+            '',
+            false,
+            $admin_id,
+            [$word_id],
+            [
+                'candidate_word_ids_limited' => true,
+                'include_prompt_cards' => false,
+            ],
+            $focused_complete
+        );
+
+        $this->assertTrue($focused_complete);
+        $this->assertSame([], $focused_items);
+
+        $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+            [
+                'id' => $target_category_id,
+                'name' => (string) $target_term->name,
+                'slug' => (string) $target_term->slug,
+            ],
+            $wordset_id,
+            $admin_id,
+            'isolation'
+        );
+
+        $this->assertTrue((bool) ($summary['complete'] ?? false));
+        $this->assertSame(0, (int) ($summary['scan_state']['canonical_total'] ?? -1));
+        $this->assertNull($summary['group'] ?? null);
+    }
+
+    public function test_wordless_image_uses_the_union_of_its_scoped_categories_in_focused_and_summary_queues(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $this->ensureRecordingType('Question', 'question');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset = wp_insert_term('Wordless Image Recorder Types ' . wp_generate_password(5, false), 'wordset');
+        $target_category = wp_insert_term('Wordless Question Target ' . wp_generate_password(5, false), 'word-category');
+        $sibling_category = wp_insert_term('Wordless Isolation Sibling ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($target_category);
+        $this->assertIsArray($sibling_category);
+        $wordset_id = (int) $wordset['term_id'];
+        $target_category_id = (int) $target_category['term_id'];
+        $sibling_category_id = (int) $sibling_category['term_id'];
+        ll_tools_set_category_wordset_owner($target_category_id, $wordset_id, $target_category_id);
+        ll_tools_set_category_wordset_owner($sibling_category_id, $wordset_id, $sibling_category_id);
+        update_term_meta($target_category_id, 'll_desired_recording_types', ['question']);
+        update_term_meta($sibling_category_id, 'll_desired_recording_types', ['isolation']);
+
+        $target_term = get_term($target_category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target_term);
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Wordless Multi Category Attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Wordless Multi Category Image',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+        wp_set_post_terms($image_id, [$target_category_id, $sibling_category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+
+        $image_src_filter = static function ($image, $candidate_attachment_id) use ($attachment_id) {
+            if ((int) $candidate_attachment_id === $attachment_id) {
+                return ['https://example.org/wordless-multi-category.png', 640, 480, true];
+            }
+            return $image;
+        };
+        add_filter('wp_get_attachment_image_src', $image_src_filter, 10, 2);
+        try {
+            $focused_complete = true;
+            $focused_items = ll_tools_get_recording_queue_items(
+                (string) $target_term->slug,
+                [$wordset_id],
+                'isolation',
+                '',
+                false,
+                $admin_id,
+                [],
+                [
+                    'candidate_word_ids_limited' => true,
+                    'candidate_image_ids' => [$image_id],
+                    'include_prompt_cards' => false,
+                ],
+                $focused_complete
+            );
+            $summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                [
+                    'id' => $target_category_id,
+                    'name' => (string) $target_term->name,
+                    'slug' => (string) $target_term->slug,
+                ],
+                $wordset_id,
+                $admin_id,
+                'isolation'
+            );
+        } finally {
+            remove_filter('wp_get_attachment_image_src', $image_src_filter, 10);
+        }
+
+        $this->assertTrue($focused_complete);
+        $this->assertCount(1, $focused_items);
+        $this->assertSame($image_id, (int) ($focused_items[0]['image_id'] ?? $focused_items[0]['id'] ?? 0));
+        $this->assertSame(['isolation'], (array) ($focused_items[0]['missing_types'] ?? []));
+        $this->assertTrue((bool) ($summary['complete'] ?? false));
+        $this->assertSame(1, (int) ($summary['scan_state']['canonical_total'] ?? 0));
+        $this->assertIsArray($summary['group'] ?? null);
+        $this->assertSame(count($focused_items), (int) ($summary['group']['count'] ?? 0));
+        $this->assertCount(1, (array) ($summary['group']['items'] ?? []));
+        $this->assertSame($image_id, (int) ($summary['group']['items'][0]['image_id'] ?? $summary['group']['items'][0]['id'] ?? 0));
+    }
+
+    public function test_wordless_sibling_visibility_invalidates_and_rebuilds_a_completed_target_summary(): void
+    {
+        $epoch_option = 'll_tools_wc_cache_epoch';
+        $epoch_backup = get_option($epoch_option, null);
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $recorder_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $this->ensureRecordingType('Question', 'question');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset = wp_insert_term('Wordless Visibility Wordset ' . wp_generate_password(5, false), 'wordset');
+        $target_category = wp_insert_term('Wordless Visibility Target ' . wp_generate_password(5, false), 'word-category');
+        $sibling_category = wp_insert_term('Wordless Visibility Sibling ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($target_category);
+        $this->assertIsArray($sibling_category);
+        $wordset_id = (int) $wordset['term_id'];
+        $target_category_id = (int) $target_category['term_id'];
+        $sibling_category_id = (int) $sibling_category['term_id'];
+        ll_tools_set_category_wordset_owner($target_category_id, $wordset_id, $target_category_id);
+        ll_tools_set_category_wordset_owner($sibling_category_id, $wordset_id, $sibling_category_id);
+        update_term_meta($target_category_id, 'll_desired_recording_types', ['question']);
+        update_term_meta($sibling_category_id, 'll_desired_recording_types', ['isolation']);
+
+        $target_term = get_term($target_category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target_term);
+        $category_source = [
+            'id' => $target_category_id,
+            'name' => (string) $target_term->name,
+            'slug' => (string) $target_term->slug,
+        ];
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Wordless Visibility Attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Wordless Visibility Image',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+        wp_set_post_terms($image_id, [$target_category_id, $sibling_category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+
+        $image_src_filter = static function ($image, $candidate_attachment_id) use ($attachment_id) {
+            if ((int) $candidate_attachment_id === $attachment_id) {
+                return ['https://example.org/wordless-visibility.png', 640, 480, true];
+            }
+            return $image;
+        };
+        add_filter('wp_get_attachment_image_src', $image_src_filter, 10, 2);
+        try {
+            update_option($epoch_option, 9000, false);
+            wp_set_current_user($recorder_id);
+
+            $before_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_source
+            );
+            $before_status = [];
+            $before_states = [];
+            $before_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category_source],
+                $wordset_id,
+                $recorder_id,
+                'isolation',
+                '',
+                1,
+                $before_status,
+                $before_states
+            );
+            $this->assertCount(1, $before_groups);
+            $this->assertSame(1, (int) ($before_groups[0]['count'] ?? 0));
+            $this->assertTrue((bool) ($before_states[(string) $target_term->slug]['complete'] ?? false));
+
+            $target_version_before = ll_tools_get_category_cache_version($target_category_id);
+            $sibling_version_before = ll_tools_get_category_cache_version($sibling_category_id);
+            update_term_meta($sibling_category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+            $after_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_source
+            );
+            $this->assertNotSame($before_signature, $after_signature);
+            $this->assertSame($target_version_before, ll_tools_get_category_cache_version($target_category_id));
+            $this->assertGreaterThan($sibling_version_before, ll_tools_get_category_cache_version($sibling_category_id));
+
+            $focused_complete = true;
+            $focused_items = ll_tools_get_recording_queue_items(
+                (string) $target_term->slug,
+                [$wordset_id],
+                'isolation',
+                '',
+                false,
+                $recorder_id,
+                [],
+                [
+                    'candidate_word_ids_limited' => true,
+                    'candidate_image_ids' => [$image_id],
+                    'include_prompt_cards' => false,
+                ],
+                $focused_complete
+            );
+            $after_status = [];
+            $after_states = [];
+            $after_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category_source],
+                $wordset_id,
+                $recorder_id,
+                'isolation',
+                '',
+                1,
+                $after_status,
+                $after_states
+            );
+
+            $this->assertTrue($focused_complete);
+            $this->assertSame([], $focused_items);
+            $this->assertSame([], $after_groups);
+            $this->assertTrue((bool) ($after_states[(string) $target_term->slug]['complete'] ?? false));
+            $this->assertFalse((bool) ($after_states[(string) $target_term->slug]['has_group'] ?? true));
+
+            $before_delete_epoch = ll_tools_get_category_cache_epoch();
+            $before_delete_signature = $after_signature;
+            $deleted = wp_delete_term($sibling_category_id, 'word-category');
+            $this->assertTrue($deleted === true || is_array($deleted));
+            $this->assertNotSame(
+                $before_delete_epoch,
+                ll_tools_get_category_cache_epoch()
+            );
+            $this->assertNotSame(
+                $before_delete_signature,
+                ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                    $recorder_id,
+                    $wordset_id,
+                    $category_source
+                )
+            );
+        } finally {
+            remove_filter('wp_get_attachment_image_src', $image_src_filter, 10);
+            if ($epoch_backup === null) {
+                delete_option($epoch_option);
+            } else {
+                update_option($epoch_option, $epoch_backup, false);
+            }
+        }
+    }
+
+    public function test_word_eligibility_failure_does_not_advance_candidate_or_summary_cursors_past_the_failed_row(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Retryable Word Eligibility ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Retryable Word Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $category_source = [
+            'id' => $category_id,
+            'name' => (string) $category_term->name,
+            'slug' => (string) $category_term->slug,
+        ];
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Retry this exact recorder word',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        // Prime category scope and configuration before fault injection. The
+        // query filter then evicts only the configuration cache when the raw
+        // candidate query is observed, so the injected failure occurs inside
+        // eligibility evaluation after this word has been discovered.
+        $category_complete = true;
+        $this->assertInstanceOf(
+            WP_Term::class,
+            ll_tools_wordset_page_get_recorder_queue_category_term(
+                $wordset_id,
+                (string) $category_term->slug,
+                $admin_id,
+                $category_complete
+            )
+        );
+        $this->assertTrue($category_complete);
+        $configuration_complete = true;
+        $this->assertSame(
+            ['isolation'],
+            ll_tools_wordset_page_get_recorder_queue_category_recording_types(
+                $category_id,
+                ['isolation'],
+                $configuration_complete
+            )
+        );
+        $this->assertTrue($configuration_complete);
+
+        $raw_candidate_seen = false;
+        $injected_failures = 0;
+        $break_word_eligibility = static function (string $sql) use (
+            $wpdb,
+            $category_id,
+            &$raw_candidate_seen,
+            &$injected_failures
+        ): string {
+            if (
+                !$raw_candidate_seen
+                && stripos($sql, $wpdb->posts) !== false
+                && stripos($sql, $wpdb->term_relationships) !== false
+                && preg_match("/post_type\\s*=\\s*'words'/i", $sql)
+            ) {
+                $raw_candidate_seen = true;
+                wp_cache_delete($category_id, 'term_meta');
+                return $sql;
+            }
+            if (
+                $raw_candidate_seen
+                && stripos($sql, $wpdb->termmeta) !== false
+                && preg_match('/term_id\\s+IN\\s*\\(\\s*' . $category_id . '\\s*\\)/i', $sql)
+            ) {
+                $injected_failures++;
+                return "SELECT term_id, meta_key, meta_value FROM {$wpdb->termmeta}_ll_tools_missing_word_eligibility";
+            }
+
+            return $sql;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            add_filter('query', $break_word_eligibility);
+            $failed_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                $wordset_id,
+                (string) $category_term->slug,
+                1,
+                1,
+                'isolation',
+                '',
+                $admin_id
+            );
+            remove_filter('query', $break_word_eligibility);
+            $wpdb->last_error = '';
+            wp_cache_delete($category_id, 'term_meta');
+            clean_object_term_cache($word_id, 'words');
+
+            $retried_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                $wordset_id,
+                (string) $category_term->slug,
+                1,
+                1,
+                'isolation',
+                '',
+                $admin_id,
+                (array) ($failed_page['cursor'] ?? [])
+            );
+
+            $raw_candidate_seen = false;
+            add_filter('query', $break_word_eligibility);
+            $failed_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                $category_source,
+                $wordset_id,
+                $admin_id,
+                'isolation'
+            );
+            remove_filter('query', $break_word_eligibility);
+            $wpdb->last_error = '';
+            wp_cache_delete($category_id, 'term_meta');
+            clean_object_term_cache($word_id, 'words');
+
+            $retried_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                $category_source,
+                $wordset_id,
+                $admin_id,
+                'isolation',
+                '',
+                (array) ($failed_summary['scan_state'] ?? [])
+            );
+        } finally {
+            remove_filter('query', $break_word_eligibility);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertTrue($raw_candidate_seen);
+        $this->assertGreaterThanOrEqual(2, $injected_failures, 'Focused and summary scans must both exercise the failed eligibility read.');
+        $this->assertFalse((bool) ($failed_page['complete'] ?? true));
+        $this->assertTrue((bool) ($failed_page['truncated'] ?? false));
+        $this->assertSame([], (array) ($failed_page['ids'] ?? []));
+        $this->assertSame('words', (string) ($failed_page['cursor']['phase'] ?? ''));
+        $this->assertSame(0, (int) ($failed_page['cursor']['word_offset'] ?? -1));
+        $this->assertSame(0, (int) ($failed_page['cursor']['eligible_seen'] ?? -1));
+        $this->assertTrue((bool) ($retried_page['complete'] ?? false));
+        $this->assertSame([$word_id], (array) ($retried_page['word_ids'] ?? []));
+        $this->assertGreaterThanOrEqual(1, (int) ($retried_page['cursor']['word_offset'] ?? 0));
+
+        $this->assertFalse((bool) ($failed_summary['complete'] ?? true));
+        $this->assertNull($failed_summary['group'] ?? null);
+        $this->assertSame('words', (string) ($failed_summary['scan_state']['phase'] ?? ''));
+        $this->assertSame(0, (int) ($failed_summary['scan_state']['word_offset'] ?? -1));
+        $this->assertSame(0, (int) ($failed_summary['scan_state']['valid_seen'] ?? -1));
+        $this->assertTrue((bool) ($retried_summary['complete'] ?? false));
+        $this->assertIsArray($retried_summary['group'] ?? null);
+        $this->assertSame(1, (int) ($retried_summary['group']['count'] ?? 0));
+        $this->assertSame($word_id, (int) ($retried_summary['group']['items'][0]['word_id'] ?? 0));
+    }
+
+    public function test_image_type_map_failure_does_not_advance_candidate_or_summary_cursors_past_the_failed_row(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset = wp_insert_term('Retryable Image Type Map ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Retryable Image Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $category_source = [
+            'id' => $category_id,
+            'name' => (string) $category_term->name,
+            'slug' => (string) $category_term->slug,
+        ];
+
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_title' => 'Retryable Image Type Attachment',
+            'post_mime_type' => 'image/png',
+        ]);
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Retry this exact recorder image',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+        wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner($image_id, $wordset_id, $image_id);
+
+        $category_complete = true;
+        $this->assertInstanceOf(
+            WP_Term::class,
+            ll_tools_wordset_page_get_recorder_queue_category_term(
+                $wordset_id,
+                (string) $category_term->slug,
+                $admin_id,
+                $category_complete
+            )
+        );
+        $this->assertTrue($category_complete);
+
+        $raw_candidate_seen = false;
+        $injected_failures = 0;
+        $break_image_type_map = static function (string $sql) use (
+            $wpdb,
+            $image_id,
+            &$raw_candidate_seen,
+            &$injected_failures
+        ): string {
+            if (
+                !$raw_candidate_seen
+                && stripos($sql, $wpdb->posts) !== false
+                && stripos($sql, $wpdb->postmeta) !== false
+                && stripos($sql, '_thumbnail_id') !== false
+                && preg_match("/post_type\\s*=\\s*'word_images'/i", $sql)
+            ) {
+                $raw_candidate_seen = true;
+                clean_object_term_cache($image_id, 'word_images');
+                return $sql;
+            }
+            if (
+                $raw_candidate_seen
+                && stripos($sql, $wpdb->term_relationships) !== false
+                && stripos($sql, 'tr.object_id') !== false
+                && preg_match('/tr\\.object_id\\s+IN\\s*\\(\\s*' . $image_id . '\\s*\\)/i', $sql)
+            ) {
+                $injected_failures++;
+                return "SELECT t.*, tt.*, tr.object_id FROM {$wpdb->terms}_ll_tools_missing_image_type_map";
+            }
+
+            return $sql;
+        };
+        $image_src_filter = static function ($image, $candidate_attachment_id) use ($attachment_id) {
+            if ((int) $candidate_attachment_id === $attachment_id) {
+                return ['https://example.org/retryable-image-type-map.png', 640, 480, true];
+            }
+            return $image;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('wp_get_attachment_image_src', $image_src_filter, 10, 2);
+        try {
+            add_filter('query', $break_image_type_map);
+            $failed_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                $wordset_id,
+                (string) $category_term->slug,
+                1,
+                1,
+                'isolation',
+                '',
+                $admin_id
+            );
+            remove_filter('query', $break_image_type_map);
+            $wpdb->last_error = '';
+            clean_object_term_cache($image_id, 'word_images');
+
+            $retried_page = ll_tools_wordset_page_get_recorder_queue_category_candidate_word_page(
+                $wordset_id,
+                (string) $category_term->slug,
+                1,
+                1,
+                'isolation',
+                '',
+                $admin_id,
+                (array) ($failed_page['cursor'] ?? [])
+            );
+
+            $raw_candidate_seen = false;
+            add_filter('query', $break_image_type_map);
+            $failed_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                $category_source,
+                $wordset_id,
+                $admin_id,
+                'isolation'
+            );
+            remove_filter('query', $break_image_type_map);
+            $wpdb->last_error = '';
+            clean_object_term_cache($image_id, 'word_images');
+
+            $retried_summary = ll_tools_wordset_page_build_recorder_queue_summary_group(
+                $category_source,
+                $wordset_id,
+                $admin_id,
+                'isolation',
+                '',
+                (array) ($failed_summary['scan_state'] ?? [])
+            );
+        } finally {
+            remove_filter('query', $break_image_type_map);
+            remove_filter('wp_get_attachment_image_src', $image_src_filter, 10);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertTrue($raw_candidate_seen);
+        $this->assertGreaterThanOrEqual(2, $injected_failures, 'Focused and summary scans must both exercise the failed image type-map read.');
+        $this->assertFalse((bool) ($failed_page['complete'] ?? true));
+        $this->assertTrue((bool) ($failed_page['truncated'] ?? false));
+        $this->assertSame([], (array) ($failed_page['image_ids'] ?? []));
+        $this->assertSame('images', (string) ($failed_page['cursor']['phase'] ?? ''));
+        $this->assertSame(0, (int) ($failed_page['cursor']['image_offset'] ?? -1));
+        $this->assertSame(0, (int) ($failed_page['cursor']['eligible_seen'] ?? -1));
+        $this->assertTrue((bool) ($retried_page['complete'] ?? false));
+        $this->assertSame([$image_id], (array) ($retried_page['image_ids'] ?? []));
+        $this->assertGreaterThanOrEqual(1, (int) ($retried_page['cursor']['image_offset'] ?? 0));
+
+        $this->assertFalse((bool) ($failed_summary['complete'] ?? true));
+        $this->assertNull($failed_summary['group'] ?? null);
+        $this->assertSame('images', (string) ($failed_summary['scan_state']['phase'] ?? ''));
+        $this->assertSame(0, (int) ($failed_summary['scan_state']['image_offset'] ?? -1));
+        $this->assertSame(0, (int) ($failed_summary['scan_state']['valid_seen'] ?? -1));
+        $this->assertTrue((bool) ($retried_summary['complete'] ?? false));
+        $this->assertIsArray($retried_summary['group'] ?? null);
+        $this->assertSame(1, (int) ($retried_summary['group']['count'] ?? 0));
+        $this->assertSame($image_id, (int) ($retried_summary['group']['items'][0]['image_id'] ?? $retried_summary['group']['items'][0]['id'] ?? 0));
+    }
+
+    public function test_visibility_completeness_failure_keeps_the_exact_summary_pending_and_fail_closed(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Incomplete Visibility Summary ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Incomplete Visibility Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $category_source = [
+            'id' => $category_id,
+            'name' => (string) $category_term->name,
+            'slug' => (string) $category_term->slug,
+        ];
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Visibility failure must not publish a count',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        // Keep the metadata read cache-resident so this filter can emulate a
+        // failed visibility read without a later successful DB query clearing
+        // wpdb::last_error. The category catalog must propagate that failure
+        // through filter_category_terms_for_user and remain fail closed.
+        update_meta_cache('term', [$category_id]);
+        get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true);
+        $visibility_failures = 0;
+        $break_visibility = static function ($value, $object_id, $meta_key) use (
+            $wpdb,
+            $category_id,
+            &$visibility_failures
+        ) {
+            if (
+                (int) $object_id === $category_id
+                && (string) $meta_key === LL_TOOLS_CATEGORY_VISIBILITY_META_KEY
+            ) {
+                $visibility_failures++;
+                $wpdb->last_error = 'Injected recorder category visibility completeness failure';
+            }
+            return $value;
+        };
+
+        add_filter('get_term_metadata', $break_visibility, 10, 3);
+        try {
+            $catalog_complete = true;
+            $catalog_terms = ll_tools_recorder_get_category_terms_for_wordsets(
+                [$wordset_id],
+                $admin_id,
+                $catalog_complete
+            );
+
+            $status = [];
+            $states = [];
+            $groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$category_source],
+                $wordset_id,
+                $admin_id,
+                'isolation',
+                '',
+                1,
+                $status,
+                $states
+            );
+        } finally {
+            remove_filter('get_term_metadata', $break_visibility, 10);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThanOrEqual(2, $visibility_failures);
+        $this->assertFalse($catalog_complete);
+        $this->assertSame([], $catalog_terms, 'An incomplete visibility read must not leak a category into the scope map.');
+        $this->assertSame([], $groups);
+        $this->assertSame(1, (int) ($status['pending'] ?? 0));
+        $this->assertFalse((bool) ($states[(string) $category_term->slug]['complete'] ?? true));
+        $this->assertFalse((bool) ($states[(string) $category_term->slug]['has_group'] ?? true));
+
+        $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
+            'schema' => 5,
+            'wordset_id' => $wordset_id,
+            'recorder_user_id' => $admin_id,
+            'category_slug' => (string) $category_term->slug,
+            'category_name' => (string) $category_term->name,
+            'include_types' => 'isolation',
+            'exclude_types' => '',
+            'locale' => sanitize_key((string) get_locale()),
+        ]);
+        $cache_request = [];
+        $cached_payload = ll_tools_wordset_page_get_cached_payload($cache_key, $cache_request);
+        $this->assertIsArray($cached_payload);
+        $this->assertFalse((bool) ($cached_payload['scan_complete'] ?? true));
+        $this->assertNull($cached_payload['group'] ?? null);
+        $this->assertSame(0, (int) ($cached_payload['scan_state']['word_offset'] ?? -1));
+        $this->assertSame(0, (int) ($cached_payload['scan_state']['image_offset'] ?? -1));
+        $this->assertSame(0, (int) ($cached_payload['scan_state']['valid_seen'] ?? -1));
     }
 
     public function test_categorized_summary_signatures_ignore_quiz_unknown_scope_but_track_failed_category_writes(): void
@@ -1141,7 +2292,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $category
         );
         $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
-            'schema' => 4,
+            'schema' => 5,
             'wordset_id' => $wordset_id,
             'recorder_user_id' => $recorder_id,
             'category_slug' => (string) $category['slug'],
@@ -1298,6 +2449,35 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         sort($accounted_slugs);
         sort($requested_slugs);
         $this->assertSame($requested_slugs, $accounted_slugs);
+
+        add_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+        try {
+            $resumed_payload = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+                $wordset_id,
+                $wordset_term,
+                $recorder_id,
+                $requested_slugs,
+                ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues', $back_url)
+            );
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_candidate_scan_chunk_size', $chunk_size);
+        }
+        $resumed_card_lookup = [];
+        foreach ((array) $resumed_payload['cards'] as $resumed_card) {
+            $resumed_card_lookup[(string) ($resumed_card['slug'] ?? '')] = $resumed_card;
+        }
+        $this->assertSame([], $resumed_payload['pendingSlugs']);
+        $this->assertArrayHasKey((string) $pending_category['slug'], $resumed_card_lookup);
+        $this->assertSame(2, (int) $resumed_card_lookup[(string) $pending_category['slug']]['count']);
+        $this->assertFalse((bool) $resumed_card_lookup[(string) $pending_category['slug']]['countIsLowerBound']);
+        $this->assertStringContainsString(
+            'data-recorder-queue-count-lower-bound="0"',
+            (string) $resumed_card_lookup[(string) $pending_category['slug']]['html']
+        );
+        $this->assertStringNotContainsString(
+            '2+ words',
+            (string) $resumed_card_lookup[(string) $pending_category['slug']]['html']
+        );
 
         $card_html = (string) $payload['cards'][0]['html'];
         $this->assertStringContainsString('ll_recorder_queue_focus=' . $recorder_id, $card_html);
@@ -1630,7 +2810,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(['uncategorized'], array_column($categories, 'slug'));
     }
 
-    public function test_missing_audio_only_uncategorized_source_invalidates_catalog_and_summary_epochs(): void
+    public function test_global_missing_audio_source_stays_out_of_isolated_catalog_even_when_its_title_maps_to_the_wordset(): void
     {
         $option_backup = get_option('ll_missing_audio_instances', null);
         $structure_option = 'll_tools_wordset_recorder_queue_structure_epoch';
@@ -1640,9 +2820,23 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
         $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         $wordset = wp_insert_term('Missing-only Recorder Catalog ' . wp_generate_password(5, false), 'wordset');
         $this->assertIsArray($wordset);
         $wordset_id = (int) $wordset['term_id'];
+        $category = wp_insert_term('Mapped Legacy Recorder Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $category_slug = (string) get_term_field('slug', $category_id, 'word-category');
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        $mapped_title = 'Mapped isolated global missing word ' . wp_generate_password(5, false);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $mapped_title,
+        ]);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
         $uncategorized = [
             'id' => ll_tools_wordset_page_uncategorized_virtual_category_id(),
             'name' => 'Uncategorized',
@@ -1657,21 +2851,24 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
 
             $empty_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
             $empty_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
-            $this->assertSame([], ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id));
+            $this->assertSame(
+                [$category_slug],
+                array_column(ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id), 'slug')
+            );
 
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
-            update_option('ll_missing_audio_instances', ['Catalog-only missing word' => 123], false);
+            update_option('ll_missing_audio_instances', [$mapped_title => 123], false);
             $added_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
             $added_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
             $this->assertNotSame($empty_catalog_key, $added_catalog_key);
             $this->assertNotSame($empty_summary_signature, $added_summary_signature);
             $this->assertSame(
-                ['uncategorized'],
+                [$category_slug],
                 array_column(ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id), 'slug')
             );
 
             $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
-            update_option('ll_missing_audio_instances', ['Updated missing word' => 456], false);
+            update_option('ll_missing_audio_instances', [$mapped_title => 456], false);
             $updated_catalog_key = ll_tools_wordset_page_get_recorder_queue_summary_categories_cache_key($wordset_id);
             $updated_summary_signature = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized);
             $this->assertNotSame($added_catalog_key, $updated_catalog_key);
@@ -1687,7 +2884,10 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 $updated_summary_signature,
                 ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $uncategorized)
             );
-            $this->assertSame([], ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id));
+            $this->assertSame(
+                [$category_slug],
+                array_column(ll_tools_wordset_page_get_recorder_queue_summary_categories($wordset_id), 'slug')
+            );
         } finally {
             if ($option_backup === null) {
                 delete_option('ll_missing_audio_instances');
@@ -1873,11 +3073,11 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $batch_size = static function (): int {
             return 20;
         };
-        $hard_cap = static function (): int {
+        $summary_scan_limit = static function (): int {
             return 20;
         };
         add_filter('ll_tools_recorder_prompt_scan_batch_size', $batch_size);
-        add_filter('ll_tools_recorder_prompt_scan_hard_cap', $hard_cap);
+        add_filter('ll_tools_wordset_recorder_queue_summary_auxiliary_scan_limit', $summary_scan_limit);
 
         try {
             $first_status = [];
@@ -1914,7 +3114,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $this->assertSame($eligible_prompt_id, (int) ($second_groups[0]['items'][0]['prompt_card_id'] ?? 0));
         } finally {
             remove_filter('ll_tools_recorder_prompt_scan_batch_size', $batch_size);
-            remove_filter('ll_tools_recorder_prompt_scan_hard_cap', $hard_cap);
+            remove_filter('ll_tools_wordset_recorder_queue_summary_auxiliary_scan_limit', $summary_scan_limit);
         }
     }
 
@@ -2206,6 +3406,65 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }, (array) $summary['scan_state']['candidates']));
     }
 
+    public function test_direct_category_recording_configuration_meta_rotates_the_global_type_epoch(): void
+    {
+        $option_name = 'll_tools_wordset_recorder_queue_recording_type_epoch';
+        $option_backup = get_option($option_name, null);
+        $had_state = array_key_exists('ll_tools_wordset_page_recorder_queue_epoch_states', $GLOBALS);
+        $state_backup = $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] ?? null;
+        $fixture = $this->createWordsetWithCategories(1);
+        $other_fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $other_wordset_id = (int) $other_fixture['wordset_id'];
+        $category = $fixture['categories'][0];
+        $other_category = $other_fixture['categories'][0];
+
+        try {
+            foreach ([
+                'll_desired_recording_types' => ['question'],
+                'use_word_titles_for_audio' => '1',
+            ] as $meta_key => $meta_value) {
+                update_option($option_name, 'direct-category-meta-' . sanitize_key($meta_key), false);
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = [];
+                $before_epoch = ll_tools_wordset_page_get_recorder_queue_recording_type_epoch();
+                $before_local = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                    0,
+                    $wordset_id,
+                    $category
+                );
+                $before_other = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                    0,
+                    $other_wordset_id,
+                    $other_category
+                );
+
+                update_term_meta((int) $category['id'], $meta_key, $meta_value);
+
+                $this->assertNotSame($before_epoch, ll_tools_wordset_page_get_recorder_queue_recording_type_epoch());
+                $this->assertNotSame(
+                    $before_local,
+                    ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $wordset_id, $category)
+                );
+                $this->assertNotSame(
+                    $before_other,
+                    ll_tools_wordset_page_get_recorder_queue_summary_source_signature(0, $other_wordset_id, $other_category),
+                    'Wordless images can inherit sibling category types, so direct configuration writes are global.'
+                );
+            }
+        } finally {
+            if ($option_backup === null) {
+                delete_option($option_name);
+            } else {
+                update_option($option_name, $option_backup, false);
+            }
+            if ($had_state) {
+                $GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states'] = $state_backup;
+            } else {
+                unset($GLOBALS['ll_tools_wordset_page_recorder_queue_epoch_states']);
+            }
+        }
+    }
+
     public function test_candidate_hydrators_propagate_bounded_source_completeness_contract(): void
     {
         foreach (['ll_tools_get_recording_queue_items', 'll_get_images_needing_audio'] as $function_name) {
@@ -2343,16 +3602,30 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertStringContainsString('break;', $incomplete_branch);
         $this->assertStringNotContainsString("\$scan_state['candidates'] =", $incomplete_branch);
         $this->assertStringNotContainsString("\$scan_state['valid_seen'] =", $incomplete_branch);
-        $this->assertStringContainsString(
-            "\$summary_complete = !empty(\$scan_state['complete']) && \$prompt_scan_complete;",
-            $summary_source
-        );
+        $this->assertStringContainsString("&& \$legacy_scan_complete", $summary_source);
+        $this->assertStringContainsString("&& \$prompt_scan_complete;", $summary_source);
+        $this->assertStringContainsString("'collect_limit' => \$legacy_capacity", $summary_source);
+        $this->assertStringContainsString("'collect_limit' => \$prompt_capacity", $summary_source);
+        $this->assertStringContainsString("'continue_after_limit' => true", $summary_source);
+        $this->assertStringContainsString("'raw_scan_limit' => \$auxiliary_scan_limit", $summary_source);
+        $this->assertStringContainsString("'group' => (!\$summary_complete || \$exact_count <= 0) ? null", $summary_source);
+
+        $legacy_source = $this->getFunctionSource('ll_tools_get_legacy_missing_audio_instances_page');
+        $this->assertStringContainsString("\$wpdb->last_error = '';", $legacy_source);
+        $this->assertStringContainsString("is_wp_error(\$all_types) || \$wpdb->last_error !== ''", $legacy_source);
+        $this->assertStringContainsString('return $empty_result(false);', $legacy_source);
+        $this->assertStringContainsString('$word_map_complete = true;', $legacy_source);
+        $this->assertStringContainsString('if (!$word_map_complete) {', $legacy_source);
+        $this->assertStringContainsString('$source_read_complete = false;', $legacy_source);
 
         $groups_source = $this->getFunctionSource('ll_tools_wordset_page_build_recorder_queue_summary_groups');
         $this->assertStringContainsString("\$scan_complete = !empty(\$summary['complete']);", $groups_source);
         $this->assertStringContainsString("'generated_at' => \$scan_complete ? \$now : 0,", $groups_source);
         $this->assertStringContainsString("'scan_complete' => \$scan_complete,", $groups_source);
         $this->assertStringContainsString("&& !empty(\$payload['scan_complete'])", $groups_source);
+
+        $generation_source = $this->getFunctionSource('ll_tools_wordset_page_get_recorder_queue_summary_generation');
+        $this->assertStringContainsString("'schema' => 4", $generation_source);
     }
 
     public function test_focused_candidate_page_resumes_bounded_word_and_image_scans_without_losing_partial_state(): void

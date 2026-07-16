@@ -61,10 +61,14 @@
     const requireAll = !!window.ll_recorder_data?.require_all_types;
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
+    const recorderView = String(window.ll_recorder_data?.view || 'category') === 'overview'
+        ? 'overview'
+        : 'category';
     const categoryOverviewConfig = (window.ll_recorder_data?.category_overview && typeof window.ll_recorder_data.category_overview === 'object')
         ? window.ll_recorder_data.category_overview
         : {};
     const categoryOverviewEnabled = !!categoryOverviewConfig.enabled;
+    const categoryOverviewCatalogComplete = categoryOverviewConfig.catalog_complete !== false;
     const categoryOverviewBatchSize = Math.max(1, Math.min(20, parseInt(categoryOverviewConfig.batch_size, 10) || 6));
     const categoryOverviewMaxAutoRetries = Math.max(1, Math.min(30, parseInt(categoryOverviewConfig.max_auto_retries, 10) || 12));
     const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
@@ -400,12 +404,13 @@
         setupCategorySelector();
         setupCategoryOverview();
         setupNewWordMode();
-        if (images.length > 0) {
+        if (recorderView === 'overview') {
+            if (window.llRecorder?.mainScreen) window.llRecorder.mainScreen.style.display = 'none';
+            if (window.llRecorder?.completeScreen) window.llRecorder.completeScreen.style.display = 'none';
+        } else if (images.length > 0) {
             loadImage(0);
         } else if (hasCategoryQueueContinuation()) {
             loadImage(0);
-        } else if (allowNewWords) {
-            enterNewWordMode(false);
         } else {
             showComplete();
         }
@@ -471,6 +476,7 @@
             categoryOverviewStatus: document.querySelector('[data-ll-recorder-category-status]'),
             categoryOverviewEmpty: document.querySelector('[data-ll-recorder-category-empty]'),
             categoryOverviewRetry: document.querySelector('[data-ll-recorder-category-retry]'),
+            categoryOverviewMore: document.querySelector('[data-ll-recorder-category-more]'),
             wordsetSelect: document.getElementById('ll-wordset-select'),
             recordingTypeSelector: document.querySelector('.ll-recording-type-selector'),
             recordingTypeSelect: document.getElementById('ll-recording-type'),
@@ -1081,6 +1087,17 @@
             : [];
     }
 
+    function syncCategoryOverviewPlaceholderVisibility() {
+        const el = window.llRecorder;
+        const placeholders = getCategoryOverviewPlaceholders();
+        placeholders.forEach((placeholder, index) => {
+            placeholder.hidden = index >= 3;
+        });
+        if (el?.categoryOverviewMore) {
+            el.categoryOverviewMore.hidden = placeholders.length <= 3;
+        }
+    }
+
     function syncCategoryOverviewSelection() {
         const el = window.llRecorder;
         if (!el?.categoryOverviewGrid || !el.categorySelect) return;
@@ -1096,6 +1113,7 @@
     function setCategoryOverviewState(state) {
         const el = window.llRecorder;
         if (!el?.categoryOverview) return;
+        syncCategoryOverviewPlaceholderVisibility();
         const placeholders = getCategoryOverviewPlaceholders();
         const loadedCards = getLoadedCategoryOverviewCards();
         const isLoading = state === 'loading';
@@ -1119,7 +1137,10 @@
             el.categoryOverviewRetry.disabled = isLoading;
         }
         if (el.categoryOverviewEmpty) {
-            el.categoryOverviewEmpty.hidden = placeholders.length > 0 || loadedCards.length > 0;
+            el.categoryOverviewEmpty.hidden = hasError
+                || !categoryOverviewCatalogComplete
+                || placeholders.length > 0
+                || loadedCards.length > 0;
         }
     }
 
@@ -1192,6 +1213,7 @@
         if (!cardElement) return false;
         replaceTarget.replaceWith(cardElement);
         updateCategoryOverviewOption(card);
+        syncCategoryOverviewPlaceholderVisibility();
         return true;
     }
 
@@ -1277,6 +1299,12 @@
             const payload = await response.json();
             if (!payload?.success || !payload.data) throw new Error('invalid_response');
             const data = payload.data;
+            if (data.catalogComplete === false) {
+                // Category discovery is not authoritative yet. Preserve every
+                // unresolved shell and wait for an explicit retry instead of
+                // resolving missing slugs or looping through partial batches.
+                throw new Error('incomplete_catalog');
+            }
             const responseGeneration = String(data.generation || '');
             if (categoryOverviewGeneration && responseGeneration && categoryOverviewGeneration !== responseGeneration) {
                 throw new Error('stale_generation');
@@ -1296,6 +1324,7 @@
                 if (placeholder) placeholder.remove();
                 removeCategoryOverviewOption(slug);
             });
+            syncCategoryOverviewPlaceholderVisibility();
 
             const pendingSlugs = new Set((Array.isArray(data.pendingSlugs) ? data.pendingSlugs : []).map(String));
             slugs.forEach(slug => {
@@ -1342,18 +1371,33 @@
         if (!categoryOverviewEnabled || !el?.categoryOverview || !el.categoryOverviewGrid) return;
         el.categoryOverviewGrid.addEventListener('click', event => {
             const card = event.target?.closest?.('.ll-recorder-category-card[data-recorder-queue-category]');
-            if (!card || card.disabled || !el.categorySelect || el.categorySelect.disabled) return;
+            if (!card || card.disabled) return;
             const slug = String(card.getAttribute('data-recorder-queue-category') || '');
-            if (!slug || slug === el.categorySelect.value) return;
-            el.categorySelect.value = slug;
-            syncCategorySelectorUi();
-            el.categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            if (!slug) return;
+            event.preventDefault();
+            try {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set('ll_record_category', slug);
+                nextUrl.searchParams.delete('ll_record_word');
+                window.location.assign(nextUrl.toString());
+            } catch (_) {
+                window.location.href = '?ll_record_category=' + encodeURIComponent(slug);
+            }
         });
         if (el.categoryOverviewRetry) {
             el.categoryOverviewRetry.addEventListener('click', () => {
+                if (!categoryOverviewCatalogComplete) {
+                    window.location.reload();
+                    return;
+                }
                 categoryOverviewGeneration = '';
                 requestCategoryOverviewBatch({ resetRetries: true });
             });
+        }
+        syncCategoryOverviewPlaceholderVisibility();
+        if (!categoryOverviewCatalogComplete) {
+            setCategoryOverviewState('error');
+            return;
         }
         setCategoryOverviewState('idle');
         requestCategoryOverviewBatch();
@@ -1390,7 +1434,7 @@
 
     function setupCategorySelector() {
         const el = window.llRecorder;
-        if (el.categorySelect) {
+        if (el.categorySelect?.tagName === 'SELECT') {
             el.categorySelect.addEventListener('change', function () {
                 syncCategorySelectorUi();
             });
@@ -2071,6 +2115,13 @@
         if (el.categorySelect) el.categorySelect.disabled = false;
         if (el.wordsetSelect) el.wordsetSelect.disabled = false;
         syncOverlayScrollLock();
+
+        if (recorderView === 'overview') {
+            savedExistingState = null;
+            if (el.mainScreen) el.mainScreen.style.display = 'none';
+            if (el.completeScreen) el.completeScreen.style.display = 'none';
+            return;
+        }
 
         if (!savedExistingState) {
             if (el.mainScreen) el.mainScreen.style.display = images.length ? 'flex' : 'none';
@@ -3670,11 +3721,11 @@
         currentImage.missing_types = remainingTypes;
 
         if (requireAll && remainingTypes.length > 0) {
-            if (isNewWordPanelActive()) {
+            if (isNewWordPanelActive() && recorderView !== 'overview' && el.mainScreen) {
                 newWordUsingPanel = false;
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
-                if (el.mainScreen) el.mainScreen.style.display = 'flex';
+                el.mainScreen.style.display = 'flex';
                 syncProcessingReviewSlot();
             }
             setTypeForCurrentImage();

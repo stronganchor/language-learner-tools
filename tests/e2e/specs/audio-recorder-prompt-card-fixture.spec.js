@@ -72,7 +72,9 @@ test('recorder shortcode localizes real prompt-card queue items from WordPress',
     });
     fixtures.pageId = recorderPage.id;
 
-    await page.goto(recorderPage.link, { waitUntil: 'domcontentloaded' });
+    const focusedRecorderUrl = new URL(recorderPage.link);
+    focusedRecorderUrl.searchParams.set('ll_record_category', categorySlug);
+    await page.goto(focusedRecorderUrl.toString(), { waitUntil: 'domcontentloaded' });
     await expect.poll(() => page.evaluate(() => Array.isArray(window.ll_recorder_data && window.ll_recorder_data.images))).toBe(true);
 
     const recorderData = await page.evaluate(() => window.ll_recorder_data);

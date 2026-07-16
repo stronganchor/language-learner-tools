@@ -44,8 +44,6 @@ function buildNewWordRecorderMarkup() {
 
     <div class="ll-recording-interface">
       <div class="ll-recording-header">
-        <span class="ll-current-num">0</span>
-        <span class="ll-total-num">0</span>
         <button type="button" id="ll-new-word-toggle">New Word</button>
       </div>
 
@@ -155,22 +153,7 @@ function buildNewWordRecorderMarkup() {
         </div>
       </div>
 
-      <div class="ll-recording-main" style="display:none;">
-        <div class="ll-recording-image-container">
-          <div class="flashcard-container">
-            <img id="ll-current-image" alt="" />
-          </div>
-          <p id="ll-image-title"></p>
-          <p id="ll-image-category"></p>
-        </div>
-        <div class="ll-recording-controls-column">
-          <select id="ll-recording-type"></select>
-          <button type="button" id="ll-record-btn" class="ll-btn ll-btn-record"></button>
-          <button type="button" id="ll-skip-btn" class="ll-btn ll-btn-skip"></button>
-          <button type="button" id="ll-hide-btn" class="ll-btn ll-btn-hide"></button>
-          <div id="ll-upload-status" class="ll-upload-status"></div>
-        </div>
-      </div>
+      <select id="ll-recording-type" hidden aria-hidden="true" tabindex="-1"></select>
     </div>
   `;
 }
@@ -188,7 +171,8 @@ async function mountNewWordRecorderFixture(page, options = {}) {
     window.__llStartupTestState = {
       prepareRequests: 0,
       transcribeRequests: 0,
-      updateTextRequests: 0
+      updateTextRequests: 0,
+      uploadRecordingTypes: []
     };
 
     const makeJsonResponse = (payload) => ({
@@ -297,11 +281,80 @@ async function mountNewWordRecorderFixture(page, options = {}) {
       return Promise.resolve(makeJsonResponse({ success: true, data: {} }));
     };
 
+    class FakeXMLHttpRequest {
+      constructor() {
+        this.status = 0;
+        this.statusText = '';
+        this.responseText = '';
+        this.responseType = '';
+        this.listeners = {};
+        this.uploadListeners = {};
+        this.upload = {
+          addEventListener: (name, listener) => {
+            this.uploadListeners[name] = listener;
+          }
+        };
+      }
+
+      open() {}
+
+      addEventListener(name, listener) {
+        this.listeners[name] = listener;
+      }
+
+      getResponseHeader(name) {
+        return String(name || '').toLowerCase() === 'content-type' ? 'application/json' : null;
+      }
+
+      send(body) {
+        const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+        if (action !== 'll_upload_recording') {
+          this.status = 400;
+          this.statusText = 'Bad Request';
+          this.responseText = JSON.stringify({ success: false, data: 'Unexpected XHR action' });
+        } else {
+          const recordingType = String(body.get('recording_type') || '');
+          window.__llStartupTestState.uploadRecordingTypes.push(recordingType);
+          this.status = 200;
+          this.statusText = 'OK';
+          this.responseText = JSON.stringify({
+            success: true,
+            data: {
+              word_id: 501,
+              recording_type: recordingType,
+              remaining_types: Array.isArray(mountOptions.remainingTypesAfterUpload)
+                ? mountOptions.remainingTypesAfterUpload
+                : []
+            }
+          });
+        }
+
+        window.setTimeout(() => {
+          if (typeof this.uploadListeners.progress === 'function') {
+            this.uploadListeners.progress({
+              loaded: 1,
+              total: 1,
+              lengthComputable: true
+            });
+          }
+          if (typeof this.listeners.load === 'function') {
+            this.listeners.load();
+          }
+        }, 0);
+      }
+    }
+
+    Object.defineProperty(window, 'XMLHttpRequest', {
+      value: FakeXMLHttpRequest,
+      configurable: true
+    });
+
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
       images: [],
       available_categories: { uncategorized: 'Uncategorized' },
+      view: 'overview',
       language: '',
       wordset: '',
       wordset_ids: [],
@@ -312,17 +365,26 @@ async function mountNewWordRecorderFixture(page, options = {}) {
         { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' },
         { slug: 'introduction', name: 'Introduction', label: 'Introduction', icon: '' }
       ],
-      recording_type_order: ['isolation', 'introduction'],
+      recording_type_order: Array.isArray(mountOptions.recordingTypeOrder)
+        ? mountOptions.recordingTypeOrder
+        : ['isolation', 'introduction'],
       recording_type_icons: { default: '' },
       allow_new_words: true,
       assembly_enabled: true,
       deepl_enabled: false,
       user_display_name: 'Recorder Tester',
       require_all_types: true,
-      initial_category: 'uncategorized',
+      initial_category: '',
       include_types: '',
       exclude_types: '',
       auto_process_recordings: false,
+      category_queue: {
+        category: '',
+        page: 1,
+        per_page: 1,
+        has_more: false
+      },
+      category_overview: { enabled: false },
       stop_delay_ms: 0,
       transcribe_poll_attempts: 2,
       transcribe_poll_interval_ms: 10,

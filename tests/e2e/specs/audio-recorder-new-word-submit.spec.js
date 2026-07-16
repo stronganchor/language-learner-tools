@@ -614,6 +614,8 @@ test('new-word category type preflight includes the selected wordset scope', asy
     wordsetIds: [42]
   });
 
+  await page.locator('#ll-new-word-toggle').click();
+  await expect(page.locator('#ll-new-word-panel')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.__llTestState.lastCategoryTypePayload)).toEqual({
     category: 'uncategorized',
     wordset: 'non-default-wordset',
@@ -785,6 +787,7 @@ test('prompt-card queue item uploads prompt audio by prompt card id and advances
 test('pending new-word transcription does not block save and advances to the intro type', async ({ page }) => {
   await mountRecorder(page);
 
+  await page.locator('#ll-new-word-toggle').click();
   await expect(page.locator('#ll-new-word-panel')).toBeVisible();
 
   await page.locator('#ll-new-word-create-category').check({ force: true });

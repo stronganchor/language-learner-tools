@@ -1273,7 +1273,6 @@ function ll_audio_recording_interface_shortcode($atts) {
     $current_user_id = get_current_user_id();
     $user_config = get_user_meta($current_user_id, 'll_recording_config', true);
     $hidden_recording_words = ll_tools_get_hidden_recording_words_list($current_user_id);
-    $has_hidden_recording_words = !empty($hidden_recording_words);
 
     // Merge user config with shortcode attributes (shortcode takes precedence if specified)
     $defaults = [];
@@ -1291,6 +1290,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'auto_process_recordings' => '',
         'start_word' => '',
     ], $defaults), $atts);
+    $launch_category = sanitize_title(ll_tools_recorder_get_launch_request_value('ll_record_category'));
+    $launch_word_id = absint(ll_tools_recorder_get_launch_request_value('ll_record_word'));
     $atts = ll_tools_recorder_apply_launch_request_overrides($atts);
     $start_word_id = absint($atts['start_word'] ?? 0);
 
@@ -1337,7 +1338,14 @@ function ll_audio_recording_interface_shortcode($atts) {
     ];
 
     $requested_category = sanitize_title((string) ($atts['category'] ?? ''));
+    if ($requested_category === '' && $start_word_id > 0) {
+        $requested_category = ll_tools_get_recording_category_slug_for_word($start_word_id, $wordset_term_ids);
+    }
+    $recorder_view = $requested_category === '' ? 'overview' : 'category';
+    $show_recorder_overview_back = $recorder_view === 'category'
+        && ($launch_category !== '' || $launch_word_id > 0);
     $recorder_summary_categories = [];
+    $recorder_summary_catalog_complete = true;
     if (
         $requested_category === ''
         && !empty($wordset_term_ids)
@@ -1345,8 +1353,15 @@ function ll_audio_recording_interface_shortcode($atts) {
     ) {
         $recorder_summary_categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
             (int) $wordset_term_ids[0],
-            $current_user_id
+            $current_user_id,
+            $recorder_summary_catalog_complete
         );
+        if (!$recorder_summary_catalog_complete) {
+            // A partial catalog is not authoritative. Keep the overview in a
+            // retryable loading/error state rather than inventing or omitting
+            // queues from incomplete source data.
+            $recorder_summary_categories = [];
+        }
     }
     if ($requested_category !== '') {
         $queue_page = ll_tools_get_recording_category_queue_page($requested_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types'], 1, 0, $current_user_id);
@@ -1409,50 +1424,13 @@ function ll_audio_recording_interface_shortcode($atts) {
             $available_categories[$summary_slug] = $summary_name;
             $available_category_counts[$summary_slug] = -1;
         }
-        if (empty($available_categories)) {
-            $available_categories = [
-                'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
-            ];
-            $available_category_counts = [
-                'uncategorized' => 0,
-            ];
-        }
-
-        $start_word_category = $start_word_id > 0
-            ? ll_tools_get_recording_category_slug_for_word($start_word_id, $wordset_term_ids)
-            : '';
-        if ($start_word_category !== '' && !isset($available_categories[$start_word_category])) {
-            $available_categories = array_merge([
-                $start_word_category => $start_word_category === 'uncategorized'
-                    ? __('Uncategorized', 'll-tools-text-domain')
-                    : $start_word_category,
-            ], $available_categories);
-            $available_category_counts[$start_word_category] = -1;
-        }
-
-        $initial_category = $start_word_category !== ''
-            ? $start_word_category
-            : (string) key($available_categories);
-        $queue_page = ll_tools_get_recording_category_queue_page(
-            $initial_category,
-            $wordset_term_ids,
-            $atts['include_recording_types'],
-            $atts['exclude_recording_types'],
-            1,
-            0,
-            $current_user_id
-        );
-        $images_needing_audio = (array) ($queue_page['items'] ?? []);
-        $initial_queue_pagination = (array) ($queue_page['pagination'] ?? $initial_queue_pagination);
-        $available_category_counts[$initial_category] = max(
-            count($images_needing_audio),
-            (int) ($initial_queue_pagination['count'] ?? 0)
-        );
-        if ($start_word_id > 0) {
-            $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
-        }
+        // The overview is intentionally category-neutral. Category cards load
+        // independently, and the focused queue is hydrated only after the user
+        // opens a category URL.
+        $initial_category = '';
+        $images_needing_audio = [];
     }
-    if ($requested_category === '' && empty($recorder_summary_categories)) {
+    if ($requested_category === '' && $recorder_summary_catalog_complete && empty($recorder_summary_categories)) {
         foreach ($available_categories as $summary_slug => $summary_name) {
             $recorder_summary_categories[] = [
                 'id' => 0,
@@ -1460,19 +1438,6 @@ function ll_audio_recording_interface_shortcode($atts) {
                 'name' => (string) $summary_name,
             ];
         }
-    }
-
-    $available_category_labels = ll_tools_get_recording_category_dropdown_labels($available_categories, $available_category_counts);
-
-    if (empty($images_needing_audio)
-        && empty($initial_queue_pagination['has_more'])
-        && count($available_categories) <= 1
-        && !$allow_new_words
-        && !$has_hidden_recording_words
-    ) {
-        return $utility_nav_context . '<div class="ll-recording-interface"><p>' .
-               __('No images need audio recordings in the selected category at this time. Thank you!', 'll-tools-text-domain') .
-               '</p></div>';
     }
 
     ll_enqueue_recording_assets($auto_process_recordings);
@@ -1525,10 +1490,15 @@ function ll_audio_recording_interface_shortcode($atts) {
     $hide_recorder_text = function_exists('ll_tools_wordset_should_hide_recorder_text')
         ? ll_tools_wordset_should_hide_recorder_text($wordset_term_ids)
         : (bool) get_option('ll_hide_recording_titles', 0);
+    $recorder_overview_url = remove_query_arg(
+        ['ll_record_category', 'll_record_word'],
+        function_exists('ll_tools_get_current_request_url') ? ll_tools_get_current_request_url() : ''
+    );
 
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
         'nonce'           => wp_create_nonce('ll_upload_recording'),
+        'view'             => $recorder_view,
         'images'          => $images_needing_audio,
         'available_categories' => $available_categories,
         'language'        => $atts['language'],
@@ -1555,8 +1525,8 @@ function ll_audio_recording_interface_shortcode($atts) {
         'category_overview' => [
             'enabled' => $requested_category === ''
                 && !empty($wordset_term_ids)
-                && !empty($recorder_summary_categories)
                 && function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch'),
+            'catalog_complete' => $recorder_summary_catalog_complete,
             'action' => 'll_tools_recorder_queue_summaries',
             'batch_size' => function_exists('ll_tools_wordset_page_get_recorder_queue_summary_batch_size')
                 ? ll_tools_wordset_page_get_recorder_queue_summary_batch_size()
@@ -1667,27 +1637,19 @@ function ll_audio_recording_interface_shortcode($atts) {
     <?php $initial_count = is_array($images_needing_audio) ? count($images_needing_audio) : 0; ?>
     <?php echo $utility_nav; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <div class="ll-recording-interface">
-        <!-- Compact header - progress, category, wordset, user -->
+        <!-- Compact header - focused progress, wordset, actions, user -->
         <div class="ll-recording-header">
+            <?php if ($recorder_view === 'category') : ?>
+            <?php if ($show_recorder_overview_back) : ?>
+            <a class="ll-btn ll-btn-secondary ll-recorder-category-back" href="<?php echo esc_url($recorder_overview_url); ?>" data-ll-recorder-category-back>
+                <?php esc_html_e('Back to categories', 'll-tools-text-domain'); ?>
+            </a>
+            <?php endif; ?>
             <div class="ll-recording-progress">
                 <span class="ll-current-num"><?php echo $initial_count ? 1 : 0; ?></span> / <span class="ll-total-num"><?php echo $initial_count; ?></span>
             </div>
-
-            <div class="ll-category-selector">
-                <select id="ll-category-select">
-                    <?php
-                    foreach ($available_categories as $slug => $name) {
-                        $selected = ($slug === $initial_category) ? 'selected' : '';
-                        printf(
-                            '<option value="%s" %s>%s</option>',
-                            esc_attr($slug),
-                            $selected,
-                            esc_html($available_category_labels[$slug] ?? $name)
-                        );
-                    }
-                    ?>
-                </select>
-            </div>
+            <input type="hidden" id="ll-category-select" value="<?php echo esc_attr($initial_category); ?>">
+            <?php endif; ?>
 
             <?php if (count($switchable_wordsets) > 1): ?>
             <div class="ll-wordset-selector">
@@ -1746,30 +1708,48 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
         </div>
 
-        <?php if (!empty($recorder_summary_categories)) : ?>
-        <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="true">
+        <?php if ($recorder_view === 'overview') : ?>
+        <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? 'false' : 'true'; ?>">
             <div class="ll-recorder-category-grid" data-ll-recorder-category-grid>
-                <?php foreach ($recorder_summary_categories as $summary_category) : ?>
+                <?php foreach ($recorder_summary_categories as $summary_index => $summary_category) : ?>
                     <?php
                     if (!is_array($summary_category) || !function_exists('ll_tools_wordset_page_render_recorder_queue_category_placeholder')) {
                         continue;
                     }
-                    echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($summary_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($summary_category, [
+                        'hidden' => $summary_index >= 3,
+                        'neutral' => true,
+                    ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 <?php endforeach; ?>
+                <span class="ll-recorder-category-overview__more" data-ll-recorder-category-more aria-hidden="true"<?php echo count($recorder_summary_categories) > 3 ? '' : ' hidden'; ?>>&hellip;</span>
             </div>
-            <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty hidden>
+            <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? '' : ' hidden'; ?>>
                 <?php esc_html_e('No words currently need recordings.', 'll-tools-text-domain'); ?>
             </p>
             <div class="ll-recorder-category-overview__status-row">
                 <span data-ll-recorder-category-status role="status" aria-live="polite">
-                    <?php esc_html_e('Loading recording queues...', 'll-tools-text-domain'); ?>
+                    <?php
+                    if (!$recorder_summary_catalog_complete) {
+                        esc_html_e('Some recording queues could not be loaded.', 'll-tools-text-domain');
+                    } elseif (!empty($recorder_summary_categories)) {
+                        esc_html_e('Loading recording queues...', 'll-tools-text-domain');
+                    }
+                    ?>
                 </span>
-                <button type="button" class="ll-btn ll-btn-secondary ll-recorder-category-overview__retry" data-ll-recorder-category-retry hidden>
+                <button type="button" class="ll-btn ll-btn-secondary ll-recorder-category-overview__retry" data-ll-recorder-category-retry<?php echo $recorder_summary_catalog_complete ? ' hidden' : ''; ?>>
                     <?php esc_html_e('Retry', 'll-tools-text-domain'); ?>
                 </button>
             </div>
         </section>
+        <?php endif; ?>
+
+        <?php if ($recorder_view === 'overview' && $allow_new_words) : ?>
+        <?php
+        // New-word recording shares the focused recorder's type state. Keep
+        // that state available without rendering the focused recorder UI.
+        ?>
+        <select id="ll-recording-type" hidden aria-hidden="true" tabindex="-1"></select>
         <?php endif; ?>
 
         <div class="ll-hidden-words-overlay" id="ll-hidden-words-overlay" hidden>
@@ -1933,6 +1913,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
         <?php endif; ?>
 
+        <?php if ($recorder_view === 'category') : ?>
         <div class="ll-recording-main">
             <?php
             $flashcard_size = get_option('ll_flashcard_image_size', 'small');
@@ -2028,6 +2009,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                 <div id="ll-upload-status" class="ll-upload-status"></div>
             </div>
         </div>
+        <?php endif; ?>
 
         <?php if ($auto_process_recordings): ?>
         <div class="ll-recording-review-overlay" id="ll-recording-review-overlay" hidden>
@@ -2047,10 +2029,12 @@ function ll_audio_recording_interface_shortcode($atts) {
         </div>
         <?php endif; ?>
 
+        <?php if ($recorder_view === 'category') : ?>
         <div class="ll-recording-complete" style="display:none;">
             <h2>✓</h2>
             <p><span class="ll-completed-count"></span> <?php _e('recordings completed', 'll-tools-text-domain'); ?></p>
         </div>
+        <?php endif; ?>
 
         <div id="ll-upload-feedback" class="ll-upload-feedback" hidden role="status" aria-live="polite" aria-busy="false">
             <div class="ll-upload-feedback-row">
@@ -2826,7 +2810,12 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
     }
 
     if (function_exists('ll_tools_filter_category_terms_for_user')) {
-        $terms = ll_tools_filter_category_terms_for_user($terms, $user_id);
+        $filter_complete = true;
+        $terms = ll_tools_filter_category_terms_for_user($terms, $user_id, $filter_complete);
+        if (!$filter_complete) {
+            $complete = false;
+            return [];
+        }
     }
     if (empty($terms)) {
         return [];
@@ -2862,9 +2851,21 @@ function ll_tools_recorder_get_category_id_map_for_wordsets(array $wordset_ids, 
     if (function_exists('wp_cache_get_last_changed')) {
         $last_changed = wp_cache_get_last_changed('terms') . '|' . wp_cache_get_last_changed('posts');
     }
+    $category_eligibility_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? (string) ll_tools_get_category_cache_epoch()
+        : (function_exists('ll_tools_wordset_page_get_recorder_queue_structure_epoch')
+            ? ll_tools_wordset_page_get_recorder_queue_structure_epoch()
+            : '1');
+    $category_access_signature = function_exists('ll_tools_wordset_page_get_recorder_category_access_signature')
+        ? ll_tools_wordset_page_get_recorder_category_access_signature(max(0, (int) $user_id))
+        : 'scoped';
 
     static $cache = [];
-    $cache_key = implode(',', $normalized_wordset_ids) . '|' . max(0, (int) $user_id) . '|' . $last_changed;
+    $cache_key = implode(',', $normalized_wordset_ids)
+        . '|' . max(0, (int) $user_id)
+        . '|' . $category_access_signature
+        . '|' . $category_eligibility_epoch
+        . '|' . $last_changed;
     if (isset($cache[$cache_key])) {
         return $cache[$cache_key];
     }
@@ -3486,10 +3487,11 @@ function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0,
         }
 
         $wpdb->last_error = '';
+        $filter_complete = true;
         $viewable_terms = function_exists('ll_tools_filter_category_terms_for_user')
-            ? ll_tools_filter_category_terms_for_user($terms, $user_id)
+            ? ll_tools_filter_category_terms_for_user($terms, $user_id, $filter_complete)
             : $terms;
-        if ($wpdb->last_error !== '') {
+        if (!$filter_complete || $wpdb->last_error !== '') {
             $complete = false;
             return [];
         }
@@ -3632,7 +3634,7 @@ function ll_tools_recorder_queue_cursor_context(
     sort($wordset_term_ids, SORT_NUMERIC);
     $viewer_user_id = $viewer_user_id > 0 ? $viewer_user_id : (int) get_current_user_id();
 
-    return [
+    $context = [
         'schema' => 1,
         'viewer_user_id' => max(0, $viewer_user_id),
         'recorder_user_id' => max(0, $recorder_user_id),
@@ -3649,6 +3651,20 @@ function ll_tools_recorder_queue_cursor_context(
             ? ll_tools_wordset_page_get_recorder_queue_recording_type_epoch()
             : '1',
     ];
+
+    if (
+        !empty($wordset_term_ids)
+        && function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled()
+    ) {
+        // The legacy missing-audio option is site-wide and cannot prove a
+        // collision-free wordset identity. Fence pre-6.6.76 isolated cursors
+        // so their retained legacy rows rebase instead of surviving after the
+        // source is disabled. Keep legacy-mode contexts byte-for-byte stable.
+        $context['legacy_source_mode'] = 'disabled-under-wordset-isolation-v1';
+    }
+
+    return $context;
 }
 
 function ll_tools_recorder_queue_cursor_secret(): string {
@@ -6077,10 +6093,13 @@ function ll_tools_prompt_card_recorder_category_context(int $prompt_card_id, arr
  *
  * @param string[] $titles
  * @param int[]    $wordset_term_ids
+ * @param bool     $complete Completeness output for the title-map query.
  * @return array<string,int> Word post IDs keyed by the requested title.
  */
-function ll_tools_recorder_get_legacy_missing_audio_word_map(array $titles, array $wordset_term_ids = []): array {
+function ll_tools_recorder_get_legacy_missing_audio_word_map(array $titles, array $wordset_term_ids = [], bool &$complete = true): array {
     global $wpdb;
+
+    $complete = true;
 
     $titles = array_values(array_unique(array_filter(array_map(static function ($title): string {
         return sanitize_text_field((string) $title);
@@ -6117,9 +6136,17 @@ function ll_tools_recorder_get_legacy_missing_audio_word_map(array $titles, arra
     }
 
     $prepared_sql = $wpdb->prepare($sql, $query_args);
-    $rows = is_string($prepared_sql)
-        ? (array) $wpdb->get_results($prepared_sql, ARRAY_A)
-        : [];
+    if (!is_string($prepared_sql) || $prepared_sql === '') {
+        $complete = false;
+        return [];
+    }
+
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($prepared_sql, ARRAY_A);
+    if ($wpdb->last_error !== '' || !is_array($rows)) {
+        $complete = false;
+        return [];
+    }
     if (empty($rows)) {
         return [];
     }
@@ -6175,21 +6202,33 @@ function ll_tools_recorder_get_legacy_missing_audio_word_map(array $titles, arra
  * a hard-cap truncation resumable without rescanning prior option entries.
  * The source/scope fingerprint prevents a stale cursor from being applied
  * after the option or recorder filters change.
+ * Wordset-isolated queues ignore this site-wide source without hydrating it;
+ * the canonical word/image/prompt sources are authoritative in that mode.
  *
  * @return array{items:array<int,array<string,mixed>>,cursor:array{fingerprint:string,raw_offset:int,eligible_seen:int},complete:bool,truncated:bool,has_more:bool,eligible_seen:int,raw_scanned:int}
  */
 function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0, array $options = []): array {
+    global $wpdb;
+
     $default_limit = function_exists('ll_tools_recorder_get_category_queue_page_size')
         ? ll_tools_recorder_get_category_queue_page_size()
         : 40;
     $limit = isset($options['limit'])
         ? max(1, min(100, absint($options['limit'])))
         : max(1, min(100, (int) $default_limit));
+    $collect_limit = array_key_exists('collect_limit', $options)
+        ? max(0, min(100, absint($options['collect_limit'])))
+        : $limit;
+    $continue_after_limit = !empty($options['continue_after_limit']);
     $eligible_offset = isset($options['offset']) ? max(0, absint($options['offset'])) : 0;
     $wordset_term_ids = ll_tools_recorder_normalize_wordset_ids((array) $wordset_term_ids);
     $category_slug = sanitize_title((string) $category_slug);
     $current_uid = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
-    $missing_audio_instances = ($category_slug === '' || $category_slug === 'uncategorized')
+    $legacy_source_disabled = !empty($wordset_term_ids)
+        && function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled();
+    $missing_audio_instances = !$legacy_source_disabled
+        && ($category_slug === '' || $category_slug === 'uncategorized')
         ? get_option('ll_missing_audio_instances', [])
         : [];
     $missing_audio_instances = is_array($missing_audio_instances) ? $missing_audio_instances : [];
@@ -6224,16 +6263,20 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
         ];
     };
 
-    if (($category_slug !== '' && $category_slug !== 'uncategorized') || empty($missing_audio_instances)) {
+    if ($legacy_source_disabled || ($category_slug !== '' && $category_slug !== 'uncategorized') || empty($missing_audio_instances)) {
         return $empty_result();
     }
 
+    $wpdb->last_error = '';
     $all_types = get_terms([
         'taxonomy' => 'recording_type',
         'hide_empty' => false,
         'fields' => 'slugs',
     ]);
-    if (is_wp_error($all_types) || empty($all_types)) {
+    if (is_wp_error($all_types) || $wpdb->last_error !== '') {
+        return $empty_result(false);
+    }
+    if (empty($all_types)) {
         return $empty_result();
     }
 
@@ -6255,6 +6298,9 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
     $batch_size = max(1, min(250, $batch_size));
     $hard_cap = (int) apply_filters('ll_tools_recorder_legacy_missing_audio_scan_hard_cap', 1200, $wordset_term_ids);
     $hard_cap = max($batch_size, min(5000, $hard_cap));
+    if (array_key_exists('raw_scan_limit', $options)) {
+        $hard_cap = max(1, min(5000, absint($options['raw_scan_limit'])));
+    }
     $hidden_lookup = !$include_hidden ? ll_tools_get_hidden_recording_word_lookup($current_uid) : [];
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
     $main_types = ll_tools_get_main_recording_types();
@@ -6264,6 +6310,7 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
     $raw_scanned = 0;
     $source_count = count($missing_audio_instances);
     $source_exhausted = ($raw_offset >= $source_count);
+    $source_read_complete = true;
     $stopped_before_extra = false;
 
     while ($raw_scanned < $hard_cap && !$source_exhausted && !$stopped_before_extra) {
@@ -6281,7 +6328,16 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
                 $batch_titles[] = $word_title;
             }
         }
-        $word_id_by_title = ll_tools_recorder_get_legacy_missing_audio_word_map($batch_titles, $wordset_term_ids);
+        $word_map_complete = true;
+        $word_id_by_title = ll_tools_recorder_get_legacy_missing_audio_word_map(
+            $batch_titles,
+            $wordset_term_ids,
+            $word_map_complete
+        );
+        if (!$word_map_complete) {
+            $source_read_complete = false;
+            break;
+        }
         $batch_word_ids = array_values(array_unique(array_filter(array_map('intval', array_values($word_id_by_title)))));
         if (!empty($batch_word_ids)) {
             if (function_exists('_prime_post_caches')) {
@@ -6397,7 +6453,7 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
             }
 
             if ($eligible_seen >= $eligible_offset) {
-                if (count($items) >= $limit) {
+                if (count($items) >= $collect_limit && !$continue_after_limit) {
                     // Leave the continuation cursor immediately before the
                     // first eligible row that did not fit this page.
                     $raw_offset = $before_raw_offset;
@@ -6405,7 +6461,9 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
                     $stopped_before_extra = true;
                     break;
                 }
-                $items[] = $item;
+                if (count($items) < $collect_limit) {
+                    $items[] = $item;
+                }
             }
             $eligible_seen++;
         }
@@ -6426,7 +6484,7 @@ function ll_tools_get_legacy_missing_audio_instances_page($category_slug = '', $
         unset($item);
     }
     $items = ll_tools_apply_recording_prompt_hints_to_items($items);
-    $complete = $source_exhausted;
+    $complete = $source_exhausted && $source_read_complete;
 
     return [
         'items' => array_values($items),
@@ -6453,6 +6511,10 @@ function ll_tools_get_prompt_cards_needing_audio_page($category_slug = '', $word
     global $wpdb;
 
     $limit = isset($options['limit']) ? max(0, min(100, absint($options['limit']))) : 0;
+    $collect_limit = array_key_exists('collect_limit', $options)
+        ? max(0, min(100, absint($options['collect_limit'])))
+        : ($limit > 0 ? $limit : PHP_INT_MAX);
+    $continue_after_limit = !empty($options['continue_after_limit']);
     $eligible_offset = isset($options['offset']) ? max(0, absint($options['offset'])) : 0;
     $cursor = is_array($options['cursor'] ?? null) ? $options['cursor'] : [];
     $raw_offset = max(0, (int) ($cursor['raw_offset'] ?? 0));
@@ -6528,6 +6590,9 @@ function ll_tools_get_prompt_cards_needing_audio_page($category_slug = '', $word
     $batch_size = max(20, min(250, $batch_size));
     $hard_cap = (int) apply_filters('ll_tools_recorder_prompt_scan_hard_cap', 1200, $wordset_term_ids, $category_slug);
     $hard_cap = max($batch_size, min(5000, $hard_cap));
+    if (array_key_exists('raw_scan_limit', $options)) {
+        $hard_cap = max(1, min(5000, absint($options['raw_scan_limit'])));
+    }
     $wpdb->last_error = '';
     $hidden_lookup = !$include_hidden ? ll_tools_get_hidden_recording_word_lookup($current_uid) : [];
     if ($wpdb->last_error !== '') {
@@ -6735,7 +6800,7 @@ function ll_tools_get_prompt_cards_needing_audio_page($category_slug = '', $word
             }
 
             if ($eligible_seen >= $eligible_offset) {
-                if ($limit > 0 && count($items) >= $limit) {
+                if (count($items) >= $collect_limit && !$continue_after_limit) {
                     // Keep the continuation cursor immediately before the
                     // first eligible item that was not returned.
                     $raw_offset = $before_raw_offset;
@@ -6743,7 +6808,9 @@ function ll_tools_get_prompt_cards_needing_audio_page($category_slug = '', $word
                     $stopped_before_extra = true;
                     break;
                 }
-                $items[] = $item;
+                if (count($items) < $collect_limit) {
+                    $items[] = $item;
+                }
             }
             $eligible_seen++;
         }
