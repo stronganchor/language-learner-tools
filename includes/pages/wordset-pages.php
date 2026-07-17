@@ -5452,34 +5452,139 @@ function ll_tools_wordset_page_category_search_cache_miss_throttle_key(string $s
     return 'll_tools_wsp_search_miss_' . sanitize_key($scope) . '_' . substr(hash('sha256', $identifier), 0, 24);
 }
 
+function ll_tools_wordset_page_category_search_cache_miss_now(): int {
+    return max(1, (int) apply_filters('ll_tools_wordset_page_category_search_cache_miss_now', time()));
+}
+
+function ll_tools_wordset_page_category_search_cache_miss_reservation_option(
+    string $scope,
+    string $identifier,
+    int $window,
+    int $now = 0
+): string {
+    $window = max(1, $window);
+    $now = $now > 0 ? $now : ll_tools_wordset_page_category_search_cache_miss_now();
+    $bucket = (int) floor($now / $window);
+
+    return '_transient_' . ll_tools_wordset_page_category_search_cache_miss_throttle_key($scope, $identifier) . '_' . $bucket;
+}
+
+function ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option(string $option_name): string {
+    if (strpos($option_name, '_transient_') !== 0) {
+        return '';
+    }
+
+    return '_transient_timeout_' . substr($option_name, strlen('_transient_'));
+}
+
+function ll_tools_wordset_page_reserve_category_search_cache_miss_counter(
+    string $scope,
+    string $identifier,
+    int $limit,
+    int $window,
+    int $now
+): bool {
+    global $wpdb;
+
+    $identifier = trim($identifier);
+    $limit = max(0, $limit);
+    if ($identifier === '' || $limit <= 0) {
+        return true;
+    }
+
+    $window = max(1, $window);
+    $counter_key = ll_tools_wordset_page_category_search_cache_miss_throttle_key($scope, $identifier);
+    $option_prefix = '_transient_' . $counter_key . '_';
+    $timeout_prefix = '_transient_timeout_' . $counter_key . '_';
+    $option_name = ll_tools_wordset_page_category_search_cache_miss_reservation_option($scope, $identifier, $window, $now);
+    $timeout_option_name = ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option($option_name);
+    if (add_option($option_name, '1', '', false)) {
+        update_option($timeout_option_name, (string) ($now + $window), false);
+        // One exact identifier creates one bucket per window. Remove its older
+        // buckets only when this request wins creation of the new bucket. The
+        // timeout row also lets WordPress' normal transient cleanup remove a
+        // one-off visitor/IP bucket that is never used again.
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options}
+             WHERE (option_name LIKE %s OR option_name LIKE %s)
+               AND option_name NOT IN (%s, %s)",
+            $wpdb->esc_like($option_prefix) . '%',
+            $wpdb->esc_like($timeout_prefix) . '%',
+            $option_name,
+            $timeout_option_name
+        ));
+        return true;
+    }
+
+    // The conditional increment is the reservation. Concurrent requests can
+    // never move this bucket above its limit, unlike a get/set transient pair.
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = CAST(option_value AS UNSIGNED) + 1
+         WHERE option_name = %s
+           AND CAST(option_value AS UNSIGNED) < %d",
+        $option_name,
+        $limit
+    ));
+    wp_cache_delete($option_name, 'options');
+
+    return $updated === 1;
+}
+
+function ll_tools_wordset_page_reserve_category_search_cache_miss(string $token): bool {
+    if (!ll_tools_wordset_page_category_search_ajax_cache_enabled($token)) {
+        return true;
+    }
+
+    $config = ll_tools_wordset_page_category_search_cache_miss_throttle_config();
+    $window = (int) ($config['window'] ?? (5 * MINUTE_IN_SECONDS));
+    $now = ll_tools_wordset_page_category_search_cache_miss_now();
+    $reservations = [
+        ['token', sanitize_key($token), (int) ($config['token_limit'] ?? 0)],
+        ['ip', ll_tools_wordset_page_get_client_ip(), (int) ($config['ip_limit'] ?? 0)],
+    ];
+
+    foreach ($reservations as $reservation) {
+        if (!ll_tools_wordset_page_reserve_category_search_cache_miss_counter(
+            (string) $reservation[0],
+            (string) $reservation[1],
+            (int) $reservation[2],
+            $window,
+            $now
+        )) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function ll_tools_wordset_page_category_search_cache_miss_limited(string $token): bool {
     if (!ll_tools_wordset_page_category_search_ajax_cache_enabled($token)) {
         return false;
     }
 
     $config = ll_tools_wordset_page_category_search_cache_miss_throttle_config();
+    $window = (int) ($config['window'] ?? (5 * MINUTE_IN_SECONDS));
+    $now = ll_tools_wordset_page_category_search_cache_miss_now();
     $checks = [
-        [
-            'scope' => 'token',
-            'identifier' => sanitize_key($token),
-            'limit' => (int) ($config['token_limit'] ?? 0),
-        ],
-        [
-            'scope' => 'ip',
-            'identifier' => ll_tools_wordset_page_get_client_ip(),
-            'limit' => (int) ($config['ip_limit'] ?? 0),
-        ],
+        ['token', sanitize_key($token), (int) ($config['token_limit'] ?? 0)],
+        ['ip', ll_tools_wordset_page_get_client_ip(), (int) ($config['ip_limit'] ?? 0)],
     ];
 
     foreach ($checks as $check) {
-        $identifier = (string) ($check['identifier'] ?? '');
-        $limit = (int) ($check['limit'] ?? 0);
+        $identifier = (string) $check[1];
+        $limit = (int) $check[2];
         if ($identifier === '' || $limit <= 0) {
             continue;
         }
-
-        $attempts = (int) get_transient(ll_tools_wordset_page_category_search_cache_miss_throttle_key((string) $check['scope'], $identifier));
-        if ($attempts >= $limit) {
+        $option_name = ll_tools_wordset_page_category_search_cache_miss_reservation_option(
+            (string) $check[0],
+            $identifier,
+            $window,
+            $now
+        );
+        if ((int) get_option($option_name, 0) >= $limit) {
             return true;
         }
     }
@@ -5488,27 +5593,7 @@ function ll_tools_wordset_page_category_search_cache_miss_limited(string $token)
 }
 
 function ll_tools_wordset_page_record_category_search_cache_miss(string $token): void {
-    if (!ll_tools_wordset_page_category_search_ajax_cache_enabled($token)) {
-        return;
-    }
-
-    $config = ll_tools_wordset_page_category_search_cache_miss_throttle_config();
-    $window = (int) ($config['window'] ?? (5 * MINUTE_IN_SECONDS));
-    $targets = [
-        'token' => sanitize_key($token),
-        'ip' => ll_tools_wordset_page_get_client_ip(),
-    ];
-
-    foreach ($targets as $scope => $identifier) {
-        $identifier = (string) $identifier;
-        if ($identifier === '') {
-            continue;
-        }
-
-        $key = ll_tools_wordset_page_category_search_cache_miss_throttle_key((string) $scope, $identifier);
-        $attempts = (int) get_transient($key);
-        set_transient($key, $attempts + 1, $window);
-    }
+    ll_tools_wordset_page_reserve_category_search_cache_miss($token);
 }
 
 function ll_tools_wordset_page_category_search_ajax_cache_get(array $args) {
@@ -5541,6 +5626,42 @@ function ll_tools_wordset_page_category_search_ajax_cache_set(array $args, array
         ll_tools_wordset_page_category_search_ajax_cache_ttl(),
         $request_cache
     );
+}
+
+function ll_tools_wordset_page_category_search_ajax_cache_lock_option(array $args): string {
+    return ll_tools_wordset_page_cache_rebuild_lock_option(
+        ll_tools_wordset_page_category_search_ajax_cache_key($args)
+    );
+}
+
+function ll_tools_wordset_page_acquire_category_search_ajax_cache_lock(array $args, int $ttl = 15): bool {
+    return ll_tools_wordset_page_acquire_cache_rebuild_lock(
+        ll_tools_wordset_page_category_search_ajax_cache_key($args),
+        $ttl
+    );
+}
+
+function ll_tools_wordset_page_release_category_search_ajax_cache_lock(array $args): void {
+    ll_tools_wordset_page_release_cache_rebuild_lock(
+        ll_tools_wordset_page_category_search_ajax_cache_key($args)
+    );
+}
+
+function ll_tools_wordset_page_wait_for_category_search_ajax_cached_response(array $args, int $wait_ms = 1000) {
+    $deadline = microtime(true) + (max(0, $wait_ms) / 1000);
+
+    do {
+        $cached = ll_tools_wordset_page_category_search_ajax_cache_get($args);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        if (microtime(true) >= $deadline) {
+            break;
+        }
+        usleep(100000);
+    } while (true);
+
+    return null;
 }
 
 function ll_tools_wordset_page_category_search_ajax_send_cache_header(string $status): void {
@@ -12012,7 +12133,17 @@ function ll_tools_wordset_page_handle_progress_reset_action(): void {
 
     $scope_category_ids = [];
     if (function_exists('ll_tools_build_user_study_analytics_payload')) {
-        $scope_analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, true);
+        $scope_analytics = ll_tools_build_user_study_analytics_payload(
+            get_current_user_id(),
+            $wordset_id,
+            [],
+            14,
+            true,
+            [
+                'summary_only' => true,
+                'include_words' => false,
+            ]
+        );
         $scope_analytics_categories = (isset($scope_analytics['categories']) && is_array($scope_analytics['categories']))
             ? $scope_analytics['categories']
             : [];
@@ -26019,7 +26150,30 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         wp_send_json_success($cached_response);
     }
 
-    if (ll_tools_wordset_page_category_search_cache_miss_limited($token)) {
+    $public_cache_lock_acquired = false;
+    if (ll_tools_wordset_page_category_search_ajax_cache_enabled($token)) {
+        $lock_ttl = max(5, (int) apply_filters('ll_tools_wordset_page_category_search_ajax_cache_build_lock_ttl', 15));
+        $public_cache_lock_acquired = ll_tools_wordset_page_acquire_category_search_ajax_cache_lock($cache_args, $lock_ttl);
+        if (!$public_cache_lock_acquired) {
+            $wait_ms = max(0, (int) apply_filters('ll_tools_wordset_page_category_search_ajax_cache_build_wait_ms', 1000));
+            $cached_after_wait = ll_tools_wordset_page_wait_for_category_search_ajax_cached_response($cache_args, $wait_ms);
+            if (is_array($cached_after_wait)) {
+                ll_tools_wordset_page_category_search_ajax_send_cache_header('WAIT_HIT');
+                wp_send_json_success($cached_after_wait);
+            }
+
+            ll_tools_wordset_page_category_search_ajax_send_cache_header('LOCKED');
+            wp_send_json_error([
+                'message' => __('Search results are still being prepared. Please try again in a moment.', 'll-tools-text-domain'),
+                'retry' => true,
+            ], 409);
+        }
+    }
+
+    if (!ll_tools_wordset_page_reserve_category_search_cache_miss($token)) {
+        if ($public_cache_lock_acquired) {
+            ll_tools_wordset_page_release_category_search_ajax_cache_lock($cache_args);
+        }
         wp_send_json_error([
             'message' => __('Too many search requests. Please wait a few minutes and try again.', 'll-tools-text-domain'),
         ], 429);
@@ -26071,6 +26225,9 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         }
     }
     if (!$search_complete) {
+        if ($public_cache_lock_acquired) {
+            ll_tools_wordset_page_release_category_search_ajax_cache_lock($cache_args);
+        }
         wp_send_json_error([
             'message' => __('Search is still preparing. Please try again.', 'll-tools-text-domain'),
             'retry' => true,
@@ -26084,8 +26241,10 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
         'wordMatches' => $matching_word_rows,
     ];
 
-    ll_tools_wordset_page_record_category_search_cache_miss($token);
     ll_tools_wordset_page_category_search_ajax_cache_set($cache_args, $response);
+    if ($public_cache_lock_acquired) {
+        ll_tools_wordset_page_release_category_search_ajax_cache_lock($cache_args);
+    }
     ll_tools_wordset_page_category_search_ajax_send_cache_header('MISS');
     wp_send_json_success($response);
 }

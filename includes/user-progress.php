@@ -4322,13 +4322,18 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         $include_word_ids = ($parsed_include_word_ids === null) ? !empty($options['include_word_ids']) : (bool) $parsed_include_word_ids;
     }
     $include_filter_counts = $include_words;
-    $word_limit = 0;
-    if (array_key_exists('word_limit', $options)) {
-        $word_limit = max(0, (int) $options['word_limit']);
-    }
-    if ($word_limit > 0) {
-        $max_word_limit = max(1, (int) apply_filters('ll_tools_user_progress_analytics_word_page_max', 250, $scope_wordset_id));
-        $word_limit = min($word_limit, $max_word_limit);
+    $max_word_limit = max(1, (int) apply_filters('ll_tools_user_progress_analytics_word_page_max', 250, $scope_wordset_id));
+    $word_limit = array_key_exists('word_limit', $options)
+        ? max(0, (int) $options['word_limit'])
+        : $max_word_limit;
+    if ($include_words) {
+        // A missing or zero limit used to hydrate every word in the scope. Treat
+        // both as a request for the bounded server default instead.
+        $word_limit = ($word_limit > 0)
+            ? min($word_limit, $max_word_limit)
+            : $max_word_limit;
+    } else {
+        $word_limit = 0;
     }
     $word_offset = array_key_exists('word_offset', $options)
         ? max(0, (int) $options['word_offset'])
@@ -8981,10 +8986,15 @@ add_action('wp_ajax_ll_user_study_analytics', 'll_tools_user_study_analytics_aja
  *
  * @param int   $wordset_id   Optional wordset scope.
  * @param int[] $category_ids Optional category scope.
+ * @param int   $page         One-based result page.
+ * @param int   $per_page     Maximum IDs to return for this batch.
  * @return int[]
  */
-function ll_tools_user_progress_resolve_scope_word_ids(int $wordset_id = 0, array $category_ids = []): array {
+function ll_tools_user_progress_resolve_scope_word_ids(int $wordset_id = 0, array $category_ids = [], int $page = 1, int $per_page = 500): array {
     $wordset_id = max(0, $wordset_id);
+    $page = max(1, $page);
+    $max_batch_size = max(1, (int) apply_filters('ll_tools_user_progress_reset_scope_batch_max', 1000, $wordset_id));
+    $per_page = ($per_page > 0) ? min($per_page, $max_batch_size) : min(500, $max_batch_size);
     $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function ($id) {
         return $id > 0;
     })));
@@ -9017,10 +9027,13 @@ function ll_tools_user_progress_resolve_scope_word_ids(int $wordset_id = 0, arra
         'post_type' => 'words',
         'post_status' => 'any',
         'fields' => 'ids',
-        'posts_per_page' => -1,
+        'posts_per_page' => $per_page,
+        'paged' => $page,
         'no_found_rows' => true,
         'orderby' => 'ID',
         'order' => 'ASC',
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
     ];
     if (!empty($tax_query)) {
         $query_args['tax_query'] = (count($tax_query) > 1)
@@ -9070,6 +9083,7 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
         'deleted_event_rows' => 0,
         'cleared_category_meta_entries' => 0,
         'cleared_prompt_card_meta_entries' => 0,
+        'scope_word_batches' => 0,
     ];
 
     if ($uid <= 0) {
@@ -9077,7 +9091,6 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
     }
 
     $tables = ll_tools_user_progress_table_names();
-    $scope_word_ids = ll_tools_user_progress_resolve_scope_word_ids($wordset_id, $category_ids);
 
     $word_where = ['user_id = %d'];
     $word_params = [$uid];
@@ -9129,7 +9142,23 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
         }
     }
 
-    if (!empty($scope_word_ids)) {
+    $scope_batch_size = max(1, min(
+        (int) apply_filters('ll_tools_user_progress_reset_scope_batch_size', 500, $wordset_id, $category_ids),
+        (int) apply_filters('ll_tools_user_progress_reset_scope_batch_max', 1000, $wordset_id)
+    ));
+    $scope_page = 1;
+    do {
+        $scope_word_ids = ll_tools_user_progress_resolve_scope_word_ids(
+            $wordset_id,
+            $category_ids,
+            $scope_page,
+            $scope_batch_size
+        );
+        if (empty($scope_word_ids)) {
+            break;
+        }
+
+        $result['scope_word_batches']++;
         foreach (array_chunk($scope_word_ids, 300) as $chunk_ids) {
             $placeholders = implode(', ', array_fill(0, count($chunk_ids), '%d'));
 
@@ -9153,7 +9182,8 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
                 }
             }
         }
-    }
+        $scope_page++;
+    } while (count($scope_word_ids) >= $scope_batch_size);
 
     $category_progress = ll_tools_get_user_category_progress($uid);
     if (!empty($category_progress)) {

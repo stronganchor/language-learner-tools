@@ -245,6 +245,200 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) ($first_match['match_rank'] ?? 0));
     }
 
+    public function test_anonymous_category_search_cache_miss_reservation_is_atomic(): void
+    {
+        global $wpdb;
+
+        wp_set_current_user(0);
+        $original_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.31';
+        $token = 'search_' . str_repeat('a', 32);
+        $now = 1700000100;
+        $window = 5 * MINUTE_IN_SECONDS;
+        $token_option = ll_tools_wordset_page_category_search_cache_miss_reservation_option('token', $token, $window, $now);
+        $ip_option = ll_tools_wordset_page_category_search_cache_miss_reservation_option('ip', '203.0.113.31', $window, $now);
+        $token_timeout_option = ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option($token_option);
+        $ip_timeout_option = ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option($ip_option);
+        delete_option($token_option);
+        delete_option($ip_option);
+        delete_option($token_timeout_option);
+        delete_option($ip_timeout_option);
+
+        $fixed_now = static function () use ($now): int {
+            return $now;
+        };
+        $token_limit = static function (): int {
+            return 1;
+        };
+        $ip_limit = static function (): int {
+            return 10;
+        };
+        $reservation_updates = [];
+        $capture = static function (string $query) use (&$reservation_updates): string {
+            if (strpos($query, 'CAST(option_value AS UNSIGNED) < 1') !== false) {
+                $reservation_updates[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_now', $fixed_now);
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_token_limit', $token_limit);
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_ip_limit', $ip_limit);
+        add_filter('query', $capture);
+        try {
+            $this->assertTrue(ll_tools_wordset_page_reserve_category_search_cache_miss($token));
+            $this->assertFalse(ll_tools_wordset_page_reserve_category_search_cache_miss($token));
+            $this->assertTrue(ll_tools_wordset_page_category_search_cache_miss_limited($token));
+            $this->assertSame(1, (int) get_option($token_option, 0));
+            $this->assertSame(1, (int) get_option($ip_option, 0));
+            $this->assertSame($now + $window, (int) get_option($token_timeout_option, 0));
+            $this->assertSame($now + $window, (int) get_option($ip_timeout_option, 0));
+            $this->assertNotEmpty($reservation_updates, 'The second request must use one conditional SQL increment instead of a transient get/set pair.');
+            $this->assertStringContainsString($wpdb->options, $reservation_updates[0]);
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_ip_limit', $ip_limit);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_token_limit', $token_limit);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_now', $fixed_now);
+            delete_option($token_option);
+            delete_option($ip_option);
+            delete_option($token_timeout_option);
+            delete_option($ip_timeout_option);
+            if ($original_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $original_remote_addr;
+            }
+        }
+    }
+
+    public function test_anonymous_category_search_build_lock_prevents_duplicate_scan_without_consuming_miss_budget(): void
+    {
+        wp_set_current_user(0);
+        $original_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.32';
+
+        $wordset = wp_insert_term('Locked Search Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = wp_insert_term('Locked Search Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $this->createSearchWord('Needle', 'Target', $wordset_id, [$category_id]);
+
+        $payload = [
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$category_id],
+            'user_id' => 0,
+            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
+        ];
+        $token = ll_tools_wordset_page_build_category_search_token($payload);
+        $this->assertTrue(ll_tools_wordset_page_is_shared_category_search_token($token));
+        $this->assertSame($token, ll_tools_wordset_page_store_category_search_payload($payload, 0, $token));
+        $cache_args = [
+            'token' => $token,
+            'wordset_id' => $wordset_id,
+            'query' => 'n',
+        ];
+        $cache_key = ll_tools_wordset_page_category_search_ajax_cache_key($cache_args);
+        $lock_option = ll_tools_wordset_page_category_search_ajax_cache_lock_option($cache_args);
+        ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+        delete_option($lock_option);
+
+        $now = 1700000400;
+        $window = 5 * MINUTE_IN_SECONDS;
+        $token_option = ll_tools_wordset_page_category_search_cache_miss_reservation_option('token', $token, $window, $now);
+        $ip_option = ll_tools_wordset_page_category_search_cache_miss_reservation_option('ip', '203.0.113.32', $window, $now);
+        $token_timeout_option = ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option($token_option);
+        $ip_timeout_option = ll_tools_wordset_page_category_search_cache_miss_reservation_timeout_option($ip_option);
+        delete_option($token_option);
+        delete_option($ip_option);
+        delete_option($token_timeout_option);
+        delete_option($ip_timeout_option);
+
+        $fixed_now = static function () use ($now): int {
+            return $now;
+        };
+        $token_limit = static function (): int {
+            return 1;
+        };
+        $ip_limit = static function (): int {
+            return 10;
+        };
+        $no_wait = static function (): int {
+            return 0;
+        };
+        $index_queries = [];
+        $capture = static function (string $query) use (&$index_queries): string {
+            if (strpos($query, 'category_taxonomy.term_id AS category_id') !== false) {
+                $index_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_now', $fixed_now);
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_token_limit', $token_limit);
+        add_filter('ll_tools_wordset_page_category_search_cache_miss_ip_limit', $ip_limit);
+        add_filter('ll_tools_wordset_page_category_search_ajax_cache_build_wait_ms', $no_wait);
+        add_filter('query', $capture);
+        try {
+            $this->assertTrue(ll_tools_wordset_page_acquire_category_search_ajax_cache_lock($cache_args, 30));
+            $locked_response = $this->postCategorySearchAjax([
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'n',
+            ]);
+            $this->assertFalse((bool) ($locked_response['success'] ?? true));
+            $this->assertTrue((bool) (($locked_response['data'] ?? [])['retry'] ?? false));
+            $this->assertSame([], $index_queries);
+            $this->assertFalse(get_option($token_option, false), 'A lock loser must not consume the expensive-work budget.');
+            $this->assertNotFalse(get_option($lock_option, false), 'A lock loser must not release another request\'s lock.');
+
+            ll_tools_wordset_page_release_category_search_ajax_cache_lock($cache_args);
+            $miss_response = $this->postCategorySearchAjax([
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'n',
+            ]);
+            $this->assertTrue((bool) ($miss_response['success'] ?? false));
+            $this->assertSame('n', (string) (($miss_response['data'] ?? [])['query'] ?? ''), 'One-character category search remains supported.');
+            $this->assertSame([$category_id], array_values(array_map('intval', (array) (($miss_response['data'] ?? [])['categoryIds'] ?? []))));
+            $this->assertCount(1, $index_queries);
+            $this->assertSame(1, (int) get_option($token_option, 0));
+            $this->assertFalse(get_option($lock_option, false));
+
+            $hit_response = $this->postCategorySearchAjax([
+                'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
+                'token' => $token,
+                'wordset_id' => $wordset_id,
+                'query' => 'n',
+            ]);
+            $this->assertTrue((bool) ($hit_response['success'] ?? false));
+            $this->assertSame(1, (int) get_option($token_option, 0), 'A cache hit must not reserve additional miss work.');
+            $this->assertCount(1, $index_queries);
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_wordset_page_category_search_ajax_cache_build_wait_ms', $no_wait);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_ip_limit', $ip_limit);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_token_limit', $token_limit);
+            remove_filter('ll_tools_wordset_page_category_search_cache_miss_now', $fixed_now);
+            ll_tools_wordset_page_release_category_search_ajax_cache_lock($cache_args);
+            ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+            delete_option($token_option);
+            delete_option($ip_option);
+            delete_option($token_timeout_option);
+            delete_option($ip_timeout_option);
+            if ($original_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $original_remote_addr;
+            }
+        }
+    }
+
     public function test_staff_category_search_includes_only_pending_recording_text_transcriptions(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

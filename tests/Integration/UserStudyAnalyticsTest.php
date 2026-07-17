@@ -1069,6 +1069,61 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($response['data']['analytics']['words_omitted'] ?? false));
     }
 
+    public function test_analytics_ajax_uses_the_bounded_server_default_when_word_limit_is_missing_or_zero(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $nonce = wp_create_nonce('ll_user_study');
+        $limit_filter = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_user_progress_analytics_word_page_max', $limit_filter);
+
+        $request = function (?string $word_limit) use ($fixture, $nonce): array {
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $fixture['wordset_id'],
+                'category_ids' => $fixture['category_ids'],
+                'days' => 14,
+            ];
+            if ($word_limit !== null) {
+                $_POST['word_limit'] = $word_limit;
+            }
+            $_REQUEST = $_POST;
+
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_user_study_analytics_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            return (array) ($response['data']['analytics'] ?? []);
+        };
+
+        try {
+            $missing_limit = $request(null);
+            $zero_limit = $request('0');
+        } finally {
+            remove_filter('ll_tools_user_progress_analytics_word_page_max', $limit_filter);
+        }
+
+        foreach ([$missing_limit, $zero_limit] as $analytics) {
+            $this->assertCount(3, (array) ($analytics['words'] ?? []));
+            $pagination = (array) ($analytics['words_pagination'] ?? []);
+            $this->assertTrue((bool) ($pagination['enabled'] ?? false));
+            $this->assertSame(10, (int) ($pagination['total'] ?? 0));
+            $this->assertSame(3, (int) ($pagination['limit'] ?? 0));
+            $this->assertSame(3, (int) ($pagination['next_offset'] ?? 0));
+            $this->assertTrue((bool) ($pagination['has_more'] ?? false));
+        }
+    }
+
     public function test_analytics_ajax_can_return_bounded_word_pages(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1522,12 +1577,39 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $before = ll_tools_build_user_study_analytics_payload($user_id, $wordset_id, [$target_category_id], 14, true);
         $this->assertSame(1, (int) ($before['summary']['studied_words'] ?? 0));
 
-        $result = ll_tools_reset_user_progress($user_id, [
-            'wordset_id' => $wordset_id,
-            'category_ids' => [$target_category_id],
-        ]);
+        $observed_scope_query_limits = [];
+        $scope_query_guard = static function (WP_Query $query) use (&$observed_scope_query_limits): void {
+            $post_types = array_map('strval', (array) $query->get('post_type'));
+            if (
+                in_array('words', $post_types, true)
+                && $query->get('fields') === 'ids'
+                && $query->get('orderby') === 'ID'
+            ) {
+                $observed_scope_query_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+        $scope_batch_filter = static function (): int {
+            return 2;
+        };
+        add_action('pre_get_posts', $scope_query_guard);
+        add_filter('ll_tools_user_progress_reset_scope_batch_size', $scope_batch_filter);
+        add_filter('ll_tools_user_progress_reset_scope_batch_max', $scope_batch_filter);
+        try {
+            $result = ll_tools_reset_user_progress($user_id, [
+                'wordset_id' => $wordset_id,
+                'category_ids' => [$target_category_id],
+            ]);
+        } finally {
+            remove_action('pre_get_posts', $scope_query_guard);
+            remove_filter('ll_tools_user_progress_reset_scope_batch_size', $scope_batch_filter);
+            remove_filter('ll_tools_user_progress_reset_scope_batch_max', $scope_batch_filter);
+        }
 
         $this->assertGreaterThanOrEqual(1, (int) ($result['deleted_word_rows'] ?? 0));
+        $this->assertGreaterThanOrEqual(3, (int) ($result['scope_word_batches'] ?? 0));
+        $this->assertNotEmpty($observed_scope_query_limits);
+        $this->assertNotContains(-1, $observed_scope_query_limits);
+        $this->assertSame([2], array_values(array_unique($observed_scope_query_limits)));
         $remaining_rows = ll_tools_get_user_word_progress_rows($user_id, [$studied_word_id]);
         $this->assertArrayNotHasKey($studied_word_id, $remaining_rows);
 
