@@ -849,6 +849,56 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     height: 10px;
 }
 
+.ll-wordset-buttons-refresh__error {
+    display: flex;
+    width: min(100%, 560px);
+    margin: 12px auto;
+    padding: 18px;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(153, 27, 27, 0.22);
+    border-radius: 14px;
+    background: #fff7f7;
+    color: #7f1d1d;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.ll-wordset-buttons-refresh__error-message {
+    margin: 0 !important;
+    color: inherit !important;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.ll-wordset-buttons-refresh .ll-wordset-buttons-refresh__retry {
+    min-width: 120px !important;
+    min-height: 42px !important;
+    margin: 0 !important;
+    padding: 9px 16px !important;
+    border: 1px solid #991b1b !important;
+    border-radius: 999px !important;
+    background: #991b1b !important;
+    color: #fff !important;
+    font: inherit !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+}
+
+.ll-wordset-buttons-refresh .ll-wordset-buttons-refresh__retry:hover,
+.ll-wordset-buttons-refresh .ll-wordset-buttons-refresh__retry:focus-visible {
+    background: #7f1d1d !important;
+    border-color: #7f1d1d !important;
+    color: #fff !important;
+    outline: 3px solid rgba(153, 27, 27, 0.22) !important;
+    outline-offset: 2px !important;
+}
+
 .ll-wordset-page .ll-wordset-buttons-shortcode__button {
     width: 100% !important;
     min-width: 0 !important;

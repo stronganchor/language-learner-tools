@@ -976,11 +976,17 @@ function ll_tools_process_wordset_button_active_pair(
  * Advance one exact visible-wordset lesson-count generation by one bounded pair page.
  * Incomplete progress is durable but never returned as authoritative counts.
  */
-function ll_tools_get_wordset_button_lesson_counts_bounded(array $wordset_ids, ?bool &$complete = null): array {
+function ll_tools_get_wordset_button_lesson_counts_bounded(
+    array $wordset_ids,
+    ?bool &$complete = null,
+    ?int &$retry_after_ms = null
+): array {
     $complete = false;
+    $retry_after_ms = ll_tools_wordset_buttons_shortcode_refresh_retry_ms();
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     if (empty($wordset_ids)) {
         $complete = true;
+        $retry_after_ms = 0;
         return [];
     }
 
@@ -1010,6 +1016,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded(array $wordset_ids, ?
             && ll_tools_wordset_button_counts_generation_key($wordset_ids, $min_word_count) === $generation_key
         ) {
             $complete = true;
+            $retry_after_ms = 0;
             ll_tools_schedule_wordset_button_count_refresh($wordset_ids, false);
             return $counts;
         }
@@ -1027,7 +1034,8 @@ function ll_tools_get_wordset_button_lesson_counts_bounded(array $wordset_ids, ?
             $state_key,
             $generation_key,
             $lock_token,
-            $complete
+            $complete,
+            $retry_after_ms
         );
     } finally {
         ll_tools_release_wordset_button_count_lock($state_key, $lock_token);
@@ -1039,9 +1047,11 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     string $state_key,
     string $generation_key,
     string $lock_token,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    ?int &$retry_after_ms = null
 ): array {
     $complete = false;
+    $retry_after_ms = ll_tools_wordset_buttons_shortcode_refresh_retry_ms();
     $wordset_ids = ll_tools_wordset_button_normalize_wordset_ids($wordset_ids);
     $min_word_count = ll_tools_wordset_button_quiz_min_word_count();
     if (
@@ -1093,6 +1103,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     }
     if (!empty($state['complete'])) {
         $complete = true;
+        $retry_after_ms = 0;
         ll_tools_schedule_wordset_button_count_refresh($wordset_ids, false);
         return $counts;
     }
@@ -1100,6 +1111,10 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     $now = ll_tools_wordset_button_now();
     $next_retry_at = max(0, (int) ($state['next_retry_at'] ?? 0));
     if ($next_retry_at > $now) {
+        $retry_after_ms = max(
+            $retry_after_ms,
+            min(15 * MINUTE_IN_SECONDS * 1000, ($next_retry_at - $now) * 1000)
+        );
         ll_tools_schedule_wordset_button_count_refresh($wordset_ids, true, $next_retry_at);
         return [];
     }
@@ -1236,6 +1251,10 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
             $state['attempts'] = $attempts;
             $state['last_failure_reason'] = sanitize_key($failure_reason);
             $state['next_retry_at'] = $now + ll_tools_wordset_button_failure_backoff($attempts, $failure_reason);
+            $retry_after_ms = max(
+                $retry_after_ms,
+                min(15 * MINUTE_IN_SECONDS * 1000, ((int) $state['next_retry_at'] - $now) * 1000)
+            );
         }
         $state['complete'] = false;
         if (!ll_tools_store_wordset_button_count_state($state_key, $state, $expected_state, $lock_token)) {
@@ -1269,6 +1288,7 @@ function ll_tools_get_wordset_button_lesson_counts_bounded_unlocked(
     }
 
     $complete = true;
+    $retry_after_ms = 0;
     ll_tools_schedule_wordset_button_count_refresh($wordset_ids, false);
     return (array) $state['counts'];
 }
@@ -1381,7 +1401,8 @@ function ll_tools_get_wordset_button_lesson_counts(array $wordset_ids, ?bool &$c
 function ll_tools_get_wordset_button_items(
     bool $hide_empty = false,
     bool $bounded_counts = false,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    ?int &$retry_after_ms = null
 ): array {
     global $wpdb;
 
@@ -1432,7 +1453,11 @@ function ll_tools_get_wordset_button_items(
 
     $counts_complete = true;
     $lesson_counts = $bounded_counts
-        ? ll_tools_get_wordset_button_lesson_counts_bounded($visible_term_ids, $counts_complete)
+        ? ll_tools_get_wordset_button_lesson_counts_bounded(
+            $visible_term_ids,
+            $counts_complete,
+            $retry_after_ms
+        )
         : ll_tools_get_wordset_button_lesson_counts($visible_term_ids, $counts_complete);
     if (!$counts_complete) {
         $complete = false;
@@ -1541,9 +1566,9 @@ function ll_tools_wordset_buttons_shortcode_enqueue_refresh_script(): void {
     }
 
     $handle = 'll-tools-wordset-buttons-refresh';
-    $already_enqueued = wp_script_is($handle, 'enqueued');
     ll_enqueue_asset_by_timestamp('/js/wordset-buttons-refresh.js', $handle, [], true);
-    if ($already_enqueued) {
+    $localized_data = (string) wp_scripts()->get_data($handle, 'data');
+    if (strpos($localized_data, 'llToolsWordsetButtonsRefresh') !== false) {
         return;
     }
 
@@ -1553,9 +1578,21 @@ function ll_tools_wordset_buttons_shortcode_enqueue_refresh_script(): void {
         'nonce' => wp_create_nonce('ll_tools_wordset_buttons_refresh'),
         'retryMs' => ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
         'requestTimeoutMs' => 20000,
-        'maxAttempts' => 120,
+        'maxFailures' => 5,
+        'maxWaitMs' => 10 * MINUTE_IN_SECONDS * 1000,
+        'errorMessage' => __('Something went wrong', 'll-tools-text-domain'),
+        'retryLabel' => __('Try again', 'll-tools-text-domain'),
     ]);
 }
+
+function ll_tools_wordset_buttons_shortcode_enqueue_logged_in_fallback(): void {
+    if (!is_user_logged_in() || !is_singular()) {
+        return;
+    }
+
+    ll_tools_wordset_buttons_shortcode_enqueue_refresh_script();
+}
+add_action('wp_enqueue_scripts', 'll_tools_wordset_buttons_shortcode_enqueue_logged_in_fallback', 20);
 
 function ll_tools_wordset_buttons_shortcode_refresh_html(
     array $atts,
@@ -1573,10 +1610,15 @@ function ll_tools_wordset_buttons_shortcode_refresh_html(
         : 'll_wordset_buttons';
 
     return sprintf(
-        '<div class="ll-wordset-buttons-refresh" data-ll-wordset-buttons-refresh data-shortcode-tag="%1$s" data-shortcode-class="%2$s" data-hide-empty="%3$s" aria-busy="true">%4$s</div>',
+        '<div class="ll-wordset-buttons-refresh" data-ll-wordset-buttons-refresh data-shortcode-tag="%1$s" data-shortcode-class="%2$s" data-hide-empty="%3$s" data-ajax-url="%4$s" data-ajax-action="%5$s" data-nonce="%6$s" data-error-message="%7$s" data-retry-label="%8$s" aria-busy="true">%9$s</div>',
         esc_attr($shortcode_tag),
         esc_attr((string) ($atts['class'] ?? '')),
         ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0') ? '1' : '0',
+        esc_url(admin_url('admin-ajax.php')),
+        esc_attr('ll_tools_wordset_buttons_refresh'),
+        esc_attr(wp_create_nonce('ll_tools_wordset_buttons_refresh')),
+        esc_attr__('Something went wrong', 'll-tools-text-domain'),
+        esc_attr__('Try again', 'll-tools-text-domain'),
         $inner_html
     );
 }
@@ -1585,9 +1627,11 @@ function ll_tools_wordset_buttons_shortcode_render(
     array $atts,
     string $tag = '',
     bool $allow_refresh = true,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    ?int &$retry_after_ms = null
 ): string {
     $complete = true;
+    $retry_after_ms = 0;
 
     // The stable LKG is written only by complete anonymous renders, but is a
     // safe public subset for logged-in visitors while their wider scope builds.
@@ -1606,10 +1650,12 @@ function ll_tools_wordset_buttons_shortcode_render(
     }
 
     $items_complete = true;
+    $retry_after_ms = ll_tools_wordset_buttons_shortcode_refresh_retry_ms();
     $items = ll_tools_get_wordset_button_items(
         ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
         true,
-        $items_complete
+        $items_complete,
+        $retry_after_ms
     );
     if (!$items_complete) {
         $complete = false;
@@ -1736,12 +1782,22 @@ function ll_tools_wordset_buttons_shortcode_render(
 
 function ll_tools_wordset_buttons_shortcode_refresh_payload(array $atts, string $tag = ''): array {
     $complete = false;
-    $html = ll_tools_wordset_buttons_shortcode_render($atts, $tag, false, $complete);
+    $retry_after_ms = ll_tools_wordset_buttons_shortcode_refresh_retry_ms();
+    $html = ll_tools_wordset_buttons_shortcode_render(
+        $atts,
+        $tag,
+        false,
+        $complete,
+        $retry_after_ms
+    );
 
     return [
         'complete' => $complete,
         'html' => $html,
-        'retryAfterMs' => ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
+        'retryAfterMs' => max(
+            ll_tools_wordset_buttons_shortcode_refresh_retry_ms(),
+            (int) $retry_after_ms
+        ),
     ];
 }
 
@@ -1750,7 +1806,12 @@ function ll_tools_wordset_buttons_shortcode_refresh_ajax(): void {
         wp_send_json_error(['code' => 'authentication_required'], 403);
     }
 
-    check_ajax_referer('ll_tools_wordset_buttons_refresh', 'nonce');
+    if (!check_ajax_referer('ll_tools_wordset_buttons_refresh', 'nonce', false)) {
+        wp_send_json_error([
+            'code' => 'invalid_nonce',
+            'nonce' => wp_create_nonce('ll_tools_wordset_buttons_refresh'),
+        ], 403);
+    }
 
     $tag = isset($_POST['tag']) && is_string($_POST['tag'])
         ? sanitize_key(wp_unslash($_POST['tag']))

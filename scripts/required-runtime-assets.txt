@@ -22,6 +22,7 @@ js/frontend-utility-menu.js
 js/language-switcher.js
 js/locale-sort.js
 js/public-viewport-guard.js
+js/wordset-buttons-refresh.js
 js/wordset-pages.js
 js/vocab-lesson-page.js
 js/word-grid.js

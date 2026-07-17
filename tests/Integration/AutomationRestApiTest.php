@@ -2509,6 +2509,8 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(200, $snapshot_response->get_status());
         $snapshot_data = $snapshot_response->get_data();
         $this->assertIsArray($snapshot_data);
+        $this->assertSame(100, (int) (($snapshot_data['pagination'] ?? [])['limit'] ?? 0));
+        $this->assertFalse((bool) (($snapshot_data['pagination'] ?? [])['has_more'] ?? true));
         $snapshot_record = null;
         foreach ((array) ($snapshot_data['records'] ?? []) as $record) {
             if ((int) (($record['recording']['id'] ?? 0)) === $recording_id) {

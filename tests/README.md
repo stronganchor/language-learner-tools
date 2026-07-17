@@ -250,7 +250,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/audio-recorder-category-switch.spec.js`
   - Verifies the category-neutral recorder overview, three neutral loading shells plus overflow cue, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path.
 - `tests/e2e/specs/wordset-buttons-loading-refresh.spec.js`
-  - Verifies the logged-in wordset-button shell serially retries bounded authenticated refreshes, preserves shortcode attributes, replaces itself after exact completion, and never overlaps requests.
+  - Verifies the logged-in wordset-button shell serially retries bounded authenticated refreshes, preserves shortcode attributes, honors durable server backoff without exhausting its failure budget, refreshes expired nonces, discovers late page-builder shells, exposes a translated and theme-resistant manual retry state after terminal failures, replaces itself after exact completion, and never overlaps requests.
 - `tests/e2e/specs/image-aspect-normalizer-worklist-pagination.spec.js`
   - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`

@@ -324,6 +324,11 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             $this->assertStringContainsString('data-ll-wordset-buttons-refresh', $initial_html);
             $this->assertStringContainsString('data-shortcode-tag="ll_wordset_buttons"', $initial_html);
             $this->assertStringContainsString('data-shortcode-class="homepage-wordsets recorder-home"', $initial_html);
+            $this->assertStringContainsString('data-ajax-url="', $initial_html);
+            $this->assertStringContainsString('data-error-message="Something went wrong"', $initial_html);
+            $this->assertStringContainsString('data-retry-label="Try again"', $initial_html);
+            $this->assertStringContainsString('data-ajax-action="ll_tools_wordset_buttons_refresh"', $initial_html);
+            $this->assertStringContainsString('data-nonce="', $initial_html);
             $this->assertStringContainsString('aria-busy="true"', $initial_html);
             $this->assertTrue(wp_script_is('ll-tools-wordset-buttons-refresh', 'enqueued'));
             $this->assertNotFalse(has_action(
@@ -338,6 +343,9 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             $localized_data = (string) wp_scripts()->get_data('ll-tools-wordset-buttons-refresh', 'data');
             $this->assertStringContainsString('llToolsWordsetButtonsRefresh', $localized_data);
             $this->assertStringContainsString('ll_tools_wordset_buttons_refresh', $localized_data);
+            $this->assertStringContainsString('maxFailures', $localized_data);
+            $this->assertStringContainsString('maxWaitMs', $localized_data);
+            $this->assertStringContainsString('retryLabel', $localized_data);
 
             $payload = ['complete' => false, 'html' => ''];
             for ($attempt = 0; $attempt < 10 && empty($payload['complete']); $attempt++) {
@@ -360,6 +368,27 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Buttons Recorder Refresh Wordset', (string) ($payload['html'] ?? ''));
         $this->assertStringContainsString('3 lessons', (string) ($payload['html'] ?? ''));
         $this->assertGreaterThanOrEqual(500, (int) ($payload['retryAfterMs'] ?? 0));
+    }
+
+    public function test_logged_in_singular_page_enqueues_refresh_fallback_before_cached_shortcode_markup(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Cached Wordset Buttons Shell',
+            'post_content' => 'Page-builder content is cached outside post_content.',
+        ]);
+
+        wp_set_current_user($user_id);
+        $this->go_to(get_permalink($page_id));
+        ll_tools_wordset_buttons_shortcode_enqueue_logged_in_fallback();
+
+        $this->assertTrue(wp_script_is('ll-tools-wordset-buttons-refresh', 'enqueued'));
+        $localized_data = (string) wp_scripts()->get_data('ll-tools-wordset-buttons-refresh', 'data');
+        $this->assertStringContainsString('llToolsWordsetButtonsRefresh', $localized_data);
+        $this->assertStringContainsString('errorMessage', $localized_data);
+        $this->assertStringContainsString('retryLabel', $localized_data);
     }
 
     public function test_structural_privacy_epoch_never_reuses_the_previous_complete_render(): void
@@ -542,6 +571,16 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertIsArray($failed_state);
         $this->assertSame(1, (int) ($failed_state['attempts'] ?? 0));
         $this->assertGreaterThan($logical_now, (int) ($failed_state['next_retry_at'] ?? 0));
+        $backoff_payload = ll_tools_wordset_buttons_shortcode_refresh_payload(
+            $atts,
+            'll_wordset_buttons'
+        );
+        $this->assertFalse((bool) ($backoff_payload['complete'] ?? true));
+        $this->assertSame(
+            ((int) $failed_state['next_retry_at'] - $logical_now) * 1000,
+            (int) ($backoff_payload['retryAfterMs'] ?? 0),
+            'The browser must honor the durable server backoff instead of polling every 1.5 seconds.'
+        );
         $backoff_html = do_shortcode('[ll_wordset_buttons]');
         $this->assertStringContainsString('ll-wordset-buttons-shortcode--loading', $backoff_html);
         $this->assertStringNotContainsString('ll-wordset-buttons-shortcode__button', $backoff_html);

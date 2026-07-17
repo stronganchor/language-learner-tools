@@ -74,9 +74,11 @@ For a normal Codex session against a live LL Tools site:
    target wordset and current coverage without running the heavier full report.
 9. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
 10. For transcription or STT audio-download work, use
-    `GET /wordsets/{wordset}/site-sync/snapshot?surface=transcriptions&include_media=1&ensure_sync_ids=0`
-    as the manifest source. Download audio from each row's `media.audio.url`;
-    do not load `/wp-admin/post.php?...&action=edit` per recording.
+    `GET /wordsets/{wordset}/site-sync/snapshot?surface=transcriptions&include_media=1&ensure_sync_ids=0&per_page=250&offset=0`
+    as the first manifest page, then follow `pagination.next_offset` until
+    `pagination.has_more` is false. Download audio from each row's
+    `media.audio.url`; do not load `/wp-admin/post.php?...&action=edit` per
+    recording.
 11. For AI-planned batches that touch multiple word metadata fields or final
     category assignments, prefer `word-metadata-plan-jobs`: take a metadata
     snapshot, submit explicit per-word final states with expected current values,
@@ -1274,7 +1276,9 @@ Query params:
 - `ensure_sync_ids` optional boolean, default true
 - `include_media` optional boolean, default true; set to false for lighter
   read-only comparison snapshots
-- `per_page` optional integer for paged snapshots
+- `per_page` optional integer for paged snapshots, default 100 and maximum 250;
+  omitted, zero, and negative values use the bounded default rather than
+  requesting the whole word set
 - `offset` optional integer offset for paged snapshots
 
 The response includes stable LL Tools sync IDs where available. When
@@ -1305,6 +1309,10 @@ local audio, and download the files directly from `records[].media.audio.url`
 with low concurrency. Do not discover audio by loading
 `/wp-admin/post.php?post={id}&action=edit` for each `word_audio` post; admin edit
 screens are expensive and can saturate PHP-FPM on live sites.
+
+Every snapshot response is paged. There is no unpaged `per_page=0` mode. The
+Site Sync admin assembles these bounded pages when it explicitly needs a
+complete local/live comparison.
 
 Use `surface=metadata` for a paged, one-row-per-word local snapshot. Metadata
 records include:

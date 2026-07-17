@@ -271,7 +271,9 @@ function ll_tools_site_sync_fetch_remote_snapshot(array $connection, string $pas
             return $page;
         }
 
-        $records = array_merge($records, array_values((array) ($page['records'] ?? [])));
+        foreach (array_values((array) ($page['records'] ?? [])) as $page_record) {
+            $records[] = $page_record;
+        }
         $pagination = (array) ($page['pagination'] ?? []);
         $next_offset = isset($pagination['next_offset']) ? (int) $pagination['next_offset'] : null;
         if (empty($pagination)) {
@@ -709,7 +711,7 @@ function ll_tools_site_sync_apply_push_batch(array $connection, string $password
         ],
     ];
 
-    $local_snapshot = ll_tools_site_sync_build_snapshot(
+    $local_snapshot = ll_tools_site_sync_build_complete_snapshot(
         (int) $connection['local_wordset_id'],
         (string) $connection['surface'],
         true,
@@ -778,7 +780,7 @@ function ll_tools_site_sync_apply_push_batch(array $connection, string $password
             (int) ($accept_live_result['recordings_updated'] ?? 0)
         );
 
-        $local_snapshot = ll_tools_site_sync_build_snapshot(
+        $local_snapshot = ll_tools_site_sync_build_complete_snapshot(
             (int) $connection['local_wordset_id'],
             (string) $connection['surface'],
             true,
@@ -977,7 +979,7 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         return $result;
     }
 
-    $local_snapshot = ll_tools_site_sync_build_snapshot(
+    $local_snapshot = ll_tools_site_sync_build_complete_snapshot(
         (int) $connection['local_wordset_id'],
         (string) $connection['surface'],
         true
@@ -1650,7 +1652,7 @@ function ll_tools_site_sync_build_local_change_summary(array $connection, array 
         return $summary;
     }
 
-    $local_snapshot = ll_tools_site_sync_build_snapshot(
+    $local_snapshot = ll_tools_site_sync_build_complete_snapshot(
         (int) $connection['local_wordset_id'],
         (string) ($connection['surface'] ?? 'transcriptions'),
         false,

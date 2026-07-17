@@ -1,7 +1,6 @@
 (function () {
     'use strict';
 
-    var config = window.llToolsWordsetButtonsRefresh || {};
     var selector = '[data-ll-wordset-buttons-refresh]';
     var states = new WeakMap();
 
@@ -10,9 +9,20 @@
         return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
     }
 
-    var retryMs = positiveInteger(config.retryMs, 1500);
-    var requestTimeoutMs = positiveInteger(config.requestTimeoutMs, 20000);
-    var maxAttempts = positiveInteger(config.maxAttempts, 120);
+    function rootConfig(root) {
+        var localized = window.llToolsWordsetButtonsRefresh || {};
+        return {
+            ajaxUrl: String(root.getAttribute('data-ajax-url') || localized.ajaxUrl || ''),
+            action: String(root.getAttribute('data-ajax-action') || localized.action || 'll_tools_wordset_buttons_refresh'),
+            nonce: String(root.getAttribute('data-nonce') || localized.nonce || ''),
+            retryMs: positiveInteger(localized.retryMs, 1500),
+            requestTimeoutMs: positiveInteger(localized.requestTimeoutMs, 20000),
+            maxFailures: positiveInteger(localized.maxFailures, 5),
+            maxWaitMs: positiveInteger(localized.maxWaitMs, 10 * 60 * 1000),
+            errorMessage: String(root.getAttribute('data-error-message') || localized.errorMessage || ''),
+            retryLabel: String(root.getAttribute('data-retry-label') || localized.retryLabel || '')
+        };
+    }
 
     function clearState(state) {
         if (state.timer) {
@@ -38,9 +48,56 @@
         root.replaceWith(template.content);
     }
 
+    function showRetry(root, state) {
+        if (!root.isConnected || state.showingRetry) {
+            return;
+        }
+
+        clearState(state);
+        state.showingRetry = true;
+        root.setAttribute('aria-busy', 'false');
+
+        var config = rootConfig(root);
+        var panel = document.createElement('div');
+        panel.className = 'll-wordset-buttons-refresh__error';
+        panel.setAttribute('role', 'alert');
+
+        var message = document.createElement('p');
+        message.className = 'll-wordset-buttons-refresh__error-message';
+        message.textContent = config.errorMessage || '⚠';
+
+        var retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'll-study-btn ll-wordset-buttons-refresh__retry';
+        retry.textContent = config.retryLabel || '↻';
+        retry.setAttribute('aria-label', config.retryLabel || '↻');
+        retry.addEventListener('click', function () {
+            state.showingRetry = false;
+            state.failures = 0;
+            state.nonceRefreshes = 0;
+            state.configWaits = 0;
+            state.startedAt = Date.now();
+            root.setAttribute('aria-busy', 'true');
+            root.innerHTML = state.loadingHtml;
+            requestNextBatch(root, state);
+        });
+
+        panel.appendChild(message);
+        panel.appendChild(retry);
+        root.textContent = '';
+        root.appendChild(panel);
+    }
+
     function schedule(root, state, delay) {
         clearState(state);
-        if (!root.isConnected || state.attempts >= maxAttempts) {
+        if (!root.isConnected || state.showingRetry) {
+            return;
+        }
+
+        var config = rootConfig(root);
+        var waitMs = positiveInteger(delay, config.retryMs);
+        if (Date.now() + waitMs - state.startedAt > config.maxWaitMs) {
+            showRetry(root, state);
             return;
         }
 
@@ -58,33 +115,67 @@
         state.timer = window.setTimeout(function () {
             state.timer = 0;
             requestNextBatch(root, state);
-        }, positiveInteger(delay, retryMs));
+        }, waitMs);
+    }
+
+    function transientFailureDelay(config, failures) {
+        return Math.min(30000, config.retryMs * Math.pow(2, Math.max(0, failures - 1)));
+    }
+
+    function refreshExpiredNonce(root, state, response, payload) {
+        var data = payload && payload.data ? payload.data : {};
+        if (
+            response.status !== 403
+            || data.code !== 'invalid_nonce'
+            || typeof data.nonce !== 'string'
+            || data.nonce === ''
+            || state.nonceRefreshes >= 2
+        ) {
+            return false;
+        }
+
+        root.setAttribute('data-nonce', data.nonce);
+        state.nonceRefreshes += 1;
+        state.failures = 0;
+        schedule(root, state, 1);
+        return true;
     }
 
     function requestNextBatch(root, state) {
-        if (!root.isConnected || state.pending || state.attempts >= maxAttempts) {
+        if (!root.isConnected || state.pending || state.showingRetry) {
             return;
         }
         if (document.visibilityState === 'hidden') {
-            schedule(root, state, retryMs);
+            schedule(root, state, rootConfig(root).retryMs);
             return;
         }
 
+        var config = rootConfig(root);
+        if (!config.ajaxUrl || !config.nonce || typeof window.fetch !== 'function') {
+            state.configWaits += 1;
+            if (state.configWaits >= 20) {
+                showRetry(root, state);
+                return;
+            }
+            schedule(root, state, 250);
+            return;
+        }
+
+        state.configWaits = 0;
         state.pending = true;
-        state.attempts += 1;
 
         var controller = typeof AbortController === 'function' ? new AbortController() : null;
         var timeout = controller
-            ? window.setTimeout(function () { controller.abort(); }, requestTimeoutMs)
+            ? window.setTimeout(function () { controller.abort(); }, config.requestTimeoutMs)
             : 0;
         var body = new URLSearchParams();
-        body.set('action', String(config.action || 'll_tools_wordset_buttons_refresh'));
-        body.set('nonce', String(config.nonce || ''));
+        body.set('action', config.action);
+        body.set('nonce', config.nonce);
         body.set('tag', String(root.getAttribute('data-shortcode-tag') || 'll_wordset_buttons'));
         body.set('class', String(root.getAttribute('data-shortcode-class') || ''));
         body.set('hide_empty', root.getAttribute('data-hide-empty') === '1' ? '1' : '0');
 
-        window.fetch(String(config.ajaxUrl || ''), {
+        window.fetch(config.ajaxUrl, {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -93,16 +184,25 @@
             body: body.toString(),
             signal: controller ? controller.signal : undefined
         }).then(function (response) {
-            if (!response.ok) {
+            return response.json().catch(function () { return null; }).then(function (payload) {
+                return { response: response, payload: payload };
+            });
+        }).then(function (result) {
+            if (!result.response.ok) {
+                if (refreshExpiredNonce(root, state, result.response, result.payload)) {
+                    return;
+                }
                 throw new Error('wordset-buttons-refresh-http');
             }
-            return response.json();
-        }).then(function (payload) {
+
+            var payload = result.payload;
             if (!payload || payload.success !== true || !payload.data) {
                 throw new Error('wordset-buttons-refresh-response');
             }
 
             var data = payload.data;
+            state.failures = 0;
+            state.nonceRefreshes = 0;
             if (data.complete === true) {
                 replaceCompleteRoot(root, data.html, state);
                 return;
@@ -113,7 +213,13 @@
             }
             schedule(root, state, data.retryAfterMs);
         }).catch(function () {
-            schedule(root, state, retryMs);
+            state.failures += 1;
+            var currentConfig = rootConfig(root);
+            if (state.failures >= currentConfig.maxFailures) {
+                showRetry(root, state);
+                return;
+            }
+            schedule(root, state, transientFailureDelay(currentConfig, state.failures));
         }).finally(function () {
             if (timeout) {
                 window.clearTimeout(timeout);
@@ -122,29 +228,55 @@
         });
     }
 
-    function initialize() {
-        if (!config.ajaxUrl || !config.nonce || typeof window.fetch !== 'function') {
+    function initializeRoot(root) {
+        if (states.has(root)) {
             return;
         }
 
-        document.querySelectorAll(selector).forEach(function (root) {
-            if (states.has(root)) {
-                return;
-            }
-            var state = {
-                attempts: 0,
-                pending: false,
-                timer: 0,
-                visibilityHandler: null
-            };
-            states.set(root, state);
-            requestNextBatch(root, state);
-        });
+        var state = {
+            failures: 0,
+            nonceRefreshes: 0,
+            configWaits: 0,
+            pending: false,
+            timer: 0,
+            visibilityHandler: null,
+            showingRetry: false,
+            startedAt: Date.now(),
+            loadingHtml: root.innerHTML
+        };
+        states.set(root, state);
+        requestNextBatch(root, state);
+    }
+
+    function initialize(scope) {
+        var root = scope && scope.matches && scope.matches(selector) ? scope : null;
+        if (root) {
+            initializeRoot(root);
+        }
+
+        if (scope && typeof scope.querySelectorAll === 'function') {
+            scope.querySelectorAll(selector).forEach(initializeRoot);
+        }
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initialize, { once: true });
+        document.addEventListener('DOMContentLoaded', function () { initialize(document); }, { once: true });
     } else {
-        initialize();
+        initialize(document);
+    }
+
+    window.addEventListener('pageshow', function () { initialize(document); });
+
+    if (typeof MutationObserver === 'function' && document.documentElement) {
+        var observer = new MutationObserver(function (records) {
+            records.forEach(function (record) {
+                record.addedNodes.forEach(function (node) {
+                    if (node && node.nodeType === 1) {
+                        initialize(node);
+                    }
+                });
+            });
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 }());

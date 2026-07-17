@@ -78,7 +78,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertStringContainsString((string) $wpdb->term_relationships, $relationship_queries[0]);
     }
 
-    public function test_snapshot_endpoint_exports_transcription_records_with_sync_ids(): void
+    public function test_snapshot_endpoint_defaults_omitted_and_zero_per_page_to_a_bounded_page(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         $wordset_id = $this->ensure_term('wordset', 'Sync Wordset', 'sync-wordset');
@@ -87,22 +87,45 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $word_id = $this->create_word($wordset_id, [$category_id], 'Sync Word', 'Sync Translation');
         $recording_id = $this->create_recording($word_id, 'Sync Recording', ['recording_ipa' => 'old.ipa']);
         wp_set_object_terms($recording_id, [$recording_type_id], 'recording_type');
+        $second_word_id = $this->create_word($wordset_id, [$category_id], 'Second Sync Word', 'Second Translation');
+        $this->create_recording($second_word_id, 'Second Sync Recording', ['recording_ipa' => 'second.ipa']);
 
         wp_set_current_user($admin_id);
 
-        $response = $this->dispatch_rest_request('GET', '/ll-tools/v1/wordsets/sync-wordset/site-sync/snapshot');
+        $default_page_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_site_sync_snapshot_default_per_page', $default_page_filter);
+        try {
+            $response = $this->dispatch_rest_request('GET', '/ll-tools/v1/wordsets/sync-wordset/site-sync/snapshot');
+            $zero_response = $this->dispatch_rest_request('GET', '/ll-tools/v1/wordsets/sync-wordset/site-sync/snapshot', [
+                'per_page' => 0,
+            ]);
+        } finally {
+            remove_filter('ll_tools_site_sync_snapshot_default_per_page', $default_page_filter);
+        }
 
         $this->assertSame(200, $response->get_status());
         $data = $response->get_data();
         $this->assertIsArray($data);
         $this->assertSame('transcriptions', (string) ($data['surface'] ?? ''));
-        $this->assertSame(1, (int) ($data['record_count'] ?? 0));
+        $this->assertSame(2, (int) ($data['record_count'] ?? 0));
+        $this->assertSame(1, (int) ($data['records_returned'] ?? 0));
+        $this->assertSame(1, (int) (($data['pagination'] ?? [])['limit'] ?? 0));
+        $this->assertTrue((bool) (($data['pagination'] ?? [])['has_more'] ?? false));
 
         $record = (array) (($data['records'] ?? [])[0] ?? []);
         $this->assertNotSame('', (string) ($record['sync_id'] ?? ''));
         $this->assertSame('old.ipa', (string) (($record['values'] ?? [])['recording_ipa'] ?? ''));
         $this->assertSame(['isolation'], array_values((array) (($record['recording'] ?? [])['types'] ?? [])));
         $this->assertNotSame('', (string) get_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), true));
+
+        $this->assertSame(200, $zero_response->get_status());
+        $zero_data = $zero_response->get_data();
+        $this->assertIsArray($zero_data);
+        $this->assertSame(1, (int) ($zero_data['records_returned'] ?? 0));
+        $this->assertSame(1, (int) (($zero_data['pagination'] ?? [])['limit'] ?? 0));
+        $this->assertTrue((bool) (($zero_data['pagination'] ?? [])['has_more'] ?? false));
     }
 
     public function test_snapshot_endpoint_pages_records_and_can_skip_media(): void
@@ -222,7 +245,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertFalse(wp_cache_get($recording_word_ids[0], 'posts'), 'Parent words outside the requested page must not be hydrated.');
     }
 
-    public function test_transcription_snapshot_join_preserves_status_scope_paging_and_unpaged_compatibility(): void
+    public function test_transcription_snapshot_join_preserves_status_scope_and_bounded_complete_reads(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Joined Sync Wordset', 'joined-sync-wordset');
         $other_wordset_id = $this->ensure_term('wordset', 'Other Joined Sync Wordset', 'other-joined-sync-wordset');
@@ -277,27 +300,46 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame(3, (int) ($empty_page['total'] ?? 0));
         $this->assertSame([], (array) ($empty_page['records'] ?? []));
 
-        $unpaged = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', false, [
-            'include_media' => false,
-            'limit' => 0,
-            'offset' => 999,
-        ]);
-        $this->assertIsArray($unpaged);
-        $this->assertArrayNotHasKey('pagination', $unpaged);
-        $this->assertSame(3, (int) ($unpaged['record_count'] ?? 0));
-        $unpaged_ids = array_values(array_map(static function (array $record): int {
+        $default_page_filter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_site_sync_snapshot_default_per_page', $default_page_filter);
+        try {
+            $default_page = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', false, [
+                'include_media' => false,
+                'limit' => 0,
+            ]);
+            $complete = ll_tools_site_sync_build_complete_snapshot($wordset_id, 'transcriptions', false, [
+                'include_media' => false,
+                'limit' => 0,
+            ]);
+        } finally {
+            remove_filter('ll_tools_site_sync_snapshot_default_per_page', $default_page_filter);
+        }
+
+        $this->assertIsArray($default_page);
+        $this->assertSame(3, (int) ($default_page['record_count'] ?? 0));
+        $this->assertSame(2, (int) ($default_page['records_returned'] ?? 0));
+        $this->assertSame(2, (int) (($default_page['pagination'] ?? [])['limit'] ?? 0));
+        $this->assertTrue((bool) (($default_page['pagination'] ?? [])['has_more'] ?? false));
+
+        $this->assertIsArray($complete);
+        $this->assertArrayNotHasKey('pagination', $complete);
+        $this->assertSame(3, (int) ($complete['record_count'] ?? 0));
+        $this->assertSame(3, (int) ($complete['records_returned'] ?? 0));
+        $complete_ids = array_values(array_map(static function (array $record): int {
             return (int) (($record['recording'] ?? [])['id'] ?? 0);
-        }, (array) ($unpaged['records'] ?? [])));
-        sort($unpaged_ids, SORT_NUMERIC);
-        $this->assertSame($included_recording_ids, $unpaged_ids);
+        }, (array) ($complete['records'] ?? [])));
+        sort($complete_ids, SORT_NUMERIC);
+        $this->assertSame($included_recording_ids, $complete_ids);
         $this->assertSame([], array_values(array_intersect(
             [$recording_on_trashed_word_id, $trashed_recording_id, $other_recording_id],
-            $unpaged_ids
+            $complete_ids
         )));
 
-        $first_unpaged_record = (array) (($unpaged['records'] ?? [])[0] ?? []);
-        $this->assertSame('word_audio_transcription', (string) ($first_unpaged_record['record_type'] ?? ''));
-        $this->assertArrayNotHasKey('media', $first_unpaged_record);
+        $first_complete_record = (array) (($complete['records'] ?? [])[0] ?? []);
+        $this->assertSame('word_audio_transcription', (string) ($first_complete_record['record_type'] ?? ''));
+        $this->assertArrayNotHasKey('media', $first_complete_record);
     }
 
     public function test_push_plan_separates_clean_updates_from_conflicts(): void

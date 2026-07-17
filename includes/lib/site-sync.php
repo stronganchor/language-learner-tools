@@ -527,12 +527,18 @@ function ll_tools_site_sync_word_categories(int $word_id, bool $ensure_sync_ids 
     return $categories;
 }
 
+function ll_tools_site_sync_snapshot_default_per_page(): int {
+    $max_per_page = max(1, (int) apply_filters('ll_tools_site_sync_snapshot_max_per_page', 250));
+    $per_page = (int) apply_filters('ll_tools_site_sync_snapshot_default_per_page', 100);
+    return max(1, min($max_per_page, $per_page));
+}
+
 function ll_tools_site_sync_normalize_snapshot_args(array $args = []): array {
     $max_per_page = max(1, (int) apply_filters('ll_tools_site_sync_snapshot_max_per_page', 250));
-    $limit = isset($args['limit']) ? max(0, (int) $args['limit']) : 0;
-    if ($limit > 0) {
-        $limit = min($limit, $max_per_page);
-    }
+    $limit = isset($args['limit']) ? (int) $args['limit'] : 0;
+    $limit = $limit > 0
+        ? min($limit, $max_per_page)
+        : ll_tools_site_sync_snapshot_default_per_page();
 
     return [
         'include_media' => !array_key_exists('include_media', $args) || !empty($args['include_media']),
@@ -552,7 +558,7 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
  *
  * @return array{ids:int[],total:int}
  */
-function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $limit = 0, int $offset = 0): array {
+function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $limit = 100, int $offset = 0): array {
     global $wpdb;
 
     if ($wordset_id <= 0) {
@@ -562,7 +568,7 @@ function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $
         ];
     }
 
-    $limit = max(0, $limit);
+    $limit = (int) ll_tools_site_sync_normalize_snapshot_args(['limit' => $limit])['limit'];
     $offset = max(0, $offset);
     $statuses = ['publish', 'draft', 'pending', 'private', 'future'];
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
@@ -598,11 +604,9 @@ function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $
         ORDER BY sync_audio.ID ASC
     ";
     $ids_params = $query_params;
-    if ($limit > 0) {
-        $ids_sql .= ' LIMIT %d OFFSET %d';
-        $ids_params[] = $limit;
-        $ids_params[] = $offset;
-    }
+    $ids_sql .= ' LIMIT %d OFFSET %d';
+    $ids_params[] = $limit;
+    $ids_params[] = $offset;
 
     $audio_ids = array_values(array_filter(array_map(
         'intval',
@@ -610,13 +614,6 @@ function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $
     ), static function (int $audio_id): bool {
         return $audio_id > 0;
     }));
-
-    if ($limit <= 0) {
-        return [
-            'ids' => $audio_ids,
-            'total' => count($audio_ids),
-        ];
-    }
 
     $count_sql = "
         SELECT COUNT(DISTINCT sync_audio.ID)
@@ -1105,11 +1102,11 @@ function ll_tools_site_sync_collect_metadata_record_page(int $wordset_id, bool $
     $word_query_args = [
         'post_type' => 'words',
         'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => $limit > 0 ? $limit : -1,
+        'posts_per_page' => $limit,
         'fields' => 'ids',
         'orderby' => 'ID',
         'order' => 'ASC',
-        'no_found_rows' => $limit <= 0,
+        'no_found_rows' => false,
         'tax_query' => [
             [
                 'taxonomy' => 'wordset',
@@ -1118,7 +1115,7 @@ function ll_tools_site_sync_collect_metadata_record_page(int $wordset_id, bool $
             ],
         ],
     ];
-    if ($limit > 0 && $offset > 0) {
+    if ($offset > 0) {
         $word_query_args['offset'] = $offset;
     }
 
@@ -1126,7 +1123,7 @@ function ll_tools_site_sync_collect_metadata_record_page(int $wordset_id, bool $
     $word_ids = array_values(array_filter(array_map('intval', (array) $word_query->posts), static function (int $word_id): bool {
         return $word_id > 0;
     }));
-    $total_records = $limit > 0 ? (int) $word_query->found_posts : count($word_ids);
+    $total_records = (int) $word_query->found_posts;
     if (empty($word_ids)) {
         return [
             'records' => [],
@@ -1217,17 +1214,86 @@ function ll_tools_site_sync_build_snapshot(int $wordset_id, string $surface = 't
         $snapshot['wordset_metadata'] = $wordset_metadata;
     }
 
-    if ((int) $snapshot_args['limit'] > 0) {
-        $next_offset = (int) $snapshot_args['offset'] + count($records);
-        $snapshot['pagination'] = [
-            'limit' => (int) $snapshot_args['limit'],
-            'offset' => (int) $snapshot_args['offset'],
-            'returned_count' => count($records),
-            'total_count' => $total_records,
-            'has_more' => $next_offset < $total_records,
-            'next_offset' => $next_offset < $total_records ? $next_offset : null,
-        ];
+    $next_offset = (int) $snapshot_args['offset'] + count($records);
+    $snapshot['pagination'] = [
+        'limit' => (int) $snapshot_args['limit'],
+        'offset' => (int) $snapshot_args['offset'],
+        'returned_count' => count($records),
+        'total_count' => $total_records,
+        'has_more' => $next_offset < $total_records,
+        'next_offset' => $next_offset < $total_records ? $next_offset : null,
+    ];
+
+    return $snapshot;
+}
+
+/**
+ * Build a complete snapshot for an explicit admin comparison while keeping
+ * every database hydration bounded to the configured snapshot page size.
+ *
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_site_sync_build_complete_snapshot(int $wordset_id, string $surface = 'transcriptions', bool $ensure_sync_ids = true, array $args = []) {
+    $snapshot_args = ll_tools_site_sync_normalize_snapshot_args($args);
+    $snapshot_args['offset'] = 0;
+
+    $snapshot = ll_tools_site_sync_build_snapshot($wordset_id, $surface, $ensure_sync_ids, $snapshot_args);
+    if (is_wp_error($snapshot)) {
+        return $snapshot;
     }
+
+    $records = array_values((array) ($snapshot['records'] ?? []));
+    $expected_total = (int) ($snapshot['record_count'] ?? count($records));
+    $pagination = (array) ($snapshot['pagination'] ?? []);
+
+    while (!empty($pagination['has_more'])) {
+        $current_offset = (int) ($pagination['offset'] ?? 0);
+        $next_offset = isset($pagination['next_offset']) ? (int) $pagination['next_offset'] : 0;
+        if ($next_offset <= $current_offset) {
+            return new WP_Error(
+                'll_tools_site_sync_snapshot_paging_failed',
+                __('The request failed. Please try again.', 'll-tools-text-domain')
+            );
+        }
+
+        $snapshot_args['offset'] = $next_offset;
+        $page = ll_tools_site_sync_build_snapshot($wordset_id, $surface, $ensure_sync_ids, $snapshot_args);
+        if (is_wp_error($page)) {
+            return $page;
+        }
+
+        if ((int) ($page['record_count'] ?? -1) !== $expected_total) {
+            return new WP_Error(
+                'll_tools_site_sync_snapshot_changed_during_read',
+                __('The request failed. Please try again.', 'll-tools-text-domain')
+            );
+        }
+
+        $page_records = array_values((array) ($page['records'] ?? []));
+        if (empty($page_records)) {
+            return new WP_Error(
+                'll_tools_site_sync_snapshot_paging_failed',
+                __('The request failed. Please try again.', 'll-tools-text-domain')
+            );
+        }
+
+        foreach ($page_records as $page_record) {
+            $records[] = $page_record;
+        }
+        $pagination = (array) ($page['pagination'] ?? []);
+    }
+
+    if (count($records) !== $expected_total) {
+        return new WP_Error(
+            'll_tools_site_sync_snapshot_changed_during_read',
+            __('The request failed. Please try again.', 'll-tools-text-domain')
+        );
+    }
+
+    $snapshot['records'] = $records;
+    $snapshot['record_count'] = $expected_total;
+    $snapshot['records_returned'] = count($records);
+    unset($snapshot['pagination']);
 
     return $snapshot;
 }
@@ -1414,6 +1480,7 @@ function ll_tools_site_sync_plan_empty(string $direction, array $local_snapshot,
 
 function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote_snapshot, array $base_snapshot = []): array {
     $plan = ll_tools_site_sync_plan_empty('push', $local_snapshot, $remote_snapshot, $base_snapshot);
+    $local_index = ll_tools_site_sync_index_snapshot($local_snapshot);
     $remote_index = ll_tools_site_sync_index_snapshot($remote_snapshot);
     $base_index = ll_tools_site_sync_index_snapshot($base_snapshot);
     $seen_remote_keys = [];
@@ -1537,7 +1604,7 @@ function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote
         if ($remote_key !== '' && isset($seen_remote_keys[$remote_key])) {
             continue;
         }
-        if (ll_tools_site_sync_find_matching_record($remote_record, ll_tools_site_sync_index_snapshot($local_snapshot)) === null) {
+        if (ll_tools_site_sync_find_matching_record($remote_record, $local_index) === null) {
             $plan['skipped'][] = [
                 'reason' => 'missing_local_record',
                 'remote_record' => $remote_record,
@@ -2853,7 +2920,10 @@ function ll_tools_site_sync_snapshot_endpoint(WP_REST_Request $request) {
     $surface = ll_tools_site_sync_normalize_surface((string) ($request->get_param('surface') ?? 'transcriptions'));
     $ensure_sync_ids = !($request->get_param('ensure_sync_ids') === '0' || $request->get_param('ensure_sync_ids') === false);
     $include_media = !($request->get_param('include_media') === '0' || $request->get_param('include_media') === false);
-    $per_page = max(0, (int) $request->get_param('per_page'));
+    $snapshot_args = ll_tools_site_sync_normalize_snapshot_args([
+        'limit' => (int) $request->get_param('per_page'),
+    ]);
+    $per_page = (int) $snapshot_args['limit'];
     $page = max(1, (int) $request->get_param('page'));
     $offset_param = $request->get_param('offset');
     $offset = is_numeric($offset_param) ? max(0, (int) $offset_param) : ($per_page > 0 ? ($page - 1) * $per_page : 0);

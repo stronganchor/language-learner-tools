@@ -332,11 +332,11 @@ evidence-led and scoped to a measured growth dimension.
      Keep extending this kind of static coverage where it catches real
      maintenance drift with low flake risk.
 
-2. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
-   - `GET /wordsets/{wordset}/site-sync/snapshot` intentionally continues to permit an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
-   - Positive pages now select `word_audio` IDs directly through the wordset relationship and hydrate only that recording page. The explicit full-snapshot compatibility path still hydrates its full transcription result, and push-plan construction can remain proportional to the compared catalogs.
-   - Automation users may depend on full snapshots, so treat any future cap/default change as a deliberate compatibility decision.
-   - If production usage ever shows resource pressure, verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
+2. Keep Site Sync reads bounded while preserving complete admin comparisons.
+   - `GET /wordsets/{wordset}/site-sync/snapshot` now defaults omitted, zero, and negative `per_page` values to 100 rows, caps positive pages at 250, and always returns continuation metadata; `include_media` still defaults to true.
+   - Transcription pages select `word_audio` IDs directly through the wordset relationship, metadata pages hydrate only their requested words, and the admin assembles explicit complete comparisons by iterating bounded local and remote pages.
+   - Full pull/push plan construction can still be proportional to both compared catalogs in PHP. If production scale requires a hard comparison-memory bound, move the diff into a durable cursor-backed job rather than restoring an unpaged query.
+   - Verify future Site Sync contract changes against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
 
 3. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
@@ -358,10 +358,11 @@ evidence-led and scoped to a measured growth dimension.
   local merges, but a scheduled upkeep run cannot close or advance its HEAD
   guard until every current Turkish POT entry is translated and structurally
   valid.
-- Site Sync's omitted/zero `per_page` full snapshot is retained for client
-  compatibility, and full pull/push comparison can still be proportional to
-  both catalogs. Any default cap or durable server-side diff design needs
-  automation-client and staging review.
+- Site Sync snapshot queries are bounded to 100 rows by default and 250 maximum,
+  including omitted/zero values. Full pull/push comparison can still be
+  proportional to both catalogs after the admin assembles those pages; a hard
+  memory bound would require a durable server-side diff design and staging
+  review.
 - Corpus collection lookup has a bounded 20-candidate compatibility fallback.
   Saving a legacy collection Page materializes its index; a pre-index page
   outside that candidate window waits for a save/reindex instead of triggering

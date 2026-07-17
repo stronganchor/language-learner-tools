@@ -6,6 +6,10 @@ const refreshScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/wordset-buttons-refresh.js'),
   'utf8'
 );
+const refreshStyleSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/wordset-pages.css'),
+  'utf8'
+);
 
 function loadingMarkup() {
   return `
@@ -15,6 +19,11 @@ function loadingMarkup() {
       data-shortcode-tag="ll_wordset_buttons"
       data-shortcode-class="homepage-wordsets recorder-home"
       data-hide-empty="0"
+      data-ajax-url="https://example.test/wp-admin/admin-ajax.php"
+      data-ajax-action="ll_tools_wordset_buttons_refresh"
+      data-nonce="recorder-refresh-nonce"
+      data-error-message="Something went wrong"
+      data-retry-label="Try again"
       aria-busy="true">
       <div class="ll-wordset-buttons-shortcode ll-wordset-buttons-shortcode--loading" aria-busy="true">
         <span class="screen-reader-text">Loading categories...</span>
@@ -117,7 +126,10 @@ test('transient request failure retries without overlapping requests', async ({ 
       nonce: 'recorder-refresh-nonce',
       retryMs: 10,
       requestTimeoutMs: 1000,
-      maxAttempts: 4
+      maxFailures: 4,
+      maxWaitMs: 1000,
+      errorMessage: 'Something went wrong',
+      retryLabel: 'Try again'
     };
   });
   await page.addScriptTag({ content: refreshScriptSource });
@@ -125,4 +137,164 @@ test('transient request failure retries without overlapping requests', async ({ 
   await expect(page.getByText('Recovered wordset')).toBeVisible();
   expect(requestCount).toBe(2);
   expect(maxActiveRequests).toBe(1);
+});
+
+test('expired nonce is refreshed once and the bounded loader resumes', async ({ page }) => {
+  const nonces = [];
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    const params = new URLSearchParams(route.request().postData() || '');
+    nonces.push(params.get('nonce'));
+    if (nonces.length === 1) {
+      await route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          data: {
+            code: 'invalid_nonce',
+            nonce: 'fresh-refresh-nonce'
+          }
+        })
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          complete: true,
+          html: '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Nonce recovered</a></div>',
+          retryAfterMs: 10
+        }
+      })
+    });
+  });
+
+  await page.setContent(loadingMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect(page.getByText('Nonce recovered')).toBeVisible();
+  expect(nonces).toEqual(['recorder-refresh-nonce', 'fresh-refresh-nonce']);
+});
+
+test('durable server backoff waits without consuming the transport failure budget', async ({ page }) => {
+  let requestCount = 0;
+  let activeRequests = 0;
+  let maxActiveRequests = 0;
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    activeRequests += 1;
+    maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+    activeRequests -= 1;
+
+    const data = requestCount === 1
+      ? { complete: false, html: '', retryAfterMs: 120 }
+      : {
+          complete: true,
+          html: '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Backoff recovered</a></div>',
+          retryAfterMs: 10
+        };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data })
+    });
+  });
+
+  await page.setContent(loadingMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      maxFailures: 1,
+      maxWaitMs: 1000,
+      retryMs: 10,
+      requestTimeoutMs: 500,
+      errorMessage: 'Something went wrong',
+      retryLabel: 'Try again'
+    };
+  });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect(page.getByText('Backoff recovered')).toBeVisible();
+  expect(requestCount).toBe(2);
+  expect(maxActiveRequests).toBe(1);
+});
+
+test('terminal request failures replace the infinite skeleton with a retry control', async ({ page }) => {
+  let requestCount = 0;
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    if (requestCount <= 2) {
+      await route.fulfill({ status: 503, body: 'temporary failure' });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          complete: true,
+          html: '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Manual retry recovered</a></div>',
+          retryAfterMs: 10
+        }
+      })
+    });
+  });
+
+  await page.setContent(loadingMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      maxFailures: 2,
+      maxWaitMs: 1000,
+      retryMs: 10,
+      requestTimeoutMs: 500,
+      errorMessage: 'Something went wrong',
+      retryLabel: 'Try again'
+    };
+  });
+  await page.addStyleTag({ content: refreshStyleSource });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  const retry = page.getByRole('button', { name: 'Try again' });
+  await expect(retry).toBeVisible();
+  await expect(retry).toHaveCSS('background-color', 'rgb(153, 27, 27)');
+  await expect(retry).toHaveCSS('border-radius', '999px');
+  await expect(page.locator('[data-ll-wordset-buttons-refresh]')).toHaveAttribute('aria-busy', 'false');
+  await retry.click();
+  await expect(page.getByText('Manual retry recovered')).toBeVisible();
+  expect(requestCount).toBe(3);
+});
+
+test('late page-builder shells are discovered after the runtime initializes', async ({ page }) => {
+  let requestCount = 0;
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          complete: true,
+          html: '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Late shell recovered</a></div>',
+          retryAfterMs: 10
+        }
+      })
+    });
+  });
+
+  await page.setContent('<main id="content"></main>', { waitUntil: 'domcontentloaded' });
+  await page.addScriptTag({ content: refreshScriptSource });
+  await page.evaluate((markup) => {
+    document.getElementById('content').insertAdjacentHTML('beforeend', markup);
+  }, loadingMarkup());
+
+  await expect(page.getByText('Late shell recovered')).toBeVisible();
+  expect(requestCount).toBe(1);
 });

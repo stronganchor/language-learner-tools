@@ -111,8 +111,12 @@ bash bin/ll-word-category-terms-local.sh genc-palu prerequisites \
 For local planning, use the site-sync metadata snapshot:
 
 ```text
-GET /wp-json/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot?surface=metadata&ensure_sync_ids=0&include_media=0&per_page=0
+GET /wp-json/ll-tools/v1/wordsets/{wordset}/site-sync/snapshot?surface=metadata&ensure_sync_ids=0&include_media=0&per_page=250&offset=0
 ```
+
+Follow `pagination.next_offset` until `pagination.has_more` is false. Omitted,
+zero, and negative `per_page` values use the bounded 100-row default; they do
+not request an unpaged snapshot.
 
 The metadata snapshot is the best general planning surface because it includes:
 
