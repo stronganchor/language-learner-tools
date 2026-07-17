@@ -26,6 +26,175 @@
         }
     }
 
+    function getSpeakerSearchConfig() {
+        var config = window.llAudioUploadFormData || {};
+        var strings = config.strings || {};
+        var configuredDelay = parseInt(config.speakerSearchDelay, 10);
+        if (isNaN(configuredDelay)) {
+            configuredDelay = 250;
+        }
+
+        return {
+            ajaxUrl: (config.ajaxUrl || window.ajaxurl || '').toString(),
+            action: (config.speakerSearchAction || 'll_audio_upload_search_speakers').toString(),
+            nonce: (config.speakerSearchNonce || '').toString(),
+            minChars: Math.max(2, parseInt(config.speakerSearchMinChars, 10) || 2),
+            delay: Math.max(0, configuredDelay),
+            strings: {
+                hint: (strings.speakerSearchHint || '').toString(),
+                loading: (strings.speakerSearchLoading || '').toString(),
+                noResults: (strings.speakerSearchNoResults || '').toString(),
+                error: (strings.speakerSearchError || '').toString(),
+                more: (strings.speakerSearchMore || '').toString(),
+                selected: (strings.speakerSelected || '').toString()
+            }
+        };
+    }
+
+    function initSpeakerSearch($form) {
+        var $root = $form.find('[data-ll-speaker-search]').first();
+        if (!$root.length) {
+            return;
+        }
+
+        var config = getSpeakerSearchConfig();
+        var $input = $root.find('[data-ll-speaker-search-input]');
+        var $status = $root.find('[data-ll-speaker-search-status]');
+        var $results = $root.find('[data-ll-speaker-search-results]');
+        var $assignment = $form.find('[data-ll-speaker-assignment]');
+        var searchTimer = null;
+        var pendingRequest = null;
+        var requestSequence = 0;
+
+        function setStatus(message, state) {
+            $status.text(message || '').attr('data-ll-speaker-search-state', state || 'idle');
+        }
+
+        function clearResults() {
+            $results.empty().hide().attr('hidden', 'hidden');
+        }
+
+        function renderResults(users, hasMore) {
+            clearResults();
+            if (!users.length) {
+                setStatus(config.strings.noResults, 'empty');
+                return;
+            }
+
+            $.each(users, function (_, user) {
+                var userId = parseInt(user && user.id, 10);
+                var label = $.trim((user && user.label ? user.label : '').toString());
+                if (!(userId > 0) || !label) {
+                    return;
+                }
+
+                $('<button>', {
+                    type: 'button',
+                    'class': 'button button-secondary ll-wordset-settings-action ll-wordset-settings-action--secondary ll-audio-upload-speaker-result',
+                    text: label
+                })
+                    .attr('data-ll-speaker-result', userId)
+                    .attr('data-ll-speaker-label', label)
+                    .appendTo($results);
+            });
+
+            if (!$results.children().length) {
+                setStatus(config.strings.noResults, 'empty');
+                return;
+            }
+
+            $results.css('display', 'flex').removeAttr('hidden');
+            setStatus(hasMore ? config.strings.more : '', hasMore ? 'more' : 'ready');
+        }
+
+        $root.on('click', '[data-ll-speaker-result]', function () {
+            var $button = $(this);
+            var userId = parseInt($button.attr('data-ll-speaker-result'), 10);
+            var label = $.trim($button.attr('data-ll-speaker-label') || $button.text() || '');
+            if (!(userId > 0) || !label) {
+                return;
+            }
+
+            $assignment.find('option[data-ll-dynamic-speaker]').remove();
+            $('<option>', {
+                value: userId,
+                text: label,
+                selected: true
+            })
+                .attr('data-ll-dynamic-speaker', '1')
+                .appendTo($assignment);
+            $assignment.val(userId.toString()).trigger('change');
+            $input.val('');
+            clearResults();
+            setStatus(config.strings.selected.replace('%s', label), 'selected');
+        });
+
+        $input.on('input', function () {
+            var search = $.trim($input.val() || '');
+            requestSequence += 1;
+            var sequence = requestSequence;
+
+            if (searchTimer) {
+                window.clearTimeout(searchTimer);
+                searchTimer = null;
+            }
+            if (pendingRequest && typeof pendingRequest.abort === 'function') {
+                pendingRequest.abort();
+                pendingRequest = null;
+            }
+            clearResults();
+
+            if (search.length < config.minChars) {
+                setStatus(config.strings.hint, 'hint');
+                return;
+            }
+
+            searchTimer = window.setTimeout(function () {
+                searchTimer = null;
+                if (!config.ajaxUrl || !config.nonce) {
+                    setStatus(config.strings.error, 'error');
+                    return;
+                }
+
+                setStatus(config.strings.loading, 'loading');
+                pendingRequest = $.ajax({
+                    url: config.ajaxUrl,
+                    method: 'GET',
+                    dataType: 'json',
+                    data: {
+                        action: config.action,
+                        nonce: config.nonce,
+                        search: search
+                    }
+                })
+                    .done(function (response) {
+                        if (sequence !== requestSequence) {
+                            return;
+                        }
+
+                        if (!response || !response.success) {
+                            var responseMessage = response && response.data && response.data.message;
+                            setStatus(responseMessage || config.strings.error, 'error');
+                            return;
+                        }
+
+                        var data = response.data || {};
+                        renderResults($.isArray(data.results) ? data.results : [], !!data.has_more);
+                    })
+                    .fail(function (_, status) {
+                        if (status !== 'abort' && sequence === requestSequence) {
+                            setStatus(config.strings.error, 'error');
+                        }
+                    })
+                    .always(function () {
+                        if (sequence === requestSequence) {
+                            pendingRequest = null;
+                        }
+                    });
+            }, config.delay);
+        });
+    }
+
     function getCategoryMode($form) {
         var $checked = $form.find('input[name="ll_category_mode"]:checked');
         if ($checked.length) {
@@ -304,6 +473,8 @@
     $(function () {
         $('[data-ll-audio-upload-form]').each(function () {
             var $form = $(this);
+
+            initSpeakerSearch($form);
 
             $form.on(
                 'change input',
