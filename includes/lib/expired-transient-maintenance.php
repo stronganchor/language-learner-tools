@@ -55,6 +55,7 @@ function ll_tools_expired_transient_maintenance_namespaces(): array {
         'vocab-grid-cache' => 'll_vl_grid_',
         'vocab-deep-count-cache' => 'll_vocab_lesson_deep_counts_',
         'vocab-gender-cache' => 'll_tools_vocab_lesson_gender_',
+        'corpus-collection-page-cache' => 'll_corpus_collection_page_',
         'user-progress-word-id-cache' => 'll_up_an_words_',
         'user-study-word-id-cache' => 'll_us_renderable_word_ids_',
         'wordset-button-cache' => 'll_ws_buttons_',

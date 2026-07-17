@@ -319,6 +319,143 @@ TSV;
         }
     }
 
+    public function test_corpus_collection_page_lookup_is_bounded_cached_and_invalidates_on_save_and_delete(): void
+    {
+        $suffix = strtolower(wp_generate_password(8, false));
+        $first_collection = 'indexed-corpus-' . $suffix;
+        $second_collection = 'moved-corpus-' . $suffix;
+        $first_lesson_id = $this->createPublishedCorpusText('Indexed Corpus Lesson', $first_collection, 1);
+        $second_lesson_id = $this->createPublishedCorpusText('Moved Corpus Lesson', $second_collection, 2);
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Indexed Corpus Page ' . $suffix,
+            'post_content' => "[ll_text_document_grid title=\"Fixture\" collection = '" . $first_collection . "']",
+        ]);
+
+        $this->assertSame(
+            [$first_collection],
+            ll_tools_get_corpus_text_collection_page_index($page_id)
+        );
+
+        $page_queries = [];
+        $query_watcher = static function (WP_Query $query) use (&$page_queries): void {
+            if ($query->get('post_type') !== 'page'
+                || $query->get('meta_key') !== ll_tools_corpus_text_collection_page_index_meta_key()) {
+                return;
+            }
+
+            $page_queries[] = [
+                'posts_per_page' => (int) $query->get('posts_per_page'),
+                'fields' => (string) $query->get('fields'),
+                'no_found_rows' => (bool) $query->get('no_found_rows'),
+            ];
+        };
+        add_action('pre_get_posts', $query_watcher);
+        try {
+            $missing_link = ll_tools_get_corpus_text_collection_link($second_lesson_id);
+            $first_link = ll_tools_get_corpus_text_collection_link($first_lesson_id);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+
+        $this->assertSame('', (string) ($missing_link['url'] ?? ''));
+        $this->assertSame((string) get_permalink($page_id), (string) ($first_link['url'] ?? ''));
+        $this->assertCount(2, $page_queries);
+        foreach ($page_queries as $query_args) {
+            $this->assertSame(1, $query_args['posts_per_page']);
+            $this->assertSame('ids', $query_args['fields']);
+            $this->assertTrue($query_args['no_found_rows']);
+        }
+
+        $cached_query_count = 0;
+        $cached_query_watcher = static function (WP_Query $query) use (&$cached_query_count): void {
+            if ($query->get('post_type') === 'page'
+                && $query->get('meta_key') === ll_tools_corpus_text_collection_page_index_meta_key()) {
+                $cached_query_count++;
+            }
+        };
+        add_action('pre_get_posts', $cached_query_watcher);
+        try {
+            $cached_link = ll_tools_get_corpus_text_collection_link($first_lesson_id);
+            $cached_missing_link = ll_tools_get_corpus_text_collection_link($second_lesson_id);
+        } finally {
+            remove_action('pre_get_posts', $cached_query_watcher);
+        }
+        $this->assertSame((string) get_permalink($page_id), (string) ($cached_link['url'] ?? ''));
+        $this->assertSame('', (string) ($cached_missing_link['url'] ?? ''));
+        $this->assertSame(0, $cached_query_count);
+
+        $updated = wp_update_post([
+            'ID' => $page_id,
+            'post_content' => '[ll_corpus_text_grid collection="' . $second_collection . '"]',
+        ], true);
+        $this->assertNotWPError($updated);
+        $this->assertFalse(get_transient(ll_tools_corpus_text_collection_page_cache_key($first_collection)));
+        $this->assertFalse(get_transient(ll_tools_corpus_text_collection_page_cache_key($second_collection)));
+        $this->assertSame([$second_collection], ll_tools_get_corpus_text_collection_page_index($page_id));
+
+        $this->assertSame('', (string) (ll_tools_get_corpus_text_collection_link($first_lesson_id)['url'] ?? ''));
+        $this->assertSame(
+            (string) get_permalink($page_id),
+            (string) (ll_tools_get_corpus_text_collection_link($second_lesson_id)['url'] ?? '')
+        );
+
+        $this->assertNotFalse(wp_delete_post($page_id, true));
+        $this->assertFalse(get_transient(ll_tools_corpus_text_collection_page_cache_key($second_collection)));
+        $this->assertSame('', (string) (ll_tools_get_corpus_text_collection_link($second_lesson_id)['url'] ?? ''));
+
+        delete_transient(ll_tools_corpus_text_collection_page_cache_key($first_collection));
+        delete_transient(ll_tools_corpus_text_collection_page_cache_key($second_collection));
+    }
+
+    public function test_corpus_collection_page_lookup_lazily_backfills_pre_index_pages_with_a_bounded_query(): void
+    {
+        $collection = 'legacy-corpus-' . strtolower(wp_generate_password(8, false));
+        $lesson_id = $this->createPublishedCorpusText('Legacy Corpus Lesson', $collection, 1);
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Legacy Corpus Collection',
+            'post_content' => "[ll_corpus_text_grid collection  =  '" . $collection . "']",
+        ]);
+        delete_post_meta($page_id, ll_tools_corpus_text_collection_page_index_meta_key());
+        delete_transient(ll_tools_corpus_text_collection_page_cache_key($collection));
+
+        $page_limits = [];
+        $legacy_fallback_queries = [];
+        $query_watcher = static function (WP_Query $query) use (&$page_limits): void {
+            if ($query->get('post_type') === 'page') {
+                $page_limits[] = (int) $query->get('posts_per_page');
+            }
+        };
+        $sql_watcher = static function (string $sql) use (&$legacy_fallback_queries): string {
+            if (strpos($sql, 'post_content REGEXP') !== false
+                && strpos($sql, "post_type = 'page'") !== false) {
+                $legacy_fallback_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_action('pre_get_posts', $query_watcher);
+        add_filter('query', $sql_watcher);
+        try {
+            $link = ll_tools_get_corpus_text_collection_link($lesson_id);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+            remove_filter('query', $sql_watcher);
+        }
+
+        $this->assertSame((string) get_permalink($page_id), (string) ($link['url'] ?? ''));
+        $this->assertSame([1], $page_limits);
+        $this->assertNotContains(-1, $page_limits);
+        $this->assertCount(1, $legacy_fallback_queries);
+        $this->assertStringContainsString('LIMIT 20', $legacy_fallback_queries[0]);
+        $this->assertSame([$collection], ll_tools_get_corpus_text_collection_page_index($page_id));
+
+        wp_delete_post($page_id, true);
+        delete_transient(ll_tools_corpus_text_collection_page_cache_key($collection));
+    }
+
     public function test_content_lesson_category_rows_scope_to_selected_wordset(): void
     {
         $fixture = $this->createScopedCategoryFixture();

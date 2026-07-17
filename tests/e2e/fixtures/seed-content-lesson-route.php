@@ -69,7 +69,7 @@ function ll_tools_content_lesson_route_fixture_tag_term(int $term_id, string $fi
 function ll_tools_content_lesson_route_fixture_delete_posts(): int {
     $deleted = 0;
     $ids = get_posts([
-        'post_type' => ['ll_content_lesson', 'll_vocab_lesson'],
+        'post_type' => ['ll_content_lesson', 'll_vocab_lesson', 'page'],
         'post_status' => 'any',
         'posts_per_page' => -1,
         'fields' => 'ids',
@@ -187,8 +187,46 @@ function ll_tools_content_lesson_route_fixture_relative_url(int $post_id): strin
     return function_exists('wp_make_link_relative') ? wp_make_link_relative($url) : $url;
 }
 
+/**
+ * @return array{path:string,url:string,duration_seconds:int}
+ */
+function ll_tools_content_lesson_route_fixture_create_silent_wav(): array {
+    $uploads = wp_upload_dir();
+    if (!empty($uploads['error']) || empty($uploads['basedir']) || empty($uploads['baseurl'])) {
+        ll_tools_content_lesson_route_fixture_fail('Unable to resolve the WordPress uploads directory for the audio fixture.');
+    }
+
+    $directory = trailingslashit((string) $uploads['basedir']) . 'll-tools-e2e';
+    if (!wp_mkdir_p($directory)) {
+        ll_tools_content_lesson_route_fixture_fail('Unable to create the LL Tools E2E uploads directory.');
+    }
+
+    $sample_rate = 8000;
+    $duration_seconds = 8;
+    $data_size = $sample_rate * $duration_seconds;
+    $audio_data = str_repeat(chr(128), $data_size);
+    $wav_data = 'RIFF'
+        . pack('V', 36 + $data_size)
+        . 'WAVEfmt '
+        . pack('VvvVVvv', 16, 1, 1, $sample_rate, $sample_rate, 1, 8)
+        . 'data'
+        . pack('V', $data_size)
+        . $audio_data;
+    $path = trailingslashit($directory) . 'content-lesson-silence.wav';
+    $written = file_put_contents($path, $wav_data); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+    if ($written !== strlen($wav_data)) {
+        ll_tools_content_lesson_route_fixture_fail('Unable to write the LL Tools E2E silent WAV fixture.');
+    }
+
+    return [
+        'path' => $path,
+        'url' => trailingslashit((string) $uploads['baseurl']) . 'll-tools-e2e/content-lesson-silence.wav',
+        'duration_seconds' => $duration_seconds,
+    ];
+}
+
 function ll_tools_content_lesson_route_fixture_run(): array {
-    $fixture_version = '2026-06-10.1';
+    $fixture_version = '2026-07-17.1';
     $wordset_name = 'E2E Content Lesson Wordset';
     $wordset_slug = 'll-e2e-content-lesson';
     $category_name = 'E2E Dialogue Practice';
@@ -197,7 +235,12 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     $content_lesson_slug = 'll-e2e-content-lesson-route';
     $vocab_lesson_title = 'E2E Dialogue Practice Vocab';
     $vocab_lesson_slug = 'll-e2e-content-lesson-vocab';
-    $media_url = 'https://ll-content-lesson-fixture.test/audio/story.mp3';
+    $corpus_collection = 'll-e2e-corpus';
+    $corpus_collection_title = 'E2E Corpus Texts';
+    $corpus_collection_slug = 'll-e2e-corpus-texts';
+    $corpus_lesson_title = 'E2E Corpus Reader';
+    $corpus_lesson_slug = 'll-e2e-corpus-text-route';
+    $corpus_lesson_excerpt = 'A source-backed corpus text for the real lesson route.';
     $notes = 'These notes confirm the content lesson template renders post content after the transcript.';
     $excerpt = 'A short fixture story for the real content lesson route.';
     $transcript_source = "WEBVTT\n\n00:00:01.000 --> 00:00:03.500\nFirst fixture cue.\n\n00:00:04.000 --> 00:00:06.250\nSecond fixture cue.";
@@ -205,6 +248,8 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     foreach ([
         [$content_lesson_slug, 'll_content_lesson'],
         [$vocab_lesson_slug, 'll_vocab_lesson'],
+        [$corpus_lesson_slug, 'll_content_lesson'],
+        [$corpus_collection_slug, 'page'],
     ] as $post_slug) {
         ll_tools_content_lesson_route_fixture_assert_post_slug_available($post_slug[0], $post_slug[1]);
     }
@@ -213,6 +258,8 @@ function ll_tools_content_lesson_route_fixture_run(): array {
 
     $deleted_posts = ll_tools_content_lesson_route_fixture_delete_posts();
     $deleted_terms = ll_tools_content_lesson_route_fixture_delete_terms();
+    $audio_fixture = ll_tools_content_lesson_route_fixture_create_silent_wav();
+    $media_url = (string) $audio_fixture['url'];
 
     $wordset_id = ll_tools_content_lesson_route_fixture_insert_term('wordset', $wordset_name, $wordset_slug, $fixture_version);
     update_term_meta($wordset_id, 'll_language', 'English');
@@ -242,6 +289,15 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
     update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
 
+    $corpus_collection_page_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'post_title' => $corpus_collection_title,
+        'post_name' => $corpus_collection_slug,
+        'post_content' => '[ll_corpus_text_grid collection="' . $corpus_collection . '" title="' . $corpus_collection_title . '"]',
+        'menu_order' => 5,
+    ], $fixture_version);
+
     $cues = function_exists('ll_tools_content_lesson_parse_source')
         ? ll_tools_content_lesson_parse_source($transcript_source, 'vtt')
         : [];
@@ -267,10 +323,58 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_CUES_META, $cues);
     update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$category_id]);
 
+    $corpus_lesson_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'll_content_lesson',
+        'post_status' => 'publish',
+        'post_title' => $corpus_lesson_title,
+        'post_name' => $corpus_lesson_slug,
+        'post_excerpt' => $corpus_lesson_excerpt,
+        'post_content' => '',
+        'menu_order' => 20,
+    ], $fixture_version);
+    $corpus_payload = [
+        'schema' => 'll_tools_text_document.v1',
+        'kind' => 'corpus_text',
+        'title' => $corpus_lesson_title,
+        'source_label' => 'Fixture source',
+        'metadata' => [
+            'collection' => $corpus_collection,
+            'collection_label' => $corpus_collection_title,
+            'source_author' => 'E2E Source Author',
+        ],
+        'translations' => [
+            'en' => ['label' => 'English'],
+        ],
+        'witnesses' => [
+            [
+                'label' => 'E2E source witness',
+                'citation' => 'Fixture collection, page 1.',
+                'url' => 'https://example.com/e2e-corpus-source',
+            ],
+        ],
+        'reading_units' => [
+            [
+                'id' => 'e2e-corpus-line-1',
+                'source' => 'Fixture corpus source line.',
+                'translations' => [
+                    'en' => 'Fixture corpus reader translation.',
+                ],
+            ],
+        ],
+    ];
+    $corpus_result = function_exists('ll_tools_interlinear_set_payload')
+        ? ll_tools_interlinear_set_payload($corpus_lesson_id, $corpus_payload, 'playwright')
+        : new WP_Error('missing_interlinear_helper', 'The interlinear payload helper is unavailable.');
+    if (is_wp_error($corpus_result)) {
+        ll_tools_content_lesson_route_fixture_fail('Unable to save corpus route fixture: ' . $corpus_result->get_error_message());
+    }
+
     clean_term_cache([$wordset_id], 'wordset');
     clean_term_cache([$category_id], 'word-category');
     clean_post_cache($content_lesson_id);
     clean_post_cache($vocab_lesson_id);
+    clean_post_cache($corpus_collection_page_id);
+    clean_post_cache($corpus_lesson_id);
     if (function_exists('ll_tools_bump_category_cache_version')) {
         ll_tools_bump_category_cache_version([$category_id]);
     }
@@ -290,9 +394,22 @@ function ll_tools_content_lesson_route_fixture_run(): array {
         'lessonExcerpt' => $excerpt,
         'lessonPath' => ll_tools_content_lesson_route_fixture_relative_url($content_lesson_id),
         'mediaUrl' => $media_url,
+        'mediaPath' => (string) $audio_fixture['path'],
+        'mediaDurationSeconds' => (int) $audio_fixture['duration_seconds'],
         'notes' => $notes,
         'vocabLessonId' => $vocab_lesson_id,
         'vocabLessonPath' => ll_tools_content_lesson_route_fixture_relative_url($vocab_lesson_id),
+        'corpusCollectionPageId' => $corpus_collection_page_id,
+        'corpusCollectionTitle' => $corpus_collection_title,
+        'corpusCollectionPath' => ll_tools_content_lesson_route_fixture_relative_url($corpus_collection_page_id),
+        'corpusLessonId' => $corpus_lesson_id,
+        'corpusLessonTitle' => $corpus_lesson_title,
+        'corpusLessonExcerpt' => $corpus_lesson_excerpt,
+        'corpusLessonPath' => ll_tools_content_lesson_route_fixture_relative_url($corpus_lesson_id),
+        'corpusReaderSource' => 'Fixture corpus source line.',
+        'corpusReaderTranslation' => 'Fixture corpus reader translation.',
+        'corpusSourceLabel' => 'E2E source witness',
+        'corpusSourceCitation' => 'Fixture collection, page 1.',
         'cues' => array_values(array_map(static function (array $cue): array {
             return [
                 'id' => (int) ($cue['id'] ?? 0),

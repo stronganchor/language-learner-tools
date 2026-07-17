@@ -2255,7 +2255,7 @@ function ll_tools_text_document_render_sources(array $payload): string {
     return $html;
 }
 
-function ll_tools_render_book_text_document_block(int $lesson_id, array $payload): string {
+function ll_tools_render_book_text_document_block(int $lesson_id, array $payload, array $args = []): string {
     if (!ll_tools_current_user_can_view_text_document($lesson_id)) {
         return '';
     }
@@ -2282,10 +2282,12 @@ function ll_tools_render_book_text_document_block(int $lesson_id, array $payload
     $publication_intro_html = ll_tools_text_document_render_publication_intro($payload);
     $print_button = '<button type="button" class="ll-text-document__print-button ll-book-text__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>';
     $section_body = ll_tools_book_text_render_section_body($section_text, $section_format);
+    $labelledby = isset($args['labelledby']) ? sanitize_html_class((string) $args['labelledby']) : '';
+    $labelledby_attr = $labelledby !== '' ? ' aria-labelledby="' . esc_attr($labelledby) . '"' : '';
 
     ob_start();
     ?>
-    <section class="ll-text-document ll-book-text" data-ll-text-document data-ll-book-text data-language="<?php echo esc_attr($translation_key); ?>">
+    <section class="ll-text-document ll-book-text" data-ll-text-document data-ll-book-text data-language="<?php echo esc_attr($translation_key); ?>"<?php echo $labelledby_attr; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
         <div class="ll-text-document__head ll-book-text__head">
             <div class="ll-text-document__head-actions ll-book-text__head-actions">
                 <?php echo $print_button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -2324,13 +2326,13 @@ function ll_tools_render_book_text_document_block(int $lesson_id, array $payload
     return trim((string) ob_get_clean());
 }
 
-function ll_tools_render_text_document_block(int $lesson_id, array $payload): string {
+function ll_tools_render_text_document_block(int $lesson_id, array $payload, array $args = []): string {
     if (!ll_tools_current_user_can_view_text_document($lesson_id)) {
         return '';
     }
 
     if (ll_tools_text_document_is_book_text($payload)) {
-        return ll_tools_render_book_text_document_block($lesson_id, $payload);
+        return ll_tools_render_book_text_document_block($lesson_id, $payload, $args);
     }
 
     $can_view_linguist = ll_tools_text_document_user_can_view_linguist($lesson_id);
@@ -2368,18 +2370,21 @@ function ll_tools_render_text_document_block(int $lesson_id, array $payload): st
         return '';
     }
 
-    $title = ll_tools_text_document_localized_title($payload);
+    $show_title = !array_key_exists('show_title', $args) || (bool) $args['show_title'];
+    $title = $show_title ? ll_tools_text_document_localized_title($payload) : '';
     $tabs = ll_tools_text_document_render_tabs($view, $translation_key, $can_view_linguist, $payload);
     $review_note_html = ll_tools_text_document_render_review_note_field($lesson_id, 'document', __('Document review note', 'll-tools-text-domain'));
     $publication_intro_html = ll_tools_text_document_render_publication_intro($payload);
     $print_button = $view === 'reader'
         ? '<button type="button" class="ll-text-document__print-button" data-ll-text-document-print>' . esc_html__('Print', 'll-tools-text-domain') . '</button>'
         : '';
+    $labelledby = isset($args['labelledby']) ? sanitize_html_class((string) $args['labelledby']) : '';
+    $labelledby_attr = $labelledby !== '' ? ' aria-labelledby="' . esc_attr($labelledby) . '"' : '';
 
     ob_start();
     ?>
-    <section class="ll-text-document<?php echo $can_view_linguist ? ' ll-text-document--has-interlinear' : ''; ?>" data-ll-text-document data-view="<?php echo esc_attr($view); ?>">
-        <?php if ($title !== '' || $tabs !== '') : ?>
+    <section class="ll-text-document<?php echo $can_view_linguist ? ' ll-text-document--has-interlinear' : ''; ?>" data-ll-text-document data-view="<?php echo esc_attr($view); ?>"<?php echo $labelledby_attr; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+        <?php if ($title !== '' || $tabs !== '' || $print_button !== '') : ?>
             <div class="ll-text-document__head">
                 <?php if ($title !== '') : ?>
                     <h2 class="ll-text-document__title"><?php echo esc_html($title); ?></h2>
@@ -2571,14 +2576,14 @@ function ll_tools_render_recording_interlinear_block(int $lesson_id, array $reco
     return '<div class="ll-word-interlinear ll-word-recording-interlinear" data-ll-recording-interlinear' . $recording_id_attr . ' aria-label="' . esc_attr__('Interlinear analysis', 'll-tools-text-domain') . '">' . $lines_html . '</div>';
 }
 
-function ll_tools_render_interlinear_block(int $lesson_id): string {
+function ll_tools_render_interlinear_block(int $lesson_id, array $args = []): string {
     if (!ll_tools_interlinear_has_payload($lesson_id)) {
         return '';
     }
 
     $payload = ll_tools_interlinear_get_payload($lesson_id);
     if (ll_tools_interlinear_payload_is_text_document($payload)) {
-        return ll_tools_render_text_document_block($lesson_id, $payload);
+        return ll_tools_render_text_document_block($lesson_id, $payload, $args);
     }
 
     if (!ll_tools_current_user_can_view_interlinear($lesson_id)) {

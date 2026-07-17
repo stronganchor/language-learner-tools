@@ -78,6 +78,7 @@ $related_vocab_items = function_exists('ll_tools_get_content_lesson_related_voca
     ? ll_tools_get_content_lesson_related_vocab_items($lesson_id)
     : [];
 $lesson_title = get_the_title();
+$lesson_title_id = 'll-content-lesson-title-' . $lesson_id;
 $lesson_excerpt = has_excerpt() ? get_the_excerpt() : '';
 if (function_exists('ll_tools_get_lesson_display_title')) {
     $lesson_title = ll_tools_get_lesson_display_title($lesson_id, ['fallback' => (string) $lesson_title]);
@@ -134,7 +135,7 @@ $format_ms = static function (int $ms): string {
             <?php endif; ?>
         </div>
         <div class="ll-content-lesson-hero__content">
-            <h1 class="ll-content-lesson-title"><?php echo esc_html($lesson_title); ?></h1>
+            <h1 class="ll-content-lesson-title" id="<?php echo esc_attr($lesson_title_id); ?>"><?php echo esc_html($lesson_title); ?></h1>
             <?php if ($lesson_excerpt !== '') : ?>
                 <p class="ll-content-lesson-summary"><?php echo esc_html($lesson_excerpt); ?></p>
             <?php endif; ?>
@@ -149,7 +150,10 @@ $format_ms = static function (int $ms): string {
 
     <?php
     if (function_exists('ll_tools_render_interlinear_block')) {
-        echo ll_tools_render_interlinear_block($lesson_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo ll_tools_render_interlinear_block($lesson_id, $is_corpus_text ? [
+            'show_title' => false,
+            'labelledby' => $lesson_title_id,
+        ] : []); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     }
     ?>
 

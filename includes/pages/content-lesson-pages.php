@@ -146,6 +146,225 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
     ];
 }
 
+function ll_tools_corpus_text_collection_page_index_meta_key(): string {
+    return '_ll_tools_corpus_text_grid_collection';
+}
+
+function ll_tools_corpus_text_collection_page_cache_key(string $collection): string {
+    return 'll_corpus_collection_page_' . md5(sanitize_title($collection));
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_corpus_text_page_collections_from_content(string $content): array {
+    if ($content === '' || (!has_shortcode($content, 'll_corpus_text_grid') && !has_shortcode($content, 'll_text_document_grid'))) {
+        return [];
+    }
+
+    $shortcode_pattern = get_shortcode_regex(['ll_corpus_text_grid', 'll_text_document_grid']);
+    if (!preg_match_all('/' . $shortcode_pattern . '/s', $content, $matches, PREG_SET_ORDER)) {
+        return [];
+    }
+
+    $collections = [];
+    foreach ($matches as $match) {
+        $tag = isset($match[2]) ? (string) $match[2] : '';
+        if (!in_array($tag, ['ll_corpus_text_grid', 'll_text_document_grid'], true)) {
+            continue;
+        }
+
+        $atts = shortcode_parse_atts(isset($match[3]) ? (string) $match[3] : '');
+        $collection = is_array($atts) && isset($atts['collection']) && is_scalar($atts['collection'])
+            ? sanitize_title((string) $atts['collection'])
+            : '';
+        if ($collection !== '') {
+            $collections[$collection] = true;
+        }
+    }
+
+    $collections = array_keys($collections);
+    sort($collections, SORT_STRING);
+    return $collections;
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_get_corpus_text_collection_page_index(int $page_id): array {
+    if ($page_id <= 0) {
+        return [];
+    }
+
+    $collections = get_post_meta($page_id, ll_tools_corpus_text_collection_page_index_meta_key(), false);
+    $collections = array_values(array_unique(array_filter(array_map(static function ($collection): string {
+        return is_scalar($collection) ? sanitize_title((string) $collection) : '';
+    }, (array) $collections))));
+    sort($collections, SORT_STRING);
+    return $collections;
+}
+
+/**
+ * @param string[] $collections
+ */
+function ll_tools_invalidate_corpus_text_collection_page_cache(array $collections): void {
+    foreach (array_values(array_unique($collections)) as $collection) {
+        $collection = sanitize_title((string) $collection);
+        if ($collection !== '') {
+            delete_transient(ll_tools_corpus_text_collection_page_cache_key($collection));
+        }
+    }
+}
+
+function ll_tools_sync_corpus_text_collection_page_index(int $post_id, $post = null): void {
+    if ($post_id <= 0 || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    $post = $post instanceof WP_Post ? $post : get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'page') {
+        return;
+    }
+
+    $previous_collections = ll_tools_get_corpus_text_collection_page_index($post_id);
+    $next_collections = $post->post_status === 'publish'
+        ? ll_tools_corpus_text_page_collections_from_content((string) $post->post_content)
+        : [];
+
+    delete_post_meta($post_id, ll_tools_corpus_text_collection_page_index_meta_key());
+    foreach ($next_collections as $collection) {
+        add_post_meta($post_id, ll_tools_corpus_text_collection_page_index_meta_key(), $collection, false);
+    }
+
+    ll_tools_invalidate_corpus_text_collection_page_cache(array_merge($previous_collections, $next_collections));
+}
+
+function ll_tools_sync_corpus_text_collection_page_index_on_save(int $post_id, WP_Post $post): void {
+    ll_tools_sync_corpus_text_collection_page_index($post_id, $post);
+}
+add_action('save_post_page', 'll_tools_sync_corpus_text_collection_page_index_on_save', 20, 2);
+
+function ll_tools_invalidate_corpus_text_collection_page_index_on_delete(int $post_id, $post = null): void {
+    $post = $post instanceof WP_Post ? $post : get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== 'page') {
+        return;
+    }
+
+    $collections = array_merge(
+        ll_tools_get_corpus_text_collection_page_index($post_id),
+        ll_tools_corpus_text_page_collections_from_content((string) $post->post_content)
+    );
+    ll_tools_invalidate_corpus_text_collection_page_cache($collections);
+}
+add_action('before_delete_post', 'll_tools_invalidate_corpus_text_collection_page_index_on_delete', 20, 2);
+
+function ll_tools_find_indexed_corpus_text_collection_page_id(string $collection): int {
+    $collection = sanitize_title($collection);
+    if ($collection === '') {
+        return 0;
+    }
+
+    $page_ids = get_posts([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'orderby' => [
+            'menu_order' => 'ASC',
+            'title' => 'ASC',
+            'ID' => 'ASC',
+        ],
+        'no_found_rows' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_key' => ll_tools_corpus_text_collection_page_index_meta_key(),
+        'meta_value' => $collection,
+    ]);
+
+    return !empty($page_ids) ? max(0, (int) $page_ids[0]) : 0;
+}
+
+/**
+ * Finds one pre-index page without hydrating the site's page catalog.
+ */
+function ll_tools_find_legacy_corpus_text_collection_page_id(string $collection): int {
+    global $wpdb;
+
+    $collection = sanitize_title($collection);
+    if ($collection === '') {
+        return 0;
+    }
+
+    $tag_grid = '%' . $wpdb->esc_like('[ll_corpus_text_grid') . '%';
+    $tag_document = '%' . $wpdb->esc_like('[ll_text_document_grid') . '%';
+    $collection_pattern = 'collection[[:space:]]*=[[:space:]]*["\']'
+        . preg_quote($collection, '/')
+        . '["\']';
+    $sql = $wpdb->prepare(
+        "SELECT ID
+        FROM {$wpdb->posts}
+        WHERE post_type = %s
+          AND post_status = %s
+          AND (post_content LIKE %s OR post_content LIKE %s)
+          AND post_content REGEXP %s
+        ORDER BY menu_order ASC, post_title ASC, ID ASC
+        LIMIT 20",
+        'page',
+        'publish',
+        $tag_grid,
+        $tag_document,
+        $collection_pattern
+    );
+    $page_ids = $wpdb->get_col($sql); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+    foreach ((array) $page_ids as $page_id) {
+        $page = get_post((int) $page_id);
+        if (!($page instanceof WP_Post)
+            || !in_array($collection, ll_tools_corpus_text_page_collections_from_content((string) $page->post_content), true)) {
+            continue;
+        }
+
+        ll_tools_sync_corpus_text_collection_page_index((int) $page->ID, $page);
+        return (int) $page->ID;
+    }
+
+    return 0;
+}
+
+function ll_tools_get_corpus_text_collection_page_id(string $collection): int {
+    $collection = sanitize_title($collection);
+    if ($collection === '') {
+        return 0;
+    }
+
+    $cache_key = ll_tools_corpus_text_collection_page_cache_key($collection);
+    $cached = get_transient($cache_key);
+    if (is_array($cached) && array_key_exists('page_id', $cached)) {
+        $cached_page_id = max(0, (int) $cached['page_id']);
+        if ($cached_page_id === 0) {
+            return 0;
+        }
+
+        $cached_page = get_post($cached_page_id);
+        if ($cached_page instanceof WP_Post
+            && $cached_page->post_type === 'page'
+            && $cached_page->post_status === 'publish'
+            && in_array($collection, ll_tools_get_corpus_text_collection_page_index($cached_page_id), true)) {
+            return $cached_page_id;
+        }
+
+        delete_transient($cache_key);
+    }
+
+    $page_id = ll_tools_find_indexed_corpus_text_collection_page_id($collection);
+    if ($page_id <= 0) {
+        $page_id = ll_tools_find_legacy_corpus_text_collection_page_id($collection);
+    }
+
+    set_transient($cache_key, ['page_id' => $page_id], 12 * HOUR_IN_SECONDS);
+    return $page_id;
+}
+
 function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
     if ($lesson_id <= 0 || get_post_type($lesson_id) !== 'll_content_lesson') {
         return ['url' => '', 'label' => ''];
@@ -169,28 +388,9 @@ function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
         return ['url' => '', 'label' => $label];
     }
 
-    $pages = get_posts([
-        'post_type' => 'page',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'orderby' => 'menu_order title',
-        'order' => 'ASC',
-        'no_found_rows' => true,
-    ]);
-    $collection_double = 'collection="' . $collection . '"';
-    $collection_single = "collection='" . $collection . "'";
-    foreach ($pages as $page) {
-        if (!($page instanceof WP_Post)) {
-            continue;
-        }
-        $content = (string) $page->post_content;
-        if ($content === '' || (!has_shortcode($content, 'll_corpus_text_grid') && !has_shortcode($content, 'll_text_document_grid'))) {
-            continue;
-        }
-        if (strpos($content, $collection_double) === false && strpos($content, $collection_single) === false) {
-            continue;
-        }
-        $url = get_permalink($page);
+    $page_id = ll_tools_get_corpus_text_collection_page_id($collection);
+    if ($page_id > 0) {
+        $url = get_permalink($page_id);
         return ['url' => is_string($url) ? $url : '', 'label' => $label];
     }
 

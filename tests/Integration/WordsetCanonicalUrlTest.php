@@ -113,6 +113,48 @@ final class WordsetCanonicalUrlTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('href="' . esc_url($legacy_back) . '"', $html);
     }
 
+    public function test_corpus_content_lesson_template_uses_one_visible_title_and_labels_the_reader_with_it(): void
+    {
+        $lesson_title = 'Corpus Heading ' . strtolower(wp_generate_password(5, false));
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => $lesson_title,
+            'post_excerpt' => 'Corpus heading regression fixture.',
+        ]);
+        $payload = [
+            'schema' => 'll_tools_text_document.v1',
+            'kind' => 'corpus_text',
+            'title' => $lesson_title,
+            'source_label' => 'Source',
+            'translations' => [
+                'en' => ['label' => 'English'],
+            ],
+            'reading_units' => [
+                [
+                    'id' => 'heading-fixture-line',
+                    'source' => 'Corpus source line.',
+                    'translations' => ['en' => 'Corpus translation line.'],
+                ],
+            ],
+        ];
+        $this->assertNotWPError(ll_tools_interlinear_set_payload($lesson_id, $payload, 'phpunit'));
+
+        $this->go_to('/?post_type=ll_content_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_content_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/content-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $heading_id = 'll-content-lesson-title-' . $lesson_id;
+        $this->assertSame(1, substr_count($html, 'class="ll-content-lesson-title"'));
+        $this->assertStringContainsString('id="' . esc_attr($heading_id) . '"', $html);
+        $this->assertStringContainsString('aria-labelledby="' . esc_attr($heading_id) . '"', $html);
+        $this->assertStringNotContainsString('class="ll-text-document__title"', $html);
+        $this->assertStringContainsString('Corpus source line.', $html);
+    }
+
     /**
      * @return array{wordset:WP_Term,category:WP_Term,lesson_id:int}
      */
