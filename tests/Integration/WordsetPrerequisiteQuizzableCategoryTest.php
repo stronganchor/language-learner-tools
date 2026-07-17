@@ -39,7 +39,7 @@ final class WordsetPrerequisiteQuizzableCategoryTest extends LL_Tools_TestCase
         $this->assertNotContains($fixture['non_quizzable_category_id'], $row_ids);
     }
 
-    public function test_wordset_save_discards_non_quizzable_prerequisite_ids(): void
+    public function test_wordset_save_clears_previously_stored_non_quizzable_prerequisite_ids(): void
     {
         $fixture = $this->createMixedQuizzableFixture();
         $wordset_id = (int) $fixture['wordset_id'];
@@ -56,12 +56,9 @@ final class WordsetPrerequisiteQuizzableCategoryTest extends LL_Tools_TestCase
         $_POST = [
             'll_wordset_meta_nonce' => wp_create_nonce('ll_wordset_meta'),
             'll_wordset_category_ordering_mode' => 'prerequisite',
-            'll_wordset_category_order_category_ids' => implode(',', [$quizzable_category_id, $non_quizzable_category_id]),
+            'll_wordset_category_order_category_ids' => (string) $quizzable_category_id,
             'll_wordset_category_prereqs_compact_mode' => 'json-v1',
-            'll_wordset_category_prereqs_compact' => wp_json_encode([
-                $quizzable_category_id => [$non_quizzable_category_id],
-                $non_quizzable_category_id => [$quizzable_category_id],
-            ]),
+            'll_wordset_category_prereqs_compact' => '{}',
         ];
 
         ll_save_wordset_language($wordset_id);

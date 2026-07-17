@@ -8428,6 +8428,15 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
         ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_settings_message']))
         : '';
 
+    if ($status === 'partial') {
+        return [
+            'type' => 'warning',
+            'message' => ($message !== '')
+                ? $message
+                : __('Some word set settings were saved, but category ordering and prerequisites were not changed.', 'll-tools-text-domain'),
+        ];
+    }
+
     if ($status === 'ok') {
         return [
             'type' => 'success',
@@ -8753,147 +8762,10 @@ function ll_tools_wordset_page_save_advanced_settings(int $term_id) {
         }
     }
 
-    $ordering_mode_raw = isset($_POST['ll_wordset_category_ordering_mode'])
-        ? wp_unslash((string) $_POST['ll_wordset_category_ordering_mode'])
-        : '';
-    $ordering_mode = ll_tools_wordset_normalize_category_ordering_mode($ordering_mode_raw);
-    if ($ordering_mode === 'none') {
-        delete_term_meta($term_id, 'll_wordset_category_ordering_mode');
-    } else {
-        update_term_meta($term_id, 'll_wordset_category_ordering_mode', $ordering_mode);
-    }
-
-    $posted_category_ids = isset($_POST['ll_wordset_category_order_category_ids'])
-        ? ll_tools_wordset_parse_category_id_csv(wp_unslash((string) $_POST['ll_wordset_category_order_category_ids']))
-        : [];
-    $allowed_rows = ll_tools_wordset_get_admin_category_ordering_rows($term_id);
-    $allowed_category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($allowed_rows, 'id'));
-    if (!empty($posted_category_ids) && !empty($allowed_category_ids)) {
-        $allowed_category_lookup = array_fill_keys($allowed_category_ids, true);
-        $posted_category_ids = array_values(array_filter($posted_category_ids, static function ($category_id) use ($allowed_category_lookup): bool {
-            return isset($allowed_category_lookup[(int) $category_id]);
-        }));
-    }
-    if (empty($posted_category_ids)) {
-        $posted_category_ids = $allowed_category_ids;
-    }
-
-    if (!empty($posted_category_ids)) {
-        $allowed_lookup = array_fill_keys($posted_category_ids, true);
-        $baseline_manual_order = ll_tools_wordset_get_default_manual_category_order($term_id, $posted_category_ids);
-
-        $manual_order_posted = isset($_POST['ll_wordset_category_manual_order'])
-            ? ll_tools_wordset_parse_id_list_meta(wp_unslash((string) $_POST['ll_wordset_category_manual_order']))
-            : [];
-        $manual_order = [];
-        $manual_seen = [];
-        foreach ($manual_order_posted as $cid) {
-            if (!isset($allowed_lookup[$cid]) || isset($manual_seen[$cid])) {
-                continue;
-            }
-            $manual_order[] = $cid;
-            $manual_seen[$cid] = true;
-        }
-        foreach ($baseline_manual_order as $cid) {
-            if (isset($manual_seen[$cid])) {
-                continue;
-            }
-            $manual_order[] = $cid;
-        }
-
-        if (empty($manual_order) || $manual_order === $baseline_manual_order) {
-            delete_term_meta($term_id, 'll_wordset_category_manual_order');
-        } else {
-            update_term_meta($term_id, 'll_wordset_category_manual_order', $manual_order);
-        }
-
-        $has_prereq_submission = false;
-        $posted_prereq_raw = [];
-        $prereq_compact_mode = isset($_POST['ll_wordset_category_prereqs_compact_mode'])
-            ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact_mode']))
-            : '';
-
-        if ($prereq_compact_mode === 'json-v1' && isset($_POST['ll_wordset_category_prereqs_compact'])) {
-            $parsed_compact_prereqs = ll_tools_wordset_parse_category_prereq_compact_payload(
-                wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact']),
-                $posted_category_ids
-            );
-
-            if (is_array($parsed_compact_prereqs)) {
-                $posted_prereq_raw = $parsed_compact_prereqs;
-                $has_prereq_submission = true;
-            } elseif (isset($_POST['ll_wordset_category_prereqs'])) {
-                $legacy_prereq_raw = wp_unslash($_POST['ll_wordset_category_prereqs']);
-                if (is_array($legacy_prereq_raw)) {
-                    $posted_prereq_raw = $legacy_prereq_raw;
-                    $has_prereq_submission = true;
-                }
-            } else {
-                return new WP_Error(
-                    'prereq_payload',
-                    __('Category prerequisites were not saved because the submitted prerequisite data was incomplete. Refresh and save again.', 'll-tools-text-domain')
-                );
-            }
-        } elseif (isset($_POST['ll_wordset_category_prereqs'])) {
-            $legacy_prereq_raw = wp_unslash($_POST['ll_wordset_category_prereqs']);
-            if (is_array($legacy_prereq_raw)) {
-                $posted_prereq_raw = $legacy_prereq_raw;
-                $has_prereq_submission = true;
-            }
-        }
-
-        if ($has_prereq_submission) {
-            $normalized_prereq_map = ll_tools_wordset_normalize_category_prereq_map($posted_prereq_raw, $posted_category_ids);
-            $cycle_check = ll_tools_wordset_find_prereq_cycle($posted_category_ids, $normalized_prereq_map);
-
-            if (!empty($cycle_check['has_cycle'])) {
-                $cycle_labels = ll_tools_wordset_get_category_label_map($posted_category_ids);
-                $cycle_names = [];
-                foreach ((array) ($cycle_check['cycle_path'] ?? []) as $cycle_id) {
-                    $cycle_id = (int) $cycle_id;
-                    if ($cycle_id <= 0) {
-                        continue;
-                    }
-                    $cycle_names[] = (string) ($cycle_labels[$cycle_id] ?? (string) $cycle_id);
-                }
-                $cycle_preview = implode(' -> ', array_slice($cycle_names, 0, 8));
-                if ($cycle_preview === '') {
-                    $cycle_preview = __('cycle detected', 'll-tools-text-domain');
-                }
-
-                return new WP_Error(
-                    'prereq_cycle',
-                    sprintf(
-                        __('Category prerequisites were not saved because they contain a loop (%s). Remove the cycle and save again.', 'll-tools-text-domain'),
-                        $cycle_preview
-                    )
-                );
-            }
-
-            if (empty($normalized_prereq_map)) {
-                delete_term_meta($term_id, 'll_wordset_category_prerequisites');
-            } else {
-                update_term_meta($term_id, 'll_wordset_category_prerequisites', $normalized_prereq_map);
-            }
-        }
-    } else {
-        if (isset($_POST['ll_wordset_category_manual_order'])) {
-            delete_term_meta($term_id, 'll_wordset_category_manual_order');
-        }
-        if (
-            isset($_POST['ll_wordset_category_prereqs'])
-            || (
-                isset($_POST['ll_wordset_category_prereqs_compact_mode'])
-                && sanitize_key(wp_unslash((string) $_POST['ll_wordset_category_prereqs_compact_mode'])) === 'json-v1'
-            )
-        ) {
-            delete_term_meta($term_id, 'll_wordset_category_prerequisites');
-        }
-    }
-
+    $category_ordering_result = ll_tools_wordset_save_category_ordering_settings($term_id, $_POST);
     ll_tools_wordset_save_advanced_grammar_settings($term_id, $_POST);
 
-    return true;
+    return is_wp_error($category_ordering_result) ? $category_ordering_result : true;
 }
 
 function ll_tools_wordset_page_handle_manager_settings_action(): void {
@@ -8961,6 +8833,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $redirect_error('nonce');
     }
 
+    $settings_status = 'ok';
     $success_message = '';
     $success_redirect_args = [];
     if ($submitted_tool === 'language') {
@@ -9093,14 +8966,16 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     } elseif ($submitted_tool === 'advanced') {
         $advanced_result = ll_tools_wordset_page_save_advanced_settings($wordset_id);
         if (is_wp_error($advanced_result)) {
-            $redirect_error(sanitize_key($advanced_result->get_error_code()), $advanced_result->get_error_message());
+            $settings_status = 'partial';
+            $success_message = ll_tools_wordset_category_ordering_partial_success_message($advanced_result);
+            $success_redirect_args['ll_wordset_manager_settings_error'] = sanitize_key($advanced_result->get_error_code());
         }
     } else {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $visibility);
     }
 
     $redirect_args = [
-        'll_wordset_manager_settings' => 'ok',
+        'll_wordset_manager_settings' => $settings_status,
     ];
     if ($success_message !== '') {
         $redirect_args['ll_wordset_manager_settings_message'] = $success_message;
@@ -13737,8 +13612,11 @@ function ll_tools_wordset_page_render_settings_notice(array $notice): string {
         return '';
     }
 
-    $type = (($notice['type'] ?? 'error') === 'success') ? 'success' : 'error';
-    $role = ($type === 'success') ? 'status' : 'alert';
+    $type = sanitize_key((string) ($notice['type'] ?? 'error'));
+    if (!in_array($type, ['success', 'warning', 'error'], true)) {
+        $type = 'error';
+    }
+    $role = ($type === 'error') ? 'alert' : 'status';
 
     return '<div class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--' . esc_attr($type) . '" role="' . esc_attr($role) . '">' .
         esc_html((string) $notice['message']) .

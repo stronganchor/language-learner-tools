@@ -962,6 +962,22 @@ async function assertPageFitsViewport(page) {
   expect(metrics.bodyWidth).toBeLessThanOrEqual(metrics.viewportWidth + 2);
 }
 
+test('partial settings save notice uses warning treatment', async ({ page }) => {
+  await mountSettingsTool(page, `
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
+      <div class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--warning" role="status">
+        Other settings were saved; category ordering was unchanged.
+      </div>
+    </main>
+  `, { width: 390, height: 844 });
+
+  const notice = page.getByRole('status');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveCSS('background-color', 'rgb(255, 247, 237)');
+  await expect(notice).toHaveCSS('color', 'rgb(154, 52, 18)');
+  await assertPageFitsViewport(page);
+});
+
 test('manager recorder access tool stays usable on mobile', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderToolMarkup(), { width: 390, height: 844 });
 

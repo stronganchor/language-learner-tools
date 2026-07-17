@@ -2295,7 +2295,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $fixture = $this->createWordsetFixtureWithCategory();
         $wordset_id = (int) $fixture['wordset_id'];
         $wordset_slug = (string) $fixture['wordset_slug'];
-        $category_id = (int) $fixture['category_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
         $button_image_attachment_id = $this->createImageAttachment('advanced-wordset-button-image.png');
@@ -2315,8 +2314,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '36',
             'll_wordset_category_ordering_mode' => 'manual',
-            'll_wordset_category_order_category_ids' => (string) $category_id,
-            'll_wordset_category_manual_order' => (string) $category_id,
+            'll_wordset_category_order_category_ids' => '',
+            'll_wordset_category_manual_order' => '',
             'll_wordset_category_prereqs_compact_mode' => 'json-v1',
             'll_wordset_category_prereqs_compact' => '{}',
             'll_wordset_has_gender' => '1',
@@ -2370,7 +2369,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $fixture = $this->createWordsetFixtureWithCategory();
         $wordset_id = (int) $fixture['wordset_id'];
         $wordset_slug = (string) $fixture['wordset_slug'];
-        $category_id = (int) $fixture['category_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
         $button_image_attachment_id = $this->createImageAttachment('manager-wordset-button-image.png');
@@ -2393,8 +2391,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '34',
             'll_wordset_category_ordering_mode' => 'manual',
-            'll_wordset_category_order_category_ids' => (string) $category_id,
-            'll_wordset_category_manual_order' => (string) $category_id,
+            'll_wordset_category_order_category_ids' => '',
+            'll_wordset_category_manual_order' => '',
             'll_wordset_has_gender' => '1',
             'll_wordset_gender_options' => "Masc\nFem",
         ];

@@ -6022,6 +6022,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: #166534;
 }
 
+.ll-wordset-progress-reset-notice--warning {
+    border-color: rgba(180, 83, 9, 0.34);
+    background: #fff7ed;
+    color: #9a3412;
+}
+
 .ll-wordset-progress-reset-notice--error {
     border-color: rgba(185, 28, 28, 0.34);
     background: #fdecec;
