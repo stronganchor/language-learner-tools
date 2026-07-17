@@ -85,8 +85,41 @@ if [[ "$WP_CLI_BIN" == *.exe && "${LL_TOOLS_I18N_ALLOW_WINDOWS_PHP_LOCALE_UPDATE
 fi
 
 "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n update-po "$POT_FILE" "$TR_PO_FILE"
-"$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-mo "$TR_PO_FILE" languages
-"$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-php "$TR_PO_FILE" languages
+
+# WP-CLI compiles blank msgstr entries into the MO/PHP artifacts. That turns a
+# translator-review placeholder into empty runtime UI copy instead of falling
+# back to the English msgid. Keep blanks in the review PO, but compile a
+# temporary runtime PO containing only complete, non-fuzzy translations.
+PHP_RUNTIME="${PHP_BIN:-}"
+if [[ -z "$PHP_RUNTIME" ]]; then
+  case "$(basename "$WP_CLI_BIN")" in
+    php|php.exe)
+      PHP_RUNTIME="$WP_CLI_BIN"
+      ;;
+  esac
+fi
+if [[ -z "$PHP_RUNTIME" ]] && command -v php >/dev/null 2>&1; then
+  PHP_RUNTIME="$(command -v php)"
+fi
+if [[ -z "$PHP_RUNTIME" ]] || ! "$PHP_RUNTIME" --version >/dev/null 2>&1; then
+  echo "A working PHP runtime is required to filter untranslated PO entries before compilation." >&2
+  exit 1
+fi
+
+RUNTIME_PO_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ll-tools-i18n-runtime.XXXXXX")"
+RUNTIME_PO="$RUNTIME_PO_DIR/$(basename "$TR_PO_FILE")"
+cleanup_runtime_po() {
+  rm -f -- "$RUNTIME_PO"
+  rmdir -- "$RUNTIME_PO_DIR" 2>/dev/null || true
+}
+trap cleanup_runtime_po EXIT
+
+"$PHP_RUNTIME" scripts/filter-po-runtime-translations.php "$TR_PO_FILE" "$RUNTIME_PO"
+"$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-mo "$RUNTIME_PO" languages/ll-tools-text-domain-tr_TR.mo
+"$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-php "$RUNTIME_PO" languages
+
+cleanup_runtime_po
+trap - EXIT
 
 # WP-CLI may emit CRLF here.
 perl -0pi -e 's/\r\n?/\n/g' "languages/ll-tools-text-domain-tr_TR.l10n.php"

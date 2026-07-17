@@ -5154,3 +5154,8 @@ msgstr "Una riga TSV preparata supera la dimensione consentita."
 #: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
 msgid "A TSV grouping bucket exceeds the allowed size."
 msgstr "Un blocco di raggruppamento TSV supera la dimensione consentita."
+
+#. ll-tools-public-key: c6dfbe12711f5340713432191b03b219c4241d01
+#: includes/pages/wordset-pages.php:25929
+msgid "Search results are still being prepared. Please try again in a moment."
+msgstr "I risultati della ricerca sono ancora in fase di elaborazione. Si prega di riprovare tra qualche istante."

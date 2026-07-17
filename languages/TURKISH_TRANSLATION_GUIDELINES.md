@@ -59,23 +59,31 @@ Run these searches before finishing a translation pass:
 
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
-rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\\bSınav\\b|\\bsınav\\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı' languages/ll-tools-text-domain-tr_TR.po
+rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\bSınav\b|\bsınav\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı' languages/ll-tools-text-domain-tr_TR.po
 ```
 
 Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.
 
 ## Rebuild Locale Files
 
-From the plugin root, regenerate the compiled locale files with:
+From PowerShell in the plugin root, compile only reviewed translations. Keeping
+blank entries in the PO is useful for review, but compiling those entries would
+turn their English fallback text into empty UI copy.
 
-```bash
-php <<'PHP'
+```powershell
+$CompileScriptPath = Join-Path $env:TEMP ('ll-tools-compile-tr-' + [guid]::NewGuid().ToString('N') + '.php')
+$RuntimePoPath = Join-Path $env:TEMP ('ll-tools-runtime-tr-' + [guid]::NewGuid().ToString('N') + '.po')
+$CompileScript = @'
 <?php
-$cwd = getcwd();
-$root = dirname(dirname(dirname($cwd)));
-$poPath = $cwd . '/languages/ll-tools-text-domain-tr_TR.po';
-$moPath = $cwd . '/languages/ll-tools-text-domain-tr_TR.mo';
-$phpPath = $cwd . '/languages/ll-tools-text-domain-tr_TR.l10n.php';
+$root = dirname(dirname(dirname(getcwd())));
+$poPath = getenv('LL_TOOLS_RUNTIME_PO');
+$moPath = getcwd() . '/languages/ll-tools-text-domain-tr_TR.mo';
+$phpPath = getcwd() . '/languages/ll-tools-text-domain-tr_TR.l10n.php';
+
+if (!is_string($poPath) || $poPath === '') {
+    fwrite(STDERR, "Runtime PO path is missing\n");
+    exit(1);
+}
 
 require $root . '/wp-includes/pomo/translations.php';
 require $root . '/wp-includes/pomo/streams.php';
@@ -96,6 +104,10 @@ if (!$po->import_from_file($poPath)) {
 $mo = new MO();
 $mo->set_headers($po->headers);
 foreach ($po->entries as $entry) {
+    $translations = is_array($entry->translations) ? $entry->translations : [];
+    if ($translations === [] || in_array('', $translations, true)) {
+        continue;
+    }
     $mo->add_entry($entry);
 }
 
@@ -105,24 +117,36 @@ if (!$mo->export_to_file($moPath)) {
 }
 
 $php = WP_Translation_File::transform($moPath, 'php');
-if ($php === false) {
+if ($php === false || file_put_contents($phpPath, $php) === false) {
     fwrite(STDERR, "PHP export failed\n");
     exit(1);
 }
-
-if (file_put_contents($phpPath, $php) === false) {
-    fwrite(STDERR, "PHP write failed\n");
-    exit(1);
+'@
+[System.IO.File]::WriteAllText($CompileScriptPath, $CompileScript, [System.Text.UTF8Encoding]::new($false))
+try {
+    php scripts/filter-po-runtime-translations.php languages/ll-tools-text-domain-tr_TR.po $RuntimePoPath
+    if ($LASTEXITCODE -ne 0) { throw 'Turkish runtime PO filter failed.' }
+    $env:LL_TOOLS_RUNTIME_PO = $RuntimePoPath
+    php $CompileScriptPath
+    if ($LASTEXITCODE -ne 0) { throw 'Turkish locale rebuild failed.' }
+} finally {
+    Remove-Item Env:LL_TOOLS_RUNTIME_PO -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $RuntimePoPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $CompileScriptPath -Force -ErrorAction SilentlyContinue
 }
-
-echo "Updated MO and l10n PHP\n";
-PHP
 ```
+
+For a full catalog refresh, run `scripts/update-i18n.sh` from Git Bash. It
+regenerates the POT, merges the refreshed catalog, and compiles a temporary
+runtime PO containing only complete, non-fuzzy translations. Review the catalog
+diff before accepting broad WP-CLI reordering. Leave newly merged `msgstr`
+values empty until a reviewer supplies confident Turkish; the runtime artifacts
+will omit those entries so WordPress falls back to English.
 
 ## Optional Verification
 
 After rebuilding, spot-check a few glossary-sensitive strings from the generated PHP locale:
 
-```bash
-php -r '$data=require getcwd()."/languages/ll-tools-text-domain-tr_TR.l10n.php"; foreach (["Word Set","Word Image","Word Audio","Quiz","Already have an account?"] as $key) { echo $key, " => ", ($data["messages"][$key] ?? "<missing>"), PHP_EOL; }'
+```powershell
+php -r "print_r(array_intersect_key((require getcwd() . '/languages/ll-tools-text-domain-tr_TR.l10n.php')['messages'], array_flip(['Word Set', 'Word Image', 'Word Audio', 'Quiz', 'Already have an account?'])));"
 ```

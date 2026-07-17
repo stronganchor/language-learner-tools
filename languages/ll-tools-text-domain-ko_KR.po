@@ -5131,3 +5131,8 @@ msgstr "준비된 TSV 행이 허용된 크기를 초과합니다."
 #: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
 msgid "A TSV grouping bucket exceeds the allowed size."
 msgstr "TSV 그룹화 버킷이 허용된 크기를 초과합니다."
+
+#. ll-tools-public-key: c6dfbe12711f5340713432191b03b219c4241d01
+#: includes/pages/wordset-pages.php:25929
+msgid "Search results are still being prepared. Please try again in a moment."
+msgstr "검색 결과가 아직 준비 중입니다. 잠시 후 다시 시도해 주세요."

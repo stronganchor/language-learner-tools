@@ -4510,7 +4510,7 @@ function ll_tools_ipa_orthography_render_profile_migration_notice(): void {
     $wordsets_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
     echo '<div class="notice notice-warning is-dismissible"><p>' . wp_kses_post(sprintf(
         /* translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen */
-        __('Preserved the GenÃ§-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href="%2$s">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically.', 'll-tools-text-domain'),
+        __('Preserved the Genç-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href="%2$s">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically.', 'll-tools-text-domain'),
         $migrated,
         esc_url($wordsets_url)
     )) . '</p></div>';

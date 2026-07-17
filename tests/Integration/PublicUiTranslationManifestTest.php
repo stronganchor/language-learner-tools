@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/scripts/check-public-i18n.php';
+require_once dirname(__DIR__, 2) . '/scripts/filter-po-runtime-translations.php';
 require_once dirname(__DIR__, 2) . '/scripts/translate-public-i18n-deepl.php';
 
 final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
@@ -56,6 +57,228 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
                 (int) $coverage['untranslated']
             )
         );
+    }
+
+    public function test_turkish_catalog_tracks_every_current_pot_entry(): void
+    {
+        $root = $this->pluginRoot();
+        $pot_entries = ll_tools_public_i18n_parse_po_file(
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain.pot'
+        );
+        $po_entries = ll_tools_public_i18n_parse_po_file(
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $pot_by_key = ll_tools_public_i18n_entries_by_key($pot_entries);
+        $po_by_key = ll_tools_public_i18n_entries_by_key($po_entries);
+        $seen_keys = [];
+        $duplicate_msgids = [];
+        foreach ($po_entries as $entry) {
+            if (($entry['msgid'] ?? '') === '') {
+                continue;
+            }
+
+            $entry_key = ll_tools_public_i18n_entry_key($entry);
+            if (isset($seen_keys[$entry_key])) {
+                $duplicate_msgids[] = (string) ($entry['msgid'] ?? '');
+                continue;
+            }
+
+            $seen_keys[$entry_key] = true;
+        }
+        $missing = array_values(array_map(
+            static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
+            array_diff_key($pot_by_key, $po_by_key)
+        ));
+        $fuzzy = array_values(array_filter(
+            $po_entries,
+            static fn (array $entry): bool => in_array('fuzzy', (array) ($entry['flags'] ?? []), true)
+        ));
+
+        $this->assertSame(
+            [],
+            $missing,
+            'Merge the current POT into the Turkish PO without inventing translations for newly added strings.'
+        );
+        $this->assertSame(
+            [],
+            $duplicate_msgids,
+            'Keep only one active Turkish catalog entry per context, msgid, and plural combination.'
+        );
+        $this->assertSame([], $fuzzy, 'Resolve or clear fuzzy Turkish catalog entries before rebuilding locale artifacts.');
+    }
+
+    public function test_translation_template_keeps_genc_palu_source_text_in_utf8(): void
+    {
+        $pot = file_get_contents(
+            $this->pluginRoot() . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain.pot'
+        );
+        $this->assertIsString($pot);
+        $this->assertStringContainsString('Genç-Palu', $pot);
+        $this->assertStringNotContainsString('GenÃ§-Palu', $pot);
+    }
+
+    public function test_turkish_catalog_keeps_reviewed_word_set_translations(): void
+    {
+        $root = $this->pluginRoot();
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $translations = [];
+        foreach ($entries as $entry) {
+            $msgid = (string) ($entry['msgid'] ?? '');
+            if ($msgid !== '') {
+                $translations[$msgid] = (string) (($entry['msgstr'][0] ?? ''));
+            }
+        }
+
+        $expected = [
+            'No word sets' => 'Kelime seti yok',
+            'No word sets found yet.' => 'Henüz kelime seti bulunamadı.',
+            'Defaults to the word set name.' => 'Varsayılan olarak kelime seti adını kullanır.',
+        ];
+        foreach ($expected as $msgid => $translation) {
+            $this->assertSame($translation, $translations[$msgid] ?? null, $msgid);
+        }
+
+        $compiled = require $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.l10n.php';
+        $compiled_messages = is_array($compiled['messages'] ?? null) ? $compiled['messages'] : [];
+        foreach ($expected as $msgid => $translation) {
+            $this->assertSame($translation, $compiled_messages[$msgid] ?? null, 'Compiled: ' . $msgid);
+        }
+    }
+
+    public function test_compiled_turkish_catalog_omits_untranslated_entries(): void
+    {
+        $root = $this->pluginRoot();
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $untranslated = array_values(array_filter(
+            $entries,
+            static function (array $entry): bool {
+                if (($entry['msgid'] ?? '') === '') {
+                    return false;
+                }
+
+                $translations = (array) ($entry['msgstr'] ?? []);
+
+                return $translations === [] || !array_filter(
+                    $translations,
+                    static fn (string $translation): bool => $translation !== ''
+                );
+            }
+        ));
+        $this->assertNotEmpty($untranslated, 'Keep newly merged Turkish entries blank until a reviewer translates them.');
+
+        $compiled = require $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.l10n.php';
+        $compiled_messages = is_array($compiled['messages'] ?? null) ? $compiled['messages'] : [];
+        foreach ($untranslated as $entry) {
+            $runtime_key = (string) ($entry['msgid'] ?? '');
+            if (($entry['context'] ?? '') !== '') {
+                $runtime_key = (string) $entry['context'] . "\x04" . $runtime_key;
+            }
+            $this->assertArrayNotHasKey(
+                $runtime_key,
+                $compiled_messages,
+                'Blank PO entries must fall back to their English source string instead of compiling to empty UI copy.'
+            );
+        }
+    }
+
+    public function test_runtime_po_filter_keeps_only_complete_reviewed_translations(): void
+    {
+        $source_path = tempnam(sys_get_temp_dir(), 'll-runtime-po-source-');
+        $destination_path = tempnam(sys_get_temp_dir(), 'll-runtime-po-output-');
+        $this->assertIsString($source_path);
+        $this->assertIsString($destination_path);
+
+        $source = implode("\n", [
+            'msgid ""',
+            'msgstr ""',
+            '"Language: tr_TR\\n"',
+            '"Content-Type: text/plain; charset=UTF-8\\n"',
+            '"Plural-Forms: nplurals=2; plural=n != 1;\\n"',
+            '',
+            '# Existing translator comment must remain.',
+            '#: includes/public.php:10',
+            'msgid "Translated"',
+            'msgstr "Çevrildi"',
+            '',
+            'msgid "Multiline"',
+            'msgstr ""',
+            '"Çok "',
+            '"satırlı"',
+            '',
+            'msgid "Zero"',
+            'msgstr "0"',
+            '',
+            'msgid "Blank"',
+            'msgstr ""',
+            '',
+            '#, php-format, fuzzy',
+            'msgid "Fuzzy %s"',
+            'msgstr "Belirsiz %s"',
+            '',
+            'msgid "Complete singular"',
+            'msgid_plural "Complete plural"',
+            'msgstr[0] "Tekil"',
+            'msgstr[1] "Çoğul"',
+            '',
+            'msgid "Partial singular"',
+            'msgid_plural "Partial plural"',
+            'msgstr[0] "Tekil"',
+            'msgstr[1] ""',
+            '',
+            'msgid "Missing slot singular"',
+            'msgid_plural "Missing slot plural"',
+            'msgstr[0] "Tekil"',
+            '',
+            '#~ msgid "Obsolete"',
+            '#~ msgstr "Eski"',
+            '',
+        ]);
+        file_put_contents($source_path, $source);
+
+        try {
+            ll_tools_filter_po_for_runtime($source_path, $destination_path);
+            $written = file_get_contents($destination_path);
+            $entries = ll_tools_public_i18n_parse_po_file($destination_path);
+        } finally {
+            @unlink($source_path);
+            @unlink($destination_path);
+        }
+
+        $this->assertIsString($written);
+        $this->assertStringContainsString('# Existing translator comment must remain.', $written);
+        $by_msgid = [];
+        foreach ($entries as $entry) {
+            $by_msgid[(string) ($entry['msgid'] ?? '')] = $entry;
+        }
+
+        $this->assertSame('Çevrildi', $by_msgid['Translated']['msgstr'][0] ?? null);
+        $this->assertSame('Çok satırlı', $by_msgid['Multiline']['msgstr'][0] ?? null);
+        $this->assertSame('0', $by_msgid['Zero']['msgstr'][0] ?? null);
+        $this->assertSame('Tekil', $by_msgid['Complete singular']['msgstr'][0] ?? null);
+        $this->assertSame('Çoğul', $by_msgid['Complete singular']['msgstr'][1] ?? null);
+        $this->assertArrayNotHasKey('Blank', $by_msgid);
+        $this->assertArrayNotHasKey('Fuzzy %s', $by_msgid);
+        $this->assertArrayNotHasKey('Partial singular', $by_msgid);
+        $this->assertArrayNotHasKey('Missing slot singular', $by_msgid);
+        $this->assertArrayNotHasKey('Obsolete', $by_msgid);
+    }
+
+    public function test_update_i18n_compiles_the_filtered_runtime_po(): void
+    {
+        $script = file_get_contents($this->pluginRoot() . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'update-i18n.sh');
+        $this->assertIsString($script);
+        $this->assertStringContainsString(
+            'scripts/filter-po-runtime-translations.php "$TR_PO_FILE" "$RUNTIME_PO"',
+            $script
+        );
+        $this->assertStringContainsString('i18n make-mo "$RUNTIME_PO"', $script);
+        $this->assertStringContainsString('i18n make-php "$RUNTIME_PO"', $script);
+        $this->assertStringNotContainsString('i18n make-mo "$TR_PO_FILE"', $script);
+        $this->assertStringNotContainsString('i18n make-php "$TR_PO_FILE"', $script);
     }
 
     public function test_active_tier2_locales_must_cover_every_public_manifest_entry(): void

@@ -5154,3 +5154,8 @@ msgstr "Baris TSV yang disiapkan melebihi ukuran yang diizinkan."
 #: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
 msgid "A TSV grouping bucket exceeds the allowed size."
 msgstr "Wadah pengelompokan TSV melebihi ukuran yang diizinkan."
+
+#. ll-tools-public-key: c6dfbe12711f5340713432191b03b219c4241d01
+#: includes/pages/wordset-pages.php:25929
+msgid "Search results are still being prepared. Please try again in a moment."
+msgstr "Hasil pencarian masih dalam proses penyiapan. Silakan coba lagi sebentar lagi."
