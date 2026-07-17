@@ -117,6 +117,35 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Profile image', (string) ($advanced_card[0] ?? ''));
     }
 
+    public function test_advanced_summary_and_full_tool_share_the_same_stored_values(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_PROFILE_BLURB_META_KEY, 'Shared advanced summary');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, 'large');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY, '1');
+        update_term_meta($wordset_id, 'll_wordset_has_gender', '1');
+        update_term_meta($wordset_id, 'll_wordset_has_plurality', '1');
+
+        $summary = ll_tools_wordset_page_get_advanced_settings_summary($wordset_id);
+        $full = ll_tools_wordset_page_get_advanced_settings($wordset_id);
+
+        foreach ($summary as $key => $value) {
+            $this->assertArrayHasKey($key, $full);
+            $this->assertSame($value, $full[$key], 'Stored Advanced setting drifted for ' . $key);
+        }
+        $this->assertArrayNotHasKey('button_image_preview_url', $summary);
+        $this->assertArrayNotHasKey('button_image_label', $summary);
+        $this->assertArrayHasKey('button_image_preview_url', $full);
+        $this->assertArrayHasKey('button_image_label', $full);
+        $this->assertSame('Shared advanced summary', $summary['profile_blurb'] ?? null);
+        $this->assertSame('large', $summary['games_image_size'] ?? null);
+        $this->assertTrue((bool) ($summary['keep_original_audio'] ?? false));
+    }
+
     public function test_settings_hub_reuses_durable_managed_category_summary_across_object_cache_flushes(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

@@ -14489,22 +14489,24 @@ function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_
 }
 
 /**
- * Return only the stored values displayed on the settings-hub Advanced card.
+ * Read the inexpensive stored values shared by the Advanced hub card and tool.
  *
- * The full Advanced tool also builds the category-ordering catalog, discovers
- * fonts, and samples answer-option text. Those operations are useful on the
- * tool itself but are wasted on the hub, where none of their output is shown.
+ * Keep this separate from the tool-only category catalog, font discovery, and
+ * answer preview work so the hub can reuse the canonical values without
+ * triggering those heavier operations.
  */
-function ll_tools_wordset_page_get_advanced_settings_summary(int $wordset_id): array {
+function ll_tools_wordset_page_get_advanced_settings_stored_values(int $wordset_id): array {
     $button_image_preview = function_exists('ll_tools_get_wordset_button_image_preview_data')
         ? ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)
-        : ['attachment_id' => 0];
+        : ['attachment_id' => 0, 'url' => '', 'title' => ''];
 
     return [
         'games_image_size' => function_exists('ll_tools_get_wordset_games_image_size')
             ? ll_tools_get_wordset_games_image_size($wordset_id)
             : 'default',
         'button_image_attachment_id' => (int) ($button_image_preview['attachment_id'] ?? 0),
+        'button_image_preview_url' => (string) ($button_image_preview['url'] ?? ''),
+        'button_image_label' => (string) ($button_image_preview['title'] ?? ''),
         'profile_blurb' => function_exists('ll_tools_get_wordset_profile_blurb')
             ? ll_tools_get_wordset_profile_blurb($wordset_id)
             : '',
@@ -14521,20 +14523,22 @@ function ll_tools_wordset_page_get_advanced_settings_summary(int $wordset_id): a
     ];
 }
 
+/**
+ * Return only the stored values displayed on the settings-hub Advanced card.
+ *
+ * The full Advanced tool also builds the category-ordering catalog, discovers
+ * fonts, and samples answer-option text. Those operations are useful on the
+ * tool itself but are wasted on the hub, where none of their output is shown.
+ */
+function ll_tools_wordset_page_get_advanced_settings_summary(int $wordset_id): array {
+    $settings = ll_tools_wordset_page_get_advanced_settings_stored_values($wordset_id);
+    unset($settings['button_image_preview_url'], $settings['button_image_label']);
+
+    return $settings;
+}
+
 function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
-    $games_image_size = function_exists('ll_tools_get_wordset_games_image_size')
-        ? ll_tools_get_wordset_games_image_size($wordset_id)
-        : 'default';
-    $button_image_preview = function_exists('ll_tools_get_wordset_button_image_preview_data')
-        ? ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)
-        : ['attachment_id' => 0, 'url' => '', 'title' => ''];
-    $profile_blurb = function_exists('ll_tools_get_wordset_profile_blurb')
-        ? ll_tools_get_wordset_profile_blurb($wordset_id)
-        : '';
-    $has_gender = (bool) get_term_meta($wordset_id, 'll_wordset_has_gender', true);
-    $has_plurality = (bool) get_term_meta($wordset_id, 'll_wordset_has_plurality', true);
-    $has_verb_tense = (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_tense', true);
-    $has_verb_mood = (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_mood', true);
+    $stored_settings = ll_tools_wordset_page_get_advanced_settings_stored_values($wordset_id);
     $gender_options = function_exists('ll_tools_wordset_get_gender_options')
         ? ll_tools_wordset_get_gender_options($wordset_id)
         : (function_exists('ll_tools_wordset_get_gender_default_options') ? ll_tools_wordset_get_gender_default_options() : ['Masculine', 'Feminine']);
@@ -14581,25 +14585,10 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
         $answer_option_font_family = '';
     }
 
-    return [
-        'games_image_size' => $games_image_size,
-        'button_image_attachment_id' => isset($button_image_preview['attachment_id']) ? (int) $button_image_preview['attachment_id'] : 0,
-        'button_image_preview_url' => (string) ($button_image_preview['url'] ?? ''),
-        'button_image_label' => (string) ($button_image_preview['title'] ?? ''),
-        'profile_blurb' => $profile_blurb,
-        'category_ordering_mode' => function_exists('ll_tools_wordset_get_category_ordering_mode')
-            ? ll_tools_wordset_get_category_ordering_mode($wordset_id)
-            : 'none',
+    return array_merge($stored_settings, [
         'category_ordering_count' => function_exists('ll_tools_wordset_get_admin_category_ordering_rows')
             ? count(ll_tools_wordset_get_admin_category_ordering_rows($wordset_id))
             : 0,
-        'keep_original_audio' => function_exists('ll_tools_should_keep_original_audio_for_wordset')
-            ? ll_tools_should_keep_original_audio_for_wordset($wordset_id)
-            : false,
-        'has_gender' => $has_gender,
-        'has_plurality' => $has_plurality,
-        'has_verb_tense' => $has_verb_tense,
-        'has_verb_mood' => $has_verb_mood,
         'gender_options_display' => implode("\n", array_map('strval', $gender_options)),
         'plurality_options_display' => implode("\n", array_map('strval', $plurality_options)),
         'verb_tense_options_display' => implode("\n", array_map('strval', $verb_tense_options)),
@@ -14615,7 +14604,7 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
         'answer_option_font_family_missing_from_available' => $answer_option_font_family_missing_from_available,
         'answer_option_preview_html' => ll_tools_wordset_render_answer_option_style_preview_html($wordset_id, $answer_option_text_style),
         'saved_answer_option_font_family' => (string) ($answer_option_text_style['fontFamily'] ?? ''),
-    ];
+    ]);
 }
 
 function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $settings): string {
