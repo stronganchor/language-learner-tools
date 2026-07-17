@@ -3670,6 +3670,243 @@ function ll_tools_wordset_verify_core_term_form_nonce(array $request): bool {
     return false;
 }
 
+/**
+ * Persist the grammatical feature settings shared by both wordset edit forms.
+ *
+ * Accepting the request explicitly keeps normalization independent from the
+ * global request and prevents the taxonomy and manager forms from drifting.
+ */
+function ll_tools_wordset_save_advanced_grammar_settings(int $term_id, array $request): void {
+    $has_gender = isset($request['ll_wordset_has_gender']) ? 1 : 0;
+    update_term_meta($term_id, 'll_wordset_has_gender', $has_gender);
+
+    $existing_raw = get_term_meta($term_id, 'll_wordset_gender_options', true);
+    $existing_options = function_exists('ll_tools_wordset_normalize_gender_options')
+        ? ll_tools_wordset_normalize_gender_options($existing_raw)
+        : [];
+    $legacy_options = [];
+    if (empty($existing_options) && function_exists('ll_tools_wordset_get_gender_default_options')) {
+        $existing_options = ll_tools_wordset_get_gender_default_options();
+        if (function_exists('ll_tools_wordset_get_gender_legacy_default_options')) {
+            $legacy_options = ll_tools_wordset_get_gender_legacy_default_options();
+        }
+        if (!empty($legacy_options)
+            && function_exists('ll_tools_wordset_gender_options_equal')
+            && ll_tools_wordset_gender_options_equal($legacy_options, $existing_options)
+        ) {
+            $legacy_options = [];
+        }
+    }
+
+    $raw_options = '';
+    if (isset($request['ll_wordset_gender_options'])) {
+        $raw_options = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_gender_options'])
+            : $request['ll_wordset_gender_options'];
+    }
+    $options = function_exists('ll_tools_wordset_normalize_gender_options')
+        ? ll_tools_wordset_normalize_gender_options($raw_options)
+        : [];
+    $raw_options_trimmed = trim((string) $raw_options);
+    if ($raw_options_trimmed !== '' && empty($options)) {
+        $options = $existing_options;
+    }
+    $resolved_options = $options;
+    if (empty($resolved_options) && function_exists('ll_tools_wordset_get_gender_default_options')) {
+        $resolved_options = ll_tools_wordset_get_gender_default_options();
+    }
+
+    $options_changed = function_exists('ll_tools_wordset_gender_options_equal')
+        ? !ll_tools_wordset_gender_options_equal($existing_options, $resolved_options)
+        : ($existing_options !== $resolved_options);
+    $legacy_sync_needed = !empty($legacy_options)
+        && (function_exists('ll_tools_wordset_gender_options_equal')
+            ? !ll_tools_wordset_gender_options_equal($legacy_options, $resolved_options)
+            : ($legacy_options !== $resolved_options));
+
+    if (($options_changed || $legacy_sync_needed) && function_exists('ll_tools_wordset_sync_gender_values')) {
+        ll_tools_wordset_sync_gender_values($term_id, $existing_options, $resolved_options, $legacy_options);
+    }
+
+    if (empty($options)) {
+        delete_term_meta($term_id, 'll_wordset_gender_options');
+    } else {
+        update_term_meta($term_id, 'll_wordset_gender_options', $options);
+    }
+
+    $masculine_symbol_raw = '';
+    if (isset($request['ll_wordset_gender_symbol_masculine'])) {
+        $masculine_symbol_raw = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_gender_symbol_masculine'])
+            : $request['ll_wordset_gender_symbol_masculine'];
+    }
+    $masculine_symbol = function_exists('ll_tools_wordset_sanitize_gender_symbol_raw')
+        ? ll_tools_wordset_sanitize_gender_symbol_raw($masculine_symbol_raw)
+        : trim((string) $masculine_symbol_raw);
+    if (function_exists('ll_tools_wordset_get_gender_symbol_meta_key')) {
+        $meta_key = ll_tools_wordset_get_gender_symbol_meta_key('masculine');
+        if ($masculine_symbol === '') {
+            delete_term_meta($term_id, $meta_key);
+        } else {
+            update_term_meta($term_id, $meta_key, $masculine_symbol);
+        }
+    }
+
+    $feminine_symbol_raw = '';
+    if (isset($request['ll_wordset_gender_symbol_feminine'])) {
+        $feminine_symbol_raw = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_gender_symbol_feminine'])
+            : $request['ll_wordset_gender_symbol_feminine'];
+    }
+    $feminine_symbol = function_exists('ll_tools_wordset_sanitize_gender_symbol_raw')
+        ? ll_tools_wordset_sanitize_gender_symbol_raw($feminine_symbol_raw)
+        : trim((string) $feminine_symbol_raw);
+    if (function_exists('ll_tools_wordset_get_gender_symbol_meta_key')) {
+        $meta_key = ll_tools_wordset_get_gender_symbol_meta_key('feminine');
+        if ($feminine_symbol === '') {
+            delete_term_meta($term_id, $meta_key);
+        } else {
+            update_term_meta($term_id, $meta_key, $feminine_symbol);
+        }
+    }
+
+    if (function_exists('ll_tools_wordset_get_gender_color_defaults')) {
+        $defaults = ll_tools_wordset_get_gender_color_defaults();
+        $color_keys = [
+            'masculine' => 'll_wordset_gender_color_masculine',
+            'feminine' => 'll_wordset_gender_color_feminine',
+            'other' => 'll_wordset_gender_color_other',
+        ];
+        foreach ($color_keys as $role => $field_key) {
+            $raw_color = isset($request[$field_key]) ? (string) wp_unslash($request[$field_key]) : '';
+            $color = sanitize_hex_color($raw_color);
+            if (!$color) {
+                $color = $defaults[$role] ?? '';
+            }
+            $meta_key = 'll_wordset_gender_color_' . $role;
+            if ($color === '' || $color === ($defaults[$role] ?? '')) {
+                delete_term_meta($term_id, $meta_key);
+            } else {
+                update_term_meta($term_id, $meta_key, $color);
+            }
+        }
+    }
+
+    $has_plurality = isset($request['ll_wordset_has_plurality']) ? 1 : 0;
+    update_term_meta($term_id, 'll_wordset_has_plurality', $has_plurality);
+
+    $existing_plurality_raw = get_term_meta($term_id, 'll_wordset_plurality_options', true);
+    $existing_plurality_options = function_exists('ll_tools_wordset_normalize_plurality_options')
+        ? ll_tools_wordset_normalize_plurality_options($existing_plurality_raw)
+        : [];
+    if (empty($existing_plurality_options) && function_exists('ll_tools_wordset_get_plurality_default_options')) {
+        $existing_plurality_options = ll_tools_wordset_get_plurality_default_options();
+    }
+
+    $raw_plurality_options = '';
+    if (isset($request['ll_wordset_plurality_options'])) {
+        $raw_plurality_options = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_plurality_options'])
+            : $request['ll_wordset_plurality_options'];
+    }
+    $plurality_options = function_exists('ll_tools_wordset_normalize_plurality_options')
+        ? ll_tools_wordset_normalize_plurality_options($raw_plurality_options)
+        : [];
+    $resolved_plurality_options = $plurality_options;
+    if (empty($resolved_plurality_options) && function_exists('ll_tools_wordset_get_plurality_default_options')) {
+        $resolved_plurality_options = ll_tools_wordset_get_plurality_default_options();
+    }
+
+    $plurality_changed = function_exists('ll_tools_wordset_plurality_options_equal')
+        ? !ll_tools_wordset_plurality_options_equal($existing_plurality_options, $resolved_plurality_options)
+        : ($existing_plurality_options !== $resolved_plurality_options);
+    if ($plurality_changed && function_exists('ll_tools_wordset_sync_plurality_values')) {
+        ll_tools_wordset_sync_plurality_values($term_id, $existing_plurality_options, $resolved_plurality_options);
+    }
+
+    if (empty($plurality_options)) {
+        delete_term_meta($term_id, 'll_wordset_plurality_options');
+    } else {
+        update_term_meta($term_id, 'll_wordset_plurality_options', $plurality_options);
+    }
+
+    $has_verb_tense = isset($request['ll_wordset_has_verb_tense']) ? 1 : 0;
+    update_term_meta($term_id, 'll_wordset_has_verb_tense', $has_verb_tense);
+
+    $existing_verb_tense_raw = get_term_meta($term_id, 'll_wordset_verb_tense_options', true);
+    $existing_verb_tense_options = function_exists('ll_tools_wordset_normalize_verb_tense_options')
+        ? ll_tools_wordset_normalize_verb_tense_options($existing_verb_tense_raw)
+        : [];
+    if (empty($existing_verb_tense_options) && function_exists('ll_tools_wordset_get_verb_tense_default_options')) {
+        $existing_verb_tense_options = ll_tools_wordset_get_verb_tense_default_options();
+    }
+
+    $raw_verb_tense_options = '';
+    if (isset($request['ll_wordset_verb_tense_options'])) {
+        $raw_verb_tense_options = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_verb_tense_options'])
+            : $request['ll_wordset_verb_tense_options'];
+    }
+    $verb_tense_options = function_exists('ll_tools_wordset_normalize_verb_tense_options')
+        ? ll_tools_wordset_normalize_verb_tense_options($raw_verb_tense_options)
+        : [];
+    $resolved_verb_tense_options = $verb_tense_options;
+    if (empty($resolved_verb_tense_options) && function_exists('ll_tools_wordset_get_verb_tense_default_options')) {
+        $resolved_verb_tense_options = ll_tools_wordset_get_verb_tense_default_options();
+    }
+
+    $verb_tense_changed = function_exists('ll_tools_wordset_verb_tense_options_equal')
+        ? !ll_tools_wordset_verb_tense_options_equal($existing_verb_tense_options, $resolved_verb_tense_options)
+        : ($existing_verb_tense_options !== $resolved_verb_tense_options);
+    if ($verb_tense_changed && function_exists('ll_tools_wordset_sync_verb_tense_values')) {
+        ll_tools_wordset_sync_verb_tense_values($term_id, $existing_verb_tense_options, $resolved_verb_tense_options);
+    }
+
+    if (empty($verb_tense_options)) {
+        delete_term_meta($term_id, 'll_wordset_verb_tense_options');
+    } else {
+        update_term_meta($term_id, 'll_wordset_verb_tense_options', $verb_tense_options);
+    }
+
+    $has_verb_mood = isset($request['ll_wordset_has_verb_mood']) ? 1 : 0;
+    update_term_meta($term_id, 'll_wordset_has_verb_mood', $has_verb_mood);
+
+    $existing_verb_mood_raw = get_term_meta($term_id, 'll_wordset_verb_mood_options', true);
+    $existing_verb_mood_options = function_exists('ll_tools_wordset_normalize_verb_mood_options')
+        ? ll_tools_wordset_normalize_verb_mood_options($existing_verb_mood_raw)
+        : [];
+    if (empty($existing_verb_mood_options) && function_exists('ll_tools_wordset_get_verb_mood_default_options')) {
+        $existing_verb_mood_options = ll_tools_wordset_get_verb_mood_default_options();
+    }
+
+    $raw_verb_mood_options = '';
+    if (isset($request['ll_wordset_verb_mood_options'])) {
+        $raw_verb_mood_options = function_exists('wp_unslash')
+            ? wp_unslash($request['ll_wordset_verb_mood_options'])
+            : $request['ll_wordset_verb_mood_options'];
+    }
+    $verb_mood_options = function_exists('ll_tools_wordset_normalize_verb_mood_options')
+        ? ll_tools_wordset_normalize_verb_mood_options($raw_verb_mood_options)
+        : [];
+    $resolved_verb_mood_options = $verb_mood_options;
+    if (empty($resolved_verb_mood_options) && function_exists('ll_tools_wordset_get_verb_mood_default_options')) {
+        $resolved_verb_mood_options = ll_tools_wordset_get_verb_mood_default_options();
+    }
+
+    $verb_mood_changed = function_exists('ll_tools_wordset_verb_mood_options_equal')
+        ? !ll_tools_wordset_verb_mood_options_equal($existing_verb_mood_options, $resolved_verb_mood_options)
+        : ($existing_verb_mood_options !== $resolved_verb_mood_options);
+    if ($verb_mood_changed && function_exists('ll_tools_wordset_sync_verb_mood_values')) {
+        ll_tools_wordset_sync_verb_mood_values($term_id, $existing_verb_mood_options, $resolved_verb_mood_options);
+    }
+
+    if (empty($verb_mood_options)) {
+        delete_term_meta($term_id, 'll_wordset_verb_mood_options');
+    } else {
+        update_term_meta($term_id, 'll_wordset_verb_mood_options', $verb_mood_options);
+    }
+}
+
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
@@ -4003,236 +4240,7 @@ function ll_save_wordset_language($term_id) {
             }
         }
 
-        $has_gender = isset($_POST['ll_wordset_has_gender']) ? 1 : 0;
-        update_term_meta($term_id, 'll_wordset_has_gender', $has_gender);
-
-        $existing_raw = get_term_meta($term_id, 'll_wordset_gender_options', true);
-        $existing_options = function_exists('ll_tools_wordset_normalize_gender_options')
-            ? ll_tools_wordset_normalize_gender_options($existing_raw)
-            : [];
-        $legacy_options = [];
-        if (empty($existing_options) && function_exists('ll_tools_wordset_get_gender_default_options')) {
-            $existing_options = ll_tools_wordset_get_gender_default_options();
-            if (function_exists('ll_tools_wordset_get_gender_legacy_default_options')) {
-                $legacy_options = ll_tools_wordset_get_gender_legacy_default_options();
-            }
-            if (!empty($legacy_options)
-                && function_exists('ll_tools_wordset_gender_options_equal')
-                && ll_tools_wordset_gender_options_equal($legacy_options, $existing_options)) {
-                $legacy_options = [];
-            }
-        }
-
-        $raw_options = '';
-        if (isset($_POST['ll_wordset_gender_options'])) {
-            $raw_options = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_gender_options'])
-                : $_POST['ll_wordset_gender_options'];
-        }
-        $options = function_exists('ll_tools_wordset_normalize_gender_options')
-            ? ll_tools_wordset_normalize_gender_options($raw_options)
-            : [];
-        $raw_options_trimmed = trim((string) $raw_options);
-        if ($raw_options_trimmed !== '' && empty($options)) {
-            // Keep existing values when submitted content cannot be normalized on this environment.
-            $options = $existing_options;
-        }
-        $resolved_options = $options;
-        if (empty($resolved_options) && function_exists('ll_tools_wordset_get_gender_default_options')) {
-            $resolved_options = ll_tools_wordset_get_gender_default_options();
-        }
-
-        $options_changed = function_exists('ll_tools_wordset_gender_options_equal')
-            ? !ll_tools_wordset_gender_options_equal($existing_options, $resolved_options)
-            : ($existing_options !== $resolved_options);
-        $legacy_sync_needed = !empty($legacy_options)
-            && (function_exists('ll_tools_wordset_gender_options_equal')
-                ? !ll_tools_wordset_gender_options_equal($legacy_options, $resolved_options)
-                : ($legacy_options !== $resolved_options));
-
-        if ($options_changed || $legacy_sync_needed) {
-            if (function_exists('ll_tools_wordset_sync_gender_values')) {
-                ll_tools_wordset_sync_gender_values($term_id, $existing_options, $resolved_options, $legacy_options);
-            }
-        }
-
-        if (empty($options)) {
-            delete_term_meta($term_id, 'll_wordset_gender_options');
-        } else {
-            update_term_meta($term_id, 'll_wordset_gender_options', $options);
-        }
-
-        $masculine_symbol_raw = '';
-        if (isset($_POST['ll_wordset_gender_symbol_masculine'])) {
-            $masculine_symbol_raw = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_gender_symbol_masculine'])
-                : $_POST['ll_wordset_gender_symbol_masculine'];
-        }
-        $masculine_symbol = function_exists('ll_tools_wordset_sanitize_gender_symbol_raw')
-            ? ll_tools_wordset_sanitize_gender_symbol_raw($masculine_symbol_raw)
-            : trim((string) $masculine_symbol_raw);
-        if (function_exists('ll_tools_wordset_get_gender_symbol_meta_key')) {
-            $meta_key = ll_tools_wordset_get_gender_symbol_meta_key('masculine');
-            if ($masculine_symbol === '') {
-                delete_term_meta($term_id, $meta_key);
-            } else {
-                update_term_meta($term_id, $meta_key, $masculine_symbol);
-            }
-        }
-
-        $feminine_symbol_raw = '';
-        if (isset($_POST['ll_wordset_gender_symbol_feminine'])) {
-            $feminine_symbol_raw = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_gender_symbol_feminine'])
-                : $_POST['ll_wordset_gender_symbol_feminine'];
-        }
-        $feminine_symbol = function_exists('ll_tools_wordset_sanitize_gender_symbol_raw')
-            ? ll_tools_wordset_sanitize_gender_symbol_raw($feminine_symbol_raw)
-            : trim((string) $feminine_symbol_raw);
-        if (function_exists('ll_tools_wordset_get_gender_symbol_meta_key')) {
-            $meta_key = ll_tools_wordset_get_gender_symbol_meta_key('feminine');
-            if ($feminine_symbol === '') {
-                delete_term_meta($term_id, $meta_key);
-            } else {
-                update_term_meta($term_id, $meta_key, $feminine_symbol);
-            }
-        }
-
-        if (function_exists('ll_tools_wordset_get_gender_color_defaults')) {
-            $defaults = ll_tools_wordset_get_gender_color_defaults();
-            $color_keys = [
-                'masculine' => 'll_wordset_gender_color_masculine',
-                'feminine' => 'll_wordset_gender_color_feminine',
-                'other' => 'll_wordset_gender_color_other',
-            ];
-            foreach ($color_keys as $role => $field_key) {
-                $raw_color = isset($_POST[$field_key]) ? (string) $_POST[$field_key] : '';
-                $color = sanitize_hex_color($raw_color);
-                if (!$color) {
-                    $color = $defaults[$role] ?? '';
-                }
-                $meta_key = 'll_wordset_gender_color_' . $role;
-                if ($color === '' || $color === ($defaults[$role] ?? '')) {
-                    delete_term_meta($term_id, $meta_key);
-                } else {
-                    update_term_meta($term_id, $meta_key, $color);
-                }
-            }
-        }
-
-        $has_plurality = isset($_POST['ll_wordset_has_plurality']) ? 1 : 0;
-        update_term_meta($term_id, 'll_wordset_has_plurality', $has_plurality);
-
-        $existing_plurality_raw = get_term_meta($term_id, 'll_wordset_plurality_options', true);
-        $existing_plurality_options = function_exists('ll_tools_wordset_normalize_plurality_options')
-            ? ll_tools_wordset_normalize_plurality_options($existing_plurality_raw)
-            : [];
-        if (empty($existing_plurality_options) && function_exists('ll_tools_wordset_get_plurality_default_options')) {
-            $existing_plurality_options = ll_tools_wordset_get_plurality_default_options();
-        }
-
-        $raw_plurality_options = '';
-        if (isset($_POST['ll_wordset_plurality_options'])) {
-            $raw_plurality_options = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_plurality_options'])
-                : $_POST['ll_wordset_plurality_options'];
-        }
-        $plurality_options = function_exists('ll_tools_wordset_normalize_plurality_options')
-            ? ll_tools_wordset_normalize_plurality_options($raw_plurality_options)
-            : [];
-        $resolved_plurality_options = $plurality_options;
-        if (empty($resolved_plurality_options) && function_exists('ll_tools_wordset_get_plurality_default_options')) {
-            $resolved_plurality_options = ll_tools_wordset_get_plurality_default_options();
-        }
-
-        $plurality_changed = function_exists('ll_tools_wordset_plurality_options_equal')
-            ? !ll_tools_wordset_plurality_options_equal($existing_plurality_options, $resolved_plurality_options)
-            : ($existing_plurality_options !== $resolved_plurality_options);
-        if ($plurality_changed && function_exists('ll_tools_wordset_sync_plurality_values')) {
-            ll_tools_wordset_sync_plurality_values($term_id, $existing_plurality_options, $resolved_plurality_options);
-        }
-
-        if (empty($plurality_options)) {
-            delete_term_meta($term_id, 'll_wordset_plurality_options');
-        } else {
-            update_term_meta($term_id, 'll_wordset_plurality_options', $plurality_options);
-        }
-
-        $has_verb_tense = isset($_POST['ll_wordset_has_verb_tense']) ? 1 : 0;
-        update_term_meta($term_id, 'll_wordset_has_verb_tense', $has_verb_tense);
-
-        $existing_verb_tense_raw = get_term_meta($term_id, 'll_wordset_verb_tense_options', true);
-        $existing_verb_tense_options = function_exists('ll_tools_wordset_normalize_verb_tense_options')
-            ? ll_tools_wordset_normalize_verb_tense_options($existing_verb_tense_raw)
-            : [];
-        if (empty($existing_verb_tense_options) && function_exists('ll_tools_wordset_get_verb_tense_default_options')) {
-            $existing_verb_tense_options = ll_tools_wordset_get_verb_tense_default_options();
-        }
-
-        $raw_verb_tense_options = '';
-        if (isset($_POST['ll_wordset_verb_tense_options'])) {
-            $raw_verb_tense_options = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_verb_tense_options'])
-                : $_POST['ll_wordset_verb_tense_options'];
-        }
-        $verb_tense_options = function_exists('ll_tools_wordset_normalize_verb_tense_options')
-            ? ll_tools_wordset_normalize_verb_tense_options($raw_verb_tense_options)
-            : [];
-        $resolved_verb_tense_options = $verb_tense_options;
-        if (empty($resolved_verb_tense_options) && function_exists('ll_tools_wordset_get_verb_tense_default_options')) {
-            $resolved_verb_tense_options = ll_tools_wordset_get_verb_tense_default_options();
-        }
-
-        $verb_tense_changed = function_exists('ll_tools_wordset_verb_tense_options_equal')
-            ? !ll_tools_wordset_verb_tense_options_equal($existing_verb_tense_options, $resolved_verb_tense_options)
-            : ($existing_verb_tense_options !== $resolved_verb_tense_options);
-        if ($verb_tense_changed && function_exists('ll_tools_wordset_sync_verb_tense_values')) {
-            ll_tools_wordset_sync_verb_tense_values($term_id, $existing_verb_tense_options, $resolved_verb_tense_options);
-        }
-
-        if (empty($verb_tense_options)) {
-            delete_term_meta($term_id, 'll_wordset_verb_tense_options');
-        } else {
-            update_term_meta($term_id, 'll_wordset_verb_tense_options', $verb_tense_options);
-        }
-
-        $has_verb_mood = isset($_POST['ll_wordset_has_verb_mood']) ? 1 : 0;
-        update_term_meta($term_id, 'll_wordset_has_verb_mood', $has_verb_mood);
-
-        $existing_verb_mood_raw = get_term_meta($term_id, 'll_wordset_verb_mood_options', true);
-        $existing_verb_mood_options = function_exists('ll_tools_wordset_normalize_verb_mood_options')
-            ? ll_tools_wordset_normalize_verb_mood_options($existing_verb_mood_raw)
-            : [];
-        if (empty($existing_verb_mood_options) && function_exists('ll_tools_wordset_get_verb_mood_default_options')) {
-            $existing_verb_mood_options = ll_tools_wordset_get_verb_mood_default_options();
-        }
-
-        $raw_verb_mood_options = '';
-        if (isset($_POST['ll_wordset_verb_mood_options'])) {
-            $raw_verb_mood_options = function_exists('wp_unslash')
-                ? wp_unslash($_POST['ll_wordset_verb_mood_options'])
-                : $_POST['ll_wordset_verb_mood_options'];
-        }
-        $verb_mood_options = function_exists('ll_tools_wordset_normalize_verb_mood_options')
-            ? ll_tools_wordset_normalize_verb_mood_options($raw_verb_mood_options)
-            : [];
-        $resolved_verb_mood_options = $verb_mood_options;
-        if (empty($resolved_verb_mood_options) && function_exists('ll_tools_wordset_get_verb_mood_default_options')) {
-            $resolved_verb_mood_options = ll_tools_wordset_get_verb_mood_default_options();
-        }
-
-        $verb_mood_changed = function_exists('ll_tools_wordset_verb_mood_options_equal')
-            ? !ll_tools_wordset_verb_mood_options_equal($existing_verb_mood_options, $resolved_verb_mood_options)
-            : ($existing_verb_mood_options !== $resolved_verb_mood_options);
-        if ($verb_mood_changed && function_exists('ll_tools_wordset_sync_verb_mood_values')) {
-            ll_tools_wordset_sync_verb_mood_values($term_id, $existing_verb_mood_options, $resolved_verb_mood_options);
-        }
-
-        if (empty($verb_mood_options)) {
-            delete_term_meta($term_id, 'll_wordset_verb_mood_options');
-        } else {
-            update_term_meta($term_id, 'll_wordset_verb_mood_options', $verb_mood_options);
-        }
+        ll_tools_wordset_save_advanced_grammar_settings((int) $term_id, $_POST);
 
         if (!$previous_category_translation_enabled && $category_translation_enabled === 1 && function_exists('ll_tools_auto_translate_categories_for_wordset')) {
             ll_tools_auto_translate_categories_for_wordset((int) $term_id);
