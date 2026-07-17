@@ -163,6 +163,7 @@ module list.
 - includes/user-roles/learner-role.php
 - includes/user-roles/audio-recorder-role.php
 - includes/user-roles/teacher-role.php
+- includes/admin/uploads/upload-scope.php
 - includes/admin/uploads/audio-upload-form.php
 - includes/admin/uploads/image-upload-form.php
 - includes/user-progress.php
@@ -344,6 +345,7 @@ includes/
     word-images-fixer.php
     metabox-word-audio-parent.php
     uploads/
+      upload-scope.php       # Shared wordset/category target-scope renderer
       audio-upload-form.php
       image-upload-form.php
     api/deepl-api.php
@@ -433,6 +435,7 @@ vendor/
   - Meta includes wordset, lesson kind, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
   - Lesson kind defaults to `standard`; `corpus_text` suppresses empty audio/video chrome and renders text-document payloads from the interlinear payload meta.
   - Text-document payloads support public Text, Interlinear, and Sources views from `reading_units`, `source_lines`, `witnesses`, `display_rows`, and regular interlinear `tokens`; ordinary learning-content interlinears remain staff-gated.
+  - Corpus collection links resolve through the saved `_ll_tools_corpus_text_grid_collection` page index and a positive/negative transient. Save/delete hooks maintain the index; pre-index pages use only the bounded 20-candidate legacy lookup before materializing it. Do not restore a request-time scan of every Page.
   - Can render inside the mixed wordset lesson grid when `show_in_mix` is enabled.
 - `ll_prompt_card` (admin UI, REST)
   - Prompt-first quiz/lesson cards that can use prompt text/audio/image plus correct and wrong answer word ids.
@@ -604,6 +607,7 @@ wordset can opt into it.
 # Admin tools and workflows
 ## Core Tools menu pages (files)
 - Audio Processor: `includes/admin/audio-processor-admin.php` + `js/audio-processor.js`.
+  - Queue, duplicate, and reprocess tabs load 40 rows by default through a nonce/capability-guarded AJAX page, hard-clamped to 25-50 rows. Keep selection page-local, preserve return tab/page after processing or splitting, and show loading/error/retry/empty states without hydrating the remaining queue. Deep OFFSET replacement requires a deliberate keyset/materialized-order design because the duplicate predicates and return-page contract must remain stable.
 - Audio Image Matcher: `includes/admin/audio-image-matcher.php`, `templates/audio-image-matcher-template.php`, `js/audio-image-matcher.js`.
 - Missing Audio report: `includes/admin/missing-audio-admin-page.php`.
 - Recording Types admin: `includes/admin/recording-types-admin.php`.
@@ -623,7 +627,7 @@ wordset can opt into it.
 ## Audio workflow (end to end)
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
   Recorder AJAX requests that depend on category configuration must carry the current wordset scope; strict preflight paths reject an omitted or inaccessible scope rather than substituting the default wordset.
-- Bulk upload: `[audio_upload_form]` and `[image_upload_form]` allow admin uploads.
+- Bulk upload: `[audio_upload_form]` and `[image_upload_form]` allow admin uploads. Shared target-scope controls live in `includes/admin/uploads/upload-scope.php`; keep both forms on that renderer rather than duplicating wordset/category scope markup.
 - Processing: Audio Processor runs in browser, uses `lamejs` from CDN for MP3 encoding.
 - Storage: `word_audio` posts store `audio_file_path` and `recording_type` terms; parent word published only when audio exists.
 
@@ -675,13 +679,15 @@ wordset can opt into it.
 - Specific-wrong-answer reverse ownership is a durable materialization, not an on-demand full scan. Readers may use it only when payload generation, source epoch, and integrity marker agree. Mutations publish behind the dirty-token CAS fence; stale or incomplete state fails closed and schedules the bounded ID-cursor rebuild. A fresh site may publish an empty map only after repeating the bounded existence probe inside the writer fence.
 - Missing or invalid normal-page recommendation queues hydrate category payloads from the materialized wordset category-ID scope in a 12-category window, hard-capped at 24, rotated from the last logical recommendation anchor. A usable existing queue skips that work; incomplete scope, goals, order, or category-build reads must not write a replacement queue.
 - Every isolation-migration batch must defer category-generated-page maintenance, discard only the IDs it queued, and preserve any enclosing deferral scope exactly. Only after the completed checkpoint is durably readable may finalization CAS-persist a new migration-owned generated-page reconciliation generation. Its locked coordinator pre-arms retry transport, waits for pre-existing workers, tags complete cursor-zero bounded quiz/vocab passes, repairs stranded child events after locks clear, and retains intent until both exact passes complete. Completion never clears the shared untagged pre-armed event, which may safely no-op or transport a concurrent newer generation; `admin_init` may restore missing transport while intent remains. Never replay immediate whole-wordset vocab counts from the migration loop.
-- Wordset main-page category search indexing should stay scoped to allowed categories. The public index prunes words that have no allowed category while preserving the deepest-category assignment rule. Staff-only pending-transcription search is a separate lookup requiring at least three characters: it first selects capped published word IDs in the wordset, then capped published `word_audio` IDs, and only then performs the unindexed text comparison. It may identify matching word/category cards but must not expose transcription text or enter anonymous shared caches. Any larger on-demand search migration must preserve diacritic-insensitive matching and hidden-selection cleanup.
+- Wordset main-page category search indexing should stay scoped to allowed categories. The public index prunes words that have no allowed category while preserving the deepest-category assignment rule. Anonymous cold misses reserve atomic token/IP budgets before work and use a per-query build lock; duplicate builders return a retryable preparation response or the completed cache. The lock protects live users from stampedes but does not make the winning cold build bounded, so any larger on-demand search migration must preserve diacritic-insensitive matching, hidden-selection cleanup, and the existing retry contract. Staff-only pending-transcription search is a separate lookup requiring at least three characters: it first selects capped published word IDs in the wordset, then capped published `word_audio` IDs, and only then performs the unindexed text comparison. It may identify matching word/category cards but must not expose transcription text or enter anonymous shared caches.
 - Cacheable anonymous dictionary URLs are deterministic by site-default locale. Browser/cookie-negotiated non-default dictionary traffic must bypass edge caching with no-store headers instead of varying `/sozluk/` by `Accept-Language` or `Cookie`.
 - Public dictionary requests should canonicalize noisy browse state early, including dictionary front pages that are excluded from static HTML caching: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, internal navigation/auth args such as `ll_wordset_back` and `ll_tools_auth` are stripped from public URLs, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
 - Public dictionary result cards must batch linked-word counts for the bounded visible entry IDs; keep full linked-word previews separate and capped rather than adding per-entry count queries to page hydration.
 - Custom STT endpoints must stay wordset-scoped and validate both saved and request-time URLs against private/reserved hosts or resolved private IP ranges before proxying.
 - Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
 - REST word-row discovery must page IDs before row hydration. `missing-meta` uses bounded candidate offsets, broad bulk updates persist `scan_after_id` in resume state, and `/report` returns page-scoped counts while the CLI remains the explicit full-report surface.
+- Site Sync transcription snapshots select recording IDs directly through the wordset relationship and hydrate only the requested page when `per_page` is positive (maximum 250). The omitted/zero `per_page` full snapshot remains an explicit compatibility path; do not make it the default for new interactive callers or change it without automation-client review.
+- User-study analytics word hydration defaults to and hard-caps at 250 rows when words are requested; a missing or zero limit is not an unbounded opt-in. Progress reset discovery advances in 500-ID pages (hard maximum 1,000) and deletes stored progress in 300-ID chunks. Preserve these bounds when adding reset or analytics callers.
 - Treat REST automation as the control plane and server-side jobs/WP-CLI as the execution plane for heavy bulk work. New operations that touch hundreds of records and perform expensive validation, media handling, taxonomy repair, cache rebuilding, or cross-post recomputation should expose dry-run/readback/status/result surfaces and process bounded chunks with durable cursors instead of relying on one long synchronous HTTP request.
 - Import confirmation always enters the durable import job, including direct admin-post submissions; do not restore the legacy synchronous full-zip fallback.
 - Recent Imports is a bounded summary surface: cap displayed categories and matching lesson links, and include wordset constraints in the lesson query rather than filtering an unbounded result in PHP.

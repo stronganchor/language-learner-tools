@@ -209,7 +209,7 @@ tests/bin/run-e2e.sh --shard=4/4
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
 expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
-files, while a fresh July 17, 2026 discovery lists 429 tests in 93 spec files.
+files, while a fresh July 17, 2026 discovery lists 435 tests in 95 spec files.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
@@ -302,8 +302,12 @@ Representative E2E coverage areas:
   - Verifies a local WordPress-backed prompt-card fixture is exposed through `[audio_recording_interface]` as a prompt-audio queue item with the expected wordset, category, and prompt-card payload.
 - `tests/e2e/specs/audio-recorder-prompt-card-upload.spec.js`
   - Verifies a limited `audio_recorder` user can upload prompt-card prompt audio through the real WordPress AJAX handler, stores the prompt-audio attachment, and cannot upload to an inaccessible prompt card.
+- `tests/e2e/specs/audio-processor-queue-pagination.spec.js`
+  - Verifies Audio Processor tabs load bounded queue pages lazily, preserve page-local selection, restore a processed recording's return page, and choose the first non-empty work tab when the default queue is empty.
+- `tests/e2e/specs/audio-upload-speaker-search.spec.js`
+  - Verifies bulk audio upload searches a bounded manager-visible speaker endpoint and exposes selected, empty, and request-error states without preloading every account.
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
-  - Verifies a local WordPress-backed content lesson route renders its audio media source, parsed transcript cues, cue JSON payload, notes, localized player data, and related vocab lesson link.
+  - Verifies a local WordPress-backed content lesson route plays a real uploaded WAV with range support and finite duration, seeks from a transcript cue, and renders notes plus its related vocab lesson link. The same fixture verifies a corpus collection page, reader navigation, single accessible title, and public Sources view.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
   - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, progress-table sorting, and learner removal, plus legacy wp-admin class/account search and redirect-state preservation through deletion.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
@@ -319,7 +323,6 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
 - Known E2E coverage gaps still worth adding:
-  - Content lessons now have WordPress-backed route/media/cue/related-vocab browser coverage beyond the covered mixed-grid order/search/selection behavior; remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
   - Prompt-card recorder remaining gaps are real browser microphone permission permutations and future data-contract changes. The local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, prompt-card quiz payload coverage, and lesson-grid browser coverage are already represented.
   - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.
   - Offline app service-worker/install behavior if a browser PWA/service-worker runtime is added, plus broader hosted/offline deployment permutations beyond the local WordPress-backed conflict retry fixture.

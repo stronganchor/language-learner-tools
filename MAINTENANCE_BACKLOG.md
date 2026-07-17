@@ -16,15 +16,31 @@ being folded into a small opportunistic fix.
 
 ## Current Short List
 
-The active maintenance list for the current round is narrowed to the July 10
-resource-protection findings, helper cleanup decisions, and deliberate larger
-projects. Keep new performance work evidence-led and scoped to a measured
-growth dimension.
+The active maintenance list is now narrowed to changes that need product,
+compatibility, storage, or human-language judgment. The July 17 autonomous pass
+closed the safe query/UI/test/refactor work. Keep new performance work
+evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- July 17 maintenance, performance, and localization pass:
+  Audio Processor queue/duplicate/reprocess tabs now load bounded 40-row AJAX
+  pages with loading/error/retry/return-state UI; audio upload uses bounded
+  speaker search; Site Sync transcription snapshots select recording IDs
+  directly; IPA maintenance counts, progress analytics/reset work, and public
+  category-search cold misses are bounded or stampede-protected. Corpus
+  collection pages use a materialized lookup instead of scanning every Page.
+  Shared upload-scope and advanced-grammar persistence helpers replace proven
+  duplication, and four unused admin helpers were removed.
+- July 17 translation catalog integrity:
+  the Turkish PO tracks all 5,802 current POT messages with zero missing,
+  stale, fuzzy, or duplicate active keys. Its 448 untranslated admin strings
+  remain a human-review queue and are filtered out of runtime artifacts so
+  WordPress falls back to English instead of blank UI. All 729 public strings
+  are complete across every active tier-2 locale, with UTF-8 and runtime-filter
+  regressions guarding future builds.
 - July 17 maintenance documentation drift:
-  `npx --no-install playwright test --list` now discovers 429 tests in 93 spec
+  `npx --no-install playwright test --list` now discovers 435 tests in 95 spec
   files. Architecture routing now names the word-metadata plan REST helper and
   durable word-grid bulk-operation module, the large-module estimates below
   match current source size, and the paged quiz-card launch invariant points to
@@ -228,9 +244,10 @@ growth dimension.
   `tests/e2e/specs/content-lesson-route-media.spec.js` now uses a marked
   WP-CLI fixture to seed a real `ll_content_lesson` route with audio media,
   parsed transcript cues, post notes, and a related vocab lesson link. This
-  closes the main WordPress-backed browser gap for content lesson route and
-  media payload rendering while leaving real uploaded media playback and
-  corpus-text route variants as deliberate future coverage.
+  now also uploads and plays a real WAV with range support, finite duration,
+  and cue seeking, and covers corpus reader/collection/source routes with one
+  accessible page title. This closes the previously listed media and corpus
+  route gaps.
 - June 10 flashcard shell duplication follow-up: added
   `includes/flashcard-shell.php` as the shared renderer for the flashcard
   overlay popup, mode switcher, results controls, and guarded repeat-button
@@ -274,7 +291,7 @@ growth dimension.
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
   26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
   audit listed 368 tests in 81 files. A fresh local discovery on July 17, 2026
-  lists 429 tests in 93 spec files. These are dated discovery snapshots, not a
+  lists 435 tests in 95 spec files. These are dated discovery snapshots, not a
   fixed suite contract. No hung spec was isolated. Treat the unsharded local
   E2E command as a long serial suite in automation; use `--list`, shards, and a
   timeout of at least 35 minutes before declaring a runner hang.
@@ -286,7 +303,7 @@ growth dimension.
   lazy-card hydration, and diacritic-insensitive matching.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
-   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, and a WordPress-backed real route/media/cue/related-vocab fixture. Remaining content-lesson gaps are real uploaded media playback and corpus-text route variants.
+   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, a WordPress-backed real route with uploaded WAV playback/cue seeking/related-vocab behavior, and corpus collection/reader/source variants. Extend this coverage when the payload or media contract changes rather than retaining the former media/corpus gap.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior, a local WordPress-backed prompt-card queue item, and a limited-recorder real multipart prompt-audio upload with an inaccessible-card rejection check. Remaining prompt-card recorder gaps are real browser microphone permission permutations and future data-contract changes. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class flows now have frontend Playwright coverage for a
      teacher-role user creating/deleting a class, signup invite registration,
@@ -316,12 +333,14 @@ growth dimension.
 
 2. Keep the site-sync snapshot policy unchanged unless live usage shows pressure.
    - `GET /wordsets/{wordset}/site-sync/snapshot` intentionally continues to permit an unpaged snapshot when `per_page` is omitted or `0`; `include_media` defaults to true.
+   - Positive pages now select `word_audio` IDs directly through the wordset relationship and hydrate only that recording page. The explicit full-snapshot compatibility path still hydrates its full transcription result, and push-plan construction can remain proportional to the compared catalogs.
    - Automation users may depend on full snapshots, so treat any future cap/default change as a deliberate compatibility decision.
    - If production usage ever shows resource pressure, verify any behavior change against `docs/REST_AUTOMATION.md`, local REST tests, and at least one controlled staging sync workflow before deployment.
 
 3. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
+   - `ll_tools_word_option_rules_get_word_posts()` is the bounded default-page compatibility wrapper over `ll_tools_word_option_rules_get_word_page()`, and `ll_find_words_missing_word_images()` is the bounded compatibility wrapper over `ll_word_images_fixer_scan_batch()`. Neither currently has an internal production caller, but keep them until an external-usage/compatibility audit proves removal is safe.
 
 4. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
@@ -329,6 +348,29 @@ growth dimension.
 
 ## Follow-Up Notes
 
+- Audio Processor no longer hydrates complete queues, but deep pages still use
+  SQL `OFFSET`. Replacing that with keyset/materialized ordering needs human
+  review because duplicate/reprocess predicates and exact post-action return
+  pages must stay stable.
+- The Turkish admin catalog has 448 intentionally blank current translations.
+  Runtime English fallback is safe; completing those strings requires a human
+  feature-by-feature language review rather than bulk machine acceptance.
+- Site Sync's omitted/zero `per_page` full snapshot is retained for client
+  compatibility, and full pull/push comparison can still be proportional to
+  both catalogs. Any default cap or durable server-side diff design needs
+  automation-client and staging review.
+- Corpus collection lookup has a bounded 20-candidate compatibility fallback.
+  Saving a legacy collection Page materializes its index; a pre-index page
+  outside that candidate window waits for a save/reindex instead of triggering
+  an unbounded request scan.
+- Upload-form JavaScript retains two similar flows because their current
+  behavior diverges and there is not yet browser parity coverage for a safe
+  shared controller. The server-rendered Target Scope markup is shared.
+- Advanced grammar settings now share normalization/persistence. Category-order
+  persistence remains separate because the manager aborts on `WP_Error` while
+  taxonomy admin queues a notice and continues; unify it only after choosing an
+  explicit mutation/error policy. Smaller game/font settings duplication is a
+  low-risk future cleanup.
 - Teacher-class membership remains duplicated in serialized class/user meta.
   Large classes still deserialize the complete member-ID array for counts and
   pass it to assignment exclusion before bounded progress hydration. A future
