@@ -208,8 +208,10 @@ tests/bin/run-e2e.sh --shard=4/4
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
-expanded the suite; the July 10, 2026 full discovery lists 390 tests in 90
-files. Treat a short unsharded timeout as an automation budget problem unless a
+expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
+files, while a fresh July 17, 2026 discovery lists 429 tests in 93 spec files.
+These are dated local discovery snapshots, not fixed suite-size expectations.
+Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
 minutes after shards pass, investigate suite-level state leakage or Local-site
 slowness.
@@ -271,11 +273,15 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/offline-app-shell-launcher.spec.js`
   - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, exercises the sync panel sign-in/login-failure/manual-sync/sync-failure/disconnect flow against a fake progress tracker, and applies remote sync snapshots to selected categories, progress sorting, next recommendations, and synced study preferences.
 - `tests/e2e/specs/offline-app-sync-error-wp.spec.js`
-  - Seeds a real WordPress offline-app bundle, signs in through `ll_tools_offline_app_login`, forces one WordPress `ll_tools_offline_app_sync` conflict response, and verifies local pending progress, sane connected state, and manual retry through the real sync handler.
+  - Seeds a real WordPress offline-app bundle, signs in through `ll_tools_offline_app_login`, forces one WordPress `ll_tools_offline_app_sync` conflict response, and verifies local pending progress, sane connected state, and manual retry through the real sync handler. This closes the former WordPress-backed sync error-fixture gap; only genuinely new server conflict semantics need new cases.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
   - Verifies selected card category/mode/wordset are forwarded into widget state.
+- `tests/e2e/specs/quiz-popup-text-translation-options.spec.js`
+  - Removes the target category from the initial localized registry to model a later catalog page, then verifies the launch trigger synthesizes the correct audio/text-translation configuration, AJAX request, and rendered answers.
+- `tests/e2e/specs/text-to-text-learning-intro.spec.js`
+  - Removes the target category from the initial localized registry, then verifies a learning launch preserves its text-translation prompt and text-title option through the AJAX request, synthesized category config, and introduction pair cards.
 - `tests/e2e/specs/quiz-mode-transitions.spec.js`
   - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
 - `tests/e2e/specs/quiz-popup-fallback-modal.spec.js`

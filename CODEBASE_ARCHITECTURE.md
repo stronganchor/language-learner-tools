@@ -9,6 +9,9 @@ read_first:
   - includes/template-loader.php
   - includes/assets.php
   - includes/lib/word-option-rules.php
+  - includes/lib/word-grid-bulk-operations.php
+  - includes/api/automation-rest.php
+  - includes/api/word-metadata-plan-rest.php
   - includes/lib/site-sync.php
   - includes/pages/quiz-pages.php
   - includes/pages/embed-page.php
@@ -70,6 +73,7 @@ read_first:
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
   - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/expired-transient-maintenance.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
+  - Loads `includes/api/automation-rest.php` directly; that controller loads `includes/api/word-metadata-plan-rest.php` for durable word-metadata plan job storage, processing, status, discard, and result helpers.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -266,9 +270,11 @@ includes/
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
     image-animation.php       # Animated-image detection/helpers
     word-option-rules.php     # Word option group/conflict rules storage/helpers
+    word-grid-bulk-operations.php # Durable owner-scoped word-grid bulk batches, rollback chunks, continuation, and undo
     image-hash.php            # Perceptual image hashing/similarity helpers
   api/
     automation-rest.php       # JSON-first automation endpoints with server-side guardrails
+    word-metadata-plan-rest.php # Durable word-metadata plan job helpers loaded by automation-rest.php
   pages/
     quiz-pages.php            # Auto /quiz CPT records + sync + assets
     embed-page.php            # /embed/<category> template
@@ -515,8 +521,9 @@ wordset can opt into it.
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
   - Cold public reads use a durable stale snapshot and never run the synchronous full rebuild inline. Refreshes persist generation-scoped chunks, keyset-query one canonical quiz-page post-type batch at a time (100 rows by default, hard cap 250), serialize resets behind the scope lock, fence writes by lock token plus durable generation, and atomically replace the latest manifest only after current and legacy phases finish. When epochs advance before any usable latest snapshot exists, preserve and finish the one valid partial generation before scheduling its replacement, but only while its plugin-versioned builder token matches; a deploy resets incompatible partial chunks. A genuinely empty stale snapshot, or an explicit-scope snapshot whose rows are all obsolete or unviewable, is not usable evidence for discarding the only advancing generation. The worker disables persistence of derived category/count/gender/aspect/default-wordset/eligibility transients so a large cold catalog does not create hundreds of database writes, while request/object caches remain available. Manifest readiness verifies every chunk without assembling the catalog, interrupted publication keeps old chunk references recoverable, AJAX/manual continuations suppress unrelated cron work, and the signed no-JavaScript refresh link directly advances one bounded worker batch. The loading UI permits 120 bounded continuations by default. Keep the synchronous full rebuild helper limited to explicit maintenance and compatibility tests.
   - Each bounded catalog row batch is atomic: an incomplete category, visibility, effective-wordset, quiz-config, sign-mode, media, or default-wordset read leaves both the latest manifest and the partial cursor unchanged.
+  - A popup launch card is authoritative for its wordset, quiz mode, display mode, prompt type, and option type. The localized flashcard category registry may be paged and may not yet contain that card's category, so `llOpenFlashcardForCategory()` must synthesize or update the launch category from the trigger attributes before widget initialization. Do not require the target category to be present in the initial registry. Canonical regressions: `tests/e2e/specs/quiz-popup-text-translation-options.spec.js` and `tests/e2e/specs/text-to-text-learning-intro.spec.js`.
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
-  - Bulk POS and grammar changes use owner-scoped durable operations in `includes/lib/word-grid-bulk-operations.php`. Each request persists a `preparing` batch before creating its non-autoloaded rollback chunk, revalidates the saved target IDs against the current lesson scope, lease-fences state writes, verifies mutation readback, and only then advances the keyset cursor. Status/Continue/Undo survive reload; a generic recovery row keeps Undo reachable when a grammar feature is later disabled. Undo runs newest chunk first, verifies restoration before retiring a chunk, and skips only rows whose relevant state changed outside the recorded bulk/failed-write states. Operations expire after one day by default (filterable from one hour through seven days), and token cleanup deletes rollback chunks in bounded scheduled batches. Do not restore browser-owned rollback snapshots or unbounded one-request bulk mutations.
+  - `includes/shortcodes/word-grid-shortcode.php` loads `includes/lib/word-grid-bulk-operations.php`; bulk POS and grammar changes use its owner-scoped durable operations. Each request persists a `preparing` batch before creating its non-autoloaded rollback chunk, revalidates the saved target IDs against the current lesson scope, lease-fences state writes, verifies mutation readback, and only then advances the keyset cursor. Status/Continue/Undo survive reload; a generic recovery row keeps Undo reachable when a grammar feature is later disabled. Undo runs newest chunk first, verifies restoration before retiring a chunk, and skips only rows whose relevant state changed outside the recorded bulk/failed-write states. Operations expire after one day by default (filterable from one hour through seven days), and token cleanup deletes rollback chunks in bounded scheduled batches. Do not restore browser-owned rollback snapshots or unbounded one-request bulk mutations.
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
 - `[wordset_buttons]` / `[ll_wordset_buttons]` (`includes/shortcodes/wordset-buttons-shortcode.php`).
@@ -550,6 +557,7 @@ wordset can opt into it.
 - `/lesson/<slug>` content lesson pages (handled by `includes/pages/content-lesson-pages.php`).
 - `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).
   - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes/entity translations, and import preview/start/process/discard/result routes.
+  - Word-metadata plan job create/status/process/discard/result routes are registered by `automation-rest.php` and implemented through its loaded `includes/api/word-metadata-plan-rest.php` job helpers.
 
 # Flashcard widget architecture
 ## PHP controller

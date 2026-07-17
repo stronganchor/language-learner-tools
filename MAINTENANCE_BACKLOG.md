@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated July 13, 2026 after the weekly maintenance/performance audit and
+Updated July 17, 2026 after the weekly maintenance/performance audit and
 follow-up passes. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
@@ -23,6 +23,13 @@ growth dimension.
 
 ## Recently Closed
 
+- July 17 maintenance documentation drift:
+  `npx --no-install playwright test --list` now discovers 429 tests in 93 spec
+  files. Architecture routing now names the word-metadata plan REST helper and
+  durable word-grid bulk-operation module, the large-module estimates below
+  match current source size, and the paged quiz-card launch invariant points to
+  its canonical browser specs. The former WordPress-backed offline sync error
+  fixture gap was already closed by `offline-app-sync-error-wp.spec.js`.
 - July 13 legacy Classes admin paging and account search:
   class queries now use 20-row plus-one pages, administrator account options use
   shared 25-row plus-one search pages, and selected-class progress hydrates only
@@ -266,10 +273,11 @@ growth dimension.
   found 314 Playwright tests, and all four local shards completed successfully
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
   26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
-  audit listed 368 tests in 81 files. No hung spec was
-  isolated. Treat the unsharded local E2E command as a long serial suite in
-  automation; use `--list`, shards, and a timeout of at least 35 minutes before
-  declaring a runner hang.
+  audit listed 368 tests in 81 files. A fresh local discovery on July 17, 2026
+  lists 429 tests in 93 spec files. These are dated discovery snapshots, not a
+  fixed suite contract. No hung spec was isolated. Treat the unsharded local
+  E2E command as a long serial suite in automation; use `--list`, shards, and a
+  timeout of at least 35 minutes before declaring a runner hang.
 - June 10 wordset category search indexing follow-up: the main wordset render
   path now localizes a tokenized `categorySearch` config instead of the full
   per-category word-search text. The first word/translation search request uses
@@ -288,9 +296,11 @@ growth dimension.
      browser coverage for launcher selection/sort/launch, sync-panel sign-in,
      login failure, manual sync/disconnect, failed server sync feedback, and
      remote snapshot application to selected categories, progress sorting,
-     recommendations, and study preferences. Remaining offline gaps are
-     service-worker/install behavior and WordPress-backed server sync
-     conflict/error fixtures beyond the local mocked browser shell.
+     recommendations, and study preferences. The WordPress-backed
+     `offline-app-sync-error-wp.spec.js` fixture also covers a real login, forced
+     sync conflict, retained pending progress, and manual retry. The remaining
+     offline browser gap is service-worker/install behavior if that runtime is
+     ever added.
    - Less-covered games: Line Up now has browser startup, retry, reorder, progress-event, and completion coverage; Unscramble now has keyboard tile-reorder, progress-event, and completion coverage; Speaking Stack has focused browser coverage for stack placement and pre-attempt fall speed; Speaking Practice now has mocked browser coverage for record -> transcribe -> score UI and progress behavior, microphone-denied retry state, and hosted transcribe/score failure retry states. Remaining live game gaps are real browser permission-prompt variations and live hosted API behavior under real credentials/latency.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,
      recording-type controls, managed-page controls, maintenance action wiring,
@@ -329,11 +339,6 @@ growth dimension.
 - Offline app service-worker/install behavior is still a future coverage item
   only if a browser PWA/service-worker runtime is added; the current offline app
   path is a local-first web/APK shell and does not register a service worker.
-- Offline sync still deserves a WordPress-backed browser fixture for
-  admin-ajax conflict/error responses if the server contract gains explicit
-  merge-conflict semantics. Current coverage includes PHP endpoint throttling,
-  payload caps, token errors, local browser error UX, and remote snapshot
-  application.
 - Live hosted API checks for Speaking Practice should remain behind explicit
   approval and credentials; local mocked coverage now covers success, mic
   denial, transcribe failure, and score failure UI states.
@@ -376,10 +381,10 @@ growth dimension.
      redirects.
 
 2. Split the largest modules along existing ownership boundaries.
-   - `includes/pages/wordset-pages.php` (roughly 15k lines): routing, teacher classes, settings, render helpers, analytics payloads, games launch, and mixed-grid rendering are packed together.
-   - `includes/admin/export-import.php` (roughly 15k lines): import preview, undo, export, offline-ish payload work, and admin rendering should become smaller services/controllers.
-   - `includes/shortcodes/word-grid-shortcode.php` (roughly 9k lines): rendering, inline edit handling, media selection, REST/AJAX helpers, and lesson-grid behavior need clearer boundaries.
-   - `includes/shortcodes/audio-recording-shortcode.php` (roughly 7k lines): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
+   - `includes/pages/wordset-pages.php` (roughly 27k lines as measured July 17, 2026): routing, teacher classes, settings, render helpers, analytics payloads, games launch, and mixed-grid rendering are packed together.
+   - `includes/admin/export-import.php` (roughly 16.6k lines as measured July 17, 2026): import preview, undo, export, offline-ish payload work, and admin rendering should become smaller services/controllers.
+   - `includes/shortcodes/word-grid-shortcode.php` (roughly 11.3k lines as measured July 17, 2026): rendering, inline edit handling, media selection, REST/AJAX helpers, and lesson-grid behavior need clearer boundaries.
+   - `includes/shortcodes/audio-recording-shortcode.php` (roughly 10.2k lines as measured July 17, 2026): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
    - `js/wordset-pages.js` and `js/wordset-games.js` are both large enough to make targeted game/page work riskier than it needs to be.
 
 3. Continue the tier-2 public UI translation rollout deliberately.

@@ -193,10 +193,14 @@ Playwright cannot find `.ll-quiz-page-trigger`:
 - Confirm target page has `[quiz_pages_grid popup="yes"...]`.
 - Check `LL_E2E_LEARN_PATH`.
 
+When diagnosing quiz popup prompt/option behavior for a target category outside the initial localized registry:
+- Treat the launch card's wordset, quiz mode, display mode, prompt type, and option type as authoritative; the category registry is allowed to be paged.
+- Run `tests/bin/run-e2e.sh specs/quiz-popup-text-translation-options.spec.js specs/text-to-text-learning-intro.spec.js`. Both specs deliberately remove the target from the initial registry before launch.
+
 Full Playwright run times out under an automation cap:
 - Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
 - Then run `tests/bin/run-e2e.sh --shard=1/4` through `--shard=4/4` to isolate whether a spec actually hangs.
-- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, and a fresh July 17, 2026 local discovery lists 429 tests in 93 spec files. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
 - If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
 `page-speed-throttled-load.spec.js` fails:
@@ -262,10 +266,11 @@ PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
 
 For behavior changes touching quiz/recording flows:
 
-1. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
-2. `tests/bin/run-tests.sh`
-3. `tests/bin/run-e2e.sh`
-4. Update `tests/README.md` if test scope or runner behavior changed.
+1. For quiz-page popup launch or presentation-config changes, first run `tests/bin/run-e2e.sh specs/quiz-popup-text-translation-options.spec.js specs/text-to-text-learning-intro.spec.js`. These protect trigger-authoritative prompt/option configuration when the launched category is absent from the initial paged registry.
+2. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
+3. `tests/bin/run-tests.sh`
+4. `tests/bin/run-e2e.sh`
+5. Update `tests/README.md` if test scope or runner behavior changed.
 
 For public-page shell, asset, or template changes that could affect perceived load time:
 
