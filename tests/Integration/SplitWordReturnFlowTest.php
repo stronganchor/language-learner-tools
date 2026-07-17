@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class SplitWordReturnFlowTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
+
     /** @var array<string,mixed> */
     private $postBackup = [];
 
@@ -87,6 +89,52 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
         $this->assertSame('1', (string) ($query['ll_split_word'] ?? ''));
     }
 
+    public function test_split_word_save_can_keep_all_audio_on_original_and_copy_its_image(): void
+    {
+        $editor_id = $this->createSplitWordEditor();
+        [$source_word_id, $first_audio_id] = $this->createSplitWordFixture($editor_id);
+        $thumbnail_id = $this->createImageAttachment('split-word-keep-all.png');
+        $this->assertNotFalse(set_post_thumbnail($source_word_id, $thumbnail_id));
+
+        wp_set_current_user($editor_id);
+
+        $redirect_url = $this->runSplitSaveRequest([
+            'll_source_word_id' => $source_word_id,
+            'll_tools_split_word_nonce' => wp_create_nonce('ll_tools_split_word_save_' . $source_word_id),
+            'll_new_word_title' => 'Alternate Word',
+        ]);
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $new_word_id = (int) ($query['ll_split_new'] ?? 0);
+
+        $this->assertGreaterThan(0, $new_word_id);
+        $this->assertSame('1', (string) ($query['ll_split_word'] ?? ''));
+        $this->assertSame('0', (string) ($query['ll_split_moved'] ?? ''));
+        $this->assertSame('0', (string) ($query['ll_split_failed'] ?? ''));
+        $this->assertArrayNotHasKey('ll_split_error', $query);
+        $this->assertSame('Alternate Word', get_the_title($new_word_id));
+        $this->assertSame($thumbnail_id, (int) get_post_thumbnail_id($new_word_id));
+        $this->assertSame($source_word_id, (int) wp_get_post_parent_id($first_audio_id));
+
+        $source_audio_ids = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'any',
+            'post_parent' => $source_word_id,
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
+        $new_audio_ids = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'any',
+            'post_parent' => $new_word_id,
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+        ]);
+
+        $this->assertCount(2, $source_audio_ids);
+        $this->assertSame([], $new_audio_ids);
+    }
+
     public function test_split_word_page_from_audio_processor_renders_submit_and_cancel_return_actions(): void
     {
         $editor_id = $this->createSplitWordEditor();
@@ -148,6 +196,41 @@ final class SplitWordReturnFlowTest extends LL_Tools_TestCase
         ]);
 
         return [$source_word_id, $audio_to_move];
+    }
+
+    private function createImageAttachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
     }
 
     private function runSplitSaveRequest(array $post): string

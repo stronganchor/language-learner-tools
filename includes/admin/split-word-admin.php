@@ -269,7 +269,6 @@ function ll_tools_get_split_word_error_message($code) {
     $messages = [
         'invalid_word'      => __('The selected word is invalid or unavailable.', 'll-tools-text-domain'),
         'no_audio'          => __('This word has no audio recordings to split.', 'll-tools-text-domain'),
-        'no_selection'      => __('Select at least one audio recording to move to the new word.', 'll-tools-text-domain'),
         'permission'        => __('You do not have permission to split this word.', 'll-tools-text-domain'),
         'create_failed'     => __('Could not create the new word post. Please try again.', 'll-tools-text-domain'),
         'nonce'             => __('Security check failed. Please try again.', 'll-tools-text-domain'),
@@ -539,12 +538,6 @@ function ll_tools_handle_split_word_save() {
     $raw_move_ids = isset($_POST['ll_move_audio_ids']) ? (array) $_POST['ll_move_audio_ids'] : [];
     $move_ids = array_values(array_unique(array_filter(array_map('absint', $raw_move_ids))));
     $move_ids = array_values(array_intersect($move_ids, $source_audio_ids));
-
-    if (empty($move_ids)) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_selection'], $return_to);
-        wp_safe_redirect($redirect);
-        exit;
-    }
 
     $original_title_input = isset($_POST['ll_original_word_title']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_original_word_title'])) : '';
     $new_title_input = isset($_POST['ll_new_word_title']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_new_word_title'])) : '';
