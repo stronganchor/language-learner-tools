@@ -247,6 +247,20 @@ test('profile runner locks one authoritative manifest history and report through
   });
 });
 
+test('Git Bash runner preserves browser URL path environment values for Windows Node', async () => {
+  const runner = fs.readFileSync(e2eRunnerPath, 'utf8');
+  const guardIndex = runner.indexOf('append_msys2_env_conv_excl_var()');
+  const playwrightIndex = runner.indexOf('exec npx playwright test');
+
+  expect(guardIndex).toBeGreaterThanOrEqual(0);
+  expect(playwrightIndex).toBeGreaterThan(guardIndex);
+  expect(runner).toContain('MSYS2_ENV_CONV_EXCL');
+  expect(runner).toContain('append_msys2_env_conv_excl_var "$env_var"');
+  expect(runner).toContain('LL_E2E_LEARN_PATH \\');
+  expect(runner).toContain('LL_E2E_STANDALONE_PATH \\');
+  expect(runner).toContain('LL_E2E_PAGE_SPEED_PATH');
+});
+
 test('Genç profile matches production-scale dimensions and includes settings and recorder queue scenarios', async () => {
   const manifest = JSON.parse(fs.readFileSync(gencManifestPath, 'utf8'));
   const target = manifest.wordsets.find((wordset) => wordset.size === manifest.benchmarkTargetSize);

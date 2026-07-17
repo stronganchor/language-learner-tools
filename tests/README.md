@@ -209,7 +209,7 @@ tests/bin/run-e2e.sh --shard=4/4
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
 expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
-files, while a fresh July 17, 2026 discovery lists 435 tests in 95 spec files.
+files, while a fresh July 17, 2026 discovery lists 436 tests in 95 spec files.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35

@@ -40,7 +40,7 @@ evidence-led and scoped to a measured growth dimension.
   are complete across every active tier-2 locale, with UTF-8 and runtime-filter
   regressions guarding future builds.
 - July 17 maintenance documentation drift:
-  `npx --no-install playwright test --list` now discovers 435 tests in 95 spec
+  `npx --no-install playwright test --list` now discovers 436 tests in 95 spec
   files. Architecture routing now names the word-metadata plan REST helper and
   durable word-grid bulk-operation module, the large-module estimates below
   match current source size, and the paged quiz-card launch invariant points to
@@ -291,7 +291,7 @@ evidence-led and scoped to a measured growth dimension.
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
   26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
   audit listed 368 tests in 81 files. A fresh local discovery on July 17, 2026
-  lists 435 tests in 95 spec files. These are dated discovery snapshots, not a
+  lists 436 tests in 95 spec files. These are dated discovery snapshots, not a
   fixed suite contract. No hung spec was isolated. Treat the unsharded local
   E2E command as a long serial suite in automation; use `--list`, shards, and a
   timeout of at least 35 minutes before declaring a runner hang.

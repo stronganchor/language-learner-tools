@@ -205,6 +205,33 @@ if [[ "$perf_config_lock_requested" == "1" ]]; then
     done
 fi
 
+append_msys2_env_conv_excl_var() {
+    local entry="$1"
+    local current="${MSYS2_ENV_CONV_EXCL:-}"
+    case ";${current};" in
+        *";${entry};"*) ;;
+        *)
+            if [[ -z "$current" ]]; then
+                export MSYS2_ENV_CONV_EXCL="$entry"
+            else
+                export MSYS2_ENV_CONV_EXCL="${current};${entry}"
+            fi
+            ;;
+    esac
+}
+
+# Git Bash otherwise rewrites web-root values such as `/learn/` to a Windows
+# filesystem path when it launches the Windows Node/npm process. These are URL
+# paths, not local files; preserve them literally while still allowing MSYS to
+# convert real fixture/report filesystem paths for Windows Playwright.
+for env_var in \
+    LL_E2E_LEARN_PATH \
+    LL_E2E_STANDALONE_PATH \
+    LL_E2E_PAGE_SPEED_PATH
+do
+    append_msys2_env_conv_excl_var "$env_var"
+done
+
 if [[ ! -d "$E2E_DIR" ]]; then
     echo "E2E directory was not found: $E2E_DIR" >&2
     exit 1
