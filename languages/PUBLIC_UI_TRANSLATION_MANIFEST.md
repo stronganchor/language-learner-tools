@@ -81,9 +81,11 @@ Tier-2 PO files may also include small supplemental source-backed batches added
 by autonomous upkeep. The public UI manifest remains the coverage contract for
 learner-facing strings; supplemental entries only reduce the full-source PO
 backlog for admin/plugin metadata strings. The DeepL refresh script preserves
-those supplemental entries while translating missing manifest entries.
+those supplemental entries while translating missing manifest entries. Core
+full locales use `--scope=catalog` plus `--full-catalog=LOCALE` to translate and
+verify every current POT entry without rewriting existing PO metadata.
 
 The integration test `PublicUiTranslationManifestTest` keeps the generated
 manifest synchronized with the current POT selection, verifies that Turkish
-continues to cover every public manifest entry, and requires every active
-tier-2 public locale to ship complete `.po`, `.mo`, and `.l10n.php` assets.
+continues to translate every active POT entry, and requires every active tier-2
+public locale to ship complete `.po`, `.mo`, and `.l10n.php` assets.

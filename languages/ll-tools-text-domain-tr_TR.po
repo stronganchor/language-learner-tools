@@ -1886,7 +1886,7 @@ msgstr "Yeni sözlük girdisi oluşturma ve bağlama"
 
 #: includes/admin/admin-dashboard-menu.php:339
 msgid "Create and organize categories used to build quizzes and pages."
-msgstr "Testler ve sayfalar oluşturmak için kullanılan kategorileri oluştur ve düzenle."
+msgstr "Quizler ve sayfalar oluşturmak için kullanılan kategorileri oluştur ve düzenle."
 
 #: includes/pages/editor-hub-page.php:24
 msgid "Create Editor Hub Page"
@@ -10534,7 +10534,7 @@ msgstr "Kaynak Sayfa / Ayrıntılar URL'si"
 
 #: includes/admin/dictionary-sources-admin.php:192
 msgid "https://example.com/dictionary-source/regional-dictionary"
-msgstr "https://example.com/dictionary-source/bölgesel-sözlük"
+msgstr "https://example.com/dictionary-source/regional-dictionary"
 
 #: includes/admin/dictionary-sources-admin.php:197
 msgid "Default Dialects"
@@ -25331,1300 +25331,1300 @@ msgstr "Bir TSV gruplama bölümü izin verilen boyutu aşıyor."
 
 #: includes/admin/dictionary-import-admin.php:1005
 msgid "The prepared TSV import exceeds the allowed temporary storage size."
-msgstr ""
+msgstr "Hazırlanan TSV içe aktarma dosyası, izin verilen geçici depolama boyutunu aşıyor."
 
 #: includes/admin/dictionary-import-admin.php:1013
 msgid "Could not open a temporary TSV grouping file."
-msgstr ""
+msgstr "Geçici bir TSV gruplama dosyası açılamadı."
 
 #: includes/admin/dictionary-import-admin.php:1017
 msgid "Could not write a temporary TSV grouping file."
-msgstr ""
+msgstr "Geçici TSV gruplama dosyası yazılamadı."
 
 #: includes/admin/dictionary-import-admin.php:1065
 msgid "Could not read a temporary TSV grouping file."
-msgstr ""
+msgstr "Geçici bir TSV gruplama dosyası okunamadı."
 
 #: includes/admin/dictionary-import-admin.php:1081
 msgid "A temporary TSV grouping file is invalid."
-msgstr ""
+msgstr "Geçici bir TSV gruplama dosyası geçersiz."
 
 #: includes/admin/dictionary-import-admin.php:1387
 #: includes/admin/dictionary-import-admin.php:1489
 msgid "A dictionary snapshot key index chunk is invalid."
-msgstr ""
+msgstr "Bir sözlük anlık görüntüsü anahtar dizini parçası geçersiz."
 
 #: includes/admin/dictionary-import-admin.php:1400
 msgid "Could not write a dictionary snapshot key index chunk."
-msgstr ""
+msgstr "Sözlük anlık görüntüsü anahtar dizini parçası yazılamadı."
 
 #: includes/admin/dictionary-import-admin.php:1463
 msgid "The dictionary snapshot key index is missing."
-msgstr ""
+msgstr "Sözlük anlık görüntüsü anahtar dizini eksik."
 
 #: includes/admin/dictionary-import-admin.php:1484
 msgid "A dictionary snapshot key index chunk is missing."
-msgstr ""
+msgstr "Bir sözlük anlık görüntüsü anahtar dizini parçası eksik."
 
 #: includes/admin/dictionary-import-admin.php:1550
 msgid "The dictionary backup state is incomplete."
-msgstr ""
+msgstr "Sözlüğün yedekleme durumu eksik."
 
 #: includes/admin/dictionary-import-admin.php:1578
 msgid "Could not write a dictionary backup chunk."
-msgstr ""
+msgstr "Sözlük yedeği parçası yazılamadı."
 
 #: includes/admin/dictionary-import-admin.php:1940
 msgid "The dictionary TSV upload did not complete successfully."
-msgstr ""
+msgstr "Sözlük TSV yüklemesi başarıyla tamamlanmadı."
 
 #: includes/admin/dictionary-import-admin.php:2025
 msgid "Dictionary override cleanup cannot start before every incoming snapshot chunk has been processed."
-msgstr ""
+msgstr "Gelen anlık görüntünün tüm parçaları işlenmeden sözlüğün üzerine yazma temizliği başlatılamaz."
 
 #. translators: %d: dictionary entry post ID
 #: includes/admin/dictionary-import-admin.php:2073
 msgid "Dictionary entry %d could not be removed during override cleanup."
-msgstr ""
+msgstr "Üzerine yazma temizliği sırasında %d numaralı sözlük girişi kaldırılamadı."
 
 #: includes/admin/dictionary-import-admin.php:2221
 msgid "Only dictionary snapshot overrides can run cleanup batches."
-msgstr ""
+msgstr "Temizleme grupları yalnızca sözlüğün üzerine anlık görüntüyle yazılırken çalıştırılabilir."
 
 #. translators: 1: backed-up dictionary entries, 2: total dictionary entries
 #: includes/admin/dictionary-import-admin.php:2523
 msgid "Backed up %1$d of %2$d dictionary entries."
-msgstr ""
+msgstr "%2$d sözlük girişinden %1$d tanesi yedeklendi."
 
 #: includes/admin/dictionary-import-admin.php:2527
 msgid "Preparing the rollback backup."
-msgstr ""
+msgstr "Geri alma yedeği hazırlanıyor."
 
 #: includes/admin/dictionary-import-admin.php:2528
 msgid "The import has not started yet. The current dictionary is being saved in bounded backup chunks."
-msgstr ""
+msgstr "İçe aktarma henüz başlamadı. Mevcut sözlük, sınırlı yedekleme parçaları halinde kaydediliyor."
 
 #. translators: 1: checked dictionary entries, 2: total dictionary entries
 #: includes/admin/dictionary-import-admin.php:2533
 msgid "Checked %1$d of %2$d existing entries for override cleanup."
-msgstr ""
+msgstr "Üzerine yazma temizliği için mevcut %2$d girişten %1$d tanesi kontrol edildi."
 
 #: includes/admin/dictionary-import-admin.php:2537
 msgid "Preparing bounded override cleanup."
-msgstr ""
+msgstr "Sınırlı üzerine yazma temizliği hazırlanıyor."
 
 #. translators: 1: created entries, 2: updated entries, 3: deleted entries
 #: includes/admin/dictionary-import-admin.php:2540
 msgid "Imported entries are protected. Created %1$d, updated %2$d, and deleted %3$d missing entries so far."
-msgstr ""
+msgstr "İçe aktarılan girişler korunuyor. Şimdiye kadar %1$d oluşturuldu, %2$d güncellendi ve anlık görüntüde bulunmayan %3$d giriş silindi."
 
 #: includes/admin/dictionary-import-admin.php:2619
 msgid "Backing Up"
-msgstr ""
+msgstr "Yedekleniyor"
 
 #: includes/admin/dictionary-import-admin.php:2620
 msgid "Cleaning Up"
-msgstr ""
+msgstr "Temizleniyor"
 
 #: includes/admin/dictionary-import-admin.php:2620
 msgid "Importing"
-msgstr ""
+msgstr "İçe Aktarılıyor"
 
 #: includes/admin/dictionary-import-admin.php:2986
 msgid "A resumable dictionary import job is ready. JavaScript is required to advance its saved batches."
-msgstr ""
+msgstr "Devam ettirilebilir sözlük içe aktarma işi hazır. Kaydedilmiş grupları ilerletmek için JavaScript gerekir."
 
 #: includes/admin/dictionary-import-admin.php:3002
 msgid "Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include translation_is_ai, part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects, FLEx columns like headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, and definition_full_de."
-msgstr ""
+msgstr "Beklenen sütunlar: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Başlık tabanlı TSV'ler ayrıca translation_is_ai, part_of_speech_slug, pos_slug, source_id, source_dictionary, source_attribution_text, source_attribution_url, source_default_dialects, source_row_idx, raw_headword, title_keys, dialect, dialects; headword_zza, all_forms_zza, sense_guid, part_of_speech_abbr_tr, part_of_speech_tr, examples_zza, example_translations_tr, semantic_domains, source_entry gibi FLEx sütunları ve definition_full_tr, definition_tr, gloss_tr, reversal_tr, translation_en, definition_full_de gibi çok dilli karşılık sütunları da içerebilir."
 
 #. translators: 1: checked recording count, 2: included training sample count
 #: includes/admin/export-import.php:2123
 msgid "Checked %1$d recordings; added %2$d training samples."
-msgstr ""
+msgstr "%1$d ses kaydı kontrol edildi; %2$d eğitim örneği eklendi."
 
 #. translators: 1: prepared export record count, 2: discovered media file count.
 #: includes/admin/export-import.php:2132
 msgid "Prepared %1$d export records; found %2$d media files."
-msgstr ""
+msgstr "%1$d adet dışa aktarma kaydı hazırlandı; %2$d adet medya dosyası bulundu."
 
 #: includes/admin/export-import.php:2222
 msgid "Could not prepare the export media manifest."
-msgstr ""
+msgstr "Dışa aktarma medya manifestosu hazırlanamadı."
 
 #: includes/admin/export-import.php:2350
 msgid "Could not prepare the STT export job. Please try again."
-msgstr ""
+msgstr "STT dışa aktarma işi hazırlanamadı. Tekrar dene."
 
 #: includes/admin/export-import.php:2359
 msgid "Export payload preparation is missing. Start the export again."
-msgstr ""
+msgstr "Dışa aktarma verilerinin hazırlığı eksik. Dışa aktarmayı yeniden başlat."
 
 #: includes/admin/export-import.php:2381
 #: includes/admin/export-import.php:2622
 msgid "Export media preparation is missing. Start the export again."
-msgstr ""
+msgstr "Dışa aktarma medya hazırlığı eksik. Dışa aktarmayı yeniden başlat."
 
 #: includes/admin/export-import.php:2393
 msgid "Could not encode the export media manifest."
-msgstr ""
+msgstr "Dışa aktarma medya manifestosu kodlanamadı."
 
 #: includes/admin/export-import.php:2401
 msgid "Could not write the export media manifest."
-msgstr ""
+msgstr "Dışa aktarma medya manifestosu yazılamadı."
 
 #: includes/admin/export-import.php:2436
 msgid "Could not finalize the staged export data."
-msgstr ""
+msgstr "Hazırlanan dışa aktarma verileri sonlandırılamadı."
 
 #: includes/admin/export-import.php:2628
 msgid "Could not resume the export media manifest."
-msgstr ""
+msgstr "Dışa aktarma medya manifestosuna kaldığı yerden devam edilemedi."
 
 #: includes/admin/export-import.php:2655
 msgid "The export media manifest is invalid."
-msgstr ""
+msgstr "Dışa aktarma medya manifestosu geçersiz."
 
 #: includes/admin/export-import.php:4112
 msgid "Export preparation is in progress."
-msgstr ""
+msgstr "Dışa aktarma hazırlığı devam ediyor."
 
 #: includes/admin/export-import.php:4118
 msgid "Continue Export"
-msgstr ""
+msgstr "Dışa Aktarmaya Devam Et"
 
 #: includes/admin/export-import.php:4142
 msgid "Selecting a category exports that category only, plus word images assigned to it. Choose All categories for a full export."
-msgstr ""
+msgstr "Bir kategori seçmek yalnızca o kategoriyi ve ona atanmış kelime görsellerini dışa aktarır. Tam bir dışa aktarım için Tüm kategoriler'i seç."
 
 #: includes/admin/export-import.php:4195
 msgid "Only used when full bundle mode is enabled. Select one or more categories to export exactly those categories. Leave empty to use the single Category scope dropdown above."
-msgstr ""
+msgstr "Yalnızca tam paket modu açıkken kullanılır. Yalnızca istediğin kategorileri dışa aktarmak için bir veya daha fazla kategori seç. Yukarıdaki tek Kategori kapsamı açılır menüsünü kullanmak için boş bırak."
 
 #: includes/admin/export-import.php:4347
 msgid "Continue STT export"
-msgstr ""
+msgstr "STT dışa aktarımına devam et"
 
 #: includes/admin/export-import.php:4741
 msgid "Metadata updates are in progress."
-msgstr ""
+msgstr "Meta veri güncellemeleri devam ediyor."
 
 #. translators: %d processed metadata rows
 #: includes/admin/export-import.php:4746
 msgid "Processed %d metadata rows."
-msgstr ""
+msgstr "%d meta veri satırı işlendi."
 
 #: includes/admin/export-import.php:4755
 msgid "Continue Metadata Updates"
-msgstr ""
+msgstr "Meta Veri Güncellemelerine Devam Et"
 
 #: includes/admin/export-import.php:4812
 msgid "Rows sampled: %d"
-msgstr ""
+msgstr "Örneklenen satırlar: %d"
 
 #: includes/admin/export-import.php:7378
 msgid "Import failed: external bundle has no top-level CSV files."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici pakette üst düzey CSV dosyası yok."
 
 #: includes/admin/export-import.php:7381
 msgid "Import failed: external bundle contains too many CSV files for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici paket güvenli bir önizleme için çok fazla CSV dosyası içeriyor."
 
 #: includes/admin/export-import.php:7384
 msgid "Import failed: external CSV data is too large for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici CSV verisi güvenli bir önizleme için fazla büyük."
 
 #: includes/admin/export-import.php:7387
 msgid "Import failed: external bundle contains too many media files for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici paket güvenli bir önizleme için çok fazla medya dosyası içeriyor."
 
 #: includes/admin/export-import.php:7390
 msgid "Import failed: external media is too large for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici medya güvenli bir önizleme için çok büyük."
 
 #: includes/admin/export-import.php:7397
 msgid "Import failed: an external CSV file could not be read."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici bir CSV dosyası okunamadı."
 
 #: includes/admin/export-import.php:7403
 msgid "Import failed: an external CSV row is too large for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici bir CSV satırı güvenli bir önizleme için fazla büyük."
 
 #: includes/admin/export-import.php:7415
 msgid "Import failed: external CSV data contains too many rows for a safe preview."
-msgstr ""
+msgstr "İçe aktarma başarısız: harici CSV verisi güvenli bir önizleme için çok fazla satır içeriyor."
 
 #: includes/admin/export-import.php:8345
 msgid "Metadata update import failed: use CSV, JSON, JSONL, or NDJSON."
-msgstr ""
+msgstr "Meta veri güncellemesi içe aktarılamadı: CSV, JSON, JSONL veya NDJSON kullan."
 
 #: includes/admin/export-import.php:8348
 msgid "Metadata update import failed: the source file is larger than the streaming job limit."
-msgstr ""
+msgstr "Meta veri güncelleme içe aktarması başarısız oldu: kaynak dosya, akışlı iş için izin verilen sınırdan büyük."
 
 #: includes/admin/export-import.php:8354
 msgid "Metadata update import failed: large JSON arrays are not streamable. Use CSV or JSONL instead."
-msgstr ""
+msgstr "Meta veri güncellemesi içe aktarılamadı: büyük JSON dizileri akışla işlenemez. Bunun yerine CSV veya JSONL kullan."
 
 #: includes/admin/export-import.php:8361
 msgid "Metadata update import failed: the JSON array has too many rows. Use CSV or JSONL instead."
-msgstr ""
+msgstr "Meta veri güncellemesi içe aktarılamadı: JSON dizisinde çok fazla satır var. Bunun yerine CSV veya JSONL kullan."
 
 #: includes/admin/export-import.php:8379
 msgid "Metadata update import failed: the source file could not be read."
-msgstr ""
+msgstr "Meta veri güncelleme içe aktarma işlemi başarısız oldu: kaynak dosya okunamadı."
 
 #: includes/admin/export-import.php:8414
 msgid "Metadata update import failed: the CSV cursor could not be resumed."
-msgstr ""
+msgstr "Meta veri güncellemesi içe aktarılamadı: CSV imlecine kaldığı yerden devam edilemedi."
 
 #: includes/admin/export-import.php:8438
 msgid "Metadata update import failed: the JSONL cursor could not be resumed."
-msgstr ""
+msgstr "Meta veri güncellemesi içe aktarılamadı: JSONL imlecine kaldığı yerden devam edilemedi."
 
 #: includes/admin/export-import.php:8446
 msgid "Metadata update import failed: one JSONL row is too large."
-msgstr ""
+msgstr "Meta veri güncelleme içe aktarma işlemi başarısız oldu: Bir JSONL satırı çok büyük."
 
 #: includes/admin/export-import.php:9173
 msgid "This is a bounded sample of the file. Confirmation processes every row in resumable batches."
-msgstr ""
+msgstr "Bu, dosyanın sınırlı bir örneğidir. Onaylama işlemi her satırı devam ettirilebilir gruplar halinde işler."
 
 #: includes/admin/export-import.php:9189
 msgid "Metadata update sample preview is ready."
-msgstr ""
+msgstr "Meta veri güncelleme örneğinin önizlemesi hazır."
 
 #: includes/admin/export-import.php:9713
 #: includes/admin/export-import.php:9728
 #: includes/admin/export-import.php:10053
 msgid "Metadata update job is missing."
-msgstr ""
+msgstr "Meta veri güncelleme işi eksik."
 
 #: includes/admin/export-import.php:9720
 msgid "You do not have permission to continue this metadata update job."
-msgstr ""
+msgstr "Bu meta veri güncelleme işini sürdürme iznin yok."
 
 #: includes/admin/export-import.php:9847
 msgid "Metadata update import stopped because the source file changed or disappeared."
-msgstr ""
+msgstr "Kaynak dosya değiştiği veya kaybolduğu için meta veri güncelleme içe aktarma işlemi durduruldu."
 
 #: includes/admin/export-import.php:9863
 msgid "Metadata update job is already processing. Try again shortly."
-msgstr ""
+msgstr "Meta veri güncelleme işi zaten işleniyor. Biraz sonra tekrar dene."
 
 #: includes/admin/export-import.php:13616
 msgid "Could not prepare STT export metadata."
-msgstr ""
+msgstr "STT dışa aktarım meta verileri hazırlanamadı."
 
 #: includes/admin/export-import.php:13792
 msgid "Could not prepare STT export metadata files."
-msgstr ""
+msgstr "STT dışa aktarım meta veri dosyaları hazırlanamadı."
 
 #: includes/admin/export-import.php:13805
 msgid "Could not open STT export metadata files."
-msgstr ""
+msgstr "STT dışa aktarım meta veri dosyaları açılamadı."
 
 #: includes/admin/export-import.php:13812
 msgid "Could not write STT export metadata.csv."
-msgstr ""
+msgstr "STT dışa aktarma metadata.csv dosyası yazılamadı."
 
 #: includes/admin/export-import.php:13823
 msgid "Could not write STT export metadata files."
-msgstr ""
+msgstr "STT dışa aktarma meta veri dosyaları yazılamadı."
 
 #: includes/admin/export-import.php:13838
 msgid "This STT export batch is already running."
-msgstr ""
+msgstr "Bu STT dışa aktarma grubu zaten çalışıyor."
 
 #: includes/admin/export-import.php:13856
 msgid "The STT export word set no longer exists."
-msgstr ""
+msgstr "STT dışa aktarma kelime seti artık mevcut değil."
 
 #: includes/admin/export-import.php:13928
 msgid "Could not open the STT export zip for batched writing."
-msgstr ""
+msgstr "STT dışa aktarma ZIP dosyası gruplar halinde yazmak için açılamadı."
 
 #: includes/admin/export-import.php:13947
 msgid "Could not finalize the current STT export batch."
-msgstr ""
+msgstr "Mevcut STT dışa aktarma grubu tamamlanamadı."
 
 #: includes/admin/export-import.php:13999
 msgid "Could not finalize STT export metadata files."
-msgstr ""
+msgstr "STT dışa aktarım meta veri dosyaları tamamlanamadı."
 
 #. translators: %d: maximum search query length.
 #: includes/admin/ipa-keyboard-admin.php:189
 msgid "Search queries are limited to %d characters."
-msgstr ""
+msgstr "Arama sorguları %d karakterle sınırlıdır."
 
 #: includes/admin/ipa-keyboard-admin.php:205
 msgid "Enter a regular expression after rx:."
-msgstr ""
+msgstr "rx: ifadesinden sonra bir düzenli ifade gir."
 
 #: includes/admin/ipa-keyboard-admin.php:213
 #: includes/admin/ipa-keyboard-admin.php:255
 msgid "The regular expression is invalid."
-msgstr ""
+msgstr "Düzenli ifade geçersiz."
 
 #: includes/admin/ipa-keyboard-admin.php:220
 msgid "The regular expression uses unsupported modifiers."
-msgstr ""
+msgstr "Bu düzenli ifade, desteklenmeyen değiştiriciler kullanıyor."
 
 #. translators: %d: maximum regular expression length.
 #: includes/admin/ipa-keyboard-admin.php:232
 msgid "Regular expressions are limited to %d characters."
-msgstr ""
+msgstr "Düzenli ifadeler %d karakterle sınırlıdır."
 
 #: includes/admin/ipa-keyboard-admin.php:239
 msgid "Recursive regular expressions are not supported."
-msgstr ""
+msgstr "Özyinelemeli düzenli ifadeler desteklenmiyor."
 
 #: includes/admin/ipa-keyboard-admin.php:411
 msgid "Sample recordings"
-msgstr ""
+msgstr "Örnek ses kayıtları"
 
 #: includes/admin/ipa-keyboard-admin.php:412
 msgid "Show recordings"
-msgstr ""
+msgstr "Ses kayıtlarını göster"
 
 #: includes/admin/audio-processor-admin.php:194
 #: includes/admin/audio-processor-admin.php:1047
 #: includes/admin/ipa-keyboard-admin.php:413
 msgid "Loading recordings..."
-msgstr ""
+msgstr "Ses kayıtları yükleniyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:414
 msgid "Load more recordings"
-msgstr ""
+msgstr "Daha fazla ses kaydı yükle"
 
 #: includes/admin/ipa-keyboard-admin.php:415
 msgid "Counts and samples need to be rebuilt."
-msgstr ""
+msgstr "Sayımlar ve örnekler yeniden oluşturulmalı."
 
 #: includes/admin/ipa-keyboard-admin.php:416
 msgid "Counts and samples are stale. An editor must rebuild them."
-msgstr ""
+msgstr "Sayımlar ve örnekler güncel değil. Bir editörün bunları yeniden oluşturması gerekiyor."
 
 #: includes/admin/ipa-keyboard-admin.php:417
 msgid "Rebuilding counts and samples..."
-msgstr ""
+msgstr "Sayımlar ve örnekler yeniden oluşturuluyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:418
 msgid "Processed %1$d of %2$d recordings."
-msgstr ""
+msgstr "%2$d ses kaydından %1$d tanesi işlendi."
 
 #: includes/admin/ipa-keyboard-admin.php:419
 msgid "Rebuild counts"
-msgstr ""
+msgstr "Sayımları yeniden oluştur"
 
 #: includes/admin/ipa-keyboard-admin.php:420
 msgid "Continue rebuild"
-msgstr ""
+msgstr "Yeniden oluşturmaya devam et"
 
 #: includes/admin/ipa-keyboard-admin.php:421
 msgid "Counts and samples rebuilt."
-msgstr ""
+msgstr "Sayımlar ve örnekler yeniden oluşturuldu."
 
 #: includes/admin/ipa-keyboard-admin.php:422
 msgid "The rebuild stopped. Start it again."
-msgstr ""
+msgstr "Yeniden oluşturma durdu. Tekrar başlat."
 
 #: includes/admin/ipa-keyboard-admin.php:451
 msgid "No matches in this batch. Continue searching to check the remaining recordings."
-msgstr ""
+msgstr "Bu grupta eşleşen ses kaydı yok. Kalan ses kayıtlarını kontrol etmek için aramaya devam et."
 
 #: includes/admin/ipa-keyboard-admin.php:454
 msgid "%1$d matching recording loaded"
-msgstr ""
+msgstr "%1$d eşleşen ses kaydı yüklendi"
 
 #: includes/admin/ipa-keyboard-admin.php:455
 msgid "%1$d matching recordings loaded"
-msgstr ""
+msgstr "%1$d eşleşen ses kaydı yüklendi"
 
 #: includes/admin/ipa-keyboard-admin.php:9822
 msgid "Invalid action"
-msgstr ""
+msgstr "Geçersiz işlem"
 
 #: includes/admin/missing-audio-admin-page.php:60
 #: includes/admin/missing-audio-admin-page.php:151
 msgid "Invalid Missing Audio maintenance job."
-msgstr ""
+msgstr "Geçersiz Eksik Ses bakım işi."
 
 #: includes/admin/missing-audio-admin-page.php:90
 #: includes/admin/missing-audio-admin-page.php:300
 msgid "This maintenance job is no longer current. Reload the page and try again."
-msgstr ""
+msgstr "Bu bakım işi artık güncel değil. Sayfayı yeniden yükle ve tekrar dene."
 
 #: includes/admin/missing-audio-admin-page.php:99
 #: includes/admin/missing-audio-admin-page.php:384
 #: includes/admin/missing-audio-admin-page.php:415
 msgid "Complete a fresh preview before applying changes."
-msgstr ""
+msgstr "Değişiklikleri uygulamadan önce yeni bir önizlemeyi tamamla."
 
 #: includes/admin/missing-audio-admin-page.php:114
 msgid "The saved preview is incomplete. Run the preview again before applying changes."
-msgstr ""
+msgstr "Kaydedilen önizleme eksik. Değişiklikleri uygulamadan önce önizlemeyi yeniden çalıştır."
 
 #: includes/admin/missing-audio-admin-page.php:158
 msgid "The regex pattern is invalid or unsafe. Please fix it and start again."
-msgstr ""
+msgstr "Regex kalıbı geçersiz veya güvenli değil. Kalıbı düzeltip yeniden başla."
 
 #: includes/admin/missing-audio-admin-page.php:292
 msgid "Finish or cancel the current maintenance job before starting another one."
-msgstr ""
+msgstr "Başka bir bakım işi başlatmadan önce mevcut işi tamamla veya iptal et."
 
 #: includes/admin/missing-audio-admin-page.php:341
 #: includes/admin/missing-audio-admin-page.php:370
 msgid "The regex pattern is invalid or unsafe. Please fix it and try again."
-msgstr ""
+msgstr "Regex kalıbı geçersiz veya güvenli değil. Kalıbı düzeltip tekrar dene."
 
 #: includes/admin/missing-audio-admin-page.php:536
 msgid "Missing audio scan"
-msgstr ""
+msgstr "Eksik ses taraması"
 
 #: includes/admin/missing-audio-admin-page.php:537
 msgid "Table header refresh"
-msgstr ""
+msgstr "Tablo başlığı yenileme"
 
 #: includes/admin/missing-audio-admin-page.php:538
 msgid "Regex preview"
-msgstr ""
+msgstr "Regex önizlemesi"
 
 #: includes/admin/missing-audio-admin-page.php:539
 msgid "Regex insertion"
-msgstr ""
+msgstr "Regex ekleme"
 
 #: includes/admin/missing-audio-admin-page.php:540
 msgid "Table preview"
-msgstr ""
+msgstr "Tablo önizlemesi"
 
 #: includes/admin/missing-audio-admin-page.php:541
 msgid "Table insertion"
-msgstr ""
+msgstr "Tablo ekleme"
 
 #: includes/admin/missing-audio-admin-page.php:543
 msgid "Maintenance job"
-msgstr ""
+msgstr "Bakım işi"
 
 #: includes/admin/missing-audio-admin-page.php:555
 msgid "Processed %1$d of %2$d matching posts. Continue to run the next bounded batch."
-msgstr ""
+msgstr "Eşleşen %2$d gönderiden %1$d tanesi işlendi. Sonraki sınırlı grubu çalıştırarak devam et."
 
 #: includes/admin/missing-audio-admin-page.php:561
 msgid "Processed %d posts so far. Continue to run the next bounded batch."
-msgstr ""
+msgstr "Şimdiye kadar %d gönderi işlendi. Sonraki sınırlı grubu çalıştırarak devam et."
 
 #: includes/admin/missing-audio-admin-page.php:563
 msgid "Completed after processing %d posts."
-msgstr ""
+msgstr "%d adet gönderi işlendikten sonra tamamlandı."
 
 #: includes/admin/missing-audio-admin-page.php:565
 msgid "Cancelled after processing %d posts."
-msgstr ""
+msgstr "%d adet gönderi işlendikten sonra iptal edildi."
 
 #: includes/admin/missing-audio-admin-page.php:567
 msgid "The maintenance job stopped before completion."
-msgstr ""
+msgstr "Bakım işi tamamlanamadan durduruldu."
 
 #: includes/admin/missing-audio-admin-page.php:571
 msgid "Missing audio entries found so far: %d."
-msgstr ""
+msgstr "Şu ana kadar bulunan eksik ses girişleri: %d."
 
 #: includes/admin/missing-audio-admin-page.php:573
 msgid "Unique table headers found so far: %d."
-msgstr ""
+msgstr "Şu ana kadar tespit edilen benzersiz tablo başlıkları: %d."
 
 #: includes/admin/missing-audio-admin-page.php:575
 msgid "Regex matches found so far: %1$d across %2$d posts."
-msgstr ""
+msgstr "Şimdiye kadar %2$d gönderide %1$d regex eşleşmesi bulundu."
 
 #: includes/admin/missing-audio-admin-page.php:577
 msgid "Table cells found so far: %1$d across %2$d posts."
-msgstr ""
+msgstr "Şimdiye kadar %2$d gönderide %1$d tablo hücresi bulundu."
 
 #: includes/admin/missing-audio-admin-page.php:582
 msgid "Updated %1$d posts and inserted %2$d shortcodes so far. Changed posts skipped: %3$d."
-msgstr ""
+msgstr "Şimdiye kadar %1$d gönderi güncellendi ve %2$d kısa kod eklendi. Değiştirilen gönderilerden %3$d tanesi atlandı."
 
 #: includes/admin/missing-audio-admin-page.php:766
 #: includes/admin/missing-audio-admin-page.php:913
 msgid "Skipped %d posts because their content changed after preview."
-msgstr ""
+msgstr "İçerikleri önizlemeden sonra değiştiği için %d gönderi atlandı."
 
 #: includes/admin/missing-audio-admin-page.php:791
 msgid "Refresh Table Headers"
-msgstr ""
+msgstr "Tablo Başlıklarını Yenile"
 
 #: includes/admin/missing-audio-admin-page.php:792
 msgid "Header discovery runs in bounded batches and is cached for later page loads."
-msgstr ""
+msgstr "Başlık keşfi, sınırlı gruplar halinde gerçekleştirilir ve sonraki sayfa yüklemeleri için önbelleğe alınır."
 
 #: includes/admin/missing-audio-admin-page.php:828
 msgid "No cached table headers are available. Refresh the header cache to discover them."
-msgstr ""
+msgstr "Önbelleğe alınmış tablo başlığı yok. Başlıkları bulmak için başlık önbelleğini yenile."
 
 #: includes/admin/missing-audio-admin-page.php:1479
 #: includes/admin/missing-audio-admin-page.php:2007
 msgid "Skipped changed post ID %d; preview it again before applying."
-msgstr ""
+msgstr "İçeriği değiştirilen %d numaralı gönderi atlandı; uygulamadan önce yeniden önizle."
 
 #: includes/admin/missing-audio-admin-page.php:1546
 #: includes/admin/missing-audio-admin-page.php:2103
 msgid "Failed to update post ID %1$d: %2$s"
-msgstr ""
+msgstr "%1$d numaralı gönderi güncellenemedi: %2$s"
 
 #: includes/admin/offline-app-export.php:881
 msgid "Build Offline App Bundle"
-msgstr ""
+msgstr "Çevrimdışı Uygulama Paketini Oluştur"
 
 #: includes/admin/offline-app-export.php:931
 msgid "The export request failed. You can retry the build without losing a completed bundle."
-msgstr ""
+msgstr "Dışa aktarma isteği başarısız oldu. Tamamlanmış bir paketi kaybetmeden derlemeyi yeniden deneyebilirsin."
 
 #: includes/admin/offline-app-export.php:1577
 msgid "Could not access the uploads directory for the offline app export job."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi için “uploads” dizinine erişilemedi."
 
 #: includes/admin/offline-app-export.php:1582
 msgid "Could not create storage for the offline app export job."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi için depolama alanı oluşturulamadı."
 
 #: includes/admin/offline-app-export.php:1606
 msgid "Could not encode offline app export job state."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işinin durumu kodlanamadı."
 
 #: includes/admin/offline-app-export.php:1609
 msgid "Could not save offline app export job state."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işinin durumu kaydedilemedi."
 
 #: includes/admin/offline-app-export.php:1617
 msgid "Offline app export job storage is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işleri için depolama alanı mevcut değil."
 
 #: includes/admin/offline-app-export.php:1626
 msgid "Offline app export job token is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi belirteci eksik."
 
 #: includes/admin/offline-app-export.php:1631
 msgid "The offline app export job could not be found. Start a new export."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi bulunamadı. Yeni bir dışa aktarma işlemi başlat."
 
 #: includes/admin/offline-app-export.php:1634
 #: includes/admin/offline-app-export.php:1656
 msgid "You do not have permission to access this offline app export job."
-msgstr ""
+msgstr "Bu çevrimdışı uygulama dışa aktarma işine erişme iznin yok."
 
 #: includes/admin/offline-app-export.php:1643
 msgid "This offline app export job expired. Start a new export."
-msgstr ""
+msgstr "Bu çevrimdışı uygulama dışa aktarma işinin süresi doldu. Yeni bir dışa aktarma işlemi başlat."
 
 #: includes/admin/offline-app-export.php:1648
 msgid "Offline app export job state is missing. Start a new export."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işinin durumu eksik. Yeni bir dışa aktarma işlemi başlat."
 
 #: includes/admin/offline-app-export.php:1653
 msgid "Offline app export job state is invalid. Start a new export."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işinin durumu geçersiz. Yeni bir dışa aktarma işlemi başlat."
 
 #: includes/admin/offline-app-export.php:1670
 #: includes/pages/wordset-pages.php:9127
 msgid "Select a valid word set to export."
-msgstr ""
+msgstr "Dışa aktarmak için geçerli bir kelime seti seç."
 
 #: includes/admin/offline-app-export.php:1722
 msgid "Could not create the offline app export job directory."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi dizini oluşturulamadı."
 
 #: includes/admin/offline-app-export.php:1795
 msgid "Could not register the offline app export job."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi kaydedilemedi."
 
 #: includes/admin/offline-app-export.php:1815
 msgid "Discovering categories"
-msgstr ""
+msgstr "Kategoriler keşfediliyor"
 
 #: includes/admin/offline-app-export.php:1816
 msgid "Preparing words and media manifest"
-msgstr ""
+msgstr "Kelime ve medya manifestosu hazırlanıyor"
 
 #: includes/admin/offline-app-export.php:1817
 msgid "Copying bundle assets"
-msgstr ""
+msgstr "Paket varlıkları kopyalanıyor"
 
 #: includes/admin/offline-app-export.php:1818
 msgid "Writing offline app data"
-msgstr ""
+msgstr "Çevrimdışı uygulama verileri yazılıyor"
 
 #: includes/admin/offline-app-export.php:1819
 msgid "Creating export zip"
-msgstr ""
+msgstr "Dışa aktarma ZIP dosyası oluşturuluyor"
 
 #: includes/admin/offline-app-export.php:1820
 msgid "Offline app bundle ready"
-msgstr ""
+msgstr "Çevrimdışı uygulama paketi hazır"
 
 #: includes/admin/offline-app-export.php:1821
 msgid "Offline app export failed"
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işlemi başarısız oldu"
 
 #. translators: 1: category count, 2: word count, 3: copied asset count
 #: includes/admin/offline-app-export.php:1864
 msgid "%1$d categories checked, %2$d words checked, %3$d assets copied."
-msgstr ""
+msgstr "%1$d kategori ve %2$d kelime kontrol edildi, %3$d varlık kopyalandı."
 
 #: includes/admin/offline-app-export.php:1879
 msgid "The offline app bundle is ready to download."
-msgstr ""
+msgstr "Çevrimdışı uygulama paketi indirilmeye hazır."
 
 #: includes/admin/offline-app-export.php:1881
 msgid "The export stopped before a bundle was created."
-msgstr ""
+msgstr "Bir paket oluşturulmadan önce dışa aktarma işlemi durduruldu."
 
 #: includes/admin/offline-app-export.php:1889
 msgid "The offline app export failed."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işlemi başarısız oldu."
 
 #: includes/admin/offline-app-export.php:1910
 msgid "This offline app export job is already processing another step."
-msgstr ""
+msgstr "Bu çevrimdışı uygulama dışa aktarma işi zaten başka bir adımı işliyor."
 
 #: includes/admin/offline-app-export.php:1927
 msgid "Offline app export job phase is invalid."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işinin aşaması geçersiz."
 
 #: includes/admin/offline-app-export.php:1981
 msgid "The offline app bundle is not ready to download."
-msgstr ""
+msgstr "Çevrimdışı uygulama paketi henüz indirilmeye hazır değil."
 
 #: includes/admin/offline-app-export.php:2201
 msgid "Could not append offline app export job data."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işi verileri eklenemedi."
 
 #: includes/admin/offline-app-export.php:2232
 msgid "Could not save offline app media progress."
-msgstr ""
+msgstr "Çevrimdışı uygulama medya ilerlemesi kaydedilemedi."
 
 #: includes/admin/offline-app-export.php:2243
 msgid "Could not create offline app word progress storage."
-msgstr ""
+msgstr "Çevrimdışı uygulama kelime ilerlemesi için depolama alanı oluşturulamadı."
 
 #: includes/admin/offline-app-export.php:2255
 msgid "Could not save offline app word progress."
-msgstr ""
+msgstr "Çevrimdışı uygulama kelime ilerlemesi kaydedilemedi."
 
 #: includes/admin/offline-app-export.php:2339
 msgid "The offline app IPA font directory is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulamanın IPA yazı tipi dizini eksik."
 
 #: includes/admin/offline-app-export.php:2406
 msgid "Offline app export word progress is invalid."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma kelime ilerlemesi geçersiz."
 
 #: includes/admin/offline-app-export.php:2416
 msgid "A selected offline app category no longer exists."
-msgstr ""
+msgstr "Seçilen çevrimdışı uygulama kategorisi artık mevcut değil."
 
 #. translators: 1: category name, 2: minimum word count
 #: includes/admin/offline-app-export.php:2492
 msgid "Category \"%1$s\" was omitted from the offline app because fewer than %2$d usable words remained after offline asset checks."
-msgstr ""
+msgstr "Çevrimdışı varlık kontrollerinden sonra %2$d'den az kullanılabilir kelime kaldığı için \"%1$s\" kategorisi çevrimdışı uygulamadan çıkarıldı."
 
 #: includes/admin/offline-app-export.php:2532
 msgid "Could not create offline app zip progress storage."
-msgstr ""
+msgstr "Çevrimdışı uygulama ZIP ilerlemesi için depolama alanı oluşturulamadı."
 
 #: includes/admin/offline-app-export.php:2546
 msgid "Could not save offline app zip progress."
-msgstr ""
+msgstr "Çevrimdışı uygulama ZIP ilerlemesi kaydedilemedi."
 
 #: includes/admin/offline-app-export.php:2555
 msgid "Offline app media manifest is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulamanın medya manifestosu eksik."
 
 #: includes/admin/offline-app-export.php:2559
 msgid "Could not read the offline app media manifest."
-msgstr ""
+msgstr "Çevrimdışı uygulamanın medya manifestosu okunamadı."
 
 #: includes/admin/offline-app-export.php:2564
 msgid "Could not resume offline app media progress."
-msgstr ""
+msgstr "Çevrimdışı uygulama medya ilerlemesine kaldığı yerden devam edilemedi."
 
 #: includes/admin/offline-app-export.php:2573
 msgid "Offline app media manifest contains invalid data."
-msgstr ""
+msgstr "Çevrimdışı uygulamanın medya manifestosu geçersiz veriler içeriyor."
 
 #: includes/admin/offline-app-export.php:2579
 msgid "A required offline app asset is missing. Restore it and resume with a new export."
-msgstr ""
+msgstr "Gerekli bir çevrimdışı uygulama varlığı eksik. Varlığı geri yükle ve yeni bir dışa aktarmayla devam et."
 
 #: includes/admin/offline-app-export.php:2584
 msgid "Could not copy a required asset into the offline app bundle."
-msgstr ""
+msgstr "Gerekli bir varlık, çevrimdışı uygulama paketine kopyalanamadı."
 
 #: includes/admin/offline-app-export.php:2698
 #: includes/admin/offline-app-export.php:2961
 msgid "The selected word set no longer exists."
-msgstr ""
+msgstr "Seçilen kelime seti artık mevcut değil."
 
 #: includes/admin/offline-app-export.php:2854
 msgid "Syncing..."
-msgstr ""
+msgstr "Senkronize ediliyor..."
 
 #: includes/admin/offline-app-export.php:2989
 msgid "Could not write the offline app bundle readme."
-msgstr ""
+msgstr "Çevrimdışı uygulama paketinin README dosyası yazılamadı."
 
 #: includes/admin/offline-app-export.php:3011
 msgid "Could not prepare streaming offline app data."
-msgstr ""
+msgstr "Çevrimdışı uygulama verileri akış için hazırlanamadı."
 
 #: includes/admin/offline-app-export.php:3030
 msgid "Could not stage streaming offline app data."
-msgstr ""
+msgstr "Çevrimdışı uygulama veri akışı hazırlık alanına alınamadı."
 
 #: includes/admin/offline-app-export.php:3081
 msgid "Could not continue writing offline app data."
-msgstr ""
+msgstr "Çevrimdışı uygulama verilerinin yazılmasına devam edilemedi."
 
 #: includes/admin/offline-app-export.php:3088
 msgid "Prepared offline app word data is missing."
-msgstr ""
+msgstr "Hazırlanan çevrimdışı uygulama kelime verileri eksik."
 
 #: includes/admin/offline-app-export.php:3092
 msgid "Could not read prepared offline app word data."
-msgstr ""
+msgstr "Hazırlanan çevrimdışı uygulama kelime verileri okunamadı."
 
 #: includes/admin/offline-app-export.php:3097
 msgid "Could not resume writing offline app data."
-msgstr ""
+msgstr "Çevrimdışı uygulama verilerini yazmaya kaldığı yerden devam edilemedi."
 
 #: includes/admin/offline-app-export.php:3109
 msgid "Prepared offline app word data is invalid."
-msgstr ""
+msgstr "Hazırlanan çevrimdışı uygulama kelime verileri geçersiz."
 
 #: includes/admin/offline-app-export.php:3158
 #: includes/admin/offline-app-export.php:3218
 msgid "Streaming offline app data state is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulama veri akışı durumu eksik."
 
 #: includes/admin/offline-app-export.php:3178
 msgid "Could not encode an offline app category."
-msgstr ""
+msgstr "Çevrimdışı uygulama kategorisi kodlanamadı."
 
 #: includes/admin/offline-app-export.php:3243
 msgid "Offline app zip manifest is missing."
-msgstr ""
+msgstr "Çevrimdışı uygulama ZIP manifestosu eksik."
 
 #: includes/admin/offline-app-export.php:3247
 msgid "Could not read the offline app zip manifest."
-msgstr ""
+msgstr "Çevrimdışı uygulama ZIP manifestosu okunamadı."
 
 #: includes/admin/offline-app-export.php:3252
 msgid "Could not resume offline app zip progress."
-msgstr ""
+msgstr "Çevrimdışı uygulama ZIP ilerlemesine kaldığı yerden devam edilemedi."
 
 #: includes/admin/teacher-classes-page.php:676
 #: includes/admin/teacher-classes-page.php:692
 #: includes/pages/wordset-pages.php:12240
 msgid "Find account"
-msgstr ""
+msgstr "Hesabı bul"
 
 #: includes/admin/teacher-classes-page.php:707
 #: includes/pages/wordset-pages.php:12248
 msgid "Account results"
-msgstr ""
+msgstr "Hesap sonuçları"
 
 #: includes/admin/teacher-classes-page.php:807
 #: includes/pages/wordset-pages.php:12322
 msgid "Find class"
-msgstr ""
+msgstr "Sınıf bul"
 
 #: includes/admin/teacher-classes-page.php:821
 msgid "No classes match your search."
-msgstr ""
+msgstr "Aramanla eşleşen sınıf bulunamadı."
 
 #: includes/admin/teacher-classes-page.php:888
 #: includes/pages/wordset-pages.php:12379
 msgid "Class results"
-msgstr ""
+msgstr "Sınıf sonuçları"
 
 #: includes/admin/teacher-classes-page.php:909
 #: includes/pages/wordset-pages.php:12420
 msgid "Page 30d rounds"
-msgstr ""
+msgstr "Sayfadaki 30 günlük turlar"
 
 #: includes/admin/teacher-classes-page.php:913
 #: includes/pages/wordset-pages.php:12424
 msgid "Page studied"
-msgstr ""
+msgstr "Sayfada çalışılan kelimeler"
 
 #: includes/admin/teacher-classes-page.php:915
 #: includes/pages/wordset-pages.php:12428
 msgid "Page mastered"
-msgstr ""
+msgstr "Sayfada ustalaşılan kelimeler"
 
 #: includes/admin/teacher-classes-page.php:919
 #: includes/pages/wordset-pages.php:12432
 msgid "Page hard"
-msgstr ""
+msgstr "Sayfadaki zor kelimeler"
 
 #: includes/admin/teacher-classes-page.php:1075
 #: includes/pages/wordset-pages.php:12623
 msgid "Learner progress"
-msgstr ""
+msgstr "Öğrencinin ilerlemesi"
 
 #: includes/admin/word-option-rules-admin.php:299
 msgid "Unable to search words."
-msgstr ""
+msgstr "Kelimeler aranamıyor."
 
 #: includes/admin/word-option-rules-admin.php:532
 msgid "Too many word option candidates were submitted."
-msgstr ""
+msgstr "Çok fazla kelime seçeneği adayı gönderildi."
 
 #: includes/admin/word-option-rules-admin.php:1317
 msgid "Select two different words."
-msgstr ""
+msgstr "İki farklı kelime seç."
 
 #: includes/admin/word-option-rules-admin.php:1325
 msgid "The selected words are not in this category."
-msgstr ""
+msgstr "Seçilen kelimeler bu kategoride yer almıyor."
 
 #: includes/admin/word-option-rules-admin.php:1946
 msgid "Title, translation, or ID"
-msgstr ""
+msgstr "Başlık, çeviri veya kimlik numarası"
 
 #. translators: 1: first visible word number, 2: last visible word number, 3: total matching words
 #: includes/admin/word-option-rules-admin.php:1960
 msgid "Showing %1$d-%2$d of %3$d words"
-msgstr ""
+msgstr "%3$d kelimeden %1$d-%2$d arası gösteriliyor"
 
 #: includes/admin/word-option-rules-admin.php:1988
 msgid "No matching words found."
-msgstr ""
+msgstr "Eşleşen kelime bulunamadı."
 
 #: includes/admin/word-option-rules-admin.php:2380
 msgid "Conflict rows are scoped to the loaded words and the current saved-pair page."
-msgstr ""
+msgstr "Çakışma satırları, yüklenen kelimeler ve kaydedilmiş çiftlerin geçerli sayfasıyla sınırlıdır."
 
 #: includes/admin/word-option-rules-admin.php:2553
 msgid "More automatic conflicts exist for these candidates. Narrow the word search to inspect a smaller set."
-msgstr ""
+msgstr "Bu adaylar için başka otomatik çakışmalar da var. Daha küçük bir grubu incelemek için kelime aramasını daralt."
 
 #. translators: 1: current pair page, 2: total pair pages
 #: includes/admin/word-option-rules-admin.php:2563
 msgid "Saved pair page %1$d of %2$d"
-msgstr ""
+msgstr "Kaydedilmiş çift sayfası %1$d / %2$d"
 
 #: includes/lib/ai-crawler-support.php:955
 msgid "Public content lessons with compact transcript samples."
-msgstr ""
+msgstr "Kısa transkript örnekleri içeren herkese açık içerik dersleri."
 
 #: includes/lib/ai-crawler-support.php:961
 msgid "Operational notes about how these generated files should be interpreted."
-msgstr ""
+msgstr "Bu dosyaların nasıl yorumlanması gerektiğine dair kullanım notları."
 
 #: includes/lib/ai-crawler-support.php:980
 msgid "Plugin-scoped copy of the discovery file."
-msgstr ""
+msgstr "Keşif dosyasının eklenti kapsamındaki kopyası."
 
 #: includes/lib/ai-crawler-support.php:984
 msgid "Headwords, summaries, sources, dialects, and dictionary detail links."
-msgstr ""
+msgstr "Madde başları, özetler, kaynaklar, lehçeler ve sözlük ayrıntı bağlantıları."
 
 #: includes/lib/ai-crawler-support.php:985
 msgid "Public wordset landing pages and vocab lesson routes."
-msgstr ""
+msgstr "Herkese açık kelime seti açılış sayfaları ve kelime dersi rotaları."
 
 #: includes/lib/ai-crawler-support.php:986
 msgid "Content lessons and compact transcript cue samples."
-msgstr ""
+msgstr "İçerik dersleri ve kısa transkript bölümü örnekleri."
 
 #: includes/lib/ai-crawler-support.php:989
 msgid "Scope and interpretation notes for these generated exports."
-msgstr ""
+msgstr "Bu otomatik olarak oluşturulan dışa aktarımlar için kapsam ve yorum notları."
 
 #: includes/lib/ai-crawler-support.php:995
 #: includes/lib/ai-crawler-support.php:1177
 msgid "Dictionary Letter Chunks"
-msgstr ""
+msgstr "Sözlük Harfi Parçaları"
 
 #: includes/lib/ai-crawler-support.php:996
 msgid "Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample."
-msgstr ""
+msgstr "Harf parçaları, geniş bir örnek yerine odaklanmış bağlama ihtiyaç duyan yapay zeka ajanlarına sözlüğün daha küçük bölümlerini sunar."
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1001
 msgid "Dictionary letter %s"
-msgstr ""
+msgstr "Sözlük harfi %s"
 
 #: includes/lib/ai-crawler-support.php:1028
 msgid "AI index Markdown"
-msgstr ""
+msgstr "Yapay Zeka Dizini (Markdown)"
 
 #. translators: %s: Site name.
 #: includes/lib/ai-crawler-support.php:1117
 msgid "%s LL Tools AI discovery index"
-msgstr ""
+msgstr "%s LL Tools Yapay Zeka Keşif Dizini"
 
 #: includes/lib/ai-crawler-support.php:1128
 #: includes/lib/ai-crawler-support.php:1164
 msgid "Public Dictionary"
-msgstr ""
+msgstr "Herkese Açık Sözlük"
 
 #: includes/lib/ai-crawler-support.php:1129
 msgid "Bounded public dictionary entries exposed for compact AI context."
-msgstr ""
+msgstr "Kısa yapay zeka bağlamı için sunulan sınırlı sayıdaki herkese açık sözlük girişleri."
 
 #: includes/lib/ai-crawler-support.php:1141
 msgid "Dictionary letter Markdown exports"
-msgstr ""
+msgstr "Sözlük harflerine göre Markdown dışa aktarımları"
 
 #. translators: %d: Entry limit.
 #: includes/lib/ai-crawler-support.php:1168
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
-msgstr ""
+msgstr "Bu sınırlı dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen en fazla %d herkese açık sözlük girişi içerir. Alıntı için her girişin kanonik ayrıntı URL'sini, arama için herkese açık sözlük sayfasını kullan."
 
 #: includes/lib/ai-crawler-support.php:1172
 #: includes/lib/ai-crawler-support.php:1224
 msgid "Public dictionary page"
-msgstr ""
+msgstr "Herkese açık sözlük sayfası"
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1182
 msgid "Letter %s"
-msgstr ""
+msgstr "Harf %s"
 
 #: includes/lib/ai-crawler-support.php:1192
 msgid "No public dictionary entries are currently available."
-msgstr ""
+msgstr "Şu anda herkese açık sözlük girişi yok."
 
 #. translators: %s: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1212
 msgid "Public Dictionary: %s"
-msgstr ""
+msgstr "Herkese Açık Sözlük: %s"
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
 #: includes/lib/ai-crawler-support.php:1218
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
-msgstr ""
+msgstr "Bu sınırlı dışa aktarım, göz atılan %2$s harfi için kimlik doğrulaması gerektirmeden erişilebilen en fazla %1$d herkese açık sözlük girişi içerir."
 
 #: includes/lib/ai-crawler-support.php:1223
 msgid "Dictionary Markdown index"
-msgstr ""
+msgstr "Sözlük Markdown dizini"
 
 #: includes/lib/ai-crawler-support.php:1229
 msgid "No public dictionary entries are currently available for this letter."
-msgstr ""
+msgstr "Şu anda bu harf için herkese açık sözlük girişi yok."
 
 #: includes/lib/ai-crawler-support.php:1248
 #: includes/lib/ai-crawler-support.php:1472
 msgid "Canonical URL:"
-msgstr ""
+msgstr "Kanonik URL:"
 
 #: includes/lib/ai-crawler-support.php:1250
 #: includes/lib/ai-crawler-support.php:1479
 msgid "Summary:"
-msgstr ""
+msgstr "Özet:"
 
 #: includes/lib/ai-crawler-support.php:1255
 msgid "Part of speech:"
-msgstr ""
+msgstr "Konuşma parçası:"
 
 #: includes/lib/ai-crawler-support.php:1260
 msgid "Wordsets:"
-msgstr ""
+msgstr "Kelime setleri:"
 
 #: includes/lib/ai-crawler-support.php:1265
 msgid "Sources:"
-msgstr ""
+msgstr "Kaynaklar:"
 
 #: includes/lib/ai-crawler-support.php:1270
 msgid "Dialects:"
-msgstr ""
+msgstr "Lehçeler:"
 
 #: includes/lib/ai-crawler-support.php:1377
 msgid "Public Wordsets and Vocab Lessons"
-msgstr ""
+msgstr "Herkese Açık Kelime Setleri ve Kelime Dersleri"
 
 #: includes/lib/ai-crawler-support.php:1379
 msgid "This export lists anonymous public wordset hubs and vocab lessons. Private wordsets and private categories are excluded."
-msgstr ""
+msgstr "Bu dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen herkese açık kelime seti merkezlerini ve kelime derslerini listeler. Özel kelime setleri ve özel kategoriler dahil edilmez."
 
 #: includes/lib/ai-crawler-support.php:1381
 msgid "Wordsets"
-msgstr ""
+msgstr "Kelime setleri"
 
 #: includes/lib/ai-crawler-support.php:1385
 msgid "No public wordsets are currently available."
-msgstr ""
+msgstr "Şu anda herkese açık kelime seti yok."
 
 #: includes/lib/ai-crawler-support.php:1399
 msgid "No public vocab lessons are currently available."
-msgstr ""
+msgstr "Şu anda herkese açık kelime dersi yok."
 
 #. translators: %s: Wordset name.
 #: includes/lib/ai-crawler-support.php:1420
 msgid "Wordset: %s"
-msgstr ""
+msgstr "Kelime seti: %s"
 
 #. translators: %s: Category name.
 #: includes/lib/ai-crawler-support.php:1438
 msgid "Category: %s"
-msgstr ""
+msgstr "Kategori: %s"
 
 #: includes/lib/ai-crawler-support.php:1454
 msgid "Public Content Lessons"
-msgstr ""
+msgstr "Herkese Açık İçerik Dersleri"
 
 #. translators: %d: Lesson limit.
 #: includes/lib/ai-crawler-support.php:1458
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
-msgstr ""
+msgstr "Bu sınırlı dışa aktarım, en fazla %d herkese açık içerik dersi içerir. Transkript bölümleri kısa örneklerdir; tam sayfa için kanonik ders URL'sini kullan."
 
 #: includes/lib/ai-crawler-support.php:1465
 msgid "No public content lessons are currently available."
-msgstr ""
+msgstr "Şu anda herkese açık içerik dersi yok."
 
 #: includes/lib/ai-crawler-support.php:1484
 msgid "Media:"
-msgstr ""
+msgstr "Medya:"
 
 #: includes/admin/audio-processor-admin.php:206
 #: includes/lib/ai-crawler-support.php:1491
 msgid "Wordset:"
-msgstr ""
+msgstr "Kelime seti:"
 
 #: includes/lib/ai-crawler-support.php:1497
 msgid "Categories:"
-msgstr ""
+msgstr "Kategoriler:"
 
 #: includes/lib/ai-crawler-support.php:1503
 msgid "Transcript Sample"
-msgstr ""
+msgstr "Transkript Örneği"
 
 #: includes/lib/ai-crawler-support.php:1582
 msgid "LL Tools AI Crawler Notes"
-msgstr ""
+msgstr "LL Tools AI Tarama Botu Notları"
 
 #: includes/lib/ai-crawler-support.php:1584
 msgid "These generated files are intended to help AI agents discover and summarize public LL Tools content efficiently."
-msgstr ""
+msgstr "Bu oluşturulan dosyalar, AI aracılarının herkese açık LL Tools içeriğini verimli biçimde keşfedip özetlemesine yardımcı olur."
 
 #: includes/lib/ai-crawler-support.php:1586
 msgid "Scope"
-msgstr ""
+msgstr "Kapsam"
 
 #: includes/lib/ai-crawler-support.php:1587
 msgid "Only anonymous public content is included."
-msgstr ""
+msgstr "Yalnızca kimlik doğrulaması gerektirmeden erişilebilen herkese açık içerik dahil edilir."
 
 #: includes/lib/ai-crawler-support.php:1588
 msgid "Exports are bounded snapshots and may omit older or less relevant public records."
-msgstr ""
+msgstr "Dışa aktarımlar sınırlı anlık görüntülerdir ve daha eski veya daha az ilgili herkese açık kayıtları içermeyebilir."
 
 #: includes/lib/ai-crawler-support.php:1589
 msgid "Canonical HTML pages remain the source of record for citation and full context."
-msgstr ""
+msgstr "Alıntı ve tam bağlam için kanonik HTML sayfaları yetkili kaynak olmaya devam eder."
 
 #: includes/lib/ai-crawler-support.php:1590
 msgid "These files do not grant access to private wordsets, admin pages, editor flows, recording tools, or mutation endpoints."
-msgstr ""
+msgstr "Bu dosyalar özel kelime setlerine, yönetici sayfalarına, düzenleyici akışlarına, kayıt araçlarına veya değişiklik yapan uç noktalara erişim sağlamaz."
 
 #: includes/lib/ai-crawler-support.php:1592
 msgid "Crawler Interpretation"
-msgstr ""
+msgstr "Tarayıcı Yorumlama Kuralları"
 
 #: includes/lib/ai-crawler-support.php:1593
 msgid "Prefer Markdown exports for compact context gathering."
-msgstr ""
+msgstr "Kısa bağlam toplamak için Markdown dışa aktarımlarını tercih et."
 
 #: includes/lib/ai-crawler-support.php:1594
 msgid "Prefer canonical HTML URLs when citing or sending a user to the site."
-msgstr ""
+msgstr "Alıntı yaparken veya kullanıcıyı siteye yönlendirirken kanonik HTML URL'lerini tercih et."
 
 #: includes/lib/ai-crawler-support.php:1595
 msgid "Use the public dictionary WebMCP tool only for read-only dictionary search."
-msgstr ""
+msgstr "Herkese açık sözlük WebMCP aracını yalnızca salt okunur sözlük aramalarında kullan."
 
 #: includes/lib/ai-crawler-support.php:1596
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
-msgstr ""
+msgstr "Site bunları tanımladığında tarama ve eğitim politikası için robots.txt ile yanıt başlıklarını yetkili kaynak kabul et."
 
 #: includes/lib/dictionary-snapshot.php:396
 msgid "Chunked dictionary snapshots must be restored with the resumable dictionary importer."
-msgstr ""
+msgstr "Parçalara bölünmüş sözlük anlık görüntüleri, devam ettirilebilir sözlük içe aktarıcısı ile geri yüklenmelidir."
 
 #: includes/lib/dictionary-snapshot.php:433
 #: includes/lib/dictionary-snapshot.php:438
 msgid "Could not read the dictionary snapshot manifest."
-msgstr ""
+msgstr "Sözlük anlık görüntüsü manifestosu okunamadı."
 
 #: includes/lib/dictionary-snapshot.php:446
 msgid "The dictionary snapshot backup did not finish and cannot be restored."
-msgstr ""
+msgstr "Sözlük anlık görüntüsü yedeklemesi tamamlanmadı ve geri yüklenemiyor."
 
 #: includes/lib/wordset-language-settings.php:1405
 msgid "Pronunciation Characters"
-msgstr ""
+msgstr "Telaffuz Karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1406
 msgid "Pronunciation text is turned off for this word set."
-msgstr ""
+msgstr "Bu kelime seti için telaffuz metni kapalı."
 
 #: includes/lib/wordset-language-settings.php:1409
 msgid "Turn on an advanced transcription mode in word set settings before managing pronunciation characters."
-msgstr ""
+msgstr "Telaffuz karakterlerini yönetmeden önce kelime seti ayarlarında gelişmiş bir transkripsiyon modunu aç."
 
 #: includes/lib/wordset-language-settings.php:1411
 msgid "Pronunciation suggestions"
-msgstr ""
+msgstr "Telaffuz önerileri"
 
 #: includes/lib/wordset-language-settings.php:1412
 #: includes/lib/wordset-language-settings.php:1416
 msgid "Pronunciation characters"
-msgstr ""
+msgstr "Telaffuz karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1413
 msgid "Letter to Pronunciation Map"
-msgstr ""
+msgstr "Harf-Telaffuz Haritası"
 
 #: includes/lib/wordset-language-settings.php:1414
 msgid "Turn on an advanced transcription mode in word set settings before managing pronunciation suggestions."
-msgstr ""
+msgstr "Telaffuz önerilerini yönetmeden önce kelime seti ayarlarında gelişmiş bir transkripsiyon modunu aç."
 
 #: includes/lib/wordset-language-settings.php:1418
 msgid "Enter letters and pronunciation characters to add."
-msgstr ""
+msgstr "Eklemek istediğin harfleri ve telaffuz karakterlerini gir."
 
 #: includes/offline-app-sync.php:1689
 msgid "Could not start an offline session right now."
-msgstr ""
+msgstr "Şu anda çevrimdışı oturum başlatılamıyor."
 
 #: includes/offline-app-sync.php:1711
 msgid "Could not end this offline session right now."
-msgstr ""
+msgstr "Bu çevrimdışı oturum şu anda sonlandırılamıyor."
 
 #: includes/pages/default-shortcode-page-helper.php:361
 msgid "The request failed. Please try again."
-msgstr ""
+msgstr "İstek başarısız oldu. Tekrar dene."
 
 #: includes/pages/default-shortcode-page-helper.php:396
 msgid "Page creation is already in progress."
-msgstr ""
+msgstr "Sayfanın oluşturulması halihazırda devam ediyor."
 
 #: includes/pages/quiz-pages.php:1177
 msgid "Quiz page cleanup will retry after a temporary database error."
-msgstr ""
+msgstr "Quiz sayfası temizliği geçici bir veritabanı hatasından sonra yeniden denenecek."
 
 #: includes/pages/quiz-pages.php:1220
 msgid "Quiz page cleanup paused because category eligibility was incomplete."
-msgstr ""
+msgstr "Kategori uygunluğu eksik olduğu için quiz sayfası temizliği duraklatıldı."
 
 #: includes/pages/quiz-pages.php:1247
 msgid "Quiz page synchronization will retry after a temporary database error."
-msgstr ""
+msgstr "Quiz sayfası eşitlemesi geçici bir veritabanı hatasından sonra yeniden denenecek."
 
 #: includes/pages/quiz-pages.php:1289
 msgid "Quiz page synchronization paused because category eligibility was incomplete."
-msgstr ""
+msgstr "Kategori uygunluğu eksik olduğu için quiz sayfası eşitlemesi duraklatıldı."
 
 #: includes/pages/quiz-pages.php:1875
 #: includes/pages/quiz-pages.php:2002
 msgid "Quiz page maintenance queued: %1$d pages checked, %2$d categories checked, %3$d pages removed."
-msgstr ""
+msgstr "Quiz sayfası bakımı kuyruğa alındı: %1$d sayfa ve %2$d kategori kontrol edildi, %3$d sayfa kaldırıldı."
 
 #: includes/pages/quiz-pages.php:1886
 #: includes/pages/quiz-pages.php:2013
 msgid "Quiz page maintenance is running: %1$d pages checked, %2$d categories checked."
-msgstr ""
+msgstr "Quiz sayfası bakımı çalışıyor: %1$d sayfa ve %2$d kategori kontrol edildi."
 
 #: includes/pages/quiz-pages.php:1915
 msgid "Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far."
-msgstr ""
+msgstr "Quiz sayfası temizliği kuyruğa alındı. Şimdiye kadar %1$d sayfa kontrol edildi ve %2$d geçersiz veya sahipsiz sayfa kaldırıldı."
 
 #: includes/pages/vocab-lesson-pages.php:3491
 msgid "Vocab lesson cleanup will retry after a temporary database error."
-msgstr ""
+msgstr "Kelime dersi temizliği geçici bir veritabanı hatasından sonra yeniden denenecek."
 
 #: includes/pages/vocab-lesson-pages.php:3566
 msgid "Vocab lesson cleanup paused because category eligibility or source data was incomplete."
-msgstr ""
+msgstr "Kategori uygunluğu veya kaynak verileri eksik olduğu için kelime dersi temizliği duraklatıldı."
 
 #: includes/pages/vocab-lesson-pages.php:3765
 msgid "Vocab lesson synchronization will retry after a temporary wordset lookup error."
-msgstr ""
+msgstr "Kelime dersi eşitlemesi geçici bir kelime seti arama hatasından sonra yeniden denenecek."
 
 #: includes/pages/vocab-lesson-pages.php:3785
 msgid "Vocab lesson synchronization paused because category candidates or counts were incomplete."
-msgstr ""
+msgstr "Kategori adayları veya sayılar eksik olduğu için kelime dersi eşitlemesi duraklatıldı."
 
 #: includes/pages/vocab-lesson-pages.php:3830
 msgid "Vocab lesson synchronization paused because category eligibility or a page write was incomplete."
-msgstr ""
+msgstr "Kategori uygunluğu veya sayfa yazma işlemi tamamlanmadığı için kelime dersi eşitlemesi duraklatıldı."
 
 #: includes/pages/vocab-lesson-pages.php:5283
 msgid "Unable to validate the Line-Up sequence."
-msgstr ""
+msgstr "Sıralama dizisi doğrulanamadı."
 
 #: includes/pages/vocab-lesson-pages.php:6251
 msgid "Too many lesson grid requests. Please wait a few minutes and try again."
-msgstr ""
+msgstr "Çok fazla ders tablosu isteği gönderildi. Birkaç dakika bekleyip tekrar dene."
 
 #: includes/pages/vocab-lesson-pages.php:6272
 msgid "Lesson words are still being prepared. Please try again in a moment."
-msgstr ""
+msgstr "Ders kelimeleri hâlâ hazırlanıyor. Biraz sonra tekrar dene."
 
 #: includes/pages/wordset-pages.php:6391
 #: includes/pages/wordset-pages.php:16506
 #: includes/pages/wordset-pages.php:24709
 msgid "Retry Deletion"
-msgstr ""
+msgstr "Silme İşlemini Tekrar Dene"
 
 #: includes/pages/wordset-pages.php:6391
 #: includes/pages/wordset-pages.php:16505
 #: includes/pages/wordset-pages.php:24708
 msgid "Continue Deletion"
-msgstr ""
+msgstr "Silme İşlemine Devam Et"
 
 #: includes/pages/wordset-pages.php:8369
 #: includes/pages/wordset-pages.php:15450
 #: includes/pages/wordset-pages.php:15477
 #: includes/pages/wordset-pages.php:16591
 msgid "Deletion in progress. Run the next batch to continue."
-msgstr ""
+msgstr "Silme işlemi devam ediyor. Devam etmek için sonraki grubu çalıştır."
 
 #: includes/pages/wordset-pages.php:8613
 msgid "Offline app export started. Progress is shown below."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işlemi başladı. İlerleme aşağıda gösteriliyor."
 
 #: includes/pages/wordset-pages.php:9144
 msgid "The offline app export request expired. Refresh the page and try again."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma isteğinin süresi doldu. Sayfayı yenile ve tekrar dene."
 
 #: includes/pages/wordset-pages.php:9157
 msgid "The offline app export could not be found."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarımı bulunamadı."
 
 #: includes/pages/wordset-pages.php:9167
 msgid "That offline app export belongs to another word set."
-msgstr ""
+msgstr "Bu çevrimdışı uygulama dışa aktarımı başka bir kelime setine ait."
 
 #: includes/pages/wordset-pages.php:9252
 msgid "The offline app export could not be started."
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işlemi başlatılamadı."
 
 #: includes/pages/wordset-pages.php:11784
 msgid "That word set is not available."
-msgstr ""
+msgstr "Bu kelime seti kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:11794
 msgid "You do not have permission to view this recorder queue."
-msgstr ""
+msgstr "Bu kaydedici kuyruğunu görüntüleme iznin yok."
 
 #: includes/pages/wordset-pages.php:11821
 #: includes/shortcodes/audio-recording-shortcode.php:4615
 msgid "No queue categories were requested."
-msgstr ""
+msgstr "Herhangi bir kuyruk kategorisi talep edilmedi."
 
 #. translators: %d: current queue page number
 #. translators: %d: current queue page
@@ -26634,431 +26634,431 @@ msgstr ""
 #: includes/pages/wordset-pages.php:12627
 #: includes/pages/wordset-pages.php:21483
 msgid "Page %d"
-msgstr ""
+msgstr "Sayfa %d"
 
 #: includes/pages/wordset-pages.php:12528
 msgid "No learners are available on this page."
-msgstr ""
+msgstr "Bu sayfada öğrenci yok."
 
 #: includes/pages/wordset-pages.php:14030
 #: includes/taxonomies/wordset-taxonomy.php:3295
 msgid "Off (basic recording text only)"
-msgstr ""
+msgstr "Kapalı (sadece temel kayıt metni)"
 
 #: includes/pages/wordset-pages.php:14036
 #: includes/taxonomies/wordset-taxonomy.php:3301
 msgid "Keep this off for most word sets. Turn it on only when this word set needs IPA, transliteration, or another secondary transcription field."
-msgstr ""
+msgstr "Çoğu kelime setinde bunu kapalı tut. Yalnızca bu kelime seti IPA, harf çevirisi veya başka bir ikincil transkripsiyon alanı gerektiriyorsa aç."
 
 #: includes/pages/wordset-pages.php:14042
 msgid "Dictionary search"
-msgstr ""
+msgstr "Sözlük araması"
 
 #: includes/pages/wordset-pages.php:14045
 msgid "Close character groups"
-msgstr ""
+msgstr "Benzer karakter grupları"
 
 #: includes/pages/wordset-pages.php:14054
 msgid "One group per line. Separate characters with spaces, commas, slashes, or pipes. Search treats characters in the same group as close matches for this word set only."
-msgstr ""
+msgstr "Her satıra bir grup yaz. Karakterleri boşluk, virgül, eğik çizgi veya dikey çizgiyle ayır. Arama, aynı gruptaki karakterleri yalnızca bu kelime seti için benzer eşleşmeler olarak kabul eder."
 
 #: includes/pages/wordset-pages.php:14064
 msgid "Treat apostrophes as optional in dictionary search."
-msgstr ""
+msgstr "Sözlük aramasında kesme işaretlerini isteğe bağlı kabul et."
 
 #: includes/pages/wordset-pages.php:14066
 msgid "Use this for word sets where apostrophes mark optional pronunciation or pharyngeal information instead of changing dictionary identity."
-msgstr ""
+msgstr "Bunu, kesme işaretlerinin sözlük kimliğini değiştirmek yerine isteğe bağlı telaffuzu veya faringeal bilgiyi gösterdiği kelime setlerinde kullan."
 
 #: includes/pages/wordset-pages.php:15444
 #: includes/pages/wordset-pages.php:16587
 msgid "Deletion in progress: %1$d of %2$d linked items processed."
-msgstr ""
+msgstr "Silme işlemi devam ediyor: bağlantılı %2$d öğeden %1$d tanesi işlendi."
 
 #: includes/pages/wordset-pages.php:16275
 msgid "Category deletion is in progress: %1$d of %2$d linked items processed. Continue deletion to finish."
-msgstr ""
+msgstr "Kategori silme işlemi devam ediyor: bağlantılı %2$d öğeden %1$d tanesi işlendi. Tamamlamak için silme işlemine devam et."
 
 #: includes/pages/wordset-pages.php:16279
 msgid "Category deletion is in progress. Continue deletion to finish."
-msgstr ""
+msgstr "Kategori silme işlemi devam ediyor. Tamamlamak için silme işlemine devam et."
 
 #: includes/pages/wordset-pages.php:16449
 msgid "Rename categories, update translated names, or delete categories."
-msgstr ""
+msgstr "Kategorileri yeniden adlandır, çevrilmiş adları güncelle veya kategorileri sil."
 
 #: includes/pages/wordset-pages.php:16477
 msgid "Showing %1$d-%2$d of %3$d categories."
-msgstr ""
+msgstr "%3$d kategoriden %1$d-%2$d gösteriliyor."
 
 #: includes/pages/wordset-pages.php:16621
 msgid "Category pages"
-msgstr ""
+msgstr "Kategori sayfaları"
 
 #: includes/pages/wordset-pages.php:21203
 msgid "Loading recording category"
-msgstr ""
+msgstr "Ses kaydı kategorisi yükleniyor"
 
 #: includes/pages/wordset-pages.php:21473
 msgid "Recorder queue pages"
-msgstr ""
+msgstr "Kaydedici kuyruğu sayfaları"
 
 #: includes/pages/wordset-pages.php:21537
 #: includes/post-types/content-lesson-post-type.php:1384
 msgid "Loading..."
-msgstr ""
+msgstr "Yükleniyor..."
 
 #: includes/pages/wordset-pages.php:21858
 msgid "Review one recorder queue at a time. Queue categories load in bounded batches as you work."
-msgstr ""
+msgstr "Her seferinde bir kaydedici kuyruğunu incele. Çalışırken kuyruk kategorileri sınırlı gruplar halinde yüklenir."
 
 #: includes/pages/wordset-pages.php:21874
 msgid "One queue at a time"
-msgstr ""
+msgstr "Her seferinde tek bir kuyruk"
 
 #: includes/pages/wordset-pages.php:21905
 msgid "Recorder queue"
-msgstr ""
+msgstr "Kaydedici kuyruğu"
 
 #: includes/pages/wordset-pages.php:21975
 msgid "Recorder queue recorder pages"
-msgstr ""
+msgstr "Kaydedici kuyruğundaki kaydedici sayfaları"
 
 #: includes/pages/wordset-pages.php:22088
 #: includes/pages/wordset-pages.php:22231
 #: includes/pages/wordset-pages.php:24848
 msgid "Loading queue categories..."
-msgstr ""
+msgstr "Kuyruk kategorileri yükleniyor..."
 
 #: includes/pages/wordset-pages.php:22091
 msgid "%d queue category"
 msgid_plural "%d queue categories"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d kuyruk kategorisi"
+msgstr[1] "%d kuyruk kategorisi"
 
 #: includes/pages/wordset-pages.php:22232
 #: includes/pages/wordset-pages.php:24850
 msgid "All queue categories are loaded."
-msgstr ""
+msgstr "Tüm kuyruk kategorileri yüklendi."
 
 #. translators: 1: ready summaries, 2: summaries on this page
 #: includes/pages/wordset-pages.php:22253
 msgid "Updating queue summaries: %1$d of %2$d ready."
-msgstr ""
+msgstr "Kuyruk özetleri güncelleniyor: %2$d özetten %1$d tanesi hazır."
 
 #: includes/pages/wordset-pages.php:22268
 msgid "No queued words on this category page."
-msgstr ""
+msgstr "Bu kategori sayfasında sıraya alınmış kelime yok."
 
 #. translators: %s: recorder display name
 #: includes/pages/wordset-pages.php:22293
 msgid "Queue category pages for %s"
-msgstr ""
+msgstr "%s için kuyruk kategorisi sayfaları"
 
 #. translators: %s: recorder display name
 #: includes/pages/wordset-pages.php:22334
 msgid "Hidden queue pages for %s"
-msgstr ""
+msgstr "%s için gizli kuyruk sayfaları"
 
 #: includes/pages/wordset-pages.php:22597
 msgid "The export request failed. Resume the job to continue from its last completed batch."
-msgstr ""
+msgstr "Dışa aktarma isteği başarısız oldu. Son tamamlanan gruptan devam etmek için işi sürdür."
 
 #: includes/pages/wordset-pages.php:22598
 msgid "Offline app export paused"
-msgstr ""
+msgstr "Çevrimdışı uygulama dışa aktarma işlemi duraklatıldı"
 
 #: includes/pages/wordset-pages.php:22760
 msgid "Resume export"
-msgstr ""
+msgstr "Dışa aktarmayı sürdür"
 
 #: includes/pages/wordset-pages.php:22766
 msgid "Download Offline App Bundle"
-msgstr ""
+msgstr "Çevrimdışı Uygulama Paketini İndir"
 
 #: includes/pages/wordset-pages.php:22777
 msgid "Continue export"
-msgstr ""
+msgstr "Dışa aktarmaya devam et"
 
 #: includes/pages/wordset-pages.php:24849
 msgid "Queue categories loaded: %d"
-msgstr ""
+msgstr "Kuyruk kategorileri yüklendi: %d"
 
 #: includes/pages/wordset-pages.php:24852
 msgid "Could not load more queue categories right now."
-msgstr ""
+msgstr "Şu anda daha fazla kuyruk kategorisi yüklenemiyor."
 
 #: includes/post-types/content-lesson-post-type.php:1385
 msgid "Options could not be loaded."
-msgstr ""
+msgstr "Seçenekler yüklenemedi."
 
 #: includes/post-types/content-lesson-post-type.php:1393
 msgid "You are not allowed to edit content lessons."
-msgstr ""
+msgstr "İçerik derslerini düzenleme iznin yok."
 
 #: includes/post-types/dictionary-entry-post-type.php:1381
 msgid "Mark this as an AI translation"
-msgstr ""
+msgstr "Bunu bir yapay zeka çevirisi olarak işaretle"
 
 #: includes/post-types/dictionary-entry-post-type.php:1384
 msgid "Shows an AI translation indicator next to this entry translation in the public dictionary."
-msgstr ""
+msgstr "Herkese açık sözlükte bu sözlük girişinin çevirisinin yanında yapay zeka çevirisi göstergesi görüntüler."
 
 #: includes/post-types/dictionary-entry-post-type.php:1482
 msgid "Mark as AI-generated"
-msgstr ""
+msgstr "\"AI tarafından oluşturulmuş\" olarak işaretle"
 
 #: includes/post-types/dictionary-entry-post-type.php:1718
 msgid "Dictionary entry filter"
-msgstr ""
+msgstr "Sözlük girdisi filtresi"
 
 #: includes/post-types/dictionary-entry-post-type.php:1721
 msgid "Specific Dictionary Entry"
-msgstr ""
+msgstr "Belirli Bir Sözlük Girişi"
 
 #: includes/post-types/dictionary-entry-post-type.php:1724
 msgid "Search dictionary entries"
-msgstr ""
+msgstr "Sözlük girişlerini ara"
 
 #: includes/post-types/dictionary-entry-post-type.php:1749
 msgid "Dictionary entries could not be loaded."
-msgstr ""
+msgstr "Sözlük girişleri yüklenemedi."
 
 #: includes/post-types/dictionary-entry-post-type.php:1756
 msgid "You are not allowed to view dictionary entries."
-msgstr ""
+msgstr "Sözlük girişlerini görüntüleme iznin yok."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1569
 msgid "Loading more words in this category..."
-msgstr ""
+msgstr "Bu kategoride daha fazla kelime yükleniyor..."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1576
 #: includes/shortcodes/audio-recording-shortcode.php:1741
 msgid "Loading recording queues..."
-msgstr ""
+msgstr "Ses kaydı kuyrukları yükleniyor..."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1577
 msgid "Recording queues loaded."
-msgstr ""
+msgstr "Ses kaydı kuyrukları yüklendi."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1578
 #: includes/shortcodes/audio-recording-shortcode.php:1739
 msgid "Some recording queues could not be loaded."
-msgstr ""
+msgstr "Bazı ses kaydı kuyrukları yüklenemedi."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1580
 #: includes/shortcodes/audio-recording-shortcode.php:1733
 msgid "No words currently need recordings."
-msgstr ""
+msgstr "Şu anda ses kaydı gereken kelime yok."
 
 #: includes/shortcodes/audio-recording-shortcode.php:4584
 msgid "You do not have permission to view recording queues."
-msgstr ""
+msgstr "Ses kaydı kuyruklarını görüntüleme iznin yok."
 
 #: includes/shortcodes/audio-recording-shortcode.php:4620
 msgid "Recording queues are not available right now."
-msgstr ""
+msgstr "Kayıt kuyrukları şu anda kullanılamıyor."
 
 #: includes/shortcodes/word-grid-shortcode.php:5718
 msgid "Recording type"
-msgstr ""
+msgstr "Kayıt türü"
 
 #: includes/shortcodes/word-grid-shortcode.php:5719
 msgid "No recording types available"
-msgstr ""
+msgstr "Kullanılabilir kayıt türü yok"
 
 #: includes/shortcodes/word-grid-shortcode.php:8259
 msgid "Choose a recording type."
-msgstr ""
+msgstr "Bir kayıt türü seç."
 
 #: includes/taxonomies/word-category-taxonomy.php:1943
 #: includes/taxonomies/word-category-taxonomy.php:2885
 msgid "Loading Line-Up words..."
-msgstr ""
+msgstr "Sıralama kelimeleri yükleniyor..."
 
 #: includes/taxonomies/word-category-taxonomy.php:1944
 msgid "Custom sequence"
-msgstr ""
+msgstr "Özel sıra"
 
 #: includes/taxonomies/word-category-taxonomy.php:1945
 msgid "Custom-positioned words are used first in the order shown. Other category words follow automatically."
-msgstr ""
+msgstr "Özel olarak konumlandırılmış kelimeler, gösterilen sırayla ilk olarak kullanılır. Diğer kategori kelimeleri ise otomatik olarak bunların ardından gelir."
 
 #: includes/taxonomies/word-category-taxonomy.php:1946
 msgid "No custom positions yet. Category words currently follow their automatic order."
-msgstr ""
+msgstr "Henüz özel konumlar yok. Kategori kelimeleri şu anda otomatik sıralamaya göre görüntüleniyor."
 
 #: includes/taxonomies/word-category-taxonomy.php:1947
 msgid "Find category words"
-msgstr ""
+msgstr "Kategori kelimelerini bul"
 
 #: includes/taxonomies/word-category-taxonomy.php:1953
 msgid "Page {page} of {pages}"
-msgstr ""
+msgstr "Sayfa {page} / {pages}"
 
 #: includes/taxonomies/word-category-taxonomy.php:1954
 msgid "Custom positioned"
-msgstr ""
+msgstr "Özel konumlandırılmış"
 
 #: includes/taxonomies/word-category-taxonomy.php:1955
 msgid "Add to custom sequence"
-msgstr ""
+msgstr "Özel sıraya ekle"
 
 #: includes/taxonomies/word-category-taxonomy.php:1956
 msgid "Reset to automatic position"
-msgstr ""
+msgstr "Otomatik konuma döndür"
 
 #: includes/taxonomies/word-category-taxonomy.php:1959
 msgid "Unable to load Line-Up words right now."
-msgstr ""
+msgstr "Sıralama kelimeleri şu anda yüklenemiyor."
 
 #: includes/taxonomies/word-category-taxonomy.php:1960
 msgid "Unable to update the Line-Up sequence right now."
-msgstr ""
+msgstr "Sıralama dizisi şu anda güncellenemiyor."
 
 #: includes/taxonomies/word-category-taxonomy.php:1961
 msgid "Updating sequence..."
-msgstr ""
+msgstr "Sıra güncelleniyor..."
 
 #: includes/taxonomies/word-category-taxonomy.php:1962
 #: includes/taxonomies/word-category-taxonomy.php:2354
 msgid "Sequence updated."
-msgstr ""
+msgstr "Sıra güncellendi."
 
 #: includes/taxonomies/word-category-taxonomy.php:1963
 msgid "No category words match this search."
-msgstr ""
+msgstr "Bu aramayla eşleşen kategori kelimesi yok."
 
 #: includes/taxonomies/word-category-taxonomy.php:1964
 #: includes/taxonomies/word-category-taxonomy.php:2124
 msgid "Unavailable word #%d"
-msgstr ""
+msgstr "Kullanılamayan kelime #%d"
 
 #. translators: %d is the maximum number of submitted word IDs.
 #: includes/taxonomies/word-category-taxonomy.php:2022
 msgid "Submit no more than %d Line-Up words at once."
-msgstr ""
+msgstr "Sıralama için bir defada en fazla %d kelime gönder."
 
 #: includes/taxonomies/word-category-taxonomy.php:2053
 msgid "One or more submitted words no longer belong to this category."
-msgstr ""
+msgstr "Gönderilen kelimelerden biri veya birkaçı artık bu kategoriye ait değil."
 
 #: includes/taxonomies/word-category-taxonomy.php:2199
 msgid "Invalid Line-Up update."
-msgstr ""
+msgstr "Geçersiz Sıralama güncellemesi."
 
 #: includes/taxonomies/word-category-taxonomy.php:2203
 msgid "Select a valid word."
-msgstr ""
+msgstr "Geçerli bir kelime seç."
 
 #: includes/taxonomies/word-category-taxonomy.php:2228
 msgid "That word no longer has a custom Line-Up position."
-msgstr ""
+msgstr "Bu kelimenin artık özel bir Sıralama konumu yok."
 
 #: includes/taxonomies/word-category-taxonomy.php:2277
 msgid "This lesson no longer matches that category."
-msgstr ""
+msgstr "Bu ders artık o kategoriye uymuyor."
 
 #: includes/taxonomies/word-category-taxonomy.php:2882
 msgid "Choose the visual reading direction used by the game. Stored sequence order always remains logical and is never reversed."
-msgstr ""
+msgstr "Oyunda kullanılacak görsel okuma yönünü seç. Kaydedilen sıra her zaman mantıksal düzende kalır ve hiçbir zaman ters çevrilmez."
 
 #: includes/taxonomies/wordset-taxonomy.php:3305
 msgid "None (generic language rules)"
-msgstr ""
+msgstr "Yok (genel dil kuralları)"
 
 #: includes/taxonomies/wordset-taxonomy.php:3321
 msgid "Regional orthography profile"
-msgstr ""
+msgstr "Bölgesel yazım profili"
 
 #: includes/taxonomies/wordset-taxonomy.php:3326
 msgid "Select a regional profile only when this word set follows those spelling and lexical conventions."
-msgstr ""
+msgstr "Yalnızca bu kelime seti söz konusu yazım ve söz varlığı kurallarını izliyorsa bölgesel bir profil seç."
 
 #: includes/taxonomies/wordset-taxonomy.php:4969
 msgid "Grammar label update completed for wordset #%1$d: %2$d words checked, %3$d updated."
-msgstr ""
+msgstr "#%1$d numaralı kelime setinin dilbilgisi etiketi güncellendi: %2$d kelime kontrol edildi, %3$d kelime güncellendi."
 
 #: includes/taxonomies/wordset-taxonomy.php:4976
 msgid "Grammar label update failed for wordset #%1$d after checking %2$d words: %3$s"
-msgstr ""
+msgstr "#%1$d numaralı kelime setinin dilbilgisi etiketi güncellemesi %2$d kelime kontrol edildikten sonra başarısız oldu: %3$s"
 
 #: includes/taxonomies/wordset-taxonomy.php:4983
 msgid "Grammar label update is queued or running for wordset #%1$d: %2$d words checked, %3$d updated."
-msgstr ""
+msgstr "#%1$d numaralı kelime setinin dilbilgisi etiketi güncellemesi kuyrukta veya çalışıyor: %2$d kelime kontrol edildi, %3$d kelime güncellendi."
 
 #: includes/wordset-isolation.php:1975
 msgid "Could not read posts for the wordset isolation migration."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi için gönderiler okunamadı."
 
 #: includes/wordset-isolation.php:1993
 msgid "Could not read wordsets for the wordset isolation migration."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi için kelime setleri okunamadı."
 
 #: includes/wordset-isolation.php:2028
 msgid "Could not read users for the wordset isolation migration."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi için kullanıcılar okunamadı."
 
 #: includes/wordset-isolation.php:2049
 msgid "Could not read category owners for the wordset isolation migration."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi için kategori sahipleri okunamadı."
 
 #. translators: 1: post type label, 2: post ID.
 #: includes/wordset-isolation.php:2074
 msgid "Could not verify isolated categories for %1$s %2$d."
-msgstr ""
+msgstr "%2$d numaralı %1$s için yalıtılmış kategoriler doğrulanamadı."
 
 #. translators: 1: post type label, 2: post ID.
 #: includes/wordset-isolation.php:2088
 msgid "Isolated categories could not be saved for %1$s %2$d."
-msgstr ""
+msgstr "%2$d numaralı %1$s için yalıtılmış kategoriler kaydedilemedi."
 
 #. translators: %d is a wordset term ID.
 #: includes/wordset-isolation.php:2108
 msgid "Category ordering could not be saved for wordset %d."
-msgstr ""
+msgstr "%d numaralı kelime seti için kategori sıralaması kaydedilemedi."
 
 #. translators: %d is a wordset term ID.
 #: includes/wordset-isolation.php:2122
 msgid "Category prerequisites could not be saved for wordset %d."
-msgstr ""
+msgstr "%d numaralı kelime seti için kategori önkoşulları kaydedilemedi."
 
 #. translators: %d is a lesson post ID.
 #: includes/wordset-isolation.php:2149
 msgid "The isolated category could not be saved for lesson %d."
-msgstr ""
+msgstr "%d numaralı ders için yalıtılmış kategori kaydedilemedi."
 
 #. translators: %d is a word post ID.
 #: includes/wordset-isolation.php:2177
 msgid "Could not read categories for word %d."
-msgstr ""
+msgstr "%d numaralı kelimenin kategorileri okunamadı."
 
 #. translators: %d is a word post ID.
 #: includes/wordset-isolation.php:2204
 msgid "Isolated categories could not be created for word %d."
-msgstr ""
+msgstr "%d numaralı kelime için yalıtılmış kategoriler oluşturulamadı."
 
 #. translators: 1: image post ID, 2: wordset term ID.
 #: includes/wordset-isolation.php:2251
 #: includes/wordset-isolation.php:2344
 msgid "Word image %1$d could not be isolated for wordset %2$d."
-msgstr ""
+msgstr "%2$d numaralı kelime seti için %1$d numaralı kelime görseli yalıtılamadı."
 
 #. translators: %d is a word post ID.
 #: includes/wordset-isolation.php:2270
 msgid "The isolated image could not be linked to word %d."
-msgstr ""
+msgstr "Yalıtılmış görsel %d numaralı kelimeye bağlanamadı."
 
 #. translators: %d is a word image post ID.
 #: includes/wordset-isolation.php:2295
 #: includes/wordset-isolation.php:2325
 msgid "Could not read categories for word image %d."
-msgstr ""
+msgstr "%d numaralı kelime görselinin kategorileri okunamadı."
 
 #. translators: %d is a word image post ID.
 #: includes/wordset-isolation.php:2304
 msgid "Isolated categories could not be created for word image %d."
-msgstr ""
+msgstr "%d numaralı kelime görseli için yalıtılmış kategoriler oluşturulamadı."
 
 #. translators: %d is a WordPress user ID.
 #: includes/wordset-isolation.php:2372
@@ -27081,181 +27081,181 @@ msgstr ""
 #: includes/wordset-isolation.php:3198
 #: includes/wordset-isolation.php:3278
 msgid "Isolated category data could not be saved for user %d."
-msgstr ""
+msgstr "%d numaralı kullanıcı için yalıtılmış kategori verileri kaydedilemedi."
 
 #: includes/wordset-isolation.php:3763
 msgid "Could not inspect word option rules for the isolation migration."
-msgstr ""
+msgstr "Yalıtım geçişi için kelime seçeneği kuralları incelenemedi."
 
 #: includes/wordset-isolation.php:3771
 msgid "Word option rules are too large for the background migration. Run the WP-CLI migration with --allow-large-option-rules."
-msgstr ""
+msgstr "Kelime seçeneği kuralları arka plan geçişi için çok büyük. WP-CLI geçişini --allow-large-option-rules ile çalıştır."
 
 #: includes/wordset-isolation.php:3786
 msgid "Isolated word option rules could not be saved."
-msgstr ""
+msgstr "Yalıtılmış kelime seçeneği kuralları kaydedilemedi."
 
 #: includes/wordset-isolation.php:3795
 msgid "Wordset isolation migration has unresolved errors."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişinde çözümlenmemiş hatalar var."
 
 #: includes/wordset-isolation.php:3829
 msgid "Generated-page reconciliation could not be scheduled after the isolation migration."
-msgstr ""
+msgstr "Yalıtım geçişinden sonra oluşturulan sayfaları uzlaştırma işlemi planlanamadı."
 
 #: includes/wordset-isolation.php:3840
 msgid "The wordset isolation migration version could not be saved."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi sürümü kaydedilemedi."
 
 #: includes/wordset-isolation.php:3946
 msgid "You are not allowed to retry this migration."
-msgstr ""
+msgstr "Bu geçişi yeniden deneme iznin yok."
 
 #: includes/wordset-isolation.php:3968
 msgid "Word images"
-msgstr ""
+msgstr "Kelime görselleri"
 
 #: includes/wordset-isolation.php:3969
 msgid "Word sets"
-msgstr ""
+msgstr "Kelime setleri"
 
 #: includes/wordset-isolation.php:3970
 msgid "Word option rules"
-msgstr ""
+msgstr "Kelime seçeneği kuralları"
 
 #: includes/wordset-isolation.php:3972
 msgid "Users"
-msgstr ""
+msgstr "Kullanıcılar"
 
 #: includes/wordset-isolation.php:3973
 msgid "Finalizing"
-msgstr ""
+msgstr "Sonlandırılıyor"
 
 #. translators: 1: migration phase, 2: error message.
 #: includes/wordset-isolation.php:3979
 msgid "Wordset isolation migration stopped in phase %1$s: %2$s"
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi %1$s aşamasında durdu: %2$s"
 
 #. translators: 1: migration phase, 2: number of words scanned.
 #: includes/wordset-isolation.php:3985
 msgid "Wordset isolation migration is continuing in the background. Phase: %1$s. Words scanned: %2$d."
-msgstr ""
+msgstr "Kelime seti yalıtım geçişi arka planda devam ediyor. Aşama: %1$s. Taranan kelimeler: %2$d."
 
 #: includes/wordset-isolation.php:3994
 msgid "Retry migration"
-msgstr ""
+msgstr "Geçişi yeniden dene"
 
 #: includes/wordset-isolation.php:4210
 msgid "You are not allowed to run this maintenance check."
-msgstr ""
+msgstr "Bu bakım kontrolünü çalıştırma iznin yok."
 
 #: includes/wordset-isolation.php:4225
 msgid "You are not allowed to run this maintenance repair."
-msgstr ""
+msgstr "Bu bakım onarımını çalıştırma iznin yok."
 
 #: includes/wordset-isolation.php:4245
 msgid "Health check queued or running."
-msgstr ""
+msgstr "Durum denetimi kuyrukta veya çalışıyor."
 
 #: includes/wordset-isolation.php:4250
 msgid "Check now"
-msgstr ""
+msgstr "Şimdi kontrol et"
 
 #: includes/wordset-isolation.php:4257
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
-msgstr ""
+msgstr "Kelime dersi onarımı: %1$d işlendi, %2$d onarıldı."
 
 #: includes/wordset-isolation.php:4265
 msgid "Repair vocab lessons"
-msgstr ""
+msgstr "Kelime derslerini onar"
 
 #: includes/wordset-isolation.php:4807
 msgid "LL Tools Maintenance"
-msgstr ""
+msgstr "LL Tools Bakımı"
 
 #: includes/wordset-isolation.php:4808
 msgid "Wordset isolation health has not been checked since the last data change or cache expiry."
-msgstr ""
+msgstr "Son veri değişikliğinden veya önbellek süresinin dolmasından bu yana kelime seti yalıtım durumu denetlenmedi."
 
 #. translators: %s: number of additional lesson words being loaded.
 #: templates/vocab-lesson-template.php:1561
 msgid "%s more lesson word is loading"
 msgid_plural "%s more lesson words are loading"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%s ders kelimesi daha yükleniyor"
+msgstr[1] "%s ders kelimesi daha yükleniyor"
 
 #: includes/admin/audio-processor-admin.php:195
 msgid "Could not load recordings. Please try again."
-msgstr ""
+msgstr "Ses kayıtları yüklenemedi. Tekrar dene."
 
 #. translators: %d: known minimum number of recordings in a queue
 #: includes/admin/audio-processor-admin.php:205
 msgid "%d+"
-msgstr ""
+msgstr "%d+"
 
 #: includes/admin/audio-processor-admin.php:822
 msgid "The queue request expired. Refresh the page and try again."
-msgstr ""
+msgstr "Kuyruk isteğinin süresi doldu. Sayfayı yenile ve tekrar dene."
 
 #: includes/admin/audio-processor-admin.php:831
 msgid "Invalid queue."
-msgstr ""
+msgstr "Geçersiz kuyruk."
 
 #: includes/admin/audio-processor-admin.php:1147
 #: includes/admin/audio-processor-admin.php:1158
 #: includes/admin/audio-processor-admin.php:1169
 msgid "Loading"
-msgstr ""
+msgstr "Yükleniyor"
 
 #. translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen
 #: includes/admin/ipa-keyboard-admin.php:4513
 msgid "Preserved the Genç-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href=\"%2$s\">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically."
-msgstr ""
+msgstr "%1$d mevcut Zazaki kelime setinde Genç-Palu yazım profili korundu. <a href=\"%2$s\">Kelime Setleri</a> altındaki her bölgesel profili incele; yeni Zazaki kelime setleri otomatik olarak bölgesel profil seçmez."
 
 #: includes/admin/uploads/audio-upload-form.php:141
 msgid "You do not have permission to assign another speaker."
-msgstr ""
+msgstr "Başka bir konuşmacı atama iznin yok."
 
 #: includes/admin/uploads/audio-upload-form.php:147
 msgid "The speaker search request expired. Refresh the page and try again."
-msgstr ""
+msgstr "Konuşmacı arama isteğinin süresi doldu. Sayfayı yenile ve tekrar dene."
 
 #: includes/admin/uploads/audio-upload-form.php:155
 msgid "Enter at least 2 characters to search for a speaker."
-msgstr ""
+msgstr "Bir konuşmacı aramak için en az 2 karakter gir."
 
 #: includes/admin/uploads/audio-upload-form.php:174
 #: includes/admin/uploads/audio-upload-form.php:465
 msgid "Enter at least 2 characters to search for another speaker."
-msgstr ""
+msgstr "Başka bir konuşmacı aramak için en az 2 karakter gir."
 
 #: includes/admin/uploads/audio-upload-form.php:175
 msgid "Searching users..."
-msgstr ""
+msgstr "Kullanıcılar aranıyor..."
 
 #: includes/admin/uploads/audio-upload-form.php:176
 msgid "No matching speakers found."
-msgstr ""
+msgstr "Eşleşen konuşmacı bulunamadı."
 
 #: includes/admin/uploads/audio-upload-form.php:177
 msgid "Speakers could not be loaded. Try again."
-msgstr ""
+msgstr "Konuşmacılar yüklenemedi. Tekrar dene."
 
 #: includes/admin/uploads/audio-upload-form.php:178
 msgid "More users match. Refine your search to narrow the results."
-msgstr ""
+msgstr "Daha fazla kullanıcı eşleşiyor. Daha az sonuç görmek için aramanı netleştir."
 
 #: includes/admin/uploads/audio-upload-form.php:179
 msgid "Selected speaker: %s"
-msgstr ""
+msgstr "Seçilen konuşmacı: %s"
 
 #: includes/admin/uploads/audio-upload-form.php:447
 msgid "Search other users"
-msgstr ""
+msgstr "Diğer kullanıcıları ara"
 
 #: includes/admin/uploads/audio-upload-form.php:456
 msgid "Type at least 2 characters"
-msgstr ""
+msgstr "En az 2 karakter gir"
 
 #: includes/pages/wordset-pages.php:25929
 msgid "Search results are still being prepared. Please try again in a moment."

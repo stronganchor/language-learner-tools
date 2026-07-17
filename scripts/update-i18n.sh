@@ -86,10 +86,10 @@ fi
 
 "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n update-po "$POT_FILE" "$TR_PO_FILE"
 
-# WP-CLI compiles blank msgstr entries into the MO/PHP artifacts. That turns a
-# translator-review placeholder into empty runtime UI copy instead of falling
-# back to the English msgid. Keep blanks in the review PO, but compile a
-# temporary runtime PO containing only complete, non-fuzzy translations.
+# WP-CLI compiles blank msgstr entries into the MO/PHP artifacts. That turns an
+# interrupted merge into empty runtime UI copy instead of falling back to the
+# English msgid. Full Turkish catalog validation rejects blanks, but keep this
+# safety filter so an incomplete local translation pass cannot ship empty copy.
 PHP_RUNTIME="${PHP_BIN:-}"
 if [[ -z "$PHP_RUNTIME" ]]; then
   case "$(basename "$WP_CLI_BIN")" in

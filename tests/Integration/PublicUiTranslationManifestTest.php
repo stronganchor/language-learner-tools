@@ -59,7 +59,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         );
     }
 
-    public function test_turkish_catalog_tracks_every_current_pot_entry(): void
+    public function test_turkish_catalog_fully_translates_every_current_pot_entry(): void
     {
         $root = $this->pluginRoot();
         $pot_entries = ll_tools_public_i18n_parse_po_file(
@@ -70,6 +70,14 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         );
         $pot_by_key = ll_tools_public_i18n_entries_by_key($pot_entries);
         $po_by_key = ll_tools_public_i18n_entries_by_key($po_entries);
+        $catalog_entries = ll_tools_public_i18n_catalog_entries_from_pot(
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain.pot'
+        );
+        $coverage = ll_tools_public_i18n_check_full_catalog_coverage(
+            'tr_TR',
+            $catalog_entries,
+            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
         $seen_keys = [];
         $duplicate_msgids = [];
         foreach ($po_entries as $entry) {
@@ -89,6 +97,10 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
             static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
             array_diff_key($pot_by_key, $po_by_key)
         ));
+        $stale = array_values(array_map(
+            static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
+            array_diff_key($po_by_key, $pot_by_key)
+        ));
         $fuzzy = array_values(array_filter(
             $po_entries,
             static fn (array $entry): bool => in_array('fuzzy', (array) ($entry['flags'] ?? []), true)
@@ -97,14 +109,24 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertSame(
             [],
             $missing,
-            'Merge the current POT into the Turkish PO without inventing translations for newly added strings.'
+            'Merge and translate every current POT entry in the Turkish PO.'
         );
+        $this->assertSame([], $stale, 'Remove stale active Turkish entries after merging the current POT.');
         $this->assertSame(
             [],
             $duplicate_msgids,
             'Keep only one active Turkish catalog entry per context, msgid, and plural combination.'
         );
         $this->assertSame([], $fuzzy, 'Resolve or clear fuzzy Turkish catalog entries before rebuilding locale artifacts.');
+        $this->assertTrue(
+            $coverage['complete'],
+            sprintf(
+                'Turkish full-catalog coverage is incomplete (missing: %d, untranslated/invalid: %d, validation errors: %d).',
+                (int) $coverage['missing'],
+                (int) $coverage['untranslated'],
+                (int) $coverage['validation_error_count']
+            )
+        );
     }
 
     public function test_translation_template_keeps_genc_palu_source_text_in_utf8(): void
@@ -147,42 +169,101 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_compiled_turkish_catalog_omits_untranslated_entries(): void
+    public function test_turkish_catalog_avoids_known_machine_translation_glossary_regressions(): void
+    {
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $this->pluginRoot() . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+
+        foreach ($entries as $entry) {
+            $msgid = (string) ($entry['msgid'] ?? '');
+            if ($msgid === '') {
+                continue;
+            }
+            $translation = implode("\n", array_map('strval', (array) ($entry['msgstr'] ?? [])));
+
+            if (preg_match('/\bword ?sets?\b/i', $msgid)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\b(?:kelime|sözcük) kümes/iu',
+                    $translation,
+                    'Translate the word set entity as kelime seti: ' . $msgid
+                );
+            }
+            if (preg_match('/\bpart of speech\b/i', $msgid)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\bsözcük tür/iu',
+                    $translation,
+                    'Use konuşma parçası for the part-of-speech label: ' . $msgid
+                );
+            }
+            if (preg_match('/\bquiz(?:zes)?\b/i', $msgid)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\b(?:sınav|test)(?:ler|lar|in|ın|un|ün|i|ı|u|ü)?\b/iu',
+                    $translation,
+                    'Keep the lightweight quiz feature named quiz in Turkish: ' . $msgid
+                );
+            }
+            if (preg_match('/\bspeakers?\b/i', $msgid)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\bhoparlör/iu',
+                    $translation,
+                    'Speaker means konuşmacı here, not a loudspeaker: ' . $msgid
+                );
+            }
+            if (stripos($msgid, 'resume export') !== false) {
+                $this->assertStringNotContainsString(
+                    'özgeçmiş',
+                    mb_strtolower($translation, 'UTF-8'),
+                    'Resume export means continue the export, not export a résumé.'
+                );
+            }
+            if (stripos($msgid, 'you do not have permission') !== false) {
+                $this->assertStringNotContainsString(
+                    'izniniz',
+                    mb_strtolower($translation, 'UTF-8'),
+                    'Use informal second-person Turkish for permission errors: ' . $msgid
+                );
+            }
+        }
+    }
+
+    public function test_compiled_turkish_catalog_matches_every_active_translation(): void
     {
         $root = $this->pluginRoot();
         $entries = ll_tools_public_i18n_parse_po_file(
             $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
         );
-        $untranslated = array_values(array_filter(
-            $entries,
-            static function (array $entry): bool {
-                if (($entry['msgid'] ?? '') === '') {
-                    return false;
-                }
-
-                $translations = (array) ($entry['msgstr'] ?? []);
-
-                return $translations === [] || !array_filter(
-                    $translations,
-                    static fn (string $translation): bool => $translation !== ''
-                );
-            }
-        ));
-        $this->assertNotEmpty($untranslated, 'Keep newly merged Turkish entries blank until a reviewer translates them.');
-
         $compiled = require $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.l10n.php';
         $compiled_messages = is_array($compiled['messages'] ?? null) ? $compiled['messages'] : [];
-        foreach ($untranslated as $entry) {
+        $mo = new MO();
+        $this->assertTrue(
+            $mo->import_from_file($root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.mo'),
+            'The compiled Turkish MO catalog must be readable.'
+        );
+        $expected_count = 0;
+        foreach ($entries as $entry) {
+            if (($entry['msgid'] ?? '') === '') {
+                continue;
+            }
+            $expected_count++;
             $runtime_key = (string) ($entry['msgid'] ?? '');
             if (($entry['context'] ?? '') !== '') {
                 $runtime_key = (string) $entry['context'] . "\x04" . $runtime_key;
             }
-            $this->assertArrayNotHasKey(
-                $runtime_key,
-                $compiled_messages,
-                'Blank PO entries must fall back to their English source string instead of compiling to empty UI copy.'
+            $translations = array_values(array_map('strval', (array) ($entry['msgstr'] ?? [])));
+            $this->assertSame(
+                implode("\0", $translations),
+                $compiled_messages[$runtime_key] ?? null,
+                'The compiled Turkish PHP value must match its PO translation: ' . $runtime_key
+            );
+            $this->assertSame(
+                $translations,
+                isset($mo->entries[$runtime_key]) ? array_values($mo->entries[$runtime_key]->translations) : null,
+                'The compiled Turkish MO value must match its PO translation: ' . $runtime_key
             );
         }
+        $this->assertCount($expected_count, $compiled_messages, 'The Turkish PHP catalog must not contain stale messages.');
+        $this->assertCount($expected_count, $mo->entries, 'The Turkish MO catalog must not contain stale messages.');
     }
 
     public function test_runtime_po_filter_keeps_only_complete_reviewed_translations(): void
@@ -524,6 +605,49 @@ PHP;
         $this->assertNotContains('Manager after', $selected_after);
     }
 
+    public function test_compiled_asset_status_rejects_php_messages_that_do_not_match_the_po(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'll-i18n-compiled-' . uniqid('', true);
+        $languages = $root . DIRECTORY_SEPARATOR . 'languages';
+        $this->assertTrue(mkdir($languages, 0777, true));
+        $po_path = $languages . DIRECTORY_SEPARATOR . 'test-domain-xx_XX.po';
+        $mo_path = $languages . DIRECTORY_SEPARATOR . 'test-domain-xx_XX.mo';
+        $php_path = $languages . DIRECTORY_SEPARATOR . 'test-domain-xx_XX.l10n.php';
+
+        file_put_contents($po_path, implode("\n", [
+            'msgid ""',
+            'msgstr ""',
+            '"Language: xx_XX\\n"',
+            '"Plural-Forms: nplurals=2; plural=n != 1;\\n"',
+            '',
+            'msgid "Current"',
+            'msgstr "Güncel"',
+            '',
+        ]));
+        file_put_contents($mo_path, 'present');
+        file_put_contents($php_path, "<?php return ['messages' => ['Current' => 'Eski']];\n");
+
+        try {
+            $status = ll_tools_public_i18n_compiled_asset_status(
+                $root,
+                'xx_XX',
+                ['text_domain' => 'test-domain'],
+                $po_path
+            );
+        } finally {
+            @unlink($php_path);
+            @unlink($mo_path);
+            @unlink($po_path);
+            @rmdir($languages);
+            @rmdir($root);
+        }
+
+        $this->assertFalse($status['complete']);
+        $this->assertFalse($status['php_catalog_current']);
+        $this->assertSame(1, $status['php_expected_messages']);
+        $this->assertSame(1, $status['php_mismatched_messages']);
+    }
+
     public function test_deepl_catalog_append_preserves_existing_content(): void
     {
         $po_path = tempnam(sys_get_temp_dir(), 'll-public-i18n-deepl-');
@@ -588,6 +712,214 @@ PHP;
         $this->assertSame('Supplemental translation %s', $written_by_msgid['Supplemental %s']['msgstr'][0]);
         $this->assertContains('php-format', $written_by_msgid['Supplemental %s']['flags']);
         $this->assertSame('New public translation', $written_by_msgid['New public label']['msgstr'][0]);
+    }
+
+    public function test_deepl_full_catalog_fill_preserves_raw_entry_metadata_and_completed_values(): void
+    {
+        $po_path = tempnam(sys_get_temp_dir(), 'll-full-i18n-deepl-');
+        $this->assertIsString($po_path);
+
+        $source = implode("\n", [
+            'msgid ""',
+            'msgstr ""',
+            '"Language: tr_TR\\n"',
+            '"Plural-Forms: nplurals=2; plural=n != 1;\\n"',
+            '',
+            '# Existing translator comment remains byte-for-byte.',
+            '#: includes/admin.php:10',
+            'msgid "Already translated"',
+            'msgstr "Zaten çevrildi"',
+            '',
+            '#. Extracted source guidance must remain.',
+            '#: includes/admin.php:20',
+            '#, php-format',
+            'msgid "Blank %s"',
+            'msgstr ""',
+            '',
+            '#: includes/admin.php:30',
+            'msgid "%d singular"',
+            'msgid_plural "%d plural"',
+            'msgstr[0] "Mevcut %d"',
+            'msgstr[1] ""',
+            '',
+        ]);
+        file_put_contents($po_path, $source);
+
+        $entries = ll_tools_public_i18n_parse_po_file($po_path);
+        $by_msgid = [];
+        foreach ($entries as $entry) {
+            if ((string) ($entry['msgid'] ?? '') !== '') {
+                $by_msgid[(string) $entry['msgid']] = $entry;
+            }
+        }
+        $blank_key = ll_tools_public_i18n_entry_key($by_msgid['Blank %s']);
+        $plural_key = ll_tools_public_i18n_entry_key($by_msgid['%d singular']);
+
+        try {
+            $replaced = ll_tools_public_i18n_deepl_replace_existing_translations(
+                $po_path,
+                [
+                    $blank_key => ['Boş %s'],
+                    $plural_key => ['Mevcut %d', 'Çoğul %d'],
+                ],
+                [$blank_key => true, $plural_key => true],
+                2
+            );
+            $written = file_get_contents($po_path);
+            $written_entries = ll_tools_public_i18n_parse_po_file($po_path);
+            $hash_before_idempotent_fill = hash_file('sha256', $po_path);
+            $second_replaced = ll_tools_public_i18n_deepl_replace_existing_translations(
+                $po_path,
+                [],
+                [],
+                2
+            );
+            $hash_after_idempotent_fill = hash_file('sha256', $po_path);
+        } finally {
+            @unlink($po_path);
+        }
+
+        $this->assertSame(2, $replaced);
+        $this->assertIsString($written);
+        $this->assertStringContainsString('# Existing translator comment remains byte-for-byte.', $written);
+        $this->assertStringContainsString('#. Extracted source guidance must remain.', $written);
+        $this->assertStringContainsString('#, php-format', $written);
+        $written_by_msgid = [];
+        foreach ($written_entries as $entry) {
+            $written_by_msgid[(string) ($entry['msgid'] ?? '')] = $entry;
+        }
+        $this->assertSame('Zaten çevrildi', $written_by_msgid['Already translated']['msgstr'][0] ?? null);
+        $this->assertSame('Boş %s', $written_by_msgid['Blank %s']['msgstr'][0] ?? null);
+        $this->assertSame('Mevcut %d', $written_by_msgid['%d singular']['msgstr'][0] ?? null);
+        $this->assertSame('Çoğul %d', $written_by_msgid['%d singular']['msgstr'][1] ?? null);
+        $this->assertSame(0, $second_replaced);
+        $this->assertSame($hash_before_idempotent_fill, $hash_after_idempotent_fill);
+    }
+
+    public function test_deepl_full_catalog_validation_rejects_structural_token_damage(): void
+    {
+        $entry = [
+            'key' => ll_tools_public_i18n_entry_key([
+                'context' => null,
+                'msgid' => 'Open <strong>%s</strong> at https://example.com/file.zip on {page} with --resume-job',
+                'msgid_plural' => null,
+            ]),
+            'context' => null,
+            'msgid' => 'Open <strong>%s</strong> at https://example.com/file.zip on {page} with --resume-job',
+            'msgid_plural' => null,
+        ];
+
+        $errors = ll_tools_public_i18n_deepl_validate_translation_map(
+            [$entry],
+            [$entry['key'] => ['Dosyayı aç']],
+            [$entry['key'] => true],
+            2
+        );
+        $types = array_values(array_unique(array_map(
+            static fn (array $error): string => (string) ($error['type'] ?? ''),
+            $errors
+        )));
+
+        $this->assertContains('printf_placeholders', $types);
+        $this->assertContains('brace_placeholders', $types);
+        $this->assertContains('cli_options', $types);
+        $this->assertContains('urls', $types);
+        $this->assertContains('html_tags', $types);
+    }
+
+    public function test_full_catalog_cli_argument_is_parser_backed(): void
+    {
+        $args = ll_tools_public_i18n_parse_cli_args([
+            'check-public-i18n.php',
+            '--full-catalog=tr_TR',
+            '--fail-on-missing',
+            '--json',
+        ]);
+
+        $this->assertSame(['tr_TR'], $args['catalog_locales']);
+        $this->assertTrue($args['fail_on_missing']);
+        $this->assertSame('json', $args['format']);
+    }
+
+    public function test_deepl_protected_markers_preserve_reordered_placeholders_and_product_names(): void
+    {
+        [$protected, $tokens] = ll_tools_public_i18n_deepl_protect_text(
+            'Backed up %1$d of %2$d WordPress entries with LL Tools.'
+        );
+
+        $this->assertStringContainsString('__LLPH0__', $protected);
+        $this->assertStringContainsString('__LLPH1__', $protected);
+        $this->assertStringContainsString('__LLPH2__', $protected);
+        $this->assertStringContainsString('__LLPH3__', $protected);
+
+        $restored = ll_tools_public_i18n_deepl_restore_text(
+            '__LLPH1__ içindeki __LLPH0__ girdi __LLPH2__ ile __LLPH3__ kullanılarak yedeklendi.',
+            $tokens
+        );
+        $this->assertStringContainsString('%1$d', $restored);
+        $this->assertStringContainsString('%2$d', $restored);
+        $this->assertStringContainsString('WordPress', $restored);
+        $this->assertStringContainsString('LL Tools', $restored);
+    }
+
+    public function test_deepl_protected_markers_preserve_brace_placeholders_and_cli_options(): void
+    {
+        [$protected, $tokens] = ll_tools_public_i18n_deepl_protect_text(
+            'Page {page} of {pages}; rerun with --allow-large-option-rules.'
+        );
+
+        $this->assertCount(3, $tokens);
+        $this->assertSame(
+            'Sayfa {page} / {pages}; --allow-large-option-rules ile yeniden çalıştır.',
+            ll_tools_public_i18n_deepl_restore_text(
+                'Sayfa __LLPH0__ / __LLPH1__; __LLPH2__ ile yeniden çalıştır.',
+                $tokens
+            )
+        );
+    }
+
+    public function test_full_catalog_coverage_rejects_stale_duplicate_and_fuzzy_entries(): void
+    {
+        $po_path = tempnam(sys_get_temp_dir(), 'll-full-i18n-check-');
+        $this->assertIsString($po_path);
+        $catalog_entry = [
+            'key' => ll_tools_public_i18n_entry_key([
+                'context' => null,
+                'msgid' => 'Current',
+                'msgid_plural' => null,
+            ]),
+            'context' => null,
+            'msgid' => 'Current',
+            'msgid_plural' => null,
+        ];
+        file_put_contents($po_path, implode("\n", [
+            'msgid ""',
+            'msgstr ""',
+            '"Language: tr_TR\\n"',
+            '"Plural-Forms: nplurals=2; plural=n != 1;\\n"',
+            '',
+            '#, fuzzy',
+            'msgid "Current"',
+            'msgstr "Güncel"',
+            '',
+            'msgid "Current"',
+            'msgstr "Güncel"',
+            '',
+            'msgid "Stale"',
+            'msgstr "Eski"',
+            '',
+        ]));
+
+        try {
+            $coverage = ll_tools_public_i18n_check_full_catalog_coverage('tr_TR', [$catalog_entry], $po_path);
+        } finally {
+            @unlink($po_path);
+        }
+
+        $this->assertFalse($coverage['complete']);
+        $this->assertSame(1, $coverage['stale']);
+        $this->assertSame(1, $coverage['duplicates']);
+        $this->assertSame(1, $coverage['fuzzy']);
     }
 
     private function pluginRoot(): string

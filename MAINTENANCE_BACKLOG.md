@@ -34,11 +34,12 @@ evidence-led and scoped to a measured growth dimension.
   duplication, and four unused admin helpers were removed.
 - July 17 translation catalog integrity:
   the Turkish PO tracks all 5,802 current POT messages with zero missing,
-  stale, fuzzy, or duplicate active keys. Its 448 untranslated admin strings
-  remain a human-review queue and are filtered out of runtime artifacts so
-  WordPress falls back to English instead of blank UI. All 729 public strings
-  are complete across every active tier-2 locale, with UTF-8 and runtime-filter
-  regressions guarding future builds.
+  untranslated, stale, fuzzy, duplicate, partial, or structurally invalid
+  active entries. The full-catalog DeepL path fills raw `msgstr` fields without
+  dropping comments/order, and the parser-backed full-catalog gate prevents a
+  scheduled upkeep run from accepting blank admin copy or stale compiled
+  runtime messages. All 729 public strings remain complete across every active
+  tier-2 locale.
 - July 17 maintenance documentation drift:
   `npx --no-install playwright test --list` now discovers 436 tests in 95 spec
   files. Architecture routing now names the word-metadata plan REST helper and
@@ -352,9 +353,11 @@ evidence-led and scoped to a measured growth dimension.
   SQL `OFFSET`. Replacing that with keyset/materialized ordering needs human
   review because duplicate/reprocess predicates and exact post-action return
   pages must stay stable.
-- The Turkish admin catalog has 448 intentionally blank current translations.
-  Runtime English fallback is safe; completing those strings requires a human
-  feature-by-feature language review rather than bulk machine acceptance.
+- Turkish full-catalog completeness is now a hard source/test/automation
+  contract. The runtime blank filter remains defense in depth for interrupted
+  local merges, but a scheduled upkeep run cannot close or advance its HEAD
+  guard until every current Turkish POT entry is translated and structurally
+  valid.
 - Site Sync's omitted/zero `per_page` full snapshot is retained for client
   compatibility, and full pull/push comparison can still be proportional to
   both catalogs. Any default cap or durable server-side diff design needs

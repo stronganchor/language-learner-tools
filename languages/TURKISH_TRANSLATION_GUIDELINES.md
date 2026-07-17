@@ -5,6 +5,7 @@
 - Edit only `languages/ll-tools-text-domain-tr_TR.po`.
 - Regenerate `languages/ll-tools-text-domain-tr_TR.mo` and `languages/ll-tools-text-domain-tr_TR.l10n.php` after every change.
 - Ignore `languages/*backup*.po~`; those are backups, not canonical sources.
+- Turkish is a full-catalog locale: every active entry in `languages/ll-tools-text-domain.pot` must exist in the PO with complete, non-fuzzy translations. Blank or partial `msgstr` values are temporary failures, not an accepted review queue.
 
 ## Tone
 
@@ -59,16 +60,17 @@ Run these searches before finishing a translation pass:
 
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
-rg -n 'sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\bSınav\b|\bsınav\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı' languages/ll-tools-text-domain-tr_TR.po
+rg -n 'kelime kümes|sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\bSınav\b|\bsınav\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı|[Hh]oparlör|[Öö]zgeçmişi dışa aktar|\{sayfa\}' languages/ll-tools-text-domain-tr_TR.po
 ```
 
 Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.
 
 ## Rebuild Locale Files
 
-From PowerShell in the plugin root, compile only reviewed translations. Keeping
-blank entries in the PO is useful for review, but compiling those entries would
-turn their English fallback text into empty UI copy.
+From PowerShell in the plugin root, compile only complete translations. The
+runtime filter remains a safety net so an interrupted merge cannot turn a
+temporary blank into empty UI copy, but the full-catalog check must pass before
+the Turkish locale update is considered complete.
 
 ```powershell
 $CompileScriptPath = Join-Path $env:TEMP ('ll-tools-compile-tr-' + [guid]::NewGuid().ToString('N') + '.php')
@@ -136,12 +138,23 @@ try {
 }
 ```
 
-For a full catalog refresh, run `scripts/update-i18n.sh` from Git Bash. It
-regenerates the POT, merges the refreshed catalog, and compiles a temporary
-runtime PO containing only complete, non-fuzzy translations. Review the catalog
-diff before accepting broad WP-CLI reordering. Leave newly merged `msgstr`
-values empty until a reviewer supplies confident Turkish; the runtime artifacts
-will omit those entries so WordPress falls back to English.
+For a full catalog refresh, run `scripts/update-i18n.sh` from Git Bash to
+regenerate the POT and merge current source entries. Then fill every new or
+blank Turkish entry with the structure-preserving catalog translator:
+
+```powershell
+$env:DEEPL_CAINFO = 'C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt'
+php scripts/translate-public-i18n-deepl.php --locale=tr_TR --scope=catalog
+php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
+```
+
+The translator changes only selected `msgstr` fields, preserves raw comments
+and ordering, and refuses to write when printf/brace placeholders, CLI options,
+URLs, shortcodes, HTML, or newlines are damaged. Review the resulting Turkish
+against this guide, then rebuild `.mo` and `.l10n.php`. The full-catalog check
+also compares both compiled catalogs with the PO. Do not close an upkeep run
+or advance its HEAD guard while the check reports missing, blank, partial,
+fuzzy, duplicate, stale, structurally invalid, or uncompiled entries.
 
 ## Optional Verification
 

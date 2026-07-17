@@ -153,6 +153,17 @@ tests/bin/run-tests.sh tests/Integration/UserProgressSelfCheckSignalTest.php
 tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 ```
 
+For the database-free Turkish full-catalog gate, run:
+
+```bash
+php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
+```
+
+This treats missing, blank, partial, fuzzy, stale, duplicate, structurally
+invalid, or uncompiled current POT entries as failures. It compares compiled
+MO and PHP messages with the PO; `PublicUiTranslationManifestTest.php` also verifies
+that every active Turkish entry reaches the compiled runtime catalog.
+
 ## 5) What the PHPUnit suite covers (high level)
 
 For the current inventory, run:

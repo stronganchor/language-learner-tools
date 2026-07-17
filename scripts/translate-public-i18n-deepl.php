@@ -13,9 +13,10 @@ function ll_tools_public_i18n_deepl_usage(): string
         'Usage: php scripts/translate-public-i18n-deepl.php --locale=LOCALE [options]',
         '',
         'Options:',
-        '  --locale=LOCALE        Tier-2 locale to translate, such as ru_RU.',
+        '  --locale=LOCALE        Locale to translate, such as tr_TR or ru_RU.',
         '  --target=LANG          DeepL target language, default inferred from locale.',
         '  --source=LANG          DeepL source language, default EN.',
+        '  --scope=public|catalog Translate the public manifest (default) or every active POT entry.',
         '  --batch-size=N         Texts per request, default 40.',
         '  --limit=N              Translate at most N currently empty strings for a test run.',
         '  --force                Create the PO scaffold first if it does not exist.',
@@ -33,6 +34,7 @@ function ll_tools_public_i18n_deepl_parse_args(array $argv): array
         'locale' => '',
         'target' => '',
         'source' => 'EN',
+        'scope' => 'public',
         'batch_size' => 40,
         'limit' => 0,
         'force' => false,
@@ -45,6 +47,8 @@ function ll_tools_public_i18n_deepl_parse_args(array $argv): array
             $args['help'] = true;
         } elseif ($arg === '--force') {
             $args['force'] = true;
+        } elseif ($arg === '--catalog') {
+            $args['scope'] = 'catalog';
         } elseif (str_starts_with($arg, '--locale=')) {
             $args['locale'] = substr($arg, strlen('--locale='));
         } elseif ($arg === '--locale' && isset($argv[$i + 1])) {
@@ -57,6 +61,10 @@ function ll_tools_public_i18n_deepl_parse_args(array $argv): array
             $args['source'] = substr($arg, strlen('--source='));
         } elseif ($arg === '--source' && isset($argv[$i + 1])) {
             $args['source'] = (string) $argv[++$i];
+        } elseif (str_starts_with($arg, '--scope=')) {
+            $args['scope'] = substr($arg, strlen('--scope='));
+        } elseif ($arg === '--scope' && isset($argv[$i + 1])) {
+            $args['scope'] = (string) $argv[++$i];
         } elseif (str_starts_with($arg, '--batch-size=')) {
             $args['batch_size'] = (int) substr($arg, strlen('--batch-size='));
         } elseif ($arg === '--batch-size' && isset($argv[$i + 1])) {
@@ -73,6 +81,10 @@ function ll_tools_public_i18n_deepl_parse_args(array $argv): array
     $args['locale'] = preg_replace('/[^A-Za-z0-9_]/', '', (string) $args['locale']);
     $args['target'] = strtoupper(preg_replace('/[^A-Za-z_-]/', '', (string) $args['target']));
     $args['source'] = strtoupper(preg_replace('/[^A-Za-z_-]/', '', (string) $args['source']));
+    $args['scope'] = strtolower(preg_replace('/[^A-Za-z]/', '', (string) $args['scope']));
+    if (!in_array($args['scope'], ['public', 'catalog'], true)) {
+        throw new InvalidArgumentException('Scope must be public or catalog.');
+    }
     $args['batch_size'] = max(1, min(50, (int) $args['batch_size']));
     $args['limit'] = max(0, (int) $args['limit']);
 
@@ -130,11 +142,12 @@ function ll_tools_public_i18n_deepl_existing_translations(string $po_path): arra
 function ll_tools_public_i18n_deepl_protect_text(string $text): array
 {
     $tokens = [];
-    $pattern = '~https?://[^\s"\'<>)\]]+|(?<!%)%(?:\d+\$)?[+\-0# ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[bcdeEfFgGosuxX]|\[(?:/)?[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\]]*)?\]|<\s*/?\s*[A-Za-z][A-Za-z0-9:-]*\b[^>]*>|\n~';
+    $pattern = '~https?://[^\s"\'<>)\]]+|(?<!%)%(?:\d+\$)?[+\-0# ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[bcdeEfFgGosuxX]|\{[A-Za-z_][A-Za-z0-9_.-]*\}|(?<![A-Za-z0-9_-])--[A-Za-z0-9][A-Za-z0-9_-]*|\[(?:/)?[A-Za-z][A-Za-z0-9_-]*(?:\s+[^\]]*)?\]|<\s*/?\s*[A-Za-z][A-Za-z0-9:-]*\b[^>]*>|\b(?:Language Learner Tools|LL Tools|WordPress|DeepL|AssemblyAI|Quizlet)\b|\n~';
 
     $protected = preg_replace_callback($pattern, static function (array $matches) use (&$tokens): string {
         $tokens[] = (string) $matches[0];
-        return '<llph id="' . (count($tokens) - 1) . '"/>';
+        $index = count($tokens) - 1;
+        return '__LLPH' . $index . '__';
     }, $text);
 
     return [is_string($protected) ? $protected : $text, $tokens];
@@ -145,10 +158,18 @@ function ll_tools_public_i18n_deepl_protect_text(string $text): array
  */
 function ll_tools_public_i18n_deepl_restore_text(string $text, array $tokens): string
 {
-    return preg_replace_callback('#<llph\s+id="(\d+)"\s*/>|<llph\s+id="(\d+)"></llph>#', static function (array $matches) use ($tokens): string {
-        $index = isset($matches[1]) && $matches[1] !== '' ? (int) $matches[1] : (int) ($matches[2] ?? -1);
-        return array_key_exists($index, $tokens) ? $tokens[$index] : (string) $matches[0];
-    }, $text) ?? $text;
+    foreach ($tokens as $index => $token) {
+        $marker = '__LLPH' . $index . '__';
+        if (substr_count($text, $marker) !== 1) {
+            throw new RuntimeException('DeepL response did not preserve protected token ' . $index . '.');
+        }
+        $text = str_replace($marker, (string) $token, $text);
+    }
+    if (preg_match('/__LLPH\d+__/', $text)) {
+        throw new RuntimeException('DeepL response contains an unknown protected token.');
+    }
+
+    return $text;
 }
 
 function ll_tools_public_i18n_deepl_cainfo_path(): string
@@ -418,6 +439,215 @@ function ll_tools_public_i18n_deepl_write_po(string $po_path, string $locale, ar
     }
 }
 
+/**
+ * Parse only the identity fields needed to match one raw PO block. Keeping the
+ * raw block lets catalog translation replace msgstr values without dropping
+ * translator/extracted comments, flags, references, or entry order.
+ *
+ * @return array<string, mixed>|null
+ */
+function ll_tools_public_i18n_deepl_parse_po_block_identity(string $block): ?array
+{
+    $entry = [
+        'context' => null,
+        'msgid' => null,
+        'msgid_plural' => null,
+    ];
+    $field = null;
+
+    foreach (preg_split('/\n/', $block) ?: [] as $line) {
+        if (str_starts_with($line, '#~')) {
+            return null;
+        }
+        if (preg_match('/^msgctxt\s+"(.*)"$/', $line, $matches)) {
+            $entry['context'] = ll_tools_public_i18n_decode_po_string($matches[1]);
+            $field = 'context';
+            continue;
+        }
+        if (preg_match('/^msgid\s+"(.*)"$/', $line, $matches)) {
+            $entry['msgid'] = ll_tools_public_i18n_decode_po_string($matches[1]);
+            $field = 'msgid';
+            continue;
+        }
+        if (preg_match('/^msgid_plural\s+"(.*)"$/', $line, $matches)) {
+            $entry['msgid_plural'] = ll_tools_public_i18n_decode_po_string($matches[1]);
+            $field = 'msgid_plural';
+            continue;
+        }
+        if (preg_match('/^msgstr(?:\[\d+\])?\s+"/', $line)) {
+            $field = 'msgstr';
+            continue;
+        }
+        if (preg_match('/^"(.*)"$/', $line, $matches) && in_array($field, ['context', 'msgid', 'msgid_plural'], true)) {
+            $entry[$field] = (string) ($entry[$field] ?? '') . ll_tools_public_i18n_decode_po_string($matches[1]);
+        }
+    }
+
+    if ($entry['msgid'] === null || $entry['msgid'] === '') {
+        return null;
+    }
+
+    return $entry;
+}
+
+/**
+ * Fill selected existing entries in place while preserving every non-msgstr
+ * line. Catalog mode deliberately refuses a partial/missing PO merge: run the
+ * normal POT/PO refresh first so source comments and references stay canonical.
+ *
+ * @param array<string, array<int, string>> $translations
+ * @param array<string, bool> $updated_keys
+ */
+function ll_tools_public_i18n_deepl_replace_existing_translations(
+    string $po_path,
+    array $translations,
+    array $updated_keys,
+    int $plural_count
+): int {
+    if ($updated_keys === []) {
+        return 0;
+    }
+
+    $contents = file_get_contents($po_path);
+    if (!is_string($contents)) {
+        throw new RuntimeException("Unable to read PO file: {$po_path}");
+    }
+
+    $newline = str_contains($contents, "\r\n") ? "\r\n" : "\n";
+    $normalized = str_replace(["\r\n", "\r"], "\n", $contents);
+    $blocks = preg_split('/\n{2,}/', rtrim($normalized, "\n"));
+    if (!is_array($blocks)) {
+        throw new RuntimeException("Unable to split PO entries: {$po_path}");
+    }
+
+    $replaced_keys = [];
+    foreach ($blocks as &$block) {
+        $identity = ll_tools_public_i18n_deepl_parse_po_block_identity($block);
+        if ($identity === null) {
+            continue;
+        }
+
+        $key = ll_tools_public_i18n_entry_key($identity);
+        if (!isset($updated_keys[$key])) {
+            continue;
+        }
+
+        $lines = preg_split('/\n/', $block) ?: [];
+        $first_msgstr = null;
+        foreach ($lines as $index => $line) {
+            if (preg_match('/^msgstr(?:\[\d+\])?\s+"/', $line)) {
+                $first_msgstr = $index;
+                break;
+            }
+        }
+        if ($first_msgstr === null) {
+            throw new RuntimeException('Selected PO entry has no msgstr field: ' . (string) $identity['msgid']);
+        }
+
+        $replacement = array_slice($lines, 0, $first_msgstr);
+        if ($identity['msgid_plural'] !== null) {
+            for ($index = 0; $index < $plural_count; $index++) {
+                $translation = (string) ($translations[$key][$index] ?? '');
+                if (trim($translation) === '') {
+                    throw new RuntimeException('Translated plural slot is empty: ' . (string) $identity['msgid']);
+                }
+                $replacement[] = ll_tools_public_i18n_po_line('msgstr[' . $index . ']', $translation);
+            }
+        } else {
+            $translation = (string) ($translations[$key][0] ?? '');
+            if (trim($translation) === '') {
+                throw new RuntimeException('Translated singular value is empty: ' . (string) $identity['msgid']);
+            }
+            $replacement[] = ll_tools_public_i18n_po_line('msgstr', $translation);
+        }
+
+        $block = implode("\n", $replacement);
+        $replaced_keys[$key] = true;
+    }
+    unset($block);
+
+    $missing_keys = array_diff_key($updated_keys, $replaced_keys);
+    if ($missing_keys !== []) {
+        throw new RuntimeException('Catalog PO is missing ' . count($missing_keys) . ' selected entries. Refresh it from the POT before translating.');
+    }
+
+    $written = implode("\n\n", $blocks) . "\n";
+    if ($newline !== "\n") {
+        $written = str_replace("\n", $newline, $written);
+    }
+
+    $temp_path = tempnam(dirname($po_path), '.ll-tools-po-');
+    if (!is_string($temp_path) || file_put_contents($temp_path, $written, LOCK_EX) === false) {
+        if (is_string($temp_path)) {
+            @unlink($temp_path);
+        }
+        throw new RuntimeException("Unable to write temporary PO file for {$po_path}");
+    }
+
+    $backup_path = $po_path . '.ll-tools-backup-' . bin2hex(random_bytes(6));
+    if (!rename($po_path, $backup_path)) {
+        @unlink($temp_path);
+        throw new RuntimeException("Unable to prepare atomic PO replacement: {$po_path}");
+    }
+    if (!rename($temp_path, $po_path)) {
+        @rename($backup_path, $po_path);
+        @unlink($temp_path);
+        throw new RuntimeException("Unable to install translated PO file: {$po_path}");
+    }
+    @unlink($backup_path);
+
+    return count($replaced_keys);
+}
+
+/**
+ * Validate translated values before any catalog write so placeholder, URL,
+ * shortcode, HTML, and newline corruption cannot partially replace the PO.
+ *
+ * @param array<int, array<string, mixed>> $entries
+ * @param array<string, array<int, string>> $translations
+ * @param array<string, bool> $selected_keys
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_public_i18n_deepl_validate_translation_map(
+    array $entries,
+    array $translations,
+    array $selected_keys,
+    int $plural_count
+): array {
+    $errors = [];
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $key = (string) ($entry['key'] ?? '');
+        if ($key === '' || !isset($selected_keys[$key])) {
+            continue;
+        }
+
+        $required = ($entry['msgid_plural'] ?? null) !== null ? $plural_count : 1;
+        for ($index = 0; $index < $required; $index++) {
+            $translation = (string) ($translations[$key][$index] ?? '');
+            if (trim($translation) === '') {
+                $errors[] = [
+                    'key' => $key,
+                    'type' => 'blank_translation',
+                    'plural_index' => $index,
+                ];
+                continue;
+            }
+            $entry_errors = ll_tools_public_i18n_validate_translation_string($entry, $translation, $index);
+            foreach ($entry_errors as &$entry_error) {
+                $entry_error['msgid'] = (string) ($entry['msgid'] ?? '');
+                $entry_error['translation'] = $translation;
+            }
+            unset($entry_error);
+            $errors = array_merge($errors, $entry_errors);
+        }
+    }
+
+    return $errors;
+}
+
 function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
 {
     $root_dir = $root_dir !== '' ? rtrim($root_dir, "\\/") : ll_tools_public_i18n_root_dir();
@@ -433,40 +663,64 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
     }
 
     $api_key = (string) getenv('DEEPL_API_KEY');
-    if ($api_key === '') {
-        throw new RuntimeException('DEEPL_API_KEY is not set.');
-    }
 
     $config = ll_tools_public_i18n_load_config($root_dir);
-    if (!isset($config['tier2_locales'][$locale])) {
+    $scope = (string) $args['scope'];
+    if ($scope === 'catalog' && !isset($config['core_full_locales'][$locale])) {
+        throw new InvalidArgumentException("Locale is not configured as a full-catalog locale: {$locale}");
+    }
+    if ($scope === 'public' && !isset($config['tier2_locales'][$locale])) {
         throw new InvalidArgumentException("Locale is not configured as a tier-2 locale: {$locale}");
     }
 
     $target = (string) ($args['target'] ?: ll_tools_public_i18n_deepl_target_from_locale($locale));
     $source = (string) $args['source'];
+    $pot_path = $root_dir . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['pot_file']);
     $manifest_path = $root_dir . DIRECTORY_SEPARATOR . ll_tools_public_i18n_normalize_path((string) $config['manifest_file']);
     $manifest = ll_tools_public_i18n_load_manifest($manifest_path);
     $manifest_entries = is_array($manifest['entries'] ?? null) ? $manifest['entries'] : [];
+    $translation_entries = $scope === 'catalog'
+        ? ll_tools_public_i18n_catalog_entries_from_pot($pot_path)
+        : $manifest_entries;
     $po_path = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.po';
 
     if (!is_file($po_path)) {
+        if ($scope === 'catalog') {
+            throw new RuntimeException("Full-catalog PO file does not exist: {$po_path}. Merge the POT before translating it.");
+        }
         if (empty($args['force'])) {
             throw new RuntimeException("PO file does not exist: {$po_path}. Run --force to create it first.");
         }
         ll_tools_public_i18n_write_po_for_locale($po_path, $locale, $manifest_entries, $config, false);
     }
 
+    $existing_entries = ll_tools_public_i18n_parse_po_file($po_path);
     $translations = ll_tools_public_i18n_deepl_existing_translations($po_path);
     $supplemental_entries = ll_tools_public_i18n_deepl_supplemental_entries($po_path, $manifest_entries);
     $existing_keys = [];
-    foreach (ll_tools_public_i18n_parse_po_file($po_path) as $existing_entry) {
+    foreach ($existing_entries as $existing_entry) {
         if ((string) ($existing_entry['msgid'] ?? '') !== '') {
             $existing_keys[ll_tools_public_i18n_entry_key($existing_entry)] = true;
         }
     }
-    $plural_count = ll_tools_public_i18n_plural_count_for_locale($locale, $config);
+    if ($scope === 'catalog') {
+        $catalog_keys = [];
+        foreach ($translation_entries as $entry) {
+            if (is_array($entry)) {
+                $catalog_keys[(string) ($entry['key'] ?? '')] = true;
+            }
+        }
+        $missing_catalog_keys = array_diff_key($catalog_keys, $existing_keys);
+        if ($missing_catalog_keys !== []) {
+            throw new RuntimeException('Catalog PO is missing ' . count($missing_catalog_keys) . ' current POT entries. Merge the POT before translating.');
+        }
+    }
+    $plural_count = ll_tools_public_i18n_plural_count_from_entries($existing_entries);
+    if ($plural_count < 1) {
+        $plural_count = ll_tools_public_i18n_plural_count_for_locale($locale, $config);
+    }
     $has_incomplete_existing_entry = false;
-    foreach ($manifest_entries as $entry) {
+    foreach ($translation_entries as $entry) {
         if (!is_array($entry)) {
             continue;
         }
@@ -477,8 +731,9 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
         }
     }
     $jobs = [];
+    $updated_keys = [];
     $cache = [];
-    foreach ($manifest_entries as $entry) {
+    foreach ($translation_entries as $entry) {
         if (!is_array($entry) || ll_tools_public_i18n_deepl_translation_complete($entry, $translations, $plural_count)) {
             continue;
         }
@@ -499,10 +754,15 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
                 'index' => $index,
                 'source' => $source_text,
             ];
+            $updated_keys[$key] = true;
             if ((int) $args['limit'] > 0 && count($jobs) >= (int) $args['limit']) {
                 break 2;
             }
         }
+    }
+
+    if ($jobs !== [] && $api_key === '') {
+        throw new RuntimeException('DEEPL_API_KEY is not set.');
     }
 
     $translated = 0;
@@ -542,7 +802,45 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
         echo 'Translated ' . min($translated, count($jobs)) . '/' . count($jobs) . " strings\n";
     }
 
-    if ($has_incomplete_existing_entry) {
+    if ($scope === 'catalog') {
+        $validation_keys = (int) $args['limit'] === 0
+            ? array_fill_keys(array_map(static fn (array $entry): string => (string) ($entry['key'] ?? ''), $translation_entries), true)
+            : $updated_keys;
+        unset($validation_keys['']);
+        $validation_errors = ll_tools_public_i18n_deepl_validate_translation_map(
+            $translation_entries,
+            $translations,
+            $validation_keys,
+            $plural_count
+        );
+        if ($validation_errors !== []) {
+            throw new RuntimeException(sprintf(
+                'Refusing to write catalog with %d structural translation errors: %s',
+                count($validation_errors),
+                json_encode(array_slice($validation_errors, 0, 10), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            ));
+        }
+
+        $replaced = ll_tools_public_i18n_deepl_replace_existing_translations(
+            $po_path,
+            $translations,
+            $updated_keys,
+            $plural_count
+        );
+        echo "Updated {$replaced} catalog entries\n";
+
+        if ((int) $args['limit'] === 0) {
+            $coverage = ll_tools_public_i18n_check_locale_coverage($locale, $translation_entries, $po_path);
+            if (empty($coverage['complete'])) {
+                throw new RuntimeException(sprintf(
+                    'Full catalog remains incomplete (missing: %d, untranslated: %d, validation errors: %d).',
+                    (int) $coverage['missing'],
+                    (int) $coverage['untranslated'],
+                    (int) $coverage['validation_error_count']
+                ));
+            }
+        }
+    } elseif ($has_incomplete_existing_entry) {
         ll_tools_public_i18n_deepl_write_po(
             $po_path,
             $locale,
@@ -559,7 +857,11 @@ function ll_tools_public_i18n_deepl_run(array $argv, string $root_dir = ''): int
             $translations
         );
     }
-    echo "Wrote {$po_path}\n";
+    if ($scope === 'catalog' && $updated_keys === []) {
+        echo "Catalog already complete: {$po_path}\n";
+    } else {
+        echo "Wrote {$po_path}\n";
+    }
 
     return 0;
 }

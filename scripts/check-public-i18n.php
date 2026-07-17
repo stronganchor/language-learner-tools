@@ -777,6 +777,28 @@ function ll_tools_public_i18n_entries_by_key(array $entries): array
     return $by_key;
 }
 
+/**
+ * Convert every active POT entry into the same keyed shape used by the public
+ * manifest checker. Full-locale catalogs such as Turkish use this broader
+ * contract for admin/plugin copy as well as learner-facing strings.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function ll_tools_public_i18n_catalog_entries_from_pot(string $pot_path): array
+{
+    $catalog_entries = [];
+    foreach (ll_tools_public_i18n_parse_po_file($pot_path) as $entry) {
+        if ((string) ($entry['msgid'] ?? '') === '') {
+            continue;
+        }
+
+        $entry['key'] = ll_tools_public_i18n_entry_key($entry);
+        $catalog_entries[] = $entry;
+    }
+
+    return $catalog_entries;
+}
+
 function ll_tools_public_i18n_plural_count_from_entries(array $entries): int
 {
     foreach ($entries as $entry) {
@@ -799,6 +821,24 @@ function ll_tools_public_i18n_plural_count_from_entries(array $entries): int
 function ll_tools_public_i18n_extract_printf_placeholders(string $text): array
 {
     preg_match_all('/(?<!%)%(?:\d+\$)?[+\-0# ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[bcdeEfFgGosuxX]/', $text, $matches);
+    return $matches[0] ?? [];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_brace_placeholders(string $text): array
+{
+    preg_match_all('/\{[A-Za-z_][A-Za-z0-9_.-]*\}/', $text, $matches);
+    return $matches[0] ?? [];
+}
+
+/**
+ * @return string[]
+ */
+function ll_tools_public_i18n_extract_cli_options(string $text): array
+{
+    preg_match_all('/(?<![A-Za-z0-9_-])--[A-Za-z0-9][A-Za-z0-9_-]*/', $text, $matches);
     return $matches[0] ?? [];
 }
 
@@ -870,6 +910,14 @@ function ll_tools_public_i18n_validate_translation_string(array $manifest_entry,
         'printf_placeholders' => [
             ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_printf_placeholders($source)),
             ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_printf_placeholders($translation)),
+        ],
+        'brace_placeholders' => [
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_brace_placeholders($source)),
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_brace_placeholders($translation)),
+        ],
+        'cli_options' => [
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_cli_options($source)),
+            ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_cli_options($translation)),
         ],
         'urls' => [
             ll_tools_public_i18n_token_counts(ll_tools_public_i18n_extract_urls($source)),
@@ -1024,6 +1072,67 @@ function ll_tools_public_i18n_check_locale_coverage(string $locale, array $manif
 }
 
 /**
+ * Full locales require an exact active POT/PO key set in addition to complete
+ * translations. Public tier-2 catalogs intentionally allow supplemental admin
+ * entries, so this stricter contract is kept separate from public coverage.
+ *
+ * @return array<string, mixed>
+ */
+function ll_tools_public_i18n_check_full_catalog_coverage(string $locale, array $catalog_entries, string $po_path): array
+{
+    $coverage = ll_tools_public_i18n_check_locale_coverage($locale, $catalog_entries, $po_path);
+    $coverage += [
+        'stale' => 0,
+        'duplicates' => 0,
+        'fuzzy' => 0,
+        'stale_keys' => [],
+        'duplicate_keys' => [],
+        'fuzzy_keys' => [],
+    ];
+    if (empty($coverage['exists'])) {
+        return $coverage;
+    }
+
+    $catalog_by_key = ll_tools_public_i18n_entries_by_key($catalog_entries);
+    $po_entries = ll_tools_public_i18n_parse_po_file($po_path);
+    $po_key_counts = [];
+    $fuzzy_keys = [];
+    foreach ($po_entries as $entry) {
+        if ((string) ($entry['msgid'] ?? '') === '') {
+            continue;
+        }
+        $key = ll_tools_public_i18n_entry_key($entry);
+        $po_key_counts[$key] = (int) ($po_key_counts[$key] ?? 0) + 1;
+        if (in_array('fuzzy', (array) ($entry['flags'] ?? []), true)) {
+            $fuzzy_keys[$key] = true;
+        }
+    }
+
+    $stale_keys = array_values(array_diff(array_keys($po_key_counts), array_keys($catalog_by_key)));
+    $duplicate_keys = array_values(array_keys(array_filter(
+        $po_key_counts,
+        static fn (int $count): bool => $count > 1
+    )));
+    $fuzzy_keys = array_values(array_keys($fuzzy_keys));
+    sort($stale_keys, SORT_STRING);
+    sort($duplicate_keys, SORT_STRING);
+    sort($fuzzy_keys, SORT_STRING);
+
+    $coverage['stale'] = count($stale_keys);
+    $coverage['duplicates'] = count($duplicate_keys);
+    $coverage['fuzzy'] = count($fuzzy_keys);
+    $coverage['stale_keys'] = $stale_keys;
+    $coverage['duplicate_keys'] = $duplicate_keys;
+    $coverage['fuzzy_keys'] = $fuzzy_keys;
+    $coverage['complete'] = !empty($coverage['complete'])
+        && $stale_keys === []
+        && $duplicate_keys === []
+        && $fuzzy_keys === [];
+
+    return $coverage;
+}
+
+/**
  * @return array<string, mixed>
  */
 function ll_tools_public_i18n_parse_cli_args(array $argv): array
@@ -1035,6 +1144,7 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
         'details' => false,
         'format' => 'text',
         'locales' => [],
+        'catalog_locales' => [],
         'generate_po' => '',
         'force' => false,
         'pot' => '',
@@ -1063,6 +1173,10 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
             $args['locales'][] = substr($arg, strlen('--locale='));
         } elseif ($arg === '--locale' && isset($argv[$i + 1])) {
             $args['locales'][] = (string) $argv[++$i];
+        } elseif (str_starts_with($arg, '--full-catalog=')) {
+            $args['catalog_locales'][] = substr($arg, strlen('--full-catalog='));
+        } elseif ($arg === '--full-catalog' && isset($argv[$i + 1])) {
+            $args['catalog_locales'][] = (string) $argv[++$i];
         } elseif (str_starts_with($arg, '--pot=')) {
             $args['pot'] = substr($arg, strlen('--pot='));
         } elseif (str_starts_with($arg, '--manifest=')) {
@@ -1075,6 +1189,7 @@ function ll_tools_public_i18n_parse_cli_args(array $argv): array
     }
 
     $args['locales'] = array_values(array_unique(array_filter(array_map('strval', $args['locales']))));
+    $args['catalog_locales'] = array_values(array_unique(array_filter(array_map('strval', $args['catalog_locales']))));
     $args['generate_po'] = preg_replace('/[^A-Za-z0-9_]/', '', (string) $args['generate_po']);
 
     return $args;
@@ -1090,8 +1205,9 @@ function ll_tools_public_i18n_usage(): string
         '  --generate-po=LOCALE   Generate an untranslated tier-2 PO scaffold from the public manifest.',
         '  --force                Allow --generate-po to overwrite an existing PO file.',
         '  --locale=LOCALE        Check public-string coverage for one locale PO file.',
+        '  --full-catalog=LOCALE  Check every active POT entry for a full-translation locale.',
         '  --all-tier2            Check every planned tier-2 locale from the source config.',
-        '  --fail-on-missing      Exit non-zero when requested locale coverage is incomplete.',
+        '  --fail-on-missing      Exit non-zero when requested coverage or compiled assets are incomplete.',
         '  --json                 Emit a machine-readable JSON report.',
         '  --details              Include per-string missing/untranslated keys in JSON output.',
         '  --pot=PATH             Override the POT path.',
@@ -1107,22 +1223,211 @@ function ll_tools_public_i18n_display_path(string $root_dir, string $path): stri
 }
 
 /**
+ * Read a GNU MO file into the same runtime-key/value shape used by WordPress'
+ * generated PHP catalogs. This keeps the database-free guard independent of a
+ * loaded WordPress runtime.
+ *
+ * @return array<string, string>
+ */
+function ll_tools_public_i18n_read_mo_messages(string $mo_path): array
+{
+    $data = file_get_contents($mo_path);
+    if (!is_string($data) || strlen($data) < 28) {
+        throw new RuntimeException('Compiled MO catalog is unreadable or truncated.');
+    }
+
+    $little_magic = unpack('Vmagic', substr($data, 0, 4));
+    $big_magic = unpack('Nmagic', substr($data, 0, 4));
+    if ((int) ($little_magic['magic'] ?? 0) === 0x950412de) {
+        $format = 'V';
+    } elseif ((int) ($big_magic['magic'] ?? 0) === 0x950412de) {
+        $format = 'N';
+    } else {
+        throw new RuntimeException('Compiled MO catalog has an invalid magic number.');
+    }
+
+    $header = unpack(
+        $format . 'revision/' . $format . 'count/' . $format . 'originals_offset/' . $format . 'translations_offset',
+        substr($data, 4, 16)
+    );
+    $count = (int) ($header['count'] ?? 0);
+    $originals_offset = (int) ($header['originals_offset'] ?? 0);
+    $translations_offset = (int) ($header['translations_offset'] ?? 0);
+    $data_length = strlen($data);
+    if (
+        $count < 1
+        || $originals_offset < 0
+        || $translations_offset < 0
+        || $count > intdiv($data_length, 8)
+        || $originals_offset + ($count * 8) > $data_length
+        || $translations_offset + ($count * 8) > $data_length
+    ) {
+        throw new RuntimeException('Compiled MO catalog has an invalid table header.');
+    }
+
+    $messages = [];
+    for ($index = 0; $index < $count; $index++) {
+        $original_meta_offset = $originals_offset + ($index * 8);
+        $translation_meta_offset = $translations_offset + ($index * 8);
+        if ($original_meta_offset + 8 > $data_length || $translation_meta_offset + 8 > $data_length) {
+            throw new RuntimeException('Compiled MO catalog has a truncated string table.');
+        }
+
+        $original_meta = unpack($format . 'length/' . $format . 'offset', substr($data, $original_meta_offset, 8));
+        $translation_meta = unpack($format . 'length/' . $format . 'offset', substr($data, $translation_meta_offset, 8));
+        $original_length = (int) ($original_meta['length'] ?? -1);
+        $original_offset = (int) ($original_meta['offset'] ?? -1);
+        $translation_length = (int) ($translation_meta['length'] ?? -1);
+        $translation_offset = (int) ($translation_meta['offset'] ?? -1);
+        if (
+            $original_length < 0
+            || $original_offset < 0
+            || $translation_length < 0
+            || $translation_offset < 0
+            || $original_offset + $original_length > $data_length
+            || $translation_offset + $translation_length > $data_length
+        ) {
+            throw new RuntimeException('Compiled MO catalog contains an invalid string offset.');
+        }
+
+        $original = substr($data, $original_offset, $original_length);
+        if ($original === '') {
+            continue;
+        }
+        $runtime_key = explode("\0", $original, 2)[0];
+        $messages[$runtime_key] = substr($data, $translation_offset, $translation_length);
+    }
+
+    return $messages;
+}
+
+/**
  * @return array<string, mixed>
  */
-function ll_tools_public_i18n_compiled_asset_status(string $root_dir, string $locale, array $config): array
+function ll_tools_public_i18n_compiled_asset_status(
+    string $root_dir,
+    string $locale,
+    array $config,
+    string $po_path = ''
+): array
 {
     $domain = (string) ($config['text_domain'] ?? 'll-tools-text-domain');
     $base = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . $domain . '-' . $locale;
     $mo_path = $base . '.mo';
     $php_path = $base . '.l10n.php';
 
-    return [
+    $status = [
         'mo_file' => ll_tools_public_i18n_display_path($root_dir, $mo_path),
         'php_file' => ll_tools_public_i18n_display_path($root_dir, $php_path),
         'mo_exists' => is_file($mo_path),
         'php_exists' => is_file($php_path),
-        'complete' => is_file($mo_path) && is_file($php_path),
+        'mo_expected_messages' => 0,
+        'mo_missing_messages' => 0,
+        'mo_mismatched_messages' => 0,
+        'mo_stale_messages' => 0,
+        'mo_catalog_current' => false,
+        'php_expected_messages' => 0,
+        'php_missing_messages' => 0,
+        'php_mismatched_messages' => 0,
+        'php_stale_messages' => 0,
+        'php_catalog_current' => false,
+        'mo_error' => '',
+        'php_error' => '',
     ];
+
+    if (!is_file($mo_path) || !is_file($php_path)) {
+        $status['complete'] = false;
+        return $status;
+    }
+
+    if ($po_path === '' || !is_file($po_path)) {
+        $status['complete'] = true;
+        return $status;
+    }
+
+    $po_entries = ll_tools_public_i18n_parse_po_file($po_path);
+    $plural_count = ll_tools_public_i18n_plural_count_from_entries($po_entries);
+    $expected_messages = [];
+    foreach ($po_entries as $entry) {
+        $msgid = (string) ($entry['msgid'] ?? '');
+        if ($msgid === '' || in_array('fuzzy', (array) ($entry['flags'] ?? []), true)) {
+            continue;
+        }
+
+        $msgstr = array_map('strval', (array) ($entry['msgstr'] ?? []));
+        $required = ($entry['msgid_plural'] ?? null) !== null ? max(1, $plural_count) : 1;
+        $translations = [];
+        for ($index = 0; $index < $required; $index++) {
+            $translation = (string) ($msgstr[$index] ?? '');
+            if (trim($translation) === '') {
+                $translations = [];
+                break;
+            }
+            $translations[] = $translation;
+        }
+        if ($translations === []) {
+            continue;
+        }
+
+        $runtime_key = $msgid;
+        if ((string) ($entry['context'] ?? '') !== '') {
+            $runtime_key = (string) $entry['context'] . "\x04" . $runtime_key;
+        }
+        $expected_messages[$runtime_key] = implode("\0", $translations);
+    }
+
+    try {
+        $mo_messages = ll_tools_public_i18n_read_mo_messages($mo_path);
+        $missing = array_diff_key($expected_messages, $mo_messages);
+        $stale = array_diff_key($mo_messages, $expected_messages);
+        $mismatched = [];
+        foreach (array_intersect_key($expected_messages, $mo_messages) as $key => $expected) {
+            if ($mo_messages[$key] !== $expected) {
+                $mismatched[$key] = true;
+            }
+        }
+
+        $status['mo_expected_messages'] = count($expected_messages);
+        $status['mo_missing_messages'] = count($missing);
+        $status['mo_mismatched_messages'] = count($mismatched);
+        $status['mo_stale_messages'] = count($stale);
+        $status['mo_catalog_current'] = $missing === [] && $mismatched === [] && $stale === [];
+    } catch (Throwable $error) {
+        $status['mo_error'] = $error->getMessage();
+    }
+
+    try {
+        $compiled = (static function (string $path) {
+            return require $path;
+        })($php_path);
+        if (!is_array($compiled) || !is_array($compiled['messages'] ?? null)) {
+            throw new RuntimeException('Compiled PHP catalog did not return a messages array.');
+        }
+        $compiled_messages = array_map('strval', $compiled['messages']);
+        $missing = array_diff_key($expected_messages, $compiled_messages);
+        $stale = array_diff_key($compiled_messages, $expected_messages);
+        $mismatched = [];
+        foreach (array_intersect_key($expected_messages, $compiled_messages) as $key => $expected) {
+            if ($compiled_messages[$key] !== $expected) {
+                $mismatched[$key] = true;
+            }
+        }
+
+        $status['php_expected_messages'] = count($expected_messages);
+        $status['php_missing_messages'] = count($missing);
+        $status['php_mismatched_messages'] = count($mismatched);
+        $status['php_stale_messages'] = count($stale);
+        $status['php_catalog_current'] = $missing === [] && $mismatched === [] && $stale === [];
+    } catch (Throwable $error) {
+        $status['php_error'] = $error->getMessage();
+    }
+
+    $status['complete'] = !empty($status['mo_exists'])
+        && !empty($status['php_exists'])
+        && !empty($status['mo_catalog_current'])
+        && !empty($status['php_catalog_current']);
+
+    return $status;
 }
 
 function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
@@ -1177,13 +1482,37 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
         }
         $po_path = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.po';
         $coverage[$locale] = ll_tools_public_i18n_check_locale_coverage($locale, $manifest_entries, $po_path);
-        $coverage[$locale]['compiled_assets'] = ll_tools_public_i18n_compiled_asset_status($root_dir, $locale, $config);
+        $coverage[$locale]['translations_complete'] = $coverage[$locale]['complete'];
+        $coverage[$locale]['compiled_assets'] = ll_tools_public_i18n_compiled_asset_status($root_dir, $locale, $config, $po_path);
+        $coverage[$locale]['complete'] = !empty($coverage[$locale]['translations_complete'])
+            && !empty($coverage[$locale]['compiled_assets']['complete']);
+    }
+
+    $catalog_entries = ll_tools_public_i18n_catalog_entries_from_pot($pot_path);
+    $catalog_coverage = [];
+    foreach ((array) $args['catalog_locales'] as $locale) {
+        $locale = preg_replace('/[^A-Za-z0-9_]/', '', (string) $locale);
+        if ($locale === '') {
+            continue;
+        }
+        $po_path = $root_dir . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-' . $locale . '.po';
+        $catalog_coverage[$locale] = ll_tools_public_i18n_check_full_catalog_coverage($locale, $catalog_entries, $po_path);
+        $catalog_coverage[$locale]['translations_complete'] = $catalog_coverage[$locale]['complete'];
+        $catalog_coverage[$locale]['compiled_assets'] = ll_tools_public_i18n_compiled_asset_status($root_dir, $locale, $config, $po_path);
+        $catalog_coverage[$locale]['complete'] = !empty($catalog_coverage[$locale]['translations_complete'])
+            && !empty($catalog_coverage[$locale]['compiled_assets']['complete']);
     }
 
     if (empty($args['details'])) {
         foreach ($coverage as &$coverage_row) {
             unset($coverage_row['missing_keys'], $coverage_row['untranslated_keys']);
             unset($coverage_row['validation_errors']);
+        }
+        unset($coverage_row);
+        foreach ($catalog_coverage as &$coverage_row) {
+            unset($coverage_row['missing_keys'], $coverage_row['untranslated_keys']);
+            unset($coverage_row['validation_errors']);
+            unset($coverage_row['stale_keys'], $coverage_row['duplicate_keys'], $coverage_row['fuzzy_keys']);
         }
         unset($coverage_row);
     }
@@ -1199,10 +1528,17 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
             'changed_entries' => count($comparison['changed_entries']),
         ],
         'coverage' => $coverage,
+        'full_catalog_coverage' => $catalog_coverage,
     ];
 
     $coverage_incomplete = false;
     foreach ($coverage as $row) {
+        if (empty($row['complete'])) {
+            $coverage_incomplete = true;
+            break;
+        }
+    }
+    foreach ($catalog_coverage as $row) {
         if (empty($row['complete'])) {
             $coverage_incomplete = true;
             break;
@@ -1234,6 +1570,31 @@ function ll_tools_public_i18n_run(array $argv, string $root_dir = ''): int
                 echo '; missing ' . (int) $row['missing'] . ', untranslated ' . (int) $row['untranslated'];
                 if (!empty($row['validation_error_count'])) {
                     echo ', validation errors ' . (int) $row['validation_error_count'];
+                }
+                if (empty($row['compiled_assets']['complete'])) {
+                    echo ', compiled artifacts missing or stale';
+                }
+                echo "\n";
+            }
+        }
+        foreach ($catalog_coverage as $locale => $row) {
+            $label = (string) ($config['core_full_locales'][$locale] ?? $locale);
+            if (empty($row['exists'])) {
+                echo "- {$locale} ({$label}, full catalog): PO file missing; 0/" . (int) $row['total'] . " covered\n";
+                continue;
+            }
+            echo "- {$locale} ({$label}, full catalog): " . (int) $row['covered'] . '/' . (int) $row['total'] . ' covered';
+            if (!empty($row['complete'])) {
+                echo " complete\n";
+            } else {
+                echo '; missing ' . (int) $row['missing'] . ', untranslated ' . (int) $row['untranslated'];
+                echo ', stale ' . (int) ($row['stale'] ?? 0) . ', duplicates ' . (int) ($row['duplicates'] ?? 0);
+                echo ', fuzzy ' . (int) ($row['fuzzy'] ?? 0);
+                if (!empty($row['validation_error_count'])) {
+                    echo ', validation errors ' . (int) $row['validation_error_count'];
+                }
+                if (empty($row['compiled_assets']['complete'])) {
+                    echo ', compiled artifacts missing or stale';
                 }
                 echo "\n";
             }

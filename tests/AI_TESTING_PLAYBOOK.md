@@ -138,6 +138,22 @@ For network-sensitive regressions on Local sites:
 - Measure an actionable selector becoming visible, not just the `load` event.
 - For release-to-release performance comparison, use `tests/bin/run-performance-benchmark.sh` so the fixture is reused or refreshed against the selected profile manifest; the default profile uses `tests/performance/fixtures/performance-wordsets.json`.
 
+### Turkish full-catalog localization guard
+
+Turkish is not limited to the public tier-2 manifest. Before accepting a POT/PO
+refresh, run the database-free full-catalog check:
+
+```bash
+php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
+```
+
+A matching HEAD is not sufficient reason for scheduled upkeep to skip when
+this command reports missing, blank, partial, fuzzy, stale, duplicate,
+structurally invalid, or uncompiled Turkish entries. The checker compares the
+compiled MO and PHP messages with the PO, so stale runtime copy also fails the guard.
+Fill new catalog entries, rebuild both compiled artifacts, and rerun
+`Integration/PublicUiTranslationManifestTest.php`.
+
 ## 6) Modifying Existing Tests Safely
 
 When behavior changes intentionally:
