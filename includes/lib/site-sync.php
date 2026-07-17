@@ -546,6 +546,91 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
     return (array) ($result['records'] ?? []);
 }
 
+/**
+ * Query recording IDs that belong to words in one wordset without hydrating
+ * every word in that wordset first.
+ *
+ * @return array{ids:int[],total:int}
+ */
+function ll_tools_site_sync_query_transcription_audio_ids(int $wordset_id, int $limit = 0, int $offset = 0): array {
+    global $wpdb;
+
+    if ($wordset_id <= 0) {
+        return [
+            'ids' => [],
+            'total' => 0,
+        ];
+    }
+
+    $limit = max(0, $limit);
+    $offset = max(0, $offset);
+    $statuses = ['publish', 'draft', 'pending', 'private', 'future'];
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $from_sql = "
+        FROM {$wpdb->posts} AS sync_audio
+        INNER JOIN {$wpdb->posts} AS sync_word
+            ON sync_word.ID = sync_audio.post_parent
+        INNER JOIN {$wpdb->term_relationships} AS sync_wordset_relationship
+            ON sync_wordset_relationship.object_id = sync_word.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS sync_wordset_taxonomy
+            ON sync_wordset_taxonomy.term_taxonomy_id = sync_wordset_relationship.term_taxonomy_id
+    ";
+    $where_sql = "
+        WHERE sync_audio.post_type = %s
+          AND sync_audio.post_status IN ({$status_placeholders})
+          AND sync_word.post_type = %s
+          AND sync_word.post_status IN ({$status_placeholders})
+          AND sync_wordset_taxonomy.taxonomy = %s
+          AND sync_wordset_taxonomy.term_id = %d
+    ";
+    $query_params = array_merge(
+        ['word_audio'],
+        $statuses,
+        ['words'],
+        $statuses,
+        ['wordset', $wordset_id]
+    );
+
+    $ids_sql = "
+        SELECT DISTINCT sync_audio.ID
+        {$from_sql}
+        {$where_sql}
+        ORDER BY sync_audio.ID ASC
+    ";
+    $ids_params = $query_params;
+    if ($limit > 0) {
+        $ids_sql .= ' LIMIT %d OFFSET %d';
+        $ids_params[] = $limit;
+        $ids_params[] = $offset;
+    }
+
+    $audio_ids = array_values(array_filter(array_map(
+        'intval',
+        (array) $wpdb->get_col($wpdb->prepare($ids_sql, $ids_params))
+    ), static function (int $audio_id): bool {
+        return $audio_id > 0;
+    }));
+
+    if ($limit <= 0) {
+        return [
+            'ids' => $audio_ids,
+            'total' => count($audio_ids),
+        ];
+    }
+
+    $count_sql = "
+        SELECT COUNT(DISTINCT sync_audio.ID)
+        {$from_sql}
+        {$where_sql}
+    ";
+    $total = (int) $wpdb->get_var($wpdb->prepare($count_sql, $query_params));
+
+    return [
+        'ids' => $audio_ids,
+        'total' => max(0, $total),
+    ];
+}
+
 function ll_tools_site_sync_collect_transcription_record_page(int $wordset_id, bool $ensure_sync_ids = true, array $args = []): array {
     if ($wordset_id <= 0) {
         return [
@@ -559,47 +644,31 @@ function ll_tools_site_sync_collect_transcription_record_page(int $wordset_id, b
     $offset = (int) $snapshot_args['offset'];
     $include_media = !empty($snapshot_args['include_media']);
 
-    $word_ids = get_posts([
-        'post_type' => 'words',
-        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'orderby' => 'title',
-        'order' => 'ASC',
-        'no_found_rows' => true,
-        'tax_query' => [
-            [
-                'taxonomy' => 'wordset',
-                'field' => 'term_id',
-                'terms' => [$wordset_id],
-            ],
-        ],
-    ]);
-
-    $word_ids = array_values(array_filter(array_map('intval', $word_ids)));
-    if (empty($word_ids)) {
+    $audio_page = ll_tools_site_sync_query_transcription_audio_ids($wordset_id, $limit, $offset);
+    $audio_ids = array_values((array) ($audio_page['ids'] ?? []));
+    $total_records = (int) ($audio_page['total'] ?? 0);
+    if (empty($audio_ids)) {
         return [
             'records' => [],
-            'total' => 0,
+            'total' => $total_records,
         ];
     }
 
-    $audio_query_args = [
-        'post_type' => 'word_audio',
-        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
-        'posts_per_page' => $limit > 0 ? $limit : -1,
-        'orderby' => 'ID',
-        'order' => 'ASC',
-        'post_parent__in' => $word_ids,
-        'no_found_rows' => $limit <= 0,
-    ];
-    if ($limit > 0 && $offset > 0) {
-        $audio_query_args['offset'] = $offset;
+    if (function_exists('_prime_post_caches')) {
+        _prime_post_caches($audio_ids, true, true);
     }
 
-    $audio_query = new WP_Query($audio_query_args);
-    $audio_posts = (array) $audio_query->posts;
-    $total_records = $limit > 0 ? (int) $audio_query->found_posts : count($audio_posts);
+    $audio_posts = array_values(array_filter(array_map('get_post', $audio_ids), static function ($audio_post): bool {
+        return $audio_post instanceof WP_Post && $audio_post->post_type === 'word_audio';
+    }));
+    $word_ids = array_values(array_unique(array_filter(array_map(static function (WP_Post $audio_post): int {
+        return (int) $audio_post->post_parent;
+    }, $audio_posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (!empty($word_ids) && function_exists('_prime_post_caches')) {
+        _prime_post_caches($word_ids, true, true);
+    }
 
     $records = [];
     foreach ($audio_posts as $audio_post) {

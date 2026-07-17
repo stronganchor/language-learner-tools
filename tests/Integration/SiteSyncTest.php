@@ -135,6 +135,171 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey('media', $record);
     }
 
+    public function test_paged_transcription_snapshot_uses_joined_bounded_recording_queries(): void
+    {
+        global $wpdb;
+
+        $wordset_id = $this->ensure_term('wordset', 'Bounded Sync Wordset', 'bounded-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Bounded Sync Category', 'bounded-sync-category');
+        $recording_ids = [];
+        $recording_word_ids = [];
+
+        for ($index = 1; $index <= 60; $index++) {
+            $word_id = $this->create_word($wordset_id, [$category_id], 'Bounded Sync Word ' . $index, 'Translation ' . $index);
+            if (in_array($index, [5, 30, 55], true)) {
+                $recording_word_ids[] = $word_id;
+                $recording_ids[] = $this->create_recording(
+                    $word_id,
+                    'Bounded Sync Recording ' . $index,
+                    ['recording_text' => 'Recording ' . $index]
+                );
+            }
+        }
+
+        foreach (array_merge($recording_word_ids, $recording_ids) as $post_id) {
+            clean_post_cache($post_id);
+        }
+
+        $post_queries = [];
+        $capture_post_query = static function (WP_Query $query) use (&$post_queries): void {
+            $post_type = $query->get('post_type');
+            if (
+                $post_type === 'words'
+                || $post_type === 'word_audio'
+                || (is_array($post_type) && array_intersect(['words', 'word_audio'], $post_type))
+            ) {
+                $post_queries[] = $query->query_vars;
+            }
+        };
+        $joined_queries = [];
+        $capture_joined_query = static function (string $query) use (&$joined_queries): string {
+            if (
+                stripos($query, 'sync_audio') !== false
+                && stripos($query, 'sync_wordset_relationship') !== false
+            ) {
+                $joined_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_action('pre_get_posts', $capture_post_query);
+        add_filter('query', $capture_joined_query);
+
+        try {
+            $page = ll_tools_site_sync_collect_transcription_record_page($wordset_id, false, [
+                'include_media' => false,
+                'limit' => 2,
+                'offset' => 1,
+            ]);
+        } finally {
+            remove_filter('query', $capture_joined_query);
+            remove_action('pre_get_posts', $capture_post_query);
+        }
+
+        $returned_ids = array_values(array_map(static function (array $record): int {
+            return (int) (($record['recording'] ?? [])['id'] ?? 0);
+        }, (array) ($page['records'] ?? [])));
+        $this->assertSame(array_slice($recording_ids, 1, 2), $returned_ids);
+        $this->assertSame(3, (int) ($page['total'] ?? 0));
+        $this->assertSame([], $post_queries, 'Paged snapshots must not hydrate all word IDs through WP_Query.');
+        $this->assertCount(2, $joined_queries);
+
+        $id_queries = array_values(array_filter($joined_queries, static function (string $query): bool {
+            return stripos($query, 'SELECT DISTINCT sync_audio.ID') !== false;
+        }));
+        $count_queries = array_values(array_filter($joined_queries, static function (string $query): bool {
+            return stripos($query, 'COUNT(DISTINCT sync_audio.ID)') !== false;
+        }));
+        $this->assertCount(1, $id_queries);
+        $this->assertCount(1, $count_queries);
+        $this->assertMatchesRegularExpression('/LIMIT\s+2\s+OFFSET\s+1/i', $id_queries[0]);
+        $this->assertStringContainsString((string) $wpdb->term_relationships, $id_queries[0]);
+        $this->assertNotFalse(wp_cache_get($recording_ids[1], 'posts'));
+        $this->assertNotFalse(wp_cache_get($recording_word_ids[1], 'posts'));
+        $this->assertInstanceOf(WP_Post::class, get_post($recording_ids[1]));
+        $this->assertInstanceOf(WP_Post::class, get_post($recording_word_ids[1]));
+        $this->assertFalse(wp_cache_get($recording_ids[0], 'posts'), 'Recordings outside the requested page must not be hydrated.');
+        $this->assertFalse(wp_cache_get($recording_word_ids[0], 'posts'), 'Parent words outside the requested page must not be hydrated.');
+    }
+
+    public function test_transcription_snapshot_join_preserves_status_scope_paging_and_unpaged_compatibility(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Joined Sync Wordset', 'joined-sync-wordset');
+        $other_wordset_id = $this->ensure_term('wordset', 'Other Joined Sync Wordset', 'other-joined-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Joined Sync Category', 'joined-sync-category');
+        $recording_type_id = $this->ensure_term('recording_type', 'Joined Isolation', 'joined-isolation');
+
+        $published_word_id = $this->create_word($wordset_id, [$category_id], 'Joined Published Word', 'Published');
+        $draft_word_id = $this->create_word($wordset_id, [$category_id], 'Joined Draft Word', 'Draft');
+        wp_update_post(['ID' => $draft_word_id, 'post_status' => 'draft']);
+        $private_word_id = $this->create_word($wordset_id, [$category_id], 'Joined Private Word', 'Private');
+        wp_update_post(['ID' => $private_word_id, 'post_status' => 'private']);
+
+        $included_recording_ids = [
+            $this->create_recording($published_word_id, 'Joined Published Recording', ['recording_text' => 'Published text']),
+            $this->create_recording($draft_word_id, 'Joined Draft Recording', ['recording_text' => 'Draft text']),
+            $this->create_recording($private_word_id, 'Joined Private Recording', ['recording_text' => 'Private text']),
+        ];
+        wp_update_post(['ID' => $included_recording_ids[1], 'post_status' => 'draft']);
+        wp_update_post(['ID' => $included_recording_ids[2], 'post_status' => 'private']);
+        wp_set_object_terms($included_recording_ids[0], [$recording_type_id], 'recording_type');
+
+        $trashed_word_id = $this->create_word($wordset_id, [$category_id], 'Joined Trashed Word', 'Trashed');
+        $recording_on_trashed_word_id = $this->create_recording($trashed_word_id, 'Recording On Trashed Word', []);
+        wp_update_post(['ID' => $trashed_word_id, 'post_status' => 'trash']);
+
+        $trashed_recording_id = $this->create_recording($published_word_id, 'Joined Trashed Recording', []);
+        wp_update_post(['ID' => $trashed_recording_id, 'post_status' => 'trash']);
+
+        $other_word_id = $this->create_word($other_wordset_id, [$category_id], 'Other Joined Word', 'Other');
+        $other_recording_id = $this->create_recording($other_word_id, 'Other Joined Recording', []);
+
+        sort($included_recording_ids, SORT_NUMERIC);
+        $paged_ids = [];
+        foreach (array_keys($included_recording_ids) as $offset) {
+            $page = ll_tools_site_sync_collect_transcription_record_page($wordset_id, false, [
+                'include_media' => false,
+                'limit' => 1,
+                'offset' => $offset,
+            ]);
+            $this->assertSame(3, (int) ($page['total'] ?? 0));
+            $this->assertCount(1, (array) ($page['records'] ?? []));
+            $paged_ids[] = (int) (($page['records'][0]['recording']['id'] ?? 0));
+        }
+
+        $this->assertSame($included_recording_ids, $paged_ids);
+
+        $empty_page = ll_tools_site_sync_collect_transcription_record_page($wordset_id, false, [
+            'include_media' => false,
+            'limit' => 1,
+            'offset' => 3,
+        ]);
+        $this->assertSame(3, (int) ($empty_page['total'] ?? 0));
+        $this->assertSame([], (array) ($empty_page['records'] ?? []));
+
+        $unpaged = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', false, [
+            'include_media' => false,
+            'limit' => 0,
+            'offset' => 999,
+        ]);
+        $this->assertIsArray($unpaged);
+        $this->assertArrayNotHasKey('pagination', $unpaged);
+        $this->assertSame(3, (int) ($unpaged['record_count'] ?? 0));
+        $unpaged_ids = array_values(array_map(static function (array $record): int {
+            return (int) (($record['recording'] ?? [])['id'] ?? 0);
+        }, (array) ($unpaged['records'] ?? [])));
+        sort($unpaged_ids, SORT_NUMERIC);
+        $this->assertSame($included_recording_ids, $unpaged_ids);
+        $this->assertSame([], array_values(array_intersect(
+            [$recording_on_trashed_word_id, $trashed_recording_id, $other_recording_id],
+            $unpaged_ids
+        )));
+
+        $first_unpaged_record = (array) (($unpaged['records'] ?? [])[0] ?? []);
+        $this->assertSame('word_audio_transcription', (string) ($first_unpaged_record['record_type'] ?? ''));
+        $this->assertArrayNotHasKey('media', $first_unpaged_record);
+    }
+
     public function test_push_plan_separates_clean_updates_from_conflicts(): void
     {
         $base = $this->snapshot([
