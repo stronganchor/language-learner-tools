@@ -61,6 +61,7 @@ require_once(__DIR__ . '/user-roles/teacher-role.php');
 
 // Include shortcode-providing/admin-shared modules.
 // These live under /admin for historical reasons but can be used on public pages.
+require_once(__DIR__ . '/admin/uploads/upload-scope.php');
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/user-progress.php');
