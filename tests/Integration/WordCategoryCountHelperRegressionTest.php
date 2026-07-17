@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
 {
     private function createCategory(string $name, string $promptType = 'text_title', string $optionType = 'text_title'): int
@@ -181,6 +183,66 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $image_count = ll_get_words_by_category_count($category_name, 'image', null, $image_config);
         $this->assertSame(count($image_rows), $image_count);
         $this->assertSame(2, $image_count);
+    }
+
+    public static function promptAndOptionResourceMatrixProvider(): array
+    {
+        return [
+            'text to text accepts every titled row' => ['text_title', 'text_translation', ['full', 'audio', 'image', 'text']],
+            'audio prompt requires audio' => ['audio', 'text_title', ['full', 'audio']],
+            'image prompt requires image' => ['image', 'text_title', ['full', 'image']],
+            'image option requires image' => ['text_title', 'image', ['full', 'image']],
+            'audio option requires audio' => ['text_translation', 'audio', ['full', 'audio']],
+            'image plus audio prompt requires both' => ['image_audio', 'text_title', ['full']],
+            'image and text prompt still requires image' => ['image_text_translation', 'text_title', ['full', 'image']],
+            'audio prompt plus image option requires both' => ['audio_text_title', 'image', ['full']],
+        ];
+    }
+
+    #[DataProvider('promptAndOptionResourceMatrixProvider')]
+    public function test_optimized_count_matches_rendered_rows_across_prompt_and_option_resources(
+        string $prompt_type,
+        string $option_type,
+        array $expected_resource_keys
+    ): void {
+        $suffix = wp_generate_password(8, false);
+        $category_name = 'Count Equivalence ' . $prompt_type . ' ' . $option_type . ' ' . $suffix;
+        $category_id = $this->createCategory($category_name, $prompt_type, $option_type);
+
+        $word_ids = [
+            'full' => $this->createWord($category_id, 'Full ' . $suffix, 'Full translation ' . $suffix),
+            'audio' => $this->createWord($category_id, 'Audio ' . $suffix, 'Audio translation ' . $suffix),
+            'image' => $this->createWord($category_id, 'Image ' . $suffix, 'Image translation ' . $suffix),
+            'text' => $this->createWord($category_id, 'Text ' . $suffix, 'Text translation ' . $suffix),
+        ];
+        $this->addAudio($word_ids['full'], '-full-' . $suffix);
+        $this->addImage($word_ids['full'], '-full-' . $suffix);
+        $this->addAudio($word_ids['audio'], '-audio-' . $suffix);
+        $this->addImage($word_ids['image'], '-image-' . $suffix);
+
+        $config = [
+            'prompt_type' => $prompt_type,
+            'option_type' => $option_type,
+        ];
+        $cold_complete = null;
+        $cold_count = ll_get_words_by_category_count($category_name, $option_type, null, $config, $cold_complete);
+        $rows_complete = null;
+        $rows = ll_get_words_by_category($category_name, $option_type, null, $config, $rows_complete);
+        $warm_complete = null;
+        $warm_count = ll_get_words_by_category_count($category_name, $option_type, null, $config, $warm_complete);
+
+        $expected_ids = array_values(array_map(
+            static fn (string $key): int => (int) $word_ids[$key],
+            $expected_resource_keys
+        ));
+        sort($expected_ids, SORT_NUMERIC);
+
+        $this->assertTrue((bool) $cold_complete, 'Cold optimized count must report a complete source read.');
+        $this->assertTrue((bool) $rows_complete, 'Rendered-row helper must report a complete source read.');
+        $this->assertTrue((bool) $warm_complete, 'Warm optimized count must remain complete.');
+        $this->assertSame($expected_ids, $this->wordIdsFromRows((array) $rows));
+        $this->assertSame(count($expected_ids), $cold_count, 'Cold optimized count disagrees with rendered quiz rows.');
+        $this->assertSame(count($expected_ids), $warm_count, 'Warm optimized count disagrees with rendered quiz rows.');
     }
 
     public function test_count_helper_matches_rows_for_wrong_answer_only_audio_prompt_exception(): void
