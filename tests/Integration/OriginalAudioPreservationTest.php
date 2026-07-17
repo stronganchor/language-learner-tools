@@ -56,6 +56,8 @@ final class OriginalAudioPreservationTest extends LL_Tools_TestCase
 
     public function test_audio_processor_reprocess_queue_uses_preserved_original_source(): void
     {
+        $administrator_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($administrator_id);
         $wordset_id = $this->ensureTerm('wordset', 'Reprocess Original Audio', 'reprocess-original-audio');
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -77,7 +79,8 @@ final class OriginalAudioPreservationTest extends LL_Tools_TestCase
         update_post_meta($audio_id, LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY, $original_path);
         update_post_meta($audio_id, 'recording_date', current_time('mysql'));
 
-        $recordings = ll_get_reprocessable_recordings();
+        $page = ll_audio_processor_get_queue_page('reprocess', 1, 25);
+        $recordings = (array) ($page['recordings'] ?? []);
         $matched = null;
         foreach ($recordings as $recording) {
             if ((int) ($recording['id'] ?? 0) === (int) $audio_id) {

@@ -8,6 +8,7 @@ final class AudioProcessorSplitLinkTest extends LL_Tools_TestCase
     public function test_unprocessed_recordings_enable_split_only_for_words_with_multiple_audio_children(): void
     {
         $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
 
         $multi_word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -26,8 +27,12 @@ final class AudioProcessorSplitLinkTest extends LL_Tools_TestCase
         $multi_audio_two = $this->createQueuedAudio($multi_word_id, $editor_id, 'Multi Audio Two');
         $single_audio = $this->createQueuedAudio($single_word_id, $editor_id, 'Single Audio');
 
-        $recordings = ll_get_unprocessed_recordings();
-        $all = isset($recordings['all']) && is_array($recordings['all']) ? $recordings['all'] : [];
+        $queue_page = ll_audio_processor_get_queue_page('queue', 1, 25);
+        $duplicate_page = ll_audio_processor_get_queue_page('duplicates', 1, 25);
+        $all = array_merge(
+            (array) ($queue_page['recordings'] ?? []),
+            (array) ($duplicate_page['recordings'] ?? [])
+        );
         $by_id = [];
         foreach ($all as $recording) {
             $recording_id = isset($recording['id']) ? (int) $recording['id'] : 0;
@@ -48,6 +53,7 @@ final class AudioProcessorSplitLinkTest extends LL_Tools_TestCase
     public function test_unprocessed_recording_uses_effective_word_image_without_word_thumbnail(): void
     {
         $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
         $attachment_id = $this->createImageAttachment('audio-processor-effective-word-image.png');
         $word_image_id = self::factory()->post->create([
             'post_type' => 'word_images',
@@ -68,7 +74,8 @@ final class AudioProcessorSplitLinkTest extends LL_Tools_TestCase
 
         $audio_id = $this->createQueuedAudio($word_id, $editor_id, 'Linked Image Audio');
 
-        $recordings = ll_get_unprocessed_recordings();
+        $queue_page = ll_audio_processor_get_queue_page('queue', 1, 25);
+        $recordings = ['all' => (array) ($queue_page['recordings'] ?? [])];
         $recording = $this->findRecordingById($recordings, $audio_id);
         $image_data = ll_tools_get_effective_word_image_data_for_word($word_id, 'thumbnail', true);
 

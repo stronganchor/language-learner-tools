@@ -1333,10 +1333,10 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         ]);
         wp_set_current_user($recorder_id);
 
-        $recordings = ll_get_unprocessed_recordings();
+        $recordings = ll_audio_processor_get_queue_page('queue', 1, 25);
         $ids = array_map(static function ($recording): int {
             return (int) ($recording['id'] ?? 0);
-        }, (array) ($recordings['all'] ?? []));
+        }, (array) ($recordings['recordings'] ?? []));
 
         $this->assertContains($allowed_audio_id, $ids);
         $this->assertNotContains($blocked_audio_id, $ids);

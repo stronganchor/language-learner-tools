@@ -178,7 +178,7 @@ function ll_tools_get_legacy_default_translation_text(int $word_id, string $cano
     if ($canonical_target_text !== '') {
         $legacy_word_translation = ll_tools_decode_word_text_value(get_post_meta($word_id, 'word_translation', true));
         $legacy_translation = ll_tools_decode_word_text_value(get_post_meta($word_id, 'word_english_meaning', true));
-        if (ll_tools_word_translation_meta_stores_default_translation($word_id)) {
+        if (ll_tools_word_translation_meta_stores_default_translation($word_id, $wordset_ids)) {
             if ($legacy_word_translation !== '' && !ll_tools_word_text_values_match($legacy_word_translation, $canonical_target_text)) {
                 return $legacy_word_translation;
             }
@@ -319,16 +319,20 @@ function ll_tools_get_word_translation_for_locale(int $word_id, string $locale, 
     return ll_tools_get_legacy_default_translation_text($word_id, ll_tools_get_word_target_text($word_id, false));
 }
 
-function ll_tools_get_effective_word_translation_map(int $word_id): array {
+function ll_tools_get_effective_word_translation_map(int $word_id, ?array $wordset_ids = null): array {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return [];
     }
 
     $translations = ll_tools_get_word_translation_map($word_id);
-    $locale = ll_tools_get_default_translation_locale_for_word($word_id);
+    $locale = ll_tools_get_default_translation_locale_for_word($word_id, $wordset_ids);
     if ($locale !== '' && !isset($translations[$locale])) {
-        $legacy = ll_tools_get_legacy_default_translation_text($word_id, ll_tools_get_word_target_text($word_id, false));
+        $legacy = ll_tools_get_legacy_default_translation_text(
+            $word_id,
+            ll_tools_get_word_target_text($word_id, false, $wordset_ids),
+            $wordset_ids
+        );
         if ($legacy !== '') {
             $translations[$locale] = $legacy;
         }
@@ -338,14 +342,17 @@ function ll_tools_get_effective_word_translation_map(int $word_id): array {
     return $translations;
 }
 
-function ll_tools_get_default_translation_locale_for_word(int $word_id): string {
+function ll_tools_get_default_translation_locale_for_word(int $word_id, ?array $wordset_ids = null): string {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return '';
     }
 
-    $wordset_terms = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
-    $wordset_ids = is_wp_error($wordset_terms) ? [] : array_values(array_map('intval', (array) $wordset_terms));
+    if ($wordset_ids === null) {
+        $wordset_terms = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+        $wordset_ids = is_wp_error($wordset_terms) ? [] : array_values(array_map('intval', (array) $wordset_terms));
+    }
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids))));
     $language = function_exists('ll_tools_get_wordset_translation_language')
         ? (string) ll_tools_get_wordset_translation_language($wordset_ids, true)
         : '';
@@ -446,10 +453,10 @@ function ll_tools_get_word_text_parts(int $word_id, ?string $translation_locale 
     ];
     $target_text = ll_tools_get_word_target_text($word_id, $fallback_to_legacy, $wordset_ids);
     $translations = $fallback_to_legacy
-        ? ll_tools_get_effective_word_translation_map($word_id)
+        ? ll_tools_get_effective_word_translation_map($word_id, $wordset_ids)
         : ll_tools_get_word_translation_map($word_id);
 
-    $default_locale = ll_tools_get_default_translation_locale_for_word($word_id);
+    $default_locale = ll_tools_get_default_translation_locale_for_word($word_id, $wordset_ids);
     $locale = ll_tools_normalize_translation_locale((string) ($translation_locale ?? ''));
     if ($locale === '') {
         $locale = $default_locale;
@@ -476,7 +483,7 @@ function ll_tools_get_word_text_parts(int $word_id, ?string $translation_locale 
     ];
 }
 
-function ll_tools_word_translation_meta_stores_default_translation(int $word_id): bool {
+function ll_tools_word_translation_meta_stores_default_translation(int $word_id, ?array $wordset_ids = null): bool {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return true;
@@ -486,8 +493,11 @@ function ll_tools_word_translation_meta_stores_default_translation(int $word_id)
         return true;
     }
 
-    $wordset_terms = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
-    $wordset_ids = is_wp_error($wordset_terms) ? [] : array_values(array_map('intval', (array) $wordset_terms));
+    if ($wordset_ids === null) {
+        $wordset_terms = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+        $wordset_ids = is_wp_error($wordset_terms) ? [] : array_values(array_map('intval', (array) $wordset_terms));
+    }
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids))));
     $title_role = function_exists('ll_tools_get_wordset_title_language_role')
         ? ll_tools_get_wordset_title_language_role($wordset_ids, true)
         : 'target';

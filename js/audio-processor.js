@@ -12,9 +12,15 @@
         // Track last clicked checkbox index for shift-click range selection
         lastSelectedIndexByTab: {
             queue: null,
-            duplicates: null
+            duplicates: null,
+            reprocess: null
         },
-        activeTab: 'queue',
+        activeTab: '',
+        queueRecordings: {
+            queue: [],
+            duplicates: [],
+            reprocess: []
+        },
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -303,14 +309,26 @@
         }
         const safeTranslationText = String(nextTranslationText || '').trim();
 
-        state.recordings.forEach(recording => {
-            if (parseInt(recording.parentWordId, 10) === parentWordId) {
+        const updateRecording = recording => {
+            if (recording && parseInt(recording.parentWordId, 10) === parentWordId) {
                 recording.title = safeWordText;
                 recording.wordText = safeWordText;
                 recording.translationText = safeTranslationText;
                 recording.storeInTitle = !!storeInTitle;
             }
+        };
+
+        Object.values(state.queueRecordings).forEach(recordings => {
+            if (Array.isArray(recordings)) {
+                recordings.forEach(updateRecording);
+            }
         });
+
+        // Legacy/server-rendered fixtures may not share an array with the
+        // active tab cache.
+        if (!Object.values(state.queueRecordings).includes(state.recordings)) {
+            state.recordings.forEach(updateRecording);
+        }
 
         state.reviewData.forEach(data => {
             if (data && data.recording && parseInt(data.recording.parentWordId, 10) === parentWordId) {
@@ -417,20 +435,20 @@
     }
 
     function init() {
-        if (!window.llAudioProcessor || !window.llAudioProcessor.recordings) {
+        if (!window.llAudioProcessor) {
             return;
         }
-        state.recordings = window.llAudioProcessor.recordings;
+        state.recordings = Array.isArray(window.llAudioProcessor.recordings) ? window.llAudioProcessor.recordings : [];
+        state.queueRecordings.queue = state.recordings;
         state.recordingTypes = Array.isArray(window.llAudioProcessor.recordingTypes) ? window.llAudioProcessor.recordingTypes : [];
         state.recordingTypeIcons = (window.llAudioProcessor.recordingTypeIcons && typeof window.llAudioProcessor.recordingTypeIcons === 'object')
             ? window.llAudioProcessor.recordingTypeIcons
             : {};
-        localizeRecordingDates();
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        initTabs();
-        enhanceSplitWordLinks();
         wireEventListeners();
-        restoreReturnedRecordingFocus();
+        initTabs();
+        localizeRecordingDates();
+        enhanceSplitWordLinks();
         updateSelectedCount();
     }
 
@@ -523,8 +541,8 @@
         }
     }
 
-    function localizeRecordingDates() {
-        document.querySelectorAll('.ll-recording-date[data-upload-timestamp]').forEach((element) => {
+    function localizeRecordingDates(scope = document) {
+        scope.querySelectorAll('.ll-recording-date[data-upload-timestamp]').forEach((element) => {
             const timestampSeconds = parseInt(element.dataset.uploadTimestamp, 10);
             if (!Number.isInteger(timestampSeconds) || timestampSeconds <= 0) {
                 return;
@@ -573,8 +591,12 @@
         return state.activeTab;
     }
 
-    function enhanceSplitWordLinks() {
-        document.querySelectorAll('.ll-split-word-link[data-split-word-url][data-return-base-url]').forEach(link => {
+    function enhanceSplitWordLinks(scope = document) {
+        scope.querySelectorAll('.ll-split-word-link[data-split-word-url][data-return-base-url]').forEach(link => {
+            if (link.dataset.llSplitWordBound === 'true') {
+                return;
+            }
+            link.dataset.llSplitWordBound = 'true';
             link.addEventListener('click', () => {
                 const splitWordUrl = String(link.dataset.splitWordUrl || '').trim();
                 const returnBaseUrl = String(link.dataset.returnBaseUrl || '').trim();
@@ -596,6 +618,14 @@
 
                     if (Number.isInteger(recordingId) && recordingId > 0) {
                         returnUrl.searchParams.set('ll_ap_focus_recording', String(recordingId));
+                    }
+
+                    const list = link.closest('.ll-recordings-list');
+                    const queuePage = list ? parseInt(list.dataset.page, 10) : 1;
+                    if (Number.isInteger(queuePage) && queuePage > 1) {
+                        returnUrl.searchParams.set('ll_ap_page', String(queuePage));
+                    } else {
+                        returnUrl.searchParams.delete('ll_ap_page');
                     }
 
                     splitUrl.searchParams.set('ll_return_to', returnUrl.toString());
@@ -622,13 +652,14 @@
 
         const target = document.querySelector(`.ll-recording-item[data-id="${focusRecordingId}"]`);
 
-        if (window.history && typeof window.history.replaceState === 'function') {
-            url.searchParams.delete('ll_ap_focus_recording');
-            window.history.replaceState({}, document.title, url.toString());
-        }
-
         if (!target) {
             return;
+        }
+
+        if (window.history && typeof window.history.replaceState === 'function') {
+            url.searchParams.delete('ll_ap_focus_recording');
+            url.searchParams.delete('ll_ap_page');
+            window.history.replaceState({}, document.title, url.toString());
         }
 
         window.requestAnimationFrame(() => {
@@ -667,11 +698,17 @@
     }
 
     function setActiveTab(tab, options = {}) {
-        if (!tab || tab === state.activeTab) {
+        if (!tab) {
+            return;
+        }
+
+        if (tab === state.activeTab) {
+            ensureQueuePageLoaded(tab);
             return;
         }
 
         state.activeTab = tab;
+        state.recordings = Array.isArray(state.queueRecordings[tab]) ? state.queueRecordings[tab] : [];
 
         document.querySelectorAll('.ll-audio-processor-tab').forEach(btn => {
             const isActive = btn.dataset.tab === tab;
@@ -689,6 +726,182 @@
 
         if (!options.skipClear) {
             clearSelections();
+        }
+
+        ensureQueuePageLoaded(tab);
+    }
+
+    function getQueueList(tab) {
+        return document.querySelector(`.ll-recordings-list[data-tab="${tab}"]`);
+    }
+
+    function getQueueEmptyMessage(tab) {
+        if (tab === 'duplicates') {
+            return t('duplicatesEmpty', 'No duplicates found.');
+        }
+        if (tab === 'reprocess') {
+            return t('reprocessEmpty', 'No recordings with preserved original audio are ready to reprocess.');
+        }
+        return t('queueEmpty', 'No unique recordings in the queue. Check the duplicates tab for additional recordings.');
+    }
+
+    function setQueueStatus(list, message, mode = '') {
+        const status = list ? list.querySelector('.ll-queue-status') : null;
+        if (!status) {
+            return;
+        }
+
+        const text = status.querySelector('.ll-queue-status-text');
+        const retry = status.querySelector('.ll-queue-retry');
+        status.hidden = mode === 'ready';
+        status.classList.toggle('is-loading', mode === 'loading');
+        status.classList.toggle('is-error', mode === 'error');
+        status.classList.toggle('is-empty', mode === 'empty');
+        if (text) {
+            text.textContent = message;
+        }
+        if (retry) {
+            retry.hidden = mode !== 'error';
+        }
+    }
+
+    function ensureQueuePageLoaded(tab) {
+        const list = getQueueList(tab);
+        if (!list) {
+            return;
+        }
+
+        // Support fixture/legacy markup that already contains server-rendered cards.
+        if (!list.querySelector('.ll-queue-items')) {
+            wireRecordingCheckboxes(list);
+            restoreReturnedRecordingFocus();
+            return;
+        }
+
+        if (list.dataset.loaded !== 'true' && list.dataset.loading !== 'true') {
+            loadQueuePage(tab, parseInt(list.dataset.page || '1', 10) || 1);
+        }
+    }
+
+    async function loadQueuePage(tab, requestedPage = 1, options = {}) {
+        const list = getQueueList(tab);
+        if (!list || list.dataset.loading === 'true') {
+            return;
+        }
+
+        const items = list.querySelector('.ll-queue-items');
+        const pagination = list.querySelector('.ll-queue-pagination');
+        if (!items) {
+            return;
+        }
+
+        const page = Math.max(1, parseInt(requestedPage, 10) || 1);
+        list.dataset.loading = 'true';
+        list.dataset.loaded = 'false';
+        clearSelections();
+        items.innerHTML = '';
+        items.setAttribute('aria-busy', 'true');
+        if (pagination) {
+            pagination.hidden = true;
+        }
+        setQueueStatus(list, t('queueLoading', 'Loading recordings...'), 'loading');
+
+        try {
+            const response = await fetch(window.llAudioProcessor.ajaxUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    action: 'll_audio_processor_load_queue_page',
+                    nonce: window.llAudioProcessor.nonce,
+                    tab,
+                    page: String(page)
+                })
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload || !payload.success || !payload.data) {
+                throw new Error('queue_load_failed');
+            }
+
+            const data = payload.data;
+            const recordings = Array.isArray(data.recordings) ? data.recordings : [];
+            state.queueRecordings[tab] = recordings;
+            if (state.activeTab === tab) {
+                state.recordings = recordings;
+            }
+
+            items.innerHTML = typeof data.html === 'string' ? data.html : '';
+            list.dataset.page = String(data.page || page);
+            list.dataset.loaded = 'true';
+            const hasMore = data.hasMore === true;
+            const currentPage = Math.max(1, parseInt(data.page, 10) || page);
+            const previous = list.querySelector('.ll-queue-page-previous');
+            const next = list.querySelector('.ll-queue-page-next');
+            const pageLabel = list.querySelector('.ll-queue-page-label');
+            if (previous) {
+                previous.disabled = currentPage <= 1;
+            }
+            if (next) {
+                next.disabled = !hasMore;
+            }
+            if (pageLabel) {
+                pageLabel.textContent = formatText(t('queuePageTemplate', 'Page %d'), [currentPage]);
+            }
+            if (pagination) {
+                pagination.hidden = currentPage <= 1 && !hasMore;
+            }
+
+            const tabCount = document.querySelector(`.ll-tab-count[data-tab-count="${tab}"]`);
+            if (tabCount) {
+                const knownCount = Math.max(0, parseInt(data.knownCount, 10) || 0);
+                tabCount.textContent = hasMore
+                    ? formatText(t('queueCountMoreTemplate', '%d+'), [knownCount])
+                    : String(knownCount);
+                tabCount.removeAttribute('aria-label');
+            }
+
+            if (recordings.length === 0) {
+                setQueueStatus(list, getQueueEmptyMessage(tab), 'empty');
+            } else {
+                setQueueStatus(list, '', 'ready');
+            }
+
+            localizeRecordingDates(items);
+            enhanceSplitWordLinks(items);
+            wireRecordingCheckboxes(items);
+            restoreReturnedRecordingFocus();
+
+            const tabsWrapper = document.querySelector('.ll-audio-processor-tabs');
+            const shouldFindFirstWorkTab = !options.skipAutoSelect
+                && tab === 'queue'
+                && currentPage === 1
+                && recordings.length === 0
+                && tabsWrapper
+                && tabsWrapper.dataset.autoSelectWork === 'true';
+            if (shouldFindFirstWorkTab) {
+                tabsWrapper.dataset.autoSelectWork = 'false';
+                for (const candidateTab of ['duplicates', 'reprocess']) {
+                    const candidateData = await loadQueuePage(candidateTab, 1, { skipAutoSelect: true });
+                    if (
+                        candidateData
+                        && Array.isArray(candidateData.recordings)
+                        && candidateData.recordings.length > 0
+                        && state.activeTab === 'queue'
+                    ) {
+                        setActiveTab(candidateTab);
+                        break;
+                    }
+                }
+            }
+
+            return data;
+        } catch (error) {
+            setQueueStatus(list, t('queueLoadFailed', 'Could not load recordings. Please try again.'), 'error');
+            return null;
+        } finally {
+            list.dataset.loading = 'false';
+            items.removeAttribute('aria-busy');
         }
     }
 
@@ -708,12 +921,63 @@
         return Array.from(list.querySelectorAll('.ll-recording-checkbox'));
     }
 
+    function wireRecordingCheckboxes(scope = document) {
+        scope.querySelectorAll('.ll-recording-checkbox').forEach(cb => {
+            if (cb.dataset.llSelectionBound === 'true') {
+                return;
+            }
+            cb.dataset.llSelectionBound = 'true';
+
+            cb.addEventListener('change', (e) => {
+                const id = parseInt(e.target.value, 10);
+                if (e.target.checked) {
+                    state.selected.add(id);
+                } else {
+                    state.selected.delete(id);
+                }
+                updateSelectedCount();
+            });
+
+            cb.addEventListener('click', (e) => {
+                const list = e.currentTarget.closest('.ll-recordings-list');
+                const tab = list && list.dataset.tab ? list.dataset.tab : state.activeTab;
+                const cbArray = list ? Array.from(list.querySelectorAll('.ll-recording-checkbox')) : [];
+                const currentIndex = cbArray.indexOf(e.currentTarget);
+                const lastIndex = Number.isInteger(state.lastSelectedIndexByTab[tab])
+                    ? state.lastSelectedIndexByTab[tab]
+                    : null;
+
+                if (e.shiftKey && lastIndex !== null && lastIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+                    const shouldCheck = e.currentTarget.checked;
+
+                    for (let i = start; i <= end; i++) {
+                        const targetCb = cbArray[i];
+                        if (!targetCb) continue;
+
+                        targetCb.checked = shouldCheck;
+                        const id = parseInt(targetCb.value, 10);
+                        if (shouldCheck) {
+                            state.selected.add(id);
+                        } else {
+                            state.selected.delete(id);
+                        }
+                    }
+
+                    updateSelectedCount();
+                }
+
+                state.lastSelectedIndexByTab[tab] = currentIndex;
+            });
+        });
+    }
+
     function wireEventListeners() {
         const selectAll = document.getElementById('ll-select-all');
         const deselectAll = document.getElementById('ll-deselect-all');
         const processBtn = document.getElementById('ll-process-selected');
         const deleteBtn = document.getElementById('ll-delete-selected');
-        const checkboxes = document.querySelectorAll('.ll-recording-checkbox');
 
         const enableTrim = document.getElementById('ll-enable-trim');
         const enableNoise = document.getElementById('ll-enable-noise');
@@ -757,57 +1021,7 @@
             });
         }
 
-        checkboxes.forEach(cb => {
-            // Support single toggle updates
-            cb.addEventListener('change', (e) => {
-                const id = parseInt(e.target.value);
-                if (e.target.checked) {
-                    state.selected.add(id);
-                } else {
-                    state.selected.delete(id);
-                }
-                updateSelectedCount();
-            });
-
-            // Add shift-click range selection (Gmail-style)
-            cb.addEventListener('click', (e) => {
-                const list = e.currentTarget.closest('.ll-recordings-list');
-                const tab = list && list.dataset.tab ? list.dataset.tab : state.activeTab;
-                const cbArray = list ? Array.from(list.querySelectorAll('.ll-recording-checkbox')) : [];
-                const currentIndex = cbArray.indexOf(e.currentTarget);
-                const lastIndex = Number.isInteger(state.lastSelectedIndexByTab[tab])
-                    ? state.lastSelectedIndexByTab[tab]
-                    : null;
-
-                if (e.shiftKey && lastIndex !== null && lastIndex !== -1) {
-                    const start = Math.min(lastIndex, currentIndex);
-                    const end = Math.max(lastIndex, currentIndex);
-                    const shouldCheck = e.currentTarget.checked;
-
-                    for (let i = start; i <= end; i++) {
-                        const targetCb = cbArray[i];
-                        if (!targetCb) continue;
-
-                        // Only update if state differs to avoid unnecessary work
-                        if (targetCb.checked !== shouldCheck) {
-                            targetCb.checked = shouldCheck;
-                        }
-
-                        const id = parseInt(targetCb.value);
-                        if (shouldCheck) {
-                            state.selected.add(id);
-                        } else {
-                            state.selected.delete(id);
-                        }
-                    }
-
-                    updateSelectedCount();
-                }
-
-                // Always remember the last clicked index
-                state.lastSelectedIndexByTab[tab] = currentIndex;
-            });
-        });
+        wireRecordingCheckboxes();
 
         if (processBtn) {
             processBtn.addEventListener('click', processSelectedRecordings);
@@ -818,7 +1032,22 @@
         }
 
         document.addEventListener('click', (e) => {
-            if (e.target.id === 'll-save-all') {
+            const queueList = e.target.closest ? e.target.closest('.ll-recordings-list') : null;
+            if (e.target.closest && e.target.closest('.ll-queue-retry')) {
+                if (queueList) {
+                    loadQueuePage(queueList.dataset.tab || state.activeTab, parseInt(queueList.dataset.page || '1', 10) || 1);
+                }
+            } else if (e.target.closest && e.target.closest('.ll-queue-page-previous')) {
+                if (queueList) {
+                    const page = Math.max(1, (parseInt(queueList.dataset.page || '1', 10) || 1) - 1);
+                    loadQueuePage(queueList.dataset.tab || state.activeTab, page);
+                }
+            } else if (e.target.closest && e.target.closest('.ll-queue-page-next')) {
+                if (queueList) {
+                    const page = (parseInt(queueList.dataset.page || '1', 10) || 1) + 1;
+                    loadQueuePage(queueList.dataset.tab || state.activeTab, page);
+                }
+            } else if (e.target.id === 'll-save-all') {
                 saveAllProcessedAudio();
             } else if (e.target.id === 'll-cancel-review') {
                 cancelReview();
@@ -1203,11 +1432,11 @@
         const recordingTypeSelect = renderRecordingTypeSelect(selectedRecordingType, postId);
 
         const wordsetHtml = recording.wordsets && recording.wordsets.length > 0
-            ? `<span class="ll-review-wordset"><strong>Wordset:</strong> ${escapeHtml(recording.wordsets.join(', '))}</span>`
+            ? `<span class="ll-review-wordset"><strong>${escapeHtml(t('wordsetLabel', 'Wordset:'))}</strong> ${escapeHtml(recording.wordsets.join(', '))}</span>`
             : '';
 
         const categoryHtml = recording.categories && recording.categories.length > 0
-            ? `<span class="ll-review-category"><strong>Category:</strong> ${escapeHtml(recording.categories.join(', '))}</span>`
+            ? `<span class="ll-review-category"><strong>${escapeHtml(t('categoryLabel', 'Category:'))}</strong> ${escapeHtml(recording.categories.join(', '))}</span>`
             : '';
 
         const wordInputLabel = t('wordInputLabel', 'Word');

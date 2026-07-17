@@ -121,18 +121,10 @@ function ll_enqueue_audio_processor_assets($hook) {
     ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css');
     ll_enqueue_asset_by_timestamp('/js/audio-processor.js', 'll-audio-processor-js', [], true);
 
-    // Get all unprocessed recordings (grouped with duplicates)
-    $recording_sets = ll_get_unprocessed_recordings();
-    $recordings = isset($recording_sets['all']) ? $recording_sets['all'] : [];
-    $reprocess_recordings = function_exists('ll_get_reprocessable_recordings') ? ll_get_reprocessable_recordings() : [];
-    if (!empty($reprocess_recordings)) {
-        $recordings = array_values(array_merge($recordings, $reprocess_recordings));
-    }
-
     wp_localize_script('ll-audio-processor-js', 'llAudioProcessor', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_audio_processor'),
-        'recordings' => $recordings,
+        'recordings' => [],
         'recordingTypes' => $recording_type_choices,
         'recordingTypeIcons' => ll_audio_processor_get_recording_type_icons_map(),
         'i18n' => [
@@ -199,23 +191,41 @@ function ll_enqueue_audio_processor_assets($hook) {
             /* translators: 1: recording title, 2: error message */
             'processingErrorTemplate' => __('Error processing %1$s: %2$s', 'll-tools-text-domain'),
             'processingComplete' => __('Processing complete! Review the results below.', 'll-tools-text-domain'),
+            'queueLoading' => __('Loading recordings...', 'll-tools-text-domain'),
+            'queueLoadFailed' => __('Could not load recordings. Please try again.', 'll-tools-text-domain'),
+            'queueRetry' => __('Retry', 'll-tools-text-domain'),
+            'queueEmpty' => __('No unique recordings in the queue. Check the duplicates tab for additional recordings.', 'll-tools-text-domain'),
+            'duplicatesEmpty' => __('No duplicates found.', 'll-tools-text-domain'),
+            'reprocessEmpty' => __('No recordings with preserved original audio are ready to reprocess.', 'll-tools-text-domain'),
+            'queuePrevious' => __('Previous', 'll-tools-text-domain'),
+            'queueNext' => __('Next', 'll-tools-text-domain'),
+            /* translators: %d: current queue page number */
+            'queuePageTemplate' => __('Page %d', 'll-tools-text-domain'),
+            /* translators: %d: known minimum number of recordings in a queue */
+            'queueCountMoreTemplate' => __('%d+', 'll-tools-text-domain'),
+            'wordsetLabel' => __('Wordset:', 'll-tools-text-domain'),
+            'categoryLabel' => __('Category:', 'll-tools-text-domain'),
         ],
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_audio_processor_assets');
 
-function ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug) {
-    $type_key = $recording_type_slug ? $recording_type_slug : '__none__';
-    return $parent_word_id . '::' . $type_key;
-}
-
-function ll_audio_processor_get_word_editor_values($word_id) {
+function ll_audio_processor_get_word_editor_values($word_id, ?array $wordset_ids = null) {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
         return [
             'word_text' => '',
             'translation_text' => '',
             'store_in_title' => true,
+        ];
+    }
+
+    if (function_exists('ll_tools_get_word_text_parts')) {
+        $values = ll_tools_get_word_text_parts($word_id, null, true, $wordset_ids);
+        return [
+            'word_text' => trim((string) ($values['word_text'] ?? '')),
+            'translation_text' => trim((string) ($values['translation_text'] ?? '')),
+            'store_in_title' => isset($values['store_in_title']) ? (bool) $values['store_in_title'] : true,
         ];
     }
 
@@ -229,7 +239,7 @@ function ll_audio_processor_get_word_editor_values($word_id) {
     }
 
     $store_in_title = function_exists('ll_tools_should_store_word_in_title')
-        ? (bool) ll_tools_should_store_word_in_title($word_id)
+        ? (bool) ll_tools_should_store_word_in_title($word_id, $wordset_ids)
         : true;
     $word_title = trim((string) get_the_title($word_id));
     $word_translation = trim((string) get_post_meta($word_id, 'word_translation', true));
@@ -250,44 +260,6 @@ function ll_audio_processor_get_word_editor_values($word_id) {
         'translation_text' => trim((string) $translation_text),
         'store_in_title' => $store_in_title,
     ];
-}
-
-function ll_audio_processor_get_published_recording_map($parent_word_ids) {
-    $parent_word_ids = array_values(array_unique(array_filter(array_map('intval', $parent_word_ids))));
-    if (empty($parent_word_ids)) {
-        return [];
-    }
-
-    $published_ids = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'post_parent__in' => $parent_word_ids,
-        'fields' => 'ids',
-    ]);
-
-    if (empty($published_ids) || is_wp_error($published_ids)) {
-        return [];
-    }
-
-    $published_by_key = [];
-    foreach ($published_ids as $audio_post_id) {
-        $parent_word_id = wp_get_post_parent_id($audio_post_id);
-        if (!$parent_word_id) {
-            continue;
-        }
-
-        $recording_type_slugs = wp_get_post_terms($audio_post_id, 'recording_type', ['fields' => 'slugs']);
-        $recording_type_slug = (!is_wp_error($recording_type_slugs) && !empty($recording_type_slugs)) ? $recording_type_slugs[0] : '';
-        $key = ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug);
-
-        if (!isset($published_by_key[$key])) {
-            $published_by_key[$key] = [];
-        }
-        $published_by_key[$key][] = (int) $audio_post_id;
-    }
-
-    return $published_by_key;
 }
 
 function ll_audio_processor_get_word_audio_child_count_map($parent_word_ids) {
@@ -397,15 +369,22 @@ function ll_audio_processor_current_user_can_view_parent_word(int $parent_word_i
         return false;
     }
 
-    $wordset_ids = wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'ids']);
-    if (!is_array($wordset_ids) || empty($wordset_ids)) {
+    $wordset_terms = get_the_terms($parent_word_id, 'wordset');
+    if (!is_array($wordset_terms) || empty($wordset_terms)) {
         return false;
     }
+    $wordset_ids = array_map(static function (WP_Term $term): int {
+        return (int) $term->term_id;
+    }, $wordset_terms);
 
     return !empty(array_intersect(array_map('intval', $wordset_ids), $allowed_wordset_ids));
 }
 
-function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $prefer_original_source = false) {
+function ll_audio_processor_build_recording_payload(
+    int $audio_post_id,
+    bool $prefer_original_source = false,
+    bool $allow_legacy_image_lookup = true
+) {
     $audio_post_id = (int) $audio_post_id;
     if ($audio_post_id <= 0) {
         return null;
@@ -427,15 +406,29 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
         return null;
     }
 
-    $word_values = ll_audio_processor_get_word_editor_values($parent_word_id);
+    $wordset_terms = get_the_terms($parent_word_id, 'wordset');
+    $wordset_names = is_array($wordset_terms)
+        ? array_values(array_map(static function (WP_Term $term): string {
+            return (string) $term->name;
+        }, $wordset_terms))
+        : [];
+    $wordset_ids = is_array($wordset_terms)
+        ? array_values(array_map(static function (WP_Term $term): int {
+            return (int) $term->term_id;
+        }, $wordset_terms))
+        : [];
+
+    $word_values = ll_audio_processor_get_word_editor_values($parent_word_id, $wordset_ids);
     $word_title = (string) ($word_values['word_text'] ?? '');
-    $categories = wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']);
+    $category_terms = get_the_terms($parent_word_id, 'word-category');
+    $categories = is_array($category_terms)
+        ? array_values(array_map(static function (WP_Term $term): string {
+            return (string) $term->name;
+        }, $category_terms))
+        : [];
     $upload_date = (string) get_post_meta($audio_post_id, 'recording_date', true);
 
-    $wordsets = wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'names']);
-    $wordset_names = (!is_wp_error($wordsets) && !empty($wordsets)) ? $wordsets : [];
-
-    $recording_type_terms = wp_get_post_terms($audio_post_id, 'recording_type');
+    $recording_type_terms = get_the_terms($audio_post_id, 'recording_type');
     $recording_type_names = [];
     $recording_type_slugs = [];
     $recording_type_items = [];
@@ -457,7 +450,11 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
     $original_audio_path = function_exists('ll_tools_get_audio_original_file_path')
         ? ll_tools_get_audio_original_file_path($audio_post_id)
         : '';
-    $word_image_data = ll_tools_get_effective_word_image_data_for_word($parent_word_id, 'thumbnail', true);
+    $word_image_data = ll_tools_get_effective_word_image_data_for_word(
+        $parent_word_id,
+        'thumbnail',
+        $allow_legacy_image_lookup
+    );
     $word_image_url = (string) ($word_image_data['url'] ?? '');
 
     return [
@@ -470,160 +467,376 @@ function ll_audio_processor_build_recording_payload(int $audio_post_id, bool $pr
         'currentAudioUrl' => site_url($audio_file),
         'uploadDate' => $upload_date,
         'uploadTimestamp' => ll_audio_processor_get_recording_timestamp($upload_date),
-        'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
+        'categories' => $categories,
         'wordsets' => $wordset_names,
         'recordingTypes' => $recording_type_names,
         'recordingTypeItems' => $recording_type_items,
         'recordingType' => $recording_type_slug,
         'imageUrl' => $word_image_url,
         'parentWordId' => (int) $parent_word_id,
-        'recordingKey' => ll_audio_processor_build_recording_key($parent_word_id, $recording_type_slug),
         'hasOriginalAudio' => $original_audio_path !== '',
         'usesOriginalAudio' => $source_audio_file !== $audio_file,
     ];
 }
 
-function ll_get_unprocessed_recordings() {
-    $args = [
-        'post_type' => 'word_audio',
-        'post_status' => ['publish', 'draft'],
-        'posts_per_page' => -1,
-        'meta_query' => [
-            [
-                'key' => '_ll_needs_audio_processing',
-                'value' => '1',
-                'compare' => '='
-            ]
-        ],
-        'orderby' => 'date',
-        'order' => 'DESC'
-    ];
+/**
+ * Keep Audio Processor queue responses bounded even when a filter changes the default.
+ */
+function ll_audio_processor_queue_page_size(): int {
+    $page_size = (int) apply_filters('ll_audio_processor_queue_page_size', 40);
+    return max(25, min(50, $page_size));
+}
 
-    $query = new WP_Query($args);
-    $recordings = [];
+/**
+ * SQL expression matching the first recording_type term used by the legacy queue grouper.
+ */
+function ll_audio_processor_recording_type_slug_sql(string $audio_alias): string {
+    global $wpdb;
+
+    return "COALESCE((
+        SELECT recording_type_term.slug
+        FROM {$wpdb->term_relationships} recording_type_relationship
+        INNER JOIN {$wpdb->term_taxonomy} recording_type_taxonomy
+            ON recording_type_taxonomy.term_taxonomy_id = recording_type_relationship.term_taxonomy_id
+        INNER JOIN {$wpdb->terms} recording_type_term
+            ON recording_type_term.term_id = recording_type_taxonomy.term_id
+        WHERE recording_type_relationship.object_id = {$audio_alias}.ID
+          AND recording_type_taxonomy.taxonomy = 'recording_type'
+        ORDER BY recording_type_term.name ASC, recording_type_term.term_id ASC
+        LIMIT 1
+    ), '')";
+}
+
+/**
+ * Restrict queue discovery before payload hydration for scoped LL Tools users.
+ */
+function ll_audio_processor_queue_access_sql(string $audio_alias): string {
+    global $wpdb;
+
+    if (ll_audio_processor_current_user_has_unrestricted_queue_access()) {
+        return '';
+    }
+
+    $allowed_wordset_ids = ll_audio_processor_current_user_queue_wordset_ids();
+    if (empty($allowed_wordset_ids)) {
+        return ' AND 1 = 0';
+    }
+
+    $allowed_wordset_ids = implode(', ', array_map('intval', $allowed_wordset_ids));
+    return " AND EXISTS (
+        SELECT 1
+        FROM {$wpdb->term_relationships} queue_access_relationship
+        INNER JOIN {$wpdb->term_taxonomy} queue_access_taxonomy
+            ON queue_access_taxonomy.term_taxonomy_id = queue_access_relationship.term_taxonomy_id
+        WHERE queue_access_relationship.object_id = {$audio_alias}.post_parent
+          AND queue_access_taxonomy.taxonomy = 'wordset'
+          AND queue_access_taxonomy.term_id IN ({$allowed_wordset_ids})
+    )";
+}
+
+/**
+ * Prime only the posts, metadata, and terms needed by the current queue page.
+ *
+ * @param array<int,array<string,mixed>> $rows
+ */
+function ll_audio_processor_prime_queue_payload_caches(array $rows): void {
+    if (!function_exists('_prime_post_caches') || empty($rows)) {
+        return;
+    }
+
+    $audio_ids = [];
     $parent_word_ids = [];
+    foreach ($rows as $row) {
+        $audio_id = (int) ($row['ID'] ?? 0);
+        $parent_word_id = (int) ($row['post_parent'] ?? 0);
+        if ($audio_id > 0) {
+            $audio_ids[] = $audio_id;
+        }
+        if ($parent_word_id > 0) {
+            $parent_word_ids[] = $parent_word_id;
+        }
+    }
 
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-            $audio_post_id = (int) get_the_ID();
-            $recording = ll_audio_processor_build_recording_payload($audio_post_id, true);
-            if (is_array($recording)) {
-                $recording['reprocessAvailable'] = !empty($recording['hasOriginalAudio']);
-                $recordings[] = $recording;
-                $parent_word_ids[] = (int) ($recording['parentWordId'] ?? 0);
+    $audio_ids = array_values(array_unique($audio_ids));
+    $parent_word_ids = array_values(array_unique($parent_word_ids));
+    if (!empty($audio_ids)) {
+        _prime_post_caches($audio_ids, true, true);
+        foreach ($audio_ids as $audio_id) {
+            if (wp_cache_get($audio_id, 'recording_type_relationships') === false) {
+                wp_cache_add($audio_id, [], 'recording_type_relationships');
             }
         }
-        wp_reset_postdata();
+    }
+    if (!empty($parent_word_ids)) {
+        _prime_post_caches($parent_word_ids, true, true);
+        foreach ($parent_word_ids as $parent_word_id) {
+            foreach (['word-category', 'wordset'] as $taxonomy) {
+                $cache_group = $taxonomy . '_relationships';
+                if (wp_cache_get($parent_word_id, $cache_group) === false) {
+                    wp_cache_add($parent_word_id, [], $cache_group);
+                }
+            }
+        }
+    }
+
+    // The queue cards render canonical word images. Prime their post and
+    // attachment metadata in batches so card hydration does not add one query
+    // per visible word when those links are already materialized.
+    $word_image_ids = [];
+    $attachment_ids = [];
+    foreach ($parent_word_ids as $parent_word_id) {
+        $word_image_id = (int) get_post_meta($parent_word_id, '_ll_autopicked_image_id', true);
+        if ($word_image_id > 0) {
+            $word_image_ids[] = $word_image_id;
+        }
+
+        $word_attachment_id = (int) get_post_meta($parent_word_id, '_thumbnail_id', true);
+        if ($word_attachment_id > 0) {
+            $attachment_ids[] = $word_attachment_id;
+        }
+    }
+
+    $word_image_ids = array_values(array_unique($word_image_ids));
+    if (!empty($word_image_ids)) {
+        _prime_post_caches($word_image_ids, true, true);
+        foreach ($word_image_ids as $word_image_id) {
+            $attachment_id = (int) get_post_meta($word_image_id, '_thumbnail_id', true);
+            if ($attachment_id > 0) {
+                $attachment_ids[] = $attachment_id;
+            }
+        }
+    }
+
+    $attachment_ids = array_values(array_unique($attachment_ids));
+    if (!empty($attachment_ids)) {
+        _prime_post_caches($attachment_ids, false, true);
+    }
+}
+
+/**
+ * Load one bounded Audio Processor tab page without hydrating the rest of the queue.
+ *
+ * @return array{tab:string,page:int,perPage:int,hasMore:bool,knownCount:int,recordings:array<int,array<string,mixed>>}
+ */
+function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per_page = null): array {
+    global $wpdb;
+
+    $allowed_tabs = ['queue', 'duplicates', 'reprocess'];
+    if (!in_array($tab, $allowed_tabs, true)) {
+        $tab = 'queue';
+    }
+
+    $page = max(1, $page);
+    $per_page = $per_page === null ? ll_audio_processor_queue_page_size() : max(25, min(50, $per_page));
+    $offset = ($page - 1) * $per_page;
+    $query_limit = $per_page + 1;
+    $access_sql = ll_audio_processor_queue_access_sql('audio');
+
+    if ($tab === 'reprocess') {
+        if (!defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY')) {
+            $rows = [];
+        } else {
+            $original_meta_key = esc_sql((string) LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY);
+            $rows = $wpdb->get_results(
+                "
+                SELECT audio.ID, audio.post_parent, '' AS duplicate_reason
+                FROM {$wpdb->posts} audio
+                WHERE audio.post_type = 'word_audio'
+                  AND audio.post_status IN ('publish', 'draft')
+                  AND audio.post_parent > 0
+                  AND EXISTS (
+                      SELECT 1 FROM {$wpdb->postmeta} source_path
+                      WHERE source_path.post_id = audio.ID
+                        AND source_path.meta_key = '{$original_meta_key}'
+                        AND TRIM(COALESCE(source_path.meta_value, '')) <> ''
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM {$wpdb->postmeta} audio_path
+                      WHERE audio_path.post_id = audio.ID
+                        AND audio_path.meta_key = 'audio_file_path'
+                        AND TRIM(COALESCE(audio_path.meta_value, '')) <> ''
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {$wpdb->postmeta} processing_flag
+                      WHERE processing_flag.post_id = audio.ID
+                        AND processing_flag.meta_key = '_ll_needs_audio_processing'
+                        AND processing_flag.meta_value = '1'
+                  )
+                  {$access_sql}
+                ORDER BY audio.post_modified DESC, audio.ID DESC
+                LIMIT {$query_limit} OFFSET {$offset}
+                ",
+                ARRAY_A
+            );
+        }
+    } else {
+        $candidate_type_sql = ll_audio_processor_recording_type_slug_sql('audio');
+        $published_type_sql = ll_audio_processor_recording_type_slug_sql('published_audio');
+        $earlier_type_sql = ll_audio_processor_recording_type_slug_sql('earlier_audio');
+        $candidate_sql = "
+            SELECT audio.ID, audio.post_parent, audio.post_date, {$candidate_type_sql} AS recording_type_slug
+            FROM {$wpdb->posts} audio
+            WHERE audio.post_type = 'word_audio'
+              AND audio.post_status IN ('publish', 'draft')
+              AND audio.post_parent > 0
+              AND EXISTS (
+                  SELECT 1 FROM {$wpdb->postmeta} processing_flag
+                  WHERE processing_flag.post_id = audio.ID
+                    AND processing_flag.meta_key = '_ll_needs_audio_processing'
+                    AND processing_flag.meta_value = '1'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM {$wpdb->postmeta} audio_path
+                  WHERE audio_path.post_id = audio.ID
+                    AND audio_path.meta_key = 'audio_file_path'
+                    AND TRIM(COALESCE(audio_path.meta_value, '')) <> ''
+              )
+              {$access_sql}
+        ";
+        $published_duplicate_sql = "EXISTS (
+            SELECT 1
+            FROM {$wpdb->posts} published_audio
+            WHERE published_audio.post_type = 'word_audio'
+              AND published_audio.post_status = 'publish'
+              AND published_audio.post_parent = candidate.post_parent
+              AND published_audio.ID <> candidate.ID
+              AND {$published_type_sql} = candidate.recording_type_slug
+        )";
+        $earlier_pending_sql = "EXISTS (
+            SELECT 1
+            FROM {$wpdb->posts} earlier_audio
+            WHERE earlier_audio.post_type = 'word_audio'
+              AND earlier_audio.post_status IN ('publish', 'draft')
+              AND earlier_audio.post_parent = candidate.post_parent
+              AND (
+                  earlier_audio.post_date > candidate.post_date
+                  OR (earlier_audio.post_date = candidate.post_date AND earlier_audio.ID > candidate.ID)
+              )
+              AND EXISTS (
+                  SELECT 1 FROM {$wpdb->postmeta} earlier_processing_flag
+                  WHERE earlier_processing_flag.post_id = earlier_audio.ID
+                    AND earlier_processing_flag.meta_key = '_ll_needs_audio_processing'
+                    AND earlier_processing_flag.meta_value = '1'
+              )
+              AND EXISTS (
+                  SELECT 1 FROM {$wpdb->postmeta} earlier_audio_path
+                  WHERE earlier_audio_path.post_id = earlier_audio.ID
+                    AND earlier_audio_path.meta_key = 'audio_file_path'
+                    AND TRIM(COALESCE(earlier_audio_path.meta_value, '')) <> ''
+              )
+              AND {$earlier_type_sql} = candidate.recording_type_slug
+        )";
+        $duplicate_reason_sql = "CASE
+            WHEN {$published_duplicate_sql} THEN 'published'
+            WHEN {$earlier_pending_sql} THEN 'queued'
+            ELSE ''
+        END";
+        $having_sql = $tab === 'duplicates'
+            ? "HAVING duplicate_reason <> ''"
+            : "HAVING duplicate_reason = ''";
+
+        $rows = $wpdb->get_results(
+            "
+            SELECT candidate.ID, candidate.post_parent, {$duplicate_reason_sql} AS duplicate_reason
+            FROM ({$candidate_sql}) candidate
+            {$having_sql}
+            ORDER BY candidate.post_date DESC, candidate.ID DESC
+            LIMIT {$query_limit} OFFSET {$offset}
+            ",
+            ARRAY_A
+        );
+    }
+
+    $rows = is_array($rows) ? $rows : [];
+    $has_more = count($rows) > $per_page;
+    if ($has_more) {
+        array_pop($rows);
+    }
+
+    ll_audio_processor_prime_queue_payload_caches($rows);
+
+    $recordings = [];
+    $parent_word_ids = [];
+    foreach ($rows as $row) {
+        $recording = ll_audio_processor_build_recording_payload((int) ($row['ID'] ?? 0), true, false);
+        if (!is_array($recording)) {
+            continue;
+        }
+
+        $recording['duplicateReason'] = (string) ($row['duplicate_reason'] ?? '');
+        $recording['reprocessAvailable'] = !empty($recording['hasOriginalAudio']);
+        if ($tab === 'reprocess') {
+            $recording['isReprocessSource'] = true;
+        }
+        $recordings[] = $recording;
+        $parent_word_ids[] = (int) ($recording['parentWordId'] ?? 0);
     }
 
     $audio_child_count_map = ll_audio_processor_get_word_audio_child_count_map($parent_word_ids);
     foreach ($recordings as &$recording) {
-        $parent_word_id = isset($recording['parentWordId']) ? (int) $recording['parentWordId'] : 0;
+        $parent_word_id = (int) ($recording['parentWordId'] ?? 0);
         $recording['splitWordEnabled'] = $parent_word_id > 0
             && ((int) ($audio_child_count_map[$parent_word_id] ?? 0) > 1);
     }
     unset($recording);
-
-    $published_by_key = ll_audio_processor_get_published_recording_map($parent_word_ids);
-    $queue = [];
-    $duplicates = [];
-    $seen_keys = [];
-
-    foreach ($recordings as $recording) {
-        $key = $recording['recordingKey'];
-        $published_ids = isset($published_by_key[$key]) ? $published_by_key[$key] : [];
-        $has_published_duplicate = false;
-
-        if (!empty($published_ids)) {
-            if (count($published_ids) > 1 || (count($published_ids) === 1 && (int) $published_ids[0] !== (int) $recording['id'])) {
-                $has_published_duplicate = true;
-            }
-        }
-
-        if ($has_published_duplicate) {
-            $recording['duplicateReason'] = 'published';
-            $duplicates[] = $recording;
-            continue;
-        }
-
-        if (isset($seen_keys[$key])) {
-            $recording['duplicateReason'] = 'queued';
-            $duplicates[] = $recording;
-            continue;
-        }
-
-        $recording['duplicateReason'] = '';
-        $queue[] = $recording;
-        $seen_keys[$key] = true;
-    }
 
     return [
-        'queue' => $queue,
-        'duplicates' => $duplicates,
-        'all' => $recordings,
+        'tab' => $tab,
+        'page' => $page,
+        'perPage' => $per_page,
+        'hasMore' => $has_more,
+        'knownCount' => $offset + count($recordings),
+        'recordings' => $recordings,
     ];
 }
 
-function ll_get_reprocessable_recordings(): array {
-    if (!defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY')) {
-        return [];
+function ll_audio_processor_render_queue_page_html(array $page_data): string {
+    $tab = (string) ($page_data['tab'] ?? 'queue');
+    $recordings = isset($page_data['recordings']) && is_array($page_data['recordings'])
+        ? $page_data['recordings']
+        : [];
+
+    ob_start();
+    if ($tab === 'duplicates' && !empty($recordings)) {
+        echo '<div class="ll-duplicate-note">';
+        echo esc_html__('Duplicates are hidden so you can process one recording per word and recording type first.', 'll-tools-text-domain');
+        echo '</div>';
+    } elseif ($tab === 'reprocess' && !empty($recordings)) {
+        echo '<div class="ll-duplicate-note">';
+        echo esc_html__('These recordings use their saved original audio source. Saving replaces the current processed audio for the same word.', 'll-tools-text-domain');
+        echo '</div>';
     }
 
-    $query = new WP_Query([
-        'post_type' => 'word_audio',
-        'post_status' => ['publish', 'draft'],
-        'posts_per_page' => -1,
-        'meta_query' => [
-            'relation' => 'AND',
-            [
-                'key' => LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY,
-                'compare' => 'EXISTS',
-            ],
-            [
-                'relation' => 'OR',
-                [
-                    'key' => '_ll_needs_audio_processing',
-                    'compare' => 'NOT EXISTS',
-                ],
-                [
-                    'key' => '_ll_needs_audio_processing',
-                    'value' => '1',
-                    'compare' => '!=',
-                ],
-            ],
-        ],
-        'orderby' => 'modified',
-        'order' => 'DESC',
-    ]);
-
-    $recordings = [];
-    $parent_word_ids = [];
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-            $recording = ll_audio_processor_build_recording_payload((int) get_the_ID(), true);
-            if (!is_array($recording) || empty($recording['hasOriginalAudio'])) {
-                continue;
-            }
-            $recording['reprocessAvailable'] = true;
-            $recording['isReprocessSource'] = true;
-            $recordings[] = $recording;
-            $parent_word_ids[] = (int) ($recording['parentWordId'] ?? 0);
-        }
-        wp_reset_postdata();
+    foreach ($recordings as $recording) {
+        ll_render_audio_processor_recording_item(
+            $recording,
+            $tab === 'duplicates' ? (string) ($recording['duplicateReason'] ?? '') : ''
+        );
     }
 
-    $audio_child_count_map = ll_audio_processor_get_word_audio_child_count_map($parent_word_ids);
-    foreach ($recordings as &$recording) {
-        $parent_word_id = isset($recording['parentWordId']) ? (int) $recording['parentWordId'] : 0;
-        $recording['splitWordEnabled'] = $parent_word_id > 0
-            && ((int) ($audio_child_count_map[$parent_word_id] ?? 0) > 1);
-    }
-    unset($recording);
-
-    return $recordings;
+    return (string) ob_get_clean();
 }
+
+function ll_audio_processor_load_queue_page_handler(): void {
+    if (!check_ajax_referer('ll_audio_processor', 'nonce', false)) {
+        wp_send_json_error(__('The queue request expired. Refresh the page and try again.', 'll-tools-text-domain'), 403);
+    }
+
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(__('Permission denied', 'll-tools-text-domain'), 403);
+    }
+
+    $tab = isset($_POST['tab']) ? sanitize_key((string) wp_unslash($_POST['tab'])) : 'queue';
+    if (!in_array($tab, ['queue', 'duplicates', 'reprocess'], true)) {
+        wp_send_json_error(__('Invalid queue.', 'll-tools-text-domain'), 400);
+    }
+
+    $page = isset($_POST['page']) ? max(1, (int) $_POST['page']) : 1;
+    $page_data = ll_audio_processor_get_queue_page($tab, $page);
+    $page_data['html'] = ll_audio_processor_render_queue_page_html($page_data);
+    wp_send_json_success($page_data);
+}
+add_action('wp_ajax_ll_audio_processor_load_queue_page', 'll_audio_processor_load_queue_page_handler');
 
 function ll_render_audio_processor_recording_item($recording, $duplicate_reason = '') {
     $recording_type_items = [];
@@ -818,31 +1031,56 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     <?php
 }
 
+function ll_render_audio_processor_queue_panel(string $tab, bool $is_active, int $initial_page = 1): void {
+    $initial_page = max(1, $initial_page);
+    ?>
+    <div
+        id="ll-recordings-<?php echo esc_attr($tab); ?>"
+        class="ll-recordings-list <?php echo $is_active ? 'is-active' : ''; ?>"
+        data-tab="<?php echo esc_attr($tab); ?>"
+        data-page="<?php echo esc_attr((string) $initial_page); ?>"
+        data-loaded="false"
+        role="tabpanel"
+        aria-hidden="<?php echo $is_active ? 'false' : 'true'; ?>"
+    >
+        <div class="ll-queue-status is-loading" role="status" aria-live="polite">
+            <span class="ll-queue-status-text"><?php echo esc_html__('Loading recordings...', 'll-tools-text-domain'); ?></span>
+            <button type="button" class="button ll-queue-retry" hidden>
+                <?php echo esc_html__('Retry', 'll-tools-text-domain'); ?>
+            </button>
+        </div>
+        <div class="ll-queue-items"></div>
+        <div class="ll-queue-pagination" hidden>
+            <button type="button" class="button ll-queue-page-previous">
+                <?php echo esc_html__('Previous', 'll-tools-text-domain'); ?>
+            </button>
+            <span class="ll-queue-page-label" aria-live="polite"></span>
+            <button type="button" class="button ll-queue-page-next">
+                <?php echo esc_html__('Next', 'll-tools-text-domain'); ?>
+            </button>
+        </div>
+    </div>
+    <?php
+}
+
 function ll_render_audio_processor_page() {
     if (function_exists('ll_tools_acknowledge_recording_notification_batch_from_processor_page')) {
         ll_tools_acknowledge_recording_notification_batch_from_processor_page();
     }
 
-    $recording_sets = ll_get_unprocessed_recordings();
-    $queue_recordings = isset($recording_sets['queue']) ? $recording_sets['queue'] : [];
-    $duplicate_recordings = isset($recording_sets['duplicates']) ? $recording_sets['duplicates'] : [];
-    $reprocess_recordings = ll_get_reprocessable_recordings();
-    $has_recordings = !empty($queue_recordings) || !empty($duplicate_recordings) || !empty($reprocess_recordings);
-    $active_tab = !empty($queue_recordings) ? 'queue' : (!empty($duplicate_recordings) ? 'duplicates' : 'reprocess');
+    $active_tab = 'queue';
     $requested_tab = isset($_GET['ll_ap_tab']) ? sanitize_key((string) $_GET['ll_ap_tab']) : '';
     if (in_array($requested_tab, ['queue', 'duplicates', 'reprocess'], true)) {
         $active_tab = $requested_tab;
     }
+    $active_page = isset($_GET['ll_ap_page'])
+        ? max(1, (int) wp_unslash((string) $_GET['ll_ap_page']))
+        : 1;
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>
         <p><?php esc_html_e('Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.', 'll-tools-text-domain'); ?></p>
 
-        <?php if (!$has_recordings): ?>
-            <div class="notice notice-info">
-                <p><?php esc_html_e('No unprocessed audio recordings found.', 'll-tools-text-domain'); ?></p>
-            </div>
-        <?php else: ?>
             <div class="ll-processing-options">
                 <h3><?php esc_html_e('Processing Options', 'll-tools-text-domain'); ?></h3>
                 <label>
@@ -891,7 +1129,12 @@ function ll_render_audio_processor_page() {
                 </div>
             </div>
 
-            <div class="ll-audio-processor-tabs" role="tablist" data-initial-tab="<?php echo esc_attr($active_tab); ?>">
+            <div
+                class="ll-audio-processor-tabs"
+                role="tablist"
+                data-initial-tab="<?php echo esc_attr($active_tab); ?>"
+                data-auto-select-work="<?php echo $requested_tab === '' ? 'true' : 'false'; ?>"
+            >
                 <button
                     type="button"
                     class="ll-audio-processor-tab <?php echo $active_tab === 'queue' ? 'is-active' : ''; ?>"
@@ -901,7 +1144,7 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-queue"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Queue', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="queue"><?php echo esc_html(count($queue_recordings)); ?></span>
+                    <span class="ll-tab-count" data-tab-count="queue" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
                 </button>
                 <button
                     type="button"
@@ -912,7 +1155,7 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-duplicates"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Duplicates', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="duplicates"><?php echo esc_html(count($duplicate_recordings)); ?></span>
+                    <span class="ll-tab-count" data-tab-count="duplicates" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
                 </button>
                 <button
                     type="button"
@@ -923,69 +1166,13 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-reprocess"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Reprocess', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="reprocess"><?php echo esc_html(count($reprocess_recordings)); ?></span>
+                    <span class="ll-tab-count" data-tab-count="reprocess" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
                 </button>
             </div>
 
-            <div
-                id="ll-recordings-queue"
-                class="ll-recordings-list <?php echo $active_tab === 'queue' ? 'is-active' : ''; ?>"
-                data-tab="queue"
-                role="tabpanel"
-                aria-hidden="<?php echo $active_tab === 'queue' ? 'false' : 'true'; ?>"
-            >
-                <?php if (empty($queue_recordings)): ?>
-                    <div class="notice notice-info ll-recordings-empty">
-                        <p><?php echo esc_html__('No unique recordings in the queue. Check the duplicates tab for additional recordings.', 'll-tools-text-domain'); ?></p>
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($queue_recordings as $recording): ?>
-                        <?php ll_render_audio_processor_recording_item($recording); ?>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-
-            <div
-                id="ll-recordings-duplicates"
-                class="ll-recordings-list <?php echo $active_tab === 'duplicates' ? 'is-active' : ''; ?>"
-                data-tab="duplicates"
-                role="tabpanel"
-                aria-hidden="<?php echo $active_tab === 'duplicates' ? 'false' : 'true'; ?>"
-            >
-                <?php if (!empty($duplicate_recordings)): ?>
-                    <div class="ll-duplicate-note">
-                        <?php echo esc_html__('Duplicates are hidden so you can process one recording per word and recording type first.', 'll-tools-text-domain'); ?>
-                    </div>
-                    <?php foreach ($duplicate_recordings as $recording): ?>
-                        <?php ll_render_audio_processor_recording_item($recording, isset($recording['duplicateReason']) ? $recording['duplicateReason'] : ''); ?>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="notice notice-info ll-recordings-empty">
-                        <p><?php echo esc_html__('No duplicates found.', 'll-tools-text-domain'); ?></p>
-                    </div>
-                <?php endif; ?>
-            </div>
-
-            <div
-                id="ll-recordings-reprocess"
-                class="ll-recordings-list <?php echo $active_tab === 'reprocess' ? 'is-active' : ''; ?>"
-                data-tab="reprocess"
-                role="tabpanel"
-                aria-hidden="<?php echo $active_tab === 'reprocess' ? 'false' : 'true'; ?>"
-            >
-                <?php if (!empty($reprocess_recordings)): ?>
-                    <div class="ll-duplicate-note">
-                        <?php echo esc_html__('These recordings use their saved original audio source. Saving replaces the current processed audio for the same word.', 'll-tools-text-domain'); ?>
-                    </div>
-                    <?php foreach ($reprocess_recordings as $recording): ?>
-                        <?php ll_render_audio_processor_recording_item($recording); ?>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="notice notice-info ll-recordings-empty">
-                        <p><?php echo esc_html__('No recordings with preserved original audio are ready to reprocess.', 'll-tools-text-domain'); ?></p>
-                    </div>
-                <?php endif; ?>
-            </div>
+            <?php ll_render_audio_processor_queue_panel('queue', $active_tab === 'queue', $active_tab === 'queue' ? $active_page : 1); ?>
+            <?php ll_render_audio_processor_queue_panel('duplicates', $active_tab === 'duplicates', $active_tab === 'duplicates' ? $active_page : 1); ?>
+            <?php ll_render_audio_processor_queue_panel('reprocess', $active_tab === 'reprocess', $active_tab === 'reprocess' ? $active_page : 1); ?>
 
             <!-- Review Interface (shown after processing) -->
             <div id="ll-review-interface" class="ll-review-interface">
@@ -997,7 +1184,6 @@ function ll_render_audio_processor_page() {
                     <button id="ll-cancel-review" class="ll-btn-cancel"><?php esc_html_e('Cancel', 'll-tools-text-domain'); ?></button>
                 </div>
             </div>
-        <?php endif; ?>
     </div>
     <?php
 }

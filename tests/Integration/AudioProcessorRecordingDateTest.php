@@ -34,8 +34,8 @@ final class AudioProcessorRecordingDateTest extends LL_Tools_TestCase
             update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/timezone-test-audio.mp3');
             update_post_meta($audio_id, 'recording_date', '2026-03-09 09:00:00');
 
-            $recordings = ll_get_unprocessed_recordings();
-            $all = isset($recordings['all']) && is_array($recordings['all']) ? $recordings['all'] : [];
+            $page = ll_audio_processor_get_queue_page('queue', 1, 25);
+            $all = (array) ($page['recordings'] ?? []);
             $recording = $this->findRecordingById($all, $audio_id);
 
             $expected_timestamp = (new DateTimeImmutable('2026-03-09 09:00:00', wp_timezone()))->getTimestamp();
@@ -74,6 +74,6 @@ final class AudioProcessorRecordingDateTest extends LL_Tools_TestCase
             }
         }
 
-        $this->fail('Expected recording was not returned by ll_get_unprocessed_recordings().');
+        $this->fail('Expected recording was not returned by the Audio Processor queue page.');
     }
 }
