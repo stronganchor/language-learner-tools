@@ -2664,63 +2664,125 @@ function ll_tools_ipa_keyboard_clear_recording_auto_review(int $recording_id, st
     ll_tools_ipa_keyboard_set_recording_review_state($recording_id, false, $review_field);
 }
 
-function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): array {
+/**
+ * Build the small, per-wordset count payload used by the global admin notice.
+ *
+ * The notice runs on every wp-admin screen for LL Tools users, so it must not
+ * hydrate every matching recording and then resolve its parent wordsets in
+ * PHP. Keep this as one aggregate query whose result grows with wordsets, not
+ * recordings. The validation-state expression mirrors the canonical key order
+ * emitted by ll_tools_ipa_keyboard_sanitize_validation_state().
+ *
+ * @return array{auto_review:array<int,array{wordset_id:int,wordset_name:string,count:int}>,validation:array<int,array{wordset_id:int,wordset_name:string,count:int}>}
+ */
+function ll_tools_ipa_keyboard_get_admin_notice_recording_counts_by_wordset(): array {
     if (!current_user_can('view_ll_tools')) {
-        return [];
+        return [
+            'auto_review' => [],
+            'validation' => [],
+        ];
     }
 
-    $recording_ids = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'meta_query' => [
-            [
-                'key' => ll_tools_ipa_keyboard_auto_review_meta_key(),
-                'value' => '1',
-            ],
-        ],
-    ]);
+    global $wpdb;
+    $sql = $wpdb->prepare(
+        "/* ll_tools_ipa_admin_notice_counts */
+        SELECT
+            wordset_terms.term_id AS wordset_id,
+            wordset_terms.name AS wordset_name,
+            COUNT(DISTINCT CASE
+                WHEN review_meta.post_id IS NOT NULL THEN recordings.ID
+                ELSE NULL
+            END) AS auto_review_count,
+            COUNT(DISTINCT CASE
+                WHEN issue_meta.post_id IS NOT NULL
+                    AND validation_meta.meta_value REGEXP CONCAT(
+                        'i:',
+                        wordset_taxonomy.term_id,
+                        ';a:3:.s:14:\"schema_version\";i:[0-9]+;s:6:\"active\";a:[1-9][0-9]*:'
+                    )
+                THEN recordings.ID
+                ELSE NULL
+            END) AS validation_count
+        FROM {$wpdb->posts} recordings
+        INNER JOIN {$wpdb->posts} words
+            ON words.ID = recordings.post_parent
+            AND words.post_type = 'words'
+            AND words.post_status = 'publish'
+        INNER JOIN {$wpdb->term_relationships} wordset_relationships
+            ON wordset_relationships.object_id = words.ID
+        INNER JOIN {$wpdb->term_taxonomy} wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationships.term_taxonomy_id
+            AND wordset_taxonomy.taxonomy = 'wordset'
+        INNER JOIN {$wpdb->terms} wordset_terms
+            ON wordset_terms.term_id = wordset_taxonomy.term_id
+        LEFT JOIN {$wpdb->postmeta} review_meta
+            ON review_meta.post_id = recordings.ID
+            AND review_meta.meta_key = %s
+            AND review_meta.meta_value = '1'
+        LEFT JOIN {$wpdb->postmeta} issue_meta
+            ON issue_meta.post_id = recordings.ID
+            AND issue_meta.meta_key = %s
+            AND CAST(issue_meta.meta_value AS UNSIGNED) > 0
+        LEFT JOIN {$wpdb->postmeta} validation_meta
+            ON validation_meta.post_id = recordings.ID
+            AND validation_meta.meta_key = %s
+        WHERE recordings.post_type = 'word_audio'
+            AND recordings.post_status = 'publish'
+            AND (review_meta.post_id IS NOT NULL OR issue_meta.post_id IS NOT NULL)
+        GROUP BY wordset_terms.term_id, wordset_terms.name
+        HAVING auto_review_count > 0 OR validation_count > 0",
+        ll_tools_ipa_keyboard_auto_review_meta_key(),
+        ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+        ll_tools_ipa_keyboard_validation_state_meta_key()
+    );
+    $rows = $wpdb->get_results($sql, ARRAY_A);
+    $counts = [
+        'auto_review' => [],
+        'validation' => [],
+    ];
 
-    if (empty($recording_ids)) {
-        return [];
-    }
+    foreach ((array) $rows as $row) {
+        $wordset_id = (int) ($row['wordset_id'] ?? 0);
+        if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
+            continue;
+        }
 
-    $counts = [];
-    foreach ((array) $recording_ids as $recording_id) {
-        $wordset_ids = ll_tools_ipa_keyboard_get_recording_wordset_ids((int) $recording_id);
-        foreach ($wordset_ids as $wordset_id) {
-            $wordset_id = (int) $wordset_id;
-            if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-                continue;
-            }
-
-            if (!isset($counts[$wordset_id])) {
-                $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
-                if (!$wordset) {
-                    continue;
-                }
-
-                $counts[$wordset_id] = [
-                    'wordset_id' => $wordset_id,
-                    'wordset_name' => (string) $wordset->name,
-                    'count' => 0,
-                ];
-            }
-
-            $counts[$wordset_id]['count']++;
+        $wordset_name = (string) ($row['wordset_name'] ?? '');
+        $auto_review_count = max(0, (int) ($row['auto_review_count'] ?? 0));
+        $validation_count = max(0, (int) ($row['validation_count'] ?? 0));
+        if ($auto_review_count > 0) {
+            $counts['auto_review'][] = [
+                'wordset_id' => $wordset_id,
+                'wordset_name' => $wordset_name,
+                'count' => $auto_review_count,
+            ];
+        }
+        if ($validation_count > 0) {
+            $counts['validation'][] = [
+                'wordset_id' => $wordset_id,
+                'wordset_name' => $wordset_name,
+                'count' => $validation_count,
+            ];
         }
     }
 
-    uasort($counts, static function (array $left, array $right): int {
-        return ll_tools_locale_compare_strings(
-            (string) ($left['wordset_name'] ?? ''),
-            (string) ($right['wordset_name'] ?? '')
-        );
-    });
+    $sort_counts = static function (array &$entries): void {
+        usort($entries, static function (array $left, array $right): int {
+            return ll_tools_locale_compare_strings(
+                (string) ($left['wordset_name'] ?? ''),
+                (string) ($right['wordset_name'] ?? '')
+            );
+        });
+    };
+    $sort_counts($counts['auto_review']);
+    $sort_counts($counts['validation']);
 
-    return array_values($counts);
+    return $counts;
+}
+
+function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): array {
+    $counts = ll_tools_ipa_keyboard_get_admin_notice_recording_counts_by_wordset();
+    return array_values((array) ($counts['auto_review'] ?? []));
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
@@ -8577,68 +8639,8 @@ function ll_tools_ipa_keyboard_get_flagged_validation_recording_count(): int {
 }
 
 function ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset(): array {
-    if (!current_user_can('view_ll_tools')) {
-        return [];
-    }
-
-    $recording_ids = get_posts([
-        'post_type' => 'word_audio',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'meta_query' => [
-            [
-                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
-                'value' => 0,
-                'compare' => '>',
-                'type' => 'NUMERIC',
-            ],
-        ],
-    ]);
-
-    if (empty($recording_ids)) {
-        return [];
-    }
-
-    $counts = [];
-    foreach ((array) $recording_ids as $recording_id) {
-        $recording_id = (int) $recording_id;
-        if ($recording_id <= 0) {
-            continue;
-        }
-
-        $recording = get_post($recording_id);
-        foreach (ll_tools_ipa_keyboard_get_active_validation_wordset_ids_for_recording($recording_id, $recording) as $wordset_id) {
-            if (!ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-                continue;
-            }
-
-            if (!isset($counts[$wordset_id])) {
-                $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
-                if (!$wordset) {
-                    continue;
-                }
-
-                $counts[$wordset_id] = [
-                    'wordset_id' => $wordset_id,
-                    'wordset_name' => (string) $wordset->name,
-                    'count' => 0,
-                ];
-            }
-
-            $counts[$wordset_id]['count']++;
-        }
-    }
-
-    uasort($counts, static function (array $left, array $right): int {
-        return ll_tools_locale_compare_strings(
-            (string) ($left['wordset_name'] ?? ''),
-            (string) ($right['wordset_name'] ?? '')
-        );
-    });
-
-    return array_values($counts);
+    $counts = ll_tools_ipa_keyboard_get_admin_notice_recording_counts_by_wordset();
+    return array_values((array) ($counts['validation'] ?? []));
 }
 
 function ll_tools_ipa_keyboard_maybe_rescan_all_validations(): void {

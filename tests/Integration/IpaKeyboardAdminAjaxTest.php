@@ -819,6 +819,131 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(1, ll_tools_ipa_keyboard_get_flagged_validation_recording_count());
     }
 
+    public function test_admin_notice_counts_use_one_bounded_aggregate_and_keep_wordset_semantics(): void
+    {
+        $user_id = $this->create_viewer_user();
+        wp_set_current_user($user_id);
+
+        $first_wordset_id = $this->create_wordset('Aggregate Notice First');
+        $second_wordset_id = $this->create_wordset('Aggregate Notice Second');
+        $issue = [
+            'rule_key' => 'builtin:test_notice_count',
+            'code' => 'test_notice_count',
+            'type' => 'builtin',
+            'label' => 'Test notice count',
+            'message' => 'Test notice count.',
+            'count' => 1,
+        ];
+
+        $shared_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Shared Notice Word',
+        ]);
+        wp_set_object_terms($shared_word_id, [$first_wordset_id, $second_wordset_id], 'wordset', false);
+        $shared_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $shared_word_id,
+            'post_title' => 'Shared Notice Recording',
+        ]);
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($shared_recording_id);
+        update_post_meta($shared_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $first_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+            $second_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [],
+                'ignored' => [$issue],
+            ],
+        ]);
+        update_post_meta($shared_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $moved_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Moved Notice Word',
+        ]);
+        wp_set_object_terms($moved_word_id, [$second_wordset_id], 'wordset', false);
+        $moved_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $moved_word_id,
+            'post_title' => 'Moved Notice Recording',
+        ]);
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($moved_recording_id);
+        update_post_meta($moved_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $first_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($moved_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $draft_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Draft Notice Word',
+        ]);
+        wp_set_object_terms($draft_word_id, [$first_wordset_id], 'wordset', false);
+        $draft_recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $draft_word_id,
+            'post_title' => 'Draft Notice Recording',
+        ]);
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($draft_recording_id);
+        update_post_meta($draft_recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), [
+            $first_wordset_id => [
+                'schema_version' => ll_tools_ipa_keyboard_get_validation_schema_version(),
+                'active' => [$issue],
+                'ignored' => [],
+            ],
+        ]);
+        update_post_meta($draft_recording_id, ll_tools_ipa_keyboard_validation_issue_count_meta_key(), 1);
+
+        $aggregate_queries = [];
+        $unbounded_word_audio_queries = [];
+        $query_capture = static function (string $query) use (&$aggregate_queries): string {
+            if (strpos($query, 'll_tools_ipa_admin_notice_counts') !== false) {
+                $aggregate_queries[] = $query;
+            }
+            return $query;
+        };
+        $query_guard = static function (WP_Query $query) use (&$unbounded_word_audio_queries): void {
+            $post_types = array_map('strval', (array) $query->get('post_type'));
+            if (in_array('word_audio', $post_types, true) && (int) $query->get('posts_per_page') === -1) {
+                $unbounded_word_audio_queries[] = $query->query_vars;
+            }
+        };
+        add_filter('query', $query_capture);
+        add_action('pre_get_posts', $query_guard);
+        try {
+            $tasks = ll_tools_get_admin_maintenance_tasks();
+        } finally {
+            remove_filter('query', $query_capture);
+            remove_action('pre_get_posts', $query_guard);
+        }
+
+        $tasks_by_key = [];
+        foreach ($tasks as $task) {
+            $tasks_by_key[(string) ($task['key'] ?? '')] = $task;
+        }
+
+        $this->assertCount(1, $aggregate_queries, 'The global notice should compute both IPA task types with one aggregate query.');
+        $this->assertSame([], $unbounded_word_audio_queries, 'The global notice must not request every matching audio post.');
+        $this->assertArrayHasKey('transcription_validation_' . $first_wordset_id, $tasks_by_key);
+        $this->assertArrayNotHasKey('transcription_validation_' . $second_wordset_id, $tasks_by_key);
+        $this->assertArrayHasKey('transcription_review_' . $first_wordset_id, $tasks_by_key);
+        $this->assertArrayHasKey('transcription_review_' . $second_wordset_id, $tasks_by_key);
+        $this->assertStringContainsString('1 auto-generated transcription', (string) $tasks_by_key['transcription_review_' . $first_wordset_id]['message']);
+        $this->assertStringContainsString('2 auto-generated transcriptions', (string) $tasks_by_key['transcription_review_' . $second_wordset_id]['message']);
+    }
+
     public function test_symbol_and_letter_summaries_use_a_bounded_resumable_aggregate(): void
     {
         $user_id = $this->create_viewer_user();

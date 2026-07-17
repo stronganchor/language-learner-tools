@@ -1414,6 +1414,9 @@ function ll_tools_get_audio_processing_queue_count(): int {
  */
 function ll_tools_get_admin_maintenance_tasks(): array {
     $tasks = [];
+    $ipa_notice_counts = function_exists('ll_tools_ipa_keyboard_get_admin_notice_recording_counts_by_wordset')
+        ? ll_tools_ipa_keyboard_get_admin_notice_recording_counts_by_wordset()
+        : null;
 
     $audio_count = ll_tools_get_audio_processing_queue_count();
     if ($audio_count > 0) {
@@ -1519,7 +1522,9 @@ function ll_tools_get_admin_maintenance_tasks(): array {
     }
 
     if (function_exists('ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset')) {
-        $flagged_by_wordset = ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset();
+        $flagged_by_wordset = is_array($ipa_notice_counts)
+            ? (array) ($ipa_notice_counts['validation'] ?? [])
+            : ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset();
         foreach ($flagged_by_wordset as $wordset_entry) {
             $wordset_id = (int) ($wordset_entry['wordset_id'] ?? 0);
             $wordset_name = (string) ($wordset_entry['wordset_name'] ?? '');
@@ -1563,7 +1568,9 @@ function ll_tools_get_admin_maintenance_tasks(): array {
     }
 
     if (function_exists('ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset')) {
-        $review_counts_by_wordset = ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset();
+        $review_counts_by_wordset = is_array($ipa_notice_counts)
+            ? (array) ($ipa_notice_counts['auto_review'] ?? [])
+            : ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset();
         foreach ($review_counts_by_wordset as $wordset_entry) {
             $wordset_id = (int) ($wordset_entry['wordset_id'] ?? 0);
             $wordset_name = (string) ($wordset_entry['wordset_name'] ?? '');
