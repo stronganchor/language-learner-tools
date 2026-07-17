@@ -1511,19 +1511,6 @@ function ll_tools_webp_optimizer_convert_word_image(int $word_image_id, array $a
     }
 }
 
-function ll_tools_webp_optimizer_render_reason_badges(array $item): string {
-    $labels = array_values(array_filter(array_map('strval', (array) ($item['reason_labels'] ?? []))));
-    if (empty($labels)) {
-        return '';
-    }
-
-    $html = '';
-    foreach ($labels as $label) {
-        $html .= '<span class="ll-webp-badge ll-webp-badge--reason">' . esc_html($label) . '</span>';
-    }
-    return $html;
-}
-
 function ll_tools_webp_optimizer_get_primary_action_label(array $item): string {
     $is_webp = !empty($item['is_webp']);
     $needs_conversion = !empty($item['needs_conversion']);

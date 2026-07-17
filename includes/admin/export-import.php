@@ -295,29 +295,6 @@ function ll_tools_export_get_preflight_warnings(int $attachment_count, int $atta
     })));
 }
 
-function ll_tools_export_get_preflight_block_message(array $warnings): string {
-    if (empty($warnings)) {
-        return '';
-    }
-
-    $message = '<p>' . esc_html__('This export hit one or more large-bundle safeguards. Review the estimates below, then tick "Force large export and run it anyway" to continue.', 'll-tools-text-domain') . '</p>';
-    $message .= '<ul>';
-    foreach ($warnings as $warning) {
-        if (!is_scalar($warning)) {
-            continue;
-        }
-        $warning_text = trim((string) $warning);
-        if ($warning_text === '') {
-            continue;
-        }
-        $message .= '<li>' . esc_html($warning_text) . '</li>';
-    }
-    $message .= '</ul>';
-    $message .= '<p>' . esc_html__('The export may still fail if the server times out while building the zip file.', 'll-tools-text-domain') . '</p>';
-
-    return $message;
-}
-
 function ll_tools_export_get_preflight_block_text(array $warnings): string {
     if (empty($warnings)) {
         return '';

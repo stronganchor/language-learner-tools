@@ -31,19 +31,6 @@ function ll_tools_bulk_word_import_max_bytes(): int {
     return max(1024, min(2 * 1024 * 1024, (int) apply_filters('ll_tools_bulk_word_import_max_bytes', 256 * 1024)));
 }
 
-function ll_tools_bulk_word_import_normalize_category_ids(array $category_ids): array {
-    $normalized = [];
-
-    foreach ($category_ids as $category_id) {
-        $category_id = (int) $category_id;
-        if ($category_id > 0) {
-            $normalized[$category_id] = true;
-        }
-    }
-
-    return array_values(array_map('intval', array_keys($normalized)));
-}
-
 function ll_tools_bulk_word_import_prepare_selectable_category_terms(array $categories, int $wordset_id = 0): array {
     if (function_exists('ll_tools_filter_category_terms_for_user')) {
         $categories = ll_tools_filter_category_terms_for_user((array) $categories);

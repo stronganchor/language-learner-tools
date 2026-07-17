@@ -278,14 +278,6 @@ function ll_tools_word_option_rules_get_redirect_url(int $wordset_id, int $categ
     ], $extra_query), admin_url('tools.php'));
 }
 
-function ll_tools_word_option_rules_get_submitted_scroll_position(): int {
-    if (!isset($_POST['ll_scroll'])) {
-        return 0;
-    }
-
-    return max(0, (int) wp_unslash($_POST['ll_scroll']));
-}
-
 function ll_enqueue_word_option_rules_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-word-option-rules') {
         return;
