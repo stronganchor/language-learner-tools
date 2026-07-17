@@ -9,7 +9,7 @@ function seedFixture() {
   return runWpCliJson(['eval-file', scriptPath], { timeoutMs: 120000 });
 }
 
-test('text-to-text learning popup renders prompt and answer introduction pair cards', async ({ page }) => {
+test('paged text-to-text learning popup renders prompt and answer introduction pair cards', async ({ page }) => {
   let fixture;
   try {
     fixture = seedFixture();
@@ -30,21 +30,39 @@ test('text-to-text learning popup renders prompt and answer introduction pair ca
 
   const triggerData = await trigger.evaluate((el) => ({
     mode: el.getAttribute('data-mode') || '',
+    displayMode: el.getAttribute('data-display-mode') || '',
     promptType: el.getAttribute('data-prompt-type') || '',
     optionType: el.getAttribute('data-option-type') || '',
     wordsetId: el.getAttribute('data-wordset-id') || ''
   }));
   expect(triggerData).toMatchObject({
     mode: 'learning',
+    displayMode: 'text_title',
     promptType: 'text_translation',
     optionType: 'text_title',
     wordsetId: String(fixture.wordsetId)
   });
 
+  await page.evaluate((categoryName) => {
+    const data = window.llToolsFlashcardsData;
+    if (!data) {
+      throw new Error('Flashcard launch data is unavailable');
+    }
+    const categories = Array.isArray(data.categories) ? data.categories : [];
+    const target = String(categoryName || '').trim().toLowerCase();
+    data.categories = categories.filter((entry) => {
+      const name = String(entry && entry.name || '').trim().toLowerCase();
+      const slug = String(entry && entry.slug || '').trim().toLowerCase();
+      return name !== target && slug !== target;
+    });
+  }, fixture.categoryName);
+
   const wordsResponsePromise = page.waitForResponse((response) => (
     response.url().includes('/wp-admin/admin-ajax.php')
     && (response.request().postData() || '').includes('action=ll_get_words_by_category')
     && (response.request().postData() || '').includes(`wordset=${fixture.wordsetId}`)
+    && (response.request().postData() || '').includes('prompt_type=text_translation')
+    && (response.request().postData() || '').includes('option_type=text_title')
   ), { timeout: 90000 });
 
   await trigger.click({ force: true });
@@ -59,6 +77,23 @@ test('text-to-text learning popup renders prompt and answer introduction pair ca
   expect(wordsPayload.success).toBe(true);
   expect(Array.isArray(wordsPayload.data)).toBe(true);
   expect(wordsPayload.data.length).toBeGreaterThanOrEqual(fixture.words.length);
+
+  const launchCategory = await page.evaluate((categoryName) => {
+    const target = String(categoryName || '').trim().toLowerCase();
+    const categories = Array.isArray(window.llToolsFlashcardsData?.categories)
+      ? window.llToolsFlashcardsData.categories
+      : [];
+    return categories.find((entry) => {
+      const name = String(entry && entry.name || '').trim().toLowerCase();
+      const slug = String(entry && entry.slug || '').trim().toLowerCase();
+      return name === target || slug === target;
+    }) || null;
+  }, fixture.categoryName);
+  expect(launchCategory).toMatchObject({
+    mode: 'text_title',
+    prompt_type: 'text_translation',
+    option_type: 'text_title'
+  });
 
   const pairCards = popup.locator('.ll-learning-intro-pair-card');
   await expect(pairCards.first()).toBeVisible({ timeout: 90000 });

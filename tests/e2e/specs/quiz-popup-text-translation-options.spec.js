@@ -40,7 +40,7 @@ function silentWavBuffer() {
   return buffer;
 }
 
-test('quiz popup keeps text translation answer options from the launch card', async ({ page }) => {
+test('quiz popup keeps text translation answer options from a paged launch card', async ({ page }) => {
   let fixture;
   try {
     fixture = seedFixture();
@@ -84,18 +84,17 @@ test('quiz popup keeps text translation answer options from the launch card', as
   });
 
   await page.evaluate((categoryName) => {
-    const data = window.llToolsFlashcardsData || {};
+    const data = window.llToolsFlashcardsData;
+    if (!data) {
+      throw new Error('Flashcard launch data is unavailable');
+    }
     const categories = Array.isArray(data.categories) ? data.categories : [];
     const target = String(categoryName || '').trim().toLowerCase();
-    const category = categories.find((entry) => String(entry && entry.name || '').trim().toLowerCase() === target);
-    if (!category) {
-      throw new Error(`Unable to find bootstrapped fixture category: ${categoryName}`);
-    }
-
-    category.mode = 'image';
-    category.display_mode = 'image';
-    category.option_type = 'image';
-    category.prompt_type = 'audio';
+    data.categories = categories.filter((entry) => {
+      const name = String(entry && entry.name || '').trim().toLowerCase();
+      const slug = String(entry && entry.slug || '').trim().toLowerCase();
+      return name !== target && slug !== target;
+    });
   }, fixture.categoryName);
 
   const wordsResponsePromise = page.waitForResponse((response) => {
@@ -121,6 +120,23 @@ test('quiz popup keeps text translation answer options from the launch card', as
   expect(wordsPayload.success).toBe(true);
   expect(Array.isArray(wordsPayload.data)).toBe(true);
   expect(wordsPayload.data.length).toBeGreaterThanOrEqual(fixture.words.length);
+
+  const launchCategory = await page.evaluate((categoryName) => {
+    const target = String(categoryName || '').trim().toLowerCase();
+    const categories = Array.isArray(window.llToolsFlashcardsData?.categories)
+      ? window.llToolsFlashcardsData.categories
+      : [];
+    return categories.find((entry) => {
+      const name = String(entry && entry.name || '').trim().toLowerCase();
+      const slug = String(entry && entry.slug || '').trim().toLowerCase();
+      return name === target || slug === target;
+    }) || null;
+  }, fixture.categoryName);
+  expect(launchCategory).toMatchObject({
+    mode: 'text_translation',
+    prompt_type: 'audio',
+    option_type: 'text_translation'
+  });
 
   const rowsByTitle = new Map(wordsPayload.data.map((word) => [String(word.title || '').trim(), word]));
   for (const word of fixture.words) {
