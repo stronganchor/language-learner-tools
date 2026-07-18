@@ -928,6 +928,23 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_page', (string) $wordset_term->slug);
         set_query_var('ll_wordset_view', 'settings');
 
+        $summary_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+            $wordset_id,
+            $wordset_term,
+            $recorder_id,
+            [(string) $fixture['category_slug']]
+        );
+        $this->assertContains((string) $fixture['category_slug'], (array) ($summary_batch['resolvedSlugs'] ?? []));
+        $summary_card_html = implode('', array_map(static function (array $card): string {
+            return (string) ($card['html'] ?? '');
+        }, (array) ($summary_batch['cards'] ?? [])));
+        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $summary_card_html);
+        $this->assertStringContainsString('visible-queue-word', $summary_card_html);
+        $this->assertStringContainsString(
+            'll_recorder_queue_category=' . rawurlencode((string) $fixture['category_slug']),
+            $summary_card_html
+        );
+
         $html = ll_tools_render_wordset_page_content($wordset_id);
 
         $this->assertStringContainsString('Recorder Queues', $html);
@@ -937,8 +954,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview', $html);
-        $this->assertStringContainsString('ll-wordset-preview-item ll-wordset-preview-item--image', $html);
-        $this->assertStringContainsString('visible-queue-word', $html);
         $this->assertStringNotContainsString('Completed Queue Category', $html);
         $this->assertStringNotContainsString('ll-wordset-recorder-queue-item__title">Visible Queue Word', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
@@ -951,7 +966,6 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Skipped types', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_allow_new_words"', $html);
         $this->assertStringContainsString('name="ll_wordset_manager_recorder_queue_auto_process_recordings"', $html);
-        $this->assertStringContainsString('ll_recorder_queue_category=' . rawurlencode((string) $fixture['category_slug']), $html);
         $this->assertStringNotContainsString('<details class="ll-wordset-recorder-queue-prompts" open>', $html);
 
         $_GET = [
@@ -1044,10 +1058,22 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_page', (string) $wordset_term->slug);
         set_query_var('ll_wordset_view', 'settings');
 
+        $summary_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+            $wordset_id,
+            $wordset_term,
+            $recorder_id,
+            [$category_slug]
+        );
+        $this->assertContains($category_slug, (array) ($summary_batch['resolvedSlugs'] ?? []));
+        $summary_card_html = implode('', array_map(static function (array $card): string {
+            return (string) ($card['html'] ?? '');
+        }, (array) ($summary_batch['cards'] ?? [])));
+        $this->assertStringContainsString('Image Only Queue Category', $summary_card_html);
+        $this->assertStringContainsString('image-only-queue-picture', $summary_card_html);
+
         $html = ll_tools_render_wordset_page_content($wordset_id);
 
-        $this->assertStringContainsString('Image Only Queue Category', $html);
-        $this->assertStringContainsString('image-only-queue-picture', $html);
+        $this->assertStringContainsString('data-recorder-queue-category="' . esc_attr($category_slug) . '"', $html);
 
         $_GET = [
             'll_wordset_tool' => 'recorder-queues',

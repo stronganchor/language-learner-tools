@@ -17011,10 +17011,6 @@ function ll_tools_wordset_page_get_recorder_queue_secondary_label(array $item): 
 
 function ll_tools_wordset_page_get_recorder_queue_item_image_url(array $item, string $size = 'medium'): string {
     $image_url = trim((string) ($item['image_url'] ?? ''));
-    if ($image_url !== '') {
-        return $image_url;
-    }
-
     $attachment_id = isset($item['attachment_id']) ? (int) $item['attachment_id'] : 0;
     if ($attachment_id > 0) {
         $attachment_url = wp_get_attachment_image_url($attachment_id, $size);
@@ -17024,8 +17020,8 @@ function ll_tools_wordset_page_get_recorder_queue_item_image_url(array $item, st
     }
 
     $candidate_post_ids = array_values(array_unique(array_filter(array_map('intval', [
-        $item['word_id'] ?? 0,
         $item['image_id'] ?? ($item['id'] ?? 0),
+        $item['word_id'] ?? 0,
     ]))));
 
     foreach ($candidate_post_ids as $post_id) {
@@ -17042,7 +17038,10 @@ function ll_tools_wordset_page_get_recorder_queue_item_image_url(array $item, st
         }
     }
 
-    return '';
+    // Queue summaries are compact previews. Prefer a generated attachment or
+    // featured-image size so a raw full/large URL inherited from the focused
+    // recorder queue does not turn a small card into a megabyte-scale asset.
+    return $image_url;
 }
 
 function ll_tools_wordset_page_get_recorder_queue_category_preview_items(array $items, int $limit = 2): array {
@@ -20319,7 +20318,7 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
             $wordset_source_signature
         );
         $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
-            'schema' => 5,
+            'schema' => 6,
             'wordset_id' => $wordset_id,
             'recorder_user_id' => $recorder_user_id,
             'category_slug' => $category_slug,
@@ -20548,7 +20547,7 @@ function ll_tools_wordset_page_get_recorder_queue_rows(int $wordset_id, WP_Term 
         'has_prev' => $summary_category_page_number > 1,
         'has_next' => $summary_category_page_number < $summary_category_total_pages,
     ];
-    $summary_refresh_budget = (!$hidden_view && !$focused_category_view)
+    $summary_refresh_budget = (!$hidden_view && !$focused_category_view && !$stream_view)
         ? (int) apply_filters(
             'll_tools_wordset_recorder_queue_overview_refresh_budget',
             8,
@@ -21096,6 +21095,22 @@ function ll_tools_wordset_page_render_recorder_queue_category_placeholder(array 
     <?php
 
     return (string) ob_get_clean();
+}
+
+/**
+ * Retain an unresolved recorder category's canonical position without
+ * rendering another shimmer card into the live document.
+ */
+function ll_tools_wordset_page_render_recorder_queue_category_marker(array $category): string {
+    $category_slug = sanitize_title((string) ($category['slug'] ?? ''));
+    if ($category_slug === '') {
+        return '';
+    }
+
+    return sprintf(
+        '<span class="ll-wordset-recorder-queue-category-marker" data-recorder-queue-category="%1$s" data-ll-recorder-queue-summary-placeholder="true" hidden></span>',
+        esc_attr($category_slug)
+    );
 }
 
 function ll_tools_wordset_page_normalize_recorder_queue_summary_slugs(array $slugs): array {
@@ -22093,7 +22108,11 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                                             if ($stream_scan_complete) {
                                                 continue;
                                             }
-                                            echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($stream_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                            if ($stream_pending_count < 3) {
+                                                echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($stream_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                            } else {
+                                                echo ll_tools_wordset_page_render_recorder_queue_category_marker($stream_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                            }
                                             $stream_pending_count++;
                                             ?>
                                         <?php endforeach; ?>
@@ -24506,7 +24525,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'wordsetId' => $wordset_id,
             'recorderUserId' => $recorder_queue_selected_user_id,
             'batchSize' => $recorder_queue_stream_batch_size,
+            'initialBatchSize' => 3,
             'maxAutoRetries' => 6,
+            'requestTimeoutMs' => 30000,
             'backUrl' => $back_url,
             'generation' => $recorder_queue_stream_catalog_complete
                 ? ll_tools_wordset_page_get_recorder_queue_summary_generation(
@@ -24727,6 +24748,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'recorderQueueLoadedCount' => __('Queue categories loaded: %d', 'll-tools-text-domain'),
             'recorderQueueLoadedAll' => __('All queue categories are loaded.', 'll-tools-text-domain'),
             'recorderQueueLoadMore' => __('Load more', 'll-tools-text-domain'),
+            'recorderQueueRetry' => __('Retry', 'll-tools-text-domain'),
             'recorderQueueLoadError' => __('Could not load more queue categories right now.', 'll-tools-text-domain'),
             ...$games_i18n,
             'progressResetCategoryConfirm' => $progress_reset_category_confirm_template,

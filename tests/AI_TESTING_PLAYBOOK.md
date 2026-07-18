@@ -286,10 +286,11 @@ PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
 For behavior changes touching quiz/recording flows:
 
 1. For quiz-page popup launch or presentation-config changes, first run `tests/bin/run-e2e.sh specs/quiz-popup-text-translation-options.spec.js specs/text-to-text-learning-intro.spec.js`. These protect trigger-authoritative prompt/option configuration when the launched category is absent from the initial paged registry.
-2. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
-3. `tests/bin/run-tests.sh`
-4. `tests/bin/run-e2e.sh`
-5. Update `tests/README.md` if test scope or runner behavior changed.
+2. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
+3. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
+4. `tests/bin/run-tests.sh`
+5. `tests/bin/run-e2e.sh`
+6. Update `tests/README.md` if test scope or runner behavior changed.
 
 For public-page shell, asset, or template changes that could affect perceived load time:
 

@@ -183,31 +183,23 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $recorders[] = $recorder;
         }
 
-        $refresh_budget = static function (): int {
-            return 0;
-        };
-        add_filter('ll_tools_wordset_recorder_queue_overview_refresh_budget', $refresh_budget);
-
-        try {
-            $rows = ll_tools_wordset_page_get_recorder_queue_rows(
-                $wordset_id,
-                $wordset_term,
-                $recorders,
-                [
-                    'stream_view' => true,
-                    'focused_user_id' => (int) $recorders[0]->ID,
-                    'summary_categories' => array_slice($fixture['categories'], 0, 2),
-                    'summary_categories_paged' => true,
-                    'summary_category_total' => count($fixture['categories']),
-                    'categories_per_page' => 2,
-                ]
-            );
-        } finally {
-            remove_filter('ll_tools_wordset_recorder_queue_overview_refresh_budget', $refresh_budget);
-        }
+        $rows = ll_tools_wordset_page_get_recorder_queue_rows(
+            $wordset_id,
+            $wordset_term,
+            $recorders,
+            [
+                'stream_view' => true,
+                'focused_user_id' => (int) $recorders[0]->ID,
+                'summary_categories' => array_slice($fixture['categories'], 0, 2),
+                'summary_categories_paged' => true,
+                'summary_category_total' => count($fixture['categories']),
+                'categories_per_page' => 2,
+            ]
+        );
 
         $this->assertCount(1, $rows);
         $this->assertSame((int) $recorders[0]->ID, (int) $rows[0]['user_id']);
+        $this->assertSame(0, (int) ($rows[0]['summary_status']['refreshed'] ?? -1));
 
         $_GET = ['ll_wordset_tool' => 'recorder-queues'];
         $html = ll_tools_wordset_page_render_settings_recorder_queues_tool(
@@ -229,6 +221,8 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             count($fixture['categories']),
             substr_count($html, 'data-ll-recorder-queue-summary-placeholder="true"')
         );
+        $this->assertSame(3, substr_count($html, 'll-wordset-recorder-queue-category-card--loading'));
+        $this->assertSame(2, substr_count($html, 'll-wordset-recorder-queue-category-marker'));
         $this->assertStringContainsString('ll-wordset-card--lazy-placeholder', $html);
         $this->assertStringNotContainsString('ll_recorder_queue_recorders_page=', $html);
         $this->assertStringNotContainsString('ll_recorder_queue_categories_page=', $html);
@@ -468,6 +462,65 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         } finally {
             remove_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);
         }
+    }
+
+    public function test_compact_summary_preview_prefers_a_sized_featured_image_over_the_raw_queue_url(): void
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder preview word',
+        ]);
+        $word_attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_mime_type' => 'image/jpeg',
+            'post_title' => 'Unrelated word thumbnail',
+        ]);
+        update_post_meta($word_id, '_thumbnail_id', $word_attachment_id);
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder preview image',
+        ]);
+        $attachment_id = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_mime_type' => 'image/jpeg',
+            'post_title' => 'Recorder preview thumbnail',
+        ]);
+        update_post_meta($image_id, '_thumbnail_id', $attachment_id);
+
+        $thumbnail_url = 'https://example.test/recorder-preview-thumbnail.jpg';
+        $word_thumbnail_url = 'https://example.test/unrelated-word-thumbnail.jpg';
+        $image_downsize = static function ($downsize, int $requested_attachment_id, $size) use (
+            $attachment_id,
+            $thumbnail_url,
+            $word_attachment_id,
+            $word_thumbnail_url
+        ) {
+            if ($requested_attachment_id === $attachment_id && $size === 'thumbnail') {
+                return [$thumbnail_url, 150, 150, true];
+            }
+            if ($requested_attachment_id === $word_attachment_id && $size === 'thumbnail') {
+                return [$word_thumbnail_url, 150, 150, true];
+            }
+            return $downsize;
+        };
+        add_filter('image_downsize', $image_downsize, 10, 3);
+
+        try {
+            $resolved = ll_tools_wordset_page_get_recorder_queue_item_image_url([
+                'word_id' => $word_id,
+                'image_id' => $image_id,
+                'image_url' => 'https://example.test/oversized-recorder-preview.jpg',
+            ], 'thumbnail');
+        } finally {
+            remove_filter('image_downsize', $image_downsize, 10);
+        }
+
+        $this->assertSame($thumbnail_url, $resolved);
     }
 
     public function test_compact_category_source_honors_the_selected_recorders_category_visibility(): void
@@ -906,7 +959,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $this->assertFalse((bool) ($states['uncategorized']['has_group'] ?? true));
 
             $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
-                'schema' => 5,
+                'schema' => 6,
                 'wordset_id' => $wordset_id,
                 'recorder_user_id' => $admin_id,
                 'category_slug' => 'uncategorized',
@@ -1739,7 +1792,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($states[(string) $category_term->slug]['has_group'] ?? true));
 
         $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
-            'schema' => 5,
+            'schema' => 6,
             'wordset_id' => $wordset_id,
             'recorder_user_id' => $admin_id,
             'category_slug' => (string) $category_term->slug,
@@ -2292,7 +2345,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $category
         );
         $cache_key = ll_tools_wordset_page_build_cache_key('recorder_queue_summary', [
-            'schema' => 5,
+            'schema' => 6,
             'wordset_id' => $wordset_id,
             'recorder_user_id' => $recorder_id,
             'category_slug' => (string) $category['slug'],

@@ -589,10 +589,16 @@
     const recorderQueueCatalogComplete = !Object.prototype.hasOwnProperty.call(recorderQueueSummariesCfg, 'catalogComplete')
         || !!recorderQueueSummariesCfg.catalogComplete;
     const recorderQueueSummaryBatchSize = Math.max(1, Math.min(20, parseInt(recorderQueueSummariesCfg.batchSize, 10) || 20));
+    const recorderQueueSummaryInitialBatchSize = Math.max(1, Math.min(
+        recorderQueueSummaryBatchSize,
+        parseInt(recorderQueueSummariesCfg.initialBatchSize, 10) || 3
+    ));
     const recorderQueueSummaryMaxAutoRetries = Math.max(1, Math.min(12, parseInt(recorderQueueSummariesCfg.maxAutoRetries, 10) || 6));
+    const recorderQueueSummaryRequestTimeout = Math.max(10000, Math.min(60000, parseInt(recorderQueueSummariesCfg.requestTimeoutMs, 10) || 30000));
     let recorderQueueSummaryRequest = null;
     let recorderQueueSummaryObserver = null;
     let recorderQueueSummaryRetryTimer = 0;
+    let recorderQueueSummaryInitialBatchComplete = false;
     let recorderQueueSummaryReloadPending = false;
     let recorderQueueSummaryReloadTimer = 0;
 
@@ -647,6 +653,7 @@
     const $recorderQueueSummaryStatus = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-status]').first();
     const $recorderQueueSummaryLoadMore = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-load-more]').first();
     const $recorderQueueSummaryEmpty = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-empty]').first();
+    const $recorderQueueSummarySentinel = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-sentinel]').first();
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
     const $selectionPriorityToggle = $root.find('[data-ll-wordset-selection-priority-only]');
@@ -16231,13 +16238,15 @@
         $recorderQueueSummaryRoot
             .toggleClass('is-loading', cleanState === 'loading')
             .toggleClass('has-load-error', cleanState === 'error')
-            .attr('aria-busy', cleanState === 'loading' || (pendingCount > 0 && cleanState !== 'error') ? 'true' : 'false');
+            .attr('aria-busy', cleanState === 'loading' ? 'true' : 'false');
         if ($recorderQueueSummaryStatus.length) {
             $recorderQueueSummaryStatus.text(statusMessage);
         }
         if ($recorderQueueSummaryLoadMore.length) {
             $recorderQueueSummaryLoadMore
-                .text(String(i18n.recorderQueueLoadMore || ''))
+                .text(String(cleanState === 'error'
+                    ? (i18n.recorderQueueRetry || i18n.retry || '')
+                    : (i18n.recorderQueueLoadMore || '')))
                 .prop('disabled', cleanState === 'loading')
                 .prop('hidden', pendingCount === 0);
         }
@@ -16260,8 +16269,8 @@
         if (recorderQueueSummaryObserver) {
             recorderQueueSummaryObserver.disconnect();
         }
-        const nextPlaceholder = getRecorderQueueSummaryPlaceholders().first().get(0);
-        if (!nextPlaceholder || recorderQueueSummaryRequest) {
+        const sentinel = $recorderQueueSummarySentinel.get(0);
+        if (!sentinel || !getRecorderQueueSummaryPlaceholders().length || recorderQueueSummaryRequest) {
             return;
         }
 
@@ -16280,7 +16289,7 @@
                 threshold: 0.01
             });
         }
-        recorderQueueSummaryObserver.observe(nextPlaceholder);
+        recorderQueueSummaryObserver.observe(sentinel);
     }
 
     function requestRecorderQueueSummaryBatch(options) {
@@ -16289,9 +16298,21 @@
             return;
         }
 
-        const $pending = getRecorderQueueSummaryPlaceholders().filter(function () {
+        const $available = getRecorderQueueSummaryPlaceholders().filter(function () {
             return String($(this).attr('data-ll-recorder-queue-summary-loading') || '') !== 'true';
-        }).slice(0, recorderQueueSummaryBatchSize);
+        });
+        if (opts.resetRetries) {
+            $available.removeAttr('data-ll-recorder-queue-summary-retries');
+        }
+        const pendingNodes = $available.get().sort(function (left, right) {
+            const leftRetries = Math.max(0, parseInt($(left).attr('data-ll-recorder-queue-summary-retries'), 10) || 0);
+            const rightRetries = Math.max(0, parseInt($(right).attr('data-ll-recorder-queue-summary-retries'), 10) || 0);
+            return leftRetries - rightRetries;
+        });
+        const requestBatchSize = recorderQueueSummaryInitialBatchComplete
+            ? recorderQueueSummaryBatchSize
+            : recorderQueueSummaryInitialBatchSize;
+        const $pending = $(pendingNodes.slice(0, requestBatchSize));
         if (!$pending.length) {
             setRecorderQueueSummaryState('idle');
             return;
@@ -16300,9 +16321,6 @@
         const slugs = [];
         $pending.each(function () {
             const $placeholder = $(this);
-            if (opts.resetRetries) {
-                $placeholder.removeAttr('data-ll-recorder-queue-summary-retries');
-            }
             const slug = String($placeholder.attr('data-recorder-queue-category') || '');
             if (slug) {
                 slugs.push(slug);
@@ -16324,15 +16342,21 @@
         setRecorderQueueSummaryState('loading');
 
         let retryPendingAutomatically = false;
+        const retryDelayMs = 500;
         let pauseAutomaticLoading = false;
-        recorderQueueSummaryRequest = $.post(ajaxUrl, {
-            action: 'll_tools_wordset_recorder_queue_summaries',
-            nonce: String(recorderQueueSummariesCfg.nonce || ''),
-            wordset_id: parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0,
-            recorder_user_id: parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0,
-            generation: String(recorderQueueSummariesCfg.generation || ''),
-            back_url: String(recorderQueueSummariesCfg.backUrl || ''),
-            category_slugs: slugs
+        recorderQueueSummaryRequest = $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            timeout: recorderQueueSummaryRequestTimeout,
+            data: {
+                action: 'll_tools_wordset_recorder_queue_summaries',
+                nonce: String(recorderQueueSummariesCfg.nonce || ''),
+                wordset_id: parseInt(recorderQueueSummariesCfg.wordsetId, 10) || 0,
+                recorder_user_id: parseInt(recorderQueueSummariesCfg.recorderUserId, 10) || 0,
+                generation: String(recorderQueueSummariesCfg.generation || ''),
+                back_url: String(recorderQueueSummariesCfg.backUrl || ''),
+                category_slugs: slugs
+            }
         }).done(function (response) {
             if (!response || !response.success || !response.data) {
                 pauseAutomaticLoading = true;
@@ -16356,8 +16380,34 @@
                 maybeReloadRecorderQueueSummariesWhenSettled();
                 return;
             }
+            const responseCards = Array.isArray(data.cards) ? data.cards : [];
+            const responseResolvedSlugs = Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : [];
+            const responsePendingSlugs = Array.isArray(data.pendingSlugs) ? data.pendingSlugs : [];
+            const classifiedSlugs = {};
+            responseCards.forEach(function (card) {
+                const slug = String(card && card.slug || '');
+                const html = String(card && card.html || '');
+                if (slug && html) {
+                    classifiedSlugs[slug] = true;
+                }
+            });
+            responseResolvedSlugs.concat(responsePendingSlugs).forEach(function (slug) {
+                const normalizedSlug = String(slug || '');
+                if (normalizedSlug) {
+                    classifiedSlugs[normalizedSlug] = true;
+                }
+            });
+            if (data.catalogComplete === false || slugs.some(function (slug) { return !classifiedSlugs[slug]; })) {
+                pauseAutomaticLoading = true;
+                slugs.forEach(function (slug) {
+                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                });
+                setRecorderQueueSummaryState('error');
+                return;
+            }
+            recorderQueueSummaryInitialBatchComplete = true;
             const cardSlugs = {};
-            (Array.isArray(data.cards) ? data.cards : []).forEach(function (card) {
+            responseCards.forEach(function (card) {
                 const slug = String(card && card.slug || '');
                 const html = String(card && card.html || '');
                 if (!slug || !html) {
@@ -16371,7 +16421,7 @@
                 $placeholder.replaceWith(html);
             });
 
-            (Array.isArray(data.resolvedSlugs) ? data.resolvedSlugs : []).forEach(function (slug) {
+            responseResolvedSlugs.forEach(function (slug) {
                 const normalizedSlug = String(slug || '');
                 if (!normalizedSlug || cardSlugs[normalizedSlug]) {
                     return;
@@ -16380,7 +16430,7 @@
             });
 
             const pendingLookup = {};
-            (Array.isArray(data.pendingSlugs) ? data.pendingSlugs : []).forEach(function (slug) {
+            responsePendingSlugs.forEach(function (slug) {
                 const normalizedSlug = String(slug || '');
                 if (normalizedSlug) {
                     pendingLookup[normalizedSlug] = true;
@@ -16397,12 +16447,21 @@
                 }
                 const retries = Math.max(0, parseInt($placeholder.attr('data-ll-recorder-queue-summary-retries'), 10) || 0) + 1;
                 $placeholder.attr('data-ll-recorder-queue-summary-retries', String(retries));
-                if (retries <= recorderQueueSummaryMaxAutoRetries) {
-                    retryPendingAutomatically = true;
-                } else {
-                    pauseAutomaticLoading = true;
-                }
             });
+
+            const remainingRetries = getRecorderQueueSummaryPlaceholders().map(function () {
+                return Math.max(0, parseInt($(this).attr('data-ll-recorder-queue-summary-retries'), 10) || 0);
+            }).get();
+            const hasUntouchedCategory = remainingRetries.some(function (retries) { return retries === 0; });
+            const retryableCounts = remainingRetries.filter(function (retries) {
+                return retries > 0 && retries <= recorderQueueSummaryMaxAutoRetries;
+            });
+            retryPendingAutomatically = !hasUntouchedCategory && retryableCounts.length > 0;
+            if (remainingRetries.length > 0 && remainingRetries.every(function (retries) {
+                return retries > recorderQueueSummaryMaxAutoRetries;
+            })) {
+                pauseAutomaticLoading = true;
+            }
 
             setRecorderQueueSummaryState(pauseAutomaticLoading ? 'error' : 'idle');
         }).fail(function () {
@@ -16417,12 +16476,12 @@
                 return;
             }
             if (retryPendingAutomatically) {
-                const nextPlaceholder = getRecorderQueueSummaryPlaceholders().first().get(0);
-                if (recorderQueueSummaryElementIsNearViewport(nextPlaceholder)) {
+                const sentinel = $recorderQueueSummarySentinel.get(0);
+                if (recorderQueueSummaryElementIsNearViewport(sentinel)) {
                     recorderQueueSummaryRetryTimer = setTimeout(function () {
                         recorderQueueSummaryRetryTimer = 0;
                         requestRecorderQueueSummaryBatch();
-                    }, 180);
+                    }, retryDelayMs);
                     return;
                 }
             }

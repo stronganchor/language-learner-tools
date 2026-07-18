@@ -306,7 +306,12 @@ function buildRecorderQueueLazySummaryMarkup() {
               ${placeholder('market', 'Market')}
               ${placeholder('empty', 'Empty category')}
               ${placeholder('travel', 'Travel')}
-              ${placeholder('food', 'Food')}
+              <span
+                class="ll-wordset-recorder-queue-category-marker"
+                data-recorder-queue-category="food"
+                data-ll-recorder-queue-summary-placeholder="true"
+                hidden
+              ></span>
             </div>
             <p class="ll-wordset-settings-empty" data-ll-recorder-queue-summary-empty hidden>No words currently need recordings for this recorder.</p>
             <div class="ll-wordset-recorder-queue-summary-loader" data-ll-recorder-queue-summary-loader>
@@ -854,8 +859,8 @@ async function stubRecorderQueueAutosave(page) {
   });
 }
 
-async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
-  await page.evaluate((localizedBatchSize) => {
+async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initialBatchSize = batchSize) {
+  await page.evaluate(({ localizedBatchSize, localizedInitialBatchSize }) => {
     window.llWordsetPageData = {
       view: 'settings',
       ajaxUrl: '/fake-admin-ajax.php',
@@ -868,6 +873,7 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
         generation: 'summary-generation',
         backUrl: 'https://example.test/manager-return/',
         batchSize: localizedBatchSize,
+        initialBatchSize: localizedInitialBatchSize,
         maxAutoRetries: 2
       },
       i18n: {
@@ -875,6 +881,7 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
         recorderQueueLoadedCount: 'Queue categories loaded: %d',
         recorderQueueLoadedAll: 'All queue categories are loaded.',
         recorderQueueLoadMore: 'Load more',
+        recorderQueueRetry: 'Retry',
         recorderQueueLoadError: 'Could not load more queue categories right now.'
       }
     };
@@ -888,13 +895,17 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
       disconnect() {}
 
       observe(element) {
-        window.__recorderQueueObservedSlugs.push(element.getAttribute('data-recorder-queue-category'));
+        window.__recorderQueueObservedSlugs.push(
+          element.hasAttribute('data-ll-recorder-queue-summary-sentinel')
+            ? 'sentinel'
+            : element.getAttribute('data-recorder-queue-category')
+        );
         window.setTimeout(() => {
           this.callback([{ target: element, isIntersecting: true }]);
         }, 0);
       }
     };
-  }, batchSize);
+  }, { localizedBatchSize: batchSize, localizedInitialBatchSize: initialBatchSize });
 
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(() => {
@@ -911,7 +922,9 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
       </a>
     `;
 
-    window.jQuery.post = function postRecorderQueueSummary(url, payload) {
+    window.jQuery.ajax = function requestRecorderQueueSummary(options) {
+      const url = String((options && options.url) || '');
+      const payload = (options && options.data) || {};
       const slugs = Array.isArray(payload.category_slugs)
         ? payload.category_slugs.map((slug) => String(slug))
         : [];
@@ -947,6 +960,164 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2) {
           }
         });
       }, 20);
+      return deferred.promise();
+    };
+  });
+  await page.addScriptTag({ content: wordsetPagesJsSource });
+}
+
+async function enableRecorderQueueSummaryFailureScript(page, mode) {
+  await page.evaluate(() => {
+    window.llWordsetPageData = {
+      view: 'settings',
+      ajaxUrl: '/fake-admin-ajax.php',
+      isLoggedIn: true,
+      recorderQueueSummaries: {
+        enabled: true,
+        nonce: 'summary-nonce',
+        wordsetId: 22,
+        recorderUserId: 101,
+        generation: 'summary-generation',
+        batchSize: 3,
+        maxAutoRetries: 2,
+        requestTimeoutMs: 12345
+      },
+      i18n: {
+        recorderQueueLoading: 'Loading queue categories...',
+        recorderQueueLoadedCount: 'Queue categories loaded: %d',
+        recorderQueueLoadedAll: 'All queue categories are loaded.',
+        recorderQueueLoadMore: 'Load more',
+        recorderQueueRetry: 'Retry',
+        recorderQueueLoadError: 'Could not load more queue categories right now.'
+      }
+    };
+  });
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate((failureMode) => {
+    window.__recorderQueueFailureCalls = [];
+    window.jQuery.ajax = function failRecorderQueueSummary(options) {
+      const payload = (options && options.data) || {};
+      const slugs = Array.isArray(payload.category_slugs) ? payload.category_slugs.map(String) : [];
+      window.__recorderQueueFailureCalls.push({
+        timeout: Number((options && options.timeout) || 0),
+        slugs
+      });
+      const callNumber = window.__recorderQueueFailureCalls.length;
+      const deferred = window.jQuery.Deferred();
+      window.setTimeout(() => {
+        if (failureMode === 'catalog') {
+          deferred.resolve({
+            success: true,
+            data: {
+              cards: [],
+              resolvedSlugs: slugs,
+              pendingSlugs: [],
+              catalogComplete: false,
+              generation: 'summary-generation'
+            }
+          });
+        } else if (failureMode === 'card') {
+          deferred.resolve({
+            success: true,
+            data: {
+              cards: [{ slug: slugs[0], html: '' }],
+              resolvedSlugs: slugs.slice(1),
+              pendingSlugs: [],
+              catalogComplete: true,
+              generation: 'summary-generation'
+            }
+          });
+        } else if (callNumber > 1) {
+          deferred.resolve({
+            success: true,
+            data: {
+              cards: [],
+              resolvedSlugs: slugs,
+              pendingSlugs: [],
+              catalogComplete: true,
+              generation: 'summary-generation'
+            }
+          });
+        } else {
+          deferred.reject({}, 'timeout');
+        }
+      }, 15);
+      return deferred.promise();
+    };
+  }, mode);
+  await page.addScriptTag({ content: wordsetPagesJsSource });
+}
+
+async function enableRecorderQueueSummaryPendingScript(page) {
+  await page.evaluate(() => {
+    window.llWordsetPageData = {
+      view: 'settings',
+      ajaxUrl: '/fake-admin-ajax.php',
+      isLoggedIn: true,
+      recorderQueueSummaries: {
+        enabled: true,
+        nonce: 'summary-nonce',
+        wordsetId: 22,
+        recorderUserId: 101,
+        generation: 'summary-generation',
+        batchSize: 2,
+        initialBatchSize: 1,
+        maxAutoRetries: 2
+      },
+      i18n: {
+        recorderQueueLoading: 'Loading queue categories...',
+        recorderQueueLoadedCount: 'Queue categories loaded: %d',
+        recorderQueueLoadedAll: 'All queue categories are loaded.',
+        recorderQueueLoadMore: 'Load more',
+        recorderQueueRetry: 'Retry',
+        recorderQueueLoadError: 'Could not load more queue categories right now.'
+      }
+    };
+    window.IntersectionObserver = class ImmediateIntersectionObserver {
+      constructor(callback) {
+        this.callback = callback;
+      }
+
+      disconnect() {}
+
+      observe(element) {
+        window.setTimeout(() => this.callback([{ target: element, isIntersecting: true }]), 0);
+      }
+    };
+  });
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.__recorderQueuePendingCalls = [];
+    window.jQuery.ajax = function requestPendingRecorderQueueSummary(options) {
+      const payload = (options && options.data) || {};
+      const slugs = Array.isArray(payload.category_slugs) ? payload.category_slugs.map(String) : [];
+      window.__recorderQueuePendingCalls.push(slugs);
+      const callNumber = window.__recorderQueuePendingCalls.length;
+      const deferred = window.jQuery.Deferred();
+      window.setTimeout(() => {
+        const response = {
+          cards: [],
+          resolvedSlugs: [],
+          pendingSlugs: [],
+          catalogComplete: true,
+          generation: 'summary-generation'
+        };
+        if (callNumber === 1) {
+          response.pendingSlugs = ['market'];
+        } else if (callNumber === 2) {
+          response.resolvedSlugs = slugs;
+        } else if (callNumber === 3) {
+          response.resolvedSlugs = ['food'];
+          response.pendingSlugs = ['market'];
+        } else {
+          response.cards = [{
+            slug: 'market',
+            html: '<a class="ll-wordset-card ll-wordset-recorder-queue-category-card" data-recorder-queue-category="market" href="#market">Market</a>'
+          }];
+          response.resolvedSlugs = ['market'];
+        }
+        deferred.resolve({ success: true, data: response });
+      }, 15);
       return deferred.promise();
     };
   });
@@ -1070,21 +1241,21 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   const grid = page.locator('[data-ll-recorder-queue-summary-grid]');
   await expect(grid.locator('.ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])')).toHaveCount(1);
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(4);
-  await expect(grid.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(4);
-  await expect(grid.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(8);
+  await expect(grid.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(3);
+  await expect(grid.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(6);
   await expect(page.locator('.ll-wordset-recorder-queue-pagination')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Continue' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /^2$/ })).toHaveCount(0);
 
   // The server-rendered fixture starts with one useful card; continuation
   // requests intentionally use a larger, still-bounded batch.
-  await enableRecorderQueueLazySummaryScript(page, 3);
+  await enableRecorderQueueLazySummaryScript(page, 3, 1);
 
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
   const requests = await page.evaluate(() => window.__recorderQueueSummaryCalls);
   expect(requests.map((request) => request.slugs)).toEqual([
-    ['market', 'empty', 'travel'],
-    ['food']
+    ['market'],
+    ['empty', 'travel', 'food']
   ]);
   requests.forEach((request) => {
     expect(request.url).toBe('/fake-admin-ajax.php');
@@ -1096,7 +1267,7 @@ test('manager recorder queue streams one recorder category queue in bounded orde
     expect(request.backUrl).toBe('https://example.test/manager-return/');
     expect(request.slugs.length).toBeLessThanOrEqual(3);
   });
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['food']);
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['sentinel']);
 
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
   await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);
@@ -1112,6 +1283,52 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await page.locator('[data-ll-recorder-queue-switcher]').selectOption('202');
   await expect(page).toHaveURL(/#recorder-two$/);
 });
+
+test('manager recorder queue scans untouched categories before retrying pending work', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
+  await enableRecorderQueueSummaryPendingScript(page);
+
+  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(4);
+  expect(await page.evaluate(() => window.__recorderQueuePendingCalls)).toEqual([
+    ['market'],
+    ['empty', 'travel'],
+    ['food', 'market'],
+    ['market']
+  ]);
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
+  await expect(page.locator('[data-recorder-queue-category="market"]')).toHaveCount(1);
+  await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');
+});
+
+for (const failureMode of ['timeout', 'catalog', 'card']) {
+  const failureLabel = failureMode === 'timeout'
+    ? 'a timed out request'
+    : (failureMode === 'catalog' ? 'an incomplete category catalog' : 'an empty card payload');
+  test(`manager recorder queue recovers from ${failureLabel}`, async ({ page }) => {
+    await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
+    await enableRecorderQueueSummaryFailureScript(page, failureMode);
+
+    await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(1);
+    const calls = await page.evaluate(() => window.__recorderQueueFailureCalls);
+    expect(calls[0].timeout).toBe(12345);
+    expect(calls[0].slugs).toEqual(['market', 'empty', 'travel']);
+    await expect(page.locator('[data-ll-recorder-queue-summary-root]')).toHaveAttribute('aria-busy', 'false');
+    await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('Could not load more queue categories right now.');
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeEnabled();
+    await expect(page.locator('.ll-wordset-recorder-queue-category-card--loading')).toHaveCount(3);
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(1);
+
+    if (failureMode === 'timeout') {
+      await page.getByRole('button', { name: 'Retry' }).click();
+      await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(3);
+      await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
+      await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');
+      await expect(page.locator('[data-ll-recorder-queue-summary-load-more]')).toBeHidden();
+    }
+  });
+}
 
 test('manager recorder queue autosaves prompt edits without a manual save click', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueCategoryViewMarkup(), { width: 390, height: 844 });
