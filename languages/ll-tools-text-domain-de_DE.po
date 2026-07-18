@@ -24154,7 +24154,10 @@ msgid ""
 "Controls lesson pages and [word_grid] displays. \"Hide\" shows images/audio "
 "buttons only. \"Use word set default\" follows the word set setting for non-"
 "text quiz categories."
-msgstr "folgt der Vokabelset-Einstellung für Nicht-Text-Quizkategorien."
+msgstr ""
+"Steuert Lektionsseiten und [word_grid]-Darstellungen. \"Ausblenden\" zeigt "
+"nur Bild-/Audio-Schaltflächen. \"Vokabelset-Standard verwenden\" folgt der "
+"Vokabelset-Einstellung für Quizkategorien ohne Text."
 
 #: includes/taxonomies/word-category-taxonomy.php:2031
 msgid ""
@@ -27834,3 +27837,43 @@ msgstr "Eine vorbereitete TSV-Zeile überschreitet die zulässige Größe."
 #: includes/admin/dictionary-import-admin.php:1002 includes/admin/dictionary-import-admin.php:1059
 msgid "A TSV grouping bucket exceeds the allowed size."
 msgstr "Ein TSV-Gruppierungs-Bucket überschreitet die zulässige Größe."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/pages/wordset-pages.php:8436
+msgid "Some word set settings were saved, but category ordering and prerequisites were not changed."
+msgstr "Einige Vokabelset-Einstellungen wurden gespeichert, aber die Kategoriereihenfolge und -voraussetzungen wurden nicht geändert."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2018
+msgid "Category ordering and prerequisites were not saved because the submitted settings were incomplete. Refresh and save again."
+msgstr "Kategoriereihenfolge und -voraussetzungen wurden nicht gespeichert, weil die übermittelten Einstellungen unvollständig waren. Aktualisiere die Seite und speichere erneut."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2055
+#: includes/taxonomies/wordset-taxonomy.php:2068
+#: includes/taxonomies/wordset-taxonomy.php:2089
+#: includes/taxonomies/wordset-taxonomy.php:2172
+#: includes/taxonomies/wordset-taxonomy.php:2207
+msgid "The category list changed after this form loaded. Refresh and save again."
+msgstr "Die Kategorieliste hat sich geändert, nachdem dieses Formular geladen wurde. Aktualisiere die Seite und speichere erneut."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2377
+msgid "Category ordering and prerequisites could not be saved. Refresh and try again."
+msgstr "Kategoriereihenfolge und -voraussetzungen konnten nicht gespeichert werden. Aktualisiere die Seite und versuche es erneut."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2378
+msgid "Category ordering and prerequisites could not be saved or fully restored. Review them before trying again."
+msgstr "Kategoriereihenfolge und -voraussetzungen konnten nicht gespeichert oder vollständig wiederhergestellt werden. Prüfe sie, bevor du es erneut versuchst."
+
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2399
+msgid "Other word set settings were saved, but category ordering and prerequisites could not be saved or fully restored. Review them before trying again."
+msgstr "Die anderen Vokabelset-Einstellungen wurden gespeichert, aber Kategoriereihenfolge und -voraussetzungen konnten nicht gespeichert oder vollständig wiederhergestellt werden. Prüfe sie, bevor du es erneut versuchst."
+
+#. translators: %s: Specific validation or storage error for category ordering and prerequisites.
+#. ll-tools-autonomous-upkeep: 2026-07-18 category ordering atomic-save batch
+#: includes/taxonomies/wordset-taxonomy.php:2404
+msgid "Other word set settings were saved, but category ordering and prerequisites were left unchanged. %s"
+msgstr "Die anderen Vokabelset-Einstellungen wurden gespeichert, aber Kategoriereihenfolge und -voraussetzungen blieben unverändert. %s"
