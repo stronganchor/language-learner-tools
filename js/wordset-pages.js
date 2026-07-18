@@ -599,6 +599,7 @@
     let recorderQueueSummaryObserver = null;
     let recorderQueueSummaryRetryTimer = 0;
     let recorderQueueSummaryInitialBatchComplete = false;
+    let recorderQueueSummarySentinelRequiresExit = false;
     let recorderQueueSummaryReloadPending = false;
     let recorderQueueSummaryReloadTimer = 0;
 
@@ -16280,9 +16281,20 @@
         }
         if (!recorderQueueSummaryObserver) {
             recorderQueueSummaryObserver = new window.IntersectionObserver(function (entries) {
-                if (entries.some(function (entry) { return entry && entry.isIntersecting; })) {
-                    requestRecorderQueueSummaryBatch();
+                if (recorderQueueSummaryRequest) {
+                    return;
                 }
+                if (entries.some(function (entry) { return entry && !entry.isIntersecting; })) {
+                    recorderQueueSummarySentinelRequiresExit = false;
+                }
+                if (
+                    recorderQueueSummarySentinelRequiresExit
+                    || !entries.some(function (entry) { return entry && entry.isIntersecting; })
+                ) {
+                    return;
+                }
+                recorderQueueSummarySentinelRequiresExit = true;
+                requestRecorderQueueSummaryBatch();
             }, {
                 root: null,
                 rootMargin: '720px 0px',
@@ -16332,6 +16344,11 @@
             return;
         }
 
+        // The initial request, a manual Load more click, and a genuine sentinel
+        // entry each consume one viewport entry. Re-observing the same still-
+        // visible sentinel after the request settles must not start another
+        // request until the sentinel first exits and then enters again.
+        recorderQueueSummarySentinelRequiresExit = true;
         if (recorderQueueSummaryObserver) {
             recorderQueueSummaryObserver.disconnect();
         }
@@ -16526,7 +16543,9 @@
             return;
         }
         $root.on('click', '[data-ll-recorder-queue-summary-load-more]', function () {
-            requestRecorderQueueSummaryBatch({ resetRetries: true });
+            requestRecorderQueueSummaryBatch({
+                resetRetries: $recorderQueueSummaryRoot.hasClass('has-load-error')
+            });
         });
         setRecorderQueueSummaryState('idle');
         if (getRecorderQueueSummaryPlaceholders().length) {

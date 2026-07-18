@@ -17380,10 +17380,10 @@ function ll_tools_wordset_page_get_recorder_queue_overview_page_size(string $typ
 }
 
 function ll_tools_wordset_page_get_recorder_queue_summary_batch_size(): int {
-    // These requests pay the full authenticated WordPress bootstrap cost. Keep
-    // them bounded, but large enough that a Genç-sized queue does not require
-    // dozens of sequential round trips after the first useful cards appear.
-    $size = (int) apply_filters('ll_tools_wordset_recorder_queue_summary_batch_size', 20);
+    // Each cold category can perform several bounded candidate scans. Keep the
+    // default small enough to protect PHP-FPM and stay below the browser timeout;
+    // operators may still raise it through the filter up to the hard cap.
+    $size = (int) apply_filters('ll_tools_wordset_recorder_queue_summary_batch_size', 6);
 
     return max(1, min(20, $size));
 }

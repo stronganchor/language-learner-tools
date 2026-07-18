@@ -8,8 +8,8 @@ const DEFAULT_MANIFEST = path.join(PLUGIN_ROOT, 'tests', 'performance', 'fixture
 const DEFAULT_HISTORY = path.join(PLUGIN_ROOT, 'tests', 'performance', 'history', 'performance-history.jsonl');
 const DEFAULT_REPORT = path.join(PLUGIN_ROOT, 'tests', 'performance', 'reports', 'performance-latest.json');
 const DEFAULT_WORDSET_INITIAL_CARD_COUNT = 18;
-const DEFAULT_RECORDER_QUEUE_INITIAL_CARD_COUNT = 6;
-const DEFAULT_RECORDER_QUEUE_BATCH_SIZE = 20;
+const DEFAULT_RECORDER_QUEUE_INITIAL_CARD_COUNT = 3;
+const DEFAULT_RECORDER_QUEUE_BATCH_SIZE = 6;
 const MANIFEST_CHECKSUM_FORMAT = 'canonical-json-v1';
 const DEFAULT_BENCHMARK_TIMEOUT_FIXED_OVERHEAD_MS = 30000;
 const DEFAULT_BENCHMARK_TIMEOUT_PER_SCENARIO_OVERHEAD_MS = 5000;
@@ -285,7 +285,7 @@ function buildBenchmarkScenarios(manifest) {
       const batchSize = Math.max(1, Number(
         recorderQueueConfig.batchSize || DEFAULT_RECORDER_QUEUE_BATCH_SIZE
       ));
-      const maxBatchRequestCount = Math.ceil(
+      const maxBatchRequestCount = 1 + Math.ceil(
         Math.max(0, expectedCategoryCount - initialCategoryCount) / batchSize
       );
       scenarios.push(

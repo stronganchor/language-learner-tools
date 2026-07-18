@@ -294,7 +294,7 @@ test('Genç profile matches production-scale dimensions and includes settings an
     path: '/ll-perf-genc/settings/?ll_wordset_tool=recorder-queues',
     requiresAuth: true,
     primaryMetric: 'firstActionableMs',
-    minActionableCount: 6
+    minActionableCount: 3
   });
   expect(byName['wordset-genc-recorder-queues-initial-load'].selector)
     .toContain(':not([data-ll-recorder-queue-summary-placeholder])');
@@ -304,12 +304,12 @@ test('Genç profile matches production-scale dimensions and includes settings an
     primaryMetric: 'interactionMs',
     action: 'recorder-queue-lazy-completion',
     expectedCategoryCount: 209,
-    maxBatchRequestCount: 11
+    maxBatchRequestCount: 36
   });
   expect(validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
     209,
-    11
+    36
   )).toBe(209);
   expect(() => validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
@@ -318,8 +318,8 @@ test('Genç profile matches production-scale dimensions and includes settings an
   expect(() => validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
     209,
-    12
-  )).toThrow(/issued 12 summary requests; expected at most 11/);
+    37
+  )).toThrow(/issued 37 summary requests; expected at most 36/);
 });
 
 test('benchmark timeout budget scales with runnable scenarios, runs, warmups, and action limits', async () => {

@@ -859,8 +859,8 @@ async function stubRecorderQueueAutosave(page) {
   });
 }
 
-async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initialBatchSize = batchSize) {
-  await page.evaluate(({ localizedBatchSize, localizedInitialBatchSize }) => {
+async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initialBatchSize = batchSize, requestDelayMs = 20) {
+  await page.evaluate(({ localizedBatchSize, localizedInitialBatchSize, localizedRequestDelayMs }) => {
     window.llWordsetPageData = {
       view: 'settings',
       ajaxUrl: '/fake-admin-ajax.php',
@@ -885,11 +885,16 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
         recorderQueueLoadError: 'Could not load more queue categories right now.'
       }
     };
+    window.__recorderQueueSummaryDelayMs = localizedRequestDelayMs;
 
     window.__recorderQueueObservedSlugs = [];
+    window.__emitRecorderQueueIntersection = null;
     window.IntersectionObserver = class ImmediateIntersectionObserver {
       constructor(callback) {
         this.callback = callback;
+        window.__emitRecorderQueueIntersection = (isIntersecting) => {
+          this.callback([{ isIntersecting: Boolean(isIntersecting) }]);
+        };
       }
 
       disconnect() {}
@@ -900,12 +905,14 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
             ? 'sentinel'
             : element.getAttribute('data-recorder-queue-category')
         );
-        window.setTimeout(() => {
-          this.callback([{ target: element, isIntersecting: true }]);
-        }, 0);
+        window.setTimeout(() => this.callback([{ target: element, isIntersecting: true }]), 0);
       }
     };
-  }, { localizedBatchSize: batchSize, localizedInitialBatchSize: initialBatchSize });
+  }, {
+    localizedBatchSize: batchSize,
+    localizedInitialBatchSize: initialBatchSize,
+    localizedRequestDelayMs: requestDelayMs
+  });
 
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(() => {
@@ -959,7 +966,7 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
             generation: 'summary-generation'
           }
         });
-      }, 20);
+      }, window.__recorderQueueSummaryDelayMs);
       return deferred.promise();
     };
   });
@@ -1062,7 +1069,7 @@ async function enableRecorderQueueSummaryPendingScript(page) {
         generation: 'summary-generation',
         batchSize: 2,
         initialBatchSize: 1,
-        maxAutoRetries: 2
+        maxAutoRetries: 1
       },
       i18n: {
         recorderQueueLoading: 'Loading queue categories...',
@@ -1251,6 +1258,15 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   // requests intentionally use a larger, still-bounded batch.
   await enableRecorderQueueLazySummaryScript(page, 3, 1);
 
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => typeof window.__emitRecorderQueueIntersection)).toBe('function');
+  await page.evaluate(() => window.__emitRecorderQueueIntersection(true));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__emitRecorderQueueIntersection(false);
+    window.__emitRecorderQueueIntersection(true);
+  });
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
   const requests = await page.evaluate(() => window.__recorderQueueSummaryCalls);
   expect(requests.map((request) => request.slugs)).toEqual([
@@ -1284,10 +1300,51 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await expect(page).toHaveURL(/#recorder-two$/);
 });
 
+test('manager recorder queue ignores stale sentinel exits during an in-flight batch', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
+  await enableRecorderQueueLazySummaryScript(page, 1, 1, 120);
+
+  const summaryRoot = page.locator('[data-ll-recorder-queue-summary-root]');
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => typeof window.__emitRecorderQueueIntersection)).toBe('function');
+  await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
+
+  await page.evaluate(() => {
+    window.__emitRecorderQueueIntersection(false);
+    window.__emitRecorderQueueIntersection(true);
+  });
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
+  await expect(summaryRoot).toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => window.__emitRecorderQueueIntersection(false));
+  await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
+
+  await page.evaluate(() => {
+    window.__emitRecorderQueueIntersection(false);
+    window.__emitRecorderQueueIntersection(true);
+  });
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
+  await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
+  await page.evaluate(() => window.__emitRecorderQueueIntersection(true));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
+});
+
 test('manager recorder queue scans untouched categories before retrying pending work', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
   await enableRecorderQueueSummaryPendingScript(page);
 
+  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(1);
+  await page.getByRole('button', { name: 'Load more' }).click();
+  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(2);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(2);
+  await page.getByRole('button', { name: 'Load more' }).click();
+  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(3);
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeEnabled();
+  expect(await page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(3);
+  await page.getByRole('button', { name: 'Retry' }).click();
   await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(4);
   expect(await page.evaluate(() => window.__recorderQueuePendingCalls)).toEqual([
     ['market'],
@@ -1322,6 +1379,11 @@ for (const failureMode of ['timeout', 'catalog', 'card']) {
 
     if (failureMode === 'timeout') {
       await page.getByRole('button', { name: 'Retry' }).click();
+      await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(2);
+      await page.waitForTimeout(100);
+      expect(await page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(2);
+      await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(1);
+      await page.getByRole('button', { name: 'Load more' }).click();
       await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(3);
       await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
       await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');

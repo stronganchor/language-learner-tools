@@ -71,7 +71,7 @@ final class AudioRecordingHiddenWordsRequestCacheTest extends LL_Tools_TestCase
                 }
             }
 
-            $this->assertSame(1, $metadata_reads, 'A 20-category summary batch should read the recorder hidden meta only once.');
+            $this->assertSame(1, $metadata_reads, 'A bounded summary batch should read the recorder hidden meta only once.');
             $this->assertSame(
                 $casts_after_first_lookup,
                 LL_Tools_Hidden_Recording_Counting_String::$casts,

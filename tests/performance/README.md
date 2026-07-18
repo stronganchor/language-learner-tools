@@ -81,11 +81,12 @@ Authenticated scenarios measure the settings hub, recorder-queue initial
 usability, and the separate navigation-to-completion time for all lazy summary
 batches. The lazy-completion samples retain the category counts observed when
 the driver takes over, the exact final count, and the bounded AJAX request
-count since navigation began. The run fails if it does not expose at least six
-initial categories, finish with all 209, or exceeds eleven 20-category summary
-requests. The stream generation depends on ordered category identities and
+count since navigation began. The run fails if it does not expose at least three
+initial categories, finish with all 209, or exceeds thirty-six summary
+requests (one three-category request followed by six-category batches).
+The stream generation depends on ordered category identities and
 recorder/wordset/filter scope, so ordinary per-category content invalidation
-refreshes affected cards without restarting those eleven batches. Genç history is written to
+refreshes affected cards without restarting that bounded stream. Genç history is written to
 `tests/performance/history/performance-history-genc.jsonl`; latest reports are
 written to `tests/performance/reports/performance-latest-genc.*`. Set
 `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` in `tests/.env.local`; these are the

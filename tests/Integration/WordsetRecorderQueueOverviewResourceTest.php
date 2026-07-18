@@ -430,10 +430,10 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame([], $scoped_batch['cards'], 'Shortcode recording-type overrides must scope overview counts.');
     }
 
-    public function test_summary_stream_keeps_first_paint_small_and_uses_larger_background_batches(): void
+    public function test_summary_stream_defaults_to_resource_safe_six_category_batches(): void
     {
         $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
-        $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+        $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
 
         $background_batch_size = static function (): int {
             return 4;
@@ -451,6 +451,17 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             remove_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $background_batch_size);
         }
 
+        $oversized_background_batch = static function (): int {
+            return 99;
+        };
+        add_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $oversized_background_batch);
+
+        try {
+            $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+        } finally {
+            remove_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $oversized_background_batch);
+        }
+
         $initial_batch_size = static function (): int {
             return 3;
         };
@@ -458,7 +469,7 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
 
         try {
             $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
-            $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+            $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
         } finally {
             remove_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);
         }
