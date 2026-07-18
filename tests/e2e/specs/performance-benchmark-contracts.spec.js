@@ -29,6 +29,7 @@ const fixtureSeederPath = path.join(
   'seed-performance-fixtures.php'
 );
 const benchmarkRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-performance-benchmark.sh');
+const benchmarkSpecPath = path.join(pluginRoot, 'tests', 'e2e', 'specs', 'performance-benchmark.spec.js');
 const e2eRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-e2e.sh');
 const manifestVerifierPath = path.join(
   pluginRoot,
@@ -304,12 +305,14 @@ test('Genç profile matches production-scale dimensions and includes settings an
     primaryMetric: 'interactionMs',
     action: 'recorder-queue-lazy-completion',
     expectedCategoryCount: 209,
-    maxBatchRequestCount: 36
+    maxBatchRequestCount: 36,
+    maxConcurrentBatchRequestCount: 1
   });
   expect(validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
     209,
-    36
+    36,
+    1
   )).toBe(209);
   expect(() => validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
@@ -320,6 +323,21 @@ test('Genç profile matches production-scale dimensions and includes settings an
     209,
     37
   )).toThrow(/issued 37 summary requests; expected at most 36/);
+  expect(() => validateRecorderQueueCompletion(
+    byName['wordset-genc-recorder-queues-lazy-completion'],
+    209,
+    36,
+    2
+  )).toThrow(/reached 2 concurrent summary requests; expected at most 1/);
+});
+
+test('recorder completion benchmark follows the viewport-driven serial loading contract', async () => {
+  const benchmarkSpec = fs.readFileSync(benchmarkSpecPath, 'utf8');
+  expect(benchmarkSpec).toContain('sentinel.scrollIntoViewIfNeeded');
+  expect(benchmarkSpec).not.toContain('loadMore.click');
+  expect(benchmarkSpec).toContain("classList.contains('has-load-error')");
+  expect(benchmarkSpec).toContain("page.on('requestfinished', recorderQueueRequestSettledListener)");
+  expect(benchmarkSpec).toContain('getRecorderQueueMaxConcurrentBatchRequestCount');
 });
 
 test('benchmark timeout budget scales with runnable scenarios, runs, warmups, and action limits', async () => {

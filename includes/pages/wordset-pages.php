@@ -17392,7 +17392,7 @@ function ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size(): 
     $background_batch_size = ll_tools_wordset_page_get_recorder_queue_summary_batch_size();
     $size = (int) apply_filters(
         'll_tools_wordset_recorder_queue_summary_initial_batch_size',
-        min(6, $background_batch_size)
+        min(3, $background_batch_size)
     );
 
     // First paint stays deliberately smaller than subsequent lazy batches. An
@@ -21069,20 +21069,30 @@ function ll_tools_wordset_page_render_recorder_queue_category_placeholder(array 
     if ($category_slug === '') {
         return '';
     }
+    $category_name = trim(wp_strip_all_tags((string) ($category['name'] ?? '')));
+    if ($category_name === '') {
+        $category_name = $category_slug;
+    }
     $hidden = !empty($args['hidden']);
+    $neutral = !empty($args['neutral']);
 
     ob_start();
     ?>
     <article
         class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading"
         data-recorder-queue-category="<?php echo esc_attr($category_slug); ?>"
+        <?php if (!$neutral) : ?>data-recorder-queue-category-name="<?php echo esc_attr($category_name); ?>"<?php endif; ?>
         data-ll-recorder-queue-summary-placeholder="true"
-        aria-label="<?php echo esc_attr__('Loading recording category', 'll-tools-text-domain'); ?>"
+        <?php if ($neutral) : ?>aria-label="<?php echo esc_attr__('Loading recording category', 'll-tools-text-domain'); ?>"<?php endif; ?>
         aria-busy="true"
         <?php echo $hidden ? ' hidden' : ''; ?>
     >
         <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
-            <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name ll-wordset-recorder-queue-category-card__title-skeleton" aria-hidden="true"></span>
+            <?php if ($neutral) : ?>
+                <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name ll-wordset-recorder-queue-category-card__title-skeleton" aria-hidden="true"></span>
+            <?php else : ?>
+                <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name"><?php echo esc_html($category_name); ?></span>
+            <?php endif; ?>
             <span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span>
         </span>
         <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
@@ -21106,10 +21116,15 @@ function ll_tools_wordset_page_render_recorder_queue_category_marker(array $cate
     if ($category_slug === '') {
         return '';
     }
+    $category_name = trim(wp_strip_all_tags((string) ($category['name'] ?? '')));
+    if ($category_name === '') {
+        $category_name = $category_slug;
+    }
 
     return sprintf(
-        '<span class="ll-wordset-recorder-queue-category-marker" data-recorder-queue-category="%1$s" data-ll-recorder-queue-summary-placeholder="true" hidden></span>',
-        esc_attr($category_slug)
+        '<span class="ll-wordset-recorder-queue-category-marker" data-recorder-queue-category="%1$s" data-recorder-queue-category-name="%2$s" data-ll-recorder-queue-summary-placeholder="true" hidden></span>',
+        esc_attr($category_slug),
+        esc_attr($category_name)
     );
 }
 
@@ -21698,6 +21713,12 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
     );
     $stream_catalog_complete = !array_key_exists('stream_catalog_complete', $args)
         || !empty($args['stream_catalog_complete']);
+    $stream_initial_batch_size = isset($args['stream_initial_batch_size'])
+        ? max(1, min(
+            ll_tools_wordset_page_get_recorder_queue_summary_batch_size(),
+            (int) $args['stream_initial_batch_size']
+        ))
+        : ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size();
     $focused_back_url = remove_query_arg(['ll_recorder_queue_category', 'll_recorder_queue_page', 'll_recorder_queue_cursor'], $action_url);
     if ($focused_queue_user_id > 0) {
         $focused_back_url = add_query_arg('ll_recorder_queue_focus', (string) $focused_queue_user_id, $focused_back_url);
@@ -21915,18 +21936,11 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                     ? $queue_row['summary_states']
                     : [];
                 $stream_group_lookup = [];
-                $stream_initial_rendered_count = 0;
                 if ($stream_view) {
                     foreach ($visible_groups as $visible_group) {
                         $stream_group_slug = sanitize_title((string) ($visible_group['slug'] ?? ''));
                         if ($stream_group_slug !== '') {
                             $stream_group_lookup[$stream_group_slug] = $visible_group;
-                            if (
-                                !empty($summary_states[$stream_group_slug]['source_current'])
-                                && !empty($summary_states[$stream_group_slug]['complete'])
-                            ) {
-                                $stream_initial_rendered_count++;
-                            }
                         }
                     }
                 }
@@ -21975,16 +21989,10 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                             </p>
                         </div>
                         <div class="ll-wordset-settings-card__meta ll-wordset-recorder-queue-card__summary">
-                            <span class="ll-wordset-settings-card__pill"<?php echo $stream_view ? ' data-ll-recorder-queue-summary-count' : ''; ?>>
+                            <?php if (!$stream_view) : ?>
+                            <span class="ll-wordset-settings-card__pill">
                                 <?php
-                                if ($stream_view && !$stream_catalog_complete) {
-                                    echo esc_html__('Loading queue categories...', 'll-tools-text-domain');
-                                } elseif ($stream_view) {
-                                    echo esc_html(sprintf(
-                                        _n('%d queue category', '%d queue categories', $stream_initial_rendered_count, 'll-tools-text-domain'),
-                                        $stream_initial_rendered_count
-                                    ));
-                                } elseif ($visible_count_known) {
+                                if ($visible_count_known) {
                                     echo esc_html(sprintf(
                                         _n('%d queued word', '%d queued words', $visible_count_value, 'll-tools-text-domain'),
                                         $visible_count_value
@@ -21997,6 +22005,7 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                                 }
                                 ?>
                             </span>
+                            <?php endif; ?>
                             <?php if (!$hidden_view) : ?>
                                 <a class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-view-link" href="<?php echo esc_url($row_hidden_url); ?>">
                                     <?php
@@ -22108,7 +22117,7 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                                             if ($stream_scan_complete) {
                                                 continue;
                                             }
-                                            if ($stream_pending_count < 3) {
+                                            if ($stream_pending_count < $stream_initial_batch_size) {
                                                 echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($stream_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                             } else {
                                                 echo ll_tools_wordset_page_render_recorder_queue_category_marker($stream_category); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -22131,9 +22140,9 @@ function ll_tools_wordset_page_render_settings_recorder_queues_tool(
                                         <button
                                             type="button"
                                             class="ll-wordset-settings-action ll-wordset-settings-action--secondary"
-                                            data-ll-recorder-queue-summary-load-more
-                                            <?php echo $stream_pending_count > 0 ? '' : ' hidden'; ?>
-                                        ><?php echo esc_html__('Load more', 'll-tools-text-domain'); ?></button>
+                                            data-ll-recorder-queue-summary-retry
+                                            hidden
+                                        ><?php echo esc_html__('Retry', 'll-tools-text-domain'); ?></button>
                                         <span class="ll-wordset-recorder-queue-summary-loader__sentinel" data-ll-recorder-queue-summary-sentinel aria-hidden="true"></span>
                                     </div>
                                 </section>
@@ -24525,7 +24534,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'wordsetId' => $wordset_id,
             'recorderUserId' => $recorder_queue_selected_user_id,
             'batchSize' => $recorder_queue_stream_batch_size,
-            'initialBatchSize' => 3,
+            'initialBatchSize' => $recorder_queue_stream_initial_batch_size,
             'maxAutoRetries' => 6,
             'requestTimeoutMs' => 30000,
             'backUrl' => $back_url,
@@ -24745,9 +24754,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'recorderQueueSaved' => __('Saved!', 'll-tools-text-domain'),
             'recorderQueueSaveError' => __('Unable to save right now.', 'll-tools-text-domain'),
             'recorderQueueLoading' => __('Loading queue categories...', 'll-tools-text-domain'),
-            'recorderQueueLoadedCount' => __('Queue categories loaded: %d', 'll-tools-text-domain'),
             'recorderQueueLoadedAll' => __('All queue categories are loaded.', 'll-tools-text-domain'),
-            'recorderQueueLoadMore' => __('Load more', 'll-tools-text-domain'),
             'recorderQueueRetry' => __('Retry', 'll-tools-text-domain'),
             'recorderQueueLoadError' => __('Could not load more queue categories right now.', 'll-tools-text-domain'),
             ...$games_i18n,
@@ -25383,6 +25390,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'assigned_audio_recorders' => $assigned_audio_recorders,
                     'stream_categories' => $recorder_queue_stream_categories,
                     'stream_catalog_complete' => $recorder_queue_stream_catalog_complete,
+                    'stream_initial_batch_size' => $recorder_queue_stream_initial_batch_size,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'offline-app' && $can_manage_offline_app_export) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_offline_app_tool($wordset_term, $wordset_id, $back_url, $offline_export_category_options, $offline_export_zip_available); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

@@ -10595,18 +10595,44 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     justify-content: space-between;
     gap: 10px;
     flex-wrap: wrap;
-    min-height: 42px;
+    min-height: 1px;
 }
 
 .ll-wordset-recorder-queue-summary-loader__status {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
     color: var(--ll-wp-muted);
     font-size: 0.82rem;
     font-weight: 700;
 }
 
+.ll-wordset-recorder-queue-summary-loader__status.is-visible {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: initial !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    clip-path: none !important;
+    white-space: normal !important;
+}
+
 .ll-wordset-recorder-queue-column--stream.has-load-error .ll-wordset-recorder-queue-summary-loader__status,
 [data-ll-recorder-queue-summary-root].has-load-error .ll-wordset-recorder-queue-summary-loader__status {
     color: #b42318;
+}
+
+[data-ll-recorder-queue-summary-retry][hidden] {
+    display: none !important;
 }
 
 .ll-wordset-recorder-queue-summary-loader__sentinel {

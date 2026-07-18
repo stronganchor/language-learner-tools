@@ -597,9 +597,10 @@
     const recorderQueueSummaryRequestTimeout = Math.max(10000, Math.min(60000, parseInt(recorderQueueSummariesCfg.requestTimeoutMs, 10) || 30000));
     let recorderQueueSummaryRequest = null;
     let recorderQueueSummaryObserver = null;
+    let recorderQueueSummaryObserverGeneration = 0;
+    let recorderQueueSummaryViewportRaf = 0;
     let recorderQueueSummaryRetryTimer = 0;
     let recorderQueueSummaryInitialBatchComplete = false;
-    let recorderQueueSummarySentinelRequiresExit = false;
     let recorderQueueSummaryReloadPending = false;
     let recorderQueueSummaryReloadTimer = 0;
 
@@ -652,7 +653,7 @@
     const $recorderQueueSummaryRoot = $root.find('[data-ll-recorder-queue-summary-root]').first();
     const $recorderQueueSummaryGrid = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-grid]').first();
     const $recorderQueueSummaryStatus = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-status]').first();
-    const $recorderQueueSummaryLoadMore = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-load-more]').first();
+    const $recorderQueueSummaryRetry = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-retry]').first();
     const $recorderQueueSummaryEmpty = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-empty]').first();
     const $recorderQueueSummarySentinel = $recorderQueueSummaryRoot.find('[data-ll-recorder-queue-summary-sentinel]').first();
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
@@ -16210,11 +16211,6 @@
             .length;
     }
 
-    function formatRecorderQueueSummaryLoadedCount(count) {
-        const template = String(i18n.recorderQueueLoadedCount || '');
-        return template.replace('%d', String(Math.max(0, parseInt(count, 10) || 0)));
-    }
-
     function setRecorderQueueSummaryState(state, message) {
         if (!$recorderQueueSummaryRoot.length) {
             return;
@@ -16231,8 +16227,6 @@
                 statusMessage = String(i18n.recorderQueueLoadError || i18n.saveError || '');
             } else if (pendingCount === 0) {
                 statusMessage = String(i18n.recorderQueueLoadedAll || '');
-            } else {
-                statusMessage = formatRecorderQueueSummaryLoadedCount(loadedCount);
             }
         }
 
@@ -16241,20 +16235,19 @@
             .toggleClass('has-load-error', cleanState === 'error')
             .attr('aria-busy', cleanState === 'loading' ? 'true' : 'false');
         if ($recorderQueueSummaryStatus.length) {
-            $recorderQueueSummaryStatus.text(statusMessage);
+            $recorderQueueSummaryStatus
+                .text(statusMessage)
+                .toggleClass('is-visible', cleanState === 'error');
         }
-        if ($recorderQueueSummaryLoadMore.length) {
-            $recorderQueueSummaryLoadMore
-                .text(String(cleanState === 'error'
-                    ? (i18n.recorderQueueRetry || i18n.retry || '')
-                    : (i18n.recorderQueueLoadMore || '')))
-                .prop('disabled', cleanState === 'loading')
-                .prop('hidden', pendingCount === 0);
+        if ($recorderQueueSummaryRetry.length) {
+            $recorderQueueSummaryRetry
+                .text(String(i18n.recorderQueueRetry || i18n.retry || ''))
+                .prop('disabled', cleanState !== 'error')
+                .prop('hidden', cleanState !== 'error' || pendingCount === 0);
         }
         if ($recorderQueueSummaryEmpty.length) {
             $recorderQueueSummaryEmpty.prop('hidden', pendingCount > 0 || loadedCount > 0);
         }
-        $root.find('[data-ll-recorder-queue-summary-count]').text(formatRecorderQueueSummaryLoadedCount(loadedCount));
     }
 
     function recorderQueueSummaryElementIsNearViewport(element) {
@@ -16263,45 +16256,121 @@
         }
         const rect = element.getBoundingClientRect();
         const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-        return rect.top <= viewportHeight + 720 && rect.bottom >= -720;
+        return rect.top <= viewportHeight + 160 && rect.bottom >= 0;
+    }
+
+    function disconnectRecorderQueueSummaryObserver() {
+        recorderQueueSummaryObserverGeneration += 1;
+        if (recorderQueueSummaryObserver) {
+            recorderQueueSummaryObserver.disconnect();
+            recorderQueueSummaryObserver = null;
+        }
+    }
+
+    function recorderQueueSummaryCanAutoLoad() {
+        return recorderQueueSummariesEnabled
+            && $recorderQueueSummaryRoot.length
+            && !$recorderQueueSummaryRoot.hasClass('has-load-error')
+            && !recorderQueueSummaryRequest
+            && document.visibilityState !== 'hidden'
+            && getRecorderQueueSummaryPlaceholders().length > 0;
+    }
+
+    function scheduleRecorderQueueSummaryViewportCheck() {
+        if (recorderQueueSummaryViewportRaf) {
+            return;
+        }
+        recorderQueueSummaryViewportRaf = window.requestAnimationFrame(function () {
+            recorderQueueSummaryViewportRaf = 0;
+            const sentinel = $recorderQueueSummarySentinel.get(0);
+            if (recorderQueueSummaryCanAutoLoad() && recorderQueueSummaryElementIsNearViewport(sentinel)) {
+                requestRecorderQueueSummaryBatch();
+            }
+        });
     }
 
     function observeNextRecorderQueueSummaryPlaceholder() {
-        if (recorderQueueSummaryObserver) {
-            recorderQueueSummaryObserver.disconnect();
-        }
+        disconnectRecorderQueueSummaryObserver();
         const sentinel = $recorderQueueSummarySentinel.get(0);
-        if (!sentinel || !getRecorderQueueSummaryPlaceholders().length || recorderQueueSummaryRequest) {
+        if (!sentinel || !recorderQueueSummaryCanAutoLoad()) {
             return;
         }
 
         if (typeof window.IntersectionObserver !== 'function') {
             setRecorderQueueSummaryState('idle');
+            scheduleRecorderQueueSummaryViewportCheck();
             return;
         }
-        if (!recorderQueueSummaryObserver) {
-            recorderQueueSummaryObserver = new window.IntersectionObserver(function (entries) {
-                if (recorderQueueSummaryRequest) {
-                    return;
-                }
-                if (entries.some(function (entry) { return entry && !entry.isIntersecting; })) {
-                    recorderQueueSummarySentinelRequiresExit = false;
-                }
-                if (
-                    recorderQueueSummarySentinelRequiresExit
-                    || !entries.some(function (entry) { return entry && entry.isIntersecting; })
-                ) {
-                    return;
-                }
-                recorderQueueSummarySentinelRequiresExit = true;
-                requestRecorderQueueSummaryBatch();
-            }, {
-                root: null,
-                rootMargin: '720px 0px',
-                threshold: 0.01
-            });
-        }
+        const observerGeneration = recorderQueueSummaryObserverGeneration;
+        recorderQueueSummaryObserver = new window.IntersectionObserver(function (entries) {
+            const sentinelEntry = Array.isArray(entries)
+                ? entries.filter(function (entry) { return entry && entry.target === sentinel; }).pop()
+                : null;
+            if (
+                observerGeneration !== recorderQueueSummaryObserverGeneration
+                || !recorderQueueSummaryCanAutoLoad()
+                || !sentinelEntry
+                || !sentinelEntry.isIntersecting
+                || !recorderQueueSummaryElementIsNearViewport(sentinel)
+            ) {
+                return;
+            }
+            requestRecorderQueueSummaryBatch();
+        }, {
+            root: null,
+            rootMargin: '0px 0px 160px',
+            threshold: 0.01
+        });
         recorderQueueSummaryObserver.observe(sentinel);
+    }
+
+    function promoteRecorderQueueSummaryPlaceholder($placeholder) {
+        if (!$placeholder || !$placeholder.length) {
+            return $placeholder;
+        }
+        $placeholder.prop('hidden', false);
+        if ($placeholder.hasClass('ll-wordset-recorder-queue-category-card')) {
+            return $placeholder;
+        }
+
+        const slug = String($placeholder.attr('data-recorder-queue-category') || '');
+        const categoryName = String($placeholder.attr('data-recorder-queue-category-name') || slug);
+        const retries = String($placeholder.attr('data-ll-recorder-queue-summary-retries') || '');
+        const $card = $('<article>')
+            .addClass('ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading')
+            .attr({
+                'data-recorder-queue-category': slug,
+                'data-recorder-queue-category-name': categoryName,
+                'data-ll-recorder-queue-summary-placeholder': 'true',
+                'aria-busy': 'true'
+            });
+        if (retries) {
+            $card.attr('data-ll-recorder-queue-summary-retries', retries);
+        }
+
+        const $top = $('<span>').addClass('ll-wordset-card__top ll-wordset-recorder-queue-category-card__top');
+        $top.append(
+            $('<span>')
+                .addClass('ll-wordset-card__title ll-wordset-recorder-queue-category__name')
+                .text(categoryName),
+            $('<span>')
+                .addClass('ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton')
+                .attr('aria-hidden', 'true')
+        );
+        const $preview = $('<span>')
+            .addClass('ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link')
+            .attr('aria-hidden', 'true')
+            .append(
+                $('<span>')
+                    .addClass('ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images')
+                    .append(
+                        $('<span>').addClass('ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton'),
+                        $('<span>').addClass('ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton')
+                    )
+            );
+        $card.append($top, $preview);
+        $placeholder.replaceWith($card);
+        return $card;
     }
 
     function requestRecorderQueueSummaryBatch(options) {
@@ -16309,6 +16378,8 @@
         if (!recorderQueueSummariesEnabled || !$recorderQueueSummaryRoot.length || recorderQueueSummaryRequest) {
             return;
         }
+
+        disconnectRecorderQueueSummaryObserver();
 
         const $available = getRecorderQueueSummaryPlaceholders().filter(function () {
             return String($(this).attr('data-ll-recorder-queue-summary-loading') || '') !== 'true';
@@ -16332,11 +16403,13 @@
 
         const slugs = [];
         $pending.each(function () {
-            const $placeholder = $(this);
+            const $placeholder = promoteRecorderQueueSummaryPlaceholder($(this));
             const slug = String($placeholder.attr('data-recorder-queue-category') || '');
             if (slug) {
                 slugs.push(slug);
-                $placeholder.attr('data-ll-recorder-queue-summary-loading', 'true');
+                $placeholder
+                    .attr('data-ll-recorder-queue-summary-loading', 'true')
+                    .attr('aria-busy', 'true');
             }
         });
         if (!slugs.length) {
@@ -16344,14 +16417,6 @@
             return;
         }
 
-        // The initial request, a manual Load more click, and a genuine sentinel
-        // entry each consume one viewport entry. Re-observing the same still-
-        // visible sentinel after the request settles must not start another
-        // request until the sentinel first exits and then enters again.
-        recorderQueueSummarySentinelRequiresExit = true;
-        if (recorderQueueSummaryObserver) {
-            recorderQueueSummaryObserver.disconnect();
-        }
         if (recorderQueueSummaryRetryTimer) {
             clearTimeout(recorderQueueSummaryRetryTimer);
             recorderQueueSummaryRetryTimer = 0;
@@ -16378,7 +16443,9 @@
             if (!response || !response.success || !response.data) {
                 pauseAutomaticLoading = true;
                 slugs.forEach(function (slug) {
-                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                    getRecorderQueueSummaryPlaceholder(slug)
+                        .removeAttr('data-ll-recorder-queue-summary-loading')
+                        .attr('aria-busy', 'false');
                 });
                 setRecorderQueueSummaryState('error');
                 return;
@@ -16390,7 +16457,9 @@
             if (requestedGeneration && responseGeneration && responseGeneration !== requestedGeneration) {
                 pauseAutomaticLoading = true;
                 slugs.forEach(function (slug) {
-                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                    getRecorderQueueSummaryPlaceholder(slug)
+                        .removeAttr('data-ll-recorder-queue-summary-loading')
+                        .attr('aria-busy', 'false');
                 });
                 setRecorderQueueSummaryState('error');
                 recorderQueueSummaryReloadPending = true;
@@ -16417,7 +16486,9 @@
             if (data.catalogComplete === false || slugs.some(function (slug) { return !classifiedSlugs[slug]; })) {
                 pauseAutomaticLoading = true;
                 slugs.forEach(function (slug) {
-                    getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                    getRecorderQueueSummaryPlaceholder(slug)
+                        .removeAttr('data-ll-recorder-queue-summary-loading')
+                        .attr('aria-busy', 'false');
                 });
                 setRecorderQueueSummaryState('error');
                 return;
@@ -16458,7 +16529,9 @@
                 if (!$placeholder.length) {
                     return;
                 }
-                $placeholder.removeAttr('data-ll-recorder-queue-summary-loading');
+                $placeholder
+                    .removeAttr('data-ll-recorder-queue-summary-loading')
+                    .attr('aria-busy', 'false');
                 if (!pendingLookup[slug]) {
                     return;
                 }
@@ -16484,7 +16557,9 @@
         }).fail(function () {
             pauseAutomaticLoading = true;
             slugs.forEach(function (slug) {
-                getRecorderQueueSummaryPlaceholder(slug).removeAttr('data-ll-recorder-queue-summary-loading');
+                getRecorderQueueSummaryPlaceholder(slug)
+                    .removeAttr('data-ll-recorder-queue-summary-loading')
+                    .attr('aria-busy', 'false');
             });
             setRecorderQueueSummaryState('error');
         }).always(function () {
@@ -16493,14 +16568,11 @@
                 return;
             }
             if (retryPendingAutomatically) {
-                const sentinel = $recorderQueueSummarySentinel.get(0);
-                if (recorderQueueSummaryElementIsNearViewport(sentinel)) {
-                    recorderQueueSummaryRetryTimer = setTimeout(function () {
-                        recorderQueueSummaryRetryTimer = 0;
-                        requestRecorderQueueSummaryBatch();
-                    }, retryDelayMs);
-                    return;
-                }
+                recorderQueueSummaryRetryTimer = setTimeout(function () {
+                    recorderQueueSummaryRetryTimer = 0;
+                    observeNextRecorderQueueSummaryPlaceholder();
+                }, retryDelayMs);
+                return;
             }
             observeNextRecorderQueueSummaryPlaceholder();
         });
@@ -16542,11 +16614,24 @@
         if (!recorderQueueSummariesEnabled || !$recorderQueueSummaryRoot.length) {
             return;
         }
-        $root.on('click', '[data-ll-recorder-queue-summary-load-more]', function () {
+        $root.on('click', '[data-ll-recorder-queue-summary-retry]', function () {
+            if (!$recorderQueueSummaryRoot.hasClass('has-load-error')) {
+                return;
+            }
             requestRecorderQueueSummaryBatch({
-                resetRetries: $recorderQueueSummaryRoot.hasClass('has-load-error')
+                resetRetries: true
             });
         });
+        $(document).on('visibilitychange.llRecorderQueueSummary', function () {
+            if (document.visibilityState === 'hidden') {
+                disconnectRecorderQueueSummaryObserver();
+                return;
+            }
+            observeNextRecorderQueueSummaryPlaceholder();
+        });
+        if (typeof window.IntersectionObserver !== 'function') {
+            $(window).on('scroll.llRecorderQueueSummary resize.llRecorderQueueSummary', scheduleRecorderQueueSummaryViewportCheck);
+        }
         setRecorderQueueSummaryState('idle');
         if (getRecorderQueueSummaryPlaceholders().length) {
             requestRecorderQueueSummaryBatch();

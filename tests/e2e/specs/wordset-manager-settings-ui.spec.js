@@ -256,8 +256,8 @@ function buildRecorderQueueLazySummaryMarkup() {
       class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading"
       role="listitem"
       data-recorder-queue-category="${slug}"
+      data-recorder-queue-category-name="${name}"
       data-ll-recorder-queue-summary-placeholder="true"
-      aria-label="Loading ${name}"
       aria-busy="true"
     >
       <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
@@ -283,7 +283,6 @@ function buildRecorderQueueLazySummaryMarkup() {
             <option value="101" data-url="#recorder-one" selected>Recorder One</option>
             <option value="202" data-url="#recorder-two">Recorder Two</option>
           </select>
-          <span class="ll-wordset-settings-card__pill" data-ll-recorder-queue-summary-count>Queue categories loaded: 1</span>
         </div>
 
         <article class="ll-wordset-settings-card ll-wordset-recorder-queue-card" id="ll-recorder-queue-101">
@@ -309,6 +308,7 @@ function buildRecorderQueueLazySummaryMarkup() {
               <span
                 class="ll-wordset-recorder-queue-category-marker"
                 data-recorder-queue-category="food"
+                data-recorder-queue-category-name="Food"
                 data-ll-recorder-queue-summary-placeholder="true"
                 hidden
               ></span>
@@ -316,7 +316,7 @@ function buildRecorderQueueLazySummaryMarkup() {
             <p class="ll-wordset-settings-empty" data-ll-recorder-queue-summary-empty hidden>No words currently need recordings for this recorder.</p>
             <div class="ll-wordset-recorder-queue-summary-loader" data-ll-recorder-queue-summary-loader>
               <span data-ll-recorder-queue-summary-status role="status" aria-live="polite">Loading queue categories...</span>
-              <button type="button" data-ll-recorder-queue-summary-load-more>Load more</button>
+              <button type="button" data-ll-recorder-queue-summary-retry hidden>Retry</button>
               <span data-ll-recorder-queue-summary-sentinel aria-hidden="true"></span>
             </div>
           </section>
@@ -859,8 +859,21 @@ async function stubRecorderQueueAutosave(page) {
   });
 }
 
-async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initialBatchSize = batchSize, requestDelayMs = 20) {
-  await page.evaluate(({ localizedBatchSize, localizedInitialBatchSize, localizedRequestDelayMs }) => {
+async function enableRecorderQueueLazySummaryScript(
+  page,
+  batchSize = 2,
+  initialBatchSize = batchSize,
+  requestDelayMs = 20,
+  initialIntersection = true,
+  heldResponseSlug = ''
+) {
+  await page.evaluate(({
+    localizedBatchSize,
+    localizedInitialBatchSize,
+    localizedRequestDelayMs,
+    localizedInitialIntersection,
+    localizedHeldResponseSlug
+  }) => {
     window.llWordsetPageData = {
       view: 'settings',
       ajaxUrl: '/fake-admin-ajax.php',
@@ -878,45 +891,88 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
       },
       i18n: {
         recorderQueueLoading: 'Loading queue categories...',
-        recorderQueueLoadedCount: 'Queue categories loaded: %d',
         recorderQueueLoadedAll: 'All queue categories are loaded.',
-        recorderQueueLoadMore: 'Load more',
         recorderQueueRetry: 'Retry',
         recorderQueueLoadError: 'Could not load more queue categories right now.'
       }
     };
     window.__recorderQueueSummaryDelayMs = localizedRequestDelayMs;
+    window.__recorderQueueSummaryHeldResponseSlug = String(localizedHeldResponseSlug || '');
+    window.__releaseRecorderQueueSummaryHeldResponse = null;
 
     window.__recorderQueueObservedSlugs = [];
-    window.__emitRecorderQueueIntersection = null;
+    window.__recorderQueueObserverCount = 0;
+    window.__recorderQueueIntersectionState = Boolean(localizedInitialIntersection);
+    window.__activeRecorderQueueObserver = null;
     window.IntersectionObserver = class ImmediateIntersectionObserver {
       constructor(callback) {
         this.callback = callback;
-        window.__emitRecorderQueueIntersection = (isIntersecting) => {
-          this.callback([{ isIntersecting: Boolean(isIntersecting) }]);
-        };
+        this.active = false;
+        this.element = null;
+        window.__recorderQueueObserverCount += 1;
       }
 
-      disconnect() {}
+      disconnect() {
+        this.active = false;
+        if (window.__activeRecorderQueueObserver === this) {
+          window.__activeRecorderQueueObserver = null;
+        }
+      }
 
       observe(element) {
+        this.active = true;
+        this.element = element;
+        window.__activeRecorderQueueObserver = this;
         window.__recorderQueueObservedSlugs.push(
           element.hasAttribute('data-ll-recorder-queue-summary-sentinel')
             ? 'sentinel'
             : element.getAttribute('data-recorder-queue-category')
         );
-        window.setTimeout(() => this.callback([{ target: element, isIntersecting: true }]), 0);
+        window.setTimeout(() => {
+          if (!this.active) {
+            return;
+          }
+          this.callback([{
+            target: element,
+            isIntersecting: window.__recorderQueueIntersectionState
+          }]);
+        }, 0);
       }
+    };
+    window.__setRecorderQueueIntersection = (isIntersecting, emit = true) => {
+      window.__recorderQueueIntersectionState = Boolean(isIntersecting);
+      const observer = window.__activeRecorderQueueObserver;
+      if (!emit || !observer || !observer.active || !observer.element) {
+        return;
+      }
+      observer.callback([{
+        target: observer.element,
+        isIntersecting: window.__recorderQueueIntersectionState
+      }]);
+    };
+    window.__emitRecorderQueueIntersectionEntries = (states) => {
+      const observer = window.__activeRecorderQueueObserver;
+      if (!observer || !observer.active || !observer.element) {
+        return;
+      }
+      observer.callback(states.map((isIntersecting) => ({
+        target: observer.element,
+        isIntersecting: Boolean(isIntersecting)
+      })));
     };
   }, {
     localizedBatchSize: batchSize,
     localizedInitialBatchSize: initialBatchSize,
-    localizedRequestDelayMs: requestDelayMs
+    localizedRequestDelayMs: requestDelayMs,
+    localizedInitialIntersection: initialIntersection,
+    localizedHeldResponseSlug: heldResponseSlug
   });
 
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(() => {
     window.__recorderQueueSummaryCalls = [];
+    window.__recorderQueueSummaryActiveRequests = 0;
+    window.__recorderQueueSummaryMaxActiveRequests = 0;
     const cardHtml = (slug, name) => `
       <a
         class="ll-wordset-card ll-wordset-recorder-queue-category-card"
@@ -935,6 +991,11 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
       const slugs = Array.isArray(payload.category_slugs)
         ? payload.category_slugs.map((slug) => String(slug))
         : [];
+      window.__recorderQueueSummaryActiveRequests += 1;
+      window.__recorderQueueSummaryMaxActiveRequests = Math.max(
+        window.__recorderQueueSummaryMaxActiveRequests,
+        window.__recorderQueueSummaryActiveRequests
+      );
       window.__recorderQueueSummaryCalls.push({
         url,
         action: String(payload.action || ''),
@@ -956,7 +1017,8 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
         .reverse()
         .map((slug) => ({ slug, html: cardHtml(slug, labels[slug]) }));
       const deferred = window.jQuery.Deferred();
-      window.setTimeout(() => {
+      const resolveResponse = () => {
+        window.__recorderQueueSummaryActiveRequests -= 1;
         deferred.resolve({
           success: true,
           data: {
@@ -966,7 +1028,15 @@ async function enableRecorderQueueLazySummaryScript(page, batchSize = 2, initial
             generation: 'summary-generation'
           }
         });
-      }, window.__recorderQueueSummaryDelayMs);
+      };
+      if (
+        window.__recorderQueueSummaryHeldResponseSlug
+        && slugs.includes(window.__recorderQueueSummaryHeldResponseSlug)
+      ) {
+        window.__releaseRecorderQueueSummaryHeldResponse = resolveResponse;
+      } else {
+        window.setTimeout(resolveResponse, window.__recorderQueueSummaryDelayMs);
+      }
       return deferred.promise();
     };
   });
@@ -991,11 +1061,28 @@ async function enableRecorderQueueSummaryFailureScript(page, mode) {
       },
       i18n: {
         recorderQueueLoading: 'Loading queue categories...',
-        recorderQueueLoadedCount: 'Queue categories loaded: %d',
         recorderQueueLoadedAll: 'All queue categories are loaded.',
-        recorderQueueLoadMore: 'Load more',
         recorderQueueRetry: 'Retry',
         recorderQueueLoadError: 'Could not load more queue categories right now.'
+      }
+    };
+    window.IntersectionObserver = class ImmediateIntersectionObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.active = false;
+      }
+
+      disconnect() {
+        this.active = false;
+      }
+
+      observe(element) {
+        this.active = true;
+        window.setTimeout(() => {
+          if (this.active) {
+            this.callback([{ target: element, isIntersecting: true }]);
+          }
+        }, 0);
       }
     };
   });
@@ -1073,9 +1160,7 @@ async function enableRecorderQueueSummaryPendingScript(page) {
       },
       i18n: {
         recorderQueueLoading: 'Loading queue categories...',
-        recorderQueueLoadedCount: 'Queue categories loaded: %d',
         recorderQueueLoadedAll: 'All queue categories are loaded.',
-        recorderQueueLoadMore: 'Load more',
         recorderQueueRetry: 'Retry',
         recorderQueueLoadError: 'Could not load more queue categories right now.'
       }
@@ -1253,25 +1338,33 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await expect(page.locator('.ll-wordset-recorder-queue-pagination')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Continue' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /^2$/ })).toHaveCount(0);
+  await expect(page.getByText(/Queue categories loaded:/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
+  await expect(page.locator('[data-ll-recorder-queue-summary-load-more]')).toHaveCount(0);
+  await expect(page.locator('[data-ll-recorder-queue-summary-retry]')).toBeHidden();
 
-  // The server-rendered fixture starts with one useful card; continuation
-  // requests intentionally use a larger, still-bounded batch.
-  await enableRecorderQueueLazySummaryScript(page, 3, 1);
+  // The first batch starts immediately. Each fresh observer keeps loading while
+  // the sentinel remains intersecting, without overlapping bounded requests.
+  await enableRecorderQueueLazySummaryScript(page, 2, 1, 20, true, 'food');
 
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
-  await expect.poll(() => page.evaluate(() => typeof window.__emitRecorderQueueIntersection)).toBe('function');
-  await page.evaluate(() => window.__emitRecorderQueueIntersection(true));
-  await page.waitForTimeout(100);
-  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
-  await page.evaluate(() => {
-    window.__emitRecorderQueueIntersection(false);
-    window.__emitRecorderQueueIntersection(true);
-  });
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
+
+  // The final candidate began as a hidden compact marker. It is promoted only
+  // when selected, preserving its known name while its count/preview shimmer.
+  const foodLoadingCard = grid.locator(
+    '.ll-wordset-recorder-queue-category-card--loading[data-recorder-queue-category="food"]'
+  );
+  await expect(foodLoadingCard).toBeVisible();
+  await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category__name')).toHaveText('Food');
+  await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(1);
+  await expect(foodLoadingCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
+  await expect(foodLoadingCard).toHaveAttribute('aria-busy', 'true');
+
   const requests = await page.evaluate(() => window.__recorderQueueSummaryCalls);
   expect(requests.map((request) => request.slugs)).toEqual([
     ['market'],
-    ['empty', 'travel', 'food']
+    ['empty', 'travel'],
+    ['food']
   ]);
   requests.forEach((request) => {
     expect(request.url).toBe('/fake-admin-ajax.php');
@@ -1281,9 +1374,15 @@ test('manager recorder queue streams one recorder category queue in bounded orde
     expect(request.recorderUserId).toBe(101);
     expect(request.generation).toBe('summary-generation');
     expect(request.backUrl).toBe('https://example.test/manager-return/');
-    expect(request.slugs.length).toBeLessThanOrEqual(3);
+    expect(request.slugs.length).toBeLessThanOrEqual(2);
   });
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual(['sentinel']);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryMaxActiveRequests)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueObservedSlugs)).toEqual([
+    'sentinel',
+    'sentinel'
+  ]);
+  expect(await page.evaluate(() => window.__recorderQueueObserverCount)).toBe(2);
+  await page.evaluate(() => window.__releaseRecorderQueueSummaryHeldResponse());
 
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
   await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);
@@ -1293,55 +1392,62 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   ));
   expect(resolvedOrder).toEqual(['fruit', 'market', 'travel', 'food']);
   await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');
+  await expect(page.locator('[data-ll-recorder-queue-summary-status]')).not.toHaveClass(/is-visible/);
   await expect(page.locator('[data-ll-recorder-queue-summary-root]')).toHaveAttribute('aria-busy', 'false');
-  await expect(page.locator('[data-ll-recorder-queue-summary-load-more]')).toBeHidden();
+  await expect(page.locator('[data-ll-recorder-queue-summary-retry]')).toBeHidden();
 
   await page.locator('[data-ll-recorder-queue-switcher]').selectOption('202');
   await expect(page).toHaveURL(/#recorder-two$/);
 });
 
-test('manager recorder queue ignores stale sentinel exits during an in-flight batch', async ({ page }) => {
+test('manager recorder queue pauses outside the viewport and never overlaps requests', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
-  await enableRecorderQueueLazySummaryScript(page, 1, 1, 120);
+  await enableRecorderQueueLazySummaryScript(page, 1, 1, 120, false);
 
   const summaryRoot = page.locator('[data-ll-recorder-queue-summary-root]');
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
-  await expect.poll(() => page.evaluate(() => typeof window.__emitRecorderQueueIntersection)).toBe('function');
   await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
 
-  await page.evaluate(() => {
-    window.__emitRecorderQueueIntersection(false);
-    window.__emitRecorderQueueIntersection(true);
-  });
+  await page.evaluate(() => window.__setRecorderQueueIntersection(true));
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
   await expect(summaryRoot).toHaveAttribute('aria-busy', 'true');
-  await page.evaluate(() => window.__emitRecorderQueueIntersection(false));
+  await page.evaluate(() => window.__setRecorderQueueIntersection(false));
   await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(2);
 
-  await page.evaluate(() => {
-    window.__emitRecorderQueueIntersection(false);
-    window.__emitRecorderQueueIntersection(true);
-  });
-  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
+  await page.evaluate(() => window.__setRecorderQueueIntersection(true));
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(4);
   await expect(summaryRoot).toHaveAttribute('aria-busy', 'false');
-  await page.evaluate(() => window.__emitRecorderQueueIntersection(true));
+  expect(await page.evaluate(() => window.__recorderQueueSummaryMaxActiveRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.map((request) => request.slugs))).toEqual([
+    ['market'],
+    ['empty'],
+    ['travel'],
+    ['food']
+  ]);
+});
+
+test('manager recorder queue ignores a stale viewport entry after the sentinel exits', async ({ page }) => {
+  await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
+  await enableRecorderQueueLazySummaryScript(page, 1, 1, 20, false);
+
+  await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
+  await page.evaluate(() => window.__emitRecorderQueueIntersectionEntries([true, false]));
   await page.waitForTimeout(100);
-  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
+
+  expect(await page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(1);
+  expect(await page.evaluate(() => window.__recorderQueueSummaryMaxActiveRequests)).toBe(1);
 });
 
 test('manager recorder queue scans untouched categories before retrying pending work', async ({ page }) => {
   await mountSettingsTool(page, buildRecorderQueueLazySummaryMarkup(), { width: 900, height: 844 });
   await enableRecorderQueueSummaryPendingScript(page);
 
-  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(1);
-  await page.getByRole('button', { name: 'Load more' }).click();
-  await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(2);
-  await page.waitForTimeout(100);
-  expect(await page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(2);
-  await page.getByRole('button', { name: 'Load more' }).click();
   await expect.poll(() => page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(3);
+  await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Retry' })).toBeEnabled();
   expect(await page.evaluate(() => window.__recorderQueuePendingCalls.length)).toBe(3);
   await page.getByRole('button', { name: 'Retry' }).click();
@@ -1379,15 +1485,11 @@ for (const failureMode of ['timeout', 'catalog', 'card']) {
 
     if (failureMode === 'timeout') {
       await page.getByRole('button', { name: 'Retry' }).click();
-      await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(2);
-      await page.waitForTimeout(100);
-      expect(await page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(2);
-      await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(1);
-      await page.getByRole('button', { name: 'Load more' }).click();
       await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(3);
       await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
       await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');
-      await expect(page.locator('[data-ll-recorder-queue-summary-load-more]')).toBeHidden();
+      await expect(page.locator('[data-ll-recorder-queue-summary-status]')).not.toHaveClass(/is-visible/);
+      await expect(page.locator('[data-ll-recorder-queue-summary-retry]')).toBeHidden();
     }
   });
 }

@@ -242,8 +242,8 @@ Full Playwright run times out under an automation cap:
 - Set `LL_PERF_PROFILE=genc` when investigating Genç-scale wordset, settings-hub,
   or recorder-queue behavior. It models 209 categories, 2717 words, per-word
   images, 8151 audio rows, and a meaningful assigned-recorder queue; initial
-  single-batch usability and one-trigger-per-batch lazy completion are reported
-  separately.
+  single-batch usability and viewport-driven serial lazy completion are reported
+  separately, including the one-request-at-a-time concurrency guard.
 - In Windows PowerShell with WSL `bash`, pass `LL_PERF_*` values inside one
   `bash -lc 'LL_PERF_PROFILE=genc ... tests/bin/run-performance-benchmark.sh'`
   invocation. Preceding `$env:` assignments may not cross into WSL; require the

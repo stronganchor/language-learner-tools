@@ -899,7 +899,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'question' => 'Where is the visible queue word?',
         ]);
 
-        $completed_category = wp_insert_term('Completed Queue Category ' . wp_generate_password(4, false), 'word-category');
+        $completed_category_name = 'Completed Queue Category ' . wp_generate_password(4, false);
+        $completed_category = wp_insert_term($completed_category_name, 'word-category');
         $this->assertFalse(is_wp_error($completed_category));
         $this->assertIsArray($completed_category);
         $completed_category_id = (int) $completed_category['term_id'];
@@ -954,7 +955,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview', $html);
-        $this->assertStringNotContainsString('Completed Queue Category', $html);
+        $this->assertStringContainsString($completed_category_name, $html);
         $this->assertStringNotContainsString('ll-wordset-recorder-queue-item__title">Visible Queue Word', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);

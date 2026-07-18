@@ -103,8 +103,9 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
     const root = page.locator('[data-ll-recorder-queue-summary-root]').first();
     const placeholders = root.locator('[data-ll-recorder-queue-summary-placeholder]');
     const loadedCards = root.locator('.ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])');
-    const loadMore = root.locator('[data-ll-recorder-queue-summary-load-more]').first();
+    const sentinel = root.locator('[data-ll-recorder-queue-summary-sentinel]').first();
     await expect(root).toBeVisible({ timeout: MAX_ACTIONABLE_MS });
+    await expect(sentinel).toBeAttached({ timeout: MAX_ACTIONABLE_MS });
 
     const initialPlaceholderCount = await placeholders.count();
     const initialLoadedCategoryCount = await loadedCards.count();
@@ -113,6 +114,44 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
     let noProgressCount = 0;
 
     const remainingTimeout = () => Math.max(1, deadline - Date.now());
+    const readLoadError = () => root.evaluate((element) => {
+      if (!element.classList.contains('has-load-error')) {
+        return '';
+      }
+      const status = element.querySelector('[data-ll-recorder-queue-summary-status]');
+      return String(status && status.textContent || '').trim()
+        || 'Recorder queue summary loading entered an error state.';
+    });
+    const throwIfLoadFailed = async () => {
+      const loadError = await readLoadError();
+      if (loadError) {
+        throw new Error(`Recorder queue lazy completion failed: ${loadError}`);
+      }
+    };
+    const waitForQueueIdleOrError = async () => {
+      await page.waitForFunction(() => {
+        const queueRoot = document.querySelector('[data-ll-recorder-queue-summary-root]');
+        return queueRoot && (
+          queueRoot.classList.contains('has-load-error')
+          || !queueRoot.classList.contains('is-loading')
+        );
+      }, null, { timeout: remainingTimeout() });
+      await throwIfLoadFailed();
+    };
+    const waitForSummaryRequestAfter = async (previousRequestCount) => {
+      const getRequestCount = typeof actionContext.getRecorderQueueBatchRequestCount === 'function'
+        ? actionContext.getRecorderQueueBatchRequestCount
+        : () => 0;
+      while (Date.now() < deadline) {
+        await throwIfLoadFailed();
+        if (getRequestCount() > previousRequestCount) {
+          return;
+        }
+        await page.waitForTimeout(Math.min(50, remainingTimeout()));
+      }
+      throw new Error('Recorder queue sentinel did not start another summary request before the completion deadline.');
+    };
+
     for (let attempt = 0; attempt < maximumBatchAttempts; attempt += 1) {
       const pendingBeforeWait = await placeholders.count();
       if (pendingBeforeWait === 0) {
@@ -122,31 +161,20 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
         throw new Error(`Recorder queue lazy completion exceeded ${MAX_RECORDER_QUEUE_COMPLETION_MS} ms with ${pendingBeforeWait} placeholders remaining.`);
       }
 
+      const requestCountBeforeViewportCheck = typeof actionContext.getRecorderQueueBatchRequestCount === 'function'
+        ? actionContext.getRecorderQueueBatchRequestCount()
+        : 0;
       const requestInFlight = await root.evaluate((element) => element.classList.contains('is-loading'));
       if (requestInFlight) {
-        await page.waitForFunction(() => {
-          const queueRoot = document.querySelector('[data-ll-recorder-queue-summary-root]');
-          return queueRoot && !queueRoot.classList.contains('is-loading');
-        }, null, { timeout: remainingTimeout() });
+        await waitForQueueIdleOrError();
         continue;
       }
 
+      await throwIfLoadFailed();
       const pendingBeforeRequest = await placeholders.count();
-      await expect(loadMore).toBeVisible({ timeout: remainingTimeout() });
-      await expect(loadMore).toBeEnabled({ timeout: remainingTimeout() });
-      const responsePromise = page.waitForResponse((response) => {
-        if (!response.url().includes('/wp-admin/admin-ajax.php')) {
-          return false;
-        }
-        const postData = response.request().postData() || '';
-        return postData.includes('action=ll_tools_wordset_recorder_queue_summaries');
-      }, { timeout: remainingTimeout() });
-      await loadMore.click();
-      await responsePromise;
-      await page.waitForFunction(() => {
-        const queueRoot = document.querySelector('[data-ll-recorder-queue-summary-root]');
-        return queueRoot && !queueRoot.classList.contains('is-loading');
-      }, null, { timeout: remainingTimeout() });
+      await sentinel.scrollIntoViewIfNeeded({ timeout: remainingTimeout() });
+      await waitForSummaryRequestAfter(requestCountBeforeViewportCheck);
+      await waitForQueueIdleOrError();
 
       const pendingAfterRequest = await placeholders.count();
       if (pendingAfterRequest < pendingBeforeRequest) {
@@ -159,6 +187,7 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
       }
     }
 
+    await throwIfLoadFailed();
     const finalPlaceholderCount = await placeholders.count();
     if (finalPlaceholderCount > 0) {
       throw new Error(`Recorder queue lazy completion stopped with ${finalPlaceholderCount} placeholders remaining.`);
@@ -168,7 +197,15 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
     const batchRequestCount = typeof actionContext.getRecorderQueueBatchRequestCount === 'function'
       ? actionContext.getRecorderQueueBatchRequestCount()
       : 0;
-    validateRecorderQueueCompletion(scenario, finalLoadedCategoryCount, batchRequestCount);
+    const maxConcurrentBatchRequestCount = typeof actionContext.getRecorderQueueMaxConcurrentBatchRequestCount === 'function'
+      ? actionContext.getRecorderQueueMaxConcurrentBatchRequestCount()
+      : 0;
+    validateRecorderQueueCompletion(
+      scenario,
+      finalLoadedCategoryCount,
+      batchRequestCount,
+      maxConcurrentBatchRequestCount
+    );
     // Recorder summary loading begins during the page's startup script, before
     // this action runs. performance.now() is navigation-relative, so this
     // measures the complete navigation-to-all-categories interval instead of
@@ -180,7 +217,8 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
         initialPlaceholderCount,
         initialLoadedCategoryCount,
         finalLoadedCategoryCount,
-        batchRequestCount
+        batchRequestCount,
+        maxConcurrentBatchRequestCount
       }
     };
   }
@@ -198,19 +236,33 @@ async function measureScenarioRun(page, request, scenario) {
   });
 
   let recorderQueueBatchRequestCount = 0;
-  const recorderQueueRequestListener = (browserRequest) => {
+  let recorderQueueMaxConcurrentBatchRequestCount = 0;
+  const recorderQueueActiveBatchRequests = new Set();
+  const isRecorderQueueBatchRequest = (browserRequest) => {
     if (scenario.action !== 'recorder-queue-lazy-completion') {
-      return;
+      return false;
     }
     const postData = browserRequest.postData() || '';
-    if (
-      browserRequest.url().includes('/wp-admin/admin-ajax.php')
-      && postData.includes('action=ll_tools_wordset_recorder_queue_summaries')
-    ) {
-      recorderQueueBatchRequestCount += 1;
+    return browserRequest.url().includes('/wp-admin/admin-ajax.php')
+      && postData.includes('action=ll_tools_wordset_recorder_queue_summaries');
+  };
+  const recorderQueueRequestListener = (browserRequest) => {
+    if (!isRecorderQueueBatchRequest(browserRequest)) {
+      return;
     }
+    recorderQueueBatchRequestCount += 1;
+    recorderQueueActiveBatchRequests.add(browserRequest);
+    recorderQueueMaxConcurrentBatchRequestCount = Math.max(
+      recorderQueueMaxConcurrentBatchRequestCount,
+      recorderQueueActiveBatchRequests.size
+    );
+  };
+  const recorderQueueRequestSettledListener = (browserRequest) => {
+    recorderQueueActiveBatchRequests.delete(browserRequest);
   };
   page.on('request', recorderQueueRequestListener);
+  page.on('requestfinished', recorderQueueRequestSettledListener);
+  page.on('requestfailed', recorderQueueRequestSettledListener);
 
   const session = await createPageSpeedSession(page);
   try {
@@ -228,7 +280,8 @@ async function measureScenarioRun(page, request, scenario) {
 
     if (scenario.kind === 'interaction') {
       const actionResult = await runScenarioAction(page, scenario, {
-        getRecorderQueueBatchRequestCount: () => recorderQueueBatchRequestCount
+        getRecorderQueueBatchRequestCount: () => recorderQueueBatchRequestCount,
+        getRecorderQueueMaxConcurrentBatchRequestCount: () => recorderQueueMaxConcurrentBatchRequestCount
       });
       if (actionResult && typeof actionResult === 'object') {
         metrics.interactionMs = Number(actionResult.durationMs || 0);
@@ -254,6 +307,8 @@ async function measureScenarioRun(page, request, scenario) {
     };
   } finally {
     page.off('request', recorderQueueRequestListener);
+    page.off('requestfinished', recorderQueueRequestSettledListener);
+    page.off('requestfailed', recorderQueueRequestSettledListener);
     await session.dispose();
   }
 }

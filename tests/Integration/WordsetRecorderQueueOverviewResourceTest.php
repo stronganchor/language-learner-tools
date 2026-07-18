@@ -216,7 +216,11 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         );
 
         $this->assertStringContainsString('data-ll-recorder-queue-summary-root', $html);
-        $this->assertStringContainsString('data-ll-recorder-queue-summary-load-more', $html);
+        $this->assertStringContainsString('data-ll-recorder-queue-summary-retry', $html);
+        $this->assertStringNotContainsString('data-ll-recorder-queue-summary-load-more', $html);
+        $this->assertStringNotContainsString('data-ll-recorder-queue-summary-count', $html);
+        $this->assertStringNotContainsString('Queue categories loaded:', $html);
+        $this->assertStringNotContainsString('>Load more<', $html);
         $this->assertSame(
             count($fixture['categories']),
             substr_count($html, 'data-ll-recorder-queue-summary-placeholder="true"')
@@ -224,6 +228,9 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(3, substr_count($html, 'll-wordset-recorder-queue-category-card--loading'));
         $this->assertSame(2, substr_count($html, 'll-wordset-recorder-queue-category-marker'));
         $this->assertStringContainsString('ll-wordset-card--lazy-placeholder', $html);
+        foreach ($fixture['categories'] as $category) {
+            $this->assertStringContainsString(esc_attr((string) $category['name']), $html);
+        }
         $this->assertStringNotContainsString('ll_recorder_queue_recorders_page=', $html);
         $this->assertStringNotContainsString('ll_recorder_queue_categories_page=', $html);
         $this->assertStringNotContainsString('Recorder queue recorder pages', $html);
@@ -408,10 +415,15 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('aria-pressed', (string) $card['html']);
 
         $placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category);
-        $this->assertStringContainsString('Loading recording category', $placeholder);
-        $this->assertStringNotContainsString((string) $category['name'], $placeholder);
+        $this->assertStringContainsString((string) $category['name'], $placeholder);
+        $this->assertStringContainsString('data-recorder-queue-category-name=', $placeholder);
+        $this->assertStringNotContainsString('Loading recording category', $placeholder);
         $hidden_placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category, ['hidden' => true]);
         $this->assertMatchesRegularExpression('/aria-busy="true"\s+hidden/', $hidden_placeholder);
+        $neutral_placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category, ['neutral' => true]);
+        $this->assertStringContainsString('Loading recording category', $neutral_placeholder);
+        $this->assertStringNotContainsString((string) $category['name'], $neutral_placeholder);
+        $this->assertStringNotContainsString('data-recorder-queue-category-name=', $neutral_placeholder);
 
         $this->ensureRecordingType('Question', 'question');
         $scoped_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
@@ -430,20 +442,20 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame([], $scoped_batch['cards'], 'Shortcode recording-type overrides must scope overview counts.');
     }
 
-    public function test_summary_stream_defaults_to_resource_safe_six_category_batches(): void
+    public function test_summary_stream_starts_with_three_then_uses_resource_safe_six_category_batches(): void
     {
-        $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
+        $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
         $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
 
         $background_batch_size = static function (): int {
-            return 4;
+            return 2;
         };
         add_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $background_batch_size);
 
         try {
-            $this->assertSame(4, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+            $this->assertSame(2, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
             $this->assertSame(
-                4,
+                2,
                 ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size(),
                 'Lower operator caps must also bound the server-rendered first batch.'
             );
@@ -458,17 +470,18 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
 
         try {
             $this->assertSame(20, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
+            $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
         } finally {
             remove_filter('ll_tools_wordset_recorder_queue_summary_batch_size', $oversized_background_batch);
         }
 
         $initial_batch_size = static function (): int {
-            return 3;
+            return 5;
         };
         add_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);
 
         try {
-            $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
+            $this->assertSame(5, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
             $this->assertSame(6, ll_tools_wordset_page_get_recorder_queue_summary_batch_size());
         } finally {
             remove_filter('ll_tools_wordset_recorder_queue_summary_initial_batch_size', $initial_batch_size);

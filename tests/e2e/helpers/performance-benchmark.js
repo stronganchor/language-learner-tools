@@ -288,6 +288,7 @@ function buildBenchmarkScenarios(manifest) {
       const maxBatchRequestCount = 1 + Math.ceil(
         Math.max(0, expectedCategoryCount - initialCategoryCount) / batchSize
       );
+      const maxConcurrentBatchRequestCount = 1;
       scenarios.push(
         {
           name: `wordset-${targetSize}-recorder-queues-initial-load`,
@@ -308,6 +309,7 @@ function buildBenchmarkScenarios(manifest) {
           action: 'recorder-queue-lazy-completion',
           expectedCategoryCount,
           maxBatchRequestCount,
+          maxConcurrentBatchRequestCount,
           requiresAuth: true
         }
       );
@@ -326,7 +328,12 @@ function benchmarkRequiresAuthentication(manifest) {
   return !!(recorderQueue && typeof recorderQueue === 'object' && recorderQueue.enabled);
 }
 
-function validateRecorderQueueCompletion(scenario, finalLoadedCategoryCount, batchRequestCount = 0) {
+function validateRecorderQueueCompletion(
+  scenario,
+  finalLoadedCategoryCount,
+  batchRequestCount = 0,
+  maxConcurrentBatchRequestCount = 0
+) {
   const expectedCategoryCount = Math.max(1, Number(
     scenario && scenario.expectedCategoryCount ? scenario.expectedCategoryCount : 1
   ));
@@ -344,6 +351,24 @@ function validateRecorderQueueCompletion(scenario, finalLoadedCategoryCount, bat
   if (maxBatchRequestCount > 0 && actualBatchRequestCount > maxBatchRequestCount) {
     throw new Error(
       `Recorder queue lazy completion issued ${actualBatchRequestCount} summary requests; expected at most ${maxBatchRequestCount}.`
+    );
+  }
+
+  const actualMaxConcurrentBatchRequestCount = Math.max(
+    0,
+    Number(maxConcurrentBatchRequestCount) || 0
+  );
+  const allowedMaxConcurrentBatchRequestCount = Math.max(0, Number(
+    scenario && scenario.maxConcurrentBatchRequestCount
+      ? scenario.maxConcurrentBatchRequestCount
+      : 0
+  ));
+  if (
+    allowedMaxConcurrentBatchRequestCount > 0
+    && actualMaxConcurrentBatchRequestCount > allowedMaxConcurrentBatchRequestCount
+  ) {
+    throw new Error(
+      `Recorder queue lazy completion reached ${actualMaxConcurrentBatchRequestCount} concurrent summary requests; expected at most ${allowedMaxConcurrentBatchRequestCount}.`
     );
   }
 

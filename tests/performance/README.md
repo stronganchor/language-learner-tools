@@ -81,9 +81,13 @@ Authenticated scenarios measure the settings hub, recorder-queue initial
 usability, and the separate navigation-to-completion time for all lazy summary
 batches. The lazy-completion samples retain the category counts observed when
 the driver takes over, the exact final count, and the bounded AJAX request
-count since navigation began. The run fails if it does not expose at least three
-initial categories, finish with all 209, or exceeds thirty-six summary
-requests (one three-category request followed by six-category batches).
+count and maximum concurrency since navigation began. The driver repeatedly
+scrolls the dedicated sentinel into view and waits for each viewport-triggered
+serial batch; it does not click a continuation control. The run fails on a
+summary load-error state, if it does not expose at least three initial
+categories, finish with all 209, or exceeds thirty-six summary
+requests (one three-category request followed by six-category batches), or if
+more than one summary request is ever in flight.
 The stream generation depends on ordered category identities and
 recorder/wordset/filter scope, so ordinary per-category content invalidation
 refreshes affected cards without restarting that bounded stream. Genç history is written to
