@@ -3264,14 +3264,12 @@ msgid "HTTP 500 (no recording found)"
 msgstr "HTTP 500 (kayıt bulunamadı)"
 
 #. Plugin URI of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://github.com/stronganchor/language-learner-tools"
 msgstr "https://github.com/stronganchor/language-learner-tools"
 
 #. Author URI of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://stronganchortech.com"
 msgstr "https://stronganchortech.com"
 
@@ -3921,8 +3919,7 @@ msgid "Language ID"
 msgstr "Dil Kimliği"
 
 #. Plugin Name of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 #: includes/privacy.php:777
 msgid "Language Learner Tools"
 msgstr "Dil Eğitimi Araçları"
@@ -7608,8 +7605,7 @@ msgid "Stop recording before hiding this word."
 msgstr "Bu kelimeyi saklamadan önce kaydı durdurun."
 
 #. Author of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "Strong Anchor Tech"
 msgstr "Strong Anchor Tech"
 
@@ -9084,8 +9080,7 @@ msgid "Word unhidden."
 msgstr "Kelime yeniden görünür yapıldı."
 
 #. Description of the plugin
-#: C:\Users\messy\Local
-#: Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr "Kelime yönetimi, ses/görüntü yüklemeleri, kullanıma hazır bilgi kartı quizleri ve gömülebilir alıştırma sayfaları ile dil öğrenmeye yönelik kelime içeriği oluşturmaya yönelik WordPress araçları."
 

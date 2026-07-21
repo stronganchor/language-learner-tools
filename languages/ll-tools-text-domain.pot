@@ -9,34 +9,34 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-18T14:06:08+00:00\n"
+"POT-Creation-Date: 2026-07-21T04:34:11+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 #: includes/privacy.php:777
 msgid "Language Learner Tools"
 msgstr ""
 
 #. Plugin URI of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://github.com/stronganchor/language-learner-tools"
 msgstr ""
 
 #. Description of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr ""
 
 #. Author of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "Strong Anchor Tech"
 msgstr ""
 
 #. Author URI of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://stronganchortech.com"
 msgstr ""
 
