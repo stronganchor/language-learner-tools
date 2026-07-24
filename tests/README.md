@@ -189,8 +189,17 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `WordGridCategoryEditTest` verifies a scoped category edit and selected-state read replace/show only the current wordset's assignments even when another wordset owns the same isolation source, and that explicit category writes do not cross-expand valid owned families.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
-- `[flashcard_widget]` primary render path with localized initial words/categories.
+- `[flashcard_widget]` primary render path with localized categories and deferred
+  initial word rows.
   - `FlashcardWidgetFlowTest` also guards single-owner data/message localization and the dependency edges that make those globals available before startup consumers execute; the base test harness clears those plugin-owned localization slots between simulated requests because core `WP_Scripts` otherwise persists them across PHPUnit cases.
+- `FlashcardPayloadMaterializerTest` verifies a cold category advances through
+  bounded ID-keyset batches without `OFFSET`, publishes only after completion,
+  pages the immutable generation through signed cursors, rejects tampering and
+  signature-drift cursors, redacts speaker identifiers at the public AJAX
+  boundary, keeps private wordset/category support out of public rows, holds a
+  scope lease across each bounded page read, exact-generation-fences cleanup,
+  sweeps old rows whose state disappeared after a lost lease, and prevents
+  queued workers from reviving missing or retiring state.
 - `QuizPagesShortcodeCatalogTest` verifies durable keyset catalog generations, stale-serving and usable-snapshot rules (including empty stale snapshots), epoch-drift recovery without resetting the only valid compatible partial generation, plugin-versioned builder fencing, worker-side suppression of every per-category derived transient namespace, early unrelated-cron suppression, and signed bounded no-JavaScript continuation.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
@@ -198,7 +207,12 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Legacy Word Images fixer batching, durable cursor readback, and scan-free page rendering.
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
 - Teacher-class integration coverage observes the legacy admin query shapes, proving bounded plus-one class/account pages, deterministic ID tie-breakers, globally ordered bounded learner-progress hydration, empty/stale-page normalization, continuation links, and redirect-state preservation.
-- `PublicAjaxResourceGuardTest`, `DictionaryFeatureTest`, and the flashcard regressions cover atomic anonymous miss budgets, exact-owner per-client leases, same-query cache waits, bounded candidate input, serialized multi-category hydration, retryable warming responses, and cache-hit bypass behavior.
+- `PublicAjaxResourceGuardTest`, `SecurityHardeningRegressionTest`,
+  `DictionaryFeatureTest`, and the flashcard regressions cover atomic anonymous
+  miss budgets, exact-owner per-client leases, same-query cache waits, bounded
+  candidate input, the separate materialized-page request budget, serialized
+  multi-category hydration, retryable warming responses, response-only progress
+  overlay, speaker-ID redaction, and cache-hit bypass behavior.
 - `AutomationRestApiTest` covers aggregate report-summary counts plus bounded review-note and cross-post-type interlinear pagination; interlinear list payloads are omitted by default while exact-lesson reads retain the payload-on default.
 - `SecurityHardeningRegressionTest` covers the hosted-STT pre-read and bounded-read audio-size ceiling, and `AudioProcessorQueuePaginationTest` covers signed user/tab keyset cursors with the legacy direct deep-page fallback.
 - Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export/archive boundary checks, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
@@ -263,7 +277,11 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
-  - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader, category preloads are serialized, and retryable `429` category responses are retried.
+  - Verifies stale category AJAX responses cannot overwrite current wordset
+    data in the flashcard loader, category preloads are serialized, retryable
+    `429` category responses are retried, immutable payload pages are drained in
+    order with the rendered locale, and one stale-cursor restart cannot mix
+    generations.
 - `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
   - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
@@ -307,7 +325,10 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
-  - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
+  - Verifies Self-check groups words that share one image into a single review
+    card while preserving per-word answer audio, and that client-side bounded
+    image-hash comparisons block similar options while preserving explicit
+    similarity overrides and unconditional exact-image blocking.
 - `tests/e2e/specs/wordset-page-category-search.spec.js`
   - Verifies main wordset category search uses the durable tokenized async word/translation lookup while preserving a loading state across preparation retries, exposing an explicit error/Retry state instead of a false empty result, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
@@ -343,7 +364,10 @@ Representative E2E coverage areas:
   - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.
   - Offline app service-worker/install behavior if a browser PWA/service-worker runtime is added, plus broader hosted/offline deployment permutations beyond the local WordPress-backed conflict retry fixture.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
-  - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
+  - Verifies wordset page launch actions can open Listening mode with the
+    expected category/wordset context, avoid the signed-in dashboard bulk-word
+    fetch, preserve popup loading while category materializations warm, and use
+    the paged payload envelope for no-candidate category hydration.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
   - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup/keyboard tile reorder/completion, checks Word Stack layout/fall-speed regressions, verifies Speaking Practice's mocked mic record -> transcribe -> score path, microphone-denied retry state, and hosted transcribe/score failure retry states, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
 - Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.
@@ -376,7 +400,7 @@ Live smoke runner config:
 - `tests/bin/run-live-smoke.sh` is serial and intended for anonymous, low-impact public-page checks only.
 - Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
 - If a homepage is only a wordset-button hub, add `"navigation": { "type": "wordsetButtonMostLessons" }` so the smoke run clicks the visible button with the highest lesson count before applying the normal wordset-page assertions.
-- The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_lazy_cards`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_category_search`, and `POST /wp-admin/admin-ajax.php?action=ll_tools_get_vocab_lesson_grid` as allowed read-style public-page requests. It also allows exact-path infrastructure telemetry at `/cdn-cgi/rum`. Other same-origin non-GET requests still fail unless you explicitly allow exact paths with `network.allowedSameOriginNonGetPaths` or actions with `network.allowedAdminAjaxActions` in the site config.
+- The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category`, `POST /wp-admin/admin-ajax.php?action=ll_get_flashcard_payload_page`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_lazy_cards`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_category_search`, and `POST /wp-admin/admin-ajax.php?action=ll_tools_get_vocab_lesson_grid` as allowed read-style public-page requests. It also allows exact-path infrastructure telemetry at `/cdn-cgi/rum`. Other same-origin non-GET requests still fail unless you explicitly allow exact paths with `network.allowedSameOriginNonGetPaths` or actions with `network.allowedAdminAjaxActions` in the site config.
 - To verify a Cloudflare page rule/cache rule without changing the normal browser smoke flow, add an optional `cloudflareCache` array to a site entry. Each item can set `url`, anonymous request `headers`, `warmupRequests`, `expectServerIncludes`, and `expectCacheStatus`/`expectCacheStatuses`. For Zazacaogren, the useful pair is one default-language `/sozluk/` check expecting `HIT` and one Turkish `Accept-Language` check expecting `DYNAMIC`.
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).

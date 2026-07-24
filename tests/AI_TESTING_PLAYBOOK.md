@@ -287,11 +287,29 @@ PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
 For behavior changes touching quiz/recording flows:
 
 1. For quiz-page popup launch or presentation-config changes, first run `tests/bin/run-e2e.sh specs/quiz-popup-text-translation-options.spec.js specs/text-to-text-learning-intro.spec.js`. These protect trigger-authoritative prompt/option configuration when the launched category is absent from the initial paged registry.
-2. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
-3. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
-4. `tests/bin/run-tests.sh`
-5. `tests/bin/run-e2e.sh`
-6. Update `tests/README.md` if test scope or runner behavior changed.
+2. For flashcard payload materializer, page-cursor, cold-warmup, or deferred
+   bootstrap changes, run:
+
+   ```bash
+   tests/bin/run-tests.sh Integration/FlashcardPayloadMaterializerTest.php
+   tests/bin/run-tests.sh Integration/FlashcardWidgetFlowTest.php
+   tests/bin/run-tests.sh Integration/SecurityHardeningRegressionTest.php
+   tests/bin/run-tests.sh Integration/UserStudyAnalyticsTest.php
+   tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js specs/wordset-pages-listening-launch.spec.js specs/self-check-shared-image-grouping.spec.js
+   ```
+
+   These protect bounded generation publication, cursor tamper/drift behavior,
+   locale propagation, no-candidate page envelopes, speaker redaction,
+   response-only learner progress, private support-word filtering, exact
+   generation cleanup/retirement fencing, read-side scope leases, and image-hash
+   option parity. Query-shape assertions should keep primary/prompt scans on
+   keysets and page reads on a metadata-first row/byte budget; do not weaken
+   them to accept a full-category fallback.
+3. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
+4. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
+5. `tests/bin/run-tests.sh`
+6. `tests/bin/run-e2e.sh`
+7. Update `tests/README.md` if test scope or runner behavior changed.
 
 For public-page shell, asset, or template changes that could affect perceived load time:
 

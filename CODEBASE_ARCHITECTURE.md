@@ -8,6 +8,7 @@ read_first:
   - includes/bootstrap.php
   - includes/template-loader.php
   - includes/assets.php
+  - includes/lib/flashcard-payload-materializer.php
   - includes/lib/word-option-rules.php
   - includes/lib/word-grid-bulk-operations.php
   - includes/api/automation-rest.php
@@ -54,6 +55,7 @@ read_first:
 - Prefer ID-only queries, capped launch pools, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
 - Derived quiz/content cache invalidation separates structure from content. Category identity/order mutations advance the structural epoch; fully resolved word, audio, image, and prompt mutations advance affected category versions and known wordset content epochs. Incomplete scope must advance the unknown component, and any failed narrow epoch write must advance the failsafe so a committed mutation cannot leave an old generation addressable. Read and increment epochs through the direct atomic helpers; do not trust stale persistent-object-cache values.
 - A database error is not an empty catalog, zero count, or exhausted page. Cacheable builders and maintenance/page cursors must propagate source completeness through term, meta, visibility, default-wordset, sign-mode, prompt, media, and owner-map reads. Publish or advance only when every source is complete; otherwise retain the prior durable generation and retry the same key or cursor.
+- A cold flashcard category is a durable materialization, not an interactive full-category hydration. `includes/lib/flashcard-payload-materializer.php` advances bounded primary-word and prompt-card keyset batches into generation-scoped rows; readers expose only an unlocked, complete generation whose dependency signature still matches. The public/signed-in page endpoints must return retryable preparation state until then, never partial quiz data disguised as a complete category.
 - Main wordset category rows must discard categories already proven ineligible before building content summaries, bulk-prime the exact candidate term, lesson, and wrong-answer-owner sets, and trust the exact membership established by flat `word-category` queries instead of re-querying each candidate word. Preserve the bounded initial-card/lazy-card split.
 - The browser still needs the complete category registry for selection, sorting, search placeholders, and launch configuration, but that registry must be sparse: omit values supplied by the JavaScript normalizer or top-level wordset context. Lazy category shells are ordered `{type, id}` references into that registry; do not duplicate category rows in the shell list. Content-lesson shells retain their bounded title/excerpt/media metadata because unloaded-content search uses it.
 - Metric-dependent saved main-category sorts (`progress-*` and `recent-*`) must not trigger full-wordset metric hydration while analytics is deferred. Keep the bounded initial cards and lazy offsets in canonical/default order, preserve the saved sort key for the browser, and reorder only after the summary-only per-category analytics aggregate arrives.
@@ -73,7 +75,7 @@ read_first:
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/expired-transient-maintenance.php`, `includes/lib/public-ajax-resource-guards.php`, `includes/lib/wordset-category-search-index.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/flashcard-payload-materializer.php`, `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/expired-transient-maintenance.php`, `includes/lib/public-ajax-resource-guards.php`, `includes/lib/wordset-category-search-index.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
   - Loads `includes/api/automation-rest.php` directly; that controller loads `includes/api/word-metadata-plan-rest.php` for durable word-metadata plan job storage, processing, status, discard, and result helpers.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
@@ -163,6 +165,7 @@ module list.
 - includes/taxonomies/recording-type-taxonomy.php
 - includes/wordset-isolation.php
 - includes/wordset-templates.php
+- includes/lib/flashcard-payload-materializer.php
 - includes/user-roles/wordset-manager.php
 - includes/user-roles/ll-tools-editor.php
 - includes/user-roles/learner-role.php
@@ -258,6 +261,7 @@ includes/
     expired-transient-maintenance.php # Bounded hourly cleanup for expired LL-owned database transients
     public-ajax-resource-guards.php # Atomic anonymous cache-miss budgets, leases, and bounded cache waits
     wordset-category-search-index.php # Durable bounded wordset category-search materializer
+    flashcard-payload-materializer.php # Durable generation-scoped flashcard rows and signed page cursors
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
     entity-translations.php   # Locale-keyed wordset/category/lesson display text translations
@@ -497,6 +501,25 @@ vendor/
   - Remove `thumbnail` support from the `words` post type after all read/edit paths no longer depend on it directly.
   - Retire one-way mirror/sync code and legacy fixer assumptions that exist only to support duplicated image state on `words`.
 
+## Flashcard payload follow-ups
+- The durable server protocol is paged, but `js/flashcard-widget/loader.js` and
+  `js/wordset-pages.js` currently drain every page for each selected category
+  before quiz launch. This removes the unbounded PHP request and database
+  hydration, but a very large category can still cause high browser memory,
+  cumulative network transfer, and popup delay. A future quiz-state redesign
+  should consume a bounded launch sample/window instead of assembling the whole
+  materialized category in the browser.
+- Prompt-card work is bounded to five prompt cards per materializer batch by
+  default, but one prompt may still collect and hash up to 300 support images in
+  that foreground lease. A nested prompt/support cursor or a separate bounded
+  hash materialization is still needed; lowering the support ceiling alone can
+  silently remove legitimate prompt options.
+- Signature drift currently warms a replacement generation and rejects stale
+  cursors. There is no last-known-good serving path for flashcard payload rows.
+  Adding one requires an explicit compatibility and privacy design so a prior
+  public or viewer-scoped generation cannot cross locale, presentation,
+  visibility, wordset, or content-epoch boundaries.
+
 ## User meta and per-user state
 - User study state (from `includes/user-study.php`):
   - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_fast_transitions`.
@@ -571,10 +594,22 @@ wordset can opt into it.
 
 # Flashcard widget architecture
 ## PHP controller
-- `includes/shortcodes/flashcard-widget.php` builds categories, initial words, and localizes JS data into `llToolsFlashcardsData`.
+- `includes/shortcodes/flashcard-widget.php` builds categories and localizes deferred quiz/bootstrap data into `llToolsFlashcardsData`; a preselected shortcode no longer hydrates its category rows during PHP render.
   - Keep the bootstrap globals single-owner: `llToolsFlashcardsData` is localized once on `ll-tools-flashcard-audio`, while `llToolsFlashcardsMessages` is localized once on `ll-flc-util`. Startup consumers must declare the owning handle as a dependency; do not repeat the same large assignment on main or mode handles because a later copy also overwrites responsive runtime mutations.
   - Data includes category config, wordset scope, user study preferences, and mode UI labels/icons.
   - Editor Hub (`includes/shortcodes/editor-hub-shortcode.php`) reuses much of the same word payload shape and validation helpers for in-browser vocab editing.
+- `includes/lib/flashcard-payload-materializer.php` owns the durable full-category protocol:
+  - Rows live in `wp_ll_flashcard_payload_rows` (respecting the active WordPress table prefix) with the primary identity `(scope_hash, generation, row_kind, row_id)` and the page index `(scope_hash, generation, sort_group, row_id)`. Schema version publication requires exact required-column, primary-key, and page-index readback after `dbDelta()`. Activation installs the schema; later upgrades may run only from tests, CLI, cron, or a capability-bearing admin request, never from an anonymous page/public-AJAX request.
+  - A canonical scope binds source and effective-isolation category identity, sorted wordset IDs, viewer identity, rendered locale, prompt type, option type, `use_titles`, and sign-language mode. Public data uses viewer `0` and is shared only when the category and all requested wordsets are anonymously viewable; private data is isolated by user ID. All scopes permit one wordset by default (filterable to a hard limit of 20), while public scopes retain a second one-wordset default/hard-three guard, with bounded category/wordset membership verification.
+  - The dependency signature binds the table/payload/builder schemas, plugin version, canonical scope, structural/content/category epochs, the specific-wrong-answer ownership generation/integrity marker, image-similarity threshold, and masked-proxy mode. A signature change creates a new fenced generation; readers never mix rows or cursors across generations.
+  - One worker lease advances a bounded keyset step: primary words default to 100, image-primary work defaults to 20, and prompt cards default to 5. Exact-owner global/scope leases are renewed around byte-bounded reads and writes, state publication uses generation CAS, and transient source/visibility failures remain retryable. Deterministic access denial may terminate the scope.
+  - Stored payloads redact speaker user IDs before the database write. Individual rows default to a 512 KiB ceiling (1 MiB hard maximum), SQL chunks default to 1 MiB, and page reads select metadata before fetching only the payload rows admitted by both the row and byte budgets.
+  - Completed scopes expire through the bounded recurring cleanup after 30 days without access by default; incomplete scopes expire after 7 days. Cleanup scans at most 20 state options and deletes at most 500 rows per scope per run. It first unpublishes the scope as `retiring`, clears queued rebuilds, and deletes only one captured immutable generation per pass; scheduled workers never recreate missing/retiring state, while a real foreground request may explicitly start a fresh generation. The same global-lease pass keyset-scans at most 100 primary-key metadata rows and may delete one exact generation older than 15 minutes when its coordinator option is absent, covering a former writer that lost its lease immediately after an INSERT without an unbounded anti-join.
+- `ll_get_flashcard_payload_page` is registered for authenticated and anonymous AJAX:
+  - Requests resolve the canonical category/wordset/presentation scope, accept only an allowlisted rendered locale, and cap `page_size` at 200. Returned pages are ordered keyset slices with `rows`, `next_cursor`, `complete`, `generation`, `total_rows`, `page_rows`, and `page_bytes`.
+  - The HMAC cursor binds the scope hash, immutable generation, and last `(sort_group, row_id)`. Tampered cursors fail with `invalid_cursor`; dependency or generation drift returns `restart_required`, and the clients may restart once without combining generations. Each bounded page read holds and renews the scope lease from readiness recheck through payload validation/access touch so cleanup cannot retire its generation mid-read.
+  - Cold/incomplete materializations return `cache_warming` with HTTP 429 and `Retry-After`. Anonymous requests retain their separate page budget and one-client in-flight lease. Signed-in progress is overlaid only on the response, never persisted into the shared materialization, and speaker IDs are redacted again at the boundary.
+  - `ll_get_words_by_category` remains the bounded explicit-candidate compatibility route. A no-candidate legacy call may return only a complete one-page materialization; larger categories receive `paged_payload_required` instead of falling back to a full synchronous build.
 - `includes/flashcard-shell.php` renders the shared overlay shell used by the
   public flashcard shortcode, offline app shell, and quiz-page/vocab-lesson
   popup bootstrap so those surfaces keep the same IDs, mode switcher, result
@@ -586,7 +621,10 @@ wordset can opt into it.
 - `selection.js` - category/word selection, prompt rendering, and star-weighted selection.
 - `modes/practice.js`, `modes/learning.js`, `modes/listening.js`, `modes/gender.js`, `modes/self-check.js` - mode-specific flows.
 - `audio.js` - playback + `selectBestAudio()` priority logic.
-- `loader.js` - preloading and cache management (wordset aware).
+- `loader.js` - wordset-aware preloading and cache management; no-candidate
+  category loads drain signed immutable materializer pages, preserve the locale
+  that rendered the page, retain loading across warming retries, and restart
+  once on a stale cursor without mixing generations.
 - `options.js` - option count calculation and layout constraints.
 - `cards.js` - card rendering and font sizing.
 - `dom.js` - DOM helpers and progress UI.
@@ -668,7 +706,7 @@ wordset can opt into it.
 - Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
-- Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.
+- Keep flashcard row payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`, `option_image_hash`, `option_image_hash_threshold`, `option_similar_image_allowed_ids`); option safety depends on them in both `ll_get_words_by_category()` candidate responses and materialized pages.
 - Learning mode options are built from all introduced categories, so conflict filtering must be evaluated against all currently chosen options (not just the target).
 - If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
 - All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
@@ -688,6 +726,7 @@ wordset can opt into it.
 - Every isolation-migration batch must defer category-generated-page maintenance, discard only the IDs it queued, and preserve any enclosing deferral scope exactly. Only after the completed checkpoint is durably readable may finalization CAS-persist a new migration-owned generated-page reconciliation generation. Its locked coordinator pre-arms retry transport, waits for pre-existing workers, tags complete cursor-zero bounded quiz/vocab passes, repairs stranded child events after locks clear, and retains intent until both exact passes complete. Completion never clears the shared untagged pre-armed event, which may safely no-op or transport a concurrent newer generation; `admin_init` may restore missing transport while intent remains. Never replay immediate whole-wordset vocab counts from the migration loop.
 - Wordset main-page category search reads from the durable `wp_ll_wordset_category_search` materialization and stays scoped to allowed categories. Schema v3 keys rows by a durable build generation; expired-lease takeover atomically rotates that generation, readers expose only the completed published generation, and old generations are removed in bounded chunks, so a stalled stale write can never clobber visible replacement rows. Builders advance with an ID keyset in bounded batches, cap source text before PHP hydration, chunk relationship reads and byte/row-limited inserts, renew an exact-owner lease before writes, back off transient failures, stop deterministic failure loops, and publish completion only for the same dependency signature and generation. Queries chunk category/image/detail hydration, preserve locale-independent diacritic matching and deepest-category assignment, and return a retryable preparation state until the generation is complete; the frontend must retain loading/error state and an explicit Retry control rather than treating preparation failure as no matches. Deleting a wordset removes its rows, state, lease, and scheduled event. Staff-only pending-transcription search remains a separate lookup requiring at least three characters: it first selects capped published word IDs in the wordset, then capped published `word_audio` IDs, and only then performs the unindexed text comparison. It may identify matching word/category cards but must not expose transcription text or enter anonymous shared caches.
 - Anonymous flashcard and dictionary cache misses use the atomic counters and expiring client leases in `includes/lib/public-ajax-resource-guards.php`; do not replace them with transient get/increment/set admission. Flashcards preserve the 1,000-ID session compatibility ceiling but bound raw candidate parsing, charge candidate scopes in 100-ID units, admit at most two uncached builders per client, and serialize public multi-category frontend hydration while retaining the popup loading state across bounded warming retries. Dictionary live search takes its same-query build lock before charging the client budget, briefly waits for the winning cache builder, admits at most two distinct cold builders per client, and returns a retryable warming payload while retaining the loading state. Cache hits bypass these miss guards.
+- Full-category flashcard reads use `ll_get_flashcard_payload_page` and `wp_ll_flashcard_payload_rows`; do not restore a no-candidate `ll_get_words_by_category` whole-category build. Preserve the canonical scope, schema readback, exact-owner leases, generation/signature fences, byte-bounded persistence, signed keyset cursor, locale switch/restore, at-rest speaker redaction, response-only progress overlay, and bounded stale-scope cleanup as one protocol.
 - Cacheable anonymous dictionary URLs are deterministic by site-default locale. Browser/cookie-negotiated non-default dictionary traffic must bypass edge caching with no-store headers instead of varying `/sozluk/` by `Accept-Language` or `Cookie`.
 - Public dictionary requests should canonicalize noisy browse state early, including dictionary front pages that are excluded from static HTML caching: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, internal navigation/auth args such as `ll_wordset_back` and `ll_tools_auth` are stripped from public URLs, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
 - Public dictionary result cards must batch linked-word counts for the bounded visible entry IDs; keep full linked-word previews separate and capped rather than adding per-entry count queries to page hydration.
@@ -695,7 +734,7 @@ wordset can opt into it.
 - Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
 - REST word-row discovery must page IDs before row hydration. `missing-meta` uses bounded candidate offsets, broad bulk updates persist `scan_after_id` in resume state, and `/report` returns page-scoped counts while the CLI remains the explicit full-report surface. `/report-summary` calculates coverage with aggregate SQL rather than materializing the wordset. Review-note reads default to 100 and cap at 250 rows with deterministic title-plus-ID ordering and continuation metadata. Interlinear list reads default to 50 and cap at 100 rows across both supported post types with one global offset; list responses omit heavy payloads by default, while a specific-lesson read includes its payload unless explicitly disabled. Both list families accept legacy offsets only through the filterable 5,000-row compatibility ceiling (10,000 hard maximum), return HTTP 400 above it, and expose `max_offset` plus `offset_limit_reached` when a caller must narrow its filters.
 - Site Sync snapshots are always bounded: omitted, zero, or negative `per_page` values use the 100-row default, positive values are capped at 250, and every response carries continuation metadata. Transcription pages select recording IDs directly through the wordset relationship, and metadata pages hydrate only the requested word page. The Site Sync admin may assemble a complete comparison only by iterating those bounded pages; do not restore an unpaged REST or database-hydration path.
-- User-study analytics word hydration defaults to and hard-caps at 250 rows when words are requested; a missing or zero limit is not an unbounded opt-in. Progress reset discovery advances in 500-ID pages (hard maximum 1,000) and deletes stored progress in 300-ID chunks. Preserve these bounds when adding reset or analytics callers.
+- User-study bootstrap and HTTP responses defer word rows by default. The compatibility word-fetch endpoint requires explicit candidate IDs (maximum 200) across at most three categories; raw scalar/array inputs must be truncated before parsing. Analytics word hydration separately defaults to and hard-caps at 250 rows when words are requested; a missing or zero limit is not an unbounded opt-in. Progress reset discovery advances in 500-ID pages (hard maximum 1,000) and deletes stored progress in 300-ID chunks. Preserve these bounds when adding reset or analytics callers.
 - Treat REST automation as the control plane and server-side jobs/WP-CLI as the execution plane for heavy bulk work. New operations that touch hundreds of records and perform expensive validation, media handling, taxonomy repair, cache rebuilding, or cross-post recomputation should expose dry-run/readback/status/result surfaces and process bounded chunks with durable cursors instead of relying on one long synchronous HTTP request.
 - Import confirmation always enters the durable import job, including direct admin-post submissions; do not restore the legacy synchronous full-zip fallback.
 - Recent Imports is a bounded summary surface: cap displayed categories and matching lesson links, and include wordset constraints in the lesson query rather than filtering an unbounded result in PHP.

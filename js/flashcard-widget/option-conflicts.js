@@ -57,6 +57,59 @@
         return 'url:' + raw.split('#')[0];
     }
 
+    function normalizeImageHash(value) {
+        const hash = String(value || '').trim().toLowerCase();
+        return /^[a-f0-9]{16}$/.test(hash) ? hash : '';
+    }
+
+    function imageHashHamming(leftHash, rightHash) {
+        const left = normalizeImageHash(leftHash);
+        const right = normalizeImageHash(rightHash);
+        if (!left || !right || left.length !== right.length) {
+            return Number.MAX_SAFE_INTEGER;
+        }
+
+        const popcount = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
+        let distance = 0;
+        for (let index = 0; index < left.length; index += 1) {
+            distance += popcount[parseInt(left.charAt(index), 16) ^ parseInt(right.charAt(index), 16)] || 0;
+        }
+        return distance;
+    }
+
+    function getOptionImageSourceWordId(word) {
+        return normalizeWordId(word && (word.option_image_source_word_id || word.answer_word_id || word.id));
+    }
+
+    function allowsSimilarImagePair(word, otherWord) {
+        const otherSourceId = getOptionImageSourceWordId(otherWord);
+        if (!otherSourceId || !word || !Array.isArray(word.option_similar_image_allowed_ids)) {
+            return false;
+        }
+        return word.option_similar_image_allowed_ids.some(function (id) {
+            return normalizeWordId(id) === otherSourceId;
+        });
+    }
+
+    function wordsHaveSimilarOptionImages(leftWord, rightWord) {
+        const leftHash = normalizeImageHash(leftWord && leftWord.option_image_hash);
+        const rightHash = normalizeImageHash(rightWord && rightWord.option_image_hash);
+        if (!leftHash || !rightHash) {
+            return false;
+        }
+
+        const leftThreshold = Math.max(0, parseInt(leftWord && leftWord.option_image_hash_threshold, 10) || 0);
+        const rightThreshold = Math.max(0, parseInt(rightWord && rightWord.option_image_hash_threshold, 10) || 0);
+        const threshold = Math.max(leftThreshold, rightThreshold);
+        if (imageHashHamming(leftHash, rightHash) > threshold) {
+            return false;
+        }
+        if (allowsSimilarImagePair(leftWord, rightWord) || allowsSimilarImagePair(rightWord, leftWord)) {
+            return false;
+        }
+        return true;
+    }
+
     function normalizeTextForComparison(text) {
         const base = (text === null || text === undefined) ? '' : String(text).trim();
         if (!base) {
@@ -216,13 +269,21 @@
 
         const leftImage = getWordImageIdentity(leftWord);
         const rightImage = getWordImageIdentity(rightWord);
-        return !!leftImage && leftImage === rightImage;
+        if (leftImage && leftImage === rightImage) {
+            return true;
+        }
+
+        return wordsHaveSimilarOptionImages(leftWord, rightWord);
     }
 
     root.LLToolsOptionConflicts = {
         normalizeWordId: normalizeWordId,
         extractMaskedImageAttachmentId: extractMaskedImageAttachmentId,
         getWordImageIdentity: getWordImageIdentity,
+        normalizeImageHash: normalizeImageHash,
+        imageHashHamming: imageHashHamming,
+        getOptionImageSourceWordId: getOptionImageSourceWordId,
+        wordsHaveSimilarOptionImages: wordsHaveSimilarOptionImages,
         normalizeTextForComparison: normalizeTextForComparison,
         normalizeRecordingTypeKey: normalizeRecordingTypeKey,
         getNormalizedRecordingTextForType: getNormalizedRecordingTextForType,

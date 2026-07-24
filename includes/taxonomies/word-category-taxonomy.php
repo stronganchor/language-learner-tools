@@ -7616,6 +7616,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $require_option_image = ll_tools_quiz_option_type_has_image($option_type);
     $track_prompt_card_support_only = !empty($config['sign_language_mode']) && $require_prompt_image;
     $eligibility_projection = !empty($config['__eligibility_projection']);
+    $skip_image_similarity_pairs = !empty($config['__skip_image_similarity_pairs']);
     $candidate_word_ids = [];
     if (isset($config['__candidate_word_ids']) && is_array($config['__candidate_word_ids'])) {
         $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $config['__candidate_word_ids']), static function (int $word_id): bool {
@@ -7922,6 +7923,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'blocked_map' => [],
         'blocked_map_by_recording_type' => [],
         'similar_image_override_map' => [],
+        'similar_image_allowed_map' => [],
     ];
     $rules_wordset_id = (count($wordset_terms) === 1) ? (int) $wordset_terms[0] : 0;
     if (!$eligibility_projection && $rules_wordset_id > 0 && $term_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
@@ -7933,6 +7935,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $blocked_map = $group_maps['blocked_map'] ?? [];
     $blocked_map_by_recording_type = $group_maps['blocked_map_by_recording_type'] ?? [];
     $similar_image_override_map = $group_maps['similar_image_override_map'] ?? [];
+    $similar_image_allowed_map = $group_maps['similar_image_allowed_map'] ?? [];
     if (function_exists('ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused')) {
         ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused();
     }
@@ -7988,6 +7991,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $group_map,
         $blocked_map,
         $blocked_map_by_recording_type,
+        $similar_image_allowed_map,
         $specific_wrong_owner_map,
         $prompt_card_support_owner_map,
         $prompt_card_support_role_map,
@@ -8041,6 +8045,17 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $image_is_animated_webp = $image_id > 0 && function_exists('ll_tools_is_attachment_animated_webp')
             ? ll_tools_is_attachment_animated_webp((int) $image_id)
             : false;
+        $option_image_hash = '';
+        if (
+            !$eligibility_projection
+            && $image_id > 0
+            && ll_tools_quiz_option_type_has_image($option_type)
+            && function_exists('ll_tools_get_attachment_image_hash')
+        ) {
+            $wpdb->last_error = '';
+            $option_image_hash = ll_tools_get_attachment_image_hash($image_id);
+            $sources_complete = $sources_complete && $wpdb->last_error === '';
+        }
 
         $audio_files = [];
         $recording_texts_by_type = [];
@@ -8279,6 +8294,14 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'image_attachment_id' => (int) $image_id,
             'image' => $image ?: '',
             'image_is_animated_webp' => $image_is_animated_webp,
+            'option_image_source_word_id' => $word_id,
+            'option_image_hash' => $option_image_hash,
+            'option_image_hash_threshold' => function_exists('ll_tools_get_image_hash_threshold')
+                ? max(0, (int) ll_tools_get_image_hash_threshold())
+                : 5,
+            'option_similar_image_allowed_ids' => isset($similar_image_allowed_map[$word_id])
+                ? array_values(array_map('intval', (array) $similar_image_allowed_map[$word_id]))
+                : [],
             'all_categories' => $all_categories,
             'part_of_speech' => $part_of_speech,
             'grammatical_gender' => $grammatical_gender,
@@ -8520,7 +8543,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         }
     }
 
-    if (!$eligibility_projection && !empty($words) && ll_tools_quiz_option_type_has_image($option_type) && function_exists('ll_tools_collect_word_image_hashes') && function_exists('ll_tools_find_similar_image_pairs')) {
+    if (!$eligibility_projection && !$skip_image_similarity_pairs && !empty($words) && ll_tools_quiz_option_type_has_image($option_type) && function_exists('ll_tools_collect_word_image_hashes') && function_exists('ll_tools_find_similar_image_pairs')) {
         $word_ids = array_values(array_unique(array_map(function ($row) {
             return isset($row['id']) ? (int) $row['id'] : 0;
         }, $words)));

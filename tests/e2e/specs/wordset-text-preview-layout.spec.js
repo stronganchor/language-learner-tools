@@ -235,12 +235,17 @@ async function mountWordsetPreviewHarness(page) {
         return deferred.promise();
       }
 
-      if (action === 'll_user_study_fetch_words') {
+      if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
         deferred.resolve({
           success: true,
-          data: {
-            words_by_category: {}
-          }
+          data: action === 'll_get_flashcard_payload_page'
+            ? {
+                schema: 1,
+                rows: [],
+                next_cursor: '',
+                complete: true
+              }
+            : []
         });
         return deferred.promise();
       }

@@ -13016,8 +13016,9 @@
             return $.Deferred().resolve(wordsByCategory).promise();
         }
 
-        if (!isLoggedIn || !nonce) {
+        {
             const publicWarmingMaxRetries = 2;
+            const payloadWarmingMaxRetries = 60;
             const publicRetryDelayMs = function (xhr) {
                 let retryAfter = 0;
                 const responseData = xhr
@@ -13032,9 +13033,32 @@
                 }
                 return Math.max(250, Math.min(5000, retryAfter > 0 ? retryAfter * 1000 : 1000));
             };
-            const requestPublicCategory = function (payload, attempt) {
+            const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount) {
                 const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
-                return $.post(ajaxUrl, payload).then(null, function (xhr) {
+                const rows = Array.isArray(accumulatedRows) ? accumulatedRows : [];
+                const restarts = Math.max(0, parseInt(restartCount, 10) || 0);
+                return $.post(ajaxUrl, payload).then(function (res) {
+                    if (
+                        res
+                        && res.success
+                        && res.data
+                        && typeof res.data === 'object'
+                        && !Array.isArray(res.data)
+                        && Array.isArray(res.data.rows)
+                    ) {
+                        const mergedRows = rows.concat(res.data.rows);
+                        const nextCursor = String(res.data.next_cursor || '').trim();
+                        if (nextCursor) {
+                            const nextPayload = Object.assign({}, payload, { cursor: nextCursor });
+                            return requestPublicCategory(nextPayload, 0, mergedRows, restarts);
+                        }
+                        return {
+                            success: true,
+                            data: mergedRows
+                        };
+                    }
+                    return res;
+                }, function (xhr) {
                     const responseData = xhr
                         && xhr.responseJSON
                         && xhr.responseJSON.data
@@ -13043,14 +13067,26 @@
                         : {};
                     const isWarming = Number(xhr && xhr.status) === 429
                         && String(responseData.code || '') === 'cache_warming';
-                    if (isWarming && attemptNumber < publicWarmingMaxRetries) {
+                    const retryLimit = String(payload.action || '') === 'll_get_flashcard_payload_page'
+                        ? payloadWarmingMaxRetries
+                        : publicWarmingMaxRetries;
+                    if (isWarming && attemptNumber < retryLimit) {
                         const delay = $.Deferred();
                         window.setTimeout(function () {
                             delay.resolve();
                         }, publicRetryDelayMs(xhr));
                         return delay.promise().then(function () {
-                            return requestPublicCategory(payload, attemptNumber + 1);
+                            return requestPublicCategory(payload, attemptNumber + 1, rows, restarts);
                         });
+                    }
+                    if (
+                        Number(xhr && xhr.status) === 409
+                        && String(responseData.code || '') === 'restart_required'
+                        && restarts < 1
+                    ) {
+                        const restartPayload = Object.assign({}, payload);
+                        delete restartPayload.cursor;
+                        return requestPublicCategory(restartPayload, 0, [], restarts + 1);
                     }
 
                     const rejected = $.Deferred();
@@ -13076,19 +13112,23 @@
                     const wordsetSpec = wordsetSlug || String(wordsetId || '');
 
                     const publicPayload = {
-                        action: 'll_get_words_by_category',
+                        action: candidateWordIds.length ? 'll_get_words_by_category' : 'll_get_flashcard_payload_page',
                         category: String(cat.name || ''),
+                        category_id: parseInt(cat.id, 10) || categoryId,
+                        category_slug: String(cat.slug || ''),
                         display_mode: optionType,
                         wordset: wordsetSpec,
                         wordset_fallback: 0,
                         prompt_type: promptType,
-                        option_type: optionType
+                        option_type: optionType,
+                        locale: String(cfg.sortLocale || document.documentElement.lang || ''),
+                        page_size: 200
                     };
                     if (candidateWordIds.length) {
                         publicPayload.candidate_word_ids = candidateWordIds.join(',');
                     }
 
-                    return requestPublicCategory(publicPayload, 0).then(function (res) {
+                    return requestPublicCategory(publicPayload, 0, [], 0).then(function (res) {
                         if (res && res.success && Array.isArray(res.data)) {
                             if (candidateWordIds.length) {
                                 setCandidateScopedWords(categoryId, candidateWordIds, res.data);
@@ -13120,31 +13160,6 @@
                 return wordsByCategory;
             });
         }
-
-        const fetchPayload = {
-            action: 'll_user_study_fetch_words',
-            nonce: nonce,
-            wordset_id: wordsetId,
-            category_ids: ids
-        };
-        if (candidateWordIds.length) {
-            fetchPayload.candidate_word_ids = candidateWordIds.join(',');
-        }
-
-        return $.post(ajaxUrl, fetchPayload).then(function (res) {
-            if (res && res.success && res.data && res.data.words_by_category && typeof res.data.words_by_category === 'object') {
-                if (candidateWordIds.length) {
-                    Object.keys(res.data.words_by_category).forEach(function (categoryId) {
-                        setCandidateScopedWords(categoryId, candidateWordIds, res.data.words_by_category[categoryId]);
-                    });
-                } else {
-                    wordsByCategory = Object.assign({}, wordsByCategory, res.data.words_by_category);
-                }
-            }
-            return wordsByCategory;
-        }, function () {
-            return wordsByCategory;
-        });
     }
 
     function collectWordIdsForCategories(categoryIds, options) {

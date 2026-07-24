@@ -268,6 +268,180 @@ test('flashcard loader retries retryable category AJAX 429 responses', async ({ 
   expect(activeWordIds).toEqual([1001]);
 });
 
+test('flashcard loader drains immutable payload pages and preserves the rendered locale', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Paged Category'];
+    window.getCategoryDisplayMode = function () { return 'text_title'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      sortLocale: 'tr_TR',
+      preloadTuning: {
+        categoryAjaxConcurrency: 1,
+        categoryAjaxSpacingMs: 0
+      },
+      categories: [
+        { id: 11, name: 'Paged Category', slug: 'paged-category', prompt_type: 'text_title', option_type: 'text_title' }
+      ]
+    };
+
+    window.__llPayloadRequests = [];
+    window.jQuery.ajax = function (opts) {
+      const request = Object.assign({}, opts.data || {});
+      window.__llPayloadRequests.push(request);
+      const rowId = request.cursor ? 1002 : 1001;
+      setTimeout(() => {
+        opts.success({
+          success: true,
+          data: {
+            schema: 1,
+            rows: [{
+              id: rowId,
+              title: `Word ${rowId}`,
+              label: `Word ${rowId}`,
+              audio: '',
+              image: '',
+              audio_files: [],
+              wordset_ids: [101]
+            }],
+            next_cursor: request.cursor ? '' : 'signed-page-2',
+            complete: !!request.cursor
+          }
+        });
+      }, 0);
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(() => {
+    return window.FlashcardLoader.loadResourcesForCategory(
+      'Paged Category',
+      null,
+      { skipCategoryPreload: true }
+    );
+  });
+
+  expect(result.success).toBe(true);
+  const state = await page.evaluate(() => ({
+    requests: window.__llPayloadRequests,
+    ids: (window.wordsByCategory['Paged Category'] || [])
+      .map((row) => Number(row.id) || 0)
+      .sort((a, b) => a - b)
+  }));
+  expect(state.ids).toEqual([1001, 1002]);
+  expect(state.requests).toHaveLength(2);
+  expect(state.requests[0]).toMatchObject({
+    action: 'll_get_flashcard_payload_page',
+    category_id: 11,
+    locale: 'tr_TR'
+  });
+  expect(state.requests[0].cursor || '').toBe('');
+  expect(state.requests[1].cursor).toBe('signed-page-2');
+});
+
+test('flashcard loader restarts once after a stale page cursor without mixing generations', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Restart Category'];
+    window.getCategoryDisplayMode = function () { return 'text_title'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      preloadTuning: {
+        categoryAjaxConcurrency: 1,
+        categoryAjaxSpacingMs: 0
+      },
+      categories: [
+        { id: 11, name: 'Restart Category', prompt_type: 'text_title', option_type: 'text_title' }
+      ]
+    };
+
+    window.__llRestartAttempts = 0;
+    window.jQuery.ajax = function (opts) {
+      window.__llRestartAttempts += 1;
+      const attempt = window.__llRestartAttempts;
+      setTimeout(() => {
+        if (attempt === 1) {
+          opts.success({
+            success: true,
+            data: {
+              rows: [{
+                id: 1001,
+                title: 'Old generation word',
+                label: 'Old generation word',
+                audio: '',
+                image: '',
+                audio_files: [],
+                wordset_ids: [101]
+              }],
+              next_cursor: 'old-generation-cursor'
+            }
+          });
+          return;
+        }
+        if (attempt === 2) {
+          opts.error({
+            status: 409,
+            responseJSON: {
+              success: false,
+              data: { code: 'restart_required' }
+            },
+            responseText: ''
+          }, 'error', 'conflict');
+          return;
+        }
+        opts.success({
+          success: true,
+          data: {
+            rows: [{
+              id: 2001,
+              title: 'New generation word',
+              label: 'New generation word',
+              audio: '',
+              image: '',
+              audio_files: [],
+              wordset_ids: [101]
+            }],
+            next_cursor: ''
+          }
+        });
+      }, 0);
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(() => {
+    return window.FlashcardLoader.loadResourcesForCategory(
+      'Restart Category',
+      null,
+      { skipCategoryPreload: true }
+    );
+  });
+
+  expect(result.success).toBe(true);
+  expect(await page.evaluate(() => window.__llRestartAttempts)).toBe(3);
+  expect(await page.evaluate(() => {
+    return (window.wordsByCategory['Restart Category'] || []).map((row) => Number(row.id) || 0);
+  })).toEqual([2001]);
+});
+
 test('flashcard loader preserves explicit listening word order when provided', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

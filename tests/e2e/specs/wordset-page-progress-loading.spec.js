@@ -599,14 +599,12 @@ async function mountProgressPage(page, options = {}) {
         return deferred.promise();
       }
 
-      if (action === 'll_user_study_fetch_words') {
+      if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
         const candidateIds = String(request.candidate_word_ids || '')
           .split(',')
           .map((value) => Number(value) || 0)
           .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
-        const categoryIds = Array.isArray(request.category_ids)
-          ? request.category_ids.map((value) => Number(value) || 0).filter(Boolean)
-          : [11];
+        const categoryId = Number(request.category_id) || 11;
         window.__llFetchWordsRequests.push({
           action,
           request: Object.assign({}, request)
@@ -618,16 +616,19 @@ async function mountProgressPage(page, options = {}) {
           label: `Launch Word ${id}`,
           image: '',
           audio_url: '',
-          category_id: categoryIds[0] || 11,
-          category_ids: [categoryIds[0] || 11]
+          category_id: categoryId,
+          category_ids: [categoryId]
         }));
         deferred.resolve({
           success: true,
-          data: {
-            words_by_category: {
-              [String(categoryIds[0] || 11)]: words
-            }
-          }
+          data: action === 'll_get_flashcard_payload_page'
+            ? {
+                schema: 1,
+                rows: words,
+                next_cursor: '',
+                complete: true
+              }
+            : words
         });
         return deferred.promise();
       }

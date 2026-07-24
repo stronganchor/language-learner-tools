@@ -361,7 +361,7 @@ async function mountWordsetPage(page, options = {}) {
       const deferred = $.Deferred();
       const action = request && request.action ? String(request.action) : '';
 
-      if (action === 'll_get_words_by_category') {
+      if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
         const categoryName = String((request && request.category) || '');
         window.__llPublicCategoryRequests.active += 1;
         window.__llPublicCategoryRequests.maxActive = Math.max(
@@ -389,9 +389,19 @@ async function mountWordsetPage(page, options = {}) {
             });
             return;
           }
+          const categoryRows = Array.isArray(bootstrap.wordsByCategoryName[categoryName])
+            ? bootstrap.wordsByCategoryName[categoryName]
+            : [];
           deferred.resolve({
             success: true,
-            data: Array.isArray(bootstrap.wordsByCategoryName[categoryName]) ? bootstrap.wordsByCategoryName[categoryName] : []
+            data: action === 'll_get_flashcard_payload_page'
+              ? {
+                  schema: 1,
+                  rows: categoryRows,
+                  next_cursor: '',
+                  complete: true
+                }
+              : categoryRows
           });
         };
         if (bootstrap.publicCategoryDelayMs > 0) {
@@ -399,16 +409,6 @@ async function mountWordsetPage(page, options = {}) {
         } else {
           resolveCategoryRequest();
         }
-        return deferred.promise();
-      }
-
-      if (action === 'll_user_study_fetch_words') {
-        deferred.resolve({
-          success: true,
-          data: {
-            words_by_category: bootstrap.wordsByCategory
-          }
-        });
         return deferred.promise();
       }
 
@@ -579,7 +579,7 @@ test('selection listening launch skips dashboard bulk word fetch and opens immed
 
     $.post = function (url, request) {
       const action = request && request.action ? String(request.action) : '';
-      if (action === 'll_user_study_fetch_words') {
+      if (action === 'll_get_flashcard_payload_page') {
         window.__llFetchWordsCalls += 1;
         window.__llFetchWordsPending += 1;
         const deferred = $.Deferred();
@@ -588,7 +588,10 @@ test('selection listening launch skips dashboard bulk word fetch and opens immed
           deferred.resolve({
             success: true,
             data: {
-              words_by_category: {}
+              schema: 1,
+              rows: [],
+              next_cursor: '',
+              complete: true
             }
           });
         });
@@ -650,28 +653,41 @@ test('practice selection opens loading popup before selected categories finish l
     window.__llFetchWordsCalls = 0;
     window.__llFetchWordsPending = 0;
     window.__llFetchWordsResolvers = [];
+    window.__llReleaseAllFetchWords = false;
 
     $.post = function (url, request) {
       const action = request && request.action ? String(request.action) : '';
-      if (action === 'll_user_study_fetch_words') {
+      if (action === 'll_get_flashcard_payload_page') {
         window.__llFetchWordsCalls += 1;
         window.__llFetchWordsPending += 1;
         const deferred = $.Deferred();
-        window.__llFetchWordsResolvers.push(() => {
+        const categoryId = Number(request && request.category_id) || 0;
+        const resolveRequest = () => {
           window.__llFetchWordsPending = Math.max(0, (window.__llFetchWordsPending || 0) - 1);
           deferred.resolve({
             success: true,
             data: {
-              words_by_category: wordsByCategory
+              schema: 1,
+              rows: Array.isArray(wordsByCategory[categoryId])
+                ? wordsByCategory[categoryId]
+                : [],
+              next_cursor: '',
+              complete: true
             }
           });
-        });
+        };
+        if (window.__llReleaseAllFetchWords) {
+          window.setTimeout(resolveRequest, 0);
+        } else {
+          window.__llFetchWordsResolvers.push(resolveRequest);
+        }
         return deferred.promise();
       }
       return originalPost(url, request);
     };
 
     window.__llReleaseFetchWords = function () {
+      window.__llReleaseAllFetchWords = true;
       const resolvers = Array.isArray(window.__llFetchWordsResolvers)
         ? window.__llFetchWordsResolvers.splice(0)
         : [];

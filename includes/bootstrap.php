@@ -53,6 +53,7 @@ require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
 require_once(__DIR__ . '/wordset-isolation.php');
 require_once(__DIR__ . '/wordset-templates.php');
+require_once __DIR__ . '/lib/flashcard-payload-materializer.php';
 
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');

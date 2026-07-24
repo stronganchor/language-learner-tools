@@ -24,6 +24,16 @@ evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- July 24 durable flashcard payload materialization:
+  no-candidate category loads now advance a generation-fenced SQL materializer
+  in bounded primary-word, image, and prompt-card batches, then read immutable
+  signed keyset pages under row/byte and anonymous admission limits. Private
+  category/wordset/support metadata is filtered or viewer-scoped, user progress
+  remains a response-only overlay, unavoidable cold work exposes a retryable
+  loading state, and activation/privileged maintenance owns schema DDL.
+  Exact-generation retirement, read-side leases, scheduled-worker guards,
+  keyset-bounded orphan cleanup, and 14 focused integration tests cover
+  takeover and cleanup safety.
 - July 24 maintenance and resource-protection pass:
   anonymous dictionary and flashcard cold builds now use atomic budgets,
   same-query cache coordination, bounded candidate input, and exact-owner
@@ -376,10 +386,24 @@ evidence-led and scoped to a measured growth dimension.
   through a filterable 5,000-row ceiling (50,000 hard maximum), then rebase to
   page one. Removing the bounded fallback entirely would change the externally
   addressable page contract and needs explicit compatibility review.
-- An admitted flashcard cold miss can still hydrate the complete selected
-  category after the new candidate, budget, and concurrency guards admit it.
-  Eliminating that final proportional build requires a separate durable
-  flashcard payload materialization so large-wordset semantics remain intact.
+- The durable flashcard materializer intentionally makes the client drain all
+  immutable pages before quiz start. Starting from a partial page could improve
+  first-interaction time on very large categories, but it needs a product
+  decision about randomization, option-pool completeness, progress totals, and
+  whether later-page failures may interrupt an already-started session.
+- Flashcard rebuilds currently return a loading state instead of serving a
+  last-known-good generation after dependency drift. A future stale-serving
+  policy must define which schema, privacy, viewer, locale, and wordset changes
+  remain compatible; do not reuse an old generation across those boundaries
+  merely to hide warming.
+- Flashcard builds use one global lease plus a scope lease, which deliberately
+  serializes expensive materialization across scopes. Revisit scheduling only
+  after measuring real queue delay or starvation across many simultaneously
+  cold categories; any concurrency increase must preserve the per-scope
+  generation/CAS and anonymous resource guards.
+- One prompt card may include at most 300 bounded support-word IDs in the
+  materializer. Supporting larger cards needs a nested durable support cursor
+  or an explicit content-validation policy, not a higher synchronous cap.
 - The pre-stream manager recorder overview appears unreachable through current
   internal production routing, while focused and hidden paged recorder modes
   remain active. Retain the old global PHP helpers as compatibility-only until a

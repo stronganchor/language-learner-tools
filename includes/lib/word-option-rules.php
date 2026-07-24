@@ -413,6 +413,7 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
     }
 
     $similar_image_override_map = [];
+    $similar_image_allowed_map = [];
     foreach ($rules['similar_image_overrides'] as $pair) {
         [$a, $b] = ll_tools_normalize_word_option_pair_word_ids($pair);
         if ($a <= 0 || $b <= 0 || $a === $b) {
@@ -424,6 +425,19 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
             $b = $tmp;
         }
         $similar_image_override_map[$a . '|' . $b] = true;
+        if (!isset($similar_image_allowed_map[$a])) {
+            $similar_image_allowed_map[$a] = [];
+        }
+        if (!isset($similar_image_allowed_map[$b])) {
+            $similar_image_allowed_map[$b] = [];
+        }
+        $similar_image_allowed_map[$a][$b] = true;
+        $similar_image_allowed_map[$b][$a] = true;
+    }
+    foreach ($similar_image_allowed_map as $word_id => $allowed_lookup) {
+        $allowed_ids = array_values(array_map('intval', array_keys((array) $allowed_lookup)));
+        sort($allowed_ids, SORT_NUMERIC);
+        $similar_image_allowed_map[$word_id] = $allowed_ids;
     }
 
     return [
@@ -434,6 +448,7 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
         'blocked_map' => $blocked_list,
         'blocked_map_by_recording_type' => $blocked_list_by_recording_type,
         'similar_image_override_map' => $similar_image_override_map,
+        'similar_image_allowed_map' => $similar_image_allowed_map,
     ];
 }
 

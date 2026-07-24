@@ -375,6 +375,7 @@
                 categoryAjaxConcurrency: getClampedInt(tuning.categoryAjaxConcurrency, 1, 1, 4),
                 categoryAjaxSpacingMs: getClampedInt(tuning.categoryAjaxSpacingMs, 220, 0, 6000),
                 categoryAjaxMaxRetriesOn429: getClampedInt(tuning.categoryAjaxMaxRetriesOn429, 2, 0, 6),
+                categoryPayloadWarmingMaxRetries: getClampedInt(tuning.categoryPayloadWarmingMaxRetries, 60, 1, 120),
                 categoryAjaxRetryBaseMs: getClampedInt(tuning.categoryAjaxRetryBaseMs, 900, 100, 30000),
                 categoryAjaxRetryMaxMs: getClampedInt(tuning.categoryAjaxRetryMaxMs, 10000, 500, 90000),
                 categoryMediaChunkSize: getClampedInt(tuning.categoryMediaChunkSize, 8, 1, 30),
@@ -484,6 +485,20 @@
         }
 
         function parseRetryAfterMs(xhr) {
+            const responseData = xhr
+                && xhr.responseJSON
+                && xhr.responseJSON.data
+                && typeof xhr.responseJSON.data === 'object'
+                ? xhr.responseJSON.data
+                : {};
+            const jsonMilliseconds = Number(responseData.retry_after_ms || 0);
+            if (jsonMilliseconds > 0) {
+                return Math.max(0, Math.round(jsonMilliseconds));
+            }
+            const jsonSeconds = Number(responseData.retry_after || 0);
+            if (jsonSeconds > 0) {
+                return Math.max(0, Math.round(jsonSeconds * 1000));
+            }
             if (!xhr || typeof xhr.getResponseHeader !== 'function') {
                 return 0;
             }
@@ -999,14 +1014,17 @@
             );
 
             const payload = {
-                action: 'll_get_words_by_category',
+                action: candidateWordIds.length ? 'll_get_words_by_category' : 'll_get_flashcard_payload_page',
                 category: String(cfg.name || categoryName || '').trim(),
                 category_slug: String(cfg.slug || '').trim(),
+                category_id: parseInt(cfg.id, 10) || 0,
                 display_mode: displayMode,
                 wordset: wordset,  // This ensures wordset is always passed
                 wordset_fallback: wsFallback ? '1' : '0',
                 prompt_type: cfg.prompt_type || 'audio',
-                option_type: cfg.option_type || displayMode
+                option_type: cfg.option_type || displayMode,
+                locale: String(window.llToolsFlashcardsData && window.llToolsFlashcardsData.sortLocale || ''),
+                page_size: '200'
             };
             if (nonce) {
                 payload._ajax_nonce = nonce;
@@ -1018,6 +1036,9 @@
             }
             const requestId = ++requestSerial;
             let callbackInvoked = false;
+            const usesPagedPayload = candidateWordIds.length === 0;
+            let accumulatedPageRows = [];
+            let pageRestartCount = 0;
 
             function invokeCallbackOnce() {
                 if (callbackInvoked) {
@@ -1110,10 +1131,28 @@
                                 resolve({ stale: true, category: categoryName });
                                 return;
                             }
-                            delete inFlightRequests[cacheKey];
-                            recordAjaxCompletion(response);
                             if (response.success) {
-                                processFetchedWordData(response.data, categoryName);
+                                let fetchedRows = response.data;
+                                if (
+                                    usesPagedPayload
+                                    && response.data
+                                    && typeof response.data === 'object'
+                                    && !Array.isArray(response.data)
+                                    && Array.isArray(response.data.rows)
+                                ) {
+                                    accumulatedPageRows = accumulatedPageRows.concat(response.data.rows);
+                                    const nextCursor = String(response.data.next_cursor || '').trim();
+                                    if (nextCursor) {
+                                        payload.cursor = nextCursor;
+                                        resolve(runAjaxAttempt(1));
+                                        return;
+                                    }
+                                    fetchedRows = accumulatedPageRows;
+                                }
+                                delete payload.cursor;
+                                delete inFlightRequests[cacheKey];
+                                recordAjaxCompletion(response);
+                                processFetchedWordData(fetchedRows, categoryName);
                                 if (earlyCallback) {
                                     // Let the caller continue as soon as data is available; optional preload continues in background.
                                     invokeCallbackOnce();
@@ -1129,6 +1168,8 @@
                                     loadedCategories.push(cacheKey);
                                 }
                             } else {
+                                delete inFlightRequests[cacheKey];
+                                recordAjaxCompletion(response);
                                 console.error('Failed to load words for category:', categoryName, response);
                                 invokeCallbackOnce();
                             }
@@ -1145,7 +1186,17 @@
 
                             const httpStatus = xhr && typeof xhr.status !== 'undefined' ? xhr.status : null;
                             const retryCfg = getPreloadTuning();
-                            const canRetry429 = httpStatus === 429 && attemptNumber <= retryCfg.categoryAjaxMaxRetriesOn429;
+                            const responseData = xhr
+                                && xhr.responseJSON
+                                && xhr.responseJSON.data
+                                && typeof xhr.responseJSON.data === 'object'
+                                ? xhr.responseJSON.data
+                                : {};
+                            const responseCode = String(responseData.code || '');
+                            const retryLimit = usesPagedPayload && responseCode === 'cache_warming'
+                                ? retryCfg.categoryPayloadWarmingMaxRetries
+                                : retryCfg.categoryAjaxMaxRetriesOn429;
+                            const canRetry429 = httpStatus === 429 && attemptNumber <= retryLimit;
                             if (canRetry429) {
                                 const retryDelayMs = getCategoryAjaxRetryDelayMs(xhr, attemptNumber);
                                 recordAjaxFailure(xhr, status, error, {
@@ -1160,6 +1211,18 @@
                                 resolve(wait(retryDelayMs).then(function () {
                                     return runAjaxAttempt(attemptNumber + 1);
                                 }));
+                                return;
+                            }
+                            if (
+                                usesPagedPayload
+                                && httpStatus === 409
+                                && responseCode === 'restart_required'
+                                && pageRestartCount < 1
+                            ) {
+                                pageRestartCount += 1;
+                                accumulatedPageRows = [];
+                                delete payload.cursor;
+                                resolve(runAjaxAttempt(1));
                                 return;
                             }
 

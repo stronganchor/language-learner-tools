@@ -39,6 +39,9 @@ final class FlashcardCategorySlugResolutionTest extends LL_Tools_TestCase
             'display_mode' => 'text_title',
             'prompt_type' => 'text_title',
             'option_type' => 'text_title',
+            // Keep this slug-resolution regression on the bounded legacy
+            // compatibility route; no-candidate requests now warm paged data.
+            'candidate_word_ids' => wp_json_encode([$public_word_id]),
         ];
         $_REQUEST = $_POST;
 

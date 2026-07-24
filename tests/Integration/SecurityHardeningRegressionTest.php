@@ -120,25 +120,20 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $fixture = $this->create_flashcard_word_with_audio(777);
         wp_set_current_user(0);
 
-        $_POST = [
+        $request = [
             'category' => $fixture['category_name'],
             'display_mode' => 'text',
             'option_type' => 'text_translation',
             'prompt_type' => 'audio',
         ];
-        $_REQUEST = $_POST;
 
         try {
-            $response = $this->run_json_endpoint(static function (): void {
-                ll_get_words_by_category_ajax();
-            });
+            $rows = $this->fetch_materialized_flashcard_rows($request);
         } finally {
             $_POST = [];
             $_REQUEST = [];
         }
 
-        $this->assertTrue((bool) ($response['success'] ?? false));
-        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
         $row = $this->find_row_by_word_id($rows, $fixture['word_id']);
         $this->assertIsArray($row);
         $this->assertSame(0, (int) ($row['preferred_speaker_user_id'] ?? -1));
@@ -153,25 +148,20 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($user_id);
 
-        $_POST = [
+        $request = [
             'category' => $fixture['category_name'],
             'display_mode' => 'text',
             'option_type' => 'text_translation',
             'prompt_type' => 'audio',
         ];
-        $_REQUEST = $_POST;
 
         try {
-            $response = $this->run_json_endpoint(static function (): void {
-                ll_get_words_by_category_ajax();
-            });
+            $rows = $this->fetch_materialized_flashcard_rows($request);
         } finally {
             $_POST = [];
             $_REQUEST = [];
         }
 
-        $this->assertTrue((bool) ($response['success'] ?? false));
-        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
         $row = $this->find_row_by_word_id($rows, $fixture['word_id']);
         $this->assertIsArray($row);
         $this->assertSame(0, (int) ($row['preferred_speaker_user_id'] ?? -1));
@@ -219,11 +209,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             });
             remove_action('pre_get_posts', $query_capture);
 
-            $_POST = $base_post;
-            $_REQUEST = $_POST;
-            $full_response = $this->run_json_endpoint(static function (): void {
-                ll_get_words_by_category_ajax();
-            });
+            $full_rows = $this->fetch_materialized_flashcard_rows($base_post);
         } finally {
             remove_action('pre_get_posts', $query_capture);
             $_POST = [];
@@ -234,7 +220,6 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $candidate_ids = array_values(array_filter(array_map(static function ($row): int {
             return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
         }, $candidate_rows)));
-        $full_rows = is_array($full_response['data'] ?? null) ? $full_response['data'] : [];
         $full_ids = array_values(array_filter(array_map(static function ($row): int {
             return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
         }, $full_rows)));
@@ -254,7 +239,6 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             }
         }
         $this->assertSame([(int) $second_fixture['word_id']], $captured_candidate_query_ids);
-        $this->assertTrue((bool) ($full_response['success'] ?? false));
         $this->assertSame($expected_full_ids, $full_ids);
     }
 
@@ -349,6 +333,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             'display_mode' => 'text',
             'option_type' => 'text_translation',
             'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $fixture['word_id'],
         ];
 
         try {
@@ -493,6 +478,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             'display_mode' => str_repeat('text_title', 20),
             'option_type' => 'text_translation',
             'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $fixture['word_id'],
         ];
         $_REQUEST = $_POST;
 
@@ -506,22 +492,20 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
 
         $this->assertTrue((bool) ($response['success'] ?? false));
-        $cached = ll_tools_flashcards_public_ajax_cache_get([
-            'wordset_ids' => [],
-            'wordset_fallback' => true,
+        $meta_config = ll_tools_get_category_quiz_config($term);
+        $base_config = array_merge((array) $meta_config, [
             'prompt_type' => 'audio',
             'option_type' => 'text_translation',
-            'use_titles' => false,
-            'term_id' => (int) $term->term_id,
-            'term_slug' => (string) $term->slug,
-            'quiz_config' => [
-                'prompt_type' => 'audio',
-                'option_type' => 'text_translation',
-                'use_titles' => false,
-                'learning_supported' => true,
-                'self_check_supported' => true,
-            ],
         ]);
+        $cached = ll_tools_flashcards_public_ajax_cache_get(
+            ll_tools_flashcards_public_ajax_cache_args(
+                $term,
+                [],
+                true,
+                $base_config,
+                [(int) $fixture['word_id']]
+            )
+        );
 
         $this->assertIsArray($cached);
         $row = $this->find_row_by_word_id($cached, $fixture['word_id']);
@@ -1510,6 +1494,53 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 
         $this->assertContains($allowed_audio_id, $ids);
         $this->assertNotContains($blocked_audio_id, $ids);
+    }
+
+    /**
+     * Drain the current immutable flashcard generation, allowing its bounded
+     * foreground worker to advance between warming responses.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetch_materialized_flashcard_rows(array $request): array
+    {
+        $rows = [];
+        $cursor = '';
+
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $_POST = array_merge($request, [
+                'action' => 'll_get_flashcard_payload_page',
+                'page_size' => '10',
+            ]);
+            if ($cursor !== '') {
+                $_POST['cursor'] = $cursor;
+            }
+            $_REQUEST = $_POST;
+
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_flashcard_payload_page_ajax();
+            });
+            if (empty($response['success'])) {
+                $code = (string) ($response['data']['code'] ?? '');
+                if ($code === 'cache_warming') {
+                    continue;
+                }
+                $this->fail('Unexpected flashcard payload response: ' . wp_json_encode($response));
+            }
+
+            $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+            foreach ((array) ($data['rows'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+            $cursor = trim((string) ($data['next_cursor'] ?? ''));
+            if ($cursor === '') {
+                return $rows;
+            }
+        }
+
+        $this->fail('Flashcard payload did not finish within the bounded test attempts.');
     }
 
     /**

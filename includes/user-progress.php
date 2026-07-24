@@ -762,7 +762,18 @@ function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id 
         $words[$idx]['practice_correct_recording_types'] = ll_tools_get_progress_row_practice_correct_recording_types($row);
         $words[$idx]['practice_exposure_count'] = max(0, (int) ($row['coverage_practice'] ?? 0));
         $words[$idx]['progress_status'] = $progress_status;
+        $words[$idx]['status'] = $progress_status;
+        $words[$idx]['difficulty_score'] = function_exists('ll_tools_user_progress_word_difficulty_score')
+            ? max(0, (int) ll_tools_user_progress_word_difficulty_score($row))
+            : 0;
         $words[$idx]['progress_total_coverage'] = $progress_total_coverage;
+        $words[$idx]['progress_stage'] = max(0, (int) ($row['stage'] ?? 0));
+        $words[$idx]['progress_last_mode'] = isset($row['last_mode'])
+            ? (string) $row['last_mode']
+            : '';
+        $words[$idx]['progress_last_seen_at'] = isset($row['last_seen_at'])
+            ? (string) $row['last_seen_at']
+            : '';
         $words[$idx]['normalized_grammatical_gender'] = (string) ($support['normalized_gender'] ?? '');
         $words[$idx]['gender_marked'] = !empty($support['gender_marked']);
         $words[$idx]['gender_progress_tracked'] = !empty($support['gender_progress_tracked']);

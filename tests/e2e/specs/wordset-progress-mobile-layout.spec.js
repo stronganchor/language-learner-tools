@@ -702,12 +702,21 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
         });
         return deferred.promise();
       }
-      if (action === 'll_user_study_fetch_words') {
+      if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
+        const categoryId = Number(request && request.category_id) || 0;
+        const rows = Array.isArray(wordsByCategory[categoryId])
+          ? wordsByCategory[categoryId]
+          : [];
         deferred.resolve({
           success: true,
-          data: {
-            words_by_category: wordsByCategory
-          }
+          data: action === 'll_get_flashcard_payload_page'
+            ? {
+                schema: 1,
+                rows,
+                next_cursor: '',
+                complete: true
+              }
+            : rows
         });
         return deferred.promise();
       }

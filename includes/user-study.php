@@ -167,13 +167,40 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
 /**
  * List available wordsets for selection.
  */
-function ll_tools_user_study_wordsets(): array {
+function ll_tools_user_study_wordsets(int $required_wordset_id = 0): array {
+    $limit = max(10, min(200, (int) apply_filters(
+        'll_tools_user_study_wordset_catalog_limit',
+        100
+    )));
     $terms = get_terms([
         'taxonomy'   => 'wordset',
         'hide_empty' => false,
+        'number'      => $limit,
     ]);
     if (is_wp_error($terms)) {
         return [];
+    }
+    $required_wordset_id = max(0, $required_wordset_id);
+    if ($required_wordset_id > 0) {
+        $visible_required_ids = function_exists('ll_tools_filter_viewable_wordset_ids')
+            ? ll_tools_filter_viewable_wordset_ids(
+                [$required_wordset_id],
+                (int) get_current_user_id()
+            )
+            : [$required_wordset_id];
+        $required_term = in_array($required_wordset_id, array_map('intval', (array) $visible_required_ids), true)
+            ? get_term($required_wordset_id, 'wordset')
+            : null;
+        if ($required_term instanceof WP_Term) {
+            $terms_by_id = [];
+            foreach ((array) $terms as $term) {
+                if ($term instanceof WP_Term) {
+                    $terms_by_id[(int) $term->term_id] = $term;
+                }
+            }
+            $terms_by_id[$required_wordset_id] = $required_term;
+            $terms = array_values($terms_by_id);
+        }
     }
 
     $out = [];
@@ -198,7 +225,13 @@ function ll_tools_user_study_wordsets(): array {
 /**
  * Build category data (mirrors flashcard widget structure) for a wordset scope.
  */
-function ll_tools_user_study_categories_for_wordset($wordset_id, ?bool &$complete = null): array {
+function ll_tools_user_study_categories_for_wordset(
+    $wordset_id,
+    ?bool &$complete = null,
+    bool $bounded_catalog = false,
+    array $required_category_ids = [],
+    ?array &$catalog_page = null
+): array {
     global $wpdb;
 
     $complete = true;
@@ -211,7 +244,41 @@ function ll_tools_user_study_categories_for_wordset($wordset_id, ?bool &$complet
     }
     $build_complete = true;
     $wpdb->last_error = '';
-    [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids, 0, false, $build_complete);
+    [$categories, , $catalog_page] = ll_flashcards_build_categories(
+        '',
+        $use_translations,
+        $wordset_ids,
+        0,
+        $bounded_catalog,
+        $build_complete
+    );
+    if ($bounded_catalog && !empty($required_category_ids)) {
+        $required_category_ids = array_values(array_unique(array_filter(array_map(
+            'intval',
+            $required_category_ids
+        ), static function (int $category_id): bool {
+            return $category_id > 0;
+        })));
+        if (!empty($required_category_ids)) {
+            $required_complete = true;
+            [$required_categories] = ll_flashcards_build_categories(
+                implode(',', $required_category_ids),
+                $use_translations,
+                $wordset_ids,
+                0,
+                true,
+                $required_complete
+            );
+            $build_complete = $build_complete && $required_complete;
+            $categories_by_id = [];
+            foreach (array_merge((array) $categories, (array) $required_categories) as $category) {
+                if (is_array($category) && (int) ($category['id'] ?? 0) > 0) {
+                    $categories_by_id[(int) $category['id']] = $category;
+                }
+            }
+            $categories = array_values($categories_by_id);
+        }
+    }
     $complete = $build_complete && $wpdb->last_error === '';
     if (!$complete) {
         return [];
@@ -1084,6 +1151,19 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id, array $cand
  */
 function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id = 0, $requested_categories = [], array $options = []) {
     $uid = $user_id ?: get_current_user_id();
+    $requested_category_limit = max(1, min(20, (int) apply_filters(
+        'll_tools_user_study_bootstrap_category_limit',
+        8,
+        $uid
+    )));
+    $requested_categories = array_slice(
+        ll_tools_user_study_sanitize_state_id_array(
+            (array) $requested_categories,
+            'category_ids'
+        ),
+        0,
+        $requested_category_limit
+    );
     $state = ll_tools_get_user_study_state($uid);
     $goals = function_exists('ll_tools_get_user_study_goals')
         ? ll_tools_get_user_study_goals($uid)
@@ -1105,8 +1185,26 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
         $wordset_id = (int) ll_tools_get_active_wordset_id();
     }
 
-    $wordsets = ll_tools_user_study_wordsets();
-    $categories = ll_tools_user_study_categories_for_wordset($wordset_id);
+    $desired_category_ids = !empty($requested_categories)
+        ? $requested_categories
+        : array_slice(
+            ll_tools_user_study_sanitize_state_id_array(
+                (array) ($state['category_ids'] ?? []),
+                'category_ids'
+            ),
+            0,
+            $requested_category_limit
+        );
+    $wordsets = ll_tools_user_study_wordsets($wordset_id);
+    $category_catalog_page = [];
+    $categories_complete = true;
+    $categories = ll_tools_user_study_categories_for_wordset(
+        $wordset_id,
+        $categories_complete,
+        true,
+        $desired_category_ids,
+        $category_catalog_page
+    );
     $category_lookup = [];
     foreach ($categories as $cat) {
         $category_lookup[(int) $cat['id']] = true;
@@ -1116,7 +1214,7 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
         $ignored_category_lookup[(int) $ignored_id] = true;
     }
 
-    $selected_category_ids = $requested_categories ? (array) $requested_categories : $state['category_ids'];
+    $selected_category_ids = $desired_category_ids;
     $selected_category_ids = ll_tools_user_study_sanitize_state_id_array($selected_category_ids, 'category_ids');
     $selected_category_ids = array_values(array_filter($selected_category_ids, function ($id) use ($category_lookup, $ignored_category_lookup) {
         return $id > 0 && isset($category_lookup[$id]) && empty($ignored_category_lookup[$id]);
@@ -1128,7 +1226,8 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
         $selected_category_ids = array_slice($selected_category_ids, 0, 3);
     }
 
-    $defer_words = !empty($options['defer_words']);
+    $include_words = !empty($options['include_words']);
+    $defer_words = !$include_words || !empty($options['defer_words']);
     $words_by_category = [];
     $words_by_category_meta = [];
     if ($defer_words) {
@@ -1224,6 +1323,14 @@ function ll_tools_build_user_study_payload($user_id = 0, $requested_wordset_id =
         $payload['recommendation_refresh_deferred'] = true;
         $payload['words_by_category_meta'] = $words_by_category_meta;
     }
+    if (!empty($category_catalog_page['has_more'])) {
+        $payload['categories_deferred'] = true;
+        $payload['category_catalog'] = [
+            'has_more' => true,
+            'next_offset' => max(0, (int) ($category_catalog_page['next_offset'] ?? 0)),
+            'page_size' => max(0, (int) ($category_catalog_page['page_size'] ?? 0)),
+        ];
+    }
 
     return $payload;
 }
@@ -1242,14 +1349,20 @@ function ll_tools_user_study_bootstrap_ajax() {
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
-    $include_words = isset($_POST['include_words'])
+    $include_words_requested = isset($_POST['include_words'])
         ? filter_var(wp_unslash((string) $_POST['include_words']), FILTER_VALIDATE_BOOLEAN)
         : false;
-    $defer_words_raw = $_POST['defer_words'] ?? ($_POST['partial_words'] ?? false);
-    $defer_words = !$include_words && filter_var(wp_unslash((string) $defer_words_raw), FILTER_VALIDATE_BOOLEAN);
-    $payload_options = [];
-    if ($defer_words) {
-        $payload_options['defer_words'] = true;
+    $allow_legacy_full_bootstrap = $include_words_requested && (bool) apply_filters(
+        'll_tools_user_study_allow_legacy_full_bootstrap',
+        false,
+        get_current_user_id(),
+        $wordset_id
+    );
+    $payload_options = [
+        'defer_words' => !$allow_legacy_full_bootstrap,
+        'include_words' => $allow_legacy_full_bootstrap,
+    ];
+    if (!$allow_legacy_full_bootstrap) {
         if (isset($_POST['candidate_word_limit'])) {
             $payload_options['candidate_word_limit'] = (int) $_POST['candidate_word_limit'];
         }
@@ -1273,12 +1386,52 @@ function ll_tools_user_study_fetch_words_ajax() {
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
-    $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, $wordset_id);
-    $candidate_word_limit = max(0, (int) apply_filters('ll_tools_user_study_fetch_candidate_word_id_limit', 1000, $wordset_id, $category_ids));
-    $candidate_word_ids = isset($_POST['candidate_word_ids'])
-        ? ll_tools_parse_request_id_list($_POST['candidate_word_ids'], $candidate_word_limit)
+    $category_limit = max(1, min(8, (int) apply_filters(
+        'll_tools_user_study_fetch_category_limit',
+        3,
+        $wordset_id
+    )));
+    $category_ids = isset($_POST['category_ids'])
+        ? array_slice((array) $_POST['category_ids'], 0, $category_limit)
         : [];
+    $category_ids = array_slice(
+        ll_tools_user_study_sanitize_state_id_array($category_ids, 'category_ids'),
+        0,
+        $category_limit
+    );
+    $category_ids = ll_tools_user_study_filter_quizzable_category_ids($category_ids, $wordset_id);
+    $candidate_word_limit = max(1, min(200, (int) apply_filters(
+        'll_tools_user_study_fetch_candidate_word_id_limit',
+        200,
+        $wordset_id,
+        $category_ids
+    )));
+    $candidate_word_ids_raw = $_POST['candidate_word_ids'] ?? [];
+    if (is_array($candidate_word_ids_raw)) {
+        $candidate_word_ids_raw = array_slice(
+            $candidate_word_ids_raw,
+            0,
+            $candidate_word_limit
+        );
+    } elseif (is_scalar($candidate_word_ids_raw)) {
+        $candidate_word_ids_raw = substr(
+            (string) $candidate_word_ids_raw,
+            0,
+            max(1024, min(32768, $candidate_word_limit * 24))
+        );
+    } else {
+        $candidate_word_ids_raw = [];
+    }
+    $candidate_word_ids = ll_tools_parse_request_id_list(
+        $candidate_word_ids_raw,
+        $candidate_word_limit
+    );
+    if (empty($candidate_word_ids)) {
+        wp_send_json_error([
+            'code' => 'paged_payload_required',
+            'message' => __('Flashcard words must be requested with a bounded candidate list or the paged flashcard endpoint.', 'll-tools-text-domain'),
+        ], 409);
+    }
     $words = ll_tools_user_study_words($category_ids, $wordset_id, $candidate_word_ids);
     wp_send_json_success(['words_by_category' => $words]);
 }

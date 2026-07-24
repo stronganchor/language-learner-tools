@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
 {
-    public function test_flashcard_widget_renders_with_initial_word_data(): void
+    public function test_flashcard_widget_renders_with_deferred_initial_word_data(): void
     {
         $min_words_filter = static function (): int {
             return 1;
@@ -52,8 +52,9 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertIsString($localized_data);
             $this->assertStringContainsString('llToolsFlashcardsData', $localized_data);
             $this->assertStringContainsString('Primary Flow Category', $localized_data);
-            $this->assertStringContainsString('Flow Word', $localized_data);
-            $this->assertStringContainsString('Flow Translation', $localized_data);
+            $this->assertStringContainsString('"firstCategoryData":[]', $localized_data);
+            $this->assertStringNotContainsString('Flow Word', $localized_data);
+            $this->assertStringNotContainsString('Flow Translation', $localized_data);
             $this->assertStringContainsString('"listeningCategoryLoadWindow":3', $localized_data);
 
             $localized_messages = wp_scripts()->get_data('ll-flc-util', 'data');

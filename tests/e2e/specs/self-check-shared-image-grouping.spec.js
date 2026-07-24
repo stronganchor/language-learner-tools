@@ -20,6 +20,67 @@ const selfCheckModeSource = fs.readFileSync(
   'utf8'
 );
 
+test('option conflicts compare bounded image hashes while preserving exact-image blocking', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: optionConflictsSource });
+
+  const result = await page.evaluate(() => {
+    const conflicts = window.LLToolsOptionConflicts;
+    const base = {
+      option_image_hash_threshold: 5,
+      option_similar_image_allowed_ids: []
+    };
+    const left = Object.assign({}, base, {
+      id: 101,
+      title: 'left',
+      translation: 'left translation',
+      image: 'https://images.test/left.jpg?lltools-img=501',
+      option_image_source_word_id: 101,
+      option_image_hash: '0000000000000000'
+    });
+    const similar = Object.assign({}, base, {
+      id: 202,
+      title: 'similar',
+      translation: 'similar translation',
+      image: 'https://images.test/similar.jpg?lltools-img=502',
+      option_image_source_word_id: 202,
+      option_image_hash: '000000000000001f'
+    });
+    const far = Object.assign({}, similar, {
+      id: 303,
+      title: 'far',
+      translation: 'far translation',
+      image: 'https://images.test/far.jpg?lltools-img=503',
+      option_image_source_word_id: 303,
+      option_image_hash: 'ffffffffffffffff'
+    });
+    const allowedLeft = Object.assign({}, left, {
+      option_similar_image_allowed_ids: [202]
+    });
+    const exactAllowed = Object.assign({}, similar, {
+      image: left.image,
+      option_similar_image_allowed_ids: [101]
+    });
+
+    return {
+      distance: conflicts.imageHashHamming(
+        left.option_image_hash,
+        similar.option_image_hash
+      ),
+      similarBlocked: conflicts.wordsConflictForOptions(left, similar, {}),
+      overrideAllowed: conflicts.wordsConflictForOptions(allowedLeft, similar, {}),
+      exactStillBlocked: conflicts.wordsConflictForOptions(allowedLeft, exactAllowed, {}),
+      farAllowed: conflicts.wordsConflictForOptions(left, far, {})
+    };
+  });
+
+  expect(result.distance).toBe(5);
+  expect(result.similarBlocked).toBe(true);
+  expect(result.overrideAllowed).toBe(false);
+  expect(result.exactStillBlocked).toBe(true);
+  expect(result.farAllowed).toBe(false);
+});
+
 function buildHarnessMarkup() {
   return `
     <div id="ll-tools-flashcard-quiz-popup">
