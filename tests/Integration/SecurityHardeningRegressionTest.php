@@ -690,6 +690,95 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame([], $http_requests);
     }
 
+    public function test_remote_stt_transcribe_passes_filterable_bounded_response_limit_to_http_api(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $limit_filter = static function (): int {
+            return PHP_INT_MAX;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return [
+                'headers' => [
+                    'content-type' => 'application/json',
+                ],
+                'body' => wp_json_encode(['transcript' => 'bounded transcript']),
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('ll_tools_remote_stt_max_response_bytes', $limit_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://api.example.com/transcribe', $tmp);
+        } finally {
+            remove_filter('ll_tools_remote_stt_max_response_bytes', $limit_filter);
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertIsArray($result);
+        $this->assertSame('bounded transcript', (string) ($result['transcript'] ?? ''));
+        $this->assertCount(1, $http_requests);
+        $this->assertSame(1024 * 1024, (int) ($http_requests[0]['args']['limit_response_size'] ?? 0));
+        $this->assertTrue((bool) ($http_requests[0]['args']['reject_unsafe_urls'] ?? false));
+    }
+
+    public function test_remote_stt_transcribe_rejects_response_that_reaches_filtered_cap(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $limit_filter = static function (): int {
+            return 16;
+        };
+        $http_filter = static function ($preempt, $args, $url) {
+            return [
+                'headers' => [
+                    'content-type' => 'application/json',
+                ],
+                'body' => '{"text":"hello"}',
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('ll_tools_remote_stt_max_response_bytes', $limit_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://api.example.com/transcribe', $tmp);
+        } finally {
+            remove_filter('ll_tools_remote_stt_max_response_bytes', $limit_filter);
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('stt_invalid_response', $result->get_error_code());
+        $this->assertSame('response_too_large', (string) ($result->get_error_data()['reason'] ?? ''));
+        $this->assertSame(16, (int) ($result->get_error_data()['max_bytes'] ?? 0));
+        $this->assertSame(
+            __('STT endpoint returned an invalid or oversized response.', 'll-tools-text-domain'),
+            $result->get_error_message()
+        );
+    }
+
     public function test_media_proxy_fallback_rejects_private_hosts(): void
     {
         $this->assertFalse(ll_tools_media_proxy_fallback_url_is_safe('http://127.0.0.1/image.jpg'));
@@ -886,6 +975,52 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 
         $this->assertWPError($result);
         $this->assertSame('stt_invalid_response', $result->get_error_code());
+        $this->assertSame('invalid_json', (string) ($result->get_error_data()['reason'] ?? ''));
+        $this->assertSame(
+            __('STT endpoint returned an invalid or oversized response.', 'll-tools-text-domain'),
+            $result->get_error_message()
+        );
+        $this->assertStringNotContainsString('plain text transcript', $result->get_error_message());
+    }
+
+    public function test_remote_stt_transcribe_preserves_bounded_plain_text_compatibility_when_enabled(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $http_filter = static function ($preempt, $args, $url) {
+            return [
+                'headers' => [
+                    'content-type' => 'text/plain; charset=utf-8',
+                ],
+                'body' => 'bounded plain text transcript',
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        $allow_plain_text = static function (): bool {
+            return true;
+        };
+        add_filter('pre_http_request', $http_filter, 10, 3);
+        add_filter('ll_tools_remote_stt_allow_plain_text_response', $allow_plain_text);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://api.example.com/transcribe', $tmp);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            remove_filter('ll_tools_remote_stt_allow_plain_text_response', $allow_plain_text);
+            @unlink($tmp);
+        }
+
+        $this->assertIsArray($result);
+        $this->assertSame('bounded plain text transcript', (string) ($result['transcript'] ?? ''));
+        $this->assertArrayHasKey('payload', $result);
+        $this->assertNull($result['payload']);
+        $this->assertSame(200, (int) ($result['status_code'] ?? 0));
     }
 
     public function test_image_upload_validation_accepts_real_png(): void

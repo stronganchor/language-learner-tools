@@ -26,7 +26,7 @@ This extracts the bundle into `workspace/bundle/` and writes `capacitor.config.j
 On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
 If the bundle includes a wordset-specific offline STT bundle, it is kept under `workspace/bundle/www/content/stt-models/...` and packaged into the APK with the rest of the web assets.
-Archive preparation rejects absolute/traversal paths, symbolic links, more than 20,000 entries, entries larger than 2 GiB, and archives larger than 4 GiB uncompressed. IPA training `data.json` entries are capped at 128 MiB before they are read into memory.
+Archive preparation rejects compressed zip files larger than 2 GiB before opening them, absolute/traversal paths, symbolic links, more than 20,000 entries, entries larger than 2 GiB, and archives larger than 4 GiB uncompressed. Code-level overrides of the compressed-file limit remain hard-capped at 4 GiB. IPA training `data.json` entries are capped at 128 MiB before they are read into memory.
 
 If you already have an offline app export zip and want to inject a mobile-ready STT bundle plus offline `Speaking Practice` metadata after the fact, run:
 

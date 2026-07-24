@@ -27298,3 +27298,12 @@ msgstr "Kategori sıralaması ve önkoşullar, gönderilen ayarlar eksik olduğu
 #: includes/api/automation-rest.php:6751
 msgid "Unable to calculate the word set report summary."
 msgstr "Kelime seti rapor özeti hesaplanamadı."
+
+#: includes/api/automation-rest.php:753
+msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
+msgstr "Ofset çok büyük. %d değerini aşmayan bir ofset kullan veya filtreleri daralt."
+
+#: includes/lib/custom-stt-endpoint.php:312
+#: includes/lib/custom-stt-endpoint.php:324
+msgid "STT endpoint returned an invalid or oversized response."
+msgstr "STT uç noktası geçersiz veya çok büyük bir yanıt döndürdü."

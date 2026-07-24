@@ -352,7 +352,9 @@ interlinear lesson ID>`, `post_type=ll_content_lesson|ll_vocab_lesson`,
 `include_empty=0`, or `include_payload=1` to narrow or expand the response.
 Unfiltered lists default to 50 rows and cap at 100, use one global `offset`
 across both supported post types, return `pagination.next_offset`, and omit the
-heavy interlinear payload by default. A specific `lesson` read includes its
+heavy interlinear payload by default. Legacy offsets default to a maximum of
+5,000 and remain hard-capped at 10,000 even when filtered higher; narrow by
+lesson or post type when `pagination.offset_limit_reached` is true. A specific `lesson` read includes its
 payload by default unless `include_payload=0` is explicit. Use `POST
 /wordsets/{wordset}/interlinear` with either one payload object or an `items`
 array. Each item can identify the target lesson by post ID, slug, lesson value,
@@ -1417,7 +1419,8 @@ Query params:
 - `category` optional category slug or name
 - `include_empty` optional boolean; include eligible rows with blank notes
 - `limit` optional page size; defaults to 100 and is capped at 250
-- `offset` optional non-negative page offset
+- `offset` optional non-negative page offset; defaults to a maximum of 5,000
+  and is hard-capped at 10,000
 
 Response fields:
 
@@ -1429,11 +1432,13 @@ Response fields:
   `categories`, `wordset_id`, and type-specific fields such as
   `word`/`translation` or prompt-card answer references
 - `pagination` with the requested/effective/maximum limit, returned count,
-  `has_more`, and `next_offset`
+  `has_more`, `next_offset`, `max_offset`, and `offset_limit_reached`
 
 Use this route when Codex or another reviewer needs a durable review handoff
 without scraping lesson-grid UI. Continue with `pagination.next_offset` until
-`has_more` is false.
+`has_more` is false. If `has_more` remains true while `next_offset` is null,
+narrow the category/include-empty filters instead of requesting a deeper
+legacy offset.
 
 ### `POST /wordsets/{wordset}/review-notes`
 

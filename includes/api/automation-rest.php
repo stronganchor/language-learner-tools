@@ -719,6 +719,70 @@ function ll_tools_rest_automation_resolve_batch_limit(WP_REST_Request $request, 
     ];
 }
 
+/**
+ * Bound legacy OFFSET pagination on staff automation list routes.
+ *
+ * Large catalogs should use narrower filters or a future keyset contract
+ * instead of making the database discard an attacker-controlled number of
+ * rows. Keep a hard ceiling even when a site raises the compatibility limit.
+ */
+function ll_tools_rest_automation_max_list_offset(string $context): int {
+    $default = 5000;
+    $filtered = (int) apply_filters(
+        'll_tools_rest_automation_max_list_offset',
+        $default,
+        sanitize_key($context)
+    );
+
+    return max(0, min(10000, $filtered));
+}
+
+/**
+ * @return array{offset:int,max:int}|WP_Error
+ */
+function ll_tools_rest_automation_resolve_list_offset(WP_REST_Request $request, string $context) {
+    $raw_offset = $request->get_param('offset');
+    $offset = (is_scalar($raw_offset) && trim((string) $raw_offset) !== '')
+        ? max(0, (int) $raw_offset)
+        : 0;
+    $max_offset = ll_tools_rest_automation_max_list_offset($context);
+    if ($offset > $max_offset) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_offset_too_large',
+            sprintf(
+                __('Offset is too large. Use an offset no greater than %d or narrow the filters.', 'll-tools-text-domain'),
+                $max_offset
+            ),
+            400
+        );
+    }
+
+    return [
+        'offset' => $offset,
+        'max' => $max_offset,
+    ];
+}
+
+/**
+ * Return the next legacy offset only while it remains inside the guarded
+ * range. A null result tells callers to narrow the route filters.
+ */
+function ll_tools_rest_automation_next_list_offset(
+    int $offset,
+    int $limit,
+    int $max_offset,
+    bool $has_more
+): ?int {
+    if (!$has_more || $offset < 0 || $limit <= 0 || $max_offset < 0) {
+        return null;
+    }
+    if ($offset > $max_offset || $limit > ($max_offset - $offset)) {
+        return null;
+    }
+
+    return $offset + $limit;
+}
+
 function ll_tools_rest_automation_update_rows_from_request(WP_REST_Request $request): array {
     $raw_updates = $request->get_param('updates');
     if (!is_array($raw_updates)) {
@@ -8934,7 +8998,12 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
     $include_empty = (bool) rest_sanitize_boolean($request->get_param('include_empty'));
-    $offset = max(0, (int) $request->get_param('offset'));
+    $offset_info = ll_tools_rest_automation_resolve_list_offset($request, 'review_notes');
+    if (is_wp_error($offset_info)) {
+        return $offset_info;
+    }
+    $offset = (int) $offset_info['offset'];
+    $max_offset = (int) $offset_info['max'];
     $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'review_notes', false);
     $limit = (int) $limit_info['effective'];
     $page = function_exists('ll_tools_get_internal_review_note_rows_page_for_wordset')
@@ -8951,6 +9020,7 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
         ];
     $rows = array_values((array) ($page['rows'] ?? []));
     $has_more = !empty($page['has_more']);
+    $next_offset = ll_tools_rest_automation_next_list_offset($offset, $limit, $max_offset, $has_more);
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
@@ -8974,7 +9044,9 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
             'limit_clamped' => (bool) $limit_info['clamped'],
             'records_returned' => count($rows),
             'has_more' => $has_more,
-            'next_offset' => $has_more ? $offset + $limit : null,
+            'next_offset' => $next_offset,
+            'max_offset' => $max_offset,
+            'offset_limit_reached' => $has_more && $next_offset === null,
         ],
     ]);
 }
@@ -9081,6 +9153,9 @@ function ll_tools_rest_automation_interlinear_lesson_posts(
     }
     $limit = $limit > 0 ? min(250, $limit) : 250;
     $offset = max(0, $offset);
+    if ($offset > ll_tools_rest_automation_max_list_offset('interlinear')) {
+        return [];
+    }
 
     $scope = ll_tools_rest_automation_interlinear_scope_clause($wordset_id, $post_type);
     $params = (array) ($scope['params'] ?? []);
@@ -9450,7 +9525,12 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
         $include_payload = $request->has_param('include_payload')
             ? (bool) rest_sanitize_boolean($request->get_param('include_payload'))
             : $lesson_spec !== '';
-        $offset = max(0, (int) $request->get_param('offset'));
+        $offset_info = ll_tools_rest_automation_resolve_list_offset($request, 'interlinear');
+        if (is_wp_error($offset_info)) {
+            return $offset_info;
+        }
+        $offset = (int) $offset_info['offset'];
+        $max_offset = (int) $offset_info['max'];
         $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'interlinear', false);
         $limit = (int) $limit_info['effective'];
         $has_more = false;
@@ -9484,6 +9564,7 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
                 $items[] = ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload);
             }
         }
+        $next_offset = ll_tools_rest_automation_next_list_offset($offset, $limit, $max_offset, $has_more);
 
         return rest_ensure_response([
             'generated_at_gmt' => gmdate('c'),
@@ -9505,7 +9586,9 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
                 'limit_clamped' => (bool) $limit_info['clamped'],
                 'records_returned' => count($items),
                 'has_more' => $has_more,
-                'next_offset' => $has_more ? $offset + $limit : null,
+                'next_offset' => $next_offset,
+                'max_offset' => $max_offset,
+                'offset_limit_reached' => $has_more && $next_offset === null,
             ],
         ]);
     }

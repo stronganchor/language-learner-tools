@@ -2165,7 +2165,7 @@ msgstr "Wörterbuch-Quellen verwalten"
 
 #: includes/admin/dictionary-import-admin.php:2937
 msgid "Whole-site dictionary snapshots preserve stable import keys so you can export the site dictionary, edit it locally, then reimport it in override mode without breaking linked learning words that already point at those dictionary entries."
-msgstr "Gesamtwebsite-Wörterbuch-Snapshots bewahren importierte Wörterbucheinträge, mehrsprachige Definitionen, strukturierte Bedeutungen und Verknüpfungen zu Lernvokabeln."
+msgstr "Gesamtwebsite-Wörterbuch-Snapshots bewahren stabile Importschlüssel, sodass du das Website-Wörterbuch exportieren, lokal bearbeiten und anschließend im Überschreibungsmodus erneut importieren kannst, ohne Verknüpfungen zu Lernvokabeln zu beschädigen, die bereits auf diese Wörterbucheinträge verweisen."
 
 #: includes/admin/dictionary-import-admin.php:2941
 msgid "Export Whole Dictionary Snapshot"
@@ -2262,7 +2262,7 @@ msgstr "Site-Wörterbuch aus Snapshot überschreiben"
 
 #: includes/admin/dictionary-import-admin.php:3070
 msgid "Override mode updates matching entries by import_key, keeps linked learning words attached to those entries, and deletes dictionary entries that are missing from the snapshot."
-msgstr "Der Überschreibungsmodus aktualisiert übereinstimmende Einträge anhand von import_key, behält mit diesen Einträgen verknüpfte Lernvokabeln bei und ersetzt nur importierte Wörterbuchdaten."
+msgstr "Der Überschreibungsmodus aktualisiert übereinstimmende Einträge anhand von import_key, lässt verknüpfte Lernvokabeln mit diesen Einträgen verbunden und löscht Wörterbucheinträge, die im Snapshot fehlen."
 
 #: includes/admin/dictionary-import-admin.php:3075
 msgid "Import Dictionary Snapshot"
@@ -2293,7 +2293,7 @@ msgstr "Wörterbuchquellen aktualisiert."
 
 #: includes/admin/dictionary-sources-admin.php:109
 msgid "Use a stable source ID such as \"regional-dictionary\" or \"community-archive\". Leave both the ID and label blank to remove a row. Separate multiple default dialects with commas."
-msgstr "Lass sowohl die ID als auch die Bezeichnung leer, um die Standardquelle zu verwenden."
+msgstr "Verwende eine stabile Quellen-ID wie „regional-dictionary“ oder „community-archive“. Lass sowohl die ID als auch die Bezeichnung leer, um eine Zeile zu entfernen. Trenne mehrere Standarddialekte durch Kommas."
 
 #. translators: %d: 1-based source row number
 #: includes/admin/dictionary-sources-admin.php:124
@@ -8725,7 +8725,7 @@ msgstr "Übernimm die Live-Site-Version lokal für alle Konflikte."
 #. translators: %d: update count including local-wins conflicts
 #: includes/admin/site-sync-admin.php:2052
 msgid "Choosing staging-values conflict handling would queue %d total remote update(s)."
-msgstr "Wenn du dich für die Konfliktbehandlung von Staging-Werten entscheidest, würde %d die gesamte(n) Fernaktualisierung(en) in die Warteschlange stellen."
+msgstr "Die Konfliktbehandlung mit Staging-Werten würde insgesamt %d Remote-Aktualisierung(en) in die Warteschlange stellen."
 
 #: includes/admin/site-sync-admin.php:2061
 msgid "Apply All Push Batches"
@@ -8784,7 +8784,7 @@ msgstr[1] "%d Konflikte müssen geprüft werden"
 
 #: includes/admin/site-sync-admin.php:2127
 msgid "These fields changed on both staging and live since the saved baseline. Review the baseline, staging, and live values before applying clean changes."
-msgstr "Prüfe den Ausgangsstand, akzeptierte Live-Werte und Konflikte, bevor du saubere Änderungen anwendest."
+msgstr "Diese Felder wurden seit dem gespeicherten Ausgangsstand sowohl auf Staging als auch auf der Live-Site geändert. Prüfe die Werte des Ausgangsstands, von Staging und der Live-Site, bevor du konfliktfreie Änderungen anwendest."
 
 #: includes/admin/site-sync-admin.php:2131
 msgid "Clean Changes"
@@ -12164,7 +12164,7 @@ msgstr "Text öffnen"
 
 #: includes/pages/content-lesson-pages.php:937
 msgid "Related Vocab Lessons"
-msgstr "Verwandte Vokabellektion-Lektionen"
+msgstr "Verwandte Vokabellektionen"
 
 #: includes/admin/ipa-keyboard-admin.php:386
 #: includes/pages/content-lesson-pages.php:1053
@@ -12597,21 +12597,21 @@ msgstr "Lektionsbegriffe fehlen."
 #: includes/pages/vocab-lesson-pages.php:6371
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
-msgstr[0] "%d Vokabellektion-Seite wurde wiederhergestellt."
-msgstr[1] "%d Vokabellektion-Seiten wurden wiederhergestellt."
+msgstr[0] "%d Vokabellektionsseite wurde wiederhergestellt."
+msgstr[1] "%d Vokabellektionsseiten wurden wiederhergestellt."
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
 #: includes/pages/vocab-lesson-pages.php:6382
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
-msgstr "Wiederhergestellte %1$d Vokabellektion-Seiten. %2$d konnte nicht wiederhergestellt werden."
+msgstr "Es wurden %1$d Vokabellektionsseiten wiederhergestellt. %2$d konnten nicht wiederhergestellt werden."
 
 #: includes/pages/vocab-lesson-pages.php:6387
 msgid "No trashed vocab lesson pages were waiting to be restored."
-msgstr "Die Seiten der Vokabellektion waren nicht gelöscht und warteten darauf, wiederhergestellt zu werden."
+msgstr "Im Papierkorb warteten keine Vokabellektionsseiten auf die Wiederherstellung."
 
 #: includes/pages/vocab-lesson-pages.php:6389
 msgid "Vocab lesson pages could not be restored right now."
-msgstr "Die Seiten der Vokabellektion können im Moment nicht wiederhergestellt werden."
+msgstr "Vokabellektionsseiten konnten derzeit nicht wiederhergestellt werden."
 
 #: includes/pages/vocab-lesson-pages.php:6420
 msgid "View Trash"
@@ -12647,7 +12647,7 @@ msgstr "Noch keine Vokabelsets gefunden."
 
 #: includes/pages/vocab-lesson-pages.php:6712
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
-msgstr "Es sind noch keine Vokabelsets aktiviert, also werden auch keine Vokabeln-Lehrseiten erstellt."
+msgstr "Es sind noch keine Vokabelsets aktiviert, daher werden keine Vokabellektionsseiten erstellt."
 
 #: includes/pages/vocab-lesson-pages.php:6716
 msgid "Save Settings & Sync"
@@ -15857,7 +15857,7 @@ msgstr "Oder erstelle eine neue Kategorie (der neue Name hat Vorrang):"
 
 #: includes/pages/wordset-pages.php:16851
 msgid "Bulk import assumes text-to-text (prompt -> translation, answer -> word title) and publishes items by default."
-msgstr "Der Massenimport setzt Text-zu-Text voraus (Aufforderung -> Übersetzung, Antwort -> Vokabeln) und veröffentlicht die Artikel standardmäßig."
+msgstr "Beim Massenimport wird Text-zu-Text vorausgesetzt (Aufforderung -> Übersetzung, Antwort -> Vokabeltitel); Einträge werden standardmäßig veröffentlicht."
 
 #: includes/pages/wordset-pages.php:16859
 msgid "Allow duplicate titles in this word set (do not skip matches)"
@@ -16103,7 +16103,7 @@ msgstr "Audio-Recorder-Benutzer auswählen"
 
 #: includes/pages/wordset-pages.php:22346
 msgid "Assigning a recorder locks their recording interface to this word set and resets any stale category filter."
-msgstr "beschränkt seine Aufnahmeoberfläche auf dieses Vokabelset."
+msgstr "Durch die Zuweisung eines Audio-Recorders wird dessen Aufnahmeoberfläche auf dieses Vokabelset beschränkt und ein veralteter Kategoriefilter zurückgesetzt."
 
 #: includes/pages/wordset-pages.php:22349
 msgid "Assign Recorder"
@@ -17870,7 +17870,7 @@ msgstr "Für diese Vokabel ist noch kein verlinktes Bild verfügbar."
 
 #: includes/post-types/words-post-type.php:186
 msgid "Use the linked image record or the frontend word editor to change images. The standard Featured Image box is hidden during migration."
-msgstr "Verwende den verknüpften Bilddatensatz, um Bilder zu ändern."
+msgstr "Verwende den verknüpften Bilddatensatz oder den Vokabeleditor im Frontend, um Bilder zu ändern. Das standardmäßige Feld „Beitragsbild“ ist während der Migration ausgeblendet."
 
 #: includes/post-types/words-post-type.php:1643
 msgid "Specific Wrong Answers"
@@ -18320,7 +18320,7 @@ msgstr "Diese Einladung kann ein Audio-Recorder-Konto für dieses Vokabelset ers
 
 #: includes/shortcodes/audio-recording-shortcode.php:1269
 msgid "You do not have permission to record audio. If you think this is a mistake, ask for the \"Audio Recorder\" user role to be added to your user account."
-msgstr "Bitte um die Benutzerrolle \"Audio-Recorder\""
+msgstr "Du hast keine Berechtigung, Audio aufzunehmen. Wenn du glaubst, dass dies ein Fehler ist, bitte darum, deinem Benutzerkonto die Rolle „Audio-Recorder“ hinzuzufügen."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1318
 msgid "No recording word set is assigned for this account. Ask the word set manager to assign a private word set."
@@ -18710,7 +18710,7 @@ msgstr "Du hast %d Vokabelbild(er), aber bei keinem ist ein Beitragsbild festgel
 
 #: includes/shortcodes/audio-recording-shortcode.php:4405
 msgid "<strong>To fix this:</strong> Edit each word image and set a featured image using the \"Featured Image\" panel on the right side of the editor."
-msgstr "<strong>Um dies zu beheben:</strong> Bearbeite jedes Vokabelbild und lege ein Vokabelbild fest, indem du das Feld \"Vokabelbild\" auf der rechten Seite des Editors benutzt."
+msgstr "<strong>So behebst du das:</strong> Bearbeite jedes Vokabelbild und lege über den Bereich „Beitragsbild“ rechts im Editor ein Beitragsbild fest."
 
 #: includes/shortcodes/audio-recording-shortcode.php:4409
 #: includes/shortcodes/audio-recording-shortcode.php:4439
@@ -20273,7 +20273,7 @@ msgstr "Audioaufnahme existiert, hat aber noch keine Datei."
 
 #: includes/shortcodes/word-grid-shortcode.php:3547
 msgid "Word has not been published yet."
-msgstr "Vokabeln sind noch nicht veröffentlicht worden."
+msgstr "Die Vokabel wurde noch nicht veröffentlicht."
 
 #: includes/shortcodes/word-grid-shortcode.php:3557
 msgid "Published but hidden. Reason: missing audio."
@@ -21549,7 +21549,7 @@ msgstr "Lektion/Rastertext Sichtbarkeit"
 
 #: includes/taxonomies/wordset-taxonomy.php:3810
 msgid "Hide word text on lesson pages/word grids when the category quiz shows only images/audio."
-msgstr "Blende den Worttext auf den Lektionsseiten/Wortrastern aus, wenn das Kategorie-Quiz nur Vokabeln/Audios zeigt."
+msgstr "Blende den Vokabeltext auf Lektionsseiten und in Wortrastern aus, wenn das Kategorie-Quiz nur Bilder oder Audio zeigt."
 
 #: includes/taxonomies/wordset-taxonomy.php:3831
 msgid "Sign language presentation"
@@ -21887,7 +21887,7 @@ msgstr "Die Vokabel %1$d konnte nicht mit einem isolierten Vokabelbild verknüpf
 
 #: includes/wordset-isolation.php:4013
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
-msgstr "Migration der Vokabelset-Isolierung abgeschlossen. Vokabeln gescannt: %1$d. Vokabeln aktualisiert: %2$d. Kategorien erstellt: %3$d. Vokabelbilder erstellt: %4$d. Vokabelbild-Links aktualisiert: %5$d. Lektionen repariert: %6$d. Vokabelsets repariert: %7$d. Vokabel-Options-Regelumfänge repariert: %8$d. Benutzerstudiendatensätze repariert: %9$d."
+msgstr "Migration der Vokabelset-Isolierung abgeschlossen. Vokabeln gescannt: %1$d. Vokabeln aktualisiert: %2$d. Kategorien erstellt: %3$d. Vokabelbilder erstellt: %4$d. Vokabelbild-Links aktualisiert: %5$d. Lektionen repariert: %6$d. Vokabelsets repariert: %7$d. Geltungsbereiche der Regeln für Antwortoptionen repariert: %8$d. Benutzerstudiendatensätze repariert: %9$d."
 
 #: includes/wordset-isolation.php:4277
 #: includes/wordset-isolation.php:4294
@@ -24416,11 +24416,11 @@ msgstr "Die TSV-Gruppierung für das Wörterbuch ist nicht verfügbar."
 #: includes/pages/wordset-pages.php:22079
 #: includes/shortcodes/flashcard-widget.php:1497
 msgid "The category catalog is temporarily unavailable. Please try again."
-msgstr "Der Kategorienkatalog ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+msgstr "Der Kategorienkatalog ist vorübergehend nicht verfügbar. Bitte versuche es erneut."
 
 #: includes/pages/wordset-pages.php:25902
 msgid "Search is still preparing. Please try again."
-msgstr "Die Suche wird noch vorbereitet. Bitte versuchen Sie es erneut."
+msgstr "Die Suche wird noch vorbereitet. Bitte versuche es erneut."
 
 #: includes/admin/dictionary-import-admin.php:830
 #: includes/admin/dictionary-import-admin.php:1092
@@ -26639,3 +26639,12 @@ msgstr[1] "%s weitere Vokabeln der Lektion werden geladen"
 #: includes/api/automation-rest.php:6751
 msgid "Unable to calculate the word set report summary."
 msgstr "Die Zusammenfassung des Vokabelset-Berichts konnte nicht berechnet werden."
+
+#: includes/api/automation-rest.php:753
+msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
+msgstr "Der Offset ist zu groß. Verwende einen Offset von höchstens %d oder schränke die Filter ein."
+
+#: includes/lib/custom-stt-endpoint.php:313
+#: includes/lib/custom-stt-endpoint.php:326
+msgid "STT endpoint returned an invalid or oversized response."
+msgstr "Der STT-Endpunkt hat eine ungültige oder zu große Antwort zurückgegeben."

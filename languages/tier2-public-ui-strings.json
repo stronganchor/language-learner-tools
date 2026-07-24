@@ -390,7 +390,7 @@
             "msgid": "Previous",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1189",
+                "includes/admin/audio-processor-admin.php:1303",
                 "includes/admin/audio-processor-admin.php:200",
                 "includes/admin/image-webp-optimizer-admin.php:1666",
                 "includes/admin/ipa-keyboard-admin.php:468",
@@ -444,7 +444,7 @@
             "msgid": "Next",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1193",
+                "includes/admin/audio-processor-admin.php:1307",
                 "includes/admin/audio-processor-admin.php:201",
                 "includes/admin/image-webp-optimizer-admin.php:1667",
                 "includes/admin/ipa-keyboard-admin.php:469",
@@ -656,7 +656,7 @@
             "msgid": "Translation",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1094",
+                "includes/admin/audio-processor-admin.php:1208",
                 "includes/admin/audio-processor-admin.php:152",
                 "includes/admin/export-import.php:12648",
                 "includes/admin/export-import.php:12683",
@@ -3451,7 +3451,7 @@
             "msgid": "Invalid audio upload.",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1456",
+                "includes/admin/audio-processor-admin.php:1578",
                 "includes/pages/wordset-games.php:6212",
                 "includes/shortcodes/audio-recording-shortcode.php:462",
                 "includes/shortcodes/audio-recording-shortcode.php:5581",
@@ -4498,7 +4498,7 @@
             "msgid": "Word",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1080",
+                "includes/admin/audio-processor-admin.php:1194",
                 "includes/admin/audio-processor-admin.php:150",
                 "includes/admin/bulk-translation-admin.php:199",
                 "includes/admin/bulk-translation-admin.php:221",
@@ -4551,7 +4551,7 @@
             "msgid": "Retry",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1183",
+                "includes/admin/audio-processor-admin.php:1297",
                 "includes/admin/audio-processor-admin.php:196",
                 "includes/admin/site-sync-admin.php:1934",
                 "includes/admin/site-sync-admin.php:655",
@@ -6296,7 +6296,7 @@
                 "includes/admin/admin-dashboard-menu.php:352",
                 "includes/admin/admin-dashboard-menu.php:810",
                 "includes/admin/admin-dashboard-menu.php:811",
-                "includes/admin/audio-processor-admin.php:1835",
+                "includes/admin/audio-processor-admin.php:1957",
                 "includes/admin/bulk-translation-admin.php:147",
                 "includes/admin/image-aspect-normalizer-admin.php:107",
                 "includes/admin/user-progress-report.php:1029",
@@ -9551,8 +9551,8 @@
             "msgid": "Cancel",
             "msgid_plural": null,
             "references": [
-                "includes/admin/audio-processor-admin.php:1110",
-                "includes/admin/audio-processor-admin.php:1324",
+                "includes/admin/audio-processor-admin.php:1224",
+                "includes/admin/audio-processor-admin.php:1446",
                 "includes/admin/audio-processor-admin.php:149",
                 "includes/admin/missing-audio-admin-page.php:606",
                 "includes/admin/offline-app-export.php:2852",

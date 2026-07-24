@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-24T11:34:25+00:00\n"
+"POT-Creation-Date: 2026-07-24T13:49:39+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -69,8 +69,8 @@ msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:155
 #: includes/admin/admin-dashboard-menu.php:466
-#: includes/admin/audio-processor-admin.php:1221
-#: includes/admin/audio-processor-admin.php:1753
+#: includes/admin/audio-processor-admin.php:1343
+#: includes/admin/audio-processor-admin.php:1875
 msgid "Audio Processor"
 msgstr ""
 
@@ -155,13 +155,13 @@ msgid "Word Option Rules"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:169
-#: includes/admin/audio-processor-admin.php:1775
+#: includes/admin/audio-processor-admin.php:1897
 #: includes/admin/image-aspect-normalizer-admin.php:125
 msgid "Image Aspect Normalizer"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:170
-#: includes/admin/audio-processor-admin.php:1806
+#: includes/admin/audio-processor-admin.php:1928
 #: includes/admin/image-webp-optimizer-admin.php:1708
 msgid "WebP Image Optimizer"
 msgstr ""
@@ -287,7 +287,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:352
 #: includes/admin/admin-dashboard-menu.php:810
 #: includes/admin/admin-dashboard-menu.php:811
-#: includes/admin/audio-processor-admin.php:1835
+#: includes/admin/audio-processor-admin.php:1957
 #: includes/admin/bulk-translation-admin.php:147
 #: includes/admin/image-aspect-normalizer-admin.php:107
 #: includes/admin/user-progress-report.php:1029
@@ -817,7 +817,7 @@ msgid "Save %d processed audio file(s)?"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:134
-#: includes/admin/audio-processor-admin.php:1322
+#: includes/admin/audio-processor-admin.php:1444
 msgid "Save All Changes"
 msgstr ""
 
@@ -832,7 +832,7 @@ msgid "Saving..."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:136
-#: includes/admin/audio-processor-admin.php:1261
+#: includes/admin/audio-processor-admin.php:1383
 msgid "Preparing uploads..."
 msgstr ""
 
@@ -865,7 +865,7 @@ msgid "Saving is still in progress. Leaving this page will interrupt uploads."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:147
-#: includes/admin/audio-processor-admin.php:1063
+#: includes/admin/audio-processor-admin.php:1177
 #: includes/admin/ipa-keyboard-admin.php:527
 #: includes/pages/wordset-editor.php:4712
 #: includes/pages/wordset-pages.php:20720
@@ -874,13 +874,13 @@ msgid "Edit word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:148
-#: includes/admin/audio-processor-admin.php:1107
+#: includes/admin/audio-processor-admin.php:1221
 msgid "Save changes"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:149
-#: includes/admin/audio-processor-admin.php:1110
-#: includes/admin/audio-processor-admin.php:1324
+#: includes/admin/audio-processor-admin.php:1224
+#: includes/admin/audio-processor-admin.php:1446
 #: includes/admin/missing-audio-admin-page.php:606
 #: includes/admin/offline-app-export.php:2852
 #: includes/admin/offline-app-export.php:3595
@@ -893,7 +893,7 @@ msgid "Cancel"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:150
-#: includes/admin/audio-processor-admin.php:1080
+#: includes/admin/audio-processor-admin.php:1194
 #: includes/admin/bulk-translation-admin.php:199
 #: includes/admin/bulk-translation-admin.php:221
 #: includes/admin/export-import.php:4580
@@ -921,12 +921,12 @@ msgid "Word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:151
-#: includes/admin/audio-processor-admin.php:1087
+#: includes/admin/audio-processor-admin.php:1201
 msgid "Enter word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:152
-#: includes/admin/audio-processor-admin.php:1094
+#: includes/admin/audio-processor-admin.php:1208
 #: includes/admin/export-import.php:12648
 #: includes/admin/export-import.php:12683
 #: includes/admin/user-progress-report.php:1064
@@ -947,7 +947,7 @@ msgid "Translation"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:153
-#: includes/admin/audio-processor-admin.php:1101
+#: includes/admin/audio-processor-admin.php:1215
 msgid "Enter translation"
 msgstr ""
 
@@ -960,7 +960,7 @@ msgid "Translation cannot be empty for this word."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:157
-#: includes/admin/audio-processor-admin.php:1604
+#: includes/admin/audio-processor-admin.php:1726
 msgid "Could not update word details."
 msgstr ""
 
@@ -974,14 +974,14 @@ msgid "Deleting..."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:161
-#: includes/admin/audio-processor-admin.php:1247
+#: includes/admin/audio-processor-admin.php:1369
 #: includes/admin/orphan-media-admin.php:1813
 #: includes/admin/orphan-media-admin.php:1885
 msgid "Delete Selected"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:162
-#: includes/admin/audio-processor-admin.php:1323
+#: includes/admin/audio-processor-admin.php:1445
 msgid "Delete All"
 msgstr ""
 
@@ -1109,7 +1109,7 @@ msgid "Processing complete! Review the results below."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:194
-#: includes/admin/audio-processor-admin.php:1181
+#: includes/admin/audio-processor-admin.php:1295
 #: includes/admin/ipa-keyboard-admin.php:413
 msgid "Loading recordings..."
 msgstr ""
@@ -1119,7 +1119,7 @@ msgid "Could not load recordings. Please try again."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:196
-#: includes/admin/audio-processor-admin.php:1183
+#: includes/admin/audio-processor-admin.php:1297
 #: includes/admin/site-sync-admin.php:655
 #: includes/admin/site-sync-admin.php:1934
 #: includes/pages/wordset-pages.php:12556
@@ -1147,7 +1147,7 @@ msgid "No recordings with preserved original audio are ready to reprocess."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:200
-#: includes/admin/audio-processor-admin.php:1189
+#: includes/admin/audio-processor-admin.php:1303
 #: includes/admin/image-webp-optimizer-admin.php:1666
 #: includes/admin/ipa-keyboard-admin.php:468
 #: includes/admin/ipa-keyboard-admin.php:492
@@ -1173,7 +1173,7 @@ msgid "Previous"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:201
-#: includes/admin/audio-processor-admin.php:1193
+#: includes/admin/audio-processor-admin.php:1307
 #: includes/admin/image-webp-optimizer-admin.php:1667
 #: includes/admin/ipa-keyboard-admin.php:469
 #: includes/admin/ipa-keyboard-admin.php:493
@@ -1230,23 +1230,23 @@ msgstr ""
 msgid "Category:"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:927
+#: includes/admin/audio-processor-admin.php:1041
 msgid "Duplicates are hidden so you can process one recording per word and recording type first."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:931
+#: includes/admin/audio-processor-admin.php:1045
 msgid "These recordings use their saved original audio source. Saving replaces the current processed audio for the same word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:947
+#: includes/admin/audio-processor-admin.php:1061
 msgid "The queue request expired. Refresh the page and try again."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:951
-#: includes/admin/audio-processor-admin.php:1412
-#: includes/admin/audio-processor-admin.php:1415
-#: includes/admin/audio-processor-admin.php:1565
-#: includes/admin/audio-processor-admin.php:1641
+#: includes/admin/audio-processor-admin.php:1065
+#: includes/admin/audio-processor-admin.php:1534
+#: includes/admin/audio-processor-admin.php:1537
+#: includes/admin/audio-processor-admin.php:1687
+#: includes/admin/audio-processor-admin.php:1763
 #: includes/admin/word-images-fixer.php:125
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:465
@@ -1254,27 +1254,27 @@ msgstr ""
 msgid "Permission denied"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:956
+#: includes/admin/audio-processor-admin.php:1070
 msgid "Invalid queue."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:998
+#: includes/admin/audio-processor-admin.php:1112
 msgid "Published audio exists"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1000
+#: includes/admin/audio-processor-admin.php:1114
 msgid "Duplicate in queue"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1003
+#: includes/admin/audio-processor-admin.php:1117
 msgid "Saved original source"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1072
+#: includes/admin/audio-processor-admin.php:1186
 msgid "Split word"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1122
+#: includes/admin/audio-processor-admin.php:1236
 #: includes/admin/bulk-translation-admin.php:144
 #: includes/admin/bulk-translation-admin.php:200
 #: includes/admin/dictionary-import-admin.php:2423
@@ -1285,112 +1285,112 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1136
+#: includes/admin/audio-processor-admin.php:1250
 #: includes/admin/uploads/audio-upload-form.php:438
 msgid "Unassigned"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1222
+#: includes/admin/audio-processor-admin.php:1344
 msgid "Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1225
+#: includes/admin/audio-processor-admin.php:1347
 msgid "Processing Options"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1228
+#: includes/admin/audio-processor-admin.php:1350
 msgid "Trim silence from start and end"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1232
+#: includes/admin/audio-processor-admin.php:1354
 msgid "Apply noise reduction"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1236
+#: includes/admin/audio-processor-admin.php:1358
 msgid "Normalize loudness"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1241
+#: includes/admin/audio-processor-admin.php:1363
 #: includes/admin/bulk-translation-admin.php:186
 msgid "Select All"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1242
+#: includes/admin/audio-processor-admin.php:1364
 #: includes/admin/bulk-translation-admin.php:187
 msgid "Deselect All"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1244
+#: includes/admin/audio-processor-admin.php:1366
 msgid "Process Selected"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1255
+#: includes/admin/audio-processor-admin.php:1377
 #: includes/shortcodes/audio-recording-shortcode.php:1624
 msgid "Processing..."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1260
+#: includes/admin/audio-processor-admin.php:1382
 msgid "Saving Processed Audio"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1267
+#: includes/admin/audio-processor-admin.php:1389
 msgid "Keep this page open until saving is complete. Navigating away will interrupt remaining uploads."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1286
+#: includes/admin/audio-processor-admin.php:1408
 msgid "Queue"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1287
-#: includes/admin/audio-processor-admin.php:1298
-#: includes/admin/audio-processor-admin.php:1309
+#: includes/admin/audio-processor-admin.php:1409
+#: includes/admin/audio-processor-admin.php:1420
+#: includes/admin/audio-processor-admin.php:1431
 msgid "Loading"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1297
+#: includes/admin/audio-processor-admin.php:1419
 msgid "Duplicates"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1308
+#: includes/admin/audio-processor-admin.php:1430
 msgid "Reprocess"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1319
+#: includes/admin/audio-processor-admin.php:1441
 #: includes/shortcodes/audio-recording-shortcode.php:2025
 msgid "Review Processed Audio"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1422
-#: includes/admin/audio-processor-admin.php:1584
+#: includes/admin/audio-processor-admin.php:1544
+#: includes/admin/audio-processor-admin.php:1706
 msgid "Missing required data"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1427
-#: includes/admin/audio-processor-admin.php:1652
+#: includes/admin/audio-processor-admin.php:1549
+#: includes/admin/audio-processor-admin.php:1774
 msgid "Invalid audio post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1430
+#: includes/admin/audio-processor-admin.php:1552
 msgid "Insufficient permissions to edit this recording."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1435
+#: includes/admin/audio-processor-admin.php:1557
 msgid "No parent word post found"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1440
+#: includes/admin/audio-processor-admin.php:1562
 msgid "Invalid parent word post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1443
+#: includes/admin/audio-processor-admin.php:1565
 msgid "Insufficient permissions to edit the parent word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1449
+#: includes/admin/audio-processor-admin.php:1571
 msgid "Audio upload validation is unavailable"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1456
+#: includes/admin/audio-processor-admin.php:1578
 #: includes/pages/wordset-games.php:6212
 #: includes/shortcodes/audio-recording-shortcode.php:462
 #: includes/shortcodes/audio-recording-shortcode.php:5581
@@ -1399,108 +1399,108 @@ msgstr ""
 msgid "Invalid audio upload."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1463
-#: includes/admin/audio-processor-admin.php:1466
+#: includes/admin/audio-processor-admin.php:1585
+#: includes/admin/audio-processor-admin.php:1588
 msgid "Upload directory is unavailable"
 msgstr ""
 
 #. translators: %s: upload subsystem error message
-#: includes/admin/audio-processor-admin.php:1504
+#: includes/admin/audio-processor-admin.php:1626
 #: includes/shortcodes/audio-recording-shortcode.php:8661
 #: includes/shortcodes/audio-recording-shortcode.php:9687
 #: includes/shortcodes/word-grid-shortcode.php:8035
 msgid "Failed to save file: %s"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1510
+#: includes/admin/audio-processor-admin.php:1632
 #: includes/shortcodes/audio-recording-shortcode.php:8664
 #: includes/shortcodes/audio-recording-shortcode.php:9693
 msgid "Failed to save file"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1551
+#: includes/admin/audio-processor-admin.php:1673
 msgid "Audio processed and published successfully"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1589
+#: includes/admin/audio-processor-admin.php:1711
 msgid "Invalid word post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1593
+#: includes/admin/audio-processor-admin.php:1715
 #: includes/shortcodes/word-grid-shortcode.php:4163
 #: includes/shortcodes/word-grid-shortcode.php:4166
 msgid "Insufficient permissions to edit this word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1647
+#: includes/admin/audio-processor-admin.php:1769
 msgid "Invalid post ID"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1655
+#: includes/admin/audio-processor-admin.php:1777
 msgid "Insufficient permissions to delete this recording."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1705
+#: includes/admin/audio-processor-admin.php:1827
 msgid "Audio recording deleted"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1707
+#: includes/admin/audio-processor-admin.php:1829
 msgid "Failed to delete audio recording"
 msgstr ""
 
 #. translators: %d: number of audio recordings
-#: includes/admin/audio-processor-admin.php:1756
+#: includes/admin/audio-processor-admin.php:1878
 msgid "%d audio recording needs processing"
 msgid_plural "%d audio recordings need processing"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of categories
-#: includes/admin/audio-processor-admin.php:1778
+#: includes/admin/audio-processor-admin.php:1900
 msgid "Images need aspect ratio normalization in %d category"
 msgid_plural "Images need aspect ratio normalization in %d categories"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of word images
-#: includes/admin/audio-processor-admin.php:1809
+#: includes/admin/audio-processor-admin.php:1931
 msgid "%d image needs WebP optimization"
 msgid_plural "%d images need WebP optimization"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of words
-#: includes/admin/audio-processor-admin.php:1838
+#: includes/admin/audio-processor-admin.php:1960
 msgid "%d word is not in any quizzable category"
 msgid_plural "%d words are not in any quizzable category"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: wordset name
-#: includes/admin/audio-processor-admin.php:1878
-#: includes/admin/audio-processor-admin.php:1924
+#: includes/admin/audio-processor-admin.php:2000
+#: includes/admin/audio-processor-admin.php:2046
 msgid "Transcription Manager: %s"
 msgstr ""
 
 #. translators: 1: number of recordings, 2: wordset name
-#: includes/admin/audio-processor-admin.php:1883
+#: includes/admin/audio-processor-admin.php:2005
 msgid "%1$d recording in %2$s has possible transcription issues"
 msgid_plural "%1$d recordings in %2$s have possible transcription issues"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: number of recordings, 2: wordset name
-#: includes/admin/audio-processor-admin.php:1929
+#: includes/admin/audio-processor-admin.php:2051
 msgid "%1$d auto-generated transcription in %2$s needs review"
 msgid_plural "%1$d auto-generated transcriptions in %2$s need review"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/audio-processor-admin.php:1999
+#: includes/admin/audio-processor-admin.php:2121
 msgid "LL Tools Admin Tasks"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2000
+#: includes/admin/audio-processor-admin.php:2122
 msgid "The following maintenance tasks need attention."
 msgstr ""
 
@@ -2511,7 +2511,7 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:2786
 #: includes/admin/export-import.php:11515
 #: includes/admin/export-import.php:11566
-#: includes/api/automation-rest.php:9542
+#: includes/api/automation-rest.php:9829
 msgid "The requested import job could not be found."
 msgstr ""
 
@@ -3527,7 +3527,7 @@ msgstr ""
 #: includes/admin/export-import.php:13709
 #: includes/admin/offline-app-export.php:1664
 #: includes/admin/orphan-media-admin.php:1483
-#: includes/api/automation-rest.php:9481
+#: includes/api/automation-rest.php:9768
 #: includes/pages/wordset-pages.php:8459
 #: includes/pages/wordset-pages.php:8821
 msgid "ZipArchive is not available on this server."
@@ -4641,7 +4641,7 @@ msgid "Import failed: please choose a zip file to import."
 msgstr ""
 
 #: includes/admin/export-import.php:5305
-#: includes/api/automation-rest.php:9420
+#: includes/api/automation-rest.php:9707
 msgid "Import failed: server import folder is not available."
 msgstr ""
 
@@ -5284,7 +5284,7 @@ msgid "Could not create the import extraction directory."
 msgstr ""
 
 #: includes/admin/export-import.php:11451
-#: includes/api/automation-rest.php:9562
+#: includes/api/automation-rest.php:9849
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr ""
 
@@ -10816,7 +10816,7 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:636
 #: includes/admin/uploads/image-upload-form.php:454
 #: includes/admin/uploads/image-upload-form.php:718
-#: includes/api/automation-rest.php:7170
+#: includes/api/automation-rest.php:7310
 msgid "You do not have permission to upload files."
 msgstr ""
 
@@ -11985,702 +11985,708 @@ msgstr ""
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr ""
 
-#: includes/api/automation-rest.php:936
-#: includes/api/automation-rest.php:956
+#: includes/api/automation-rest.php:753
+msgid "Offset is too large. Use an offset no greater than %d or narrow the filters."
+msgstr ""
+
+#: includes/api/automation-rest.php:1000
+#: includes/api/automation-rest.php:1020
 msgid "LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates."
 msgstr ""
 
-#: includes/api/automation-rest.php:1442
-#: includes/api/automation-rest.php:1841
-#: includes/api/automation-rest.php:1953
+#: includes/api/automation-rest.php:1506
+#: includes/api/automation-rest.php:1905
+#: includes/api/automation-rest.php:2017
 #: includes/shortcodes/dictionary-shortcode.php:753
 #: includes/shortcodes/dictionary-shortcode.php:3309
 msgid "Dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:1450
-#: includes/api/automation-rest.php:1651
-#: includes/api/automation-rest.php:1863
-#: includes/api/automation-rest.php:1960
+#: includes/api/automation-rest.php:1514
+#: includes/api/automation-rest.php:1715
+#: includes/api/automation-rest.php:1927
+#: includes/api/automation-rest.php:2024
 msgid "You are not allowed to edit this dictionary entry."
 msgstr ""
 
-#: includes/api/automation-rest.php:1458
-#: includes/api/automation-rest.php:1778
-#: includes/api/automation-rest.php:3435
-#: includes/api/automation-rest.php:3458
-#: includes/api/automation-rest.php:3631
+#: includes/api/automation-rest.php:1522
+#: includes/api/automation-rest.php:1842
+#: includes/api/automation-rest.php:3499
+#: includes/api/automation-rest.php:3522
+#: includes/api/automation-rest.php:3695
 #: includes/api/word-metadata-plan-rest.php:569
 #: includes/cli/cli-support.php:821
 msgid "Dictionary entry helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:1468
+#: includes/api/automation-rest.php:1532
 msgid "Provide the imported headword text to replace."
 msgstr ""
 
-#: includes/api/automation-rest.php:1475
+#: includes/api/automation-rest.php:1539
 msgid "Provide the replacement headword text."
 msgstr ""
 
-#: includes/api/automation-rest.php:1485
-#: includes/api/automation-rest.php:1890
-#: includes/api/automation-rest.php:1977
+#: includes/api/automation-rest.php:1549
+#: includes/api/automation-rest.php:1954
+#: includes/api/automation-rest.php:2041
 msgid "Expected dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:1630
+#: includes/api/automation-rest.php:1694
 msgid "Old dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:1637
+#: includes/api/automation-rest.php:1701
 msgid "Target dictionary entry not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:1644
+#: includes/api/automation-rest.php:1708
 msgid "Old and target dictionary entries must be different."
 msgstr ""
 
-#: includes/api/automation-rest.php:1663
+#: includes/api/automation-rest.php:1727
 msgid "Expected old dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:1675
+#: includes/api/automation-rest.php:1739
 msgid "Expected target dictionary entry title does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:1801
+#: includes/api/automation-rest.php:1865
 msgid "Provide one or more dictionary translation AI flag updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:1817
+#: includes/api/automation-rest.php:1881
 msgid "Too many dictionary translation AI flag updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:1852
+#: includes/api/automation-rest.php:1916
 msgid "Provide translation_is_ai as true or false."
 msgstr ""
 
-#: includes/api/automation-rest.php:1903
+#: includes/api/automation-rest.php:1967
 msgid "Expected dictionary entry translation does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:1967
+#: includes/api/automation-rest.php:2031
 msgid "Dictionary import helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:1991
+#: includes/api/automation-rest.php:2055
 msgid "Provide a dictionary import row."
 msgstr ""
 
-#: includes/api/automation-rest.php:2014
+#: includes/api/automation-rest.php:2078
 msgid "Dictionary row entry is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:2280
+#: includes/api/automation-rest.php:2344
 msgid "LL Tools automation updates currently support only the dev branch package."
 msgstr ""
 
-#: includes/api/automation-rest.php:2288
+#: includes/api/automation-rest.php:2352
 msgid "The LL Tools automation update package URL failed the built-in allowlist check."
 msgstr ""
 
-#: includes/api/automation-rest.php:2299
+#: includes/api/automation-rest.php:2363
 msgid "The installed LL Tools version does not match the expected current version, so the automation update was not started."
 msgstr ""
 
-#: includes/api/automation-rest.php:2316
+#: includes/api/automation-rest.php:2380
 msgid "Set confirm=true and dry_run=false to update LL Tools through automation."
 msgstr ""
 
-#: includes/api/automation-rest.php:2324
+#: includes/api/automation-rest.php:2388
 msgid "WordPress path constants are unavailable, so the plugin updater cannot run."
 msgstr ""
 
-#: includes/api/automation-rest.php:2371
+#: includes/api/automation-rest.php:2435
 msgid "LL Tools plugin update failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:2386
+#: includes/api/automation-rest.php:2450
 msgid "LL Tools plugin files were updated, but the plugin could not be reactivated automatically."
 msgstr ""
 
-#: includes/api/automation-rest.php:2450
+#: includes/api/automation-rest.php:2514
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr ""
 
-#: includes/api/automation-rest.php:2479
+#: includes/api/automation-rest.php:2543
 msgid "Provide a name for the new word set."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:2840
+#: includes/api/automation-rest.php:2904
 msgid "Too many word updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:2866
+#: includes/api/automation-rest.php:2930
 #: includes/cli/cli-support.php:298
 msgid "Missing word identifier."
 msgstr ""
 
 #. translators: %s: field name
-#: includes/api/automation-rest.php:2876
+#: includes/api/automation-rest.php:2940
 #: includes/cli/cli-support.php:1008
 msgid "Unsupported update field: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:2900
+#: includes/api/automation-rest.php:2964
 #: includes/cli/cli-support.php:786
 msgid "Unable to load the current word state."
 msgstr ""
 
-#: includes/api/automation-rest.php:3006
-#: includes/api/automation-rest.php:3108
-#: includes/api/automation-rest.php:3396
-#: includes/api/automation-rest.php:3996
+#: includes/api/automation-rest.php:3070
+#: includes/api/automation-rest.php:3172
+#: includes/api/automation-rest.php:3460
+#: includes/api/automation-rest.php:4060
 #: includes/api/word-metadata-plan-rest.php:1685
 #: includes/shortcodes/audio-recording-shortcode.php:5292
 #: includes/shortcodes/word-grid-shortcode.php:8899
 msgid "Missing word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:3032
+#: includes/api/automation-rest.php:3096
 msgid "Failed to update the word title."
 msgstr ""
 
-#: includes/api/automation-rest.php:3084
+#: includes/api/automation-rest.php:3148
 msgid "Provide one or more word title updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3093
+#: includes/api/automation-rest.php:3157
 msgid "Too many word title updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:3117
-#: includes/api/automation-rest.php:3405
-#: includes/api/automation-rest.php:4004
+#: includes/api/automation-rest.php:3181
+#: includes/api/automation-rest.php:3469
+#: includes/api/automation-rest.php:4068
 msgid "Duplicate word ID in this batch."
 msgstr ""
 
-#: includes/api/automation-rest.php:3130
+#: includes/api/automation-rest.php:3194
 msgid "Missing replacement title."
 msgstr ""
 
-#: includes/api/automation-rest.php:3289
+#: includes/api/automation-rest.php:3353
 msgid "Dictionary entry ID must be a positive integer, or 0 to unlink."
 msgstr ""
 
-#: includes/api/automation-rest.php:3297
+#: includes/api/automation-rest.php:3361
 msgid "Invalid dictionary entry ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:3372
+#: includes/api/automation-rest.php:3436
 msgid "Provide one or more word helper translation updates."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:3381
+#: includes/api/automation-rest.php:3445
 msgid "Too many word helper translation updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:3449
+#: includes/api/automation-rest.php:3513
 msgid "Use field=word_translation or field=dictionary_entry_id with value. Legacy helper aliases are mapped to word_translation."
 msgstr ""
 
-#: includes/api/automation-rest.php:3505
+#: includes/api/automation-rest.php:3569
 msgid "Missing helper translation or dictionary entry value."
 msgstr ""
 
-#: includes/api/automation-rest.php:3890
+#: includes/api/automation-rest.php:3954
 msgid "Word category update helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:3956
+#: includes/api/automation-rest.php:4020
 msgid "Choose add_category, remove_category, or move_category."
 msgstr ""
 
-#: includes/api/automation-rest.php:3964
+#: includes/api/automation-rest.php:4028
 msgid "Provide the target category ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:3972
+#: includes/api/automation-rest.php:4036
 msgid "Provide one or more explicit word IDs."
 msgstr ""
 
 #. translators: %d: maximum word count
-#: includes/api/automation-rest.php:3982
+#: includes/api/automation-rest.php:4046
 msgid "Too many word category updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:4015
+#: includes/api/automation-rest.php:4079
 msgid "Fix word ID errors before retrying this category update."
 msgstr ""
 
-#: includes/api/automation-rest.php:4036
+#: includes/api/automation-rest.php:4100
 msgid "Select a category that belongs to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4058
+#: includes/api/automation-rest.php:4122
 msgid "Word ID does not refer to a word post."
 msgstr ""
 
-#: includes/api/automation-rest.php:4071
+#: includes/api/automation-rest.php:4135
 #: includes/api/word-metadata-plan-rest.php:1735
 msgid "Word is not assigned to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4092
+#: includes/api/automation-rest.php:4156
 #: includes/api/word-metadata-plan-rest.php:855
 msgid "Refusing to remove the final category for this word."
 msgstr ""
 
-#: includes/api/automation-rest.php:4112
+#: includes/api/automation-rest.php:4176
 msgid "Category update preflight failed. No words were changed."
 msgstr ""
 
-#: includes/api/automation-rest.php:4200
+#: includes/api/automation-rest.php:4264
 msgid "One or more category updates failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:4335
+#: includes/api/automation-rest.php:4399
 msgid "Prerequisite target category does not belong to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4342
+#: includes/api/automation-rest.php:4406
 msgid "Prerequisite categories must belong to the requested word set and cannot include the target category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4361
+#: includes/api/automation-rest.php:4425
 msgid "The requested prerequisites would create a cycle."
 msgstr ""
 
-#: includes/api/automation-rest.php:4420
+#: includes/api/automation-rest.php:4484
 msgid "Provide one or more explicit category actions."
 msgstr ""
 
 #. translators: %d: maximum category action count
-#: includes/api/automation-rest.php:4429
+#: includes/api/automation-rest.php:4493
 msgid "Too many category actions in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:4440
+#: includes/api/automation-rest.php:4504
 msgid "No categories are available for this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4460
+#: includes/api/automation-rest.php:4524
 msgid "Choose create_category, rename_category, set_prerequisites, or delete_empty_category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4472
+#: includes/api/automation-rest.php:4536
 msgid "Category name is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:4485
+#: includes/api/automation-rest.php:4549
 msgid "A category with that slug exists outside this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4517
+#: includes/api/automation-rest.php:4581
 msgid "Could not create category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4560
+#: includes/api/automation-rest.php:4624
 msgid "Category does not belong to this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4571
+#: includes/api/automation-rest.php:4635
 msgid "Category was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:4581
+#: includes/api/automation-rest.php:4645
 msgid "Expected category name does not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:4596
+#: includes/api/automation-rest.php:4660
 msgid "New category name is required."
 msgstr ""
 
-#: includes/api/automation-rest.php:4675
+#: includes/api/automation-rest.php:4739
 msgid "Expected prerequisite IDs do not match live state."
 msgstr ""
 
-#: includes/api/automation-rest.php:4729
+#: includes/api/automation-rest.php:4793
 msgid "Refusing to delete a category that still has word posts in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:4749
+#: includes/api/automation-rest.php:4813
 msgid "Could not delete category."
 msgstr ""
 
-#: includes/api/automation-rest.php:4780
+#: includes/api/automation-rest.php:4844
 msgid "Category term action preflight failed. No later failed action was applied."
 msgstr ""
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:4869
+#: includes/api/automation-rest.php:4933
 msgid "The category has more than %d word images. Provide an explicit smaller image_ids list."
 msgstr ""
 
-#: includes/api/automation-rest.php:4970
+#: includes/api/automation-rest.php:5034
 msgid "Provide an existing word-category category_id or category_slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:4993
+#: includes/api/automation-rest.php:5057
 msgid "Category slug does not match expected_category_slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:5002
+#: includes/api/automation-rest.php:5066
 msgid "Category is already owned by another word set."
 msgstr ""
 
 #. translators: %d: maximum word image count
-#: includes/api/automation-rest.php:5025
+#: includes/api/automation-rest.php:5089
 msgid "Too many word images in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:5041
+#: includes/api/automation-rest.php:5105
 msgid "Image ID does not refer to a word_images post."
 msgstr ""
 
-#: includes/api/automation-rest.php:5055
+#: includes/api/automation-rest.php:5119
 msgid "Word image is not assigned to the requested category."
 msgstr ""
 
-#: includes/api/automation-rest.php:5070
+#: includes/api/automation-rest.php:5134
 msgid "Word image is also assigned to a category owned by another word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5083
+#: includes/api/automation-rest.php:5147
 msgid "Word image is already owned by another word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:5113
+#: includes/api/automation-rest.php:5177
 msgid "Word image category ownership preflight failed. No ownership metadata was changed."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:5424
+#: includes/api/automation-rest.php:5488
 msgid "Too many transcription updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:5441
-#: includes/api/automation-rest.php:5645
+#: includes/api/automation-rest.php:5505
+#: includes/api/automation-rest.php:5709
 msgid "Recording not found in this word set."
 msgstr ""
 
 #. translators: %d: maximum update count
-#: includes/api/automation-rest.php:5628
+#: includes/api/automation-rest.php:5692
 msgid "Too many word audio speaker updates in one request. Maximum is %d."
 msgstr ""
 
-#: includes/api/automation-rest.php:5655
+#: includes/api/automation-rest.php:5719
 msgid "Speaker user not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:5667
+#: includes/api/automation-rest.php:5731
 msgid "Speaker user precondition failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:5678
+#: includes/api/automation-rest.php:5742
 msgid "Post author precondition failed."
 msgstr ""
 
-#: includes/api/automation-rest.php:5834
-#: includes/api/automation-rest.php:5894
+#: includes/api/automation-rest.php:5898
+#: includes/api/automation-rest.php:5958
 msgid "Invalid transcription validation job ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:5843
+#: includes/api/automation-rest.php:5907
 msgid "Transcription validation job was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:5908
-#: includes/api/automation-rest.php:5933
+#: includes/api/automation-rest.php:5972
+#: includes/api/automation-rest.php:5997
 msgid "Transcription validation job is already processing."
 msgstr ""
 
-#: includes/api/automation-rest.php:6230
-#: includes/api/automation-rest.php:6369
+#: includes/api/automation-rest.php:6294
+#: includes/api/automation-rest.php:6433
 msgid "Transcription validation job belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:6677
+#: includes/api/automation-rest.php:6741
 #: includes/cli/cli-support.php:351
 #: includes/cli/cli-support.php:388
 msgid "Missing word set ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:6696
+#: includes/api/automation-rest.php:6760
 #: includes/cli/cli-support.php:439
 msgid "Unable to resolve the requested word category."
 msgstr ""
 
-#: includes/api/automation-rest.php:6751
+#: includes/api/automation-rest.php:6809
+#: includes/api/automation-rest.php:6830
+#: includes/api/automation-rest.php:6891
 msgid "Unable to calculate the word set report summary."
 msgstr ""
 
-#: includes/api/automation-rest.php:6809
+#: includes/api/automation-rest.php:6949
 msgid "Provide category, category_id, or category_slug for the word-option rules update."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:6828
+#: includes/api/automation-rest.php:6968
 msgid "Unable to resolve word category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:6851
+#: includes/api/automation-rest.php:6991
 msgid "That word category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:6990
+#: includes/api/automation-rest.php:7130
 msgid "Groups must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:7008
+#: includes/api/automation-rest.php:7148
 msgid "Every word-option group needs a label."
 msgstr ""
 
-#: includes/api/automation-rest.php:7023
+#: includes/api/automation-rest.php:7163
 msgid "Word-option groups must contain at least one resolved word."
 msgstr ""
 
-#: includes/api/automation-rest.php:7043
+#: includes/api/automation-rest.php:7183
 msgid "Word-option pairs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:7061
+#: includes/api/automation-rest.php:7201
 msgid "Word-option pairs must contain two resolved words."
 msgstr ""
 
 #. translators: %s: word set name.
-#: includes/api/automation-rest.php:7183
+#: includes/api/automation-rest.php:7323
 msgid "%s profile image"
 msgstr ""
 
-#: includes/api/automation-rest.php:7197
+#: includes/api/automation-rest.php:7337
 msgid "The uploaded file is not a valid image."
 msgstr ""
 
-#: includes/api/automation-rest.php:7477
+#: includes/api/automation-rest.php:7617
 msgid "Unable to resolve a word category for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:7495
+#: includes/api/automation-rest.php:7635
 msgid "That word category is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:7582
+#: includes/api/automation-rest.php:7722
 msgid "Unable to resolve a lesson for the translation item."
 msgstr ""
 
-#: includes/api/automation-rest.php:7590
+#: includes/api/automation-rest.php:7730
 msgid "That lesson is not part of this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:7698
+#: includes/api/automation-rest.php:7838
 msgid "Entity translation helpers are not available."
 msgstr ""
 
-#: includes/api/automation-rest.php:7707
+#: includes/api/automation-rest.php:7847
 msgid "Provide wordset, categories, lessons, or items to update translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:7720
+#: includes/api/automation-rest.php:7860
 msgid "Translation items must include type wordset, category, or lesson."
 msgstr ""
 
-#: includes/api/automation-rest.php:7730
+#: includes/api/automation-rest.php:7870
 msgid "Translation item does not contain any supported translated fields."
 msgstr ""
 
-#: includes/api/automation-rest.php:7791
+#: includes/api/automation-rest.php:7931
 msgid "One or more translation items could not be applied."
 msgstr ""
 
-#: includes/api/automation-rest.php:7892
+#: includes/api/automation-rest.php:8032
 msgid "The profile image attachment must be an existing image attachment."
 msgstr ""
 
-#: includes/api/automation-rest.php:8033
+#: includes/api/automation-rest.php:8173
 msgid "Orthography conversion profiles are no longer supported. Configure wordset-level orthography settings instead."
 msgstr ""
 
-#: includes/api/automation-rest.php:8049
+#: includes/api/automation-rest.php:8189
 msgid "Manual orthography rules must be an object keyed by IPA segment."
 msgstr ""
 
-#: includes/api/automation-rest.php:8096
+#: includes/api/automation-rest.php:8236
 msgid "Orthography settings must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:8168
+#: includes/api/automation-rest.php:8308
 msgid "Orthography exception word IDs must be an array."
 msgstr ""
 
-#: includes/api/automation-rest.php:8180
+#: includes/api/automation-rest.php:8320
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr ""
 
-#: includes/api/automation-rest.php:8342
+#: includes/api/automation-rest.php:8482
 msgid "Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data."
 msgstr ""
 
-#: includes/api/automation-rest.php:8360
+#: includes/api/automation-rest.php:8500
 msgid "Word-option rules could not be saved for this word set and category."
 msgstr ""
 
-#: includes/api/automation-rest.php:8445
+#: includes/api/automation-rest.php:8585
 msgid "Prompt-card category references cannot be empty."
 msgstr ""
 
 #. translators: %s: category identifier
-#: includes/api/automation-rest.php:8469
+#: includes/api/automation-rest.php:8609
 msgid "Unable to resolve prompt-card category: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:8491
+#: includes/api/automation-rest.php:8631
 msgid "That prompt-card category belongs to a different word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:8515
+#: includes/api/automation-rest.php:8655
 msgid "Provide at least one word-category assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:8528
+#: includes/api/automation-rest.php:8668
 msgid "Prompt-card word set references cannot be empty."
 msgstr ""
 
 #. translators: %s: word set identifier
-#: includes/api/automation-rest.php:8548
+#: includes/api/automation-rest.php:8688
 msgid "Unable to resolve prompt-card word set: %s"
 msgstr ""
 
-#: includes/api/automation-rest.php:8573
+#: includes/api/automation-rest.php:8713
 msgid "Provide at least one word set assignment for the prompt card."
 msgstr ""
 
-#: includes/api/automation-rest.php:8580
+#: includes/api/automation-rest.php:8720
 msgid "Prompt-card word set assignments must include the route word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:8631
+#: includes/api/automation-rest.php:8771
 msgid "Provide prompt_card_id, object_id, or id for the prompt card to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:8640
+#: includes/api/automation-rest.php:8780
 msgid "That prompt card was not found."
 msgstr ""
 
-#: includes/api/automation-rest.php:8648
+#: includes/api/automation-rest.php:8788
 msgid "That prompt card does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:8815
+#: includes/api/automation-rest.php:8955
 msgid "Provide a note value. Send an empty string to clear the note."
 msgstr ""
 
-#: includes/api/automation-rest.php:8822
+#: includes/api/automation-rest.php:8962
 msgid "Provide the word or prompt card object_id to update."
 msgstr ""
 
-#: includes/api/automation-rest.php:8833
-#: includes/lib/internal-review-notes.php:349
+#: includes/api/automation-rest.php:8973
+#: includes/lib/internal-review-notes.php:369
 msgid "This item cannot store an internal review note."
 msgstr ""
 
-#: includes/api/automation-rest.php:8840
-#: includes/lib/internal-review-notes.php:361
+#: includes/api/automation-rest.php:8980
+#: includes/lib/internal-review-notes.php:381
 msgid "This item does not belong to the selected word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9161
-#: includes/api/automation-rest.php:9262
+#: includes/api/automation-rest.php:9440
+#: includes/api/automation-rest.php:9546
 msgid "Could not find a matching content or vocab lesson in this word set."
 msgstr ""
 
-#: includes/api/automation-rest.php:9188
+#: includes/api/automation-rest.php:9467
 msgid "Provide an interlinear payload object, or send delete=true to clear one."
 msgstr ""
 
-#: includes/api/automation-rest.php:9323
+#: includes/api/automation-rest.php:9610
 msgid "Each interlinear import item must be an object."
 msgstr ""
 
-#: includes/api/automation-rest.php:9415
+#: includes/api/automation-rest.php:9702
 msgid "Import failed: provide an uploaded zip file or a server import filename."
 msgstr ""
 
-#: includes/api/automation-rest.php:9533
+#: includes/api/automation-rest.php:9820
 msgid "The requested import job could not be identified."
 msgstr ""
 
-#: includes/api/automation-rest.php:9776
-#: includes/api/automation-rest.php:9820
+#: includes/api/automation-rest.php:10063
+#: includes/api/automation-rest.php:10107
 msgid "Corpus text payload is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:9785
+#: includes/api/automation-rest.php:10072
 msgid "Corpus text payload is too deeply nested for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:9793
+#: includes/api/automation-rest.php:10080
 msgid "Corpus text payload contains too many rows for automation import."
 msgstr ""
 
-#: includes/api/automation-rest.php:9828
+#: includes/api/automation-rest.php:10115
 msgid "Corpus text payload must be a valid JSON object."
 msgstr ""
 
-#: includes/api/automation-rest.php:9840
+#: includes/api/automation-rest.php:10127
 msgid "Provide a corpus text payload object."
 msgstr ""
 
-#: includes/api/automation-rest.php:9864
+#: includes/api/automation-rest.php:10151
 msgid "Historical Zazaki text with source witnesses, interlinear analysis, and translations."
 msgstr ""
 
-#: includes/api/automation-rest.php:9871
+#: includes/api/automation-rest.php:10158
 msgid "You cannot upload corpus text assets."
 msgstr ""
 
-#: includes/api/automation-rest.php:9880
+#: includes/api/automation-rest.php:10167
 msgid "Provide a source key for the corpus text asset."
 msgstr ""
 
-#: includes/api/automation-rest.php:9907
+#: includes/api/automation-rest.php:10194
 msgid "Provide a corpus text asset file."
 msgstr ""
 
-#: includes/api/automation-rest.php:9920
+#: includes/api/automation-rest.php:10207
 msgid "Corpus text asset file is larger than the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:9932
+#: includes/api/automation-rest.php:10219
 msgid "Corpus text asset image dimensions exceed the allowed automation import limit."
 msgstr ""
 
-#: includes/api/automation-rest.php:9953
+#: includes/api/automation-rest.php:10240
 msgid "The corpus text asset could not be uploaded."
 msgstr ""
 
-#: includes/api/automation-rest.php:9972
+#: includes/api/automation-rest.php:10259
 msgid "The corpus text asset could not be added to the media library."
 msgstr ""
 
-#: includes/api/automation-rest.php:10008
+#: includes/api/automation-rest.php:10295
 msgid "Provide a corpus text post slug."
 msgstr ""
 
-#: includes/api/automation-rest.php:10047
+#: includes/api/automation-rest.php:10334
 msgid "The corpus text post could not be created or updated."
 msgstr ""
 
-#: includes/api/automation-rest.php:10084
+#: includes/api/automation-rest.php:10371
 msgid "Could not find a matching corpus text post."
 msgstr ""
 
-#: includes/api/automation-rest.php:10095
+#: includes/api/automation-rest.php:10382
 msgid "The matching content lesson is not a corpus text."
 msgstr ""
 
@@ -13432,40 +13438,45 @@ msgstr ""
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr ""
 
-#: includes/lib/custom-stt-endpoint.php:170
+#: includes/lib/custom-stt-endpoint.php:186
 msgid "STT endpoint URL is not configured."
 msgstr ""
 
-#: includes/lib/custom-stt-endpoint.php:188
+#: includes/lib/custom-stt-endpoint.php:204
 msgid "STT audio file is missing."
 msgstr ""
 
 #. translators: %s: max upload size
-#: includes/lib/custom-stt-endpoint.php:199
-#: includes/lib/custom-stt-endpoint.php:221
+#: includes/lib/custom-stt-endpoint.php:215
+#: includes/lib/custom-stt-endpoint.php:237
 #: includes/shortcodes/audio-recording-shortcode.php:511
 msgid "Audio file is too large. Maximum allowed size is %s."
 msgstr ""
 
-#: includes/lib/custom-stt-endpoint.php:214
+#: includes/lib/custom-stt-endpoint.php:230
 msgid "Unable to read the STT audio file."
 msgstr ""
 
 #. translators: %s: remote STT request error message
-#: includes/lib/custom-stt-endpoint.php:283
+#: includes/lib/custom-stt-endpoint.php:301
 msgid "Unable to reach the STT endpoint: %s"
 msgstr ""
 
+#: includes/lib/custom-stt-endpoint.php:314
+#: includes/lib/custom-stt-endpoint.php:366
+msgid "STT endpoint returned an invalid or oversized response."
+msgstr ""
+
 #. translators: %d: HTTP status code from custom STT endpoint
-#: includes/lib/custom-stt-endpoint.php:300
+#: includes/lib/custom-stt-endpoint.php:332
 msgid "STT endpoint returned HTTP %d."
 msgstr ""
 
-#: includes/lib/custom-stt-endpoint.php:310
+#: includes/lib/custom-stt-endpoint.php:342
 msgid "Runpod endpoint returned Not Found. Use the public load-balancer URL and make sure it ends with /transcribe."
 msgstr ""
 
-#: includes/lib/custom-stt-endpoint.php:334
+#: includes/lib/custom-stt-endpoint.php:378
 msgid "STT endpoint returned a success response without a supported transcript field."
 msgstr ""
 
@@ -14049,11 +14060,11 @@ msgstr ""
 msgid "Staff"
 msgstr ""
 
-#: includes/lib/internal-review-notes.php:342
+#: includes/lib/internal-review-notes.php:362
 msgid "Missing review-note object."
 msgstr ""
 
-#: includes/lib/internal-review-notes.php:355
+#: includes/lib/internal-review-notes.php:375
 msgid "You cannot edit internal review notes for this lesson."
 msgstr ""
 

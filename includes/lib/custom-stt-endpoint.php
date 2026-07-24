@@ -162,6 +162,22 @@ function ll_tools_remote_stt_max_audio_bytes(string $endpoint = '', array $args 
     return max(1, min($hard_max, $max_bytes));
 }
 
+/**
+ * Keep hosted STT response bodies small and bounded even when filtered.
+ */
+function ll_tools_remote_stt_max_response_bytes(string $endpoint = '', array $args = []): int {
+    $default = 256 * 1024;
+    $hard_max = 1024 * 1024;
+    $max_bytes = (int) apply_filters(
+        'll_tools_remote_stt_max_response_bytes',
+        $default,
+        $endpoint,
+        $args
+    );
+
+    return max(1, min($hard_max, $max_bytes));
+}
+
 function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $file_path, array $args = []) {
     $endpoint = function_exists('ll_tools_sanitize_wordset_local_transcription_endpoint')
         ? ll_tools_sanitize_wordset_local_transcription_endpoint($endpoint)
@@ -268,12 +284,14 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         $headers['X-LL-Tools-Token'] = $token;
     }
 
+    $max_response_bytes = ll_tools_remote_stt_max_response_bytes($endpoint, $args);
     $response = wp_remote_post($endpoint, [
         'timeout' => $timeout,
         'headers' => $headers,
         'body' => $body,
         'data_format' => 'body',
         'reject_unsafe_urls' => true,
+        'limit_response_size' => $max_response_bytes,
     ]);
     if (is_wp_error($response)) {
         return new WP_Error(
@@ -289,8 +307,22 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
     $status_code = (int) wp_remote_retrieve_response_code($response);
     $raw_body = (string) wp_remote_retrieve_body($response);
     $content_type = strtolower(trim((string) wp_remote_retrieve_header($response, 'content-type')));
+    $content_length = (int) wp_remote_retrieve_header($response, 'content-length');
+    if (strlen($raw_body) >= $max_response_bytes || $content_length > $max_response_bytes) {
+        return new WP_Error(
+            'stt_invalid_response',
+            __('STT endpoint returned an invalid or oversized response.', 'll-tools-text-domain'),
+            [
+                'status' => 502,
+                'reason' => 'response_too_large',
+                'max_bytes' => $max_response_bytes,
+            ]
+        );
+    }
+
     $payload = json_decode($raw_body, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
+    $json_valid = json_last_error() === JSON_ERROR_NONE;
+    if (!$json_valid) {
         $payload = null;
     }
 
@@ -315,8 +347,10 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         );
     }
 
-    $transcript = ll_tools_remote_stt_extract_transcript($payload);
-    if ($transcript === '') {
+    $transcript = '';
+    if ($json_valid) {
+        $transcript = ll_tools_remote_stt_extract_transcript($payload);
+    } else {
         $allow_plain_text_response = (bool) apply_filters(
             'll_tools_remote_stt_allow_plain_text_response',
             false,
@@ -326,6 +360,16 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         );
         if ($allow_plain_text_response) {
             $transcript = trim($raw_body);
+        } else {
+            return new WP_Error(
+                'stt_invalid_response',
+                __('STT endpoint returned an invalid or oversized response.', 'll-tools-text-domain'),
+                [
+                    'status' => 502,
+                    'reason' => 'invalid_json',
+                    'max_bytes' => $max_response_bytes,
+                ]
+            );
         }
     }
     if ($transcript === '') {

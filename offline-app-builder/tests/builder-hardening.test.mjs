@@ -4,7 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import AdmZip from 'adm-zip';
-import { buildCapacitorConfig, validateArchiveEntries } from '../scripts/prepare-bundle.mjs';
+import {
+  buildCapacitorConfig,
+  openValidatedArchive,
+  validateArchiveEntries,
+  validateArchiveFileSize,
+} from '../scripts/prepare-bundle.mjs';
 import { resolveAndroidPackageConfig } from '../scripts/build-apk.mjs';
 import { resolvePreparedIcon } from '../scripts/apply-app-icon.mjs';
 import { readTrainingBundleData } from '../scripts/inject-stt-bundle.mjs';
@@ -142,6 +147,37 @@ test('bundle archive validation enforces entry count and uncompressed size limit
     () => validateArchiveEntries(zip, destination, { maxTotalBytes: 8 }),
     /uncompressed limit/
   );
+});
+
+test('bundle archive validation rejects oversized compressed input before opening it', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-archive-'));
+  const archivePath = path.join(tempRoot, 'bundle.zip');
+  fs.writeFileSync(archivePath, Buffer.alloc(32, 1));
+  let opened = false;
+
+  try {
+    assert.throws(
+      () => openValidatedArchive(
+        archivePath,
+        { maxArchiveBytes: 16 },
+        () => {
+          opened = true;
+          return {};
+        }
+      ),
+      /compressed-file limit/
+    );
+    assert.equal(opened, false);
+    assert.deepEqual(
+      validateArchiveFileSize(archivePath, { maxArchiveBytes: 64 }),
+      {
+        archiveBytes: 32,
+        maxArchiveBytes: 64,
+      }
+    );
+  } finally {
+    fs.removeSync(tempRoot);
+  }
 });
 
 test('training data reader rejects oversized data.json before parsing', () => {

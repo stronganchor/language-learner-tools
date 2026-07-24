@@ -488,6 +488,25 @@ function ll_audio_processor_queue_page_size(): int {
 }
 
 /**
+ * Absolute ceiling for cursorless legacy queue offsets.
+ *
+ * This is intentionally not filterable. Sites may lower or raise the normal
+ * limit below, but a filter cannot restore arbitrarily deep SQL OFFSET scans.
+ */
+function ll_audio_processor_legacy_queue_offset_hard_limit(): int {
+    return 50000;
+}
+
+/**
+ * Maximum SQL OFFSET retained for direct legacy Audio Processor page links.
+ */
+function ll_audio_processor_legacy_queue_offset_limit(): int {
+    $limit = (int) apply_filters('ll_audio_processor_legacy_queue_offset_limit', 5000);
+
+    return max(0, min(ll_audio_processor_legacy_queue_offset_hard_limit(), $limit));
+}
+
+/**
  * Build an opaque, user-bound cursor for Audio Processor keyset pagination.
  */
 function ll_audio_processor_encode_queue_cursor(string $tab, string $sort_value, int $recording_id): string {
@@ -562,6 +581,88 @@ function ll_audio_processor_decode_queue_cursor(string $cursor, string $tab): ar
     return [
         'sort' => $sort_value,
         'id' => $recording_id,
+    ];
+}
+
+/**
+ * Calculate a page-derived count offset without overflowing an integer.
+ *
+ * Cursor-backed requests do not use this value in SQL, but the queue response
+ * still reports a best-known count based on the requested logical page.
+ */
+function ll_audio_processor_safe_queue_page_offset(int $page, int $per_page): int {
+    $page = max(1, $page);
+    $per_page = max(1, $per_page);
+    $page_index = $page - 1;
+    $max_offset = PHP_INT_MAX - $per_page;
+    if ($page_index > intdiv($max_offset, $per_page)) {
+        return $max_offset;
+    }
+
+    return $page_index * $per_page;
+}
+
+/**
+ * Normalize a queue page before selecting its SQL pagination mode.
+ *
+ * Valid signed cursors always retain keyset continuation, including logical
+ * pages beyond the legacy offset ceiling. Cursorless or invalid-cursor pages
+ * may use the compatibility OFFSET path only while the computed offset stays
+ * within the configured limit; deeper requests rebase to page one.
+ *
+ * @return array{
+ *   page:int,
+ *   per_page:int,
+ *   offset:int,
+ *   cursor:string,
+ *   cursor_data:array{sort:string,id:int}|array{},
+ *   cursor_applied:bool,
+ *   legacy_page_rebased:bool
+ * }
+ */
+function ll_audio_processor_normalize_queue_page_request(
+    string $tab,
+    int $page,
+    int $per_page,
+    string $cursor = ''
+): array {
+    $tab = sanitize_key($tab);
+    if (!in_array($tab, ['queue', 'duplicates', 'reprocess'], true)) {
+        $tab = 'queue';
+    }
+
+    $page = max(1, $page);
+    $per_page = max(25, min(50, $per_page));
+    $cursor_data = $page > 1
+        ? ll_audio_processor_decode_queue_cursor($cursor, $tab)
+        : [];
+    if (!empty($cursor_data)) {
+        return [
+            'page' => $page,
+            'per_page' => $per_page,
+            'offset' => ll_audio_processor_safe_queue_page_offset($page, $per_page),
+            'cursor' => trim($cursor),
+            'cursor_data' => $cursor_data,
+            'cursor_applied' => true,
+            'legacy_page_rebased' => false,
+        ];
+    }
+
+    $legacy_offset_limit = ll_audio_processor_legacy_queue_offset_limit();
+    $legacy_page_limit = intdiv($legacy_offset_limit, $per_page) + 1;
+    $legacy_page_rebased = $page > $legacy_page_limit;
+    if ($legacy_page_rebased) {
+        $page = 1;
+    }
+
+    return [
+        'page' => $page,
+        'per_page' => $per_page,
+        'offset' => ll_audio_processor_safe_queue_page_offset($page, $per_page),
+        'cursor' => '',
+        'cursor_data' => [],
+        'cursor_applied' => false,
+        'legacy_page_rebased' => $legacy_page_rebased,
     ];
 }
 
@@ -694,7 +795,7 @@ function ll_audio_processor_prime_queue_payload_caches(array $rows): void {
 /**
  * Load one bounded Audio Processor tab page without hydrating the rest of the queue.
  *
- * @return array{tab:string,page:int,perPage:int,hasMore:bool,knownCount:int,cursorApplied:bool,nextCursor:string,recordings:array<int,array<string,mixed>>}
+ * @return array{tab:string,page:int,perPage:int,hasMore:bool,knownCount:int,cursorApplied:bool,legacyPageRebased:bool,nextCursor:string,recordings:array<int,array<string,mixed>>}
  */
 function ll_audio_processor_get_queue_page(
     string $tab,
@@ -709,13 +810,21 @@ function ll_audio_processor_get_queue_page(
         $tab = 'queue';
     }
 
-    $page = max(1, $page);
     $per_page = $per_page === null ? ll_audio_processor_queue_page_size() : max(25, min(50, $per_page));
-    $offset = ($page - 1) * $per_page;
+    $request_page = ll_audio_processor_normalize_queue_page_request(
+        $tab,
+        $page,
+        $per_page,
+        $cursor
+    );
+    $page = (int) $request_page['page'];
+    $per_page = (int) $request_page['per_page'];
+    $offset = (int) $request_page['offset'];
     $query_limit = $per_page + 1;
     $access_sql = ll_audio_processor_queue_access_sql('audio');
-    $cursor_data = $page > 1 ? ll_audio_processor_decode_queue_cursor($cursor, $tab) : [];
-    $cursor_applied = !empty($cursor_data);
+    $cursor_data = (array) $request_page['cursor_data'];
+    $cursor_applied = !empty($request_page['cursor_applied']);
+    $legacy_page_rebased = !empty($request_page['legacy_page_rebased']);
 
     if ($tab === 'reprocess') {
         if (!defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY')) {
@@ -903,13 +1012,18 @@ function ll_audio_processor_get_queue_page(
     }
     unset($recording);
 
+    $known_count = $offset > PHP_INT_MAX - count($recordings)
+        ? PHP_INT_MAX
+        : $offset + count($recordings);
+
     return [
         'tab' => $tab,
         'page' => $page,
         'perPage' => $per_page,
         'hasMore' => $has_more,
-        'knownCount' => $offset + count($recordings),
+        'knownCount' => $known_count,
         'cursorApplied' => $cursor_applied,
+        'legacyPageRebased' => $legacy_page_rebased,
         'nextCursor' => $next_cursor,
         'recordings' => $recordings,
     ];
@@ -1216,6 +1330,14 @@ function ll_render_audio_processor_page() {
     if (strlen($active_cursor) > 512) {
         $active_cursor = '';
     }
+    $active_request_page = ll_audio_processor_normalize_queue_page_request(
+        $active_tab,
+        $active_page,
+        ll_audio_processor_queue_page_size(),
+        $active_cursor
+    );
+    $active_page = (int) $active_request_page['page'];
+    $active_cursor = (string) $active_request_page['cursor'];
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>

@@ -219,7 +219,7 @@ When diagnosing quiz popup prompt/option behavior for a target category outside 
 Full Playwright run times out under an automation cap:
 - Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
 - Then run `tests/bin/run-e2e.sh --shard=1/4` through `--shard=4/4` to isolate whether a spec actually hangs.
-- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, and a fresh July 17, 2026 local discovery lists 436 tests in 95 spec files. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, the July 17 discovery listed 436 tests in 95 spec files, and the July 24 discovery listed 453 tests in 95 spec files. The final July 24 serial run completed with 440 passed and 13 intentionally skipped. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
 - If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
 `page-speed-throttled-load.spec.js` fails:

@@ -3165,6 +3165,118 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Replace prompt audio.', ll_tools_get_internal_review_note($prompt_card_id));
     }
 
+    public function test_review_notes_paging_orders_title_ties_by_id_and_rejects_deep_offsets(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term(
+            'wordset',
+            'REST Review Tie Wordset',
+            'rest-review-tie-wordset'
+        );
+        $category_id = $this->ensure_term(
+            'word-category',
+            'REST Review Tie Category',
+            'rest-review-tie-category'
+        );
+        $word_ids = [];
+        for ($index = 0; $index < 4; $index++) {
+            $word_id = $this->create_word(
+                $wordset_id,
+                [$category_id],
+                'REST Review Duplicate Title',
+                'Duplicate Translation ' . $index
+            );
+            update_post_meta(
+                $word_id,
+                ll_tools_internal_review_note_meta_key(),
+                'Review duplicate ' . $index
+            );
+            $word_ids[] = $word_id;
+        }
+        sort($word_ids, SORT_NUMERIC);
+        wp_set_current_user($admin_id);
+
+        $observed_orderby = null;
+        $query_observer = static function (WP_Query $query) use (&$observed_orderby): void {
+            $post_types = array_values((array) $query->get('post_type'));
+            if (
+                in_array('words', $post_types, true)
+                && (int) $query->get('posts_per_page') === 2
+                && (int) $query->get('offset') === 0
+            ) {
+                $observed_orderby = $query->get('orderby');
+            }
+        };
+        add_action('pre_get_posts', $query_observer);
+        try {
+            $first_page = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/wordsets/rest-review-tie-wordset/review-notes',
+                ['limit' => 1, 'offset' => 0]
+            );
+        } finally {
+            remove_action('pre_get_posts', $query_observer);
+        }
+        $this->assertSame(200, $first_page->get_status());
+        $this->assertSame(
+            ['title' => 'ASC', 'ID' => 'ASC'],
+            $observed_orderby
+        );
+
+        $paged_ids = [(int) ($first_page->get_data()['notes'][0]['object_id'] ?? 0)];
+        foreach ([1, 2, 3] as $offset) {
+            $response = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/wordsets/rest-review-tie-wordset/review-notes',
+                ['limit' => 1, 'offset' => $offset]
+            );
+            $this->assertSame(200, $response->get_status());
+            $response_data = $response->get_data();
+            $this->assertIsArray($response_data);
+            $paged_ids[] = (int) ($response_data['notes'][0]['object_id'] ?? 0);
+        }
+        $this->assertSame($word_ids, $paged_ids);
+
+        $offset_filter = static function (int $max_offset, string $context): int {
+            return $context === 'review_notes' ? 2 : $max_offset;
+        };
+        add_filter('ll_tools_rest_automation_max_list_offset', $offset_filter, 10, 2);
+        try {
+            $boundary = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/wordsets/rest-review-tie-wordset/review-notes',
+                ['limit' => 1, 'offset' => 2]
+            );
+            $blocked = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/wordsets/rest-review-tie-wordset/review-notes',
+                ['limit' => 1, 'offset' => 3]
+            );
+            $direct_page = ll_tools_get_internal_review_note_rows_page_for_wordset(
+                $wordset_id,
+                '',
+                false,
+                1,
+                3
+            );
+        } finally {
+            remove_filter('ll_tools_rest_automation_max_list_offset', $offset_filter, 10);
+        }
+        $this->assertSame(200, $boundary->get_status());
+        $boundary_data = $boundary->get_data();
+        $this->assertIsArray($boundary_data);
+        $this->assertTrue((bool) ($boundary_data['pagination']['has_more'] ?? false));
+        $this->assertNull($boundary_data['pagination']['next_offset'] ?? null);
+        $this->assertSame(2, (int) ($boundary_data['pagination']['max_offset'] ?? -1));
+        $this->assertTrue((bool) ($boundary_data['pagination']['offset_limit_reached'] ?? false));
+        $this->assertSame(400, $blocked->get_status());
+        $blocked_data = $blocked->get_data();
+        $this->assertIsArray($blocked_data);
+        $this->assertSame('ll_tools_rest_offset_too_large', (string) ($blocked_data['code'] ?? ''));
+        $this->assertTrue((bool) ($direct_page['offset_limit_reached'] ?? false));
+        $this->assertSame([], (array) ($direct_page['rows'] ?? []));
+    }
+
     public function test_prompt_card_update_validates_assignments_before_mutating_fields(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -3643,6 +3755,37 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $expected_ids = [$content_lesson_id, $vocab_lesson_id];
         sort($expected_ids);
         $this->assertSame($expected_ids, $paged_ids);
+
+        $offset_filter = static function (int $max_offset, string $context): int {
+            return $context === 'interlinear' ? 1 : $max_offset;
+        };
+        add_filter('ll_tools_rest_automation_max_list_offset', $offset_filter, 10, 2);
+        try {
+            $too_deep = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear',
+                [
+                    'limit' => 1,
+                    'offset' => 2,
+                ]
+            );
+            $this->assertSame(
+                [],
+                ll_tools_rest_automation_interlinear_lesson_posts(
+                    $wordset_id,
+                    true,
+                    '',
+                    1,
+                    2
+                )
+            );
+        } finally {
+            remove_filter('ll_tools_rest_automation_max_list_offset', $offset_filter, 10);
+        }
+        $this->assertSame(400, $too_deep->get_status());
+        $too_deep_data = $too_deep->get_data();
+        $this->assertIsArray($too_deep_data);
+        $this->assertSame('ll_tools_rest_offset_too_large', (string) ($too_deep_data['code'] ?? ''));
 
         $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear', [
             'lesson' => (string) $content_lesson_id,

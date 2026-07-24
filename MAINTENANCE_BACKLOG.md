@@ -30,12 +30,14 @@ evidence-led and scoped to a measured growth dimension.
   leases; the wordset category search uses a durable, restartable, lease-fenced
   materializer with bounded keyset batches and explicit loading/error/Retry UI.
   Audio Processor normal pagination uses signed user/tab keyset cursors while
-  preserving direct legacy deep-page compatibility. Hosted STT file reads,
-  review-note and interlinear REST lists, report-summary aggregation, offline
+  cursorless legacy links are capped and rebase beyond their compatibility
+  window. Hosted STT file reads and provider responses, review-note and
+  interlinear REST list offsets, report-summary aggregation, compressed offline
   archive input, and wordset category-ordering rollback paths now have explicit
-  resource or transaction bounds with focused regressions.
+  resource or transaction bounds with focused regressions. Review-note ties now
+  use deterministic title-plus-ID ordering.
 - July 24 translation catalog integrity:
-  the POT contains 5,808 current messages and the tier-2 public manifest
+  the POT contains 5,810 current messages and the tier-2 public manifest
   contains 730 strings. Turkish and German track the complete POT without
   missing, blank, stale, fuzzy, duplicate, partial, or structurally invalid
   entries; all active tier-2 locales cover the public manifest, and compiled MO
@@ -370,9 +372,10 @@ evidence-led and scoped to a measured growth dimension.
 ## Follow-Up Notes
 
 - Audio Processor normal continuation now uses signed keyset cursors. Direct
-  legacy deep-page URLs intentionally retain bounded SQL `OFFSET` compatibility;
-  removing that fallback would change the externally addressable page contract
-  and needs explicit compatibility review.
+  cursorless legacy URLs intentionally retain SQL `OFFSET` compatibility only
+  through a filterable 5,000-row ceiling (50,000 hard maximum), then rebase to
+  page one. Removing the bounded fallback entirely would change the externally
+  addressable page contract and needs explicit compatibility review.
 - An admitted flashcard cold miss can still hydrate the complete selected
   category after the new candidate, budget, and concurrency guards admit it.
   Eliminating that final proportional build requires a separate durable

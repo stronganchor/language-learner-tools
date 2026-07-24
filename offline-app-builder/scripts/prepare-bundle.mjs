@@ -10,11 +10,13 @@ const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const CAPACITOR_CONFIG_PATH = path.join(ROOT_DIR, 'capacitor.config.json');
-const DEFAULT_ARCHIVE_LIMITS = Object.freeze({
+export const DEFAULT_ARCHIVE_LIMITS = Object.freeze({
+  maxArchiveBytes: 2 * 1024 * 1024 * 1024,
   maxEntries: 20000,
   maxEntryBytes: 2 * 1024 * 1024 * 1024,
   maxTotalBytes: 4 * 1024 * 1024 * 1024,
 });
+const HARD_MAX_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024;
 
 function repairOfflineShellIndexHtml(webRoot) {
   const indexPath = path.join(webRoot, 'index.html');
@@ -98,6 +100,30 @@ function archiveEntryIsSymlink(entry) {
   const attributes = Number(entry?.attr ?? entry?.header?.attr ?? 0);
   const unixMode = (attributes >>> 16) & 0o170000;
   return unixMode === 0o120000;
+}
+
+export function validateArchiveFileSize(archivePath, limits = {}) {
+  const maxArchiveBytes = Math.min(
+    positiveLimit(limits.maxArchiveBytes, DEFAULT_ARCHIVE_LIMITS.maxArchiveBytes),
+    HARD_MAX_ARCHIVE_BYTES
+  );
+  const stats = fs.statSync(archivePath);
+  if (!stats.isFile() || !Number.isSafeInteger(stats.size) || stats.size < 0) {
+    throw new Error(`Bundle archive has an invalid compressed size: ${archivePath}`);
+  }
+  if (stats.size > maxArchiveBytes) {
+    throw new Error(`Bundle archive exceeds the ${maxArchiveBytes}-byte compressed-file limit.`);
+  }
+
+  return {
+    archiveBytes: stats.size,
+    maxArchiveBytes,
+  };
+}
+
+export function openValidatedArchive(archivePath, limits = {}, createArchive = (input) => new AdmZip(input)) {
+  validateArchiveFileSize(archivePath, limits);
+  return createArchive(archivePath);
 }
 
 export function validateArchiveEntries(zip, destinationRoot, limits = {}) {
@@ -190,7 +216,7 @@ export function writeCapacitorConfig(manifest, options = {}) {
   fs.writeJsonSync(CAPACITOR_CONFIG_PATH, config, { spaces: 2 });
 }
 
-export function prepareBundle(inputPath) {
+export function prepareBundle(inputPath, options = {}) {
   if (!inputPath) {
     throw new Error('Provide a path to an LL Tools offline app bundle zip or extracted bundle directory.');
   }
@@ -203,14 +229,24 @@ export function prepareBundle(inputPath) {
     throw new Error(`Bundle input not found: ${resolvedInput}`);
   }
 
+  const inputStats = fs.statSync(resolvedInput);
+  const archiveLimits = options?.archiveLimits && typeof options.archiveLimits === 'object'
+    ? options.archiveLimits
+    : {};
+  let zip = null;
+  if (!inputStats.isDirectory()) {
+    // Validate the compressed input before AdmZip can read it into memory and
+    // before replacing a previously prepared workspace.
+    zip = openValidatedArchive(resolvedInput, archiveLimits);
+  }
+
   fs.removeSync(BUNDLE_DIR);
   fs.ensureDirSync(WORKSPACE_DIR);
 
-  if (fs.statSync(resolvedInput).isDirectory()) {
+  if (inputStats.isDirectory()) {
     fs.copySync(resolvedInput, BUNDLE_DIR);
   } else {
-    const zip = new AdmZip(resolvedInput);
-    validateArchiveEntries(zip, BUNDLE_DIR);
+    validateArchiveEntries(zip, BUNDLE_DIR, archiveLimits);
     zip.extractAllTo(BUNDLE_DIR, true);
   }
 

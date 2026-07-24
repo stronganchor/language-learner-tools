@@ -119,6 +119,143 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         $this->assertSame([], ll_audio_processor_decode_queue_cursor($cursor, 'queue'));
     }
 
+    public function test_legacy_offset_limit_allows_the_boundary_and_rebases_deeper_invalid_cursor_pages(): void
+    {
+        $limit_filter = static function ($limit): int {
+            return 50;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        try {
+            $boundary = ll_audio_processor_normalize_queue_page_request('queue', 3, 25, 'invalid-cursor');
+            $over_limit = ll_audio_processor_normalize_queue_page_request('queue', 4, 25, 'invalid-cursor');
+        } finally {
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        }
+
+        $this->assertSame(3, (int) ($boundary['page'] ?? 0));
+        $this->assertSame(50, (int) ($boundary['offset'] ?? -1));
+        $this->assertFalse((bool) ($boundary['cursor_applied'] ?? true));
+        $this->assertFalse((bool) ($boundary['legacy_page_rebased'] ?? true));
+        $this->assertSame('', (string) ($boundary['cursor'] ?? 'missing'));
+
+        $this->assertSame(1, (int) ($over_limit['page'] ?? 0));
+        $this->assertSame(0, (int) ($over_limit['offset'] ?? -1));
+        $this->assertFalse((bool) ($over_limit['cursor_applied'] ?? true));
+        $this->assertTrue((bool) ($over_limit['legacy_page_rebased'] ?? false));
+        $this->assertSame('', (string) ($over_limit['cursor'] ?? 'missing'));
+
+        $uncapped_filter = static function ($limit): int {
+            return PHP_INT_MAX;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $uncapped_filter);
+        try {
+            $this->assertSame(
+                ll_audio_processor_legacy_queue_offset_hard_limit(),
+                ll_audio_processor_legacy_queue_offset_limit()
+            );
+        } finally {
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $uncapped_filter);
+        }
+    }
+
+    public function test_legacy_offset_policy_applies_to_queue_duplicates_and_reprocess_queries(): void
+    {
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+        $this->assertTrue(defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY'));
+
+        $limit_filter = static function ($limit): int {
+            return 50;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        try {
+            foreach (['queue', 'duplicates', 'reprocess'] as $tab) {
+                $boundary_queries = [];
+                $boundary = $this->getQueuePageWithQueries(
+                    $tab,
+                    3,
+                    25,
+                    'invalid-cursor',
+                    $boundary_queries
+                );
+                $this->assertSame($tab, (string) ($boundary['tab'] ?? ''));
+                $this->assertSame(3, (int) ($boundary['page'] ?? 0));
+                $this->assertFalse((bool) ($boundary['cursorApplied'] ?? true));
+                $this->assertFalse((bool) ($boundary['legacyPageRebased'] ?? true));
+                $this->assertStringContainsString(
+                    'LIMIT 26 OFFSET 50',
+                    implode("\n", $boundary_queries),
+                    'The exact legacy offset boundary should remain available for ' . $tab . '.'
+                );
+
+                $rebased_queries = [];
+                $rebased = $this->getQueuePageWithQueries(
+                    $tab,
+                    4,
+                    25,
+                    'invalid-cursor',
+                    $rebased_queries
+                );
+                $this->assertSame($tab, (string) ($rebased['tab'] ?? ''));
+                $this->assertSame(1, (int) ($rebased['page'] ?? 0));
+                $this->assertFalse((bool) ($rebased['cursorApplied'] ?? true));
+                $this->assertTrue((bool) ($rebased['legacyPageRebased'] ?? false));
+                $rebased_sql = implode("\n", $rebased_queries);
+                $this->assertStringContainsString('LIMIT 26 OFFSET 0', $rebased_sql);
+                $this->assertStringNotContainsString('LIMIT 26 OFFSET 75', $rebased_sql);
+            }
+        } finally {
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        }
+    }
+
+    public function test_valid_signed_cursors_continue_beyond_the_legacy_offset_ceiling_without_overflow(): void
+    {
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+
+        $limit_filter = static function ($limit): int {
+            return 0;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        try {
+            foreach (['queue', 'duplicates', 'reprocess'] as $tab) {
+                $cursor = ll_audio_processor_encode_queue_cursor(
+                    $tab,
+                    '2026-07-17 09:00:00',
+                    123
+                );
+                $queries = [];
+                $page = $this->getQueuePageWithQueries(
+                    $tab,
+                    PHP_INT_MAX,
+                    25,
+                    $cursor,
+                    $queries
+                );
+
+                $this->assertSame(PHP_INT_MAX, (int) ($page['page'] ?? 0));
+                $this->assertTrue((bool) ($page['cursorApplied'] ?? false));
+                $this->assertFalse((bool) ($page['legacyPageRebased'] ?? true));
+                $this->assertLessThanOrEqual(PHP_INT_MAX, (int) ($page['knownCount'] ?? 0));
+                $this->assertGreaterThan(0, (int) ($page['knownCount'] ?? 0));
+                $sql = implode("\n", $queries);
+                $this->assertStringContainsString(
+                    $tab === 'reprocess' ? 'audio.post_modified <' : 'candidate.post_date <',
+                    $sql
+                );
+                $this->assertStringNotContainsString(' OFFSET ', $sql);
+            }
+        } finally {
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        }
+
+        $this->assertSame(
+            PHP_INT_MAX - 25,
+            ll_audio_processor_safe_queue_page_offset(PHP_INT_MAX, 25)
+        );
+    }
+
     public function test_queue_and_duplicate_tabs_preserve_legacy_grouping_reason(): void
     {
         $editor_id = $this->createAudioProcessorEditor();
@@ -195,12 +332,17 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
     {
         $editor_id = $this->createAudioProcessorEditor();
         wp_set_current_user($editor_id);
+        $cursor = ll_audio_processor_encode_queue_cursor(
+            'duplicates',
+            '2026-07-17 09:00:00',
+            123
+        );
 
         $get_backup = $_GET;
         $_GET = [
             'll_ap_tab' => 'duplicates',
             'll_ap_page' => '3',
-            'll_ap_cursor' => 'saved-cursor-token',
+            'll_ap_cursor' => $cursor,
         ];
         try {
             ob_start();
@@ -211,11 +353,43 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         }
 
         $this->assertMatchesRegularExpression(
-            '/id="ll-recordings-duplicates".*?data-page="3".*?data-cursor="saved-cursor-token"/s',
+            '/id="ll-recordings-duplicates".*?data-page="3".*?data-cursor="'
+                . preg_quote(esc_attr($cursor), '/')
+                . '"/s',
             $html
         );
         $this->assertMatchesRegularExpression(
             '/id="ll-recordings-queue".*?data-page="1"/s',
+            $html
+        );
+    }
+
+    public function test_admin_page_rebases_an_over_limit_direct_request_with_an_invalid_cursor(): void
+    {
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+
+        $limit_filter = static function ($limit): int {
+            return 50;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        $get_backup = $_GET;
+        $_GET = [
+            'll_ap_tab' => 'duplicates',
+            'll_ap_page' => '4',
+            'll_ap_cursor' => 'invalid-cursor',
+        ];
+        try {
+            ob_start();
+            ll_render_audio_processor_page();
+            $html = (string) ob_get_clean();
+        } finally {
+            $_GET = $get_backup;
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        }
+
+        $this->assertMatchesRegularExpression(
+            '/id="ll-recordings-duplicates".*?data-page="1".*?data-cursor=""/s',
             $html
         );
     }
@@ -254,6 +428,37 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($allowed['data']['page'] ?? 0));
     }
 
+    public function test_queue_ajax_rebases_an_over_limit_invalid_cursor_request(): void
+    {
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_audio_processor'),
+            'tab' => 'reprocess',
+            'page' => '4',
+            'cursor' => 'invalid-cursor',
+        ];
+        $_REQUEST = $_POST;
+
+        $limit_filter = static function ($limit): int {
+            return 50;
+        };
+        add_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_audio_processor_load_queue_page_handler();
+            });
+        } finally {
+            remove_filter('ll_audio_processor_legacy_queue_offset_limit', $limit_filter);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('reprocess', (string) ($response['data']['tab'] ?? ''));
+        $this->assertSame(1, (int) ($response['data']['page'] ?? 0));
+        $this->assertFalse((bool) ($response['data']['cursorApplied'] ?? true));
+        $this->assertTrue((bool) ($response['data']['legacyPageRebased'] ?? false));
+    }
+
     private function createAudioProcessorEditor(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
@@ -284,6 +489,29 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         update_post_meta($audio_id, 'recording_date', $post_date);
 
         return $audio_id;
+    }
+
+    /**
+     * @param array<int,string> $queries
+     * @return array<string,mixed>
+     */
+    private function getQueuePageWithQueries(
+        string $tab,
+        int $page,
+        int $per_page,
+        string $cursor,
+        array &$queries
+    ): array {
+        $capture_query = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $capture_query);
+        try {
+            return ll_audio_processor_get_queue_page($tab, $page, $per_page, $cursor);
+        } finally {
+            remove_filter('query', $capture_query);
+        }
     }
 
     /**

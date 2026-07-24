@@ -214,7 +214,7 @@ function ll_tools_render_internal_review_note_field(int $object_id, string $obje
 /**
  * Return one bounded page of internal review-note rows.
  *
- * @return array{rows:array<int,array<string,mixed>>,has_more:bool,offset:int,limit:int}
+ * @return array{rows:array<int,array<string,mixed>>,has_more:bool,offset:int,limit:int,offset_limit_reached:bool}
  */
 function ll_tools_get_internal_review_note_rows_page_for_wordset(
     int $wordset_id,
@@ -225,12 +225,29 @@ function ll_tools_get_internal_review_note_rows_page_for_wordset(
 ): array {
     $limit = max(1, min(250, $limit));
     $offset = max(0, $offset);
+    $max_offset = function_exists('ll_tools_rest_automation_max_list_offset')
+        ? ll_tools_rest_automation_max_list_offset('review_notes')
+        : max(0, min(10000, (int) apply_filters(
+            'll_tools_rest_automation_max_list_offset',
+            5000,
+            'review_notes'
+        )));
+    if ($offset > $max_offset) {
+        return [
+            'rows' => [],
+            'has_more' => false,
+            'offset' => $offset,
+            'limit' => $limit,
+            'offset_limit_reached' => true,
+        ];
+    }
     if ($wordset_id <= 0) {
         return [
             'rows' => [],
             'has_more' => false,
             'offset' => $offset,
             'limit' => $limit,
+            'offset_limit_reached' => false,
         ];
     }
 
@@ -266,8 +283,10 @@ function ll_tools_get_internal_review_note_rows_page_for_wordset(
         'posts_per_page' => $limit + 1,
         'offset' => $offset,
         'fields' => 'ids',
-        'orderby' => 'title',
-        'order' => 'ASC',
+        'orderby' => [
+            'title' => 'ASC',
+            'ID' => 'ASC',
+        ],
         'no_found_rows' => true,
         'update_post_meta_cache' => true,
         'update_post_term_cache' => true,
@@ -308,6 +327,7 @@ function ll_tools_get_internal_review_note_rows_page_for_wordset(
         'has_more' => $has_more,
         'offset' => $offset,
         'limit' => $limit,
+        'offset_limit_reached' => false,
     ];
 }
 
