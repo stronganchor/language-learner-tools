@@ -15,6 +15,15 @@
 /xampp-lltools.code-workspace export-ignore
 /languages/*.po~ export-ignore
 
+# Compiled PHP catalogs can contain literal newlines inside message keys.
+# Preserve LF so Windows checkout conversion cannot change those lookup keys.
+/languages/*.l10n.php text eol=lf
+
+# Keep translation sources and the generated public manifest deterministic.
+/languages/*.po text eol=lf
+/languages/*.pot text eol=lf
+/languages/tier2-public-ui-strings.json text eol=lf
+
 # Keep bash test runner scripts runnable under LF-only shells.
 /bin/*.sh text eol=lf
 /tests/bin/*.sh text eol=lf

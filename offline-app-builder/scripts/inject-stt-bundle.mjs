@@ -11,6 +11,7 @@ const PLUGIN_ROOT_DIR = path.resolve(ROOT_DIR, '..');
 const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
+const DEFAULT_TRAINING_DATA_MAX_BYTES = 128 * 1024 * 1024;
 
 function normalizeInputPath(inputPath) {
   const raw = String(inputPath || '');
@@ -351,11 +352,22 @@ function copySttBundleIntoPreparedBundle(sourcePath, relativePath) {
   }
 }
 
-function readTrainingBundleData(zipFilePath) {
+export function readTrainingBundleData(zipFilePath, options = {}) {
   const zip = new AdmZip(zipFilePath);
   const entry = zip.getEntry('data.json');
   if (!entry) {
     return null;
+  }
+  const configuredLimit = Number(options.maxBytes);
+  const maxBytes = Number.isSafeInteger(configuredLimit) && configuredLimit > 0
+    ? configuredLimit
+    : DEFAULT_TRAINING_DATA_MAX_BYTES;
+  const entryBytes = Number(entry?.header?.size ?? 0);
+  if (!Number.isSafeInteger(entryBytes) || entryBytes < 0) {
+    throw new Error(`Training bundle data.json has an invalid size: ${zipFilePath}`);
+  }
+  if (entryBytes > maxBytes) {
+    throw new Error(`Training bundle data.json exceeds the ${maxBytes}-byte limit: ${zipFilePath}`);
   }
   return JSON.parse(zip.readAsText(entry, 'utf8'));
 }

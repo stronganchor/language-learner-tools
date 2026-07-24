@@ -27,6 +27,14 @@ test('paged text-to-text learning popup renders prompt and answer introduction p
     hasText: fixture.categoryName
   }).first();
   await expect(trigger).toBeVisible({ timeout: 60000 });
+  // A cold quiz catalog can replace its loading notice with a same-page
+  // navigation. The launch card is parsed before footer scripts on that
+  // response, so wait for the single-owner flashcard bootstrap to execute.
+  await page.waitForFunction(
+    () => Boolean(window.llToolsFlashcardsData),
+    null,
+    { timeout: 60000 }
+  );
 
   const triggerData = await trigger.evaluate((el) => ({
     mode: el.getAttribute('data-mode') || '',

@@ -5159,3 +5159,8 @@ msgstr "Wadah pengelompokan TSV melebihi ukuran yang diizinkan."
 #: includes/pages/wordset-pages.php:25929
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "Hasil pencarian masih dalam proses penyiapan. Silakan coba lagi sebentar lagi."
+
+#. ll-tools-public-key: 9533ce6da037b022fb7116a7d8d43889ba2a58f4
+#: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
+msgid "Lesson words are still being prepared. Please try again in a moment."
+msgstr "Kata-kata pelajaran masih disiapkan. Silakan coba lagi sebentar lagi."

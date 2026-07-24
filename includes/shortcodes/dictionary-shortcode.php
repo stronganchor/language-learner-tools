@@ -2701,6 +2701,8 @@ function ll_tools_dictionary_ajax_cache_build_lock_ttl(): int {
 }
 
 function ll_tools_dictionary_ajax_cache_acquire_build_lock(string $key): bool {
+    global $wpdb;
+
     if ($key === '') {
         return true;
     }
@@ -2708,26 +2710,91 @@ function ll_tools_dictionary_ajax_cache_acquire_build_lock(string $key): bool {
     $option_name = ll_tools_dictionary_ajax_cache_build_lock_option($key);
     $now = time();
     $expires_at = $now + ll_tools_dictionary_ajax_cache_build_lock_ttl();
+    $token = function_exists('wp_generate_uuid4')
+        ? wp_generate_uuid4()
+        : hash('sha256', $key . '|' . microtime(true) . '|' . wp_rand());
+    $lease_value = $expires_at . '|' . $token;
 
-    if (add_option($option_name, (string) $expires_at, '', false)) {
+    if (add_option($option_name, $lease_value, '', false)) {
+        if (
+            !isset($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+            || !is_array($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+        ) {
+            $GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'] = [];
+        }
+        $GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'][$key] = [
+            'option_name' => $option_name,
+            'lease_value' => $lease_value,
+        ];
         return true;
     }
 
-    $current_expires_at = (int) get_option($option_name, 0);
+    $current_value = (string) $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+        $option_name
+    ));
+    $separator = strpos($current_value, '|');
+    $current_expires_at = $separator === false
+        ? (int) $current_value
+        : (int) substr($current_value, 0, $separator);
     if ($current_expires_at > $now) {
         return false;
     }
 
-    delete_option($option_name);
-    return add_option($option_name, (string) $expires_at, '', false);
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = %s
+         WHERE option_name = %s AND option_value = %s",
+        $lease_value,
+        $option_name,
+        $current_value
+    ));
+    wp_cache_delete($option_name, 'options');
+    if ($updated !== 1) {
+        return false;
+    }
+
+    if (
+        !isset($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+        || !is_array($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+    ) {
+        $GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'] = [];
+    }
+    $GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'][$key] = [
+        'option_name' => $option_name,
+        'lease_value' => $lease_value,
+    ];
+    return true;
 }
 
 function ll_tools_dictionary_ajax_cache_release_build_lock(string $key): void {
+    global $wpdb;
+
     if ($key === '') {
         return;
     }
 
-    delete_option(ll_tools_dictionary_ajax_cache_build_lock_option($key));
+    $leases = isset($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+        && is_array($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'])
+        ? $GLOBALS['ll_tools_dictionary_ajax_cache_build_leases']
+        : [];
+    $lease = isset($leases[$key]) && is_array($leases[$key])
+        ? $leases[$key]
+        : [];
+    $option_name = (string) ($lease['option_name'] ?? '');
+    $lease_value = (string) ($lease['lease_value'] ?? '');
+    if ($option_name === '' || $lease_value === '') {
+        return;
+    }
+
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options}
+         WHERE option_name = %s AND option_value = %s",
+        $option_name,
+        $lease_value
+    ));
+    wp_cache_delete($option_name, 'options');
+    unset($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases'][$key]);
 }
 
 function ll_tools_dictionary_ajax_cache_get(string $namespace, array $args) {
@@ -2808,49 +2875,123 @@ function ll_tools_dictionary_live_search_rate_limit_max_requests(): int {
 }
 
 function ll_tools_dictionary_live_search_rate_limit_key(): string {
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? trim((string) $_SERVER['REMOTE_ADDR']) : '';
-    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? substr(trim((string) $_SERVER['HTTP_USER_AGENT']), 0, 160) : '';
-    $identity = ($ip !== '' ? $ip : 'unknown') . '|' . $user_agent;
+    $identity = ll_tools_dictionary_live_search_client_identifier();
     $hash = function_exists('wp_hash') ? wp_hash($identity) : md5($identity);
 
     return 'll_dict_live_search_rl_' . md5($hash);
 }
 
-function ll_tools_dictionary_live_search_rate_limit_allows(): bool {
-    if (is_user_logged_in()) {
-        return true;
-    }
+function ll_tools_dictionary_live_search_client_identifier(): string {
+    $ip = isset($_SERVER['REMOTE_ADDR'])
+        ? trim((string) wp_unslash($_SERVER['REMOTE_ADDR']))
+        : '';
 
-    $max_requests = ll_tools_dictionary_live_search_rate_limit_max_requests();
-    $window = ll_tools_dictionary_live_search_rate_limit_window();
-    $key = ll_tools_dictionary_live_search_rate_limit_key();
-    $state = get_transient($key);
-    $now = time();
-    if (!is_array($state) || (int) ($state['reset_at'] ?? 0) <= $now) {
-        set_transient($key, [
-            'count' => 1,
-            'reset_at' => $now + $window,
-        ], $window);
-        return true;
-    }
-
-    $count = max(0, (int) ($state['count'] ?? 0));
-    if ($count >= $max_requests) {
-        return false;
-    }
-
-    $reset_at = max($now + 1, (int) ($state['reset_at'] ?? ($now + $window)));
-    set_transient($key, [
-        'count' => $count + 1,
-        'reset_at' => $reset_at,
-    ], max(1, $reset_at - $now));
-
-    return true;
+    return $ip !== '' ? $ip : 'unknown';
 }
 
-function ll_tools_dictionary_send_rate_limited_ajax(): void {
+function ll_tools_dictionary_live_search_rate_limit_status(): array {
+    if (is_user_logged_in()) {
+        return [
+            'allowed' => true,
+            'count' => 0,
+            'limit' => 0,
+            'retry_after' => 0,
+        ];
+    }
+
+    return ll_tools_public_ajax_reserve_counter(
+        'll_dict_live_search_rl_',
+        ll_tools_dictionary_live_search_client_identifier(),
+        ll_tools_dictionary_live_search_rate_limit_max_requests(),
+        ll_tools_dictionary_live_search_rate_limit_window()
+    );
+}
+
+function ll_tools_dictionary_live_search_rate_limit_allows(): bool {
+    $status = ll_tools_dictionary_live_search_rate_limit_status();
+    return !empty($status['allowed']);
+}
+
+function ll_tools_dictionary_live_search_reset_rate_limit(string $identifier = ''): void {
+    if ($identifier === '') {
+        $identifier = ll_tools_dictionary_live_search_client_identifier();
+    }
+
+    ll_tools_public_ajax_reset_counter('ll_dict_live_search_rl_', $identifier);
+    delete_transient(ll_tools_dictionary_live_search_rate_limit_key());
+}
+
+function ll_tools_dictionary_live_search_client_inflight_limit(): int {
+    return max(0, min(10, (int) apply_filters(
+        'll_tools_dictionary_live_search_client_inflight_limit',
+        2
+    )));
+}
+
+function ll_tools_dictionary_live_search_client_inflight_ttl(): int {
+    return max(5, min(120, (int) apply_filters(
+        'll_tools_dictionary_live_search_client_inflight_ttl',
+        30
+    )));
+}
+
+function ll_tools_dictionary_live_search_acquire_client_inflight(): array {
+    return ll_tools_public_ajax_acquire_client_lease(
+        'll_dict_live_search_inflight_',
+        ll_tools_dictionary_live_search_client_identifier(),
+        ll_tools_dictionary_live_search_client_inflight_limit(),
+        ll_tools_dictionary_live_search_client_inflight_ttl()
+    );
+}
+
+function ll_tools_dictionary_live_search_reset_client_inflight(string $identifier = ''): void {
+    if ($identifier === '') {
+        $identifier = ll_tools_dictionary_live_search_client_identifier();
+    }
+
+    ll_tools_public_ajax_reset_client_leases('ll_dict_live_search_inflight_', $identifier);
+}
+
+function ll_tools_dictionary_live_search_build_wait_ms(): int {
+    return max(0, min(5000, (int) apply_filters(
+        'll_tools_dictionary_live_search_build_wait_ms',
+        750
+    )));
+}
+
+function ll_tools_dictionary_ajax_cache_wait_for_payload(string $namespace, array $args, int $wait_ms) {
+    return ll_tools_public_ajax_wait_for_value(
+        static function () use ($namespace, $args) {
+            return ll_tools_dictionary_ajax_cache_get($namespace, $args);
+        },
+        $wait_ms
+    );
+}
+
+function ll_tools_dictionary_send_cache_warming_ajax(int $retry_after = 1): void {
+    $retry_after = max(1, min(10, $retry_after));
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+
+    ll_tools_dictionary_send_ajax_cache_header('WARMING');
+    wp_send_json_error([
+        'code' => 'cache_warming',
+        'message' => __('Search results are still being prepared. Please try again in a moment.', 'll-tools-text-domain'),
+        'retry_after' => $retry_after,
+    ], 202);
+}
+
+function ll_tools_dictionary_send_rate_limited_ajax(array $status = []): void {
+    $retry_after = max(1, (int) ($status['retry_after'] ?? 1));
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+
     wp_send_json_error([
         'message' => __('Too many dictionary searches. Please wait a moment and try again.', 'll-tools-text-domain'),
+        'code' => 'rate_limited',
+        'retry_after' => $retry_after,
     ], 429);
 }
 
@@ -3344,9 +3485,10 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
         ll_tools_dictionary_send_ajax_cache_header('HIT');
         wp_send_json_success($cached);
     }
-    if (!ll_tools_dictionary_live_search_rate_limit_allows()) {
+    $rate_limit_status = ll_tools_dictionary_live_search_rate_limit_status();
+    if (empty($rate_limit_status['allowed'])) {
         ll_tools_dictionary_send_ajax_cache_header('RATE_LIMITED');
-        ll_tools_dictionary_send_rate_limited_ajax();
+        ll_tools_dictionary_send_rate_limited_ajax($rate_limit_status);
     }
 
     $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('toolbar_bootstrap', $cache_args);
@@ -3364,19 +3506,27 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
             'retry_after' => min(5, ll_tools_dictionary_ajax_cache_build_lock_ttl()),
         ], 202);
     }
+    $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
+    if (is_array($cached)) {
+        ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+        $lock_acquired = false;
+        ll_tools_dictionary_send_ajax_cache_header('WAIT_HIT');
+        wp_send_json_success($cached);
+    }
 
     try {
         $payload = [
             'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_ids, $dialect),
         ];
         ll_tools_dictionary_ajax_cache_set('toolbar_bootstrap', $cache_args, $payload);
-        ll_tools_dictionary_send_ajax_cache_header('MISS');
-        wp_send_json_success($payload);
     } finally {
         if ($lock_acquired) {
             ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
         }
     }
+
+    ll_tools_dictionary_send_ajax_cache_header('MISS');
+    wp_send_json_success($payload);
 }
 add_action('wp_ajax_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
 add_action('wp_ajax_nopriv_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
@@ -3463,9 +3613,10 @@ function ll_tools_dictionary_handle_entry_detail(): void {
         ll_tools_dictionary_send_ajax_cache_header('HIT');
         wp_send_json_success($cached);
     }
-    if (!ll_tools_dictionary_live_search_rate_limit_allows()) {
+    $rate_limit_status = ll_tools_dictionary_live_search_rate_limit_status();
+    if (empty($rate_limit_status['allowed'])) {
         ll_tools_dictionary_send_ajax_cache_header('RATE_LIMITED');
-        ll_tools_dictionary_send_rate_limited_ajax();
+        ll_tools_dictionary_send_rate_limited_ajax($rate_limit_status);
     }
 
     $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('entry_detail', $cache_args);
@@ -3482,6 +3633,13 @@ function ll_tools_dictionary_handle_entry_detail(): void {
             'code' => 'cache_warming',
             'retry_after' => min(5, ll_tools_dictionary_ajax_cache_build_lock_ttl()),
         ], 202);
+    }
+    $cached = ll_tools_dictionary_ajax_cache_get('entry_detail', $cache_args);
+    if (is_array($cached)) {
+        ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+        $lock_acquired = false;
+        ll_tools_dictionary_send_ajax_cache_header('WAIT_HIT');
+        wp_send_json_success($cached);
     }
 
     $previous_get = $_GET;
@@ -3508,13 +3666,14 @@ function ll_tools_dictionary_handle_entry_detail(): void {
             'entry_id' => $entry_id,
         ];
         ll_tools_dictionary_ajax_cache_set('entry_detail', $cache_args, $payload);
-        ll_tools_dictionary_send_ajax_cache_header('MISS');
-        wp_send_json_success($payload);
     } finally {
         if ($lock_acquired) {
             ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
         }
     }
+
+    ll_tools_dictionary_send_ajax_cache_header('MISS');
+    wp_send_json_success($payload);
 }
 add_action('wp_ajax_ll_tools_dictionary_entry_detail', 'll_tools_dictionary_handle_entry_detail');
 add_action('wp_ajax_nopriv_ll_tools_dictionary_entry_detail', 'll_tools_dictionary_handle_entry_detail');
@@ -3614,48 +3773,103 @@ function ll_tools_dictionary_handle_live_search(): void {
         wp_send_json_success($cached);
     }
 
-    if ($has_active_browse_query && !ll_tools_dictionary_live_search_rate_limit_allows()) {
-        ll_tools_dictionary_send_ajax_cache_header('RATE_LIMITED');
-        ll_tools_dictionary_send_rate_limited_ajax();
-    }
-
-    if ($has_active_browse_query) {
-        $query = ll_tools_dictionary_run_browse_query(
-            $wordset_id,
-            $search,
-            $search_scopes,
-            $letter,
-            $page,
-            $pos_slug,
-            $source_ids,
-            $dialect,
-            $per_page,
-            $sense_limit,
-            $linked_word_limit,
-            $preferred_languages,
-            $query_limits
-        );
-    }
-
-    $payload = [
-        'html' => $has_active_browse_query
-            ? ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_ids, $dialect)
-            : '',
-        'has_active_query' => $has_active_browse_query,
-        'is_limited' => !empty($query['candidate_scan_limited']),
-        'url' => $has_active_browse_query
-            ? ll_tools_dictionary_build_url($base_url, [
-                'll_dictionary_q' => $search,
-                'll_dictionary_scope' => $search_scopes,
-                'll_dictionary_letter' => $letter,
-                'll_dictionary_pos' => $pos_slug,
-                'll_dictionary_source' => $source_ids,
-                'll_dictionary_dialect' => $dialect,
-                'll_dictionary_page' => (string) max(1, (int) ($query['page'] ?? $page)),
-            ])
-            : $base_url,
+    $lock_key = '';
+    $lock_acquired = false;
+    $client_lease = [
+        'acquired' => true,
+        'retry_after' => 0,
     ];
-    ll_tools_dictionary_ajax_cache_set('live_search', $cache_args, $payload);
+    if ($has_active_browse_query) {
+        $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('live_search', $cache_args);
+        $lock_acquired = ll_tools_dictionary_ajax_cache_acquire_build_lock($lock_key);
+        if (!$lock_acquired) {
+            $cached = ll_tools_dictionary_ajax_cache_wait_for_payload(
+                'live_search',
+                $cache_args,
+                ll_tools_dictionary_live_search_build_wait_ms()
+            );
+            if (is_array($cached)) {
+                ll_tools_dictionary_send_ajax_cache_header('WAIT_HIT');
+                wp_send_json_success($cached);
+            }
+
+            ll_tools_dictionary_send_cache_warming_ajax(1);
+        }
+        $cached = ll_tools_dictionary_ajax_cache_get('live_search', $cache_args);
+        if (is_array($cached)) {
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+            $lock_acquired = false;
+            ll_tools_dictionary_send_ajax_cache_header('WAIT_HIT');
+            wp_send_json_success($cached);
+        }
+
+        $rate_limit_status = ll_tools_dictionary_live_search_rate_limit_status();
+        if (empty($rate_limit_status['allowed'])) {
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+            $lock_acquired = false;
+            ll_tools_dictionary_send_ajax_cache_header('RATE_LIMITED');
+            ll_tools_dictionary_send_rate_limited_ajax($rate_limit_status);
+        }
+
+        if (!is_user_logged_in()) {
+            $client_lease = ll_tools_dictionary_live_search_acquire_client_inflight();
+            if (empty($client_lease['acquired'])) {
+                ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+                $lock_acquired = false;
+                ll_tools_dictionary_send_cache_warming_ajax(
+                    (int) ($client_lease['retry_after'] ?? 1)
+                );
+            }
+        }
+    }
+
+    try {
+        if ($has_active_browse_query) {
+            $query = ll_tools_dictionary_run_browse_query(
+                $wordset_id,
+                $search,
+                $search_scopes,
+                $letter,
+                $page,
+                $pos_slug,
+                $source_ids,
+                $dialect,
+                $per_page,
+                $sense_limit,
+                $linked_word_limit,
+                $preferred_languages,
+                $query_limits
+            );
+        }
+
+        $payload = [
+            'html' => $has_active_browse_query
+                ? ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_ids, $dialect)
+                : '',
+            'has_active_query' => $has_active_browse_query,
+            'is_limited' => !empty($query['candidate_scan_limited']),
+            'url' => $has_active_browse_query
+                ? ll_tools_dictionary_build_url($base_url, [
+                    'll_dictionary_q' => $search,
+                    'll_dictionary_scope' => $search_scopes,
+                    'll_dictionary_letter' => $letter,
+                    'll_dictionary_pos' => $pos_slug,
+                    'll_dictionary_source' => $source_ids,
+                    'll_dictionary_dialect' => $dialect,
+                    'll_dictionary_page' => (string) max(1, (int) ($query['page'] ?? $page)),
+                ])
+                : $base_url,
+        ];
+        ll_tools_dictionary_ajax_cache_set('live_search', $cache_args, $payload);
+    } finally {
+        if (!empty($client_lease['option_name'])) {
+            ll_tools_public_ajax_release_client_lease($client_lease);
+        }
+        if ($lock_acquired) {
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+        }
+    }
+
     ll_tools_dictionary_send_ajax_cache_header('MISS');
     wp_send_json_success($payload);
 }

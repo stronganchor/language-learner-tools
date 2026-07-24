@@ -29,6 +29,7 @@ if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_MAX_RUNTIME_SECONDS')) {
  */
 function ll_tools_expired_transient_maintenance_namespaces(): array {
     return [
+        'dictionary-client-inflight' => 'll_dict_live_search_inflight_',
         'dictionary-rate-limit' => 'll_dict_live_search_rl_',
         'dictionary-cache' => 'll_dict_',
         'wordset-lazy-rate-limit' => 'll_tools_wsp_lazy_miss_',
@@ -43,6 +44,7 @@ function ll_tools_expired_transient_maintenance_namespaces(): array {
         'quiz-raw-wordset-cache' => 'll_raw_ws_ids_',
         'quiz-default-wordset-cache' => 'll_default_quiz_ws_',
         'quiz-page-data-cache' => 'll_qpg_data_',
+        'flashcard-ajax-client-inflight' => 'll_fc_ajax_inflight_',
         'flashcard-ajax-build-lock' => 'll_fc_ajax_build_',
         'flashcard-ajax-rate-limit' => 'll_fc_ajax_throttle_',
         'flashcard-ajax-cache' => 'll_fc_ajax_',

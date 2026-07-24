@@ -3,9 +3,9 @@ const path = require('path');
 
 const audioProcessorJsPath = path.resolve(__dirname, '../../../js/audio-processor.js');
 
-function queuePanel(tab, active = false, page = 1) {
+function queuePanel(tab, active = false, page = 1, cursor = '') {
   return `
-    <div class="ll-recordings-list ${active ? 'is-active' : ''}" data-tab="${tab}" data-page="${page}" data-loaded="false">
+    <div class="ll-recordings-list ${active ? 'is-active' : ''}" data-tab="${tab}" data-page="${page}" data-cursor="${cursor}" data-loaded="false">
       <div class="ll-queue-status is-loading">
         <span class="ll-queue-status-text">Loading recordings...</span>
         <button type="button" class="ll-queue-retry" hidden>Retry</button>
@@ -22,6 +22,7 @@ function queuePanel(tab, active = false, page = 1) {
 
 async function mountAudioProcessor(page, options = {}) {
   const initialPage = options.initialPage || 1;
+  const initialCursor = options.initialCursor || '';
   const pageUrl = options.url || 'http://audio-processor.test/wp-admin/tools.php?page=ll-audio-processor';
   await page.route('http://audio-processor.test/**', route => route.fulfill({ status: 200, body: '<!doctype html>' }));
   await page.goto(pageUrl);
@@ -35,7 +36,7 @@ async function mountAudioProcessor(page, options = {}) {
     <button id="ll-deselect-all" type="button">Deselect all</button>
     <button id="ll-process-selected" type="button" disabled>Process <span id="ll-selected-count">0</span></button>
     <button id="ll-delete-selected" type="button" disabled>Delete <span id="ll-delete-selected-count">0</span></button>
-    ${queuePanel('queue', true, initialPage)}
+    ${queuePanel('queue', true, initialPage, initialCursor)}
     ${queuePanel('duplicates')}
     ${queuePanel('reprocess')}
   `);
@@ -43,6 +44,7 @@ async function mountAudioProcessor(page, options = {}) {
   await page.evaluate((fixtureOptions) => {
     window.AudioContext = class FakeAudioContext {};
     window.__queueFetchCalls = [];
+    window.__queueCursorCalls = [];
     window.__reprocessAttempts = 0;
     window.llAudioProcessor = {
       ajaxUrl: '/wp-admin/admin-ajax.php',
@@ -95,6 +97,7 @@ async function mountAudioProcessor(page, options = {}) {
       const tab = params.get('tab');
       const requestedPage = parseInt(params.get('page'), 10);
       window.__queueFetchCalls.push(`${tab}:${requestedPage}`);
+      window.__queueCursorCalls.push(`${tab}:${requestedPage}:${params.get('cursor') || ''}`);
       await new Promise(resolve => setTimeout(resolve, 80));
 
       if (tab === 'queue' && requestedPage === 1) {
@@ -106,6 +109,7 @@ async function mountAudioProcessor(page, options = {}) {
           page: 1,
           perPage: 40,
           hasMore: true,
+          nextCursor: 'queue-page-2-cursor',
           knownCount: 2,
           recordings: [recording(101, 'First'), recording(102, 'Second')],
           html: `${card(101, 'First')}${card(102, 'Second')}`
@@ -172,6 +176,10 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   await expect(page.locator('#ll-selected-count')).toHaveText('0');
   await expect(queue.locator('.ll-queue-page-next')).toBeDisabled();
   await expect(queue.locator('.ll-queue-page-previous')).toBeEnabled();
+  expect(await page.evaluate(() => window.__queueCursorCalls.slice(0, 2))).toEqual([
+    'queue:1:',
+    'queue:2:queue-page-2-cursor'
+  ]);
 
   const splitHref = await queue.locator('.ll-split-word-link').evaluate(link => {
     link.addEventListener('click', event => event.preventDefault(), { once: true });
@@ -182,6 +190,7 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   const returnUrl = new URL(splitUrl.searchParams.get('ll_return_to'));
   expect(returnUrl.searchParams.get('ll_ap_tab')).toBe('queue');
   expect(returnUrl.searchParams.get('ll_ap_page')).toBe('2');
+  expect(returnUrl.searchParams.get('ll_ap_cursor')).toBe('queue-page-2-cursor');
   expect(returnUrl.searchParams.get('ll_ap_focus_recording')).toBe('103');
 
   await page.locator('.ll-audio-processor-tab[data-tab="duplicates"]').click();
@@ -200,7 +209,8 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
 test('audio processor restores and focuses a recording on a returned queue page', async ({ page }) => {
   await mountAudioProcessor(page, {
     initialPage: 2,
-    url: 'http://audio-processor.test/wp-admin/tools.php?page=ll-audio-processor&ll_ap_tab=queue&ll_ap_page=2&ll_ap_focus_recording=103'
+    initialCursor: 'queue-page-2-cursor',
+    url: 'http://audio-processor.test/wp-admin/tools.php?page=ll-audio-processor&ll_ap_tab=queue&ll_ap_page=2&ll_ap_cursor=queue-page-2-cursor&ll_ap_focus_recording=103'
   });
 
   const returnedItem = page.locator('.ll-recording-item[data-id="103"]');
@@ -208,8 +218,10 @@ test('audio processor restores and focuses a recording on a returned queue page'
   await expect(returnedItem).toHaveClass(/is-return-focus/);
   await expect(page).toHaveURL(/page=ll-audio-processor/);
   await expect(page).not.toHaveURL(/ll_ap_page=/);
+  await expect(page).not.toHaveURL(/ll_ap_cursor=/);
   await expect(page).not.toHaveURL(/ll_ap_focus_recording=/);
   expect(await page.evaluate(() => window.__queueFetchCalls)).toEqual(['queue:2']);
+  expect(await page.evaluate(() => window.__queueCursorCalls)).toEqual(['queue:2:queue-page-2-cursor']);
 });
 
 test('audio processor opens the first non-empty work tab when the default queue is empty', async ({ page }) => {

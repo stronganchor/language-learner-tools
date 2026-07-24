@@ -75,16 +75,22 @@ final class QuizPagesScopedContentEpochTest extends LL_Tools_TestCase
         $prefixes = [
             '_transient_ll_vocab_lesson_deep_counts_',
             '_transient_ll_wsp_category_rows_',
-            '_transient_ll_wsp_category_search_',
             '_transient_ll_wsp_categories_',
         ];
 
         $this->warmMaterializedWordsetCaches($wordset_a, $category_a);
         $before = $this->transientPrefixCounts($wpdb, $prefixes);
+        $search_generation_before = $this->wordsetCategorySearchPublishedGeneration($wordset_a);
+        $this->assertNotSame('', $search_generation_before);
 
         ll_tools_bump_category_cache_version([$category_b], [$wordset_b], true);
         $this->warmMaterializedWordsetCaches($wordset_a, $category_a);
         $this->assertSame($before, $this->transientPrefixCounts($wpdb, $prefixes));
+        $this->assertSame(
+            $search_generation_before,
+            $this->wordsetCategorySearchPublishedGeneration($wordset_a),
+            'An unrelated wordset must retain the durable category-search generation.'
+        );
 
         ll_tools_bump_category_cache_version([$category_a], [$wordset_a], true);
         $this->warmMaterializedWordsetCaches($wordset_a, $category_a);
@@ -96,6 +102,11 @@ final class QuizPagesScopedContentEpochTest extends LL_Tools_TestCase
                 'Affected cache generation did not rotate for ' . $prefix
             );
         }
+        $this->assertNotSame(
+            $search_generation_before,
+            $this->wordsetCategorySearchPublishedGeneration($wordset_a),
+            'The affected wordset must publish a new durable category-search generation.'
+        );
     }
 
     /** @return array{0:int,1:int} */
@@ -154,6 +165,13 @@ final class QuizPagesScopedContentEpochTest extends LL_Tools_TestCase
         ll_tools_get_wordset_page_category_rows($wordset_id, 2, false);
         ll_tools_get_wordset_page_categories($wordset_id, 2, ['defer_previews' => true]);
         ll_tools_get_wordset_page_category_search_index($wordset_id, [$category_id]);
+    }
+
+    private function wordsetCategorySearchPublishedGeneration(int $wordset_id): string
+    {
+        $state = ll_tools_get_wordset_category_search_state($wordset_id);
+
+        return (string) ($state['published_generation'] ?? '');
     }
 
     /**

@@ -39,7 +39,10 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
 
         $captured_queries = [];
         $capture = static function (string $query) use (&$captured_queries): string {
-            if (strpos($query, 'category_search') === false && strpos($query, 'allowed_category_relationships') === false) {
+            if (
+                strpos($query, 'll_wordset_category_search') === false
+                && strpos($query, 'wordset_taxonomy') === false
+            ) {
                 return $query;
             }
             $captured_queries[] = $query;
@@ -63,8 +66,10 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Child Only Translation Token', $search_text);
 
         $queries_sql = implode("\n", $captured_queries);
-        $this->assertStringContainsString('allowed_category_relationships', $queries_sql);
-        $this->assertStringContainsString('allowed_category_taxonomy.term_id IN', $queries_sql);
+        $this->assertStringContainsString(ll_tools_wordset_category_search_table_name(), $queries_sql);
+        $this->assertStringContainsString('posts.ID >', $queries_sql);
+        $this->assertStringNotContainsString('allowed_category_relationships', $queries_sql);
+        $this->assertStringNotContainsString(' OFFSET ', strtoupper($queries_sql));
 
         $this->assertGreaterThan(0, $only_allowed);
         $this->assertGreaterThan(0, $allowed_with_stale_child);
@@ -78,54 +83,431 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
 
         $wordset_id = 987654;
         $allowed_category_id = 987655;
-        $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
-            ? max(1, (int) ll_tools_get_category_cache_epoch())
-            : 1;
-        $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
-            ? max(1, (int) ll_tools_get_wordset_cache_epoch())
-            : 1;
-        $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
-            ? ll_tools_get_quiz_content_cache_epoch([$wordset_id])
-            : (string) $category_epoch;
-        $cache_key = ll_tools_wordset_page_build_cache_key('category_search', [
-            'wordset_id' => $wordset_id,
-            'allowed_category_ids' => [$allowed_category_id],
-            'category_epoch' => $category_epoch,
-            'wordset_epoch' => $wordset_epoch,
-            'quiz_content_epoch' => $quiz_content_epoch,
-        ]);
-        $lock_option = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
+        $state_option = ll_tools_wordset_category_search_state_option($wordset_id);
+        $lock_option = ll_tools_wordset_category_search_lock_option($wordset_id);
 
-        delete_transient($cache_key);
-        wp_cache_delete($cache_key, 'll_tools');
+        delete_option($state_option);
         delete_option($lock_option);
-        add_option($lock_option, (string) (time() + 30), '', false);
+        $lock = ll_tools_acquire_wordset_category_search_lock($wordset_id, 30);
+        $this->assertTrue((bool) ($lock['acquired'] ?? false));
 
         $queries = [];
         $capture = static function (string $query) use (&$queries): string {
             $queries[] = $query;
             return $query;
         };
-        $no_wait = static function (): int {
-            return 0;
-        };
 
         add_filter('query', $capture);
-        add_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
         $complete = true;
         try {
             $index = ll_tools_get_wordset_page_category_search_index($wordset_id, [$allowed_category_id], $complete);
         } finally {
-            remove_filter('ll_tools_wordset_page_category_search_index_rebuild_wait_ms', $no_wait);
             remove_filter('query', $capture);
+            ll_tools_release_wordset_category_search_lock($lock);
+            delete_option($state_option);
             delete_option($lock_option);
         }
 
         $this->assertSame([], $index);
         $this->assertFalse($complete);
         $queries_sql = implode("\n", $queries);
-        $this->assertStringNotContainsString('category_taxonomy.term_id AS category_id', $queries_sql);
-        $this->assertStringNotContainsString($wpdb->posts . ' AS posts', $queries_sql);
+        $this->assertStringNotContainsString('wordset_taxonomy', $queries_sql);
+        $this->assertStringNotContainsString('title_value', $queries_sql);
+        $this->assertNotEmpty($wpdb->last_query);
+    }
+
+    public function test_category_search_materializer_advances_in_bounded_keyset_batches(): void
+    {
+        $wordset = wp_insert_term('Bounded Search Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Bounded Search Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+
+        for ($index = 1; $index <= 12; $index++) {
+            $this->createSearchWord(
+                'Bounded Search Word ' . $index,
+                'Bounded Translation ' . $index,
+                $wordset_id,
+                [$category_id]
+            );
+        }
+
+        delete_option(ll_tools_wordset_category_search_state_option($wordset_id));
+        $batch_size = static function (): int {
+            return 10;
+        };
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            if (strpos($query, 'wordset_taxonomy') !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('ll_tools_wordset_category_search_rebuild_batch_size', $batch_size);
+        add_filter('query', $capture);
+        try {
+            $complete = true;
+            $first = ll_tools_get_wordset_page_category_search_index(
+                $wordset_id,
+                [$category_id],
+                $complete
+            );
+            $this->assertSame([], $first);
+            $this->assertFalse($complete);
+
+            $state = ll_tools_get_wordset_category_search_state($wordset_id);
+            $this->assertSame('running', $state['status']);
+            $this->assertSame(10, $state['processed']);
+            $this->assertGreaterThan(0, $state['last_id']);
+
+            ll_tools_wordset_category_search_process_rebuild_batch($wordset_id);
+            $complete = false;
+            $index = ll_tools_get_wordset_page_category_search_index(
+                $wordset_id,
+                [$category_id],
+                $complete
+            );
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_wordset_category_search_rebuild_batch_size', $batch_size);
+        }
+
+        $this->assertTrue($complete);
+        $this->assertArrayHasKey($category_id, $index);
+        $this->assertCount(12, (array) ($index[$category_id]['words'] ?? []));
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString('posts.ID >', $queries_sql);
+        $this->assertStringContainsString('LIMIT 11', $queries_sql);
+        $this->assertStringNotContainsString(' OFFSET ', strtoupper($queries_sql));
+    }
+
+    public function test_category_search_schema_version_is_not_published_when_verification_fails(): void
+    {
+        global $wpdb;
+
+        $force_missing = static function (): bool {
+            return false;
+        };
+
+        delete_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_VERSION_OPTION);
+        delete_transient('ll_tools_wordset_category_search_schema_retry');
+        add_filter('ll_tools_wordset_category_search_schema_exists_after_install', $force_missing);
+        try {
+            $this->assertFalse(ll_tools_install_wordset_category_search_schema());
+            $this->assertSame('', (string) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_VERSION_OPTION, ''));
+            $this->assertSame('0', (string) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_EXISTS_OPTION, ''));
+            $this->assertNotFalse(get_transient('ll_tools_wordset_category_search_schema_retry'));
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_schema_exists_after_install', $force_missing);
+            delete_transient('ll_tools_wordset_category_search_schema_retry');
+            $this->assertTrue(ll_tools_install_wordset_category_search_schema());
+        }
+
+        $table = ll_tools_wordset_category_search_table_name();
+        $this->assertSame(
+            'generation',
+            (string) $wpdb->get_var("SHOW COLUMNS FROM {$table} LIKE 'generation'")
+        );
+        $primary_rows = $wpdb->get_results(
+            "SHOW INDEX FROM {$table} WHERE Key_name = 'PRIMARY'",
+            ARRAY_A
+        );
+        $primary_columns = [];
+        foreach ((array) $primary_rows as $primary_row) {
+            $primary_columns[(int) $primary_row['Seq_in_index']] = (string) $primary_row['Column_name'];
+        }
+        ksort($primary_columns);
+        $this->assertSame(
+            ['wordset_id', 'generation', 'category_id', 'word_id'],
+            array_values($primary_columns)
+        );
+    }
+
+    public function test_category_search_rebuild_lock_rejects_a_stale_owner(): void
+    {
+        $wordset_id = 987660;
+        $lock = ll_tools_acquire_wordset_category_search_lock($wordset_id, 30);
+        $this->assertTrue((bool) ($lock['acquired'] ?? false));
+        $option_name = ll_tools_wordset_category_search_lock_option($wordset_id);
+        $replacement = (time() + 60) . '|replacement-owner';
+        update_option($option_name, $replacement, false);
+
+        $this->assertFalse(ll_tools_renew_wordset_category_search_lock($lock, 30));
+        ll_tools_release_wordset_category_search_lock($lock);
+        $this->assertSame($replacement, (string) get_option($option_name, ''));
+
+        delete_option($option_name);
+    }
+
+    public function test_expired_lease_rotates_generation_and_stale_rows_cannot_clobber_published_rows(): void
+    {
+        global $wpdb;
+
+        $wordset_id = 987665;
+        $category_id = 987666;
+        $word_id = 987667;
+        $table = ll_tools_wordset_category_search_table_name();
+        $state_option = ll_tools_wordset_category_search_state_option($wordset_id);
+        $lock_option = ll_tools_wordset_category_search_lock_option($wordset_id);
+        $signature = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+        $stale_generation = ll_tools_wordset_category_search_generate_generation($wordset_id);
+
+        $wpdb->delete($table, ['wordset_id' => $wordset_id], ['%d']);
+        delete_option($state_option);
+        delete_option($lock_option);
+        ll_tools_update_wordset_category_search_state($wordset_id, [
+            'status' => 'running',
+            'signature' => $signature,
+            'generation' => $stale_generation,
+            'published_generation' => '',
+            'last_id' => 123,
+            'processed' => 1,
+            'started_at' => current_time('mysql', true),
+        ]);
+
+        $stale_lock = ll_tools_acquire_wordset_category_search_lock($wordset_id, 30);
+        $this->assertTrue((bool) ($stale_lock['acquired'] ?? false));
+        $separator = strpos((string) $stale_lock['value'], '|');
+        $this->assertNotFalse($separator);
+        update_option(
+            $lock_option,
+            (time() - 1) . substr((string) $stale_lock['value'], (int) $separator),
+            false
+        );
+
+        $replacement_lock = ll_tools_acquire_wordset_category_search_lock($wordset_id, 30);
+        $this->assertTrue((bool) ($replacement_lock['acquired'] ?? false));
+        $this->assertTrue((bool) ($replacement_lock['replaced'] ?? false));
+
+        try {
+            $replacement_state = ll_tools_wordset_category_search_begin_generation(
+                $wordset_id,
+                $signature,
+                $replacement_lock
+            );
+            $replacement_generation = (string) $replacement_state['generation'];
+            $this->assertNotSame('', $replacement_generation);
+            $this->assertNotSame($stale_generation, $replacement_generation);
+
+            $base_row = [
+                'wordset_id' => $wordset_id,
+                'category_id' => $category_id,
+                'word_id' => $word_id,
+                'translation_value' => 'Replacement translation',
+                'translation_normalized' => 'replacement translation',
+                'translation_tokens' => ' replacement translation ',
+                'updated_at' => current_time('mysql', true),
+            ];
+            $replacement_row = array_merge($base_row, [
+                'generation' => $replacement_generation,
+                'title_value' => 'Replacement generation',
+                'title_normalized' => 'replacement generation',
+                'title_tokens' => ' replacement generation ',
+            ]);
+            $this->assertTrue(ll_tools_wordset_category_search_insert_row_chunk([
+                $replacement_row,
+            ]));
+
+            $replacement_state['status'] = 'completed';
+            $replacement_state['published_generation'] = $replacement_generation;
+            $replacement_state['completed_at'] = current_time('mysql', true);
+            $did_publish = false;
+            $replacement_state = ll_tools_wordset_category_search_update_owned_state(
+                $wordset_id,
+                $replacement_state,
+                $replacement_generation,
+                $replacement_lock,
+                $did_publish
+            );
+            $this->assertTrue($did_publish);
+
+            // This simulates an insert that was already in flight when the old
+            // 90-second lease expired. Its generation remains isolated.
+            $stale_row = array_merge($base_row, [
+                'generation' => $stale_generation,
+                'title_value' => 'Stale generation',
+                'title_normalized' => 'stale generation',
+                'title_tokens' => ' stale generation ',
+            ]);
+            $this->assertTrue(ll_tools_wordset_category_search_insert_row_chunk([
+                $stale_row,
+            ]));
+
+            $stale_publish = $replacement_state;
+            $stale_publish['generation'] = $stale_generation;
+            $stale_publish['published_generation'] = $stale_generation;
+            $stale_updated = true;
+            ll_tools_update_wordset_category_search_state(
+                $wordset_id,
+                $stale_publish,
+                $stale_generation,
+                $stale_updated
+            );
+            $this->assertFalse($stale_updated);
+        } finally {
+            ll_tools_release_wordset_category_search_lock($replacement_lock);
+            ll_tools_release_wordset_category_search_lock($stale_lock);
+        }
+
+        $complete = false;
+        $rows = ll_tools_wordset_category_search_get_index_rows(
+            $wordset_id,
+            [$category_id],
+            $complete
+        );
+        $this->assertTrue($complete);
+        $this->assertCount(1, $rows);
+        $this->assertSame('Replacement generation', (string) $rows[0]['title_value']);
+        $this->assertSame(
+            2,
+            (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(1)
+                 FROM {$table}
+                 WHERE wordset_id = %d
+                   AND category_id = %d
+                   AND word_id = %d",
+                $wordset_id,
+                $category_id,
+                $word_id
+            ))
+        );
+
+        $wpdb->delete($table, ['wordset_id' => $wordset_id], ['%d']);
+        delete_option($state_option);
+        delete_option($lock_option);
+    }
+
+    public function test_category_search_insert_statements_obey_row_and_byte_chunk_limits(): void
+    {
+        global $wpdb;
+
+        $wordset_id = 987670;
+        $large_value = str_repeat('Ã¼', 1000);
+        $rows = [];
+        for ($index = 1; $index <= 12; $index++) {
+            $rows[] = [
+                'wordset_id' => $wordset_id,
+                'category_id' => 990000 + $index,
+                'word_id' => 995000 + $index,
+                'title_value' => $large_value,
+                'translation_value' => $large_value,
+                'title_normalized' => $large_value,
+                'translation_normalized' => $large_value,
+                'title_tokens' => ' ' . $large_value . ' ',
+                'translation_tokens' => ' ' . $large_value . ' ',
+                'updated_at' => current_time('mysql', true),
+            ];
+        }
+
+        $row_limit = static function (): int {
+            return 5;
+        };
+        $byte_limit = static function (): int {
+            return 64 * 1024;
+        };
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            if (strpos($query, 'INSERT INTO ' . ll_tools_wordset_category_search_table_name()) !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('ll_tools_wordset_category_search_insert_chunk_rows', $row_limit);
+        add_filter('ll_tools_wordset_category_search_insert_chunk_bytes', $byte_limit);
+        add_filter('query', $capture);
+        try {
+            $this->assertTrue(ll_tools_wordset_category_search_insert_rows($rows));
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_wordset_category_search_insert_chunk_bytes', $byte_limit);
+            remove_filter('ll_tools_wordset_category_search_insert_chunk_rows', $row_limit);
+            $wpdb->delete(
+                ll_tools_wordset_category_search_table_name(),
+                ['wordset_id' => $wordset_id],
+                ['%d']
+            );
+        }
+
+        $this->assertGreaterThan(1, count($queries));
+        foreach ($queries as $query) {
+            $this->assertLessThan(64 * 1024, strlen($query));
+        }
+    }
+
+    public function test_category_search_normalization_is_stable_across_request_locales(): void
+    {
+        $original_locale = determine_locale();
+        switch_to_locale('de_DE');
+        $german_request = ll_tools_wordset_page_normalize_category_search_match_text('Ã„pfel fÃ¼r ÄŸÄ±da');
+        switch_to_locale('tr_TR');
+        $turkish_request = ll_tools_wordset_page_normalize_category_search_match_text('Ã„pfel fÃ¼r ÄŸÄ±da');
+        restore_previous_locale();
+        restore_previous_locale();
+
+        $this->assertSame($german_request, $turkish_request);
+        $this->assertSame(
+            $german_request,
+            ll_tools_wordset_page_normalize_category_search_match_text('Ã„pfel fÃ¼r ÄŸÄ±da')
+        );
+        $this->assertNotSame('', $original_locale);
+    }
+
+    public function test_deterministic_category_fanout_failure_does_not_hot_loop_cron(): void
+    {
+        $wordset = wp_insert_term('Fanout Search Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $wordset_id = (int) $wordset['term_id'];
+        $category_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $category = wp_insert_term(
+                'Fanout Search Category ' . $index . ' ' . wp_generate_password(4, false),
+                'word-category'
+            );
+            $this->assertFalse(is_wp_error($category));
+            $category_id = (int) $category['term_id'];
+            $this->setCategoryOwner($category_id, $wordset_id);
+            $category_ids[] = $category_id;
+        }
+        $this->createSearchWord('Fanout Search Word', 'Fanout Translation', $wordset_id, $category_ids);
+
+        $limit = static function (): int {
+            return 4;
+        };
+        delete_option(ll_tools_wordset_category_search_state_option($wordset_id));
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        add_filter('ll_tools_wordset_category_search_categories_per_word_limit', $limit);
+        try {
+            $complete = true;
+            $this->assertSame([], ll_tools_get_wordset_page_category_search_index(
+                $wordset_id,
+                [$category_ids[0]],
+                $complete
+            ));
+            $this->assertFalse($complete);
+            $state = ll_tools_get_wordset_category_search_state($wordset_id);
+            $this->assertSame('pending', $state['status']);
+            $this->assertSame('category_relationship_limit', $state['last_error']);
+            $this->assertSame(1, $state['terminal']);
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_id]
+            ));
+
+            ll_tools_wordset_category_search_run_scheduled_rebuild($wordset_id);
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_id]
+            ));
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_categories_per_word_limit', $limit);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
     }
 
     public function test_wordset_page_initial_config_defers_category_search_text_to_ajax(): void
@@ -371,7 +753,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         };
         $index_queries = [];
         $capture = static function (string $query) use (&$index_queries): string {
-            if (strpos($query, 'category_taxonomy.term_id AS category_id') !== false) {
+            if (strpos($query, 'wordset_taxonomy') !== false && strpos($query, 'posts.ID >') !== false) {
                 $index_queries[] = $query;
             }
             return $query;

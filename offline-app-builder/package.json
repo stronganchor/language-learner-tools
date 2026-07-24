@@ -2,6 +2,9 @@
   "name": "ll-tools-offline-app-builder",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "prepare:bundle": "node scripts/prepare-bundle.mjs",

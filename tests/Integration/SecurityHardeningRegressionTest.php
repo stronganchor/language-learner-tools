@@ -655,6 +655,41 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame([], $http_requests);
     }
 
+    public function test_remote_stt_transcribe_rejects_oversized_audio_before_reading_or_http(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $limit_filter = static function (): int {
+            return 4;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'Oversized STT audio must be rejected before HTTP.');
+        };
+        add_filter('ll_tools_remote_stt_max_audio_bytes', $limit_filter);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://api.example.com/transcribe', $tmp);
+        } finally {
+            remove_filter('ll_tools_remote_stt_max_audio_bytes', $limit_filter);
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('stt_audio_too_large', $result->get_error_code());
+        $this->assertSame(413, (int) ($result->get_error_data()['status'] ?? 0));
+        $this->assertSame(4, (int) ($result->get_error_data()['max_bytes'] ?? 0));
+        $this->assertSame([], $http_requests);
+    }
+
     public function test_media_proxy_fallback_rejects_private_hosts(): void
     {
         $this->assertFalse(ll_tools_media_proxy_fallback_url_is_safe('http://127.0.0.1/image.jpg'));

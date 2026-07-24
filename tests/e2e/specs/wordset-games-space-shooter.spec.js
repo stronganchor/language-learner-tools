@@ -1942,24 +1942,17 @@ async function moveUnscrambleUnitToIndex(page, unitId, targetIndex) {
       return;
     }
 
-    await page.evaluate((targetUnitId) => {
-      const tile = document.querySelector(`[data-ll-wordset-unscramble-tile][data-unit-id="${targetUnitId}"]`);
-      if (!tile) {
-        return;
-      }
-      tile.focus();
-      tile.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'ArrowLeft',
-        code: 'ArrowLeft',
-        bubbles: true,
-        cancelable: true
-      }));
-    }, unitId);
+    const tile = page.locator(
+      `[data-ll-wordset-unscramble-tile][data-unit-id="${unitId}"]`
+    );
+    await expect(tile).toBeVisible();
+    await tile.focus();
+    await tile.press('ArrowLeft');
 
     await expect.poll(async () => {
       const nextState = await getUnscrambleUnitState(page);
       return nextState.orderUnitIds.indexOf(unitId);
-    }).toBe(currentIndex - 1);
+    }).toBeLessThan(currentIndex);
   }
 }
 

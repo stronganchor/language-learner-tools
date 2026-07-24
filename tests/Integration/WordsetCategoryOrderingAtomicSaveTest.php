@@ -253,6 +253,60 @@ final class WordsetCategoryOrderingAtomicSaveTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_rollback_failure_returns_restore_error_and_preserves_detectable_partial_state(): void
+    {
+        $fixture = $this->createFixture();
+        $wordsetId = $fixture['wordset_id'];
+        $categoryIds = $fixture['category_ids'];
+        $snapshot = $this->seedCategorySection($wordsetId, $categoryIds);
+        $nextOrder = array_reverse((array) $snapshot['manual_order']);
+        $request = [
+            'll_wordset_category_ordering_mode' => 'prerequisite',
+            'll_wordset_category_order_category_ids' => implode(',', $categoryIds),
+            'll_wordset_category_manual_order' => implode(',', $nextOrder),
+            'll_wordset_category_prereqs_compact_mode' => 'json-v1',
+            'll_wordset_category_prereqs_compact' => (string) wp_json_encode([
+                $categoryIds[0] => [$categoryIds[1]],
+            ]),
+        ];
+
+        $failForwardAndRollback = static function ($check, int $objectId, string $metaKey, $metaValue) use ($wordsetId) {
+            if ($objectId !== $wordsetId) {
+                return $check;
+            }
+            if ($metaKey === 'll_wordset_category_prerequisites') {
+                return false;
+            }
+            if ($metaKey === 'll_wordset_category_ordering_mode' && $metaValue === 'manual') {
+                return false;
+            }
+            return $check;
+        };
+        add_filter('update_term_metadata', $failForwardAndRollback, 10, 4);
+        try {
+            $result = ll_tools_wordset_save_category_ordering_settings($wordsetId, $request);
+        } finally {
+            remove_filter('update_term_metadata', $failForwardAndRollback, 10);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('category_order_restore', $result->get_error_code());
+        $this->assertStringContainsString('fully restored', $result->get_error_message());
+        $this->assertSame('prerequisite', (string) get_term_meta($wordsetId, 'll_wordset_category_ordering_mode', true));
+        $this->assertSame(
+            (array) $snapshot['manual_order'],
+            array_values((array) get_term_meta($wordsetId, 'll_wordset_category_manual_order', true))
+        );
+        $this->assertSame(
+            (array) $snapshot['prerequisites'],
+            (array) get_term_meta($wordsetId, 'll_wordset_category_prerequisites', true)
+        );
+        $this->assertStringContainsString(
+            'fully restored',
+            ll_tools_wordset_category_ordering_partial_success_message($result)
+        );
+    }
+
     /**
      * @return array{wordset_id:int,wordset_term:WP_Term,category_ids:int[],category_names:string[]}
      */

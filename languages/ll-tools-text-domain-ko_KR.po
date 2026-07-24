@@ -5136,3 +5136,8 @@ msgstr "TSV 그룹화 버킷이 허용된 크기를 초과합니다."
 #: includes/pages/wordset-pages.php:25929
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "검색 결과가 아직 준비 중입니다. 잠시 후 다시 시도해 주세요."
+
+#. ll-tools-public-key: 9533ce6da037b022fb7116a7d8d43889ba2a58f4
+#: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
+msgid "Lesson words are still being prepared. Please try again in a moment."
+msgstr "수업 단어를 아직 준비하고 있습니다. 잠시 후 다시 시도해 주세요."

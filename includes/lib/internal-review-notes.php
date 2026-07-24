@@ -211,9 +211,27 @@ function ll_tools_render_internal_review_note_field(int $object_id, string $obje
     return trim((string) ob_get_clean());
 }
 
-function ll_tools_get_internal_review_note_rows_for_wordset(int $wordset_id, string $category_spec = '', bool $include_empty = false): array {
+/**
+ * Return one bounded page of internal review-note rows.
+ *
+ * @return array{rows:array<int,array<string,mixed>>,has_more:bool,offset:int,limit:int}
+ */
+function ll_tools_get_internal_review_note_rows_page_for_wordset(
+    int $wordset_id,
+    string $category_spec = '',
+    bool $include_empty = false,
+    int $limit = 100,
+    int $offset = 0
+): array {
+    $limit = max(1, min(250, $limit));
+    $offset = max(0, $offset);
     if ($wordset_id <= 0) {
-        return [];
+        return [
+            'rows' => [],
+            'has_more' => false,
+            'offset' => $offset,
+            'limit' => $limit,
+        ];
     }
 
     $post_types = ['words'];
@@ -245,7 +263,8 @@ function ll_tools_get_internal_review_note_rows_for_wordset(int $wordset_id, str
     $args = [
         'post_type' => $post_types,
         'post_status' => ['publish', 'draft', 'pending', 'private'],
-        'posts_per_page' => -1,
+        'posts_per_page' => $limit + 1,
+        'offset' => $offset,
         'fields' => 'ids',
         'orderby' => 'title',
         'order' => 'ASC',
@@ -265,7 +284,9 @@ function ll_tools_get_internal_review_note_rows_for_wordset(int $wordset_id, str
         ];
     }
 
-    $object_ids = get_posts($args);
+    $object_ids = array_values((array) get_posts($args));
+    $has_more = count($object_ids) > $limit;
+    $object_ids = array_slice($object_ids, 0, $limit);
     $rows = [];
     foreach ((array) $object_ids as $object_id) {
         $object_id = (int) $object_id;
@@ -282,7 +303,27 @@ function ll_tools_get_internal_review_note_rows_for_wordset(int $wordset_id, str
         $rows[] = $row;
     }
 
-    return $rows;
+    return [
+        'rows' => $rows,
+        'has_more' => $has_more,
+        'offset' => $offset,
+        'limit' => $limit,
+    ];
+}
+
+/**
+ * Backward-compatible bounded review-note row helper.
+ */
+function ll_tools_get_internal_review_note_rows_for_wordset(int $wordset_id, string $category_spec = '', bool $include_empty = false): array {
+    $page = ll_tools_get_internal_review_note_rows_page_for_wordset(
+        $wordset_id,
+        $category_spec,
+        $include_empty,
+        250,
+        0
+    );
+
+    return (array) ($page['rows'] ?? []);
 }
 
 add_action('wp_ajax_ll_tools_save_internal_review_note', 'll_tools_save_internal_review_note_ajax_handler');

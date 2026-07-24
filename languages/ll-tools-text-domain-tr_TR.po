@@ -27293,3 +27293,8 @@ msgstr "Diğer kelime seti ayarları kaydedildi, ancak kategori sıralaması ve 
 #: includes/taxonomies/wordset-taxonomy.php:2018
 msgid "Category ordering and prerequisites were not saved because the submitted settings were incomplete. Refresh and save again."
 msgstr "Kategori sıralaması ve önkoşullar, gönderilen ayarlar eksik olduğu için kaydedilmedi. Sayfayı yenile ve tekrar kaydet."
+
+#. ll-tools-public-key: eb26e44e3c1cba3b4afb7b48fe1bdb1956d64e9c
+#: includes/api/automation-rest.php:6751
+msgid "Unable to calculate the word set report summary."
+msgstr "Kelime seti rapor özeti hesaplanamadı."

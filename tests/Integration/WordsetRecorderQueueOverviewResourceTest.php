@@ -442,6 +442,57 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame([], $scoped_batch['cards'], 'Shortcode recording-type overrides must scope overview counts.');
     }
 
+    public function test_manager_recorder_summary_ajax_enforces_access_and_returns_a_bounded_batch(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $category = $fixture['categories'][0];
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Direct Summary AJAX Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $response = $this->postManagerRecorderSummaryAjax([
+            'nonce' => wp_create_nonce('ll_tools_wordset_recorder_queue_summaries'),
+            'wordset_id' => (string) $wordset_id,
+            'recorder_user_id' => (string) $recorder_id,
+            'category_slugs' => [(string) $category['slug']],
+            'back_url' => home_url('/safe-return/'),
+        ]);
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = (array) ($response['data'] ?? []);
+        $this->assertSame(ll_tools_wordset_page_get_recorder_queue_summary_batch_size(), (int) ($data['batchSize'] ?? 0));
+        $this->assertSame(1, (int) ($data['sourceTotal'] ?? 0));
+        $this->assertContains(
+            (string) $category['slug'],
+            array_merge((array) ($data['resolvedSlugs'] ?? []), (array) ($data['pendingSlugs'] ?? []))
+        );
+
+        $subscriber_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber_id);
+        $blocked = $this->postManagerRecorderSummaryAjax([
+            'nonce' => wp_create_nonce('ll_tools_wordset_recorder_queue_summaries'),
+            'wordset_id' => (string) $wordset_id,
+            'recorder_user_id' => (string) $recorder_id,
+            'category_slugs' => [(string) $category['slug']],
+        ]);
+
+        $this->assertFalse((bool) ($blocked['success'] ?? true));
+        $this->assertSame('permission', (string) ($blocked['data']['code'] ?? ''));
+    }
+
     public function test_summary_stream_starts_with_three_then_uses_resource_safe_six_category_batches(): void
     {
         $this->assertSame(3, ll_tools_wordset_page_get_recorder_queue_summary_initial_batch_size());
@@ -3956,6 +4007,51 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
             $reflection->getStartLine() - 1,
             $reflection->getEndLine() - $reflection->getStartLine() + 1
         ));
+    }
+
+    /**
+     * @param array<string,mixed> $post
+     * @return array<string,mixed>
+     */
+    private function postManagerRecorderSummaryAjax(array $post): array
+    {
+        $original_post = $_POST;
+        $original_request = $_REQUEST;
+        $_POST = $post;
+        $_REQUEST = $post;
+
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            ll_tools_wordset_page_handle_recorder_queue_summary_batch_ajax();
+            $this->fail('Expected the AJAX endpoint to terminate through wp_die().');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('wp_die', $exception->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+            $_POST = $original_post;
+            $_REQUEST = $original_request;
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected a JSON AJAX response.');
+        return $decoded;
     }
 
     /**

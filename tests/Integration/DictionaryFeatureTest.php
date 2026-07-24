@@ -63,6 +63,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 delete_option((string) $option_name);
             }
         }
+        unset($GLOBALS['ll_tools_dictionary_ajax_cache_build_leases']);
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
         }
@@ -1175,6 +1176,83 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($ready['success'] ?? false));
         $this->assertIsArray(ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args));
+    }
+
+    public function test_dictionary_live_search_returns_retryable_warming_response_before_consuming_client_budget(): void
+    {
+        wp_set_current_user(0);
+        $previous_remote_addr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.84';
+        $no_wait = static function (): int {
+            return 0;
+        };
+        $one_request = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_dictionary_live_search_build_wait_ms', $no_wait);
+        add_filter('ll_tools_dictionary_live_search_rate_limit_max_requests', $one_request);
+        ll_tools_dictionary_live_search_reset_rate_limit();
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => 0,
+            'll_dictionary_q' => 'roc',
+            'll_dictionary_page' => '1',
+        ];
+        $_REQUEST = $_POST;
+        $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
+        $cache_args = [
+            'wordset_id' => 0,
+            'per_page' => 20,
+            'sense_limit' => 3,
+            'linked_word_limit' => 4,
+            'gloss_lang' => '',
+            'base_url' => ll_tools_dictionary_resolve_live_base_url('https://example.com/sozluk/'),
+            'search' => 'roc',
+            'search_scopes' => $search_scopes,
+            'letter' => '',
+            'page' => 1,
+            'pos_slug' => '',
+            'source_ids' => [],
+            'dialect' => '',
+            'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
+            'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
+            'browse_letter_schema' => 7,
+            'has_active_query' => true,
+            'query_limits' => [
+                'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
+                'candidate_scan_limit' => ll_tools_dictionary_anonymous_live_search_candidate_scan_cap(),
+            ],
+        ];
+        $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('live_search', $cache_args);
+        $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($lock_key));
+
+        try {
+            $warming = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+            $first_budget_reservation = ll_tools_dictionary_live_search_rate_limit_status();
+        } finally {
+            ll_tools_dictionary_ajax_cache_release_build_lock($lock_key);
+            ll_tools_dictionary_live_search_reset_rate_limit();
+            remove_filter('ll_tools_dictionary_live_search_rate_limit_max_requests', $one_request);
+            remove_filter('ll_tools_dictionary_live_search_build_wait_ms', $no_wait);
+            $_POST = [];
+            $_REQUEST = [];
+            if ($previous_remote_addr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
+            }
+        }
+
+        $this->assertFalse((bool) ($warming['success'] ?? true));
+        $this->assertSame('cache_warming', (string) ($warming['data']['code'] ?? ''));
+        $this->assertGreaterThan(0, (int) ($warming['data']['retry_after'] ?? 0));
+        $this->assertTrue((bool) ($first_budget_reservation['allowed'] ?? false));
+        $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $cache_args));
     }
 
     public function test_dictionary_live_search_accepts_direct_one_character_ajax_search_without_filters(): void

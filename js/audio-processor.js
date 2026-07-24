@@ -21,6 +21,11 @@
             duplicates: [],
             reprocess: []
         },
+        queueCursors: {
+            queue: new Map([[1, '']]),
+            duplicates: new Map([[1, '']]),
+            reprocess: new Map([[1, '']])
+        },
         globalOptions: {
             enableTrim: true,
             enableNoise: true,
@@ -624,8 +629,15 @@
                     const queuePage = list ? parseInt(list.dataset.page, 10) : 1;
                     if (Number.isInteger(queuePage) && queuePage > 1) {
                         returnUrl.searchParams.set('ll_ap_page', String(queuePage));
+                        const queueCursor = list ? String(list.dataset.cursor || '').trim() : '';
+                        if (queueCursor) {
+                            returnUrl.searchParams.set('ll_ap_cursor', queueCursor);
+                        } else {
+                            returnUrl.searchParams.delete('ll_ap_cursor');
+                        }
                     } else {
                         returnUrl.searchParams.delete('ll_ap_page');
+                        returnUrl.searchParams.delete('ll_ap_cursor');
                     }
 
                     splitUrl.searchParams.set('ll_return_to', returnUrl.toString());
@@ -659,6 +671,7 @@
         if (window.history && typeof window.history.replaceState === 'function') {
             url.searchParams.delete('ll_ap_focus_recording');
             url.searchParams.delete('ll_ap_page');
+            url.searchParams.delete('ll_ap_cursor');
             window.history.replaceState({}, document.title, url.toString());
         }
 
@@ -796,6 +809,21 @@
         }
 
         const page = Math.max(1, parseInt(requestedPage, 10) || 1);
+        const cursorMap = state.queueCursors[tab] instanceof Map
+            ? state.queueCursors[tab]
+            : new Map([[1, '']]);
+        state.queueCursors[tab] = cursorMap;
+        const currentDatasetPage = Math.max(1, parseInt(list.dataset.page || '1', 10) || 1);
+        if (currentDatasetPage > 1 && !cursorMap.has(currentDatasetPage)) {
+            cursorMap.set(currentDatasetPage, String(list.dataset.cursor || '').trim());
+        }
+        const requestCursor = page <= 1
+            ? ''
+            : (
+                typeof options.cursor === 'string'
+                    ? options.cursor
+                    : String(cursorMap.get(page) || '').trim()
+            );
         list.dataset.loading = 'true';
         list.dataset.loaded = 'false';
         clearSelections();
@@ -816,7 +844,8 @@
                     action: 'll_audio_processor_load_queue_page',
                     nonce: window.llAudioProcessor.nonce,
                     tab,
-                    page: String(page)
+                    page: String(page),
+                    cursor: requestCursor
                 })
             });
             const payload = await response.json();
@@ -833,9 +862,17 @@
 
             items.innerHTML = typeof data.html === 'string' ? data.html : '';
             list.dataset.page = String(data.page || page);
+            list.dataset.cursor = requestCursor;
             list.dataset.loaded = 'true';
             const hasMore = data.hasMore === true;
             const currentPage = Math.max(1, parseInt(data.page, 10) || page);
+            const nextCursor = typeof data.nextCursor === 'string' ? data.nextCursor.trim() : '';
+            cursorMap.set(currentPage, requestCursor);
+            if (hasMore && nextCursor) {
+                cursorMap.set(currentPage + 1, nextCursor);
+            } else {
+                cursorMap.delete(currentPage + 1);
+            }
             const previous = list.querySelector('.ll-queue-page-previous');
             const next = list.querySelector('.ll-queue-page-next');
             const pageLabel = list.querySelector('.ll-queue-page-label');

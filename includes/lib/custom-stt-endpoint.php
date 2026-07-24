@@ -141,6 +141,27 @@ function ll_tools_remote_stt_build_multipart_body(array $fields, array $files, s
     return $body;
 }
 
+/**
+ * Keep hosted STT requests below a predictable PHP-memory ceiling.
+ *
+ * The WordPress HTTP API accepts the multipart body as a string, so the audio
+ * bytes and encoded request briefly coexist in memory. Keep the default aligned
+ * with the recorder's fallback upload limit and retain a hard ceiling even when
+ * a site filter raises the normal limit.
+ */
+function ll_tools_remote_stt_max_audio_bytes(string $endpoint = '', array $args = []): int {
+    $default = 10 * 1024 * 1024;
+    $hard_max = 25 * 1024 * 1024;
+    $max_bytes = (int) apply_filters(
+        'll_tools_remote_stt_max_audio_bytes',
+        $default,
+        $endpoint,
+        $args
+    );
+
+    return max(1, min($hard_max, $max_bytes));
+}
+
 function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $file_path, array $args = []) {
     $endpoint = function_exists('ll_tools_sanitize_wordset_local_transcription_endpoint')
         ? ll_tools_sanitize_wordset_local_transcription_endpoint($endpoint)
@@ -167,9 +188,45 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         return new WP_Error('stt_missing_audio', __('STT audio file is missing.', 'll-tools-text-domain'));
     }
 
-    $audio_bytes = file_get_contents($file_path);
+    $max_audio_bytes = ll_tools_remote_stt_max_audio_bytes($endpoint, $args);
+    clearstatcache(true, $file_path);
+    $reported_size = @filesize($file_path);
+    if (is_int($reported_size) && $reported_size > $max_audio_bytes) {
+        return new WP_Error(
+            'stt_audio_too_large',
+            sprintf(
+                /* translators: %s: max upload size */
+                __('Audio file is too large. Maximum allowed size is %s.', 'll-tools-text-domain'),
+                size_format($max_audio_bytes)
+            ),
+            [
+                'status' => 413,
+                'max_bytes' => $max_audio_bytes,
+                'size' => $reported_size,
+            ]
+        );
+    }
+
+    // Read at most one byte beyond the limit so a growing or inaccurately
+    // reported file cannot bypass the pre-read size check.
+    $audio_bytes = file_get_contents($file_path, false, null, 0, $max_audio_bytes + 1);
     if (!is_string($audio_bytes) || $audio_bytes === '') {
         return new WP_Error('stt_audio_unreadable', __('Unable to read the STT audio file.', 'll-tools-text-domain'));
+    }
+    if (strlen($audio_bytes) > $max_audio_bytes) {
+        return new WP_Error(
+            'stt_audio_too_large',
+            sprintf(
+                /* translators: %s: max upload size */
+                __('Audio file is too large. Maximum allowed size is %s.', 'll-tools-text-domain'),
+                size_format($max_audio_bytes)
+            ),
+            [
+                'status' => 413,
+                'max_bytes' => $max_audio_bytes,
+                'size' => strlen($audio_bytes),
+            ]
+        );
     }
 
     $filename = isset($args['filename']) && is_scalar($args['filename'])

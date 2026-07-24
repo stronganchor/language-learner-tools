@@ -2940,6 +2940,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $wordset_id = $this->ensure_term('wordset', 'REST Summary Wordset', 'rest-summary-wordset');
         $category_id = $this->ensure_term('word-category', 'REST Summary Category', 'rest-summary-category');
         $word_id = $this->create_word($wordset_id, [$category_id], 'REST Summary Word', 'Summary Translation');
+        $this->create_word($wordset_id, [], 'REST Uncategorized Summary Word', 'Uncategorized Translation');
 
         $image_id = self::factory()->post->create([
             'post_type' => 'word_images',
@@ -2964,11 +2965,108 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $data = $response->get_data();
         $this->assertIsArray($data);
         $this->assertSame($wordset_id, (int) (($data['wordset']['id'] ?? 0)));
-        $this->assertSame(1, (int) (($data['counts']['words_total'] ?? 0)));
+        $this->assertSame(2, (int) (($data['counts']['words_total'] ?? 0)));
         $this->assertSame(1, (int) (($data['counts']['categories_total'] ?? 0)));
         $this->assertSame(1, (int) (($data['counts']['words_with_audio'] ?? 0)));
         $this->assertSame(1, (int) (($data['counts']['audio_records_total'] ?? 0)));
         $this->assertSame(1, (int) (($data['counts']['words_with_images'] ?? 0)));
+
+        $uncategorized_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-summary-wordset/report-summary',
+            ['category' => 'uncategorized']
+        );
+        $this->assertSame(200, $uncategorized_response->get_status());
+        $uncategorized_data = $uncategorized_response->get_data();
+        $this->assertIsArray($uncategorized_data);
+        $this->assertSame(1, (int) (($uncategorized_data['counts']['words_total'] ?? 0)));
+        $this->assertSame(0, (int) (($uncategorized_data['counts']['categories_total'] ?? -1)));
+        $this->assertSame(0, (int) (($uncategorized_data['counts']['words_with_audio'] ?? -1)));
+        $this->assertSame(0, (int) (($uncategorized_data['counts']['words_with_images'] ?? -1)));
+    }
+
+    public function test_report_summary_route_excludes_private_only_words_for_assigned_manager(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+
+        $wordset_id = $this->ensure_term('wordset', 'REST Private Summary Wordset', 'rest-private-summary-wordset');
+        $public_category_id = $this->ensure_term('word-category', 'REST Public Summary Category', 'rest-public-summary-category');
+        $private_category_id = $this->ensure_term('word-category', 'REST Private Summary Category', 'rest-private-summary-category');
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+
+        $this->create_word($wordset_id, [$public_category_id], 'REST Public Summary Word', 'Public Translation');
+        $private_word_id = $this->create_word(
+            $wordset_id,
+            [$private_category_id],
+            'REST Private Summary Word',
+            'Private Translation'
+        );
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'REST Private Summary Image',
+        ]);
+        update_post_meta($private_word_id, '_ll_autopicked_image_id', $image_id);
+
+        foreach (['one', 'two'] as $suffix) {
+            $audio_id = self::factory()->post->create([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $private_word_id,
+                'post_title' => 'REST Private Summary Audio ' . $suffix,
+            ]);
+            update_post_meta($audio_id, 'audio_file_path', 'audio/rest-private-summary-' . $suffix . '.mp3');
+        }
+
+        $this->assertTrue(function_exists('ll_tools_cli_assign_wordset_manager'));
+        ll_tools_cli_assign_wordset_manager($wordset_id, $manager_id);
+        wp_set_current_user($manager_id);
+
+        $manager_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-private-summary-wordset/report-summary'
+        );
+        $this->assertSame(200, $manager_response->get_status());
+        $manager_data = $manager_response->get_data();
+        $this->assertIsArray($manager_data);
+        $this->assertSame(1, (int) ($manager_data['counts']['words_total'] ?? 0));
+        $this->assertSame(1, (int) ($manager_data['counts']['categories_total'] ?? 0));
+        $this->assertSame(0, (int) ($manager_data['counts']['words_with_audio'] ?? -1));
+        $this->assertSame(0, (int) ($manager_data['counts']['audio_records_total'] ?? -1));
+        $this->assertSame(0, (int) ($manager_data['counts']['words_with_images'] ?? -1));
+
+        wp_set_current_user($admin_id);
+        $admin_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-private-summary-wordset/report-summary'
+        );
+        $this->assertSame(200, $admin_response->get_status());
+        $admin_data = $admin_response->get_data();
+        $this->assertIsArray($admin_data);
+        $this->assertSame(2, (int) ($admin_data['counts']['words_total'] ?? 0));
+        $this->assertSame(2, (int) ($admin_data['counts']['categories_total'] ?? 0));
+        $this->assertSame(1, (int) ($admin_data['counts']['words_with_audio'] ?? 0));
+        $this->assertSame(2, (int) ($admin_data['counts']['audio_records_total'] ?? 0));
+        $this->assertSame(1, (int) ($admin_data['counts']['words_with_images'] ?? 0));
+
+        update_term_meta($private_category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$manager_id]);
+        wp_set_current_user($manager_id);
+        $granted_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-private-summary-wordset/report-summary'
+        );
+        $this->assertSame(200, $granted_response->get_status());
+        $granted_data = $granted_response->get_data();
+        $this->assertIsArray($granted_data);
+        $this->assertSame(2, (int) ($granted_data['counts']['words_total'] ?? 0));
+        $this->assertSame(2, (int) ($granted_data['counts']['categories_total'] ?? 0));
+        $this->assertSame(2, (int) ($granted_data['counts']['audio_records_total'] ?? 0));
     }
 
     public function test_review_notes_route_lists_updates_and_clears_internal_notes(): void
@@ -3005,6 +3103,44 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         }
         $this->assertSame('Split this word.', $notes_by_key['word:' . $word_id] ?? '');
         $this->assertSame('Update prompt image.', $notes_by_key['prompt_card:' . $prompt_card_id] ?? '');
+        $this->assertFalse((bool) ($list_data['pagination']['has_more'] ?? true));
+
+        $first_page = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes',
+            [
+                'limit' => 1,
+                'offset' => 0,
+            ]
+        );
+        $this->assertSame(200, $first_page->get_status());
+        $first_page_data = $first_page->get_data();
+        $this->assertIsArray($first_page_data);
+        $this->assertSame(1, (int) ($first_page_data['count'] ?? 0));
+        $this->assertTrue((bool) ($first_page_data['pagination']['has_more'] ?? false));
+        $this->assertSame(1, (int) ($first_page_data['pagination']['next_offset'] ?? 0));
+
+        $second_page = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes',
+            [
+                'limit' => 1,
+                'offset' => 1,
+            ]
+        );
+        $this->assertSame(200, $second_page->get_status());
+        $second_page_data = $second_page->get_data();
+        $this->assertIsArray($second_page_data);
+        $this->assertSame(1, (int) ($second_page_data['count'] ?? 0));
+        $this->assertFalse((bool) ($second_page_data['pagination']['has_more'] ?? true));
+        $paged_ids = [
+            (int) ($first_page_data['notes'][0]['object_id'] ?? 0),
+            (int) ($second_page_data['notes'][0]['object_id'] ?? 0),
+        ];
+        sort($paged_ids);
+        $expected_ids = [$word_id, $prompt_card_id];
+        sort($expected_ids);
+        $this->assertSame($expected_ids, $paged_ids);
 
         $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes', [
             'object_type' => 'word',
@@ -3457,7 +3593,56 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $export_data = $export->get_data();
         $this->assertIsArray($export_data);
         $this->assertSame(2, (int) ($export_data['count'] ?? 0));
-        $this->assertSame('zazaki_interlinear.v1', (string) (($export_data['items'][0]['payload']['schema'] ?? '')));
+        $this->assertFalse((bool) ($export_data['filters']['include_payload'] ?? true));
+        $this->assertArrayNotHasKey('payload', (array) ($export_data['items'][0] ?? []));
+        $this->assertFalse((bool) ($export_data['pagination']['has_more'] ?? true));
+
+        $payload_export = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear',
+            ['include_payload' => true]
+        );
+        $this->assertSame(200, $payload_export->get_status());
+        $payload_export_data = $payload_export->get_data();
+        $this->assertIsArray($payload_export_data);
+        $this->assertSame('zazaki_interlinear.v1', (string) (($payload_export_data['items'][0]['payload']['schema'] ?? '')));
+
+        $first_page = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear',
+            [
+                'limit' => 1,
+                'offset' => 0,
+            ]
+        );
+        $this->assertSame(200, $first_page->get_status());
+        $first_page_data = $first_page->get_data();
+        $this->assertIsArray($first_page_data);
+        $this->assertSame(1, (int) ($first_page_data['count'] ?? 0));
+        $this->assertTrue((bool) ($first_page_data['pagination']['has_more'] ?? false));
+        $this->assertSame(1, (int) ($first_page_data['pagination']['next_offset'] ?? 0));
+
+        $second_page = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear',
+            [
+                'limit' => 1,
+                'offset' => 1,
+            ]
+        );
+        $this->assertSame(200, $second_page->get_status());
+        $second_page_data = $second_page->get_data();
+        $this->assertIsArray($second_page_data);
+        $this->assertSame(1, (int) ($second_page_data['count'] ?? 0));
+        $this->assertFalse((bool) ($second_page_data['pagination']['has_more'] ?? true));
+        $paged_ids = [
+            (int) ($first_page_data['items'][0]['post_id'] ?? 0),
+            (int) ($second_page_data['items'][0]['post_id'] ?? 0),
+        ];
+        sort($paged_ids);
+        $expected_ids = [$content_lesson_id, $vocab_lesson_id];
+        sort($expected_ids);
+        $this->assertSame($expected_ids, $paged_ids);
 
         $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear', [
             'lesson' => (string) $content_lesson_id,
@@ -3468,6 +3653,142 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertIsArray($clear_data);
         $this->assertSame(1, (int) ($clear_data['cleared_count'] ?? 0));
         $this->assertSame([], ll_tools_interlinear_get_payload($content_lesson_id));
+    }
+
+    public function test_interlinear_rest_exact_resolution_reaches_lesson_after_first_250_rows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term(
+            'wordset',
+            'REST Deep Interlinear Wordset',
+            'rest-deep-interlinear-wordset'
+        );
+
+        $filler_ids = self::factory()->post->create_many(250, [
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Deep Interlinear Filler',
+            'menu_order' => 0,
+        ]);
+        foreach ($filler_ids as $filler_id) {
+            update_post_meta((int) $filler_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        }
+
+        $target_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Deep Interlinear Target',
+            'post_name' => 'rest-deep-interlinear-target',
+            'menu_order' => 999,
+        ]);
+        update_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($target_id, LL_TOOLS_INTERLINEAR_LESSON_ID_META, 'rest-deep-external-id');
+
+        wp_set_current_user($admin_id);
+
+        $slug_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-deep-interlinear-wordset/interlinear',
+            [
+                'lesson' => 'rest-deep-interlinear-target',
+                'post_type' => 'll_content_lesson',
+            ]
+        );
+        $this->assertSame(200, $slug_response->get_status());
+        $slug_data = $slug_response->get_data();
+        $this->assertIsArray($slug_data);
+        $this->assertSame($target_id, (int) ($slug_data['items'][0]['post_id'] ?? 0));
+
+        $lesson_id_response = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/wordsets/rest-deep-interlinear-wordset/interlinear',
+            [
+                'interlinear_lesson_id' => 'rest-deep-external-id',
+                'payload' => $this->sample_interlinear_payload('rest-deep-dry-run'),
+                'dry_run' => true,
+            ]
+        );
+        $this->assertSame(200, $lesson_id_response->get_status());
+        $lesson_id_data = $lesson_id_response->get_data();
+        $this->assertIsArray($lesson_id_data);
+        $this->assertSame([], (array) ($lesson_id_data['errors'] ?? []));
+        $this->assertSame($target_id, (int) ($lesson_id_data['results'][0]['lesson']['post_id'] ?? 0));
+        $this->assertSame([], ll_tools_interlinear_get_payload($target_id));
+    }
+
+    public function test_interlinear_rest_rejects_cross_post_type_stale_wordset_meta(): void
+    {
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+
+        $allowed_wordset_id = $this->ensure_term(
+            'wordset',
+            'REST Scoped Interlinear Wordset',
+            'rest-scoped-interlinear-wordset'
+        );
+        $private_wordset_id = $this->ensure_term(
+            'wordset',
+            'REST Foreign Interlinear Wordset',
+            'rest-foreign-interlinear-wordset'
+        );
+        update_term_meta($private_wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+        $allowed_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Allowed Interlinear Lesson',
+            'post_name' => 'rest-allowed-interlinear-lesson',
+        ]);
+        update_post_meta($allowed_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $allowed_wordset_id);
+
+        $foreign_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Foreign Interlinear Lesson',
+            'post_name' => 'rest-foreign-interlinear-lesson',
+        ]);
+        update_post_meta($foreign_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $private_wordset_id);
+        update_post_meta($foreign_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $allowed_wordset_id);
+        $this->assertNotWPError(
+            ll_tools_interlinear_set_payload(
+                $foreign_lesson_id,
+                $this->sample_interlinear_payload('rest-foreign-secret'),
+                'phpunit'
+            )
+        );
+
+        $this->assertTrue(function_exists('ll_tools_cli_assign_wordset_manager'));
+        ll_tools_cli_assign_wordset_manager($allowed_wordset_id, $manager_id);
+        wp_set_current_user($manager_id);
+        $this->assertFalse(ll_tools_user_can_view_wordset($private_wordset_id, $manager_id));
+
+        $list_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-scoped-interlinear-wordset/interlinear',
+            [
+                'include_empty' => true,
+                'include_payload' => true,
+            ]
+        );
+        $this->assertSame(200, $list_response->get_status());
+        $list_data = $list_response->get_data();
+        $this->assertIsArray($list_data);
+        $this->assertSame(1, (int) ($list_data['count'] ?? 0));
+        $this->assertSame($allowed_lesson_id, (int) ($list_data['items'][0]['post_id'] ?? 0));
+        $this->assertNotSame(
+            'rest-foreign-secret',
+            (string) ($list_data['items'][0]['payload']['lesson_id'] ?? '')
+        );
+
+        $exact_response = $this->dispatch_ll_tools_rest_request(
+            'GET',
+            '/ll-tools/v1/wordsets/rest-scoped-interlinear-wordset/interlinear',
+            ['lesson' => 'rest-foreign-interlinear-lesson']
+        );
+        $this->assertSame(404, $exact_response->get_status());
     }
 
     public function test_corpus_text_import_route_creates_wordset_free_content_lesson(): void

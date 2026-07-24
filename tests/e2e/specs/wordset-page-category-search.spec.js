@@ -120,6 +120,10 @@ function buildMarkup() {
       <div class="ll-wordset-empty ll-wordset-empty--search" data-ll-wordset-page-search-empty hidden>
         No categories match this search.
       </div>
+      <div class="ll-wordset-empty ll-wordset-empty--search ll-wordset-search-error" data-ll-wordset-page-search-error hidden>
+        <span>Could not search this word set right now.</span>
+        <button type="button" data-ll-wordset-page-search-retry>Retry</button>
+      </div>
 
       <div data-ll-wordset-selection-bar hidden>
         <span data-ll-wordset-selection-text>Select categories to study together</span>
@@ -289,16 +293,28 @@ function buildConfig() {
   };
 }
 
-async function mountWordsetPage(page) {
+async function mountWordsetPage(page, options = {}) {
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(buildMarkup());
   await page.addScriptTag({ content: jquerySource });
 
+  const config = buildConfig();
+  config.categorySearch.testWarmFailures = Math.max(
+    0,
+    Number(options.warmFailures || (options.warmOnce ? 1 : 0)) || 0
+  );
+  if (options.maxRetries) {
+    config.categorySearch.maxRetries = Number(options.maxRetries);
+  }
+  if (options.retryBaseMs) {
+    config.categorySearch.retryBaseMs = Number(options.retryBaseMs);
+  }
   await page.evaluate((config) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
     window.__categorySearchRequests = [];
+    window.__categorySearchWarmAttempts = 0;
 
     const $ = window.jQuery;
     $.post = function () {
@@ -343,9 +359,29 @@ async function mountWordsetPage(page) {
       });
 
       window.setTimeout(function () {
+        if (
+          config.categorySearch.testWarmFailures > 0
+          && query === 'warm'
+          && window.__categorySearchWarmAttempts < config.categorySearch.testWarmFailures
+        ) {
+          window.__categorySearchWarmAttempts += 1;
+          deferred.reject({
+            responseJSON: {
+              success: false,
+              data: {
+                retry: true
+              }
+            },
+            getResponseHeader: function () {
+              return null;
+            }
+          }, 'error');
+          return;
+        }
+
         let categoryIds = [];
         let wordMatches = {};
-        if (query.indexOf('app') !== -1 || query.indexOf('elma') !== -1) {
+        if (query.indexOf('app') !== -1 || query.indexOf('elma') !== -1 || query === 'warm') {
           categoryIds = [11];
           wordMatches = {
             11: [{
@@ -402,7 +438,7 @@ async function mountWordsetPage(page) {
 
       return request;
     };
-  }, buildConfig());
+  }, config);
 
   await page.addScriptTag({ content: wordsetScriptSource });
 }
@@ -474,6 +510,51 @@ test('main wordset search matches words when only diacritics differ', async ({ p
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([33]);
 
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search keeps loading and retries while the durable index warms', async ({ page }) => {
+  await mountWordsetPage(page, { warmOnce: true });
+
+  await setSearchValue(page, 'warm');
+
+  await expect(page.locator('[data-ll-wordset-page]')).toHaveClass(/is-category-search-loading/);
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'warm').length
+  ))).toBe(2);
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11]);
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search shows a retry state instead of a false empty result after warming exhausts', async ({ page }) => {
+  await mountWordsetPage(page, {
+    warmFailures: 3,
+    maxRetries: 2,
+    retryBaseMs: 10
+  });
+
+  await setSearchValue(page, 'warm');
+
+  const errorState = page.locator('[data-ll-wordset-page-search-error]');
+  await expect(errorState).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'warm').length
+  ))).toBe(3);
+
+  await errorState.locator('[data-ll-wordset-page-search-retry]').click();
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11]);
+  await expect(errorState).toBeHidden();
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
 });
 

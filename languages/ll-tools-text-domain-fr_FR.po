@@ -5159,3 +5159,8 @@ msgstr "Un bloc de regroupement TSV dépasse la taille autorisée."
 #: includes/pages/wordset-pages.php:25929
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "Les résultats de la recherche sont en cours de traitement. Veuillez réessayer dans quelques instants."
+
+#. ll-tools-public-key: 9533ce6da037b022fb7116a7d8d43889ba2a58f4
+#: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
+msgid "Lesson words are still being prepared. Please try again in a moment."
+msgstr "Les mots de la leçon sont encore en cours de préparation. Réessayez dans un instant."

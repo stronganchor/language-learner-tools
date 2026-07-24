@@ -488,6 +488,84 @@ function ll_audio_processor_queue_page_size(): int {
 }
 
 /**
+ * Build an opaque, user-bound cursor for Audio Processor keyset pagination.
+ */
+function ll_audio_processor_encode_queue_cursor(string $tab, string $sort_value, int $recording_id): string {
+    $tab = sanitize_key($tab);
+    $sort_value = trim($sort_value);
+    $recording_id = max(0, $recording_id);
+    if (!in_array($tab, ['queue', 'duplicates', 'reprocess'], true) || $sort_value === '' || $recording_id <= 0) {
+        return '';
+    }
+
+    $json = wp_json_encode([
+        'v' => 1,
+        'tab' => $tab,
+        'sort' => $sort_value,
+        'id' => $recording_id,
+        'user_id' => get_current_user_id(),
+    ]);
+    if (!is_string($json) || $json === '') {
+        return '';
+    }
+
+    $payload = rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+    $signature = hash_hmac('sha256', $payload, wp_salt('nonce'));
+    return $payload . '.' . $signature;
+}
+
+/**
+ * @return array{sort:string,id:int}|array{}
+ */
+function ll_audio_processor_decode_queue_cursor(string $cursor, string $tab): array {
+    $cursor = trim($cursor);
+    $tab = sanitize_key($tab);
+    if ($cursor === '' || strlen($cursor) > 512 || !in_array($tab, ['queue', 'duplicates', 'reprocess'], true)) {
+        return [];
+    }
+
+    $parts = explode('.', $cursor, 2);
+    if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+        return [];
+    }
+    [$payload, $provided_signature] = $parts;
+    $expected_signature = hash_hmac('sha256', $payload, wp_salt('nonce'));
+    if (!hash_equals($expected_signature, $provided_signature)) {
+        return [];
+    }
+
+    $encoded = strtr($payload, '-_', '+/');
+    $padding = strlen($encoded) % 4;
+    if ($padding > 0) {
+        $encoded .= str_repeat('=', 4 - $padding);
+    }
+    $json = base64_decode($encoded, true);
+    $decoded = is_string($json) ? json_decode($json, true) : null;
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $sort_value = isset($decoded['sort']) && is_scalar($decoded['sort'])
+        ? trim((string) $decoded['sort'])
+        : '';
+    $recording_id = isset($decoded['id']) ? (int) $decoded['id'] : 0;
+    if (
+        (int) ($decoded['v'] ?? 0) !== 1
+        || sanitize_key((string) ($decoded['tab'] ?? '')) !== $tab
+        || (int) ($decoded['user_id'] ?? 0) !== get_current_user_id()
+        || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $sort_value)
+        || $recording_id <= 0
+    ) {
+        return [];
+    }
+
+    return [
+        'sort' => $sort_value,
+        'id' => $recording_id,
+    ];
+}
+
+/**
  * SQL expression matching the first recording_type term used by the legacy queue grouper.
  */
 function ll_audio_processor_recording_type_slug_sql(string $audio_alias): string {
@@ -616,9 +694,14 @@ function ll_audio_processor_prime_queue_payload_caches(array $rows): void {
 /**
  * Load one bounded Audio Processor tab page without hydrating the rest of the queue.
  *
- * @return array{tab:string,page:int,perPage:int,hasMore:bool,knownCount:int,recordings:array<int,array<string,mixed>>}
+ * @return array{tab:string,page:int,perPage:int,hasMore:bool,knownCount:int,cursorApplied:bool,nextCursor:string,recordings:array<int,array<string,mixed>>}
  */
-function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per_page = null): array {
+function ll_audio_processor_get_queue_page(
+    string $tab,
+    int $page = 1,
+    ?int $per_page = null,
+    string $cursor = ''
+): array {
     global $wpdb;
 
     $allowed_tabs = ['queue', 'duplicates', 'reprocess'];
@@ -631,15 +714,29 @@ function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per
     $offset = ($page - 1) * $per_page;
     $query_limit = $per_page + 1;
     $access_sql = ll_audio_processor_queue_access_sql('audio');
+    $cursor_data = $page > 1 ? ll_audio_processor_decode_queue_cursor($cursor, $tab) : [];
+    $cursor_applied = !empty($cursor_data);
 
     if ($tab === 'reprocess') {
         if (!defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY')) {
             $rows = [];
         } else {
             $original_meta_key = esc_sql((string) LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY);
+            $keyset_sql = '';
+            if ($cursor_applied) {
+                $keyset_sql = $wpdb->prepare(
+                    ' AND (audio.post_modified < %s OR (audio.post_modified = %s AND audio.ID < %d))',
+                    (string) $cursor_data['sort'],
+                    (string) $cursor_data['sort'],
+                    (int) $cursor_data['id']
+                );
+            }
+            $page_sql = $cursor_applied
+                ? "LIMIT {$query_limit}"
+                : "LIMIT {$query_limit} OFFSET {$offset}";
             $rows = $wpdb->get_results(
                 "
-                SELECT audio.ID, audio.post_parent, '' AS duplicate_reason
+                SELECT audio.ID, audio.post_parent, audio.post_modified AS queue_sort, '' AS duplicate_reason
                 FROM {$wpdb->posts} audio
                 WHERE audio.post_type = 'word_audio'
                   AND audio.post_status IN ('publish', 'draft')
@@ -663,8 +760,9 @@ function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per
                         AND processing_flag.meta_value = '1'
                   )
                   {$access_sql}
+                  {$keyset_sql}
                 ORDER BY audio.post_modified DESC, audio.ID DESC
-                LIMIT {$query_limit} OFFSET {$offset}
+                {$page_sql}
                 ",
                 ARRAY_A
             );
@@ -734,14 +832,27 @@ function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per
         $having_sql = $tab === 'duplicates'
             ? "HAVING duplicate_reason <> ''"
             : "HAVING duplicate_reason = ''";
+        $keyset_sql = '';
+        if ($cursor_applied) {
+            $keyset_sql = $wpdb->prepare(
+                'WHERE (candidate.post_date < %s OR (candidate.post_date = %s AND candidate.ID < %d))',
+                (string) $cursor_data['sort'],
+                (string) $cursor_data['sort'],
+                (int) $cursor_data['id']
+            );
+        }
+        $page_sql = $cursor_applied
+            ? "LIMIT {$query_limit}"
+            : "LIMIT {$query_limit} OFFSET {$offset}";
 
         $rows = $wpdb->get_results(
             "
-            SELECT candidate.ID, candidate.post_parent, {$duplicate_reason_sql} AS duplicate_reason
+            SELECT candidate.ID, candidate.post_parent, candidate.post_date AS queue_sort, {$duplicate_reason_sql} AS duplicate_reason
             FROM ({$candidate_sql}) candidate
+            {$keyset_sql}
             {$having_sql}
             ORDER BY candidate.post_date DESC, candidate.ID DESC
-            LIMIT {$query_limit} OFFSET {$offset}
+            {$page_sql}
             ",
             ARRAY_A
         );
@@ -751,6 +862,18 @@ function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per
     $has_more = count($rows) > $per_page;
     if ($has_more) {
         array_pop($rows);
+    }
+    $next_cursor = '';
+    if ($has_more && !empty($rows)) {
+        $last_row = end($rows);
+        if (is_array($last_row)) {
+            $next_cursor = ll_audio_processor_encode_queue_cursor(
+                $tab,
+                (string) ($last_row['queue_sort'] ?? ''),
+                (int) ($last_row['ID'] ?? 0)
+            );
+        }
+        reset($rows);
     }
 
     ll_audio_processor_prime_queue_payload_caches($rows);
@@ -786,6 +909,8 @@ function ll_audio_processor_get_queue_page(string $tab, int $page = 1, ?int $per
         'perPage' => $per_page,
         'hasMore' => $has_more,
         'knownCount' => $offset + count($recordings),
+        'cursorApplied' => $cursor_applied,
+        'nextCursor' => $next_cursor,
         'recordings' => $recordings,
     ];
 }
@@ -832,7 +957,10 @@ function ll_audio_processor_load_queue_page_handler(): void {
     }
 
     $page = isset($_POST['page']) ? max(1, (int) $_POST['page']) : 1;
-    $page_data = ll_audio_processor_get_queue_page($tab, $page);
+    $cursor = isset($_POST['cursor']) && !is_array($_POST['cursor'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['cursor']))
+        : '';
+    $page_data = ll_audio_processor_get_queue_page($tab, $page, null, $cursor);
     $page_data['html'] = ll_audio_processor_render_queue_page_html($page_data);
     wp_send_json_success($page_data);
 }
@@ -1031,7 +1159,12 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     <?php
 }
 
-function ll_render_audio_processor_queue_panel(string $tab, bool $is_active, int $initial_page = 1): void {
+function ll_render_audio_processor_queue_panel(
+    string $tab,
+    bool $is_active,
+    int $initial_page = 1,
+    string $initial_cursor = ''
+): void {
     $initial_page = max(1, $initial_page);
     ?>
     <div
@@ -1039,6 +1172,7 @@ function ll_render_audio_processor_queue_panel(string $tab, bool $is_active, int
         class="ll-recordings-list <?php echo $is_active ? 'is-active' : ''; ?>"
         data-tab="<?php echo esc_attr($tab); ?>"
         data-page="<?php echo esc_attr((string) $initial_page); ?>"
+        data-cursor="<?php echo esc_attr($initial_page > 1 ? $initial_cursor : ''); ?>"
         data-loaded="false"
         role="tabpanel"
         aria-hidden="<?php echo $is_active ? 'false' : 'true'; ?>"
@@ -1076,6 +1210,12 @@ function ll_render_audio_processor_page() {
     $active_page = isset($_GET['ll_ap_page'])
         ? max(1, (int) wp_unslash((string) $_GET['ll_ap_page']))
         : 1;
+    $active_cursor = isset($_GET['ll_ap_cursor']) && !is_array($_GET['ll_ap_cursor'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_ap_cursor']))
+        : '';
+    if (strlen($active_cursor) > 512) {
+        $active_cursor = '';
+    }
     ?>
     <div class="wrap ll-audio-processor-wrap">
         <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>
@@ -1170,9 +1310,9 @@ function ll_render_audio_processor_page() {
                 </button>
             </div>
 
-            <?php ll_render_audio_processor_queue_panel('queue', $active_tab === 'queue', $active_tab === 'queue' ? $active_page : 1); ?>
-            <?php ll_render_audio_processor_queue_panel('duplicates', $active_tab === 'duplicates', $active_tab === 'duplicates' ? $active_page : 1); ?>
-            <?php ll_render_audio_processor_queue_panel('reprocess', $active_tab === 'reprocess', $active_tab === 'reprocess' ? $active_page : 1); ?>
+            <?php ll_render_audio_processor_queue_panel('queue', $active_tab === 'queue', $active_tab === 'queue' ? $active_page : 1, $active_tab === 'queue' ? $active_cursor : ''); ?>
+            <?php ll_render_audio_processor_queue_panel('duplicates', $active_tab === 'duplicates', $active_tab === 'duplicates' ? $active_page : 1, $active_tab === 'duplicates' ? $active_cursor : ''); ?>
+            <?php ll_render_audio_processor_queue_panel('reprocess', $active_tab === 'reprocess', $active_tab === 'reprocess' ? $active_page : 1, $active_tab === 'reprocess' ? $active_cursor : ''); ?>
 
             <!-- Review Interface (shown after processing) -->
             <div id="ll-review-interface" class="ll-review-interface">

@@ -308,6 +308,15 @@ async function mountWordsetPage(page, options = {}) {
     window.__llAlerts = [];
     window.__llLaunchTrace = [];
     window.__llVisualizerWarmups = 0;
+    window.__llPublicCategoryRequests = {
+      active: 0,
+      maxActive: 0,
+      categories: []
+    };
+    let publicCategoryWarmingRemaining = Math.max(
+      0,
+      Number(bootstrap.publicCategoryWarmingResponses) || 0
+    );
     window.alert = function (message) {
       window.__llAlerts.push(String(message || ''));
     };
@@ -354,10 +363,42 @@ async function mountWordsetPage(page, options = {}) {
 
       if (action === 'll_get_words_by_category') {
         const categoryName = String((request && request.category) || '');
-        deferred.resolve({
-          success: true,
-          data: Array.isArray(bootstrap.wordsByCategoryName[categoryName]) ? bootstrap.wordsByCategoryName[categoryName] : []
-        });
+        window.__llPublicCategoryRequests.active += 1;
+        window.__llPublicCategoryRequests.maxActive = Math.max(
+          window.__llPublicCategoryRequests.maxActive,
+          window.__llPublicCategoryRequests.active
+        );
+        window.__llPublicCategoryRequests.categories.push(categoryName);
+        const resolveCategoryRequest = () => {
+          window.__llPublicCategoryRequests.active = Math.max(
+            0,
+            window.__llPublicCategoryRequests.active - 1
+          );
+          if (publicCategoryWarmingRemaining > 0) {
+            publicCategoryWarmingRemaining -= 1;
+            deferred.reject({
+              status: 429,
+              responseJSON: {
+                success: false,
+                data: {
+                  code: 'cache_warming',
+                  retry_after: 0
+                }
+              },
+              getResponseHeader: () => ''
+            });
+            return;
+          }
+          deferred.resolve({
+            success: true,
+            data: Array.isArray(bootstrap.wordsByCategoryName[categoryName]) ? bootstrap.wordsByCategoryName[categoryName] : []
+          });
+        };
+        if (bootstrap.publicCategoryDelayMs > 0) {
+          window.setTimeout(resolveCategoryRequest, bootstrap.publicCategoryDelayMs);
+        } else {
+          resolveCategoryRequest();
+        }
         return deferred.promise();
       }
 
@@ -388,7 +429,9 @@ async function mountWordsetPage(page, options = {}) {
   }, {
     config,
     wordsByCategory,
-    wordsByCategoryName
+    wordsByCategoryName,
+    publicCategoryDelayMs: Math.max(0, Number(options.publicCategoryDelayMs) || 0),
+    publicCategoryWarmingResponses: Math.max(0, Number(options.publicCategoryWarmingResponses) || 0)
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -422,6 +465,45 @@ test('logged-out select-all shows real word count and allows listening launch', 
   expect(launch.mode).toBe('listening');
   expect(launch.sessionWordIds).toEqual([]);
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+});
+
+test('logged-out public practice hydration serializes category cache misses', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: false,
+    publicCategoryDelayMs: 100
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const requestStats = await page.evaluate(() => window.__llPublicCategoryRequests);
+  expect(requestStats.categories).toEqual(['Cat A', 'Cat B', 'Cat C']);
+  expect(requestStats.maxActive).toBe(1);
+  expect(requestStats.active).toBe(0);
+});
+
+test('logged-out public practice keeps loading while a category cache warms', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: false,
+    publicCategoryDelayMs: 50,
+    publicCategoryWarmingResponses: 1
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toHaveAttribute('aria-busy', 'true');
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const requestStats = await page.evaluate(() => window.__llPublicCategoryRequests);
+  expect(requestStats.categories).toEqual(['Cat A', 'Cat A', 'Cat B', 'Cat C']);
+  expect(requestStats.maxActive).toBe(1);
 });
 
 test('logged-in listening launches ignore recommendation chunk IDs for top and selection starts', async ({ page }) => {

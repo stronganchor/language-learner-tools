@@ -86,8 +86,12 @@
     let mainCategorySearchRequest = null;
     let mainCategorySearchRequestToken = 0;
     let mainCategorySearchPendingQuery = '';
+    let mainCategorySearchRetryTimer = null;
+    let mainCategorySearchRetryQuery = '';
     const mainCategorySearchCache = {};
     const mainCategorySearchFailedQueries = {};
+    const mainCategorySearchErrorQueries = {};
+    const mainCategorySearchRetryCounts = {};
     let mainCategorySort = 'default';
     let mainCategorySortMenuOpen = false;
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
@@ -563,6 +567,8 @@
     const categorySearchToken = String(categorySearchCfg.token || '');
     const categorySearchWordsetId = Math.max(0, parseInt(categorySearchCfg.wordsetId, 10) || wordsetId || 0);
     const categorySearchMinQueryLength = Math.max(1, parseInt(categorySearchCfg.minQueryLength, 10) || 1);
+    const categorySearchMaxRetries = Math.max(1, Math.min(120, parseInt(categorySearchCfg.maxRetries, 10) || 60));
+    const categorySearchRetryBaseMs = Math.max(10, Math.min(2000, parseInt(categorySearchCfg.retryBaseMs, 10) || 250));
     const categorySearchEnabled = !!categorySearchCfg.enabled && !!ajaxUrl && !!categorySearchNonce && !!categorySearchToken && !!categorySearchWordsetId;
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
@@ -641,6 +647,7 @@
     const $mainCategorySearchClear = $root.find('[data-ll-wordset-page-search-clear]');
     const $mainCategorySearchLoading = $root.find('[data-ll-wordset-page-search-loading]');
     const $mainCategorySearchEmpty = $root.find('[data-ll-wordset-page-search-empty]');
+    const $mainCategorySearchError = $root.find('[data-ll-wordset-page-search-error]');
     const $mainCategorySortRoot = $root.find('[data-ll-wordset-main-sort-root]').first();
     const $mainCategorySortToggle = $root.find('[data-ll-wordset-main-sort-toggle]').first();
     const $mainCategorySortMenu = $root.find('[data-ll-wordset-main-sort-menu]').first();
@@ -7735,6 +7742,15 @@
             return false;
         }
 
+        if (mainCategorySearchRetryTimer && mainCategorySearchRetryQuery === key) {
+            return true;
+        }
+        if (mainCategorySearchRetryTimer && mainCategorySearchRetryQuery !== key) {
+            clearTimeout(mainCategorySearchRetryTimer);
+            mainCategorySearchRetryTimer = null;
+            mainCategorySearchRetryQuery = '';
+        }
+
         if (isMainCategorySearchRequestPending(key)) {
             return true;
         }
@@ -7746,6 +7762,7 @@
         }
 
         const requestToken = ++mainCategorySearchRequestToken;
+        let retryScheduled = false;
         mainCategorySearchPendingQuery = key;
         mainCategorySearchRequest = $.ajax({
             url: ajaxUrl,
@@ -7768,6 +7785,7 @@
                 : null;
             if (!payload) {
                 mainCategorySearchFailedQueries[key] = true;
+                mainCategorySearchErrorQueries[key] = true;
                 return;
             }
 
@@ -7782,25 +7800,78 @@
                 wordMatches: normalizeMainCategorySearchWordMatches(payload.wordMatches || payload.word_matches || {})
             };
             mainCategorySearchCache[key] = cachedSearch;
+            delete mainCategorySearchRetryCounts[key];
+            delete mainCategorySearchFailedQueries[key];
+            delete mainCategorySearchErrorQueries[key];
             if (responseKey && responseKey !== key) {
                 mainCategorySearchCache[responseKey] = cachedSearch;
             }
-        }).fail(function (_xhr, status) {
+        }).fail(function (xhr, status) {
             if (requestToken !== mainCategorySearchRequestToken || status === 'abort') {
                 return;
             }
+
+            const responseData = xhr
+                && xhr.responseJSON
+                && xhr.responseJSON.data
+                && typeof xhr.responseJSON.data === 'object'
+                ? xhr.responseJSON.data
+                : {};
+            const shouldRetry = !!responseData.retry;
+            const retryCount = parseInt(mainCategorySearchRetryCounts[key], 10) || 0;
+            const currentKey = getMainCategorySearchQueryKey(mainCategorySearchQuery || '');
+            if (shouldRetry && retryCount < categorySearchMaxRetries && currentKey === key) {
+                const retryAfterHeader = xhr && typeof xhr.getResponseHeader === 'function'
+                    ? parseInt(xhr.getResponseHeader('Retry-After'), 10) || 0
+                    : 0;
+                const retryDelay = retryAfterHeader > 0
+                    ? Math.min(5000, retryAfterHeader * 1000)
+                    : Math.min(3000, categorySearchRetryBaseMs * Math.pow(1.6, retryCount));
+                mainCategorySearchRetryCounts[key] = retryCount + 1;
+                mainCategorySearchRetryQuery = key;
+                retryScheduled = true;
+                mainCategorySearchRetryTimer = setTimeout(function () {
+                    mainCategorySearchRetryTimer = null;
+                    mainCategorySearchRetryQuery = '';
+                    if (getMainCategorySearchQueryKey(mainCategorySearchQuery || '') !== key) {
+                        return;
+                    }
+                    setMainCategorySearchLoading(true, { showSpinner: true });
+                    renderMainCategorySearch({ keepLoading: true });
+                }, retryDelay);
+                return;
+            }
+
             mainCategorySearchFailedQueries[key] = true;
+            mainCategorySearchErrorQueries[key] = true;
         }).always(function () {
             if (requestToken !== mainCategorySearchRequestToken) {
                 return;
             }
             mainCategorySearchRequest = null;
             mainCategorySearchPendingQuery = '';
-            renderMainCategorySearch();
-            setMainCategorySearchLoading(false);
+            renderMainCategorySearch({ keepLoading: retryScheduled });
+            setMainCategorySearchLoading(retryScheduled, { showSpinner: true });
         });
 
         return true;
+    }
+
+    function syncMainCategorySearchError(query) {
+        const key = getMainCategorySearchQueryKey(query || '');
+        const hasError = !!key && Object.prototype.hasOwnProperty.call(mainCategorySearchErrorQueries, key);
+        $root.toggleClass('is-category-search-error', hasError);
+        if ($mainCategorySearchError.length) {
+            $mainCategorySearchError.prop('hidden', !hasError);
+        }
+        if ($mainCategorySearchInput.length) {
+            if (hasError) {
+                $mainCategorySearchInput.attr('aria-invalid', 'true');
+            } else {
+                $mainCategorySearchInput.removeAttr('aria-invalid');
+            }
+        }
+        return hasError;
     }
 
     function setMainCategorySearchLoading(isLoading, options) {
@@ -9957,6 +10028,7 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
+        const searchHasError = syncMainCategorySearchError(query);
         const pendingMatches = !!(searchRenderResult && searchRenderResult.pendingMatches) || searchRequestPending;
 
         if (selectedCategoryIds.length !== previousSelectedIds.length) {
@@ -9966,7 +10038,7 @@
             scheduleSelectAllAlignment();
         }
 
-        const shouldShowEmpty = !!query && visibleCount === 0 && !pendingMatches;
+        const shouldShowEmpty = !!query && visibleCount === 0 && !pendingMatches && !searchHasError;
         if ($mainCategorySearchEmpty.length) {
             $mainCategorySearchEmpty.prop('hidden', !shouldShowEmpty);
         }
@@ -12945,58 +13017,104 @@
         }
 
         if (!isLoggedIn || !nonce) {
-            const publicRequests = missing.map(function (categoryId) {
-                const cat = getCategoryById(categoryId);
-                if (!cat || !cat.name) {
-                    if (!Array.isArray(wordsByCategory[categoryId])) {
-                        wordsByCategory[categoryId] = [];
+            const publicWarmingMaxRetries = 2;
+            const publicRetryDelayMs = function (xhr) {
+                let retryAfter = 0;
+                const responseData = xhr
+                    && xhr.responseJSON
+                    && xhr.responseJSON.data
+                    && typeof xhr.responseJSON.data === 'object'
+                    ? xhr.responseJSON.data
+                    : {};
+                retryAfter = Number(responseData.retry_after || 0);
+                if (!(retryAfter > 0) && xhr && typeof xhr.getResponseHeader === 'function') {
+                    retryAfter = Number(xhr.getResponseHeader('Retry-After') || 0);
+                }
+                return Math.max(250, Math.min(5000, retryAfter > 0 ? retryAfter * 1000 : 1000));
+            };
+            const requestPublicCategory = function (payload, attempt) {
+                const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
+                return $.post(ajaxUrl, payload).then(null, function (xhr) {
+                    const responseData = xhr
+                        && xhr.responseJSON
+                        && xhr.responseJSON.data
+                        && typeof xhr.responseJSON.data === 'object'
+                        ? xhr.responseJSON.data
+                        : {};
+                    const isWarming = Number(xhr && xhr.status) === 429
+                        && String(responseData.code || '') === 'cache_warming';
+                    if (isWarming && attemptNumber < publicWarmingMaxRetries) {
+                        const delay = $.Deferred();
+                        window.setTimeout(function () {
+                            delay.resolve();
+                        }, publicRetryDelayMs(xhr));
+                        return delay.promise().then(function () {
+                            return requestPublicCategory(payload, attemptNumber + 1);
+                        });
                     }
-                    return $.Deferred().resolve().promise();
-                }
 
-                const optionType = String(cat.option_type || cat.mode || 'image');
-                const promptType = String(cat.prompt_type || 'audio');
-                const wordsetSpec = wordsetSlug || String(wordsetId || '');
-
-                const publicPayload = {
-                    action: 'll_get_words_by_category',
-                    category: String(cat.name || ''),
-                    display_mode: optionType,
-                    wordset: wordsetSpec,
-                    wordset_fallback: 0,
-                    prompt_type: promptType,
-                    option_type: optionType
-                };
-                if (candidateWordIds.length) {
-                    publicPayload.candidate_word_ids = candidateWordIds.join(',');
-                }
-
-                return $.post(ajaxUrl, publicPayload).then(function (res) {
-                    if (res && res.success && Array.isArray(res.data)) {
-                        if (candidateWordIds.length) {
-                            setCandidateScopedWords(categoryId, candidateWordIds, res.data);
-                        } else {
-                            wordsByCategory[categoryId] = res.data.slice();
+                    const rejected = $.Deferred();
+                    rejected.reject(xhr);
+                    return rejected.promise();
+                });
+            };
+            let publicRequestCount = 0;
+            let publicRequestChain = $.Deferred().resolve().promise();
+            missing.forEach(function (categoryId) {
+                publicRequestCount += 1;
+                publicRequestChain = publicRequestChain.then(function () {
+                    const cat = getCategoryById(categoryId);
+                    if (!cat || !cat.name) {
+                        if (!Array.isArray(wordsByCategory[categoryId])) {
+                            wordsByCategory[categoryId] = [];
                         }
-                    } else if (candidateWordIds.length) {
-                        setCandidateScopedWords(categoryId, candidateWordIds, []);
-                    } else if (!Array.isArray(wordsByCategory[categoryId])) {
-                        wordsByCategory[categoryId] = [];
+                        return undefined;
                     }
-                }, function () {
+
+                    const optionType = String(cat.option_type || cat.mode || 'image');
+                    const promptType = String(cat.prompt_type || 'audio');
+                    const wordsetSpec = wordsetSlug || String(wordsetId || '');
+
+                    const publicPayload = {
+                        action: 'll_get_words_by_category',
+                        category: String(cat.name || ''),
+                        display_mode: optionType,
+                        wordset: wordsetSpec,
+                        wordset_fallback: 0,
+                        prompt_type: promptType,
+                        option_type: optionType
+                    };
                     if (candidateWordIds.length) {
-                        setCandidateScopedWords(categoryId, candidateWordIds, []);
-                    } else if (!Array.isArray(wordsByCategory[categoryId])) {
-                        wordsByCategory[categoryId] = [];
+                        publicPayload.candidate_word_ids = candidateWordIds.join(',');
                     }
+
+                    return requestPublicCategory(publicPayload, 0).then(function (res) {
+                        if (res && res.success && Array.isArray(res.data)) {
+                            if (candidateWordIds.length) {
+                                setCandidateScopedWords(categoryId, candidateWordIds, res.data);
+                            } else {
+                                wordsByCategory[categoryId] = res.data.slice();
+                            }
+                        } else if (candidateWordIds.length) {
+                            setCandidateScopedWords(categoryId, candidateWordIds, []);
+                        } else if (!Array.isArray(wordsByCategory[categoryId])) {
+                            wordsByCategory[categoryId] = [];
+                        }
+                    }, function () {
+                        if (candidateWordIds.length) {
+                            setCandidateScopedWords(categoryId, candidateWordIds, []);
+                        } else if (!Array.isArray(wordsByCategory[categoryId])) {
+                            wordsByCategory[categoryId] = [];
+                        }
+                    });
                 });
             });
 
-            if (!publicRequests.length) {
+            if (!publicRequestCount) {
                 return $.Deferred().resolve(wordsByCategory).promise();
             }
 
-            return $.when.apply($, publicRequests).then(function () {
+            return publicRequestChain.then(function () {
                 return wordsByCategory;
             }, function () {
                 return wordsByCategory;
@@ -15370,6 +15488,24 @@
                 return;
             }
             $mainCategorySearchInput.val('').trigger('input').trigger('focus');
+        });
+
+        $root.on('click', '[data-ll-wordset-page-search-retry]', function (event) {
+            event.preventDefault();
+            const key = getMainCategorySearchQueryKey(mainCategorySearchQuery || '');
+            if (!key) {
+                return;
+            }
+            delete mainCategorySearchFailedQueries[key];
+            delete mainCategorySearchErrorQueries[key];
+            delete mainCategorySearchRetryCounts[key];
+            if (mainCategorySearchRetryTimer && mainCategorySearchRetryQuery === key) {
+                clearTimeout(mainCategorySearchRetryTimer);
+                mainCategorySearchRetryTimer = null;
+                mainCategorySearchRetryQuery = '';
+            }
+            syncMainCategorySearchError('');
+            scheduleMainCategorySearchRender({ showLoading: true });
         });
 
         $root.on('change', '[data-ll-wordset-selection-priority-only]', function () {

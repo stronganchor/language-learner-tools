@@ -485,6 +485,7 @@
         let toolbarBootstrapPromise = null;
         let toolbarReady = !toolbarDeferred;
         const toolbarBootstrapMaxRetries = 3;
+        const liveSearchMaxWarmingRetries = 2;
         const responseCache = new Map();
         const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
         let scopePreferencesRestored = false;
@@ -1316,6 +1317,47 @@
             return payload;
         };
 
+        const requestLiveSearchPayload = (page, signal, attempt = 0) => {
+            return fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: buildPayload(page),
+                signal,
+            })
+                .then((response) => response.json()
+                    .then((payload) => ({ response, payload })))
+                .then(({ response, payload }) => {
+                    const isWarming = payload
+                        && !payload.success
+                        && payload.data
+                        && payload.data.code === 'cache_warming';
+                    if (isWarming && attempt < liveSearchMaxWarmingRetries) {
+                        const retryAfterSeconds = Number(payload.data.retry_after);
+                        const retryDelayMs = Math.max(
+                            250,
+                            Math.min(5000, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 1000)
+                        );
+                        return new Promise((resolve, reject) => {
+                            window.setTimeout(() => {
+                                if (signal && signal.aborted) {
+                                    const abortError = new Error('request_aborted');
+                                    abortError.name = 'AbortError';
+                                    reject(abortError);
+                                    return;
+                                }
+                                resolve();
+                            }, retryDelayMs);
+                        }).then(() => requestLiveSearchPayload(page, signal, attempt + 1));
+                    }
+
+                    if (!response.ok || isWarming) {
+                        throw new Error(isWarming ? 'cache_warming' : 'request_failed');
+                    }
+
+                    return payload;
+                });
+        };
+
         const buildDetailPayload = (link, entryId) => {
             let url = null;
             try {
@@ -1455,18 +1497,7 @@
             activeController = new AbortController();
             results.setAttribute('aria-busy', 'true');
 
-            fetch(ajaxUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: buildPayload(requestPage),
-                signal: activeController.signal,
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('request_failed');
-                    }
-                    return response.json();
-                })
+            requestLiveSearchPayload(requestPage, activeController.signal)
                 .then((payload) => {
                     if (requestId !== activeRequestId) {
                         throw new Error('invalid_payload');

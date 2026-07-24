@@ -2533,6 +2533,36 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     margin-bottom: 84px;
 }
 
+.ll-wordset-search-error {
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+}
+
+.ll-wordset-search-error:not([hidden]) {
+    display: flex;
+}
+
+.ll-wordset-search-error__retry {
+    appearance: none;
+    border: 1px solid #bcc7d2;
+    border-radius: 999px;
+    background: #fff;
+    color: #243447;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 8px 14px;
+}
+
+.ll-wordset-search-error__retry:hover,
+.ll-wordset-search-error__retry:focus-visible {
+    border-color: #65788a;
+    box-shadow: 0 0 0 3px rgba(36, 52, 71, 0.12);
+    outline: none;
+}
+
 .ll-wordset-grid-lazy {
     display: block;
     width: 100%;

@@ -10,6 +10,11 @@ const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const CAPACITOR_CONFIG_PATH = path.join(ROOT_DIR, 'capacitor.config.json');
+const DEFAULT_ARCHIVE_LIMITS = Object.freeze({
+  maxEntries: 20000,
+  maxEntryBytes: 2 * 1024 * 1024 * 1024,
+  maxTotalBytes: 4 * 1024 * 1024 * 1024,
+});
 
 function repairOfflineShellIndexHtml(webRoot) {
   const indexPath = path.join(webRoot, 'index.html');
@@ -84,6 +89,68 @@ function readManifest(bundleRoot) {
   return fs.readJsonSync(manifestPath);
 }
 
+function positiveLimit(value, fallback) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function archiveEntryIsSymlink(entry) {
+  const attributes = Number(entry?.attr ?? entry?.header?.attr ?? 0);
+  const unixMode = (attributes >>> 16) & 0o170000;
+  return unixMode === 0o120000;
+}
+
+export function validateArchiveEntries(zip, destinationRoot, limits = {}) {
+  const destination = path.resolve(destinationRoot);
+  const maxEntries = positiveLimit(limits.maxEntries, DEFAULT_ARCHIVE_LIMITS.maxEntries);
+  const maxEntryBytes = positiveLimit(limits.maxEntryBytes, DEFAULT_ARCHIVE_LIMITS.maxEntryBytes);
+  const maxTotalBytes = positiveLimit(limits.maxTotalBytes, DEFAULT_ARCHIVE_LIMITS.maxTotalBytes);
+  const entries = zip.getEntries();
+
+  if (entries.length > maxEntries) {
+    throw new Error(`Bundle archive contains ${entries.length} entries; the limit is ${maxEntries}.`);
+  }
+
+  let totalBytes = 0;
+  for (const entry of entries) {
+    const entryName = String(entry?.entryName || '').replace(/\\/g, '/');
+    const segments = entryName.split('/');
+    if (
+      entryName.includes('\0')
+      || entryName.startsWith('/')
+      || /^[a-z]:\//i.test(entryName)
+      || segments.includes('..')
+    ) {
+      throw new Error(`Bundle archive entry escapes the destination: ${entryName || '(empty)'}`);
+    }
+    if (archiveEntryIsSymlink(entry)) {
+      throw new Error(`Bundle archive contains an unsupported symbolic link: ${entryName}`);
+    }
+
+    const resolvedEntry = path.resolve(destination, ...segments.filter(Boolean));
+    if (resolvedEntry !== destination && !resolvedEntry.startsWith(`${destination}${path.sep}`)) {
+      throw new Error(`Bundle archive entry escapes the destination: ${entryName || '(empty)'}`);
+    }
+
+    const entryBytes = Number(entry?.header?.size ?? 0);
+    if (!Number.isSafeInteger(entryBytes) || entryBytes < 0) {
+      throw new Error(`Bundle archive entry has an invalid size: ${entryName}`);
+    }
+    if (entryBytes > maxEntryBytes) {
+      throw new Error(`Bundle archive entry exceeds the ${maxEntryBytes}-byte limit: ${entryName}`);
+    }
+    totalBytes += entryBytes;
+    if (!Number.isSafeInteger(totalBytes) || totalBytes > maxTotalBytes) {
+      throw new Error(`Bundle archive exceeds the ${maxTotalBytes}-byte uncompressed limit.`);
+    }
+  }
+
+  return {
+    entries: entries.length,
+    totalBytes,
+  };
+}
+
 export function buildCapacitorConfig(manifest, options = {}) {
   const includeSigning = options.includeSigning === true;
   const appId = sanitizeSegment(manifest?.android?.appId, 'com.lltools.offline.app');
@@ -143,6 +210,7 @@ export function prepareBundle(inputPath) {
     fs.copySync(resolvedInput, BUNDLE_DIR);
   } else {
     const zip = new AdmZip(resolvedInput);
+    validateArchiveEntries(zip, BUNDLE_DIR);
     zip.extractAllTo(BUNDLE_DIR, true);
   }
 

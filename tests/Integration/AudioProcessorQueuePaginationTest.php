@@ -66,7 +66,19 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         $this->assertFalse(wp_cache_get($audio_ids[0], 'posts'), 'Rows beyond the requested page must remain unhydrated.');
         $this->assertFalse(wp_cache_get($word_ids[0], 'posts'), 'Parent words beyond the requested page must remain unhydrated.');
 
-        $second_page = ll_audio_processor_get_queue_page('queue', 2, 25);
+        $next_cursor = (string) ($first_page['nextCursor'] ?? '');
+        $this->assertNotSame('', $next_cursor);
+        $second_page_queries = [];
+        $capture_second_page_query = static function (string $query) use (&$second_page_queries): string {
+            $second_page_queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $capture_second_page_query);
+        try {
+            $second_page = ll_audio_processor_get_queue_page('queue', 2, 25, $next_cursor);
+        } finally {
+            remove_filter('query', $capture_second_page_query);
+        }
 
         $this->assertSame(25, (int) ($first_page['perPage'] ?? 0));
         $this->assertCount(25, (array) ($first_page['recordings'] ?? []));
@@ -76,10 +88,35 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         $this->assertCount(2, (array) ($second_page['recordings'] ?? []));
         $this->assertFalse((bool) ($second_page['hasMore'] ?? true));
         $this->assertSame(27, (int) ($second_page['knownCount'] ?? 0));
+        $this->assertTrue((bool) ($second_page['cursorApplied'] ?? false));
+        $second_page_sql = implode("\n", $second_page_queries);
+        $this->assertStringContainsString('candidate.post_date <', $second_page_sql);
+        $this->assertStringNotContainsString('LIMIT 26 OFFSET 25', $second_page_sql);
 
         $first_ids = array_map('intval', array_column((array) $first_page['recordings'], 'id'));
         $second_ids = array_map('intval', array_column((array) $second_page['recordings'], 'id'));
         $this->assertSame([], array_values(array_intersect($first_ids, $second_ids)));
+    }
+
+    public function test_queue_cursor_is_signed_scoped_to_tab_and_bound_to_the_current_user(): void
+    {
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+
+        $cursor = ll_audio_processor_encode_queue_cursor('queue', '2026-07-17 09:00:00', 123);
+        $this->assertNotSame('', $cursor);
+        $this->assertSame(
+            [
+                'sort' => '2026-07-17 09:00:00',
+                'id' => 123,
+            ],
+            ll_audio_processor_decode_queue_cursor($cursor, 'queue')
+        );
+        $this->assertSame([], ll_audio_processor_decode_queue_cursor($cursor, 'duplicates'));
+        $this->assertSame([], ll_audio_processor_decode_queue_cursor($cursor . 'tampered', 'queue'));
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->assertSame([], ll_audio_processor_decode_queue_cursor($cursor, 'queue'));
     }
 
     public function test_queue_and_duplicate_tabs_preserve_legacy_grouping_reason(): void
@@ -163,6 +200,7 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         $_GET = [
             'll_ap_tab' => 'duplicates',
             'll_ap_page' => '3',
+            'll_ap_cursor' => 'saved-cursor-token',
         ];
         try {
             ob_start();
@@ -173,7 +211,7 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         }
 
         $this->assertMatchesRegularExpression(
-            '/id="ll-recordings-duplicates".*?data-page="3"/s',
+            '/id="ll-recordings-duplicates".*?data-page="3".*?data-cursor="saved-cursor-token"/s',
             $html
         );
         $this->assertMatchesRegularExpression(

@@ -349,7 +349,11 @@ rendered with a different orthographic token.
 Interlinear automation should use `GET /wordsets/{wordset}/interlinear` to list
 content/vocab lessons and current payload status. Add `lesson=<post ID, slug, or
 interlinear lesson ID>`, `post_type=ll_content_lesson|ll_vocab_lesson`,
-`include_empty=0`, or `include_payload=0` to narrow the response. Use `POST
+`include_empty=0`, or `include_payload=1` to narrow or expand the response.
+Unfiltered lists default to 50 rows and cap at 100, use one global `offset`
+across both supported post types, return `pagination.next_offset`, and omit the
+heavy interlinear payload by default. A specific `lesson` read includes its
+payload by default unless `include_payload=0` is explicit. Use `POST
 /wordsets/{wordset}/interlinear` with either one payload object or an `items`
 array. Each item can identify the target lesson by post ID, slug, lesson value,
 interlinear lesson ID, or vocab category. Send `dry_run=true` first, and send
@@ -1359,7 +1363,8 @@ report remains the intentional full-report surface.
 
 ### `GET /wordsets/{wordset}/report-summary`
 
-Returns fast live-verification counts without building every word row:
+Returns fast live-verification counts using direct aggregate database queries
+instead of building every word row or materializing the complete word ID list:
 
 - wordset id, slug, and name
 - key wordset language/settings values
@@ -1367,7 +1372,11 @@ Returns fast live-verification counts without building every word row:
 - words with audio and image coverage
 - total audio record count
 
-Use this route for live smoke tests after imports.
+The optional `category` filter retains the detailed report's category and
+`uncategorized` semantics. Unfiltered counts for a non-administrator exclude
+words whose categories are all inaccessible to that user; an administrator
+retains the complete wordset aggregate. Use this route for live smoke tests
+after imports.
 
 ### `GET /wordsets/{wordset}/profile`
 
@@ -1407,6 +1416,8 @@ Query params:
 
 - `category` optional category slug or name
 - `include_empty` optional boolean; include eligible rows with blank notes
+- `limit` optional page size; defaults to 100 and is capped at 250
+- `offset` optional non-negative page offset
 
 Response fields:
 
@@ -1417,9 +1428,12 @@ Response fields:
 - `notes` rows with `object_type`, `object_id`, `note`, `title`,
   `categories`, `wordset_id`, and type-specific fields such as
   `word`/`translation` or prompt-card answer references
+- `pagination` with the requested/effective/maximum limit, returned count,
+  `has_more`, and `next_offset`
 
 Use this route when Codex or another reviewer needs a durable review handoff
-without scraping lesson-grid UI.
+without scraping lesson-grid UI. Continue with `pagination.next_offset` until
+`has_more` is false.
 
 ### `POST /wordsets/{wordset}/review-notes`
 

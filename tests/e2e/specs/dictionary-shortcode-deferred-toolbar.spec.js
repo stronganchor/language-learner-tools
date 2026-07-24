@@ -123,6 +123,7 @@ async function mountDictionaryHarness(page, options = {}) {
 
     window.__dictionaryFetchCalls = [];
     let toolbarWarmingRemaining = Math.max(0, Number(config && config.toolbarWarmingResponses) || 0);
+    let liveSearchWarmingRemaining = Math.max(0, Number(config && config.liveSearchWarmingResponses) || 0);
     window.fetch = async (_url, init = {}) => {
       const requestData = {};
       const body = init && init.body;
@@ -230,6 +231,20 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_live_search') {
+        if (liveSearchWarmingRemaining > 0) {
+          liveSearchWarmingRemaining -= 1;
+          return {
+            ok: true,
+            json: async () => ({
+              success: false,
+              data: {
+                code: 'cache_warming',
+                retry_after: 0
+              }
+            })
+          };
+        }
+
         if (config && Number(config.liveSearchDelayMs || 0) > 0) {
           await new Promise((resolve) => {
             setTimeout(resolve, Number(config.liveSearchDelayMs));
@@ -413,6 +428,20 @@ test('live search accepts one-character queries', async ({ page }) => {
   expect(lastSearchCall).toMatchObject({
     ll_dictionary_q: 'a'
   });
+});
+
+test('keeps the loading state while a shared live-search build warms and retries', async ({ page }) => {
+  await mountDictionaryHarness(page, { liveSearchWarmingResponses: 2 });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('.ll-dictionary__loading')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-results]')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).not.toHaveAttribute('aria-busy', 'true');
+
+  const searchCalls = await page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_live_search'));
+  expect(searchCalls).toHaveLength(3);
 });
 
 test('shows the loading skeleton immediately while live search is pending', async ({ page }) => {

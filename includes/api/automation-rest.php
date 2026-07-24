@@ -675,6 +675,14 @@ function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): a
             'default' => 100,
             'max' => 250,
         ],
+        'review_notes' => [
+            'default' => 100,
+            'max' => 250,
+        ],
+        'interlinear' => [
+            'default' => 50,
+            'max' => 100,
+        ],
     ];
 
     $settings = $defaults[$context] ?? [
@@ -6656,6 +6664,192 @@ function ll_tools_rest_automation_get_category_ids_for_words(array $word_ids): a
     return ll_tools_rest_automation_prepare_id_list((array) $wpdb->get_col(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
 }
 
+/**
+ * Aggregate report-summary counts without materializing every word ID in PHP.
+ *
+ * @return array<string,int>|WP_Error
+ */
+function ll_tools_rest_automation_wordset_report_summary_counts(int $wordset_id, string $category_spec = '') {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return new WP_Error('ll_tools_rest_report_missing_wordset', __('Missing word set ID.', 'll-tools-text-domain'));
+    }
+
+    $category_slug = ll_tools_cli_resolve_category_slug($wordset_id, $category_spec);
+    if (is_wp_error($category_slug)) {
+        return $category_slug;
+    }
+
+    $joins = "
+        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws
+            ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            AND tt_ws.taxonomy = 'wordset'
+            AND tt_ws.term_id = %d
+    ";
+    $params = [$wordset_id];
+    if ($category_slug !== '' && $category_slug !== 'uncategorized') {
+        $category_term = get_term_by('slug', (string) $category_slug, 'word-category');
+        if (!($category_term instanceof WP_Term) || is_wp_error($category_term)) {
+            return new WP_Error('ll_tools_cli_category_not_found', __('Unable to resolve the requested word category.', 'll-tools-text-domain'));
+        }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category_term)) {
+            return [
+                'words_total' => 0,
+                'categories_total' => 0,
+                'words_with_audio' => 0,
+                'words_without_audio' => 0,
+                'words_with_images' => 0,
+                'words_without_images' => 0,
+                'audio_records_total' => 0,
+            ];
+        }
+
+        $joins .= "
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat
+                ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+                AND tt_cat.taxonomy = 'word-category'
+                AND tt_cat.term_id = %d
+        ";
+        $params[] = (int) $category_term->term_id;
+    }
+
+    $uncategorized_sql = "
+        NOT EXISTS (
+            SELECT 1
+            FROM {$wpdb->term_relationships} tr_any_category
+            INNER JOIN {$wpdb->term_taxonomy} tt_any_category
+                ON tt_any_category.term_taxonomy_id = tr_any_category.term_taxonomy_id
+                AND tt_any_category.taxonomy = 'word-category'
+            WHERE tr_any_category.object_id = p.ID
+        )
+    ";
+    $category_scope_sql = $category_slug === 'uncategorized'
+        ? "AND ({$uncategorized_sql})"
+        : '';
+    $privacy_sql = '';
+    if (
+        $category_slug === ''
+        && !current_user_can('manage_options')
+        && function_exists('ll_tools_user_can_view_category')
+    ) {
+        if (
+            !function_exists('ll_tools_get_word_category_ids_for_wordset_scope')
+            || !function_exists('ll_tools_filter_category_ids_for_user')
+        ) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_report_category_access_unavailable',
+                __('Unable to calculate the word set report summary.', 'll-tools-text-domain'),
+                503
+            );
+        }
+
+        $category_ids = ll_tools_get_word_category_ids_for_wordset_scope($wordset_id, [
+            'post_types' => ['words'],
+            'post_statuses' => ['publish'],
+            'include_owned' => false,
+            'include_word_images' => false,
+            'remap_effective' => false,
+        ]);
+        $category_access_complete = true;
+        $accessible_category_ids = ll_tools_filter_category_ids_for_user(
+            $category_ids,
+            (int) get_current_user_id(),
+            $category_access_complete
+        );
+        if (!$category_access_complete) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_report_category_access_incomplete',
+                __('Unable to calculate the word set report summary.', 'll-tools-text-domain'),
+                503
+            );
+        }
+
+        $accessible_category_ids = ll_tools_rest_automation_prepare_id_list($accessible_category_ids);
+        if (empty($accessible_category_ids)) {
+            $privacy_sql = "AND ({$uncategorized_sql})";
+        } else {
+            $category_placeholders = implode(',', array_fill(0, count($accessible_category_ids), '%d'));
+            $privacy_sql = "
+                AND (
+                    {$uncategorized_sql}
+                    OR EXISTS (
+                        SELECT 1
+                        FROM {$wpdb->term_relationships} tr_accessible_category
+                        INNER JOIN {$wpdb->term_taxonomy} tt_accessible_category
+                            ON tt_accessible_category.term_taxonomy_id = tr_accessible_category.term_taxonomy_id
+                            AND tt_accessible_category.taxonomy = 'word-category'
+                        WHERE tr_accessible_category.object_id = p.ID
+                            AND tt_accessible_category.term_id IN ({$category_placeholders})
+                    )
+                )
+            ";
+            $params = array_merge($params, $accessible_category_ids);
+        }
+    }
+
+    $scope_sql = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE p.post_type = 'words'
+            AND p.post_status = 'publish'
+            {$category_scope_sql}
+            {$privacy_sql}
+    ";
+    $prepared_scope = ll_tools_rest_automation_prepare_sql($scope_sql, $params);
+    $counts_sql = "
+        SELECT
+            COUNT(DISTINCT scoped.ID) AS words_total,
+            COUNT(DISTINCT CASE WHEN audio_path.post_id IS NOT NULL THEN scoped.ID END) AS words_with_audio,
+            COUNT(DISTINCT CASE WHEN image_meta.post_id IS NOT NULL THEN scoped.ID END) AS words_with_images,
+            COUNT(DISTINCT CASE WHEN audio_path.post_id IS NOT NULL THEN audio.ID END) AS audio_records_total
+        FROM ({$prepared_scope}) scoped
+        LEFT JOIN {$wpdb->posts} audio
+            ON audio.post_parent = scoped.ID
+            AND audio.post_type = 'word_audio'
+            AND audio.post_status = 'publish'
+        LEFT JOIN {$wpdb->postmeta} audio_path
+            ON audio_path.post_id = audio.ID
+            AND audio_path.meta_key = 'audio_file_path'
+            AND audio_path.meta_value <> ''
+        LEFT JOIN {$wpdb->postmeta} image_meta
+            ON image_meta.post_id = scoped.ID
+            AND image_meta.meta_key IN ('_ll_autopicked_image_id', '_thumbnail_id')
+            AND image_meta.meta_value <> ''
+            AND image_meta.meta_value <> '0'
+    ";
+    $row = $wpdb->get_row($counts_sql, ARRAY_A);
+    if (!is_array($row)) {
+        return new WP_Error('ll_tools_rest_report_query_failed', __('Unable to calculate the word set report summary.', 'll-tools-text-domain'));
+    }
+
+    $categories_sql = "
+        SELECT COUNT(DISTINCT tt.term_id)
+        FROM ({$prepared_scope}) scoped
+        INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = scoped.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt
+            ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            AND tt.taxonomy = 'word-category'
+    ";
+    $words_total = max(0, (int) ($row['words_total'] ?? 0));
+    $words_with_audio = max(0, (int) ($row['words_with_audio'] ?? 0));
+    $words_with_images = max(0, (int) ($row['words_with_images'] ?? 0));
+
+    return [
+        'words_total' => $words_total,
+        'categories_total' => max(0, (int) $wpdb->get_var($categories_sql)),
+        'words_with_audio' => $words_with_audio,
+        'words_without_audio' => max(0, $words_total - $words_with_audio),
+        'words_with_images' => $words_with_images,
+        'words_without_images' => max(0, $words_total - $words_with_images),
+        'audio_records_total' => max(0, (int) ($row['audio_records_total'] ?? 0)),
+    ];
+}
+
 function ll_tools_rest_automation_array_is_list(array $value): bool {
     if (empty($value)) {
         return true;
@@ -8632,15 +8826,13 @@ function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $reques
     }
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
-    $word_ids = ll_tools_cli_get_word_ids_for_scope((int) $wordset_term->term_id, $category_spec, '');
-    if (is_wp_error($word_ids)) {
-        return ll_tools_rest_automation_with_status($word_ids, 400);
+    $counts = ll_tools_rest_automation_wordset_report_summary_counts(
+        (int) $wordset_term->term_id,
+        $category_spec
+    );
+    if (is_wp_error($counts)) {
+        return ll_tools_rest_automation_with_status($counts, 400);
     }
-    $word_ids = ll_tools_rest_automation_prepare_id_list((array) $word_ids);
-
-    $category_ids = ll_tools_rest_automation_get_category_ids_for_words($word_ids);
-    $words_with_audio = ll_tools_rest_automation_count_words_with_audio($word_ids);
-    $words_with_images = ll_tools_rest_automation_count_words_with_images($word_ids);
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
@@ -8675,15 +8867,7 @@ function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $reques
                 ? (string) ll_tools_get_wordset_recording_transcription_mode([(int) $wordset_term->term_id], true)
                 : '',
         ],
-        'counts' => [
-            'words_total' => count($word_ids),
-            'categories_total' => count($category_ids),
-            'words_with_audio' => $words_with_audio,
-            'words_without_audio' => max(0, count($word_ids) - $words_with_audio),
-            'words_with_images' => $words_with_images,
-            'words_without_images' => max(0, count($word_ids) - $words_with_images),
-            'audio_records_total' => ll_tools_rest_automation_count_audio_records($word_ids),
-        ],
+        'counts' => $counts,
     ]);
 }
 
@@ -8750,9 +8934,23 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
 
     $category_spec = ll_tools_rest_automation_request_string($request, 'category');
     $include_empty = (bool) rest_sanitize_boolean($request->get_param('include_empty'));
-    $rows = function_exists('ll_tools_get_internal_review_note_rows_for_wordset')
-        ? ll_tools_get_internal_review_note_rows_for_wordset($wordset_id, $category_spec, $include_empty)
-        : [];
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'review_notes', false);
+    $limit = (int) $limit_info['effective'];
+    $page = function_exists('ll_tools_get_internal_review_note_rows_page_for_wordset')
+        ? ll_tools_get_internal_review_note_rows_page_for_wordset(
+            $wordset_id,
+            $category_spec,
+            $include_empty,
+            $limit,
+            $offset
+        )
+        : [
+            'rows' => [],
+            'has_more' => false,
+        ];
+    $rows = array_values((array) ($page['rows'] ?? []));
+    $has_more = !empty($page['has_more']);
 
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
@@ -8764,9 +8962,20 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
         'filters' => [
             'category' => $category_spec,
             'include_empty' => $include_empty,
+            'limit' => $limit,
+            'offset' => $offset,
         ],
         'count' => count($rows),
         'notes' => $rows,
+        'pagination' => [
+            'requested_limit' => (int) $limit_info['requested'],
+            'effective_limit' => $limit,
+            'max_limit' => (int) $limit_info['max'],
+            'limit_clamped' => (bool) $limit_info['clamped'],
+            'records_returned' => count($rows),
+            'has_more' => $has_more,
+            'next_offset' => $has_more ? $offset + $limit : null,
+        ],
     ]);
 }
 
@@ -8775,54 +8984,205 @@ function ll_tools_rest_automation_interlinear_allowed_post_type(string $post_typ
     return in_array($post_type, ll_tools_interlinear_supported_post_types(), true) ? $post_type : '';
 }
 
-function ll_tools_rest_automation_interlinear_lesson_posts(int $wordset_id, bool $include_empty = true, string $post_type = ''): array {
+/**
+ * Build a post-type-coupled wordset scope for interlinear lesson queries.
+ *
+ * @return array{sql:string,params:array<int,int|string>}
+ */
+function ll_tools_rest_automation_interlinear_scope_clause(int $wordset_id, string $post_type = ''): array {
+    global $wpdb;
+
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
-        return [];
+        return [
+            'sql' => '1 = 0',
+            'params' => [],
+        ];
     }
 
     $post_types = $post_type !== ''
         ? [$post_type]
         : ll_tools_interlinear_supported_post_types();
-    $posts = [];
     $meta_keys = [
         'll_content_lesson' => ll_tools_interlinear_content_wordset_meta_key(),
         'll_vocab_lesson' => ll_tools_interlinear_vocab_wordset_meta_key(),
     ];
-
+    $scope_branches = [];
+    $params = [];
     foreach ($post_types as $current_type) {
         $current_type = ll_tools_rest_automation_interlinear_allowed_post_type((string) $current_type);
         if ($current_type === '' || empty($meta_keys[$current_type])) {
             continue;
         }
 
-        $query_posts = get_posts([
-            'post_type' => $current_type,
-            'post_status' => ['publish', 'draft', 'pending', 'private'],
-            'posts_per_page' => -1,
-            'orderby' => 'menu_order title',
-            'order' => 'ASC',
-            'no_found_rows' => true,
-            'meta_query' => [
-                [
-                    'key' => $meta_keys[$current_type],
-                    'value' => (string) $wordset_id,
-                ],
-            ],
-        ]);
+        $scope_branches[] = "
+            (
+                p.post_type = %s
+                AND EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} pm_scope
+                    WHERE pm_scope.post_id = p.ID
+                        AND pm_scope.meta_key = %s
+                        AND pm_scope.meta_value = %s
+                )
+            )
+        ";
+        $params[] = $current_type;
+        $params[] = (string) $meta_keys[$current_type];
+        $params[] = (string) $wordset_id;
+    }
 
-        foreach ((array) $query_posts as $post) {
-            if (!($post instanceof WP_Post)) {
-                continue;
-            }
-            if (!$include_empty && !ll_tools_interlinear_has_payload((int) $post->ID)) {
-                continue;
-            }
-            $posts[] = $post;
+    return [
+        'sql' => empty($scope_branches) ? '1 = 0' : '(' . implode(' OR ', $scope_branches) . ')',
+        'params' => $params,
+    ];
+}
+
+/**
+ * Hydrate lesson IDs and reject any record whose canonical scope differs.
+ *
+ * @param int[] $post_ids
+ * @return WP_Post[]
+ */
+function ll_tools_rest_automation_interlinear_hydrate_scoped_posts(array $post_ids, int $wordset_id): array {
+    $post_ids = ll_tools_rest_automation_prepare_id_list($post_ids);
+    if (empty($post_ids)) {
+        return [];
+    }
+
+    _prime_post_caches($post_ids, false, true);
+
+    $posts = [];
+    foreach ($post_ids as $post_id) {
+        $post = get_post($post_id);
+        if (
+            !($post instanceof WP_Post)
+            || !ll_tools_interlinear_post_type_supported($post)
+            || ll_tools_interlinear_get_wordset_id_for_lesson($post_id) !== $wordset_id
+        ) {
+            continue;
         }
+        $posts[] = $post;
     }
 
     return $posts;
+}
+
+function ll_tools_rest_automation_interlinear_lesson_posts(
+    int $wordset_id,
+    bool $include_empty = true,
+    string $post_type = '',
+    int $limit = 0,
+    int $offset = 0
+): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+    $limit = $limit > 0 ? min(250, $limit) : 250;
+    $offset = max(0, $offset);
+
+    $scope = ll_tools_rest_automation_interlinear_scope_clause($wordset_id, $post_type);
+    $params = (array) ($scope['params'] ?? []);
+    $payload_sql = '';
+    if (!$include_empty) {
+        global $wpdb;
+        $payload_sql = "
+            AND EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} pm_payload
+                WHERE pm_payload.post_id = p.ID
+                    AND pm_payload.meta_key = %s
+            )
+        ";
+        $params[] = LL_TOOLS_INTERLINEAR_PAYLOAD_META;
+    }
+
+    global $wpdb;
+    $params[] = $limit;
+    $params[] = $offset;
+    $sql = "
+        SELECT p.ID
+        FROM {$wpdb->posts} p
+        WHERE p.post_status IN ('publish', 'draft', 'pending', 'private')
+            AND {$scope['sql']}
+            {$payload_sql}
+        ORDER BY p.menu_order ASC, p.post_title ASC, p.ID ASC
+        LIMIT %d OFFSET %d
+    ";
+    $post_ids = (array) $wpdb->get_col(ll_tools_rest_automation_prepare_sql($sql, $params));
+
+    return ll_tools_rest_automation_interlinear_hydrate_scoped_posts($post_ids, $wordset_id);
+}
+
+/**
+ * Find a bounded set of exact lesson identifier candidates.
+ *
+ * @param string[] $string_specs
+ * @return WP_Post[]
+ */
+function ll_tools_rest_automation_interlinear_lesson_candidates(
+    int $wordset_id,
+    array $string_specs,
+    string $post_type = ''
+): array {
+    global $wpdb;
+
+    $string_specs = array_values(array_unique(array_filter(array_map(static function ($value): string {
+        return is_scalar($value) ? trim((string) $value) : '';
+    }, $string_specs))));
+    if ($wordset_id <= 0 || empty($string_specs)) {
+        return [];
+    }
+
+    $post_name_specs = $string_specs;
+    foreach ($string_specs as $spec) {
+        $spec_slug = sanitize_title($spec);
+        if ($spec_slug !== '') {
+            $post_name_specs[] = $spec_slug;
+        }
+    }
+    $post_name_specs = array_values(array_unique(array_filter(array_map('strval', $post_name_specs))));
+
+    $identifier_clauses = [];
+    $identifier_params = [];
+    if (!empty($post_name_specs)) {
+        $placeholders = implode(',', array_fill(0, count($post_name_specs), '%s'));
+        $identifier_clauses[] = "p.post_name IN ({$placeholders})";
+        $identifier_params = array_merge($identifier_params, $post_name_specs);
+    }
+
+    $title_placeholders = implode(',', array_fill(0, count($string_specs), '%s'));
+    $identifier_clauses[] = "p.post_title IN ({$title_placeholders})";
+    $identifier_params = array_merge($identifier_params, $string_specs);
+
+    $lesson_id_placeholders = implode(',', array_fill(0, count($string_specs), '%s'));
+    $identifier_clauses[] = "
+        EXISTS (
+            SELECT 1
+            FROM {$wpdb->postmeta} pm_lesson_id
+            WHERE pm_lesson_id.post_id = p.ID
+                AND pm_lesson_id.meta_key = %s
+                AND pm_lesson_id.meta_value IN ({$lesson_id_placeholders})
+        )
+    ";
+    $identifier_params[] = LL_TOOLS_INTERLINEAR_LESSON_ID_META;
+    $identifier_params = array_merge($identifier_params, $string_specs);
+
+    $scope = ll_tools_rest_automation_interlinear_scope_clause($wordset_id, $post_type);
+    $params = array_merge((array) ($scope['params'] ?? []), $identifier_params, [50]);
+    $sql = "
+        SELECT p.ID
+        FROM {$wpdb->posts} p
+        WHERE p.post_status IN ('publish', 'draft', 'pending', 'private')
+            AND {$scope['sql']}
+            AND (" . implode(' OR ', $identifier_clauses) . ")
+        ORDER BY p.menu_order ASC, p.post_title ASC, p.ID ASC
+        LIMIT %d
+    ";
+    $post_ids = (array) $wpdb->get_col(ll_tools_rest_automation_prepare_sql($sql, $params));
+
+    return ll_tools_rest_automation_interlinear_hydrate_scoped_posts($post_ids, $wordset_id);
 }
 
 function ll_tools_rest_automation_interlinear_request_item_string(array $item, string $key): string {
@@ -8911,13 +9271,6 @@ function ll_tools_rest_automation_resolve_interlinear_vocab_lesson_by_category(i
         return $posts[0];
     }
 
-    foreach (ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, 'll_vocab_lesson') as $post) {
-        $lesson_category_id = (int) get_post_meta((int) $post->ID, defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META') ? LL_TOOLS_VOCAB_LESSON_CATEGORY_META : '_ll_tools_vocab_category_id', true);
-        if (in_array($lesson_category_id, $category_ids, true)) {
-            return $post;
-        }
-    }
-
     return null;
 }
 
@@ -8970,7 +9323,7 @@ function ll_tools_rest_automation_resolve_interlinear_lesson(int $wordset_id, ar
         return null;
     }
 
-    $posts = ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, $post_type);
+    $posts = ll_tools_rest_automation_interlinear_lesson_candidates($wordset_id, $string_specs, $post_type);
     foreach ($posts as $post) {
         $title = trim((string) get_the_title($post));
         $title_slug = sanitize_title($title);
@@ -9092,11 +9445,15 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
 
     if ($request->get_method() !== 'POST') {
         $include_empty = (bool) rest_sanitize_boolean($request->get_param('include_empty'));
-        $include_payload = $request->has_param('include_payload')
-            ? (bool) rest_sanitize_boolean($request->get_param('include_payload'))
-            : true;
         $post_type = ll_tools_rest_automation_interlinear_allowed_post_type(ll_tools_rest_automation_request_string($request, 'post_type'));
         $lesson_spec = ll_tools_rest_automation_request_string($request, 'lesson');
+        $include_payload = $request->has_param('include_payload')
+            ? (bool) rest_sanitize_boolean($request->get_param('include_payload'))
+            : $lesson_spec !== '';
+        $offset = max(0, (int) $request->get_param('offset'));
+        $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'interlinear', false);
+        $limit = (int) $limit_info['effective'];
+        $has_more = false;
 
         if ($lesson_spec !== '') {
             $post = ll_tools_rest_automation_resolve_interlinear_lesson($wordset_id, [
@@ -9113,13 +9470,17 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
 
             $items = [ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload)];
         } else {
-            $posts = ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, $post_type);
+            $posts = ll_tools_rest_automation_interlinear_lesson_posts(
+                $wordset_id,
+                $include_empty,
+                $post_type,
+                $limit + 1,
+                $offset
+            );
+            $has_more = count($posts) > $limit;
+            $posts = array_slice($posts, 0, $limit);
             $items = [];
             foreach ($posts as $post) {
-                $has_payload = ll_tools_interlinear_has_payload((int) $post->ID);
-                if (!$include_empty && !$has_payload) {
-                    continue;
-                }
                 $items[] = ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload);
             }
         }
@@ -9132,9 +9493,20 @@ function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
                 'post_type' => $post_type,
                 'include_empty' => $include_empty,
                 'include_payload' => $include_payload,
+                'limit' => $limit,
+                'offset' => $offset,
             ],
             'count' => count($items),
             'items' => $items,
+            'pagination' => [
+                'requested_limit' => (int) $limit_info['requested'],
+                'effective_limit' => $limit,
+                'max_limit' => (int) $limit_info['max'],
+                'limit_clamped' => (bool) $limit_info['clamped'],
+                'records_returned' => count($items),
+                'has_more' => $has_more,
+                'next_offset' => $has_more ? $offset + $limit : null,
+            ],
         ]);
     }
 
@@ -10725,6 +11097,16 @@ function ll_tools_rest_register_automation_routes(): void {
                 'required' => false,
                 'type' => 'boolean',
             ],
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
+                'minimum' => 1,
+            ],
+            'offset' => [
+                'required' => false,
+                'type' => 'integer',
+                'minimum' => 0,
+            ],
             'object_type' => [
                 'required' => false,
                 'type' => 'string',
@@ -10760,6 +11142,16 @@ function ll_tools_rest_register_automation_routes(): void {
             'include_payload' => [
                 'required' => false,
                 'type' => 'boolean',
+            ],
+            'limit' => [
+                'required' => false,
+                'type' => 'integer',
+                'minimum' => 1,
+            ],
+            'offset' => [
+                'required' => false,
+                'type' => 'integer',
+                'minimum' => 0,
             ],
             'dry_run' => [
                 'required' => false,

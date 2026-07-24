@@ -3,9 +3,11 @@ import fs from 'fs-extra';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildCapacitorConfig } from '../scripts/prepare-bundle.mjs';
+import AdmZip from 'adm-zip';
+import { buildCapacitorConfig, validateArchiveEntries } from '../scripts/prepare-bundle.mjs';
 import { resolveAndroidPackageConfig } from '../scripts/build-apk.mjs';
 import { resolvePreparedIcon } from '../scripts/apply-app-icon.mjs';
+import { readTrainingBundleData } from '../scripts/inject-stt-bundle.mjs';
 
 test('persistent Capacitor config excludes release signing secrets', () => {
   const previous = {
@@ -90,6 +92,74 @@ test('prepared icon resolver enforces type and size limits', () => {
       bundleRoot,
       manifest: { app: { icon: { bundlePath: 'large.png' } } }
     }), /exceeds the .* limit/);
+  } finally {
+    fs.removeSync(tempRoot);
+  }
+});
+
+test('bundle archive validation rejects traversal and absolute entry paths', () => {
+  const destination = path.join(os.tmpdir(), 'll-tools-bundle-destination');
+  const traversal = {
+    getEntries: () => [{
+      entryName: '../outside.txt',
+      attr: 0,
+      header: { size: 6 },
+    }],
+  };
+  assert.throws(
+    () => validateArchiveEntries(traversal, destination),
+    /escapes the destination/
+  );
+
+  const absolute = {
+    getEntries: () => [{
+      entryName: 'C:/outside.txt',
+      attr: 0,
+      header: { size: 6 },
+    }],
+  };
+  assert.throws(
+    () => validateArchiveEntries(absolute, destination),
+    /escapes the destination/
+  );
+});
+
+test('bundle archive validation enforces entry count and uncompressed size limits', () => {
+  const destination = path.join(os.tmpdir(), 'll-tools-bundle-destination');
+  const zip = new AdmZip();
+  zip.addFile('bundle-manifest.json', Buffer.from('{}'));
+  zip.addFile('www/index.html', Buffer.from('<!doctype html>'));
+
+  assert.throws(
+    () => validateArchiveEntries(zip, destination, { maxEntries: 1 }),
+    /contains 2 entries/
+  );
+  assert.throws(
+    () => validateArchiveEntries(zip, destination, { maxEntryBytes: 4 }),
+    /entry exceeds/
+  );
+  assert.throws(
+    () => validateArchiveEntries(zip, destination, { maxTotalBytes: 8 }),
+    /uncompressed limit/
+  );
+});
+
+test('training data reader rejects oversized data.json before parsing', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-training-'));
+  const archivePath = path.join(tempRoot, 'training.zip');
+  const zip = new AdmZip();
+  zip.addFile('data.json', Buffer.from(JSON.stringify({ words: [{ title: 'example' }] })));
+  zip.writeZip(archivePath);
+
+  try {
+    assert.throws(
+      () => readTrainingBundleData(archivePath, { maxBytes: 8 }),
+      /data\.json exceeds the 8-byte limit/
+    );
+    assert.deepEqual(
+      readTrainingBundleData(archivePath, { maxBytes: 1024 }),
+      { words: [{ title: 'example' }] }
+    );
   } finally {
     fs.removeSync(tempRoot);
   }

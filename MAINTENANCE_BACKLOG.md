@@ -1,7 +1,7 @@
 # Maintenance Backlog
 
-Updated July 17, 2026 after the weekly maintenance/performance audit and
-follow-up passes. Recent closed passes include the June 19 public flashcard AJAX
+Updated July 24, 2026 after the weekly maintenance/performance audit and
+autonomous follow-up pass. Recent closed passes include the June 19 public flashcard AJAX
 cache-stampede and WebP optimizer queue resource guards, the June 26 flat
 category regression alignment, dictionary detail linked-word cap, AI crawler
 export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
@@ -17,12 +17,30 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list is now narrowed to changes that need product,
-compatibility, storage, or human-language judgment. The July 17 autonomous pass
-closed the safe query/UI/test/refactor work. Keep new performance work
+compatibility, storage, or human-language judgment. The July 24 autonomous pass
+closed the safe resource-guard, bounded-query, loading-state, localization, and
+regression work. Keep new performance work
 evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- July 24 maintenance and resource-protection pass:
+  anonymous dictionary and flashcard cold builds now use atomic budgets,
+  same-query cache coordination, bounded candidate input, and exact-owner
+  leases; the wordset category search uses a durable, restartable, lease-fenced
+  materializer with bounded keyset batches and explicit loading/error/Retry UI.
+  Audio Processor normal pagination uses signed user/tab keyset cursors while
+  preserving direct legacy deep-page compatibility. Hosted STT file reads,
+  review-note and interlinear REST lists, report-summary aggregation, offline
+  archive input, and wordset category-ordering rollback paths now have explicit
+  resource or transaction bounds with focused regressions.
+- July 24 translation catalog integrity:
+  the POT contains 5,808 current messages and the tier-2 public manifest
+  contains 730 strings. Turkish and German track the complete POT without
+  missing, blank, stale, fuzzy, duplicate, partial, or structurally invalid
+  entries; all active tier-2 locales cover the public manifest, and compiled MO
+  and PHP catalogs are current. German completion is machine-assisted and
+  should be treated as best-effort rather than human-reviewed copy.
 - July 17 maintenance, performance, and localization pass:
   Audio Processor queue/duplicate/reprocess tabs now load bounded 40-row AJAX
   pages with loading/error/retry/return-state UI; audio upload uses bounded
@@ -33,16 +51,16 @@ evidence-led and scoped to a measured growth dimension.
   Shared upload-scope and advanced-grammar persistence helpers replace proven
   duplication, and four unused admin helpers were removed.
 - July 17 translation catalog integrity:
-  the Turkish PO tracks all 5,802 current POT messages with zero missing,
+  the Turkish PO tracked all 5,802 then-current POT messages with zero missing,
   untranslated, stale, fuzzy, duplicate, partial, or structurally invalid
   active entries. The full-catalog DeepL path fills raw `msgstr` fields without
   dropping comments/order, and the parser-backed full-catalog gate prevents a
   scheduled upkeep run from accepting blank admin copy or stale compiled
-  runtime messages. All 729 public strings remain complete across every active
+  runtime messages. All 729 then-current public strings remained complete across every active
   tier-2 locale.
 - July 17 maintenance documentation drift:
-  `npx --no-install playwright test --list` now discovers 436 tests in 95 spec
-  files. Architecture routing now names the word-metadata plan REST helper and
+  `npx --no-install playwright test --list` discovered 436 tests in 95 spec
+  files at that time. Architecture routing names the word-metadata plan REST helper and
   durable word-grid bulk-operation module, the large-module estimates below
   match current source size, and the paged quiz-card launch invariant points to
   its canonical browser specs. The former WordPress-backed offline sync error
@@ -291,17 +309,19 @@ evidence-led and scoped to a measured growth dimension.
   found 314 Playwright tests, and all four local shards completed successfully
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
   26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
-  audit listed 368 tests in 81 files. A fresh local discovery on July 17, 2026
-  lists 436 tests in 95 spec files. These are dated discovery snapshots, not a
+  audit listed 368 tests in 81 files. The July 17 discovery listed 436 tests in
+  95 files, and a fresh local discovery on July 24, 2026 lists 453 tests in 95
+  spec files. These are dated discovery snapshots, not a
   fixed suite contract. No hung spec was isolated. Treat the unsharded local
   E2E command as a long serial suite in automation; use `--list`, shards, and a
   timeout of at least 35 minutes before declaring a runner hang.
 - June 10 wordset category search indexing follow-up: the main wordset render
-  path now localizes a tokenized `categorySearch` config instead of the full
-  per-category word-search text. The first word/translation search request uses
-  a cached public AJAX lookup that returns matching category IDs, preserving
-  hidden-selection cleanup, empty-state behavior, clear-button behavior,
-  lazy-card hydration, and diacritic-insensitive matching.
+  path localizes a tokenized `categorySearch` config instead of the full
+  per-category word-search text. As of July 24, the first word/translation
+  search request reads a durable bounded materialization rather than building
+  the whole search index on a public request; preparation remains retryable and
+  preserves hidden-selection cleanup, empty-state behavior, clear-button
+  behavior, lazy-card hydration, and diacritic-insensitive matching.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, a WordPress-backed real route with uploaded WAV playback/cue seeking/related-vocab behavior, and corpus collection/reader/source variants. Extend this coverage when the payload or media contract changes rather than retaining the former media/corpus gap.
@@ -349,10 +369,19 @@ evidence-led and scoped to a measured growth dimension.
 
 ## Follow-Up Notes
 
-- Audio Processor no longer hydrates complete queues, but deep pages still use
-  SQL `OFFSET`. Replacing that with keyset/materialized ordering needs human
-  review because duplicate/reprocess predicates and exact post-action return
-  pages must stay stable.
+- Audio Processor normal continuation now uses signed keyset cursors. Direct
+  legacy deep-page URLs intentionally retain bounded SQL `OFFSET` compatibility;
+  removing that fallback would change the externally addressable page contract
+  and needs explicit compatibility review.
+- An admitted flashcard cold miss can still hydrate the complete selected
+  category after the new candidate, budget, and concurrency guards admit it.
+  Eliminating that final proportional build requires a separate durable
+  flashcard payload materialization so large-wordset semantics remain intact.
+- The pre-stream manager recorder overview appears unreachable through current
+  internal production routing, while focused and hidden paged recorder modes
+  remain active. Retain the old global PHP helpers as compatibility-only until a
+  human review confirms that themes or integrations do not call them; removal
+  is not safe as an autonomous maintenance deletion.
 - Turkish full-catalog completeness is now a hard source/test/automation
   contract. The runtime blank filter remains defense in depth for interrupted
   local merges, but a scheduled upkeep run cannot close or advance its HEAD
