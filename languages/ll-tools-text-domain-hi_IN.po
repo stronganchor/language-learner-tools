@@ -5164,3 +5164,43 @@ msgstr "खोज परिणाम अभी भी तैयार किए 
 #: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr "पाठ के शब्द अभी तैयार किए जा रहे हैं। कृपया थोड़ी देर बाद फिर कोशिश करें।"
+
+#. ll-tools-public-key: b302ab5df1c82c006e986ef82a95ef17b3d201c8
+#: includes/shortcodes/flashcard-widget.php:2104
+msgid "Preparing flashcard data. Please wait a moment."
+msgstr "फ़्लैशकार्ड डेटा तैयार हो रहा है। कृपया एक क्षण प्रतीक्षा करें।"
+
+#. ll-tools-public-key: 9ee38d3c96fed0c1c1bcf947311cb489f4804227
+#: includes/shortcodes/flashcard-widget.php:2111
+msgid "Flashcard data changed. Please restart the quiz."
+msgstr "फ़्लैशकार्ड डेटा बदल गया है। कृपया क्विज़ को पुनः आरंभ करें।"
+
+#. ll-tools-public-key: a503628880bccf9e5c824775f42bb3c11275783e
+#: includes/shortcodes/flashcard-widget.php:2117
+msgid "Invalid flashcard page cursor."
+msgstr "अमान्य फ्लैशकार्ड पृष्ठ कर्सर।"
+
+#. ll-tools-public-key: 5f2acaf2d13d0e0ce093fccf9cc8ed2e5b31d764
+#: includes/shortcodes/flashcard-widget.php:2126
+msgid "Flashcard data is temporarily unavailable."
+msgstr "फ़्लैशकार्ड डेटा अस्थायी रूप से अनुपलब्ध है।"
+
+#. ll-tools-public-key: bba7c73c2c92b1e9b28c70ec8117e6c7fefd2acd
+#: includes/shortcodes/flashcard-widget.php:2169
+msgid "Invalid flashcard locale."
+msgstr "अमान्य फ्लैशकार्ड लोकेल।"
+
+#. ll-tools-public-key: 487faf47de4dd0a530e70434bdf80e38fa70ab35
+#: includes/shortcodes/flashcard-widget.php:2229
+msgid "Invalid wordset."
+msgstr "अमान्य शब्दसमूह।"
+
+#. ll-tools-public-key: 249665429cb43b7053101286d584f2b5dc2c8c92
+#: includes/shortcodes/flashcard-widget.php:2260
+msgid "You do not have permission to view this flashcard content."
+msgstr "आपके पास इस फ्लैशकार्ड सामग्री को देखने की अनुमति नहीं है।"
+
+#. ll-tools-public-key: 57a47dd666226df73b083fd26853888b472fcf3f
+#: includes/shortcodes/flashcard-widget.php:2613
+msgid "This flashcard category must be loaded in pages. Please refresh the page."
+msgstr "यह फ़्लैशकार्ड श्रेणी पृष्ठों में लोड होनी चाहिए। कृपया पृष्ठ को रिफ़्रेश करें।"

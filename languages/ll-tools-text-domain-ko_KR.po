@@ -5141,3 +5141,43 @@ msgstr "검색 결과가 아직 준비 중입니다. 잠시 후 다시 시도해
 #: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr "수업 단어를 아직 준비하고 있습니다. 잠시 후 다시 시도해 주세요."
+
+#. ll-tools-public-key: b302ab5df1c82c006e986ef82a95ef17b3d201c8
+#: includes/shortcodes/flashcard-widget.php:2104
+msgid "Preparing flashcard data. Please wait a moment."
+msgstr "플래시카드 데이터를 준비 중입니다. 잠시만 기다려 주세요."
+
+#. ll-tools-public-key: 9ee38d3c96fed0c1c1bcf947311cb489f4804227
+#: includes/shortcodes/flashcard-widget.php:2111
+msgid "Flashcard data changed. Please restart the quiz."
+msgstr "플래시카드 데이터가 변경되었습니다. 퀴즈를 다시 시작해 주세요."
+
+#. ll-tools-public-key: a503628880bccf9e5c824775f42bb3c11275783e
+#: includes/shortcodes/flashcard-widget.php:2117
+msgid "Invalid flashcard page cursor."
+msgstr "플래시카드 페이지 커서가 유효하지 않습니다."
+
+#. ll-tools-public-key: 5f2acaf2d13d0e0ce093fccf9cc8ed2e5b31d764
+#: includes/shortcodes/flashcard-widget.php:2126
+msgid "Flashcard data is temporarily unavailable."
+msgstr "플래시카드 데이터를 일시적으로 이용할 수 없습니다."
+
+#. ll-tools-public-key: bba7c73c2c92b1e9b28c70ec8117e6c7fefd2acd
+#: includes/shortcodes/flashcard-widget.php:2169
+msgid "Invalid flashcard locale."
+msgstr "플래시카드 지역 설정이 올바르지 않습니다."
+
+#. ll-tools-public-key: 487faf47de4dd0a530e70434bdf80e38fa70ab35
+#: includes/shortcodes/flashcard-widget.php:2229
+msgid "Invalid wordset."
+msgstr "유효하지 않은 단어 집합입니다."
+
+#. ll-tools-public-key: 249665429cb43b7053101286d584f2b5dc2c8c92
+#: includes/shortcodes/flashcard-widget.php:2260
+msgid "You do not have permission to view this flashcard content."
+msgstr "이 플래시카드 콘텐츠를 볼 수 있는 권한이 없습니다."
+
+#. ll-tools-public-key: 57a47dd666226df73b083fd26853888b472fcf3f
+#: includes/shortcodes/flashcard-widget.php:2613
+msgid "This flashcard category must be loaded in pages. Please refresh the page."
+msgstr "이 플래시카드 카테고리는 페이지 단위로 불러와야 합니다. 페이지를 새로 고침해 주세요."

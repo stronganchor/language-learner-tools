@@ -26648,3 +26648,91 @@ msgstr "Der Offset ist zu groß. Verwende einen Offset von höchstens %d oder sc
 #: includes/lib/custom-stt-endpoint.php:326
 msgid "STT endpoint returned an invalid or oversized response."
 msgstr "Der STT-Endpunkt hat eine ungültige oder zu große Antwort zurückgegeben."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:699
+msgid "This flashcard selection includes too many wordsets."
+msgstr "Diese Lernkartenauswahl enthält zu viele Vokabelsets."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:728
+msgid "No flashcard content is available for that category and wordset."
+msgstr "Für diese Kategorie und dieses Vokabelset sind keine Lernkarteninhalte verfügbar."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:729
+#: includes/lib/flashcard-payload-materializer.php:745
+#: includes/lib/flashcard-payload-materializer.php:771
+#: includes/lib/flashcard-payload-materializer.php:815
+msgid "Flashcard scope could not be verified."
+msgstr "Der Gültigkeitsbereich der Lernkarte konnte nicht überprüft werden."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:744
+msgid "Choose a wordset before loading this flashcard category."
+msgstr "Wähle ein Vokabelset aus, bevor du diese Lernkartenkategorie lädst."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:783
+msgid "Public flashcard pages support one wordset at a time."
+msgstr "Öffentliche Lernkartenseiten unterstützen jeweils nur ein Vokabelset."
+
+#. ll-tools-public-key: 249665429cb43b7053101286d584f2b5dc2c8c92
+#: includes/lib/flashcard-payload-materializer.php:791
+#: includes/lib/flashcard-payload-materializer.php:822
+#: includes/shortcodes/flashcard-widget.php:2260
+msgid "You do not have permission to view this flashcard content."
+msgstr "Du hast keine Berechtigung, diesen Lernkarteninhalt anzuzeigen."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:3124
+#: includes/lib/flashcard-payload-materializer.php:3155
+msgid "Flashcard data could not be prepared."
+msgstr "Die Lernkartendaten konnten nicht vorbereitet werden."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/lib/flashcard-payload-materializer.php:3268
+#: includes/lib/flashcard-payload-materializer.php:3277
+#: includes/lib/flashcard-payload-materializer.php:3288
+msgid "Flashcard data is still being prepared."
+msgstr "Die Lernkartendaten werden noch vorbereitet."
+
+#. ll-tools-public-key: b302ab5df1c82c006e986ef82a95ef17b3d201c8
+#: includes/shortcodes/flashcard-widget.php:2104
+msgid "Preparing flashcard data. Please wait a moment."
+msgstr "Lernkartendaten werden vorbereitet. Bitte warte einen Moment."
+
+#. ll-tools-public-key: 9ee38d3c96fed0c1c1bcf947311cb489f4804227
+#: includes/shortcodes/flashcard-widget.php:2111
+msgid "Flashcard data changed. Please restart the quiz."
+msgstr "Die Lernkartendaten haben sich geändert. Bitte starte das Quiz neu."
+
+#. ll-tools-public-key: a503628880bccf9e5c824775f42bb3c11275783e
+#: includes/shortcodes/flashcard-widget.php:2117
+msgid "Invalid flashcard page cursor."
+msgstr "Ungültiger Cursor für die Lernkartenseite."
+
+#. ll-tools-public-key: 5f2acaf2d13d0e0ce093fccf9cc8ed2e5b31d764
+#: includes/shortcodes/flashcard-widget.php:2126
+msgid "Flashcard data is temporarily unavailable."
+msgstr "Die Lernkartendaten sind vorübergehend nicht verfügbar."
+
+#. ll-tools-public-key: bba7c73c2c92b1e9b28c70ec8117e6c7fefd2acd
+#: includes/shortcodes/flashcard-widget.php:2169
+msgid "Invalid flashcard locale."
+msgstr "Ungültige Lernkarten-Spracheinstellung."
+
+#. ll-tools-public-key: 487faf47de4dd0a530e70434bdf80e38fa70ab35
+#: includes/shortcodes/flashcard-widget.php:2229
+msgid "Invalid wordset."
+msgstr "Ungültiges Vokabelset."
+
+#. ll-tools-public-key: 57a47dd666226df73b083fd26853888b472fcf3f
+#: includes/shortcodes/flashcard-widget.php:2613
+msgid "This flashcard category must be loaded in pages. Please refresh the page."
+msgstr "Diese Lernkartenkategorie muss seitenweise geladen werden. Bitte aktualisiere die Seite."
+
+#. ll-tools-autonomous-upkeep: 2026-07-25 flashcard materializer source-backed batch
+#: includes/user-study.php:1432
+msgid "Flashcard words must be requested with a bounded candidate list or the paged flashcard endpoint."
+msgstr "Lernkarten-Vokabeln müssen mit einer begrenzten Kandidatenliste oder über den seitenweisen Lernkarten-Endpunkt angefordert werden."

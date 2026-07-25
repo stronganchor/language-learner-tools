@@ -5164,3 +5164,43 @@ msgstr "I risultati della ricerca sono ancora in fase di elaborazione. Si prega 
 #: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr "Le parole della lezione sono ancora in fase di preparazione. Riprova tra poco."
+
+#. ll-tools-public-key: b302ab5df1c82c006e986ef82a95ef17b3d201c8
+#: includes/shortcodes/flashcard-widget.php:2104
+msgid "Preparing flashcard data. Please wait a moment."
+msgstr "Preparazione dei dati delle flashcard. Attendere qualche istante."
+
+#. ll-tools-public-key: 9ee38d3c96fed0c1c1bcf947311cb489f4804227
+#: includes/shortcodes/flashcard-widget.php:2111
+msgid "Flashcard data changed. Please restart the quiz."
+msgstr "I dati delle flashcard sono stati modificati. Si prega di riavviare il quiz."
+
+#. ll-tools-public-key: a503628880bccf9e5c824775f42bb3c11275783e
+#: includes/shortcodes/flashcard-widget.php:2117
+msgid "Invalid flashcard page cursor."
+msgstr "Cursore della pagina delle flashcard non valido."
+
+#. ll-tools-public-key: 5f2acaf2d13d0e0ce093fccf9cc8ed2e5b31d764
+#: includes/shortcodes/flashcard-widget.php:2126
+msgid "Flashcard data is temporarily unavailable."
+msgstr "I dati delle flashcard non sono temporaneamente disponibili."
+
+#. ll-tools-public-key: bba7c73c2c92b1e9b28c70ec8117e6c7fefd2acd
+#: includes/shortcodes/flashcard-widget.php:2169
+msgid "Invalid flashcard locale."
+msgstr "Impostazione della lingua della flashcard non valida."
+
+#. ll-tools-public-key: 487faf47de4dd0a530e70434bdf80e38fa70ab35
+#: includes/shortcodes/flashcard-widget.php:2229
+msgid "Invalid wordset."
+msgstr "Set di parole non valido."
+
+#. ll-tools-public-key: 249665429cb43b7053101286d584f2b5dc2c8c92
+#: includes/shortcodes/flashcard-widget.php:2260
+msgid "You do not have permission to view this flashcard content."
+msgstr "Non disponi dei permessi necessari per visualizzare il contenuto di questa scheda."
+
+#. ll-tools-public-key: 57a47dd666226df73b083fd26853888b472fcf3f
+#: includes/shortcodes/flashcard-widget.php:2613
+msgid "This flashcard category must be loaded in pages. Please refresh the page."
+msgstr "Questa categoria di flashcard deve essere caricata a pagine. Aggiorna la pagina."

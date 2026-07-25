@@ -5192,3 +5192,43 @@ msgstr "Результаты поиска пока готовятся. Пожа�
 #: includes/pages/vocab-lesson-pages.php:6272 includes/shortcodes/flashcard-widget.php:1851
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr "Слова урока всё ещё подготавливаются. Пожалуйста, повторите попытку через минуту."
+
+#. ll-tools-public-key: b302ab5df1c82c006e986ef82a95ef17b3d201c8
+#: includes/shortcodes/flashcard-widget.php:2104
+msgid "Preparing flashcard data. Please wait a moment."
+msgstr "Подготовка данных для карточек. Пожалуйста, подождите немного."
+
+#. ll-tools-public-key: 9ee38d3c96fed0c1c1bcf947311cb489f4804227
+#: includes/shortcodes/flashcard-widget.php:2111
+msgid "Flashcard data changed. Please restart the quiz."
+msgstr "Данные карточек изменились. Пожалуйста, перезапустите тест."
+
+#. ll-tools-public-key: a503628880bccf9e5c824775f42bb3c11275783e
+#: includes/shortcodes/flashcard-widget.php:2117
+msgid "Invalid flashcard page cursor."
+msgstr "Недопустимый курсор на странице с карточками."
+
+#. ll-tools-public-key: 5f2acaf2d13d0e0ce093fccf9cc8ed2e5b31d764
+#: includes/shortcodes/flashcard-widget.php:2126
+msgid "Flashcard data is temporarily unavailable."
+msgstr "Данные по карточкам временно недоступны."
+
+#. ll-tools-public-key: bba7c73c2c92b1e9b28c70ec8117e6c7fefd2acd
+#: includes/shortcodes/flashcard-widget.php:2169
+msgid "Invalid flashcard locale."
+msgstr "Неверная локаль карточки."
+
+#. ll-tools-public-key: 487faf47de4dd0a530e70434bdf80e38fa70ab35
+#: includes/shortcodes/flashcard-widget.php:2229
+msgid "Invalid wordset."
+msgstr "Недопустимый набор слов."
+
+#. ll-tools-public-key: 249665429cb43b7053101286d584f2b5dc2c8c92
+#: includes/shortcodes/flashcard-widget.php:2260
+msgid "You do not have permission to view this flashcard content."
+msgstr "У вас нет прав на просмотр содержимого этой карточки."
+
+#. ll-tools-public-key: 57a47dd666226df73b083fd26853888b472fcf3f
+#: includes/shortcodes/flashcard-widget.php:2613
+msgid "This flashcard category must be loaded in pages. Please refresh the page."
+msgstr "Эта категория карточек должна загружаться по страницам. Пожалуйста, обновите страницу."
