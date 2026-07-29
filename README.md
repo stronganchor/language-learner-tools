@@ -172,7 +172,9 @@ The bounded `--retained-source` lessons mode creates an empty, published
 compatibility target for an explicitly named source post that must keep its
 editorial URL/body; the target remains available to prerequisite/completion
 mapping but is excluded from normal public lesson catalogs and redirects direct
-requests to the retained source.
+requests to the retained source. The temporary `[display_prereq_tree]` shim may
+show a compact source-linked card for a valid retained target so legacy index
+navigation keeps that editorial resource discoverable.
 
 ## REST Automation
 

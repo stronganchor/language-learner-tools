@@ -340,6 +340,9 @@ Read back all of these bridge invariants before deactivating the old plugin:
 - The shadow is absent from normal lesson indexes, mixed/related/corpus grids,
   public search/feed/REST collections, core and Yoast sitemaps, and LL Tools AI
   catalogs. The source post remains the only indexed editorial page.
+- The temporary `[display_prereq_tree]` compatibility index may show one
+  compact card linked to the source URL. This is intentional legacy-navigation
+  parity, not publication of the shadow in normal LL Tools catalogs.
 - `[custom_header]` and `[custom_footer]` work on source post `3797` after the
   old plugin is disabled.
 

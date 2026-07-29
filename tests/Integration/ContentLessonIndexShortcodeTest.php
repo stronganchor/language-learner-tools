@@ -244,6 +244,121 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
             'data-lesson-id="' . $target_id . '"',
             $index
         );
+        $enclosed_public_index = do_shortcode(sprintf(
+            '[ll_content_lesson_index wordset="%d" categories="%d" per_page="20"]'
+            . 'Compatibility content'
+            . '[/ll_content_lesson_index]',
+            $wordset_id,
+            $legacy_category_id
+        ));
+        $this->assertStringNotContainsString(
+            'data-lesson-id="' . $target_id . '"',
+            $enclosed_public_index
+        );
+        $malformed_bridge_id = $this->createLesson(
+            $wordset_id,
+            'A Malformed Retained Bridge 00',
+            0,
+            [$legacy_category_id]
+        );
+        add_post_meta(
+            $malformed_bridge_id,
+            LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+            '1',
+            false
+        );
+        add_post_meta(
+            $malformed_bridge_id,
+            LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+            '1',
+            false
+        );
+        $malformed_bridge_ids = [$malformed_bridge_id];
+        for ($index_number = 1; $index_number <= 24; $index_number++) {
+            $extra_malformed_id = $this->createLesson(
+                $wordset_id,
+                sprintf(
+                    'A Malformed Retained Bridge %02d',
+                    $index_number
+                ),
+                0,
+                [$legacy_category_id]
+            );
+            add_post_meta(
+                $extra_malformed_id,
+                LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+                '1',
+                false
+            );
+            add_post_meta(
+                $extra_malformed_id,
+                LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+                '1',
+                false
+            );
+            $malformed_bridge_ids[] = $extra_malformed_id;
+        }
+        $legacy_index = ll_tools_legacy_display_prereq_tree_shortcode([
+            'categories' => (string) $legacy_category_id,
+            'per_page' => 20,
+        ]);
+        $source_url = (string) get_permalink($source_id);
+        $this->assertStringContainsString(
+            'data-lesson-id="' . $target_id . '"',
+            $legacy_index
+        );
+        $this->assertStringContainsString(
+            'href="' . esc_url($source_url) . '"',
+            $legacy_index
+        );
+        $this->assertStringNotContainsString(
+            'data-lesson-id="' . $malformed_bridge_id . '"',
+            $legacy_index
+        );
+        $compatibility_first_page = ll_tools_get_content_lesson_index_page(
+            $wordset_id,
+            [$legacy_category_id],
+            1,
+            2,
+            true
+        );
+        $compatibility_second_page = ll_tools_get_content_lesson_index_page(
+            $wordset_id,
+            [$legacy_category_id],
+            2,
+            2,
+            true
+        );
+        $this->assertIsArray($compatibility_first_page);
+        $this->assertIsArray($compatibility_second_page);
+        $first_page_ids = array_map(
+            static fn(WP_Post $post): int => (int) $post->ID,
+            $compatibility_first_page['posts']
+        );
+        $second_page_ids = array_map(
+            static fn(WP_Post $post): int => (int) $post->ID,
+            $compatibility_second_page['posts']
+        );
+        $this->assertSame([$target_id, $ordinary_id], $first_page_ids);
+        $this->assertSame([$dependent_id], $second_page_ids);
+        $this->assertTrue($compatibility_first_page['has_more']);
+        $this->assertFalse($compatibility_second_page['has_more']);
+        $this->assertSame(
+            [],
+            array_values(array_intersect(
+                $malformed_bridge_ids,
+                array_merge($first_page_ids, $second_page_ids)
+            ))
+        );
+        $canonical_after_malformed = do_shortcode(sprintf(
+            '[ll_content_lesson_index wordset="%d" categories="%d" per_page="20"]',
+            $wordset_id,
+            $legacy_category_id
+        ));
+        $this->assertStringNotContainsString(
+            'data-lesson-id="' . $malformed_bridge_id . '"',
+            $canonical_after_malformed
+        );
         $this->assertFalse(ll_tools_get_content_lesson_show_in_mix($target_id));
 
         $wordset_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
@@ -253,6 +368,10 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         );
         $this->assertNotContains(
             $target_id,
+            array_map('intval', array_column($wordset_lessons, 'id'))
+        );
+        $this->assertNotContains(
+            $malformed_bridge_id,
             array_map('intval', array_column($wordset_lessons, 'id'))
         );
         $related_lessons = ll_tools_get_content_lessons_for_vocab_lesson(
@@ -267,6 +386,10 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
             $target_id,
             array_map('intval', array_column($related_lessons, 'id'))
         );
+        $this->assertNotContains(
+            $malformed_bridge_id,
+            array_map('intval', array_column($related_lessons, 'id'))
+        );
         $option_page = ll_tools_content_lesson_option_page(
             'prereq_lessons',
             $wordset_id,
@@ -278,11 +401,13 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         );
         $this->assertContains($ordinary_id, $option_ids);
         $this->assertNotContains($target_id, $option_ids);
+        $this->assertNotContains($malformed_bridge_id, $option_ids);
         $crawler_ids = array_map(
             static fn(WP_Post $post): int => (int) $post->ID,
             ll_tools_ai_crawler_get_public_content_lessons(100)
         );
         $this->assertNotContains($target_id, $crawler_ids);
+        $this->assertNotContains($malformed_bridge_id, $crawler_ids);
 
         $search = new WP_Query([
             'post_type' => 'll_content_lesson',
@@ -293,6 +418,17 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         ]);
         $this->assertContains($ordinary_id, array_map('intval', $search->posts));
         $this->assertNotContains($target_id, array_map('intval', $search->posts));
+        $malformed_search = new WP_Query([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'posts_per_page' => 20,
+            's' => 'Malformed Retained Bridge',
+            'fields' => 'ids',
+        ]);
+        $this->assertNotContains(
+            $malformed_bridge_id,
+            array_map('intval', $malformed_search->posts)
+        );
 
         $core_sitemap_args = apply_filters(
             'wp_sitemaps_posts_query_args',
@@ -307,6 +443,10 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         $core_sitemap_ids = get_posts($core_sitemap_args);
         $this->assertContains($ordinary_id, array_map('intval', $core_sitemap_ids));
         $this->assertNotContains($target_id, array_map('intval', $core_sitemap_ids));
+        $this->assertNotContains(
+            $malformed_bridge_id,
+            array_map('intval', $core_sitemap_ids)
+        );
         $this->assertFalse(apply_filters(
             'wpseo_sitemap_entry',
             ['loc' => (string) get_permalink($target_id)],
@@ -333,13 +473,16 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         $rest_ids = get_posts($rest_args);
         $this->assertContains($ordinary_id, array_map('intval', $rest_ids));
         $this->assertNotContains($target_id, array_map('intval', $rest_ids));
+        $this->assertNotContains(
+            $malformed_bridge_id,
+            array_map('intval', $rest_ids)
+        );
         $post_type = get_post_type_object('ll_content_lesson');
         $this->assertInstanceOf(WP_Post_Type::class, $post_type);
         $this->assertTrue((bool) $post_type->exclude_from_search);
         $this->assertFalse((bool) $post_type->has_archive);
         $this->assertFalse((bool) $post_type->show_in_rest);
 
-        $source_url = (string) get_permalink($source_id);
         $this->assertSame($source_url, (string) get_permalink($target_id));
         $GLOBALS['post'] = get_post($source_id);
         setup_postdata($GLOBALS['post']);

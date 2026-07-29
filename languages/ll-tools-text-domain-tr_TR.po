@@ -1573,8 +1573,8 @@ msgstr "Yaygın kayıt türleri: İzolasyon (tek başına kelime), Soru (kelime 
 #: includes/content-lesson-progress.php:278
 #: includes/content-lesson-progress.php:407
 #: includes/pages/content-lesson-pages.php:1292
-#: includes/shortcodes/content-lesson-index-shortcode.php:233
-#: includes/shortcodes/content-lesson-index-shortcode.php:446
+#: includes/shortcodes/content-lesson-index-shortcode.php:386
+#: includes/shortcodes/content-lesson-index-shortcode.php:603
 msgid "Completed"
 msgstr "Tamamlandı"
 
@@ -4915,7 +4915,7 @@ msgstr "Yeni kelimeler"
 #: includes/pages/wordset-pages.php:26427
 #: includes/pages/wordset-pages.php:26556
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
-#: includes/shortcodes/content-lesson-index-shortcode.php:512
+#: includes/shortcodes/content-lesson-index-shortcode.php:669
 #: includes/shortcodes/dictionary-shortcode.php:2481
 #: includes/shortcodes/flashcard-widget.php:666
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
@@ -6133,8 +6133,8 @@ msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 ra
 #: includes/pages/wordset-pages.php:21194
 #: includes/pages/wordset-pages.php:21469
 #: includes/shortcodes/audio-credit-grid-shortcode.php:407
-#: includes/shortcodes/content-lesson-index-shortcode.php:383
-#: includes/shortcodes/content-lesson-index-shortcode.php:498
+#: includes/shortcodes/content-lesson-index-shortcode.php:540
+#: includes/shortcodes/content-lesson-index-shortcode.php:655
 #: includes/shortcodes/dictionary-shortcode.php:2458
 #: includes/shortcodes/image-copyright-grid-shortcode.php:590
 #: includes/taxonomies/word-category-taxonomy.php:1951
@@ -6808,7 +6808,7 @@ msgstr "İşlenmiş Sesi Kaydetme"
 #: includes/admin/ipa-keyboard-admin.php:394
 #: includes/pages/content-lesson-pages.php:1294
 #: includes/pages/wordset-pages.php:24574
-#: includes/shortcodes/content-lesson-index-shortcode.php:235
+#: includes/shortcodes/content-lesson-index-shortcode.php:388
 #: includes/shortcodes/dictionary-shortcode.php:95
 #: includes/shortcodes/word-grid-shortcode.php:3948
 #: templates/vocab-lesson-template.php:395
@@ -15286,7 +15286,7 @@ msgstr "Ana Dersler"
 #: includes/pages/content-lesson-pages.php:818
 #: includes/pages/wordset-pages.php:4812
 #: includes/pages/wordset-pages.php:24570
-#: includes/shortcodes/content-lesson-index-shortcode.php:448
+#: includes/shortcodes/content-lesson-index-shortcode.php:605
 msgid "Open lesson"
 msgstr "Açık ders"
 
@@ -15709,7 +15709,7 @@ msgid "Game is unavailable right now."
 msgstr "Oyun şu anda kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:118
-#: includes/shortcodes/content-lesson-index-shortcode.php:428
+#: includes/shortcodes/content-lesson-index-shortcode.php:585
 #: includes/wordset-isolation.php:4012
 msgid "Lessons"
 msgstr "Dersler"
@@ -26745,8 +26745,8 @@ msgstr "Herhangi bir kuyruk kategorisi talep edilmedi."
 #: includes/pages/wordset-pages.php:12068
 #: includes/pages/wordset-pages.php:12312
 #: includes/pages/wordset-pages.php:21201
-#: includes/shortcodes/content-lesson-index-shortcode.php:387
-#: includes/shortcodes/content-lesson-index-shortcode.php:505
+#: includes/shortcodes/content-lesson-index-shortcode.php:544
+#: includes/shortcodes/content-lesson-index-shortcode.php:662
 #, php-format
 msgid "Page %d"
 msgstr "Sayfa %d"
@@ -27523,7 +27523,7 @@ msgid "Before this lesson"
 msgstr "Bu dersten önce"
 
 #: includes/content-lesson-progress.php:279
-#: includes/shortcodes/content-lesson-index-shortcode.php:447
+#: includes/shortcodes/content-lesson-index-shortcode.php:604
 msgid "Not completed"
 msgstr "Tamamlanmadı"
 
@@ -27537,7 +27537,7 @@ msgstr "Ders ilerlemesini kaydetmek için giriş yap"
 
 #: includes/content-lesson-progress.php:408
 #: includes/pages/content-lesson-pages.php:1293
-#: includes/shortcodes/content-lesson-index-shortcode.php:234
+#: includes/shortcodes/content-lesson-index-shortcode.php:387
 msgid "Mark complete"
 msgstr "Tamamlandı olarak işaretle"
 
@@ -27556,7 +27556,7 @@ msgstr "Bu dersin ilerlemesini güncelleyemezsin."
 
 #: includes/content-lesson-progress.php:474
 #: includes/pages/content-lesson-pages.php:1296
-#: includes/shortcodes/content-lesson-index-shortcode.php:237
+#: includes/shortcodes/content-lesson-index-shortcode.php:390
 msgid "Lesson progress could not be saved."
 msgstr "Ders ilerlemesi kaydedilemedi."
 
@@ -27717,7 +27717,7 @@ msgid "Article lesson"
 msgstr "Makale dersi"
 
 #: includes/pages/content-lesson-pages.php:1295
-#: includes/shortcodes/content-lesson-index-shortcode.php:236
+#: includes/shortcodes/content-lesson-index-shortcode.php:389
 msgid "Progress saved."
 msgstr "İlerleme kaydedildi."
 
@@ -27755,39 +27755,41 @@ msgstr "LL Tools İçerik Dersi İlerlemesi"
 msgid "Completed content lesson IDs"
 msgstr "Tamamlanan içerik dersi kimlikleri"
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:99
+#: includes/shortcodes/content-lesson-index-shortcode.php:200
 msgid "Select a valid word set for the lesson index."
 msgstr "Ders dizini için geçerli bir kelime seti seç."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:111
+#: includes/shortcodes/content-lesson-index-shortcode.php:212
 msgid "This lesson index is not available."
 msgstr "Bu ders dizini kullanılamıyor."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:173
+#: includes/shortcodes/content-lesson-index-shortcode.php:280
+#: includes/shortcodes/content-lesson-index-shortcode.php:317
+#: includes/shortcodes/content-lesson-index-shortcode.php:331
 msgid "The lesson index could not be read completely."
 msgstr "Ders dizini eksiksiz okunamadı."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:378
+#: includes/shortcodes/content-lesson-index-shortcode.php:535
 msgid "No lessons were found on this page."
 msgstr "Bu sayfada ders bulunamadı."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:380
-#: includes/shortcodes/content-lesson-index-shortcode.php:491
+#: includes/shortcodes/content-lesson-index-shortcode.php:537
+#: includes/shortcodes/content-lesson-index-shortcode.php:648
 msgid "Lesson pages"
 msgstr "Ders sayfaları"
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:393
+#: includes/shortcodes/content-lesson-index-shortcode.php:550
 msgid "No lessons were found."
 msgstr "Ders bulunamadı."
 
 #. translators: %d: lesson level number
-#: includes/shortcodes/content-lesson-index-shortcode.php:425
+#: includes/shortcodes/content-lesson-index-shortcode.php:582
 #, php-format
 msgid "Level %d"
 msgstr "Seviye %d"
 
 #. translators: %s: number of prerequisite lessons
-#: includes/shortcodes/content-lesson-index-shortcode.php:468
+#: includes/shortcodes/content-lesson-index-shortcode.php:625
 #, php-format
 msgid "%s prerequisite"
 msgid_plural "%s prerequisites"
@@ -27795,19 +27797,19 @@ msgstr[0] "%s önkoşul"
 msgstr[1] "%s önkoşul"
 
 #. translators: %s: signed-in user's display name
-#: includes/shortcodes/content-lesson-index-shortcode.php:643
+#: includes/shortcodes/content-lesson-index-shortcode.php:808
 #, php-format
 msgid "Signed in as %s."
 msgstr "%s olarak giriş yapıldı."
 
 #. translators: 1 and 2: login-link tags; 3 and 4: registration-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:665
+#: includes/shortcodes/content-lesson-index-shortcode.php:830
 #, php-format
 msgid "%1$sLog in%2$s or %3$sregister%4$s to save completed lessons."
 msgstr "Tamamlanan dersleri kaydetmek için %1$sgiriş yap%2$s veya %3$skayıt ol%4$s."
 
 #. translators: 1 and 2: login-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:674
+#: includes/shortcodes/content-lesson-index-shortcode.php:839
 #, php-format
 msgid "%1$sLog in%2$s to save completed lessons."
 msgstr "Tamamlanan dersleri kaydetmek için %1$sgiriş yap%2$s."

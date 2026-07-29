@@ -73,6 +73,106 @@ function ll_tools_content_lesson_index_requested_page(string $query_arg): int {
 }
 
 /**
+ * Keep index pagination stable when lessons match more than one exact category.
+ */
+function ll_tools_content_lesson_index_posts_distinct(
+    string $distinct,
+    WP_Query $query
+): string {
+    return $query->get('ll_tools_content_lesson_index_query')
+        ? 'DISTINCT'
+        : $distinct;
+}
+add_filter(
+    'posts_distinct',
+    'll_tools_content_lesson_index_posts_distinct',
+    10,
+    2
+);
+
+/**
+ * Admit only structurally valid retained bridges into the compatibility index.
+ *
+ * Validation happens in SQL so OFFSET and the continuation row operate on the
+ * same eligible sequence that is rendered. Runtime URL validation below then
+ * fails the whole read closed if a permalink filter violates the local-source
+ * contract; it never removes a row after pagination.
+ */
+function ll_tools_content_lesson_index_retained_source_where(
+    string $where,
+    WP_Query $query
+): string {
+    if (!$query->get(
+        'll_tools_content_lesson_index_include_retained_sources'
+    )) {
+        return $where;
+    }
+
+    global $wpdb;
+
+    return $where . $wpdb->prepare(
+        " AND (
+            NOT EXISTS (
+                SELECT 1
+                FROM {$wpdb->postmeta} AS ll_retained_marker_absent
+                WHERE ll_retained_marker_absent.post_id = {$wpdb->posts}.ID
+                  AND ll_retained_marker_absent.meta_key = %s
+            )
+            OR (
+                (
+                    SELECT COUNT(*)
+                    FROM {$wpdb->postmeta} AS ll_retained_marker_count
+                    WHERE ll_retained_marker_count.post_id = {$wpdb->posts}.ID
+                      AND ll_retained_marker_count.meta_key = %s
+                ) = 1
+                AND EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} AS ll_retained_marker_valid
+                    WHERE ll_retained_marker_valid.post_id = {$wpdb->posts}.ID
+                      AND ll_retained_marker_valid.meta_key = %s
+                      AND ll_retained_marker_valid.meta_value = %s
+                )
+                AND (
+                    SELECT COUNT(*)
+                    FROM {$wpdb->postmeta} AS ll_retained_source_count
+                    WHERE ll_retained_source_count.post_id = {$wpdb->posts}.ID
+                      AND ll_retained_source_count.meta_key = %s
+                ) = 1
+                AND EXISTS (
+                    SELECT 1
+                    FROM {$wpdb->postmeta} AS ll_retained_source_meta
+                    INNER JOIN {$wpdb->posts} AS ll_retained_source_post
+                        ON ll_retained_source_post.ID =
+                            CAST(ll_retained_source_meta.meta_value AS UNSIGNED)
+                    WHERE ll_retained_source_meta.post_id = {$wpdb->posts}.ID
+                      AND ll_retained_source_meta.meta_key = %s
+                      AND ll_retained_source_meta.meta_value REGEXP '^[0-9]+$'
+                      AND CAST(
+                          ll_retained_source_meta.meta_value AS UNSIGNED
+                      ) > 0
+                      AND ll_retained_source_post.post_type = %s
+                      AND ll_retained_source_post.post_status = %s
+                )
+            )
+        )",
+        LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+        LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+        LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+        '1',
+        LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META,
+        LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META,
+        'post',
+        'publish'
+    );
+}
+add_filter(
+    'posts_where',
+    'll_tools_content_lesson_index_retained_source_where',
+    10,
+    2
+);
+
+/**
  * Read one deterministic, hard-bounded page of published content lessons.
  *
  * @return array{
@@ -88,7 +188,8 @@ function ll_tools_get_content_lesson_index_page(
     $wordset,
     array $category_ids = [],
     int $page = 1,
-    int $per_page = 50
+    int $per_page = 50,
+    bool $include_retained_sources = false
 ) {
     global $wpdb;
 
@@ -123,18 +224,21 @@ function ll_tools_get_content_lesson_index_page(
             'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
             'value' => (string) $wordset_id,
         ],
-        ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
+    ];
+    if (!$include_retained_sources) {
+        $meta_query[] =
+            ll_tools_legacy_lesson_retained_source_catalog_exclusion();
+    }
+    $meta_query[] = [
+        'relation' => 'OR',
         [
-            'relation' => 'OR',
-            [
-                'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
-                'compare' => 'NOT EXISTS',
-            ],
-            [
-                'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
-                'value' => 'corpus_text',
-                'compare' => '!=',
-            ],
+            'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+            'compare' => 'NOT EXISTS',
+        ],
+        [
+            'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
+            'value' => 'corpus_text',
+            'compare' => '!=',
         ],
     ];
     if (!empty($category_ids)) {
@@ -166,6 +270,9 @@ function ll_tools_get_content_lesson_index_page(
         'update_post_term_cache' => false,
         'suppress_filters' => false,
         'meta_query' => $meta_query,
+        'll_tools_content_lesson_index_query' => true,
+        'll_tools_content_lesson_index_include_retained_sources' =>
+            $include_retained_sources,
     ]);
     if ($wpdb->last_error !== '') {
         return new WP_Error(
@@ -174,12 +281,58 @@ function ll_tools_get_content_lesson_index_page(
         );
     }
 
-    $posts = array_values(array_filter(
-        (array) $query->posts,
-        static function ($post): bool {
-            return $post instanceof WP_Post;
+    if ($include_retained_sources && function_exists('_prime_post_caches')) {
+        $source_ids = [];
+        foreach ((array) $query->posts as $post) {
+            if (!($post instanceof WP_Post)
+                || !ll_tools_legacy_lesson_has_retained_source_marker(
+                    (int) $post->ID
+                )
+            ) {
+                continue;
+            }
+            $source_values = get_post_meta(
+                (int) $post->ID,
+                LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META,
+                false
+            );
+            if (count($source_values) === 1
+                && is_scalar($source_values[0])
+                && absint($source_values[0]) > 0
+            ) {
+                $source_ids[absint($source_values[0])] =
+                    absint($source_values[0]);
+            }
         }
-    ));
+        if ($source_ids !== []) {
+            _prime_post_caches(array_values($source_ids), false, false);
+        }
+    }
+
+    $posts = [];
+    foreach ((array) $query->posts as $post) {
+        if (!($post instanceof WP_Post)) {
+            return new WP_Error(
+                'content_lesson_index_query_incomplete',
+                __('The lesson index could not be read completely.', 'll-tools-text-domain')
+            );
+        }
+        if (ll_tools_legacy_lesson_has_retained_source_marker((int) $post->ID)
+            && (!$include_retained_sources
+                || !ll_tools_legacy_lesson_is_retained_source_target(
+                    (int) $post->ID
+                )
+                || ll_tools_get_legacy_lesson_retained_source_url(
+                    (int) $post->ID
+                ) === '')
+        ) {
+            return new WP_Error(
+                'content_lesson_index_query_incomplete',
+                __('The lesson index could not be read completely.', 'll-tools-text-domain')
+            );
+        }
+        $posts[] = $post;
+    }
     $has_more = count($posts) > $per_page
         && $page < LL_TOOLS_CONTENT_LESSON_INDEX_PAGE_MAX;
     $posts = array_slice($posts, 0, $per_page);
@@ -312,7 +465,10 @@ function ll_tools_content_lesson_index_card_data(WP_Post $post): array {
     ];
 }
 
-function ll_tools_render_content_lesson_index_shortcode($atts = []): string {
+function ll_tools_render_content_lesson_index(
+    $atts = [],
+    bool $include_retained_sources = false
+): string {
     $atts = shortcode_atts(
         [
             'wordset' => '',
@@ -353,7 +509,8 @@ function ll_tools_render_content_lesson_index_shortcode($atts = []): string {
         $wordset_id,
         $category_ids,
         $page,
-        $per_page
+        $per_page,
+        $include_retained_sources
     );
     if (is_wp_error($result)) {
         if ($result->get_error_code() === 'content_lesson_index_wordset_forbidden') {
@@ -516,6 +673,14 @@ function ll_tools_render_content_lesson_index_shortcode($atts = []): string {
     $html .= '</section>';
 
     return $html;
+}
+
+function ll_tools_render_content_lesson_index_shortcode(
+    $atts = [],
+    $content = null,
+    string $tag = ''
+): string {
+    return ll_tools_render_content_lesson_index($atts, false);
 }
 
 function ll_tools_legacy_lesson_compat_target_id(int $source_id = 0): int {
@@ -696,13 +861,16 @@ function ll_tools_legacy_display_prereq_tree_shortcode($atts = []): string {
 
     $categories = ll_tools_content_lesson_index_category_ids($atts['categories']);
     $html = !is_user_logged_in() ? ll_tools_legacy_signup_link_shortcode() : '';
-    $html .= ll_tools_render_content_lesson_index_shortcode([
-        'wordset' => (string) $wordset_id,
-        'categories' => implode(',', $categories),
-        'per_page' => $atts['per_page'],
-        'list_id' => 'legacy-' . substr(md5(implode(',', $categories)), 0, 12),
-        'show_excerpt' => '1',
-    ]);
+    $html .= ll_tools_render_content_lesson_index(
+        [
+            'wordset' => (string) $wordset_id,
+            'categories' => implode(',', $categories),
+            'per_page' => $atts['per_page'],
+            'list_id' => 'legacy-' . substr(md5(implode(',', $categories)), 0, 12),
+            'show_excerpt' => '1',
+        ],
+        true
+    );
     return $html;
 }
 
