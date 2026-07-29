@@ -213,6 +213,7 @@ return [
         ['path' => 'includes/lib/public-static-cache.php'],
         ['path' => 'includes/lib/text-display.php'],
         ['path' => 'includes/lib/word-option-rules.php'],
+        ['path' => 'includes/content-lesson-progress.php'],
         [
             'path' => 'includes/lib/wordset-language-settings.php',
             'symbols' => [
@@ -494,6 +495,16 @@ return [
         ['path' => 'includes/shortcodes/image-copyright-grid-shortcode.php'],
         ['path' => 'includes/shortcodes/language-switcher-shortcode.php'],
         ['path' => 'includes/shortcodes/quiz-pages-shortcodes.php'],
+        ['path' => 'includes/shortcodes/content-lesson-index-shortcode.php'],
+        [
+            'path' => 'includes/shortcodes/ranked-word-list-shortcode.php',
+            'symbols' => [
+                'll_tools_ranked_word_list_audio_url_map',
+                'll_tools_ranked_word_list_render_audio_control',
+                'll_tools_ranked_word_list_pagination',
+                'll_tools_ranked_word_list_shortcode',
+            ],
+        ],
         ['path' => 'includes/shortcodes/word-audio-shortcode.php'],
         [
             'path' => 'includes/shortcodes/word-grid-shortcode.php',

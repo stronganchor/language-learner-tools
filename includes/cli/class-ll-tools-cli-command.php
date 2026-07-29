@@ -531,6 +531,154 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
     }
 
     /**
+     * Migrate a bounded page of legacy post-based lessons into content lessons.
+     *
+     * The command is dry-run by default. Run the lessons phase before
+     * relations, then migrate user completions in resumable user-ID pages.
+     *
+     * ## OPTIONS
+     *
+     * <wordset>
+     * : Target word set slug, name, or ID.
+     *
+     * [--phase=<phase>]
+     * : lessons, relations, or completions. Default: lessons.
+     *
+     * [--categories=<categories>]
+     * : Comma-separated source post category IDs, slugs, or names.
+     *
+     * [--source-ids=<ids>]
+     * : Explicit comma-separated source post IDs.
+     *
+     * [--exclude-source-ids=<ids>]
+     * : Source post IDs to leave on their existing editorial URLs.
+     *
+     * [--after=<id>]
+     * : Resume after this source post or user ID.
+     *
+     * [--run-id=<uuid>]
+     * : Completion audit run ID emitted by the first applied page. Required
+     *   with --phase=completions when --after is greater than zero.
+     *
+     * [--limit=<number>]
+     * : Batch size from 1 to 500. Default: 100.
+     *
+     * [--status=<status>]
+     * : Target status for new lessons. Existing lesson status is preserved
+     *   unless this option is supplied. Allowed: draft, publish, pending,
+     *   private.
+     *
+     * [--show-in-mix=<0|1>]
+     * : Surface migrated lessons in the category-driven lesson mix. Default: 0.
+     *
+     * [--apply]
+     * : Persist the planned changes.
+     *
+     * [--format=<format>]
+     * : json or table. Default: json.
+     *
+     * ## EXAMPLES
+     *
+     *     wp ll-tools legacy-lessons-migrate turkish --categories=grammar,culture
+     *     wp ll-tools legacy-lessons-migrate turkish --phase=lessons --categories=4,10 --apply
+     *     wp ll-tools legacy-lessons-migrate turkish --phase=relations --categories=4,10 --apply
+     *     wp ll-tools legacy-lessons-migrate turkish --phase=completions --after=0 --limit=100 --apply
+     */
+    public function legacy_lessons_migrate(array $args, array $assoc_args): void {
+        if (!function_exists('ll_tools_migrate_legacy_content_lessons_batch')) {
+            WP_CLI::error('Legacy lesson migration is unavailable.');
+        }
+        $wordset_spec = isset($args[0]) ? (string) $args[0] : '';
+        $wordset_term = ll_tools_cli_resolve_wordset_term($wordset_spec);
+        if (is_wp_error($wordset_term)) {
+            WP_CLI::error($wordset_term->get_error_message());
+        }
+
+        $phase = isset($assoc_args['phase'])
+            ? sanitize_key((string) $assoc_args['phase'])
+            : 'lessons';
+        $category_ids = [];
+        if (!empty($assoc_args['categories'])) {
+            $category_ids = ll_tools_resolve_legacy_lesson_category_ids(
+                (string) $assoc_args['categories']
+            );
+            if (is_wp_error($category_ids)) {
+                WP_CLI::error($category_ids->get_error_message());
+            }
+        }
+        $source_ids = [];
+        if (!empty($assoc_args['source-ids'])) {
+            $source_ids = preg_split('/\s*,\s*/', (string) $assoc_args['source-ids']);
+        }
+        $exclude_source_ids = [];
+        if (!empty($assoc_args['exclude-source-ids'])) {
+            $exclude_source_ids = preg_split(
+                '/\s*,\s*/',
+                (string) $assoc_args['exclude-source-ids']
+            );
+        }
+
+        $migration_args = [
+            'phase' => $phase,
+            'wordset_id' => (int) $wordset_term->term_id,
+            'category_ids' => $category_ids,
+            'source_ids' => $source_ids,
+            'exclude_source_ids' => $exclude_source_ids,
+            'after_id' => isset($assoc_args['after']) ? absint($assoc_args['after']) : 0,
+            'run_id' => isset($assoc_args['run-id'])
+                ? sanitize_text_field((string) $assoc_args['run-id'])
+                : '',
+            'limit' => isset($assoc_args['limit']) ? absint($assoc_args['limit']) : 100,
+            'show_in_mix' => isset($assoc_args['show-in-mix'])
+                && (string) $assoc_args['show-in-mix'] === '1',
+            'apply' => !empty($assoc_args['apply']),
+        ];
+        if (array_key_exists('status', $assoc_args)) {
+            $migration_args['status'] = (string) $assoc_args['status'];
+        }
+        $result = ll_tools_migrate_legacy_content_lessons_batch($migration_args);
+        if (is_wp_error($result)) {
+            WP_CLI::error($result->get_error_message());
+        }
+
+        foreach ((array) ($result['errors'] ?? []) as $error) {
+            WP_CLI::warning((string) $error);
+        }
+        $apply_failed = !empty($migration_args['apply'])
+            && !empty($result['errors']);
+        $format = isset($assoc_args['format'])
+            ? sanitize_key((string) $assoc_args['format'])
+            : 'json';
+        if ($format === 'table') {
+            $row = $result;
+            foreach ($row as $key => $value) {
+                if (is_array($value)) {
+                    $row[$key] = implode('; ', array_map('strval', $value));
+                } elseif (is_bool($value)) {
+                    $row[$key] = $value ? 'yes' : 'no';
+                }
+            }
+            \WP_CLI\Utils\format_items('table', [$row], array_keys($row));
+        } else {
+            WP_CLI::line(ll_tools_cli_json_encode($result));
+        }
+
+        if ($apply_failed) {
+            $failed_ids = array_values(array_filter(array_map(
+                'absint',
+                (array) ($result['failed_source_ids'] ?? [])
+            )));
+            $retry_hint = empty($failed_ids)
+                ? ''
+                : ' Retry with --source-ids=' . implode(',', $failed_ids) . '.';
+            WP_CLI::error(
+                'The applied migration page had errors and was not complete.'
+                . $retry_hint
+            );
+        }
+    }
+
+    /**
      * Dump a machine-readable word set report for automation and health checks.
      *
      * ## OPTIONS

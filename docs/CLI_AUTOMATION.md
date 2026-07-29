@@ -47,6 +47,15 @@ The helper script only resolves the WordPress root and forwards to `wp`. It does
 
 ## Commands
 
+### Migrate legacy post-based lessons
+
+`wp ll-tools legacy-lessons-migrate` is a separate guarded migration for
+post-based lessons, prerequisite links, and user completions. It is dry-run by
+default and advances in bounded ID-cursor pages. Follow
+[LEGACY_LESSON_MIGRATION_RUNBOOK.md](LEGACY_LESSON_MIGRATION_RUNBOOK.md) for
+scope freezing, the required lessons-to-relations-to-completions order,
+completion run IDs, retries, readback gates, and old-plugin cutover.
+
 ### Create a wordset
 
 Create a blank wordset:

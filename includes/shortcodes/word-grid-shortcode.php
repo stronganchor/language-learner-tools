@@ -21,7 +21,11 @@ function ll_tools_word_grid_audio_url_from_path(string $audio_path): string {
     return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
 }
 
-function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_meta = false): array {
+function ll_tools_word_grid_collect_audio_files(
+    array $word_ids,
+    bool $include_meta = false,
+    bool $include_untyped = false
+): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) { return $id > 0; }));
     if (empty($word_ids)) {
         return [];
@@ -89,7 +93,10 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
         $processing_source_url = ll_tools_word_grid_audio_url_from_path($processing_source_path);
         $recording_types = array_keys($recording_types_by_audio[(int) $audio_post->ID] ?? []);
         if (empty($recording_types)) {
-            continue;
+            if (!$include_untyped) {
+                continue;
+            }
+            $recording_types = [''];
         }
 
         $speaker_uid = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
@@ -135,7 +142,7 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
 
         foreach ($recording_types as $type) {
             $type = sanitize_text_field($type);
-            if ($type === '') {
+            if ($type === '' && !$include_untyped) {
                 continue;
             }
             $entry = [

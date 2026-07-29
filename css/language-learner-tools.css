@@ -3844,3 +3844,51 @@ button.ll-tools-star-button.ll-tools-star-button:focus-visible {
 .word-grid.ll-word-grid--text .word-translation {
     margin-top: 4px !important;
 }
+/*
+ * Semantic lesson-text marks.
+ *
+ * These exact colors and bold weight preserve the legacy TurkishTextbook
+ * color1/color2/color3 shortcodes. Important declarations keep the small
+ * inline helper stable when a theme applies broad content-color rules.
+ */
+span.ll-tools-mark {
+    font-weight: 700 !important;
+}
+
+.ll-tools-mark.ll-tools-mark--orange {
+    color: #ff6600 !important;
+}
+
+.ll-tools-mark.ll-tools-mark--blue {
+    color: #0066ff !important;
+}
+
+.ll-tools-mark.ll-tools-mark--green {
+    color: #77b300 !important;
+}
+
+/*
+ * The canonical semantic API uses darker AA text colors plus distinct
+ * underline patterns. Legacy aliases intentionally retain the exact historic
+ * colors above for content compatibility.
+ */
+.ll-tools-mark.ll-tools-mark--semantic {
+    text-decoration-line: underline !important;
+    text-decoration-thickness: 0.08em !important;
+    text-underline-offset: 0.14em !important;
+}
+
+.ll-tools-mark.ll-tools-mark--semantic.ll-tools-mark--orange {
+    color: #9c3d00 !important;
+    text-decoration-style: solid !important;
+}
+
+.ll-tools-mark.ll-tools-mark--semantic.ll-tools-mark--blue {
+    color: #0057b8 !important;
+    text-decoration-style: double !important;
+}
+
+.ll-tools-mark.ll-tools-mark--semantic.ll-tools-mark--green {
+    color: #416900 !important;
+    text-decoration-style: dotted !important;
+}

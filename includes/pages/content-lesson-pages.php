@@ -3,6 +3,9 @@
 if (!defined('WPINC')) { die; }
 
 function ll_tools_content_lesson_media_label(string $media_type, string $lesson_kind = 'standard'): string {
+    if ($lesson_kind === 'article') {
+        return __('Article lesson', 'll-tools-text-domain');
+    }
     if ($lesson_kind === 'corpus_text' || $media_type === 'text') {
         return __('Text document', 'll-tools-text-domain');
     }
@@ -397,20 +400,43 @@ function ll_tools_get_corpus_text_collection_link(int $lesson_id): array {
     return ['url' => '', 'label' => $label];
 }
 
-function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
+/**
+ * Return the bounded first page used by the mixed word-set surface.
+ *
+ * Callers that need an authoritative lesson index must inspect `$complete` and
+ * fall back to the paginated `[ll_content_lesson_index]` surface when false.
+ */
+function ll_tools_get_content_lessons_for_wordset(
+    int $wordset_id,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
     }
 
-    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id)) {
-        return [];
+    if (function_exists('ll_tools_user_can_view_wordset')) {
+        $visibility_complete = true;
+        if (!ll_tools_user_can_view_wordset($wordset_id, 0, $visibility_complete)) {
+            if (!$visibility_complete) {
+                $complete = false;
+            }
+            return [];
+        }
     }
 
+    $limit = max(1, min(500, (int) apply_filters(
+        'll_tools_content_lessons_for_wordset_limit',
+        200,
+        $wordset_id
+    )));
     $posts = get_posts([
         'post_type' => 'll_content_lesson',
         'post_status' => 'publish',
-        'posts_per_page' => -1,
+        'posts_per_page' => $limit + 1,
         'orderby' => 'menu_order title',
         'order' => 'ASC',
         'no_found_rows' => true,
@@ -421,6 +447,14 @@ function ll_tools_get_content_lessons_for_wordset(int $wordset_id): array {
             ],
         ],
     ]);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    if (count($posts) > $limit) {
+        $complete = false;
+        $posts = array_slice($posts, 0, $limit);
+    }
 
     $lessons = [];
     foreach ((array) $posts as $post) {
@@ -1039,6 +1073,20 @@ function ll_tools_content_lesson_enqueue_assets(): void {
 
     if ($is_corpus_text) {
         ll_enqueue_asset_by_timestamp('/js/text-document.js', 'll-tools-text-document', [], true);
+    } else {
+        ll_enqueue_asset_by_timestamp('/js/content-lesson-progress.js', 'll-tools-content-lesson-progress', [], true);
+        wp_localize_script('ll-tools-content-lesson-progress', 'llToolsContentLessonProgress', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'action' => 'll_tools_content_lesson_completion',
+            'nonce' => wp_create_nonce('ll_tools_content_lesson_completion'),
+            'i18n' => [
+                'complete' => __('Completed', 'll-tools-text-domain'),
+                'incomplete' => __('Mark complete', 'll-tools-text-domain'),
+                'saving' => __('Saving...', 'll-tools-text-domain'),
+                'saved' => __('Progress saved.', 'll-tools-text-domain'),
+                'error' => __('Lesson progress could not be saved.', 'll-tools-text-domain'),
+            ],
+        ]);
     }
 
     if ($is_corpus_text

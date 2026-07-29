@@ -53,6 +53,8 @@ read_first:
 - Large wordsets are normal production data. A single wordset may have thousands of `words` posts and many thousands of `word_audio`, `word_images`, prompt cards, and generated media records.
 - Interactive UI, AJAX, shortcode, and game-launch paths should stay bounded by the page size or launch-candidate size. Do not hydrate or iterate a whole wordset's posts just to render a catalog card, count availability, or launch a game.
 - Prefer ID-only queries, capped launch pools, pagination, cached/materialized aggregates, and explicit admin batch jobs with progress behavior for operations that intentionally need the whole wordset.
+- `[ll_ranked_word_list]` is the bounded reference-table path for large ordered collections: query one exact category page (100 words maximum), require the allowlisted numeric `_ll_tools_word_rank` meta, use word ID as the stable tie-breaker, and bulk-collect audio only for that page. Do not replace it with an unbounded `[word_grid]` render.
+- `[ll_content_lesson_index]` is the bounded catalog for article and standard content lessons: scope every query to one visible wordset, optionally match exact repeated legacy category-ID meta, fetch no more than 100 lessons plus one continuation row, and cap numeric pagination at 100 pages. The legacy `[display_prereq_tree]` shim delegates to this surface rather than restoring an all-post prerequisite scan.
 - Derived quiz/content cache invalidation separates structure from content. Category identity/order mutations advance the structural epoch; fully resolved word, audio, image, and prompt mutations advance affected category versions and known wordset content epochs. Incomplete scope must advance the unknown component, and any failed narrow epoch write must advance the failsafe so a committed mutation cannot leave an old generation addressable. Read and increment epochs through the direct atomic helpers; do not trust stale persistent-object-cache values.
 - A database error is not an empty catalog, zero count, or exhausted page. Cacheable builders and maintenance/page cursors must propagate source completeness through term, meta, visibility, default-wordset, sign-mode, prompt, media, and owner-map reads. Publish or advance only when every source is complete; otherwise retain the prior durable generation and retry the same key or cursor.
 - A cold flashcard category is a durable materialization, not an interactive full-category hydration. `includes/lib/flashcard-payload-materializer.php` advances bounded primary-word and prompt-card keyset batches into generation-scoped rows; readers expose only an unlocked, complete generation whose dependency signature still matches. The public/signed-in page endpoints must return retryable preparation state until then, never partial quiz data disguised as a complete category.
@@ -175,6 +177,7 @@ module list.
 - includes/admin/uploads/audio-upload-form.php
 - includes/admin/uploads/image-upload-form.php
 - includes/user-progress.php
+- includes/content-lesson-progress.php
 - includes/user-study.php
 - includes/user-progress-report-data.php
 - includes/offline-app-sync.php
@@ -209,6 +212,7 @@ module list.
 - includes/admin/split-word-admin.php
 - includes/admin/duplicate-category-words-admin.php
 - includes/admin/site-sync-admin.php
+- includes/migrations/legacy-content-lessons.php
 - includes/cli/cli-support.php
 - includes/cli/class-ll-tools-cli-command.php
 - includes/pages/quiz-pages.php
@@ -226,7 +230,10 @@ module list.
 - includes/shortcodes/flashcard-widget.php
 - includes/shortcodes/word-audio-shortcode.php
 - includes/shortcodes/interlinear-shortcode.php
+- includes/shortcodes/semantic-mark-shortcode.php
+- includes/shortcodes/content-lesson-index-shortcode.php
 - includes/shortcodes/word-grid-shortcode.php
+- includes/shortcodes/ranked-word-list-shortcode.php
 - includes/shortcodes/editor-hub-shortcode.php
 - includes/shortcodes/image-copyright-grid-shortcode.php
 - includes/shortcodes/audio-credit-grid-shortcode.php
@@ -252,6 +259,7 @@ includes/
   template-loader.php         # Theme override resolver
   teacher-classes.php         # Teacher class helpers, frontend actions, class membership
   login-window.php            # Frontend login/signup window support
+  legacy-content-lesson-contracts.php # Stable legacy source/category/default-wordset migration contract
   user-progress.php           # Learner progress writes/lookups
   user-progress-report-data.php # Shared progress report queries
   wordset-isolation.php       # Wordset-owned category isolation/remapping
@@ -318,9 +326,12 @@ includes/
     flashcard-widget.php
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
+    ranked-word-list-shortcode.php # [ll_ranked_word_list] + bounded generic rank-row importer helper
     editor-hub-shortcode.php
     site-tools-shortcode.php  # [ll_site_tools] sitewide settings + maintenance UI
     word-audio-shortcode.php
+    semantic-mark-shortcode.php # [ll_mark] + legacy [color1]/[color2]/[color3]
+    content-lesson-index-shortcode.php # [ll_content_lesson_index] + bounded legacy lesson shortcode shims
     wordset-page-shortcode.php
     wordset-buttons-shortcode.php
     audio-credit-grid-shortcode.php
@@ -328,6 +339,8 @@ includes/
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
     dictionary-shortcode.php  # [ll_dictionary] + legacy dictionary shortcode aliases
+  migrations/
+    legacy-content-lessons.php # Resumable lessons, relations/link rewrites, and completion migration
   admin/
     admin-dashboard-menu.php
     settings.php
@@ -444,7 +457,8 @@ vendor/
 - `ll_content_lesson` (public content lessons)
   - Rewrite slug: `/lesson/<slug>`.
   - Meta includes wordset, lesson kind, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
-  - Lesson kind defaults to `standard`; `corpus_text` suppresses empty audio/video chrome and renders text-document payloads from the interlinear payload meta.
+  - Lesson kind defaults to `standard`; `article` renders migrated/editorial lessons without media chrome; `corpus_text` suppresses empty audio/video chrome and renders text-document payloads from the interlinear payload meta.
+  - The resumable legacy lesson migration keeps the source post ID/URL, a sanitized category snapshot, exact repeated source-category ID rows, concepts, level, and unresolved relation audit data. Successful apply batches set one compatibility wordset option used by temporary shortcode shims. Exact source-category rows are the only public category-index query contract; do not query arbitrary serialized snapshots. Production operators must follow `docs/LEGACY_LESSON_MIGRATION_RUNBOOK.md`.
   - Text-document payloads support public Text, Interlinear, and Sources views from `reading_units`, `source_lines`, `witnesses`, `display_rows`, and regular interlinear `tokens`; ordinary learning-content interlinears remain staff-gated.
   - Corpus collection links resolve through the saved `_ll_tools_corpus_text_grid_collection` page index and a positive/negative transient. Save/delete hooks maintain the index; pre-index pages use only the bounded 20-candidate legacy lookup before materializing it. Do not restore a request-time scan of every Page.
   - Can render inside the mixed wordset lesson grid when `show_in_mix` is enabled.
@@ -557,7 +571,14 @@ wordset can opt into it.
   - A popup launch card is authoritative for its wordset, quiz mode, display mode, prompt type, and option type. The localized flashcard category registry may be paged and may not yet contain that card's category, so `llOpenFlashcardForCategory()` must synthesize or update the launch category from the trigger attributes before widget initialization. Do not require the target category to be present in the initial registry. Canonical regressions: `tests/e2e/specs/quiz-popup-text-translation-options.spec.js` and `tests/e2e/specs/text-to-text-learning-intro.spec.js`.
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
   - `includes/shortcodes/word-grid-shortcode.php` loads `includes/lib/word-grid-bulk-operations.php`; bulk POS and grammar changes use its owner-scoped durable operations. Each request persists a `preparing` batch before creating its non-autoloaded rollback chunk, revalidates the saved target IDs against the current lesson scope, lease-fences state writes, verifies mutation readback, and only then advances the keyset cursor. Status/Continue/Undo survive reload; a generic recovery row keeps Undo reachable when a grammar feature is later disabled. Undo runs newest chunk first, verifies restoration before retiring a chunk, and skips only rows whose relevant state changed outside the recorded bulk/failed-write states. Operations expire after one day by default (filterable from one hour through seven days), and token cleanup deletes rollback chunks in bounded scheduled batches. Do not restore browser-owned rollback snapshots or unbounded one-request bulk mutations.
+- `[ll_ranked_word_list]` (`includes/shortcodes/ranked-word-list-shortcode.php`, CSS: `css/ranked-word-list.css`).
+  - Resolves one exact visible `word-category`, reads a list-scoped page query argument, and queries at most 100 published `words` ordered by the numeric `_ll_tools_word_rank` meta plus ID. Word/meta/term data is primed for the page and audio uses one parent-scoped bulk collection instead of a query per row. `ll_tools_import_ranked_word_rows()` accepts at most 200 already-parsed associative rows, resolves only explicit IDs or bounded exact-title matches, writes only the rank meta key, verifies writes, and reports unchanged rows idempotently; it deliberately exposes no public mutation endpoint or whole-site discovery scan.
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
+- `[ll_mark]` plus legacy `[color1]`, `[color2]`, and `[color3]` (`includes/shortcodes/semantic-mark-shortcode.php`).
+  - The canonical `tone` allowlist is `orange|blue|green`; unsupported values fall back to orange and are never reflected into classes or styles. All tags emit class-only inline markup, expand nested shortcodes, and restrict the nested result to safe phrasing elements so block markup cannot create invalid span nesting. Canonical marks use accessible darker colors plus distinct underline cues; compatibility aliases preserve TurkishTextbook's exact orange (`#ff6600`), blue (`#0066ff`), green (`#77b300`), and bold presentation through theme-resistant public CSS.
+- `[ll_content_lesson_index]` (`includes/shortcodes/content-lesson-index-shortcode.php`, CSS: `css/content-lesson-index.css`).
+  - Resolves exactly one visible wordset, optionally filters the migration's exact repeated legacy category-ID meta, groups one page by `menu_order` lesson level, overlays signed-in completion state, and renders previous/next links through a list-scoped query argument. Page size and numeric page caps are both 100.
+  - Temporary `[display_prereq_tree]`, `[custom_header]`, `[custom_footer]`, `[regex_linker]`, and `[signup_link]` shims register only when no other plugin owns the tag. They resolve stable migrated source mappings, use bounded prerequisite/dependent helpers, sanitize cached linked HTML, and use current front-end auth URLs. Do not port the legacy debug shortcode, whole-site reverse scans, or global theme CSS dequeues.
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
 - `[wordset_buttons]` / `[ll_wordset_buttons]` (`includes/shortcodes/wordset-buttons-shortcode.php`).
   - Count generations are bounded and keyed by user identity plus current structural/content epochs because private-category grants can differ even for identical visible wordset IDs. An incomplete signed-in scope may render only complete anonymous public HTML from the structurally scoped LKG or the exact current/prior-release anonymous cache; it must never publish partial counts or private markup to that fallback. Its authenticated, nonce-protected `ll_tools_wordset_buttons_refresh` AJAX loader advances one bounded batch at a time and replaces the loading/fallback shell only after the exact user scope is complete; there is deliberately no anonymous AJAX action. Continuation cron events carry the initiating user ID, restore that context only around the worker, and restore the prior user afterward. A genuinely cold scope renders a loading shell rather than an empty section, while an authoritative complete-empty scope remains empty. Direct role-change invalidation is tracked separately in the maintenance backlog.

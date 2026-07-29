@@ -557,9 +557,33 @@ function ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
     int $wordset_id,
     bool $create_missing = false
 ): ?array {
+    global $wpdb;
+
     $source_ids = ll_tools_wordset_isolation_parse_category_id_list($raw_value);
     if (empty($source_ids)) {
         return [];
+    }
+
+    $requires_owned_targets = $wordset_id > 0 && ll_tools_is_wordset_isolation_enabled();
+    if ($requires_owned_targets) {
+        foreach ($source_ids as $source_id) {
+            $source_owner_complete = true;
+            $source_origin_complete = true;
+            ll_tools_get_category_wordset_owner_id(
+                (int) $source_id,
+                $source_owner_complete
+            );
+            if (!$source_owner_complete || $wpdb->last_error !== '') {
+                return null;
+            }
+            ll_tools_get_category_isolation_source_id(
+                (int) $source_id,
+                $source_origin_complete
+            );
+            if (!$source_origin_complete || $wpdb->last_error !== '') {
+                return null;
+            }
+        }
     }
 
     $category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
@@ -567,7 +591,6 @@ function ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
         $source_ids,
         $create_missing
     );
-    $requires_owned_targets = $wordset_id > 0 && ll_tools_is_wordset_isolation_enabled();
     $remapped = [];
     foreach ($source_ids as $source_id) {
         $source_id = (int) $source_id;
@@ -577,11 +600,29 @@ function ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
         }
 
         if ($requires_owned_targets) {
-            $source_origin_id = ll_tools_get_category_isolation_source_id($source_id);
+            $source_origin_complete = true;
+            $target_owner_complete = true;
+            $target_origin_complete = true;
+            $source_origin_id = ll_tools_get_category_isolation_source_id(
+                $source_id,
+                $source_origin_complete
+            );
+            $target_owner_id = ll_tools_get_category_wordset_owner_id(
+                $target_id,
+                $target_owner_complete
+            );
+            $target_origin_id = ll_tools_get_category_isolation_source_id(
+                $target_id,
+                $target_origin_complete
+            );
             if (
-                $source_origin_id <= 0
-                || ll_tools_get_category_wordset_owner_id($target_id) !== $wordset_id
-                || ll_tools_get_category_isolation_source_id($target_id) !== $source_origin_id
+                !$source_origin_complete
+                || !$target_owner_complete
+                || !$target_origin_complete
+                || $wpdb->last_error !== ''
+                || $source_origin_id <= 0
+                || $target_owner_id !== $wordset_id
+                || $target_origin_id !== $source_origin_id
             ) {
                 return null;
             }

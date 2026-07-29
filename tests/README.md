@@ -186,6 +186,11 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `WordsetSettingsCustomUiTest` verifies the settings hub uses a cheap Advanced summary without entering the flashcard category-ordering catalog or answer-option preview sampler, while the opened Advanced tool keeps its dedicated runtime.
 - `WordsetCategoryOrderingAtomicSaveTest` verifies the frontend Advanced and legacy taxonomy forms validate category registries, prerequisite payloads, and cycles before changing ordering meta; preserve all three category-ordering keys on rejection; roll back all earlier writes after a later meta failure; keep unrelated settings; and show a partial-success warning.
 - `WordsetButtonsShortcodeTest` verifies incomplete signed-in count generations render a nonce-protected loader, expose no anonymous refresh action, advance only bounded user-scoped batches, and publish exact cards only after completion.
+- `RankedWordListShortcodeTest` verifies numeric rank ordering with an ID tie-breaker, exact-category filtering, one hard-capped page per query, independent list-scoped pagination, page-scoped bulk audio collection, public asset detection, and the bounded idempotent ID/title rank-row importer.
+- `ContentLessonIndexShortcodeTest` verifies exact wordset/category scoping, list-specific bounded pagination and hard caps, completion display, exact legacy source/category/default-wordset contract backfills, write-free idempotent reruns, safe cached-link/signup rendering, migrated prerequisite/dependent shims, and nonreplacement of shortcode tags still owned by the legacy plugin.
+- `ContentLessonProgressTest` verifies completion normalization and compare-and-swap writes, guarded request/readback behavior, privacy export/erasure, bounded prerequisite/dependent rows, article settings and template rendering, cycle rejection, and fail-closed identity/relationship reads.
+- `LegacyContentLessonMigrationTest` verifies bounded lesson/relation/completion pages, exact source and target snapshots, idempotent replays, collision-safe link rewriting, status/wordset preservation, completion audit fencing, and retryable fail-closed query paths.
+- `SemanticMarkShortcodeTest` verifies the class-only semantic mark renderer, exact legacy color aliases, nested shortcode sanitization, valid inline output, asset detection, and the documented visual contract.
 - `WordGridCategoryEditTest` verifies a scoped category edit and selected-state read replace/show only the current wordset's assignments even when another wordset owns the same isolation source, and that explicit category writes do not cross-expand valid owned families.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
 - API settings capability default + filter override.
@@ -345,6 +350,8 @@ Representative E2E coverage areas:
   - Verifies bulk audio upload searches a bounded manager-visible speaker endpoint and exposes selected, empty, and request-error states without preloading every account.
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
   - Verifies a local WordPress-backed content lesson route plays a real uploaded WAV with range support and finite duration, seeks from a transcript cue, and renders notes plus its related vocab lesson link. The same fixture verifies a corpus collection page, reader navigation, single accessible title, and public Sources view.
+- `tests/e2e/specs/content-lesson-progress.spec.js`
+  - Verifies completion autosave sends one canonical request, exposes saving/saved accessible state, updates the completion control only after success, and preserves the prior state when saving fails.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
   - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, progress-table sorting, and learner removal, plus legacy wp-admin class/account search and redirect-state preservation through deletion.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`

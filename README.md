@@ -39,7 +39,10 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[ll_corpus_text_grid]` / `[ll_text_document_grid]` - front-end content-lesson grid for corpus/text-document lessons.
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
+  - `[ll_ranked_word_list]` - bounded, paginated rank/word/translation/audio table for an exact word category and wordset.
+  - `[ll_content_lesson_index]` - bounded, paginated content-lesson index scoped to one wordset and optional retained legacy category IDs.
   - `[ll_interlinear]` - compact interlinear table using the shared LL Tools interlinear renderer.
+  - `[ll_mark tone="orange"]...[/ll_mark]` - bold inline lesson-text mark with `orange`, `blue`, or `green` tones. Legacy `[color1]`, `[color2]`, and `[color3]` tags remain compatible.
   - `[editor_hub]` - editor-facing workflow for filling missing word metadata and recording details. Maintenance note: hidden from the primary front-end utility nav; review for a focused rebuild or removal before promoting as an active workflow.
   - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
   - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
@@ -97,6 +100,10 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 4. Make a grid of words:
    ```text
    [word_grid category="animals" columns="4" limit="24" show_audio="true" show_text="translation" wordset="beginner"]
+   ```
+   For a large ordered reference collection, use the bounded ranked list instead:
+   ```text
+   [ll_ranked_word_list category="most-common-words" wordset="beginner" per_page="50"]
    ```
 
 5. Single-word audio on lesson pages:
@@ -159,6 +166,9 @@ From this plugin checkout you can also use `bash bin/ll-wp.sh ...` as a convenie
 
 See [docs/CLI_AUTOMATION.md](docs/CLI_AUTOMATION.md) for the recommended workflow, supported update fields, dry-run/resume usage, and reporting details.
 
+For a post-based lesson/prerequisite cutover, follow the guarded
+[legacy lesson migration runbook](docs/LEGACY_LESSON_MIGRATION_RUNBOOK.md).
+
 ## REST Automation
 
 If you want to keep a temp WordPress admin or manager user workflow instead of
@@ -208,6 +218,16 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
 - **Common attributes**:
   `limit`, `columns`, `category`, `language`, `sort_by`, `transliterate`, `show_audio`, `show_text` (values like `target|translation|both|none`), `wordset`.
 
+### `[ll_ranked_word_list]`
+- Renders one bounded page of published `words` in an exact `word-category` and exact visible `wordset`, ordered by the numeric `_ll_tools_word_rank` meta value and then by word ID for stable ties. Both scopes are required so a public category cannot expose words from a private wordset.
+- **Attributes**:
+  - `category`: required `word-category` slug or term ID.
+  - `wordset`: required `wordset` slug or term ID.
+  - `per_page`: defaults to `50` and is hard-capped at `100`.
+  - `list_id`: optional stable scope for the list's page query argument. Use distinct values when the same category appears in multiple independently paged lists on one page.
+- Each page bulk-primes its word metadata/terms and collects audio for only the displayed word IDs. It does not hydrate the complete category as `[word_grid]` currently can. Navigation is capped at 100 pages; when a scope exceeds that bound, the shortcode shows an explicit truncation notice instead of emitting unreachable links.
+- Trusted migration code can call `ll_tools_import_ranked_word_rows()` with bounded associative rows containing `rank` plus `word_id`/`id` or `title`/`word`. The helper is idempotent, uses only the allowlisted rank meta key, caps batches at 200 rows, and performs at most a two-result exact-title lookup; callers remain responsible for capability/nonce checks and CSV parsing.
+
 ### `[word_audio]`
 - **Attributes**:
   - `id`: the Word post ID.
@@ -232,6 +252,24 @@ GLOSS | son | M.EZ | small
 FREE | little boy
 [/ll_interlinear]
 ```
+
+### `[ll_mark]` / `[color1]` / `[color2]` / `[color3]`
+- `[ll_mark tone="orange"]...[/ll_mark]` adds a bold, inline lesson-text mark without inline styles.
+- **Attributes**:
+  - `tone`: `orange` (default), `blue`, or `green`.
+- Existing content can keep using `[color1]` (orange), `[color2]` (blue), and `[color3]` (green). These compatibility tags ignore attributes and retain the historical colors; canonical `[ll_mark]` adds darker accessible colors and distinct underline cues.
+- Enclosed inline markup and shortcodes are supported; block wrappers are removed while their text remains so the emitted `<span>` stays valid.
+
+### `[ll_content_lesson_index]`
+- Renders published non-corpus content lessons for exactly one visible wordset, grouped by lesson level.
+- **Attributes**:
+  - `wordset`: wordset ID, slug, or name. When omitted, the resumable legacy lesson migration's saved compatibility wordset is used.
+  - `categories`: optional comma-separated legacy WordPress category IDs retained on migrated lessons.
+  - `per_page`: defaults to `50` and is hard-capped at `100`.
+  - `list_id`: optional stable key for an independent pagination query argument when a page contains more than one index.
+  - `show_excerpt`: `1|0`; defaults to `1`.
+- Numeric pagination is capped at 100 pages, and each request fetches only the selected page plus one continuation row.
+- Temporary migration shims are available for `[display_prereq_tree]`, `[custom_header]`, `[custom_footer]`, `[regex_linker]`, and `[signup_link]` only when another plugin has not already registered the tag. The shims use migrated content-lesson mappings and bounded prerequisite/dependent queries. The old debug and global CSS-dequeue behavior are intentionally not included.
 
 ### `[image_copyright_grid]`
 - **Attributes**:

@@ -68,6 +68,7 @@ require_once(__DIR__ . '/admin/uploads/upload-scope.php');
 require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/user-progress.php');
+require_once(__DIR__ . '/content-lesson-progress.php');
 require_once(__DIR__ . '/user-study.php');
 require_once(__DIR__ . '/user-progress-report-data.php');
 require_once(__DIR__ . '/offline-app-sync.php');
@@ -124,6 +125,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/split-word-admin.php');
     require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
     require_once(__DIR__ . '/admin/site-sync-admin.php');
+    require_once(__DIR__ . '/migrations/legacy-content-lessons.php');
 }
 
 if (defined('WP_CLI') && WP_CLI) {
@@ -138,6 +140,7 @@ if (defined('WP_CLI') && WP_CLI) {
             'll-tools wordset-isolation-migrate' => 'wordset_isolation_migrate',
             'll-tools wordset-missing-meta' => 'wordset_missing_meta',
             'll-tools word-bulk-update' => 'word_bulk_update',
+            'll-tools legacy-lessons-migrate' => 'legacy_lessons_migrate',
             'll-tools wordset-report' => 'wordset_report',
         ];
         $ll_tools_cli_command = new LL_Tools_CLI_Command();
@@ -172,7 +175,10 @@ require_once(__DIR__ . '/lib/ai-crawler-support.php');
 require_once(__DIR__ . '/shortcodes/flashcard-widget.php');
 require_once(__DIR__ . '/shortcodes/word-audio-shortcode.php');
 require_once(__DIR__ . '/shortcodes/interlinear-shortcode.php');
+require_once(__DIR__ . '/shortcodes/semantic-mark-shortcode.php');
+require_once(__DIR__ . '/shortcodes/content-lesson-index-shortcode.php');
 require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
+require_once(__DIR__ . '/shortcodes/ranked-word-list-shortcode.php');
 require_once(__DIR__ . '/shortcodes/editor-hub-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/audio-credit-grid-shortcode.php');

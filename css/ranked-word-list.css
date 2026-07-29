@@ -1,0 +1,203 @@
+.ll-ranked-word-list {
+    --ll-ranked-border: #d8dee8;
+    --ll-ranked-heading-bg: #f3f6fa;
+    --ll-ranked-row-alt: #f8fafc;
+    --ll-ranked-text: #172033;
+    --ll-ranked-muted: #64748b;
+    color: var(--ll-ranked-text);
+    margin: 1rem 0;
+    max-width: 100%;
+}
+
+.ll-ranked-word-list__table-wrap {
+    border: 1px solid var(--ll-ranked-border);
+    border-radius: 0.75rem;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.ll-ranked-word-list__table-wrap:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.ll-ranked-word-list__notice {
+    background: #fff7ed;
+    border: 1px solid #c2410c;
+    border-radius: 0.5rem;
+    color: #7c2d12;
+    margin: 0 0 0.75rem;
+    padding: 0.75rem;
+}
+
+.ll-ranked-word-list table.ll-ranked-word-list__table {
+    background: #fff !important;
+    border: 0 !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    color: var(--ll-ranked-text) !important;
+    font: inherit !important;
+    margin: 0 !important;
+    min-width: 34rem;
+    table-layout: auto;
+    width: 100% !important;
+}
+
+.ll-ranked-word-list__table th,
+.ll-ranked-word-list__table td {
+    border: 0 !important;
+    border-bottom: 1px solid var(--ll-ranked-border) !important;
+    color: inherit !important;
+    padding: 0.75rem 1rem !important;
+    text-align: left !important;
+    vertical-align: middle !important;
+}
+
+.ll-ranked-word-list__table th {
+    background: var(--ll-ranked-heading-bg) !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    line-height: 1.3 !important;
+}
+
+.ll-ranked-word-list__table tbody tr:nth-child(even) td {
+    background: var(--ll-ranked-row-alt) !important;
+}
+
+.ll-ranked-word-list__table tbody tr:last-child td {
+    border-bottom: 0 !important;
+}
+
+.ll-ranked-word-list__rank-heading,
+.ll-ranked-word-list__rank {
+    font-variant-numeric: tabular-nums;
+    width: 5rem;
+}
+
+.ll-ranked-word-list__rank {
+    font-weight: 700;
+}
+
+.ll-ranked-word-list__word {
+    font-weight: 650;
+}
+
+.ll-ranked-word-list__audio-heading,
+.ll-ranked-word-list__audio {
+    text-align: center !important;
+    width: 5rem;
+}
+
+.ll-ranked-word-list__audio-control {
+    justify-content: center;
+}
+
+.ll-ranked-word-list button.ll-word-audio__button {
+    align-items: center !important;
+    appearance: none !important;
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    color: #172033 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    float: none !important;
+    height: 2rem !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    min-height: 2rem !important;
+    min-width: 2rem !important;
+    padding: 0 !important;
+    text-decoration: none !important;
+    width: 2rem !important;
+}
+
+.ll-ranked-word-list button.ll-word-audio__button:hover {
+    background: #eef2f7 !important;
+    border-color: #94a3b8 !important;
+}
+
+.ll-ranked-word-list button.ll-word-audio__button:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 2px !important;
+}
+
+.ll-ranked-word-list__missing,
+.ll-ranked-word-list__no-audio {
+    color: var(--ll-ranked-muted);
+}
+
+.ll-ranked-word-list__empty {
+    background: var(--ll-ranked-row-alt);
+    border: 1px solid var(--ll-ranked-border);
+    border-radius: 0.75rem;
+    color: var(--ll-ranked-muted);
+    margin: 0;
+    padding: 1rem;
+}
+
+.ll-ranked-word-list__pagination {
+    margin-top: 1rem;
+}
+
+.ll-ranked-word-list__pagination .page-numbers {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    justify-content: center;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.ll-ranked-word-list__pagination .page-numbers li {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.ll-ranked-word-list__pagination a.page-numbers,
+.ll-ranked-word-list__pagination span.page-numbers {
+    align-items: center !important;
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 0.45rem !important;
+    color: #172033 !important;
+    display: inline-flex !important;
+    font: inherit !important;
+    font-weight: 650 !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    min-height: 2.25rem !important;
+    min-width: 2.25rem !important;
+    padding: 0.45rem !important;
+    text-decoration: none !important;
+}
+
+.ll-ranked-word-list__pagination span.page-numbers.current {
+    background: #172033 !important;
+    border-color: #172033 !important;
+    color: #fff !important;
+}
+
+.ll-ranked-word-list__pagination a.page-numbers:hover {
+    background: #eef2f7 !important;
+}
+
+.ll-ranked-word-list__pagination a.page-numbers:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 2px !important;
+}
+
+@media (max-width: 600px) {
+    .ll-ranked-word-list table.ll-ranked-word-list__table {
+        min-width: 29rem;
+    }
+
+    .ll-ranked-word-list__table th,
+    .ll-ranked-word-list__table td {
+        padding: 0.65rem 0.75rem !important;
+    }
+}

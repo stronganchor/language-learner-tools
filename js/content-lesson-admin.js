@@ -152,6 +152,8 @@
     $(function () {
         var data = getData();
         var $wordset = $('#ll-content-lesson-wordset');
+        var $lessonKind = $('#ll-content-lesson-kind');
+        var $mediaSettings = $('[data-ll-content-lesson-media-setting]');
         var configs = [
             { kind: 'categories', map: 'rowsByWordset', select: $('#ll-content-lesson-categories'), preserveSourceIds: true },
             { kind: 'prereq_categories', map: 'prereqRowsByWordset', select: $('#ll-content-lesson-prereq-categories'), preserveSourceIds: true },
@@ -159,6 +161,20 @@
         ];
         var requestSequence = 0;
         var currentLessonId = String(data.currentLessonId || '0');
+
+        function updateLessonKindSettings() {
+            var isArticle = String($lessonKind.val() || 'standard') === 'article';
+            $mediaSettings
+                .toggle(!isArticle)
+                .attr('aria-hidden', isArticle ? 'true' : 'false')
+                .find('input, select, textarea')
+                .prop('disabled', isArticle);
+        }
+
+        if ($lessonKind.length > 0) {
+            $lessonKind.on('change', updateLessonKindSettings);
+            updateLessonKindSettings();
+        }
 
         if ($wordset.length < 1 || configs[0].select.length < 1) {
             return;

@@ -72,7 +72,7 @@ Available packs:
 | --- | --- |
 | `core-runtime-data-model` | Bootstrap, assets, templates, post types, taxonomies, roles, and wordset isolation. |
 | `public-quiz-flashcards` | Public quiz pages, flashcard payloads, shell rendering, and practice/listening flows. |
-| `wordset-vocab-manager` | Wordset pages, lazy cards, search, editor/settings UI, vocab lessons, and word grid. |
+| `wordset-vocab-manager` | Wordset pages, lazy cards, search, editor/settings UI, vocab lessons, word grid, and bounded ranked-word lists. |
 | `recording-media-transcription` | Audio recording, media admin/imports, IPA/transcription manager, matching, and media helpers. |
 | `automation-import-sync` | Automation REST, imports/exports, CLI helpers, site sync, and server-owned bulk jobs. |
 | `dictionary-i18n-cache` | Dictionary search/browser, public i18n, AI crawler discovery, language switcher, and static cache behavior. |

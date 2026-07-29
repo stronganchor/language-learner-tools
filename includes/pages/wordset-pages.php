@@ -5982,8 +5982,12 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
     }
     $enhanced_categories = ll_tools_wordset_page_order_inactive_categories_last($enhanced_categories);
 
+    $content_lessons_complete = true;
     $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
-        ? ll_tools_get_content_lessons_for_wordset($wordset_id)
+        ? ll_tools_get_content_lessons_for_wordset(
+            $wordset_id,
+            $content_lessons_complete
+        )
         : [];
     $mixed_content_lessons = [];
     foreach ((array) $wordset_content_lessons as $content_lesson) {
@@ -5997,6 +6001,13 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         $saved_main_category_sort = 'default';
     }
     $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
+    if (!$content_lessons_complete) {
+        // Never present a bounded slice as the authoritative mixed lesson set.
+        $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards(
+            $enhanced_categories,
+            []
+        );
+    }
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $summary_counts_deferred = ($is_study_user && !$should_bootstrap_analytics);
     $server_main_category_sort = ll_tools_wordset_page_get_server_main_sort(
@@ -6141,6 +6152,7 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
         'base_offset' => 0,
         'total' => count($mixed_lesson_cards),
+        'content_lessons_complete' => $content_lessons_complete,
         'user_id' => get_current_user_id(),
     ];
 }
@@ -23269,9 +23281,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $featured_content_lessons = [];
     $mixed_content_lessons = [];
     $mixed_lesson_cards = [];
+    $content_lessons_complete = true;
     if ($is_main_view) {
         $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
-            ? ll_tools_get_content_lessons_for_wordset($wordset_id)
+            ? ll_tools_get_content_lessons_for_wordset(
+                $wordset_id,
+                $content_lessons_complete
+            )
             : [];
         foreach ($wordset_content_lessons as $content_lesson) {
             if (!is_array($content_lesson)) {
@@ -23285,7 +23301,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
             $featured_content_lessons[] = $content_lesson;
         }
-        $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
+        if (!$content_lessons_complete) {
+            $featured_content_lessons = [];
+            $mixed_content_lessons = [];
+        }
+        $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards(
+            $enhanced_categories,
+            $mixed_content_lessons
+        );
     }
 
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
@@ -25352,7 +25375,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             </section>
 
-            <?php if (!empty($featured_content_lessons)) : ?>
+            <?php if (!$content_lessons_complete && function_exists('ll_tools_render_content_lesson_index_shortcode')) : ?>
+                <?php
+                echo ll_tools_render_content_lesson_index_shortcode([
+                    'wordset' => (string) $wordset_id,
+                    'list_id' => 'wordset-' . $wordset_id,
+                ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
+            <?php elseif (!empty($featured_content_lessons)) : ?>
                 <section class="ll-content-lessons-section ll-content-lessons-section--wordset-featured">
                     <div class="ll-content-lessons-section__head">
                         <h2 class="ll-content-lessons-section__title"><?php echo esc_html__('Main Lessons', 'll-tools-text-domain'); ?></h2>

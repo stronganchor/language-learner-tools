@@ -312,6 +312,14 @@ if (!function_exists('ll_tools_privacy_export_study_settings')) {
         $deferrals = defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META')
             ? get_user_meta((int) $user->ID, LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META, true)
             : [];
+        $completed_content_lesson_ids = function_exists('ll_tools_get_completed_content_lesson_ids')
+            ? ll_tools_get_completed_content_lesson_ids((int) $user->ID)
+            : [];
+        $legacy_completed_lessons = get_user_meta(
+            (int) $user->ID,
+            'tt_completed_lessons',
+            true
+        );
 
         $data = [];
 
@@ -356,6 +364,28 @@ if (!function_exists('ll_tools_privacy_export_study_settings')) {
                 'data' => [
                     ll_tools_privacy_export_data_pair(__('Category progress', 'll-tools-text-domain'), $category_progress),
                 ],
+            ];
+        }
+
+        if (!empty($completed_content_lesson_ids) || !empty($legacy_completed_lessons)) {
+            $completion_data = [];
+            if (!empty($completed_content_lesson_ids)) {
+                $completion_data[] = ll_tools_privacy_export_data_pair(
+                    __('Completed content lesson IDs', 'll-tools-text-domain'),
+                    $completed_content_lesson_ids
+                );
+            }
+            if (!empty($legacy_completed_lessons)) {
+                $completion_data[] = ll_tools_privacy_export_data_pair(
+                    __('Legacy completed lesson data', 'll-tools-text-domain'),
+                    $legacy_completed_lessons
+                );
+            }
+            $data[] = [
+                'group_id' => 'll-tools-content-lesson-progress',
+                'group_label' => __('LL Tools Content Lesson Progress', 'll-tools-text-domain'),
+                'item_id' => 'll-tools-content-lesson-progress-' . (int) $user->ID,
+                'data' => $completion_data,
             ];
         }
 
@@ -699,6 +729,8 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
             defined('LL_TOOLS_USER_LAST_RECOMMENDATION_META') ? LL_TOOLS_USER_LAST_RECOMMENDATION_META : 'll_user_study_last_recommendation',
             defined('LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META') ? LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META : 'll_user_study_recommendation_dismissed',
             defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META') ? LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META : 'll_user_study_recommendation_deferrals',
+            defined('LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META') ? LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META : 'll_tools_completed_content_lessons',
+            'tt_completed_lessons',
             defined('LL_TOOLS_OFFLINE_APP_SESSION_META') ? LL_TOOLS_OFFLINE_APP_SESSION_META : '',
             defined('LL_TOOLS_STUDENT_CLASS_IDS_META') ? LL_TOOLS_STUDENT_CLASS_IDS_META : '',
         ];

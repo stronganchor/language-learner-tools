@@ -107,3 +107,47 @@ test('content lesson admin searches and pages options without losing selections'
   await expect(page.locator('#ll-content-lesson-categories option[value="23"]')).toHaveText('Needle result');
   expect(calls.some((call) => call.kind === 'categories' && call.search === 'needle' && call.offset === 0)).toBe(true);
 });
+
+test('article kind hides and disables media settings until another kind is selected', async ({ page }) => {
+  await page.setContent(`
+    <select id="ll-content-lesson-kind">
+      <option value="standard" selected>Standard</option>
+      <option value="article">Article</option>
+    </select>
+    <div data-ll-content-lesson-media-setting>
+      <input id="ll-content-lesson-media-url" value="https://example.test/lesson.mp3">
+      <select id="ll-content-lesson-media-type">
+        <option value="audio" selected>Audio</option>
+      </select>
+      <textarea id="ll-content-lesson-transcript">Transcript</textarea>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llContentLessonAdminData = {};
+  });
+  await page.addScriptTag({ content: adminSource });
+
+  const settings = page.locator('[data-ll-content-lesson-media-setting]');
+  const controls = settings.locator('input, select, textarea');
+  await expect(settings).toBeVisible();
+  await expect(settings).toHaveAttribute('aria-hidden', 'false');
+  await expect(controls).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(controls.nth(index)).toBeEnabled();
+  }
+
+  await page.locator('#ll-content-lesson-kind').selectOption('article');
+  await expect(settings).toBeHidden();
+  await expect(settings).toHaveAttribute('aria-hidden', 'true');
+  for (let index = 0; index < 3; index += 1) {
+    await expect(controls.nth(index)).toBeDisabled();
+  }
+
+  await page.locator('#ll-content-lesson-kind').selectOption('standard');
+  await expect(settings).toBeVisible();
+  await expect(settings).toHaveAttribute('aria-hidden', 'false');
+  for (let index = 0; index < 3; index += 1) {
+    await expect(controls.nth(index)).toBeEnabled();
+  }
+});
