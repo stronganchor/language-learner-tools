@@ -912,6 +912,9 @@ function ll_tools_ai_crawler_get_public_content_lessons(int $limit): array {
         'orderby' => 'title',
         'order' => 'ASC',
         'no_found_rows' => true,
+        'meta_query' => [
+            ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
+        ],
     ]);
 
     $lessons = [];

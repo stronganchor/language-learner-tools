@@ -571,6 +571,12 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
      * [--show-in-mix=<0|1>]
      * : Surface migrated lessons in the category-driven lesson mix. Default: 0.
      *
+     * [--retained-source]
+     * : Create a published compatibility-only target while retaining the
+     *   source post body and URL. Lessons phase only; requires one to 20
+     *   explicit source IDs, --status=publish, --show-in-mix=0, no category
+     *   scope, and --limit of 20 or less.
+     *
      * [--apply]
      * : Persist the planned changes.
      *
@@ -583,6 +589,7 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
      *     wp ll-tools legacy-lessons-migrate turkish --phase=lessons --categories=4,10 --apply
      *     wp ll-tools legacy-lessons-migrate turkish --phase=relations --categories=4,10 --apply
      *     wp ll-tools legacy-lessons-migrate turkish --phase=completions --after=0 --limit=100 --apply
+     *     wp ll-tools legacy-lessons-migrate vocab --phase=lessons --source-ids=3797 --retained-source --status=publish --show-in-mix=0 --limit=1
      */
     public function legacy_lessons_migrate(array $args, array $assoc_args): void {
         if (!function_exists('ll_tools_migrate_legacy_content_lessons_batch')) {
@@ -629,8 +636,20 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
                 ? sanitize_text_field((string) $assoc_args['run-id'])
                 : '',
             'limit' => isset($assoc_args['limit']) ? absint($assoc_args['limit']) : 100,
+            'limit_was_explicit' => array_key_exists('limit', $assoc_args),
+            'limit_raw' => isset($assoc_args['limit'])
+                ? (string) $assoc_args['limit']
+                : '',
             'show_in_mix' => isset($assoc_args['show-in-mix'])
                 && (string) $assoc_args['show-in-mix'] === '1',
+            'show_in_mix_was_explicit' => array_key_exists(
+                'show-in-mix',
+                $assoc_args
+            ),
+            'show_in_mix_raw' => isset($assoc_args['show-in-mix'])
+                ? (string) $assoc_args['show-in-mix']
+                : '',
+            'retained_source' => !empty($assoc_args['retained-source']),
             'apply' => !empty($assoc_args['apply']),
         ];
         if (array_key_exists('status', $assoc_args)) {

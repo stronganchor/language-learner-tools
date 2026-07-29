@@ -123,6 +123,7 @@ function ll_tools_get_content_lesson_index_page(
             'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
             'value' => (string) $wordset_id,
         ],
+        ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
         [
             'relation' => 'OR',
             [

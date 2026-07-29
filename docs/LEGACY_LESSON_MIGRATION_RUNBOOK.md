@@ -16,41 +16,55 @@ and the rollback path until every deactivation gate below passes.
 Confirm the target wordset before using it:
 
 ```bash
-wp term get wordset turkish --by=slug --fields=term_id,slug,name
+wp term get wordset vocab --by=slug --fields=term_id,slug,name
 ```
 
-The TurkishTextbook audit found lesson posts in the union of WordPress category
-IDs `2,3,4,10,30,32`. Reconfirm those IDs on the site before applying:
-
-```bash
-wp term list category --include=2,3,4,10,30,32 \
-  --fields=term_id,slug,name,count --format=table
-```
-
-`--categories` is an OR scope over exact category IDs. Prefer IDs over names or
-slugs. After confirming the exception below, archive the exact ordered
-source-post IDs before the first write:
+The audited TurkishTextbook clone uses wordset `vocab` (term ID `8062`) and
+marks canonical lesson sources with `_lesson_level`. Freeze that authoritative
+published scope, excluding the retained Most Common Words page:
 
 ```bash
 PREFIX="$(wp db prefix)"
 wp db query "
   SELECT DISTINCT p.ID
   FROM ${PREFIX}posts p
-  INNER JOIN ${PREFIX}term_relationships tr ON tr.object_id = p.ID
-  INNER JOIN ${PREFIX}term_taxonomy tt
-    ON tt.term_taxonomy_id = tr.term_taxonomy_id
+  INNER JOIN ${PREFIX}postmeta level_meta
+    ON level_meta.post_id = p.ID
+   AND level_meta.meta_key = '_lesson_level'
   WHERE p.post_type = 'post'
     AND p.post_status = 'publish'
-    AND tt.taxonomy = 'category'
-    AND tt.term_id IN (2,3,4,10,30,32)
-    AND p.ID NOT IN (3797)
+    AND p.ID <> 3797
   ORDER BY p.ID ASC
 " --skip-column-names > legacy-lesson-source-ids.txt
+wc -l legacy-lesson-source-ids.txt
 ```
 
-Review and retain that file with the migration logs. For the most reproducible
-clone and live applies, replace the category/exclusion arguments in the
-examples below with:
+The audited clone produced `118` IDs. Treat that count as a stop/go comparison,
+not proof that production has not changed. Review and retain the exact file
+with the migration logs. Published IDs `145,268,320,1075,2457` were in this
+canonical scope even though they were outside the six-category union, so a
+category-only migration would silently miss them. Draft post `132` is outside
+the frozen published scope; archive it separately unless an editor explicitly
+revives it.
+
+The WordPress category union `2,3,4,10,30,32` remains useful only as an audit
+cross-check:
+
+```bash
+wp term list category --include=2,3,4,10,30,32 \
+  --fields=term_id,slug,name,count --format=table
+wp ll-tools legacy-lessons-migrate vocab \
+  --phase=lessons \
+  --categories=2,3,4,10,30,32 \
+  --exclude-source-ids=3797 \
+  --status=draft \
+  --show-in-mix=0 \
+  --limit=100 \
+  --format=json
+```
+
+Do not use that category result as the canonical full scope. The production
+apply should use the frozen explicit list:
 
 ```bash
 --source-ids="$(paste -sd, legacy-lesson-source-ids.txt)"
@@ -59,14 +73,16 @@ examples below with:
 A nonempty explicit source list takes precedence over `--categories`; the two
 scopes are not intersected.
 
-Keep intentionally editorial posts out of the lesson conversion with
-`--exclude-source-ids`. TurkishTextbook post `3797`, **Most Common Words**, is
-the current explicit exclusion:
+Keep the large editorial body of TurkishTextbook post `3797`, **Most Common
+Words**, out of the normal lesson conversion. Section 8 creates its separate
+retained-source bridge:
 
 ```text
-wordset: turkish
-source categories: 2,3,4,10,30,32
-excluded source IDs: 3797
+wordset: vocab
+canonical published source count on audited clone: 118
+canonical source contract: published post with _lesson_level, except 3797
+category audit cross-check: 2,3,4,10,30,32
+retained-source bridge ID: 3797
 initial target status: draft
 initial show-in-mix: 0
 ```
@@ -81,10 +97,9 @@ limit identical, replacing `--after` with each response's `next_cursor` until
 `has_more` is false:
 
 ```bash
-wp ll-tools legacy-lessons-migrate turkish \
+wp ll-tools legacy-lessons-migrate vocab \
   --phase=lessons \
-  --categories=2,3,4,10,30,32 \
-  --exclude-source-ids=3797 \
+  --source-ids="$(paste -sd, legacy-lesson-source-ids.txt)" \
   --status=draft \
   --show-in-mix=0 \
   --after=0 \
@@ -100,7 +115,7 @@ An applied page with errors exits nonzero after printing its summary. Do not
 advance past it. Fix the cause and retry the reported IDs explicitly:
 
 ```bash
-wp ll-tools legacy-lessons-migrate turkish \
+wp ll-tools legacy-lessons-migrate vocab \
   --phase=lessons \
   --source-ids=12,34 \
   --status=draft \
@@ -123,10 +138,9 @@ rerun either phase without an explicit reconciliation plan for target-side edits
 Use the same frozen source scope and cursor loop:
 
 ```bash
-wp ll-tools legacy-lessons-migrate turkish \
+wp ll-tools legacy-lessons-migrate vocab \
   --phase=relations \
-  --categories=2,3,4,10,30,32 \
-  --exclude-source-ids=3797 \
+  --source-ids="$(paste -sd, legacy-lesson-source-ids.txt)" \
   --after=0 \
   --limit=100 \
   --format=json
@@ -141,6 +155,11 @@ Do not accept missing lesson mappings, graph validation failures, or silently
 discarded prerequisites. Every unresolved dependency must either be repaired
 and replayed or recorded as an intentional exception.
 
+Before the final completion replay, create and verify the post `3797`
+retained-source lesson and relation described in Section 8. Section 8 is kept
+separate because it records the editorial decision, but its execution belongs
+here, after ordinary relations and before the completion cutover.
+
 ## 4. Rehearse and migrate completions
 
 Completions merge both legacy Simple Favorites data and
@@ -151,10 +170,17 @@ Dry-run user-ID pages from `--after=0`, following only the returned
 `next_cursor`. Review `source_associations`, `mapped_associations`,
 `unmapped_associations`, `unmapped_source_ids`, `changed_users`, and `errors`.
 
-The first applied page must use `--after=0` and no caller-created run ID:
+Because the old plugin can still write source-post completion IDs, do not treat
+an apply while it is active as final. For the cutover, briefly freeze learner
+progress writes, deactivate the old plugin, and immediately run a fresh full
+apply. New requests then use LL Tools target IDs while this replay captures all
+legacy writes that landed before the freeze.
+
+The first applied page in that final replay must use `--after=0` and no
+caller-created run ID:
 
 ```bash
-wp ll-tools legacy-lessons-migrate turkish \
+wp ll-tools legacy-lessons-migrate vocab \
   --phase=completions \
   --after=0 \
   --limit=100 \
@@ -166,7 +192,7 @@ Save its `audit_run_id`. Every continuation or replay must pass that exact ID
 and the exact cursor being continued:
 
 ```bash
-wp ll-tools legacy-lessons-migrate turkish \
+wp ll-tools legacy-lessons-migrate vocab \
   --phase=completions \
   --after=<next_cursor> \
   --run-id=<audit_run_id> \
@@ -188,6 +214,8 @@ wp option get ll_tools_legacy_lesson_completion_audit --format=json
 
 The audit must have the expected `wordset_id` and `audit_run_id`,
 `completed=true`, no errors, and no unexplained unmapped source IDs.
+Keep the progress-write freeze in place until this readback and the
+representative completion smoke checks pass.
 
 ## 5. Readback and promotion gates
 
@@ -226,6 +254,9 @@ these strategies before unpublishing an original post:
   published. After the old plugin is disabled, LL Tools temporarily owns
   `[display_prereq_tree]`, `[custom_header]`, `[custom_footer]`,
   `[regex_linker]`, and `[signup_link]` when no other plugin registered them.
+  A `--retained-source` target is a special compatibility-only shadow: its
+  source stays published, its target body stays empty, generated target links
+  resolve to the source URL, and a direct target request redirects there.
 - **Canonical cutover:** publish the migrated `/lesson/...` targets, replace
   index content with `[ll_content_lesson_index]`, install an exact old-to-new
   301 map, test every source route, and only then retire the original posts.
@@ -264,10 +295,58 @@ Only then repeat the guarded cutover on production.
 
 ## 8. Most Common Words decision
 
-Keep post `3797` as the editorial/SEO/download page for now. Its large table,
-PDF/XLSX downloads, and existing URL are useful, but its current order is
-alphabetical rather than an authoritative frequency rank. Do not write that
-order into `_ll_tools_word_rank` or present it as a ranked LL Tools list.
+Keep post `3797` as the editorial/SEO/download page and create one published,
+compatibility-only LL Tools shadow for its relationships and completion
+mapping. The command deliberately requires one to 20 explicit IDs,
+`--status=publish`, an explicit disabled mix flag, no category scope, and a
+limit of 20 or less. Execute these steps between Sections 3 and 4 so the
+completion audit includes this mapping. Run the exact dry-run first:
+
+```bash
+wp ll-tools legacy-lessons-migrate vocab \
+  --phase=lessons \
+  --source-ids=3797 \
+  --retained-source \
+  --status=publish \
+  --show-in-mix=0 \
+  --limit=1 \
+  --format=json
+```
+
+After reviewing the one-row plan, repeat it with `--apply`. Then migrate its
+prerequisite row without the retained-source flag:
+
+```bash
+wp ll-tools legacy-lessons-migrate vocab \
+  --phase=relations \
+  --source-ids=3797 \
+  --limit=1 \
+  --format=json
+```
+
+Review that relation plan and repeat it with `--apply`. The ordinary
+`completions` phase then uses the same source-to-target mapping, so legacy
+Most Common Words completions become canonical LL Tools completions.
+
+Read back all of these bridge invariants before deactivating the old plugin:
+
+- Exactly one published `ll_content_lesson` maps source post `3797`.
+- Its content is empty and it has exactly one
+  `_ll_tools_legacy_lesson_retained_source=1` row.
+- Its wordset is `vocab`, article kind is set, and show-in-mix resolves false
+  even if stale mix metadata is present.
+- Generated completion, prerequisite, dependent, and login-return links use
+  the published source URL. A direct target route returns a safe 301 there.
+- The shadow is absent from normal lesson indexes, mixed/related/corpus grids,
+  public search/feed/REST collections, core and Yoast sitemaps, and LL Tools AI
+  catalogs. The source post remains the only indexed editorial page.
+- `[custom_header]` and `[custom_footer]` work on source post `3797` after the
+  old plugin is disabled.
+
+Its large table, PDF/XLSX downloads, and existing URL are useful, but its
+current order is alphabetical rather than an authoritative frequency rank. Do
+not write that order into `_ll_tools_word_rank` or present it as a ranked LL
+Tools list.
 
 Repair it separately:
 
@@ -278,7 +357,7 @@ Repair it separately:
    reviewed source.
 5. Only after acquiring a defensible rank source, import bounded rank rows and
    consider replacing the table body with
-   `[ll_ranked_word_list category="most-common-words" wordset="turkish" per_page="50"]`.
+   `[ll_ranked_word_list category="most-common-words" wordset="vocab" per_page="50"]`.
 
 The retained page must pass its own audio, download, mobile-table, and link
 checks, but it should not block deactivation of the old prerequisite plugin

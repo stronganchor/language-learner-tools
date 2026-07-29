@@ -4000,6 +4000,83 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('rest-corpus-text', (string) ($export_data['payload']['lesson_id'] ?? ''));
     }
 
+    public function test_corpus_text_import_cannot_repurpose_retained_source_bridge(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $bridge_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_name' => 'rest-retained-source-bridge',
+            'post_title' => 'Retained Source Bridge',
+            'post_excerpt' => 'Keep this bridge unchanged.',
+            'post_content' => '',
+        ]);
+        update_post_meta(
+            $bridge_id,
+            LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+            '8062'
+        );
+        update_post_meta(
+            $bridge_id,
+            LL_TOOLS_CONTENT_LESSON_KIND_META,
+            'article'
+        );
+        update_post_meta(
+            $bridge_id,
+            LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+            '1'
+        );
+
+        $response = $this->dispatch_ll_tools_rest_request(
+            'POST',
+            '/ll-tools/v1/corpus-texts/import',
+            [
+                'post_slug' => 'rest-retained-source-bridge',
+                'payload' => [
+                    'schema' => 'll_tools_text_document.v1',
+                    'kind' => 'corpus_text',
+                    'lesson_id' => 'rest-retained-source-bridge',
+                    'title' => 'Attempted Corpus Replacement',
+                    'source_lines' => [],
+                    'reading_units' => [],
+                ],
+                'source' => 'unit-test',
+            ]
+        );
+
+        $this->assertSame(409, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(
+            'll_tools_rest_corpus_text_retained_source_conflict',
+            (string) ($data['code'] ?? '')
+        );
+        $bridge = get_post($bridge_id);
+        $this->assertInstanceOf(WP_Post::class, $bridge);
+        $this->assertSame('Retained Source Bridge', $bridge->post_title);
+        $this->assertSame('Keep this bridge unchanged.', $bridge->post_excerpt);
+        $this->assertSame('', $bridge->post_content);
+        $this->assertSame(
+            '8062',
+            (string) get_post_meta(
+                $bridge_id,
+                LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+                true
+            )
+        );
+        $this->assertSame(
+            'article',
+            (string) get_post_meta(
+                $bridge_id,
+                LL_TOOLS_CONTENT_LESSON_KIND_META,
+                true
+            )
+        );
+        $this->assertFalse(ll_tools_interlinear_has_payload($bridge_id));
+    }
+
     public function test_book_text_import_route_creates_public_paginated_reader(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

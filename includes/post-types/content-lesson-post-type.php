@@ -2,6 +2,8 @@
 // File: includes/post-types/content-lesson-post-type.php
 if (!defined('WPINC')) { die; }
 
+require_once __DIR__ . '/../legacy-content-lesson-contracts.php';
+
 if (!defined('LL_TOOLS_CONTENT_LESSON_WORDSET_META')) {
     define('LL_TOOLS_CONTENT_LESSON_WORDSET_META', '_ll_tools_content_lesson_wordset_id');
 }
@@ -988,10 +990,14 @@ function ll_tools_content_lesson_option_page(string $kind, int $wordset_id = 0, 
             'order' => 'ASC',
             'no_found_rows' => true,
             'post__not_in' => $exclude_lesson_id > 0 ? [$exclude_lesson_id] : [],
-            'meta_query' => [[
-                'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
-                'value' => (string) $wordset_id,
-            ]],
+            'meta_query' => [
+                'relation' => 'AND',
+                [
+                    'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+                    'value' => (string) $wordset_id,
+                ],
+                ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
+            ],
         ];
         if ($search !== '') {
             $query_args['s'] = $search;
@@ -1328,6 +1334,10 @@ function ll_tools_filter_content_lesson_prereq_lesson_ids_for_wordset(
 }
 
 function ll_tools_get_content_lesson_show_in_mix($lesson_id): bool {
+    if (ll_tools_legacy_lesson_has_retained_source_marker((int) $lesson_id)) {
+        return false;
+    }
+
     return ll_tools_content_lesson_normalize_mix_flag(
         get_post_meta((int) $lesson_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META, true)
     ) === '1';

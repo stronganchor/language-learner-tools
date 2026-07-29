@@ -2,6 +2,213 @@
 // /includes/pages/content-lesson-pages.php
 if (!defined('WPINC')) { die; }
 
+/**
+ * Keep generated links for compatibility-only targets on the retained source.
+ */
+function ll_tools_content_lesson_retained_source_permalink(
+    string $post_link,
+    WP_Post $post,
+    bool $leavename = false,
+    bool $sample = false
+): string {
+    if ($post->post_type !== 'll_content_lesson') {
+        return $post_link;
+    }
+
+    $source_url = ll_tools_get_legacy_lesson_retained_source_url((int) $post->ID);
+    return $source_url !== '' ? $source_url : $post_link;
+}
+add_filter('post_type_link', 'll_tools_content_lesson_retained_source_permalink', 20, 4);
+
+function ll_tools_content_lesson_retained_source_redirect_url(int $lesson_id = 0): string {
+    $lesson_id = $lesson_id > 0 ? $lesson_id : (int) get_queried_object_id();
+    return ll_tools_get_legacy_lesson_retained_source_url($lesson_id);
+}
+
+/**
+ * Canonicalize direct shadow-target requests to the retained editorial URL.
+ */
+function ll_tools_content_lesson_maybe_redirect_retained_source(): void {
+    if (!is_singular('ll_content_lesson')) {
+        return;
+    }
+
+    $source_url = ll_tools_content_lesson_retained_source_redirect_url();
+    if ($source_url === '') {
+        return;
+    }
+
+    if (wp_safe_redirect($source_url, 301, 'LL Tools Retained Source')) {
+        exit;
+    }
+}
+add_action('template_redirect', 'll_tools_content_lesson_maybe_redirect_retained_source', 0);
+
+/**
+ * Keep compatibility-only targets out of public list queries.
+ *
+ * The content-lesson CPT currently has no archive or REST collection and is
+ * excluded from search. These guards preserve that invariant if those
+ * registration flags change later, while leaving direct singular requests
+ * available for the canonical redirect above.
+ */
+function ll_tools_content_lesson_exclude_retained_sources_from_public_query(
+    WP_Query $query
+): void {
+    if (is_admin() || $query->is_singular()) {
+        return;
+    }
+
+    $post_types = $query->get('post_type');
+    $post_types = is_array($post_types) ? $post_types : [$post_types];
+    if (!in_array('ll_content_lesson', $post_types, true)
+        && !in_array('any', $post_types, true)
+    ) {
+        return;
+    }
+    if (!$query->is_search() && !$query->is_feed() && !$query->is_post_type_archive()) {
+        return;
+    }
+
+    $filtered_args = ll_tools_legacy_lesson_exclude_retained_sources_from_query_args([
+        'meta_query' => $query->get('meta_query'),
+    ]);
+    $query->set('meta_query', $filtered_args['meta_query']);
+}
+add_action(
+    'pre_get_posts',
+    'll_tools_content_lesson_exclude_retained_sources_from_public_query',
+    20
+);
+
+/**
+ * Exclude compatibility-only targets from a future REST collection.
+ */
+function ll_tools_content_lesson_exclude_retained_sources_from_rest_query(
+    array $args
+): array {
+    return ll_tools_legacy_lesson_exclude_retained_sources_from_query_args($args);
+}
+add_filter(
+    'rest_ll_content_lesson_query',
+    'll_tools_content_lesson_exclude_retained_sources_from_rest_query'
+);
+
+/**
+ * Exclude compatibility-only targets from WordPress core post sitemaps.
+ */
+function ll_tools_content_lesson_exclude_retained_sources_from_core_sitemap(
+    array $args,
+    string $post_type
+): array {
+    if ($post_type !== 'll_content_lesson') {
+        return $args;
+    }
+    return ll_tools_legacy_lesson_exclude_retained_sources_from_query_args($args);
+}
+add_filter(
+    'wp_sitemaps_posts_query_args',
+    'll_tools_content_lesson_exclude_retained_sources_from_core_sitemap',
+    10,
+    2
+);
+
+/**
+ * Exclude compatibility-only targets from Yoast post sitemap entries.
+ *
+ * @param mixed $url
+ * @param mixed $type
+ * @param mixed $object
+ * @return mixed
+ */
+function ll_tools_content_lesson_exclude_retained_source_from_yoast_sitemap(
+    $url,
+    $type,
+    $object
+) {
+    if ($object instanceof WP_Post
+        && $object->post_type === 'll_content_lesson'
+        && ll_tools_legacy_lesson_has_retained_source_marker((int) $object->ID)
+    ) {
+        return false;
+    }
+    return $url;
+}
+add_filter(
+    'wpseo_sitemap_entry',
+    'll_tools_content_lesson_exclude_retained_source_from_yoast_sitemap',
+    10,
+    3
+);
+
+/**
+ * Mark a malformed bridge noindex if its safe redirect cannot be resolved.
+ */
+function ll_tools_content_lesson_retained_source_robots(array $robots): array {
+    if (is_singular('ll_content_lesson')
+        && ll_tools_legacy_lesson_has_retained_source_marker(
+            (int) get_queried_object_id()
+        )
+    ) {
+        $robots['noindex'] = true;
+        $robots['follow'] = true;
+    }
+    return $robots;
+}
+add_filter('wp_robots', 'll_tools_content_lesson_retained_source_robots');
+
+/**
+ * Keep Yoast's canonical aligned if its output runs before the redirect.
+ *
+ * @param mixed $canonical
+ * @return mixed
+ */
+function ll_tools_content_lesson_retained_source_yoast_canonical($canonical) {
+    if (!is_singular('ll_content_lesson')) {
+        return $canonical;
+    }
+    $source_url = ll_tools_content_lesson_retained_source_redirect_url();
+    return $source_url !== '' ? $source_url : $canonical;
+}
+add_filter(
+    'wpseo_canonical',
+    'll_tools_content_lesson_retained_source_yoast_canonical'
+);
+
+/**
+ * @param mixed $robots
+ * @return mixed
+ */
+function ll_tools_content_lesson_retained_source_yoast_robots($robots) {
+    if (is_singular('ll_content_lesson')
+        && ll_tools_legacy_lesson_has_retained_source_marker(
+            (int) get_queried_object_id()
+        )
+    ) {
+        return 'noindex, follow';
+    }
+    return $robots;
+}
+add_filter('wpseo_robots', 'll_tools_content_lesson_retained_source_yoast_robots');
+
+function ll_tools_content_lesson_retained_source_yoast_robots_array(
+    array $robots
+): array {
+    if (is_singular('ll_content_lesson')
+        && ll_tools_legacy_lesson_has_retained_source_marker(
+            (int) get_queried_object_id()
+        )
+    ) {
+        $robots['index'] = 'noindex';
+        $robots['follow'] = 'follow';
+    }
+    return $robots;
+}
+add_filter(
+    'wpseo_robots_array',
+    'll_tools_content_lesson_retained_source_yoast_robots_array'
+);
+
 function ll_tools_content_lesson_media_label(string $media_type, string $lesson_kind = 'standard'): string {
     if ($lesson_kind === 'article') {
         return __('Article lesson', 'll-tools-text-domain');
@@ -441,10 +648,12 @@ function ll_tools_get_content_lessons_for_wordset(
         'order' => 'ASC',
         'no_found_rows' => true,
         'meta_query' => [
+            'relation' => 'AND',
             [
                 'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
                 'value' => (string) $wordset_id,
             ],
+            ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
         ],
     ]);
     if ($wpdb->last_error !== '') {
@@ -497,6 +706,7 @@ function ll_tools_get_content_lessons_for_vocab_lesson(int $wordset_id, int $cat
                 'key' => LL_TOOLS_CONTENT_LESSON_WORDSET_META,
                 'value' => (string) $wordset_id,
             ],
+            ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
             [
                 'relation' => 'OR',
                 [
@@ -724,10 +934,12 @@ function ll_tools_get_corpus_text_grid_query_result(array $args = []): array {
     }
 
     $meta_query = [
+        'relation' => 'AND',
         [
             'key' => LL_TOOLS_CONTENT_LESSON_KIND_META,
             'value' => 'corpus_text',
         ],
+        ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
     ];
     if ($collection !== '') {
         $meta_query[] = [
@@ -741,9 +953,6 @@ function ll_tools_get_corpus_text_grid_query_result(array $args = []): array {
             'value' => $source_author,
             'compare' => 'LIKE',
         ];
-    }
-    if (count($meta_query) > 1) {
-        $meta_query['relation'] = 'AND';
     }
     $orderby = isset($args['orderby']) ? trim((string) $args['orderby']) : 'menu_order title';
     if (!in_array($orderby, ['menu_order title', 'title', 'date', 'modified', 'post__in', 'post_name__in'], true)) {

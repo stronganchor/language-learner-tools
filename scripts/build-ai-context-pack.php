@@ -574,6 +574,8 @@ function ll_tools_context_pack_definitions(): array
                 'content lesson',
                 'content lesson index',
                 'legacy lesson migration',
+                'retained source lesson',
+                'retained-source',
                 'display_prereq_tree',
                 'interlinear',
                 'teacher class',
@@ -588,6 +590,7 @@ function ll_tools_context_pack_definitions(): array
                 'Progress views should prefer aggregate rows and bounded category lookups.',
                 'Content-lesson completion autosaves through a nonce- and visibility-guarded request, mutates the bounded canonical user-meta list with compare-and-swap retries, and verifies the persisted boolean state before reporting success.',
                 'Content-lesson indexes must stay scoped to one visible wordset, use exact retained category-ID rows, and fetch only one hard-capped page plus a continuation row; legacy prerequisite shims must not restore all-post scans.',
+                'A retained-source legacy migration must keep one published empty shadow target for relationship/completion identity, canonicalize all target links and direct requests to the published source, and fail closed out of ordinary public catalogs.',
                 'Teacher-class admin surfaces must page classes, account options, and learner progress before hydration; assignment search must remain bounded.',
             ],
             'sources' => [

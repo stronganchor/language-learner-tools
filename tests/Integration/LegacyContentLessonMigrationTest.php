@@ -25,6 +25,217 @@ final class LegacyContentLessonMigrationTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_retained_source_bridge_is_empty_idempotent_and_maps_relations_and_completions(): void
+    {
+        $wordset_id = $this->createWordset('Retained source bridge');
+        $prerequisite_source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Retained bridge prerequisite',
+            'post_content' => '<p>Small canonical lesson.</p>',
+        ]);
+        $prerequisite_migration = ll_tools_migrate_legacy_lesson_post(
+            $prerequisite_source_id,
+            $wordset_id,
+            ['apply' => true, 'status' => 'publish']
+        );
+        $this->assertIsArray($prerequisite_migration);
+        $prerequisite_target_id = (int) $prerequisite_migration['target_id'];
+
+        $large_source_body = str_repeat(
+            '<p>Retained editorial body [word_audio] with table data.</p>',
+            2000
+        );
+        $this->assertGreaterThan(98000, strlen($large_source_body));
+        $source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Most Common Words',
+            'post_name' => 'most-common-words',
+            'post_excerpt' => 'A deliberately retained source lesson.',
+            'post_content' => $large_source_body,
+        ]);
+        add_post_meta(
+            $source_id,
+            'post_dependency',
+            (string) get_permalink($prerequisite_source_id)
+        );
+        $args = [
+            'phase' => 'lessons',
+            'wordset_id' => $wordset_id,
+            'source_ids' => [$source_id],
+            'limit' => 1,
+            'status' => 'publish',
+            'show_in_mix' => false,
+            'retained_source' => true,
+        ];
+
+        $dry_run = ll_tools_migrate_legacy_content_lessons_batch($args);
+        $this->assertIsArray($dry_run);
+        $this->assertTrue((bool) $dry_run['retained_source']);
+        $this->assertSame(1, (int) $dry_run['created']);
+        $this->assertSame(0, ll_tools_find_content_lesson_by_legacy_source($source_id));
+
+        $applied = ll_tools_migrate_legacy_content_lessons_batch(
+            array_merge($args, ['apply' => true])
+        );
+        $this->assertIsArray($applied);
+        $this->assertSame([], $applied['errors']);
+        $this->assertSame(1, (int) $applied['created']);
+
+        $target_id = ll_tools_find_content_lesson_by_legacy_source($source_id);
+        $this->assertGreaterThan(0, $target_id);
+        $target = get_post($target_id);
+        $this->assertInstanceOf(WP_Post::class, $target);
+        $this->assertSame('publish', $target->post_status);
+        $this->assertSame('', $target->post_content);
+        $this->assertSame(
+            'A deliberately retained source lesson.',
+            $target->post_excerpt
+        );
+        $this->assertSame(
+            $large_source_body,
+            (string) get_post_field('post_content', $source_id)
+        );
+        $this->assertSame(
+            ['1'],
+            get_post_meta(
+                $target_id,
+                LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+                false
+            )
+        );
+        $this->assertSame(
+            (string) get_permalink($source_id),
+            (string) get_permalink($target_id)
+        );
+        $this->assertSame(
+            (string) get_permalink($source_id),
+            ll_tools_get_legacy_lesson_retained_source_url($target_id)
+        );
+
+        $relations = ll_tools_migrate_legacy_content_lessons_batch([
+            'phase' => 'relations',
+            'wordset_id' => $wordset_id,
+            'source_ids' => [$source_id],
+            'limit' => 1,
+            'apply' => true,
+        ]);
+        $this->assertIsArray($relations);
+        $this->assertSame([], $relations['errors']);
+        $this->assertSame(
+            [$prerequisite_target_id],
+            ll_tools_get_content_lesson_prereq_lesson_ids($target_id)
+        );
+        $this->assertSame('', (string) get_post_field('post_content', $target_id));
+
+        $user_id = self::factory()->user->create();
+        update_user_meta($user_id, 'simplefavorites', [
+            [
+                'site_id' => 1,
+                'posts' => [$source_id],
+            ],
+        ]);
+        delete_option(LL_TOOLS_LEGACY_COMPLETION_AUDIT_OPTION);
+        $completions = ll_tools_migrate_legacy_content_lessons_batch([
+            'phase' => 'completions',
+            'wordset_id' => $wordset_id,
+            'limit' => 1,
+            'apply' => true,
+        ]);
+        $this->assertIsArray($completions);
+        $this->assertSame(1, (int) $completions['mapped_associations']);
+        $this->assertSame(
+            [$target_id],
+            ll_tools_get_completed_content_lesson_ids($user_id)
+        );
+
+        update_post_meta(
+            $target_id,
+            LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META,
+            '1'
+        );
+        $this->assertFalse(ll_tools_get_content_lesson_show_in_mix($target_id));
+        $idempotent = ll_tools_migrate_legacy_content_lessons_batch(
+            array_merge($args, ['apply' => true])
+        );
+        $this->assertIsArray($idempotent);
+        $this->assertSame(1, (int) $idempotent['unchanged']);
+        $this->assertSame('', (string) get_post_field('post_content', $target_id));
+
+        $mode_change = ll_tools_migrate_legacy_lesson_post(
+            $source_id,
+            $wordset_id,
+            ['apply' => true, 'status' => 'publish']
+        );
+        $this->assertWPError($mode_change);
+        $this->assertSame(
+            'legacy_lesson_retained_source_mode_mismatch',
+            $mode_change->get_error_code()
+        );
+        $this->assertSame('', (string) get_post_field('post_content', $target_id));
+    }
+
+    public function test_retained_source_batch_contract_fails_closed(): void
+    {
+        $wordset_id = $this->createWordset('Retained source contract');
+        $source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Retained source contract',
+        ]);
+        $base = [
+            'phase' => 'lessons',
+            'wordset_id' => $wordset_id,
+            'source_ids' => [$source_id],
+            'limit' => 1,
+            'limit_was_explicit' => true,
+            'limit_raw' => '1',
+            'status' => 'publish',
+            'show_in_mix' => false,
+            'show_in_mix_was_explicit' => true,
+            'show_in_mix_raw' => '0',
+            'retained_source' => true,
+            'apply' => true,
+        ];
+        $invalid_cases = [
+            'wrong phase' => array_merge($base, ['phase' => 'relations']),
+            'missing source IDs' => array_diff_key($base, ['source_ids' => true]),
+            'too many source IDs' => array_merge(
+                $base,
+                ['source_ids' => range(1, 21)]
+            ),
+            'category scope' => array_merge($base, ['category_ids' => [1]]),
+            'missing status' => array_diff_key($base, ['status' => true]),
+            'draft status' => array_merge($base, ['status' => 'draft']),
+            'missing mix flag' => array_diff_key($base, ['show_in_mix' => true]),
+            'enabled mix flag' => array_merge($base, ['show_in_mix' => true]),
+            'implicit mix flag' => array_merge(
+                $base,
+                ['show_in_mix_was_explicit' => false]
+            ),
+            'invalid raw mix flag' => array_merge(
+                $base,
+                ['show_in_mix_raw' => 'false']
+            ),
+            'oversized limit' => array_merge($base, ['limit' => 21]),
+            'implicit limit' => array_merge(
+                $base,
+                ['limit_was_explicit' => false]
+            ),
+            'invalid raw limit' => array_merge($base, ['limit_raw' => '-1']),
+        ];
+
+        foreach ($invalid_cases as $label => $invalid_args) {
+            $result = ll_tools_migrate_legacy_content_lessons_batch($invalid_args);
+            $this->assertWPError($result, $label);
+            $this->assertSame(
+                'legacy_lesson_retained_source_contract_invalid',
+                $result->get_error_code(),
+                $label
+            );
+        }
+
+        $this->assertSame(0, ll_tools_find_content_lesson_by_legacy_source($source_id));
+    }
+
     public function test_lesson_and_relation_batches_are_bounded_and_idempotent(): void
     {
         $wordset_id = $this->createWordset('Legacy lesson migration');

@@ -163,6 +163,260 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         $this->assertFalse($result['has_more']);
     }
 
+    public function test_retained_source_bridge_redirects_and_stays_out_of_public_catalogs(): void
+    {
+        $wordset_id = $this->createWordset('Retained source catalogs');
+        $legacy_category_id = self::factory()->category->create([
+            'name' => 'Retained source legacy category',
+        ]);
+        $word_category = wp_insert_term(
+            'Retained source word category ' . wp_generate_password(5, false),
+            'word-category'
+        );
+        $this->assertIsArray($word_category);
+        $word_category_id = (int) $word_category['term_id'];
+
+        $source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Retained Search Surface',
+            'post_name' => 'retained-search-surface',
+            'post_content' => '[custom_header][custom_footer]',
+        ]);
+        wp_set_post_categories($source_id, [$legacy_category_id]);
+        $migration = ll_tools_migrate_legacy_content_lessons_batch([
+            'phase' => 'lessons',
+            'wordset_id' => $wordset_id,
+            'source_ids' => [$source_id],
+            'limit' => 1,
+            'status' => 'publish',
+            'show_in_mix' => false,
+            'retained_source' => true,
+            'apply' => true,
+        ]);
+        $this->assertIsArray($migration);
+        $this->assertSame([], $migration['errors']);
+        $target_id = ll_tools_find_content_lesson_by_legacy_source($source_id);
+        $this->assertGreaterThan(0, $target_id);
+        update_post_meta(
+            $target_id,
+            LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META,
+            [$word_category_id]
+        );
+        update_post_meta(
+            $target_id,
+            LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META,
+            '1'
+        );
+
+        $ordinary_id = $this->createLesson(
+            $wordset_id,
+            'Ordinary Search Surface',
+            1,
+            [$legacy_category_id]
+        );
+        update_post_meta(
+            $ordinary_id,
+            LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META,
+            [$word_category_id]
+        );
+        $dependent_id = $this->createLesson(
+            $wordset_id,
+            'Retained Bridge Dependent',
+            2,
+            [$legacy_category_id]
+        );
+        update_post_meta(
+            $dependent_id,
+            LL_TOOLS_CONTENT_LESSON_PREREQ_LESSON_IDS_META,
+            [$target_id]
+        );
+
+        $index = do_shortcode(sprintf(
+            '[ll_content_lesson_index wordset="%d" categories="%d" per_page="20"]',
+            $wordset_id,
+            $legacy_category_id
+        ));
+        $this->assertStringContainsString(
+            'data-lesson-id="' . $ordinary_id . '"',
+            $index
+        );
+        $this->assertStringNotContainsString(
+            'data-lesson-id="' . $target_id . '"',
+            $index
+        );
+        $this->assertFalse(ll_tools_get_content_lesson_show_in_mix($target_id));
+
+        $wordset_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
+        $this->assertContains(
+            $ordinary_id,
+            array_map('intval', array_column($wordset_lessons, 'id'))
+        );
+        $this->assertNotContains(
+            $target_id,
+            array_map('intval', array_column($wordset_lessons, 'id'))
+        );
+        $related_lessons = ll_tools_get_content_lessons_for_vocab_lesson(
+            $wordset_id,
+            $word_category_id
+        );
+        $this->assertContains(
+            $ordinary_id,
+            array_map('intval', array_column($related_lessons, 'id'))
+        );
+        $this->assertNotContains(
+            $target_id,
+            array_map('intval', array_column($related_lessons, 'id'))
+        );
+        $option_page = ll_tools_content_lesson_option_page(
+            'prereq_lessons',
+            $wordset_id,
+            ['limit' => 20]
+        );
+        $option_ids = array_map(
+            'intval',
+            array_column((array) $option_page['rows'], 'id')
+        );
+        $this->assertContains($ordinary_id, $option_ids);
+        $this->assertNotContains($target_id, $option_ids);
+        $crawler_ids = array_map(
+            static fn(WP_Post $post): int => (int) $post->ID,
+            ll_tools_ai_crawler_get_public_content_lessons(100)
+        );
+        $this->assertNotContains($target_id, $crawler_ids);
+
+        $search = new WP_Query([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'posts_per_page' => 20,
+            's' => 'Search Surface',
+            'fields' => 'ids',
+        ]);
+        $this->assertContains($ordinary_id, array_map('intval', $search->posts));
+        $this->assertNotContains($target_id, array_map('intval', $search->posts));
+
+        $core_sitemap_args = apply_filters(
+            'wp_sitemaps_posts_query_args',
+            [
+                'post_type' => 'll_content_lesson',
+                'post_status' => 'publish',
+                'posts_per_page' => 20,
+                'fields' => 'ids',
+            ],
+            'll_content_lesson'
+        );
+        $core_sitemap_ids = get_posts($core_sitemap_args);
+        $this->assertContains($ordinary_id, array_map('intval', $core_sitemap_ids));
+        $this->assertNotContains($target_id, array_map('intval', $core_sitemap_ids));
+        $this->assertFalse(apply_filters(
+            'wpseo_sitemap_entry',
+            ['loc' => (string) get_permalink($target_id)],
+            'post',
+            get_post($target_id)
+        ));
+        $this->assertIsArray(apply_filters(
+            'wpseo_sitemap_entry',
+            ['loc' => (string) get_permalink($ordinary_id)],
+            'post',
+            get_post($ordinary_id)
+        ));
+
+        $rest_args = apply_filters(
+            'rest_ll_content_lesson_query',
+            [
+                'post_type' => 'll_content_lesson',
+                'post_status' => 'publish',
+                'posts_per_page' => 20,
+                'fields' => 'ids',
+            ],
+            null
+        );
+        $rest_ids = get_posts($rest_args);
+        $this->assertContains($ordinary_id, array_map('intval', $rest_ids));
+        $this->assertNotContains($target_id, array_map('intval', $rest_ids));
+        $post_type = get_post_type_object('ll_content_lesson');
+        $this->assertInstanceOf(WP_Post_Type::class, $post_type);
+        $this->assertTrue((bool) $post_type->exclude_from_search);
+        $this->assertFalse((bool) $post_type->has_archive);
+        $this->assertFalse((bool) $post_type->show_in_rest);
+
+        $source_url = (string) get_permalink($source_id);
+        $this->assertSame($source_url, (string) get_permalink($target_id));
+        $GLOBALS['post'] = get_post($source_id);
+        setup_postdata($GLOBALS['post']);
+        try {
+            wp_set_current_user(0);
+            $header = do_shortcode('[custom_header]');
+            $footer = do_shortcode('[custom_footer]');
+        } finally {
+            wp_reset_postdata();
+        }
+        $this->assertStringContainsString(
+            'Log in to save lesson progress',
+            $header
+        );
+        $this->assertStringContainsString(urlencode($source_url), $header);
+        $this->assertStringContainsString('Retained Bridge Dependent', $footer);
+
+        $this->go_to(
+            add_query_arg(
+                ['post_type' => 'll_content_lesson', 'p' => $target_id],
+                home_url('/')
+            )
+        );
+        $this->assertTrue(is_singular('ll_content_lesson'));
+        $this->assertSame(
+            $source_url,
+            apply_filters('wpseo_canonical', (string) get_permalink($ordinary_id))
+        );
+        $this->assertSame(
+            'noindex, follow',
+            apply_filters('wpseo_robots', 'index, follow')
+        );
+        $this->assertSame(
+            'noindex',
+            (string) (
+                apply_filters('wpseo_robots_array', ['index' => 'index'])['index']
+                ?? ''
+            )
+        );
+        $this->assertArrayHasKey('noindex', apply_filters('wp_robots', []));
+
+        $captured_location = '';
+        $captured_status = 0;
+        $redirect_capture = static function (
+            string $location,
+            int $status
+        ) use (&$captured_location, &$captured_status): string {
+            $captured_location = $location;
+            $captured_status = $status;
+            throw new RuntimeException('retained-source-redirect-captured');
+        };
+        add_filter('wp_redirect', $redirect_capture, 10, 2);
+        try {
+            ll_tools_content_lesson_maybe_redirect_retained_source();
+            $this->fail('Expected the retained-source redirect to be captured.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'retained-source-redirect-captured',
+                $exception->getMessage()
+            );
+        } finally {
+            remove_filter('wp_redirect', $redirect_capture, 10);
+        }
+        $this->assertSame($source_url, $captured_location);
+        $this->assertSame(301, $captured_status);
+
+        update_post_meta(
+            $target_id,
+            LL_TOOLS_CONTENT_LESSON_KIND_META,
+            'corpus_text'
+        );
+        $this->assertSame(
+            [],
+            ll_tools_get_corpus_text_grid_lessons(['ids' => (string) $target_id])
+        );
+    }
+
     public function test_migration_round_trips_compatibility_metadata_and_skips_unchanged_post_writes(): void
     {
         $wordset_id = $this->createWordset('Legacy contract');

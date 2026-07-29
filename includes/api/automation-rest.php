@@ -10308,6 +10308,16 @@ function ll_tools_rest_import_corpus_text(WP_REST_Request $request) {
     $excerpt = ll_tools_rest_corpus_text_excerpt($payload);
 
     $post = ll_tools_rest_corpus_text_find_post_by_slug($post_slug);
+    if ($post instanceof WP_Post
+        && function_exists('ll_tools_legacy_lesson_has_retained_source_marker')
+        && ll_tools_legacy_lesson_has_retained_source_marker((int) $post->ID)
+    ) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_corpus_text_retained_source_conflict',
+            __('The matching content lesson is not a corpus text.', 'll-tools-text-domain'),
+            409
+        );
+    }
     if ($post instanceof WP_Post) {
         $post_id = wp_update_post([
             'ID' => (int) $post->ID,

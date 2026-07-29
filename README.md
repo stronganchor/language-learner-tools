@@ -168,6 +168,11 @@ See [docs/CLI_AUTOMATION.md](docs/CLI_AUTOMATION.md) for the recommended workflo
 
 For a post-based lesson/prerequisite cutover, follow the guarded
 [legacy lesson migration runbook](docs/LEGACY_LESSON_MIGRATION_RUNBOOK.md).
+The bounded `--retained-source` lessons mode creates an empty, published
+compatibility target for an explicitly named source post that must keep its
+editorial URL/body; the target remains available to prerequisite/completion
+mapping but is excluded from normal public lesson catalogs and redirects direct
+requests to the retained source.
 
 ## REST Automation
 

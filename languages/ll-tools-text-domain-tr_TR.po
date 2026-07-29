@@ -64,7 +64,7 @@ msgstr "%1$s (%2$d)"
 #. translators: 1: Uploaded file name, 2: Upload error message.
 #: includes/admin/uploads/audio-upload-form.php:696
 #: includes/pages/wordset-pages.php:21107
-#: includes/post-types/content-lesson-post-type.php:947
+#: includes/post-types/content-lesson-post-type.php:949
 #: includes/shortcodes/audio-recording-shortcode.php:1629
 #, php-format
 msgid "%1$s (%2$s)"
@@ -410,8 +410,8 @@ msgid "(legacy)"
 msgstr "(eski)"
 
 #: includes/lib/dictionary-browser.php:4229
-#: includes/post-types/content-lesson-post-type.php:937
-#: includes/post-types/content-lesson-post-type.php:1654
+#: includes/post-types/content-lesson-post-type.php:939
+#: includes/post-types/content-lesson-post-type.php:1664
 #: includes/post-types/dictionary-entry-post-type.php:631
 #: includes/post-types/dictionary-entry-post-type.php:998
 #: includes/post-types/dictionary-entry-post-type.php:1673
@@ -913,7 +913,7 @@ msgstr "%1$d eki başarısız oldu: %2$s"
 #: includes/admin/word-option-rules-admin.php:2278
 #: includes/admin/word-option-rules-admin.php:2321
 #: includes/pages/wordset-pages.php:13318
-#: includes/post-types/content-lesson-post-type.php:1961
+#: includes/post-types/content-lesson-post-type.php:1971
 #: includes/shortcodes/editor-hub-shortcode.php:1082
 #: includes/shortcodes/ranked-word-list-shortcode.php:638
 #: includes/shortcodes/ranked-word-list-shortcode.php:665
@@ -1572,9 +1572,9 @@ msgstr "Yaygın kayıt türleri: İzolasyon (tek başına kelime), Soru (kelime 
 #: includes/admin/export-import.php:3772
 #: includes/content-lesson-progress.php:278
 #: includes/content-lesson-progress.php:407
-#: includes/pages/content-lesson-pages.php:1083
-#: includes/shortcodes/content-lesson-index-shortcode.php:232
-#: includes/shortcodes/content-lesson-index-shortcode.php:445
+#: includes/pages/content-lesson-pages.php:1292
+#: includes/shortcodes/content-lesson-index-shortcode.php:233
+#: includes/shortcodes/content-lesson-index-shortcode.php:446
 msgid "Completed"
 msgstr "Tamamlandı"
 
@@ -4902,8 +4902,8 @@ msgstr "Yeni kelimeler"
 #: includes/flashcard-shell.php:195
 #: includes/lib/interlinear.php:1686
 #: includes/lib/interlinear.php:1690
-#: includes/pages/content-lesson-pages.php:880
-#: includes/pages/content-lesson-pages.php:934
+#: includes/pages/content-lesson-pages.php:1089
+#: includes/pages/content-lesson-pages.php:1143
 #: includes/pages/wordset-pages.php:11939
 #: includes/pages/wordset-pages.php:12070
 #: includes/pages/wordset-pages.php:12314
@@ -4915,7 +4915,7 @@ msgstr "Yeni kelimeler"
 #: includes/pages/wordset-pages.php:26427
 #: includes/pages/wordset-pages.php:26556
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
-#: includes/shortcodes/content-lesson-index-shortcode.php:511
+#: includes/shortcodes/content-lesson-index-shortcode.php:512
 #: includes/shortcodes/dictionary-shortcode.php:2481
 #: includes/shortcodes/flashcard-widget.php:666
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
@@ -5593,7 +5593,7 @@ msgstr "Genel Bakış"
 #. translators: 1: current page, 2: total pages
 #: includes/admin/image-webp-optimizer-admin.php:1665
 #: includes/admin/ipa-keyboard-admin.php:465
-#: includes/pages/content-lesson-pages.php:893
+#: includes/pages/content-lesson-pages.php:1102
 #: includes/pages/wordset-pages.php:16314
 #: includes/pages/wordset-pages.php:21476
 #, php-format
@@ -6124,8 +6124,8 @@ msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 ra
 #: includes/admin/word-option-rules-admin.php:2576
 #: includes/lib/interlinear.php:1670
 #: includes/lib/interlinear.php:1674
-#: includes/pages/content-lesson-pages.php:877
-#: includes/pages/content-lesson-pages.php:933
+#: includes/pages/content-lesson-pages.php:1086
+#: includes/pages/content-lesson-pages.php:1142
 #: includes/pages/wordset-pages.php:11935
 #: includes/pages/wordset-pages.php:12066
 #: includes/pages/wordset-pages.php:12310
@@ -6133,8 +6133,8 @@ msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 ra
 #: includes/pages/wordset-pages.php:21194
 #: includes/pages/wordset-pages.php:21469
 #: includes/shortcodes/audio-credit-grid-shortcode.php:407
-#: includes/shortcodes/content-lesson-index-shortcode.php:382
-#: includes/shortcodes/content-lesson-index-shortcode.php:497
+#: includes/shortcodes/content-lesson-index-shortcode.php:383
+#: includes/shortcodes/content-lesson-index-shortcode.php:498
 #: includes/shortcodes/dictionary-shortcode.php:2458
 #: includes/shortcodes/image-copyright-grid-shortcode.php:590
 #: includes/taxonomies/word-category-taxonomy.php:1951
@@ -6806,9 +6806,9 @@ msgstr "İşlenmiş Sesi Kaydetme"
 #: includes/admin/audio-processor-admin.php:135
 #: includes/admin/audio-processor-admin.php:156
 #: includes/admin/ipa-keyboard-admin.php:394
-#: includes/pages/content-lesson-pages.php:1085
+#: includes/pages/content-lesson-pages.php:1294
 #: includes/pages/wordset-pages.php:24574
-#: includes/shortcodes/content-lesson-index-shortcode.php:234
+#: includes/shortcodes/content-lesson-index-shortcode.php:235
 #: includes/shortcodes/dictionary-shortcode.php:95
 #: includes/shortcodes/word-grid-shortcode.php:3948
 #: templates/vocab-lesson-template.php:395
@@ -6851,7 +6851,7 @@ msgstr "Öne çıkan görseli olan ama buna karşılık gelen bir \"word_images\
 #: includes/pages/wordset-pages.php:11929
 #: includes/pages/wordset-pages.php:12011
 #: includes/pages/wordset-pages.php:16155
-#: includes/post-types/content-lesson-post-type.php:1809
+#: includes/post-types/content-lesson-post-type.php:1819
 #: includes/shortcodes/dictionary-shortcode.php:4046
 #: includes/shortcodes/image-copyright-grid-shortcode.php:196
 #: includes/taxonomies/word-category-taxonomy.php:1949
@@ -6977,7 +6977,7 @@ msgstr "Bir kelime seç"
 #: includes/admin/teacher-classes-page.php:755
 #: includes/admin/word-option-rules-admin.php:1882
 #: includes/admin/word-option-rules-admin.php:2624
-#: includes/post-types/content-lesson-post-type.php:1924
+#: includes/post-types/content-lesson-post-type.php:1934
 msgid "Select a word set"
 msgstr "Bir kelime seti seç"
 
@@ -8783,7 +8783,7 @@ msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr "Kelime dersi senkronizasyonu tamamlandı. %d oluşturuldu, %d güncellendi, %d kaldırıldı."
 
 #: includes/admin/admin-dashboard-menu.php:639
-#: includes/lib/ai-crawler-support.php:1397
+#: includes/lib/ai-crawler-support.php:1400
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
@@ -9016,7 +9016,7 @@ msgstr "Kelime Seti"
 #: includes/admin/teacher-classes-page.php:738
 #: includes/admin/word-option-rules-admin.php:1880
 #: includes/pages/wordset-pages.php:11968
-#: includes/post-types/content-lesson-post-type.php:1920
+#: includes/post-types/content-lesson-post-type.php:1930
 #: includes/privacy.php:273
 #: includes/privacy.php:459
 #: includes/privacy.php:548
@@ -9282,7 +9282,7 @@ msgid "You do not have permission to manage recorder access for this word set."
 msgstr "Bu kelime seti için kaydedici erişimini yönetme iznin yok."
 
 #: includes/pages/wordset-pages.php:8266
-#: includes/post-types/content-lesson-post-type.php:1832
+#: includes/post-types/content-lesson-post-type.php:1842
 msgid "You do not have permission to manage this word set."
 msgstr "Bu kelime setini yönetmek için iznin yok."
 
@@ -9703,7 +9703,7 @@ msgstr "Kaldır ve kısa kodu sil"
 msgid "No missing audio instances found."
 msgstr "Eksik ses örneği bulunamadı."
 
-#: includes/post-types/content-lesson-post-type.php:1977
+#: includes/post-types/content-lesson-post-type.php:1987
 msgid "Paste the direct media URL here."
 msgstr "Doğrudan medya URL'sini buraya yapıştır."
 
@@ -9790,9 +9790,9 @@ msgid "Review transcriptions by word set, search recordings, and catch likely IP
 msgstr "Transkripsiyonları kelime setine göre inceleyin, kayıtları arayın ve olası IPA sorunlarını yakalayın."
 
 #: includes/admin/admin-dashboard-menu.php:630
-#: includes/post-types/content-lesson-post-type.php:62
-#: includes/post-types/content-lesson-post-type.php:71
-#: includes/post-types/content-lesson-post-type.php:75
+#: includes/post-types/content-lesson-post-type.php:64
+#: includes/post-types/content-lesson-post-type.php:73
+#: includes/post-types/content-lesson-post-type.php:77
 msgid "Content Lessons"
 msgstr "İçerik Dersleri"
 
@@ -15268,29 +15268,29 @@ msgstr "Kullanıcı adını veya e-posta adresini ve şifreni gir."
 msgid "Invalid login."
 msgstr "Geçersiz giriş."
 
-#: includes/pages/content-lesson-pages.php:14
+#: includes/pages/content-lesson-pages.php:221
 #: templates/content-lesson-template.php:97
 msgid "Video lesson"
 msgstr "Video dersi"
 
-#: includes/pages/content-lesson-pages.php:15
+#: includes/pages/content-lesson-pages.php:222
 #: templates/content-lesson-template.php:97
 msgid "Audio lesson"
 msgstr "Ses dersi"
 
-#: includes/pages/content-lesson-pages.php:605
+#: includes/pages/content-lesson-pages.php:815
 #: includes/pages/wordset-pages.php:25388
 msgid "Main Lessons"
 msgstr "Ana Dersler"
 
-#: includes/pages/content-lesson-pages.php:608
+#: includes/pages/content-lesson-pages.php:818
 #: includes/pages/wordset-pages.php:4812
 #: includes/pages/wordset-pages.php:24570
-#: includes/shortcodes/content-lesson-index-shortcode.php:447
+#: includes/shortcodes/content-lesson-index-shortcode.php:448
 msgid "Open lesson"
 msgstr "Açık ders"
 
-#: includes/pages/content-lesson-pages.php:643
+#: includes/pages/content-lesson-pages.php:853
 #: includes/pages/wordset-pages.php:4846
 #, php-format
 msgid "%d vocab lesson"
@@ -15298,19 +15298,19 @@ msgid_plural "%d vocab lessons"
 msgstr[0] "%d kelime dersi"
 msgstr[1] "%d kelime bilgisi dersi"
 
-#: includes/pages/content-lesson-pages.php:971
+#: includes/pages/content-lesson-pages.php:1180
 msgid "Related Vocab Lessons"
 msgstr "İlgili Kelime Dersleri"
 
-#: includes/pages/content-lesson-pages.php:1123
+#: includes/pages/content-lesson-pages.php:1332
 msgid "Current transcript line"
 msgstr "Mevcut transkript satırı"
 
-#: includes/pages/content-lesson-pages.php:1124
+#: includes/pages/content-lesson-pages.php:1333
 msgid "Lesson transcript"
 msgstr "Ders transkripti"
 
-#: includes/lib/ai-crawler-support.php:950
+#: includes/lib/ai-crawler-support.php:953
 #: includes/pages/dictionary-page.php:11
 #: includes/shortcodes/dictionary-shortcode.php:3979
 #: includes/shortcodes/site-tools-shortcode.php:948
@@ -15709,7 +15709,7 @@ msgid "Game is unavailable right now."
 msgstr "Oyun şu anda kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:118
-#: includes/shortcodes/content-lesson-index-shortcode.php:427
+#: includes/shortcodes/content-lesson-index-shortcode.php:428
 #: includes/wordset-isolation.php:4012
 msgid "Lessons"
 msgstr "Dersler"
@@ -17513,7 +17513,7 @@ msgstr "Filtre düzeyi"
 #: includes/flashcard-shell.php:108
 #: includes/pages/wordset-pages.php:21208
 #: includes/pages/wordset-pages.php:24571
-#: includes/post-types/content-lesson-post-type.php:1810
+#: includes/post-types/content-lesson-post-type.php:1820
 #: includes/shortcodes/flashcard-widget.php:698
 #: templates/audio-image-matcher-template.php:67
 msgid "Load more"
@@ -17636,142 +17636,142 @@ msgstr "Doğru ses"
 msgid "Play correct audio"
 msgstr "Doğru sesi çal"
 
-#: includes/post-types/content-lesson-post-type.php:63
+#: includes/post-types/content-lesson-post-type.php:65
 msgid "Content Lesson"
 msgstr "İçerik Dersi"
 
-#: includes/post-types/content-lesson-post-type.php:64
+#: includes/post-types/content-lesson-post-type.php:66
 msgid "Add New Content Lesson"
 msgstr "Yeni İçerik Ekleme Dersi"
 
-#: includes/post-types/content-lesson-post-type.php:65
+#: includes/post-types/content-lesson-post-type.php:67
 msgid "Edit Content Lesson"
 msgstr "İçerik Dersini Düzenle"
 
-#: includes/post-types/content-lesson-post-type.php:66
+#: includes/post-types/content-lesson-post-type.php:68
 msgid "New Content Lesson"
 msgstr "Yeni İçerik Dersi"
 
-#: includes/post-types/content-lesson-post-type.php:67
+#: includes/post-types/content-lesson-post-type.php:69
 msgid "View Content Lesson"
 msgstr "İçerik Dersini Görüntüle"
 
-#: includes/post-types/content-lesson-post-type.php:68
+#: includes/post-types/content-lesson-post-type.php:70
 msgid "Search Content Lessons"
 msgstr "İçerik Derslerini Ara"
 
-#: includes/post-types/content-lesson-post-type.php:69
+#: includes/post-types/content-lesson-post-type.php:71
 msgid "No content lessons found"
 msgstr "İçerik dersi bulunamadı"
 
-#: includes/post-types/content-lesson-post-type.php:70
+#: includes/post-types/content-lesson-post-type.php:72
 msgid "No content lessons found in Trash"
 msgstr "Çöp Kutusu'nda içerik dersi bulunamadı"
 
-#: includes/post-types/content-lesson-post-type.php:616
+#: includes/post-types/content-lesson-post-type.php:618
 msgid "The transcript source could not be parsed. Paste WebVTT, TSV, or JSON timing data."
 msgstr "Transkript kaynağı ayrıştırılamadı. WebVTT, TSV veya JSON zamanlama verilerini yapıştırın."
 
-#: includes/post-types/content-lesson-post-type.php:1852
+#: includes/post-types/content-lesson-post-type.php:1862
 msgid "Lesson Details"
 msgstr "Ders Detayları"
 
-#: includes/post-types/content-lesson-post-type.php:1934
+#: includes/post-types/content-lesson-post-type.php:1944
 msgid "Used for front-end access checks and to surface this lesson on the word set page."
 msgstr "Ön uç erişim kontrolleri için ve bu dersi kelime seti sayfasında öne çıkarmak için kullanılır."
 
-#: includes/post-types/content-lesson-post-type.php:1957
+#: includes/post-types/content-lesson-post-type.php:1967
 msgid "Media type"
 msgstr "Medya türü"
 
-#: includes/post-types/content-lesson-post-type.php:1962
+#: includes/post-types/content-lesson-post-type.php:1972
 msgid "Video"
 msgstr "video"
 
-#: includes/post-types/content-lesson-post-type.php:1968
+#: includes/post-types/content-lesson-post-type.php:1978
 msgid "Media URL"
 msgstr "Medya URL'si"
 
-#: includes/post-types/content-lesson-post-type.php:1980
+#: includes/post-types/content-lesson-post-type.php:1990
 msgid "Use a direct file URL for the audio or video you want to play on the lesson page."
 msgstr "Ders sayfasında oynatmak istediğiniz ses veya video için doğrudan dosya URL'si kullanın."
 
-#: includes/post-types/content-lesson-post-type.php:1986
+#: includes/post-types/content-lesson-post-type.php:1996
 msgid "Timing format"
 msgstr "Zamanlama formatı"
 
-#: includes/post-types/content-lesson-post-type.php:1990
+#: includes/post-types/content-lesson-post-type.php:2000
 msgid "Auto detect"
 msgstr "Otomatik algılama"
 
-#: includes/post-types/content-lesson-post-type.php:1991
+#: includes/post-types/content-lesson-post-type.php:2001
 msgid "WebVTT"
 msgstr "WebVTT"
 
-#: includes/post-types/content-lesson-post-type.php:1992
+#: includes/post-types/content-lesson-post-type.php:2002
 msgid "JSON"
 msgstr "JSON"
 
-#: includes/post-types/content-lesson-post-type.php:1993
+#: includes/post-types/content-lesson-post-type.php:2003
 msgid "TSV"
 msgstr "TSV"
 
-#: includes/post-types/content-lesson-post-type.php:1996
+#: includes/post-types/content-lesson-post-type.php:2006
 msgid "Phase 1 supports pasted WebVTT, TSV, or JSON timing payloads."
 msgstr "Aşama 1, yapıştırılan WebVTT, TSV veya JSON zamanlama verilerini destekler."
 
-#: includes/post-types/content-lesson-post-type.php:2002
+#: includes/post-types/content-lesson-post-type.php:2012
 msgid "Transcript timing source"
 msgstr "Transkript zamanlama kaynağı"
 
-#: includes/post-types/content-lesson-post-type.php:2010
+#: includes/post-types/content-lesson-post-type.php:2020
 msgid "Paste WebVTT, TSV, or JSON timing data here."
 msgstr "WebVTT, TSV veya JSON zamanlama verilerini buraya yapıştırın."
 
-#: includes/post-types/content-lesson-post-type.php:2013
+#: includes/post-types/content-lesson-post-type.php:2023
 msgid "Example sources: line_alignment.vtt, line_alignment.tsv, sentence_alignment.vtt, or highlight_approx.json."
 msgstr "Örnek kaynaklar: line_alignment.vtt, line_alignment.tsv, cümle_alignment.vtt veya Highlight_approx.json."
 
-#: includes/post-types/content-lesson-post-type.php:2019
+#: includes/post-types/content-lesson-post-type.php:2029
 #, php-format
 msgid "%d cue parsed and ready for playback."
 msgid_plural "%d cues parsed and ready for playback."
 msgstr[0] "%d işaret ayrıştırıldı ve oynatmaya hazır."
 msgstr[1] "%d ipucu ayrıştırıldı ve oynatmaya hazır."
 
-#: includes/post-types/content-lesson-post-type.php:2034
+#: includes/post-types/content-lesson-post-type.php:2044
 msgid "Related vocab categories"
 msgstr "İlgili kelime kategorileri"
 
-#: includes/post-types/content-lesson-post-type.php:2053
+#: includes/post-types/content-lesson-post-type.php:2063
 msgid "These categories become related vocab-lesson links on the content lesson page and backlinks on drill pages. Use Ctrl/Command + click to select multiple."
 msgstr "Bu kategoriler, içerik dersi sayfasında ilgili kelime dersi bağlantıları ve alıştırma sayfalarında geri bağlantılar haline gelir. Birden fazla seçmek için Ctrl/Command + tıklama tuşlarını kullanın."
 
-#: includes/post-types/content-lesson-post-type.php:2059
+#: includes/post-types/content-lesson-post-type.php:2069
 msgid "Show in lesson grid"
 msgstr "Ders tablosunda göster"
 
-#: includes/post-types/content-lesson-post-type.php:2070
+#: includes/post-types/content-lesson-post-type.php:2080
 msgid "Show this lesson as a full-size card in the main word set lesson grid."
 msgstr "Bu dersi ana kelime seti ders tablosunda tam boyutlu bir kart olarak gösterin."
 
-#: includes/post-types/content-lesson-post-type.php:2073
+#: includes/post-types/content-lesson-post-type.php:2083
 msgid "When enabled, this lesson can be placed between vocab lesson cards on the word set page instead of only appearing in the separate main-lessons section."
 msgstr "Etkinleştirildiğinde, bu ders yalnızca ayrı ana dersler bölümünde görünmek yerine kelime seti sayfasındaki kelime dersi kartlarının arasına yerleştirilebilir."
 
-#: includes/post-types/content-lesson-post-type.php:2079
+#: includes/post-types/content-lesson-post-type.php:2089
 msgid "Vocab lesson prerequisites"
 msgstr "Kelime dersi önkoşulları"
 
-#: includes/post-types/content-lesson-post-type.php:2098
+#: includes/post-types/content-lesson-post-type.php:2108
 msgid "When this lesson is mixed into the main grid, it is inserted after the selected vocab lessons. If multiple mixed content lessons share the same prerequisites, their Order value breaks ties."
 msgstr "Bu ders ana tabloya dahil edildiğinde seçilen kelime derslerinden sonra eklenir. Birden fazla karma içerik dersi aynı önkoşulları paylaşıyorsa Sıra değeri aralarındaki sıralamayı belirler."
 
-#: includes/post-types/content-lesson-post-type.php:2104
+#: includes/post-types/content-lesson-post-type.php:2114
 msgid "Content lesson prerequisites"
 msgstr "İçerik dersi önkoşulları"
 
-#: includes/post-types/content-lesson-post-type.php:2122
+#: includes/post-types/content-lesson-post-type.php:2132
 msgid "When this lesson is mixed into the main grid, it can also be placed after earlier content lessons. Use this to keep story, review, and follow-up practice lessons in sequence."
 msgstr "Bu ders ana tabloya dahil edildiğinde daha önceki içerik derslerinin sonrasına da yerleştirilebilir. Hikaye, inceleme ve takip alıştırması derslerini sırada tutmak için bunu kullanın."
 
@@ -18625,7 +18625,7 @@ msgstr "Sözlüğe geri dön"
 msgid "Definitions"
 msgstr "Tanımlar"
 
-#: includes/lib/ai-crawler-support.php:1276
+#: includes/lib/ai-crawler-support.php:1279
 #: includes/shortcodes/dictionary-shortcode.php:2259
 msgid "Senses"
 msgstr "Anlamlar"
@@ -19209,19 +19209,19 @@ msgid "Word has not been published yet."
 msgstr "Kelime henüz yayınlanmadı."
 
 #: includes/admin/ipa-keyboard-admin.php:386
-#: includes/pages/content-lesson-pages.php:1101
+#: includes/pages/content-lesson-pages.php:1310
 #: includes/shortcodes/word-grid-shortcode.php:3925
 msgid "Saving review note..."
 msgstr "İnceleme notu kaydediliyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:387
-#: includes/pages/content-lesson-pages.php:1102
+#: includes/pages/content-lesson-pages.php:1311
 #: includes/shortcodes/word-grid-shortcode.php:3926
 msgid "Review note saved."
 msgstr "İnceleme notu kaydedildi."
 
 #: includes/admin/ipa-keyboard-admin.php:388
-#: includes/pages/content-lesson-pages.php:1103
+#: includes/pages/content-lesson-pages.php:1312
 #: includes/shortcodes/word-grid-shortcode.php:3927
 msgid "Unable to save the review note."
 msgstr "İnceleme notu kaydedilemiyor."
@@ -21599,18 +21599,18 @@ msgstr "Kaynak tanık"
 msgid "Document review note"
 msgstr "Belge inceleme notu"
 
-#: includes/pages/content-lesson-pages.php:10
+#: includes/pages/content-lesson-pages.php:217
 msgid "Text document"
 msgstr "Metin belgesi"
 
-#: includes/pages/content-lesson-pages.php:385
-#: includes/pages/content-lesson-pages.php:921
+#: includes/pages/content-lesson-pages.php:592
+#: includes/pages/content-lesson-pages.php:1130
 #: templates/content-lesson-template.php:122
 #: templates/content-lesson-template.php:128
 msgid "Texts"
 msgstr "Metinler"
 
-#: includes/pages/content-lesson-pages.php:929
+#: includes/pages/content-lesson-pages.php:1138
 msgid "Open text"
 msgstr "Metni aç"
 
@@ -21671,7 +21671,7 @@ msgstr "Korpus metni varlığı medya kütüphanesine eklenemedi."
 msgid "Provide a corpus text post slug."
 msgstr "Korpus metni yazısı için bir kısa ad ver."
 
-#: includes/api/automation-rest.php:10334
+#: includes/api/automation-rest.php:10344
 msgid "The corpus text post could not be created or updated."
 msgstr "Korpus metni yazısı oluşturulamadı veya güncellenemedi."
 
@@ -22544,7 +22544,7 @@ msgstr "%1$s sembolünü onayla ve yazımda %2$s ile eşle"
 msgid "Approved symbol mapping."
 msgstr "Sembol eşlemesi onaylandı."
 
-#: includes/post-types/content-lesson-post-type.php:122
+#: includes/post-types/content-lesson-post-type.php:124
 msgid "Audio/video lesson"
 msgstr "Ses/video dersi"
 
@@ -22593,7 +22593,7 @@ msgstr "Metin inceleme işaretini temizle"
 msgid "Copy quiz, game, and recording settings"
 msgstr "Quiz, oyun ve kayıt ayarlarını kopyala"
 
-#: includes/post-types/content-lesson-post-type.php:124
+#: includes/post-types/content-lesson-post-type.php:126
 msgid "Corpus text"
 msgstr "Korpus metni"
 
@@ -22642,7 +22642,7 @@ msgstr "Geçersiz inceleme alanı"
 msgid "Leave all unchecked to include every recording type."
 msgstr "Her kayıt türünü dahil etmek için tümünü işaretsiz bırak."
 
-#: includes/post-types/content-lesson-post-type.php:1940
+#: includes/post-types/content-lesson-post-type.php:1950
 msgid "Lesson kind"
 msgstr "Ders türü"
 
@@ -22994,11 +22994,12 @@ msgstr "Bu sitede LL Tools önbelleklerini temizleme iznin yok."
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr "cache=all, cache=dictionary veya cache=public kullan."
 
-#: includes/api/automation-rest.php:10371
+#: includes/api/automation-rest.php:10381
 msgid "Could not find a matching corpus text post."
 msgstr "Eşleşen corpus text yazısı bulunamadı."
 
-#: includes/api/automation-rest.php:10382
+#: includes/api/automation-rest.php:10317
+#: includes/api/automation-rest.php:10392
 msgid "The matching content lesson is not a corpus text."
 msgstr "Eşleşen içerik dersi bir corpus text değil."
 
@@ -24926,19 +24927,19 @@ msgstr "Başlıksız"
 msgid "LL Tools Site"
 msgstr "LL Tools Sitesi"
 
-#: includes/lib/ai-crawler-support.php:944
+#: includes/lib/ai-crawler-support.php:947
 msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
 msgstr "AI aracıları ve tarayıcılar için optimize edilmiş herkese açık LL Tools dil öğrenme içeriği."
 
-#: includes/lib/ai-crawler-support.php:949
+#: includes/lib/ai-crawler-support.php:952
 msgid "LL Tools AI index"
 msgstr "LL Tools AI dizini"
 
-#: includes/lib/ai-crawler-support.php:949
+#: includes/lib/ai-crawler-support.php:952
 msgid "Compact generated Markdown index for AI agents."
 msgstr "AI aracıları için oluşturulmuş kompakt Markdown dizini."
 
-#: includes/lib/ai-crawler-support.php:950
+#: includes/lib/ai-crawler-support.php:953
 msgid "Public dictionary search and browse page."
 msgstr "Herkese açık sözlük arama ve göz atma sayfası."
 
@@ -24968,75 +24969,75 @@ msgstr "Beklenen sözlük girişi çevirisi canlı durumla eşleşmiyor."
 msgid "Cannot canonicalize a word without target text."
 msgstr "Hedef metni olmayan bir kelime kanonikleştirilemez."
 
-#: includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:983
 msgid "LL Tools llms.txt"
 msgstr "LL Tools llms.txt"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:972
+#: includes/lib/ai-crawler-support.php:975
 #, php-format
 msgid "%s LL Tools AI Index"
 msgstr "%s LL Tools yapay zeka dizini"
 
-#: includes/lib/ai-crawler-support.php:979
+#: includes/lib/ai-crawler-support.php:982
 msgid "Site-level AI discovery file."
 msgstr "Site düzeyinde yapay zeka keşif dosyası."
 
-#: includes/lib/ai-crawler-support.php:958
-#: includes/lib/ai-crawler-support.php:981
+#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:984
 msgid "Schema.org structured discovery graph for the generated public exports."
 msgstr "Üretilen herkese açık dışa aktarımlar için Schema.org yapılandırılmış keşif grafiği."
 
-#: includes/lib/ai-crawler-support.php:1120
+#: includes/lib/ai-crawler-support.php:1123
 msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
 msgstr "Yapay zeka aracıları için oluşturulmuş, sınırlı, anonim-herkese açık LL Tools keşif dizini."
 
-#: includes/lib/ai-crawler-support.php:976
+#: includes/lib/ai-crawler-support.php:979
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Bu oluşturulmuş dizin, yapay zeka aracılarını kompakt herkese açık LL Tools içeriğine yönlendirir. Bilerek salt okunur ve sınırlıdır; bağlantılı HTML sayfaları alıntı için kanonik kaynak olmaya devam eder."
 
-#: includes/lib/ai-crawler-support.php:946
+#: includes/lib/ai-crawler-support.php:949
 msgid "This file lists anonymous, read-only public content. Use canonical HTML URLs for citation and the Markdown exports for compact context. Admin screens, editor workflows, recording tools, REST mutation endpoints, and private wordsets are not public crawl targets."
 msgstr "Bu dosya anonim, salt okunur herkese açık içeriği listeler. Alıntı için kanonik HTML URL'lerini, kompakt bağlam için Markdown dışa aktarımlarını kullan. Yönetici ekranları, editör iş akışları, kayıt araçları, REST değişiklik uç noktaları ve özel kelime setleri herkese açık tarama hedefleri değildir."
 
-#: includes/lib/ai-crawler-support.php:953
-#: includes/lib/ai-crawler-support.php:984
-#: includes/lib/ai-crawler-support.php:1034
+#: includes/lib/ai-crawler-support.php:956
+#: includes/lib/ai-crawler-support.php:987
+#: includes/lib/ai-crawler-support.php:1037
 msgid "Dictionary Markdown"
 msgstr "Sözlük Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:953
+#: includes/lib/ai-crawler-support.php:956
 msgid "Bounded public dictionary entries with definitions, sources, and canonical detail links."
 msgstr "Tanımlar, kaynaklar ve kanonik ayrıntı bağlantıları içeren sınırlı herkese açık sözlük girişleri."
 
-#: includes/lib/ai-crawler-support.php:954
-#: includes/lib/ai-crawler-support.php:985
-#: includes/lib/ai-crawler-support.php:1040
+#: includes/lib/ai-crawler-support.php:957
+#: includes/lib/ai-crawler-support.php:988
+#: includes/lib/ai-crawler-support.php:1043
 msgid "Wordsets Markdown"
 msgstr "Kelime setleri Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:954
+#: includes/lib/ai-crawler-support.php:957
 msgid "Public wordset hubs and public vocab lessons."
 msgstr "Herkese açık kelime seti merkezleri ve herkese açık kelime dersleri."
 
-#: includes/lib/ai-crawler-support.php:955
-#: includes/lib/ai-crawler-support.php:986
-#: includes/lib/ai-crawler-support.php:1046
+#: includes/lib/ai-crawler-support.php:958
+#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:1049
 msgid "Content Lessons Markdown"
 msgstr "İçerik dersleri Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:958
-#: includes/lib/ai-crawler-support.php:981
+#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:984
 msgid "AI index JSON-LD"
 msgstr "AI dizini JSON-LD"
 
-#: includes/lib/ai-crawler-support.php:961
-#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:964
+#: includes/lib/ai-crawler-support.php:992
 msgid "AI crawler notes"
 msgstr "AI tarayıcı notları"
 
-#: includes/lib/ai-crawler-support.php:979
-#: includes/lib/ai-crawler-support.php:1022
+#: includes/lib/ai-crawler-support.php:982
+#: includes/lib/ai-crawler-support.php:1025
 msgid "Root llms.txt"
 msgstr "Kök llms.txt"
 
@@ -25102,7 +25103,7 @@ msgid "Import job created. Processing will continue on the import page."
 msgstr "İçe aktarma görevi oluşturuldu. İşlem içe aktarma sayfasında devam edecek."
 
 #: includes/admin/offline-app-export.php:55
-#: includes/post-types/content-lesson-post-type.php:1829
+#: includes/post-types/content-lesson-post-type.php:1839
 msgid "Select a valid word set."
 msgstr "Geçerli bir kelime seti seç."
 
@@ -25197,7 +25198,7 @@ msgstr "Ses dosyasının boyutu okunamadı."
 msgid "The audio file is too large for AssemblyAI transcription."
 msgstr "Ses dosyası AssemblyAI transkripsiyonu için çok büyük."
 
-#: includes/pages/content-lesson-pages.php:884
+#: includes/pages/content-lesson-pages.php:1093
 msgid "Text pages"
 msgstr "Metin sayfaları"
 
@@ -26308,247 +26309,247 @@ msgstr "Bu adaylar için başka otomatik çakışmalar da var. Daha küçük bir
 msgid "Saved pair page %1$d of %2$d"
 msgstr "Kaydedilmiş çift sayfası %1$d / %2$d"
 
-#: includes/lib/ai-crawler-support.php:955
+#: includes/lib/ai-crawler-support.php:958
 msgid "Public content lessons with compact transcript samples."
 msgstr "Kısa transkript örnekleri içeren herkese açık içerik dersleri."
 
-#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:964
 msgid "Operational notes about how these generated files should be interpreted."
 msgstr "Bu dosyaların nasıl yorumlanması gerektiğine dair kullanım notları."
 
-#: includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:983
 msgid "Plugin-scoped copy of the discovery file."
 msgstr "Keşif dosyasının eklenti kapsamındaki kopyası."
 
-#: includes/lib/ai-crawler-support.php:984
+#: includes/lib/ai-crawler-support.php:987
 msgid "Headwords, summaries, sources, dialects, and dictionary detail links."
 msgstr "Madde başları, özetler, kaynaklar, lehçeler ve sözlük ayrıntı bağlantıları."
 
-#: includes/lib/ai-crawler-support.php:985
+#: includes/lib/ai-crawler-support.php:988
 msgid "Public wordset landing pages and vocab lesson routes."
 msgstr "Herkese açık kelime seti açılış sayfaları ve kelime dersi rotaları."
 
-#: includes/lib/ai-crawler-support.php:986
+#: includes/lib/ai-crawler-support.php:989
 msgid "Content lessons and compact transcript cue samples."
 msgstr "İçerik dersleri ve kısa transkript bölümü örnekleri."
 
-#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:992
 msgid "Scope and interpretation notes for these generated exports."
 msgstr "Bu otomatik olarak oluşturulan dışa aktarımlar için kapsam ve yorum notları."
 
-#: includes/lib/ai-crawler-support.php:995
-#: includes/lib/ai-crawler-support.php:1177
+#: includes/lib/ai-crawler-support.php:998
+#: includes/lib/ai-crawler-support.php:1180
 msgid "Dictionary Letter Chunks"
 msgstr "Sözlük Harfi Parçaları"
 
-#: includes/lib/ai-crawler-support.php:996
+#: includes/lib/ai-crawler-support.php:999
 msgid "Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample."
 msgstr "Harf parçaları, geniş bir örnek yerine odaklanmış bağlama ihtiyaç duyan yapay zeka ajanlarına sözlüğün daha küçük bölümlerini sunar."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1001
+#: includes/lib/ai-crawler-support.php:1004
 #, php-format
 msgid "Dictionary letter %s"
 msgstr "Sözlük harfi %s"
 
-#: includes/lib/ai-crawler-support.php:1028
+#: includes/lib/ai-crawler-support.php:1031
 msgid "AI index Markdown"
 msgstr "Yapay Zeka Dizini (Markdown)"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:1117
+#: includes/lib/ai-crawler-support.php:1120
 #, php-format
 msgid "%s LL Tools AI discovery index"
 msgstr "%s LL Tools Yapay Zeka Keşif Dizini"
 
-#: includes/lib/ai-crawler-support.php:1128
-#: includes/lib/ai-crawler-support.php:1164
+#: includes/lib/ai-crawler-support.php:1131
+#: includes/lib/ai-crawler-support.php:1167
 msgid "Public Dictionary"
 msgstr "Herkese Açık Sözlük"
 
-#: includes/lib/ai-crawler-support.php:1129
+#: includes/lib/ai-crawler-support.php:1132
 msgid "Bounded public dictionary entries exposed for compact AI context."
 msgstr "Kısa yapay zeka bağlamı için sunulan sınırlı sayıdaki herkese açık sözlük girişleri."
 
-#: includes/lib/ai-crawler-support.php:1141
+#: includes/lib/ai-crawler-support.php:1144
 msgid "Dictionary letter Markdown exports"
 msgstr "Sözlük harflerine göre Markdown dışa aktarımları"
 
 #. translators: %d: Entry limit.
-#: includes/lib/ai-crawler-support.php:1168
+#: includes/lib/ai-crawler-support.php:1171
 #, php-format
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
 msgstr "Bu sınırlı dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen en fazla %d herkese açık sözlük girişi içerir. Alıntı için her girişin kanonik ayrıntı URL'sini, arama için herkese açık sözlük sayfasını kullan."
 
-#: includes/lib/ai-crawler-support.php:1172
-#: includes/lib/ai-crawler-support.php:1224
+#: includes/lib/ai-crawler-support.php:1175
+#: includes/lib/ai-crawler-support.php:1227
 msgid "Public dictionary page"
 msgstr "Herkese açık sözlük sayfası"
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1182
+#: includes/lib/ai-crawler-support.php:1185
 #, php-format
 msgid "Letter %s"
 msgstr "Harf %s"
 
-#: includes/lib/ai-crawler-support.php:1192
+#: includes/lib/ai-crawler-support.php:1195
 msgid "No public dictionary entries are currently available."
 msgstr "Şu anda herkese açık sözlük girişi yok."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1212
+#: includes/lib/ai-crawler-support.php:1215
 #, php-format
 msgid "Public Dictionary: %s"
 msgstr "Herkese Açık Sözlük: %s"
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1218
+#: includes/lib/ai-crawler-support.php:1221
 #, php-format
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
 msgstr "Bu sınırlı dışa aktarım, göz atılan %2$s harfi için kimlik doğrulaması gerektirmeden erişilebilen en fazla %1$d herkese açık sözlük girişi içerir."
 
-#: includes/lib/ai-crawler-support.php:1223
+#: includes/lib/ai-crawler-support.php:1226
 msgid "Dictionary Markdown index"
 msgstr "Sözlük Markdown dizini"
 
-#: includes/lib/ai-crawler-support.php:1229
+#: includes/lib/ai-crawler-support.php:1232
 msgid "No public dictionary entries are currently available for this letter."
 msgstr "Şu anda bu harf için herkese açık sözlük girişi yok."
 
-#: includes/lib/ai-crawler-support.php:1248
-#: includes/lib/ai-crawler-support.php:1472
+#: includes/lib/ai-crawler-support.php:1251
+#: includes/lib/ai-crawler-support.php:1475
 msgid "Canonical URL:"
 msgstr "Kanonik URL:"
 
-#: includes/lib/ai-crawler-support.php:1250
-#: includes/lib/ai-crawler-support.php:1479
+#: includes/lib/ai-crawler-support.php:1253
+#: includes/lib/ai-crawler-support.php:1482
 msgid "Summary:"
 msgstr "Özet:"
 
-#: includes/lib/ai-crawler-support.php:1255
+#: includes/lib/ai-crawler-support.php:1258
 msgid "Part of speech:"
 msgstr "Konuşma parçası:"
 
-#: includes/lib/ai-crawler-support.php:1260
+#: includes/lib/ai-crawler-support.php:1263
 msgid "Wordsets:"
 msgstr "Kelime setleri:"
 
-#: includes/lib/ai-crawler-support.php:1265
+#: includes/lib/ai-crawler-support.php:1268
 msgid "Sources:"
 msgstr "Kaynaklar:"
 
-#: includes/lib/ai-crawler-support.php:1270
+#: includes/lib/ai-crawler-support.php:1273
 msgid "Dialects:"
 msgstr "Lehçeler:"
 
-#: includes/lib/ai-crawler-support.php:1377
+#: includes/lib/ai-crawler-support.php:1380
 msgid "Public Wordsets and Vocab Lessons"
 msgstr "Herkese Açık Kelime Setleri ve Kelime Dersleri"
 
-#: includes/lib/ai-crawler-support.php:1379
+#: includes/lib/ai-crawler-support.php:1382
 msgid "This export lists anonymous public wordset hubs and vocab lessons. Private wordsets and private categories are excluded."
 msgstr "Bu dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen herkese açık kelime seti merkezlerini ve kelime derslerini listeler. Özel kelime setleri ve özel kategoriler dahil edilmez."
 
-#: includes/lib/ai-crawler-support.php:1381
+#: includes/lib/ai-crawler-support.php:1384
 msgid "Wordsets"
 msgstr "Kelime setleri"
 
-#: includes/lib/ai-crawler-support.php:1385
+#: includes/lib/ai-crawler-support.php:1388
 msgid "No public wordsets are currently available."
 msgstr "Şu anda herkese açık kelime seti yok."
 
-#: includes/lib/ai-crawler-support.php:1399
+#: includes/lib/ai-crawler-support.php:1402
 msgid "No public vocab lessons are currently available."
 msgstr "Şu anda herkese açık kelime dersi yok."
 
 #. translators: %s: Wordset name.
-#: includes/lib/ai-crawler-support.php:1420
+#: includes/lib/ai-crawler-support.php:1423
 #, php-format
 msgid "Wordset: %s"
 msgstr "Kelime seti: %s"
 
 #. translators: %s: Category name.
-#: includes/lib/ai-crawler-support.php:1438
+#: includes/lib/ai-crawler-support.php:1441
 #, php-format
 msgid "Category: %s"
 msgstr "Kategori: %s"
 
-#: includes/lib/ai-crawler-support.php:1454
+#: includes/lib/ai-crawler-support.php:1457
 msgid "Public Content Lessons"
 msgstr "Herkese Açık İçerik Dersleri"
 
 #. translators: %d: Lesson limit.
-#: includes/lib/ai-crawler-support.php:1458
+#: includes/lib/ai-crawler-support.php:1461
 #, php-format
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
 msgstr "Bu sınırlı dışa aktarım, en fazla %d herkese açık içerik dersi içerir. Transkript bölümleri kısa örneklerdir; tam sayfa için kanonik ders URL'sini kullan."
 
-#: includes/lib/ai-crawler-support.php:1465
+#: includes/lib/ai-crawler-support.php:1468
 msgid "No public content lessons are currently available."
 msgstr "Şu anda herkese açık içerik dersi yok."
 
-#: includes/lib/ai-crawler-support.php:1484
+#: includes/lib/ai-crawler-support.php:1487
 msgid "Media:"
 msgstr "Medya:"
 
 #: includes/admin/audio-processor-admin.php:206
-#: includes/lib/ai-crawler-support.php:1491
+#: includes/lib/ai-crawler-support.php:1494
 msgid "Wordset:"
 msgstr "Kelime seti:"
 
-#: includes/lib/ai-crawler-support.php:1497
+#: includes/lib/ai-crawler-support.php:1500
 msgid "Categories:"
 msgstr "Kategoriler:"
 
-#: includes/lib/ai-crawler-support.php:1503
+#: includes/lib/ai-crawler-support.php:1506
 msgid "Transcript Sample"
 msgstr "Transkript Örneği"
 
-#: includes/lib/ai-crawler-support.php:1582
+#: includes/lib/ai-crawler-support.php:1585
 msgid "LL Tools AI Crawler Notes"
 msgstr "LL Tools AI Tarama Botu Notları"
 
-#: includes/lib/ai-crawler-support.php:1584
+#: includes/lib/ai-crawler-support.php:1587
 msgid "These generated files are intended to help AI agents discover and summarize public LL Tools content efficiently."
 msgstr "Bu oluşturulan dosyalar, AI aracılarının herkese açık LL Tools içeriğini verimli biçimde keşfedip özetlemesine yardımcı olur."
 
-#: includes/lib/ai-crawler-support.php:1586
+#: includes/lib/ai-crawler-support.php:1589
 msgid "Scope"
 msgstr "Kapsam"
 
-#: includes/lib/ai-crawler-support.php:1587
+#: includes/lib/ai-crawler-support.php:1590
 msgid "Only anonymous public content is included."
 msgstr "Yalnızca kimlik doğrulaması gerektirmeden erişilebilen herkese açık içerik dahil edilir."
 
-#: includes/lib/ai-crawler-support.php:1588
+#: includes/lib/ai-crawler-support.php:1591
 msgid "Exports are bounded snapshots and may omit older or less relevant public records."
 msgstr "Dışa aktarımlar sınırlı anlık görüntülerdir ve daha eski veya daha az ilgili herkese açık kayıtları içermeyebilir."
 
-#: includes/lib/ai-crawler-support.php:1589
+#: includes/lib/ai-crawler-support.php:1592
 msgid "Canonical HTML pages remain the source of record for citation and full context."
 msgstr "Alıntı ve tam bağlam için kanonik HTML sayfaları yetkili kaynak olmaya devam eder."
 
-#: includes/lib/ai-crawler-support.php:1590
+#: includes/lib/ai-crawler-support.php:1593
 msgid "These files do not grant access to private wordsets, admin pages, editor flows, recording tools, or mutation endpoints."
 msgstr "Bu dosyalar özel kelime setlerine, yönetici sayfalarına, düzenleyici akışlarına, kayıt araçlarına veya değişiklik yapan uç noktalara erişim sağlamaz."
 
-#: includes/lib/ai-crawler-support.php:1592
+#: includes/lib/ai-crawler-support.php:1595
 msgid "Crawler Interpretation"
 msgstr "Tarayıcı Yorumlama Kuralları"
 
-#: includes/lib/ai-crawler-support.php:1593
+#: includes/lib/ai-crawler-support.php:1596
 msgid "Prefer Markdown exports for compact context gathering."
 msgstr "Kısa bağlam toplamak için Markdown dışa aktarımlarını tercih et."
 
-#: includes/lib/ai-crawler-support.php:1594
+#: includes/lib/ai-crawler-support.php:1597
 msgid "Prefer canonical HTML URLs when citing or sending a user to the site."
 msgstr "Alıntı yaparken veya kullanıcıyı siteye yönlendirirken kanonik HTML URL'lerini tercih et."
 
-#: includes/lib/ai-crawler-support.php:1595
+#: includes/lib/ai-crawler-support.php:1598
 msgid "Use the public dictionary WebMCP tool only for read-only dictionary search."
 msgstr "Herkese açık sözlük WebMCP aracını yalnızca salt okunur sözlük aramalarında kullan."
 
-#: includes/lib/ai-crawler-support.php:1596
+#: includes/lib/ai-crawler-support.php:1599
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr "Site bunları tanımladığında tarama ve eğitim politikası için robots.txt ile yanıt başlıklarını yetkili kaynak kabul et."
 
@@ -26744,8 +26745,8 @@ msgstr "Herhangi bir kuyruk kategorisi talep edilmedi."
 #: includes/pages/wordset-pages.php:12068
 #: includes/pages/wordset-pages.php:12312
 #: includes/pages/wordset-pages.php:21201
-#: includes/shortcodes/content-lesson-index-shortcode.php:386
-#: includes/shortcodes/content-lesson-index-shortcode.php:504
+#: includes/shortcodes/content-lesson-index-shortcode.php:387
+#: includes/shortcodes/content-lesson-index-shortcode.php:505
 #, php-format
 msgid "Page %d"
 msgstr "Sayfa %d"
@@ -26821,7 +26822,7 @@ msgid "Recorder queue pages"
 msgstr "Kaydedici kuyruğu sayfaları"
 
 #: includes/pages/wordset-pages.php:21255
-#: includes/post-types/content-lesson-post-type.php:1811
+#: includes/post-types/content-lesson-post-type.php:1821
 msgid "Loading..."
 msgstr "Yükleniyor..."
 
@@ -26897,11 +26898,11 @@ msgstr "Dışa aktarmaya devam et"
 msgid "Could not load more queue categories right now."
 msgstr "Şu anda daha fazla kuyruk kategorisi yüklenemiyor."
 
-#: includes/post-types/content-lesson-post-type.php:1812
+#: includes/post-types/content-lesson-post-type.php:1822
 msgid "Options could not be loaded."
 msgstr "Seçenekler yüklenemedi."
 
-#: includes/post-types/content-lesson-post-type.php:1820
+#: includes/post-types/content-lesson-post-type.php:1830
 msgid "You are not allowed to edit content lessons."
 msgstr "İçerik derslerini düzenleme iznin yok."
 
@@ -27522,7 +27523,7 @@ msgid "Before this lesson"
 msgstr "Bu dersten önce"
 
 #: includes/content-lesson-progress.php:279
-#: includes/shortcodes/content-lesson-index-shortcode.php:446
+#: includes/shortcodes/content-lesson-index-shortcode.php:447
 msgid "Not completed"
 msgstr "Tamamlanmadı"
 
@@ -27535,8 +27536,8 @@ msgid "Log in to save lesson progress"
 msgstr "Ders ilerlemesini kaydetmek için giriş yap"
 
 #: includes/content-lesson-progress.php:408
-#: includes/pages/content-lesson-pages.php:1084
-#: includes/shortcodes/content-lesson-index-shortcode.php:233
+#: includes/pages/content-lesson-pages.php:1293
+#: includes/shortcodes/content-lesson-index-shortcode.php:234
 msgid "Mark complete"
 msgstr "Tamamlandı olarak işaretle"
 
@@ -27554,8 +27555,8 @@ msgid "You cannot update progress for this lesson."
 msgstr "Bu dersin ilerlemesini güncelleyemezsin."
 
 #: includes/content-lesson-progress.php:474
-#: includes/pages/content-lesson-pages.php:1087
-#: includes/shortcodes/content-lesson-index-shortcode.php:236
+#: includes/pages/content-lesson-pages.php:1296
+#: includes/shortcodes/content-lesson-index-shortcode.php:237
 msgid "Lesson progress could not be saved."
 msgstr "Ders ilerlemesi kaydedilemedi."
 
@@ -27563,184 +27564,186 @@ msgstr "Ders ilerlemesi kaydedilemedi."
 msgid "The progress request could not be verified."
 msgstr "İlerleme isteği doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:234
+#: includes/migrations/legacy-content-lessons.php:317
 #, php-format
 msgid "Source category \"%s\" was not found."
 msgstr "Kaynak kategori \"%s\" bulunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:319
+#: includes/migrations/legacy-content-lessons.php:402
 msgid "Provide explicit source post IDs or source category IDs."
 msgstr "Kaynak yazı kimliklerini veya kaynak kategori kimliklerini açıkça belirt."
 
-#: includes/migrations/legacy-content-lessons.php:301
-#: includes/migrations/legacy-content-lessons.php:355
+#: includes/migrations/legacy-content-lessons.php:384
+#: includes/migrations/legacy-content-lessons.php:438
 msgid "The source lesson page could not be read completely."
 msgstr "Kaynak ders sayfası eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:754
+#: includes/migrations/legacy-content-lessons.php:873
 msgid "The legacy lesson source post does not exist."
 msgstr "Eski dersin kaynak yazısı mevcut değil."
 
-#: includes/migrations/legacy-content-lessons.php:760
-#: includes/migrations/legacy-content-lessons.php:1592
-#: includes/migrations/legacy-content-lessons.php:2460
+#: includes/migrations/legacy-content-lessons.php:879
+#: includes/migrations/legacy-content-lessons.php:1781
+#: includes/migrations/legacy-content-lessons.php:2655
 msgid "Select a valid target word set."
 msgstr "Geçerli bir hedef kelime seti seç."
 
-#: includes/migrations/legacy-content-lessons.php:792
+#: includes/migrations/legacy-content-lessons.php:920
 msgid "A non-published source lesson cannot be migrated directly to published status."
 msgstr "Yayımlanmamış bir kaynak ders doğrudan yayımlanmış olarak aktarılamaz."
 
-#: includes/migrations/legacy-content-lessons.php:927
-#: includes/migrations/legacy-content-lessons.php:1050
+#: includes/migrations/legacy-content-lessons.php:1066
+#: includes/migrations/legacy-content-lessons.php:1238
 msgid "The legacy lesson compatibility word set could not be saved."
 msgstr "Eski ders uyumluluk kelime seti kaydedilemedi."
 
-#: includes/migrations/legacy-content-lessons.php:970
+#: includes/migrations/legacy-content-lessons.php:1120
 msgid "The migrated lesson category mapping could not be saved."
 msgstr "Aktarılan dersin kategori eşlemesi kaydedilemedi."
 
-#: includes/migrations/legacy-content-lessons.php:1043
+#: includes/migrations/legacy-content-lessons.php:1135
+#: includes/migrations/legacy-content-lessons.php:1147
+#: includes/migrations/legacy-content-lessons.php:1231
 msgid "The migrated lesson could not be verified after saving."
 msgstr "Aktarılan ders kaydedildikten sonra doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1523
+#: includes/migrations/legacy-content-lessons.php:1712
 msgid "The HTML link rewriter is unavailable."
 msgstr "HTML bağlantı yeniden yazıcısı kullanılamıyor."
 
-#: includes/migrations/legacy-content-lessons.php:1539
+#: includes/migrations/legacy-content-lessons.php:1728
 msgid "The lesson contains too many links to rewrite in one bounded pass."
 msgstr "Ders, tek bir sınırlı geçişte yeniden yazılamayacak kadar çok bağlantı içeriyor."
 
-#: includes/migrations/legacy-content-lessons.php:1603
+#: includes/migrations/legacy-content-lessons.php:1792
 msgid "Migrate the lesson records before migrating their prerequisites."
 msgstr "Önkoşullarını aktarmadan önce ders kayıtlarını aktar."
 
-#: includes/migrations/legacy-content-lessons.php:1631
-#: includes/migrations/legacy-content-lessons.php:1690
-#: includes/post-types/content-lesson-post-type.php:1402
-#: includes/post-types/content-lesson-post-type.php:1441
-#: includes/post-types/content-lesson-post-type.php:1475
-#: includes/post-types/content-lesson-post-type.php:1509
-#: includes/post-types/content-lesson-post-type.php:2263
+#: includes/migrations/legacy-content-lessons.php:1820
+#: includes/migrations/legacy-content-lessons.php:1879
+#: includes/post-types/content-lesson-post-type.php:1412
+#: includes/post-types/content-lesson-post-type.php:1451
+#: includes/post-types/content-lesson-post-type.php:1485
+#: includes/post-types/content-lesson-post-type.php:1519
+#: includes/post-types/content-lesson-post-type.php:2273
 msgid "The prerequisite graph is too large to validate safely."
 msgstr "Önkoşul grafiği güvenli biçimde doğrulanamayacak kadar büyük."
 
-#: includes/migrations/legacy-content-lessons.php:1684
-#: includes/migrations/legacy-content-lessons.php:1703
-#: includes/post-types/content-lesson-post-type.php:1415
-#: includes/post-types/content-lesson-post-type.php:1450
-#: includes/post-types/content-lesson-post-type.php:1466
-#: includes/post-types/content-lesson-post-type.php:1494
-#: includes/post-types/content-lesson-post-type.php:2235
-#: includes/post-types/content-lesson-post-type.php:2251
+#: includes/migrations/legacy-content-lessons.php:1873
+#: includes/migrations/legacy-content-lessons.php:1892
+#: includes/post-types/content-lesson-post-type.php:1425
+#: includes/post-types/content-lesson-post-type.php:1460
+#: includes/post-types/content-lesson-post-type.php:1476
+#: includes/post-types/content-lesson-post-type.php:1504
+#: includes/post-types/content-lesson-post-type.php:2245
+#: includes/post-types/content-lesson-post-type.php:2261
 msgid "The prerequisite relationships could not be read completely."
 msgstr "Önkoşul ilişkileri eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1776
+#: includes/migrations/legacy-content-lessons.php:1965
 msgid "The migrated lesson relations could not be verified after saving."
 msgstr "Aktarılan ders ilişkileri kaydedildikten sonra doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1826
+#: includes/migrations/legacy-content-lessons.php:2015
 msgid "The legacy Favorites structure exceeds the configured safe limit."
 msgstr "Eski Favorites yapısı, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:1835
+#: includes/migrations/legacy-content-lessons.php:2024
 msgid "The legacy Favorites associations exceed the configured safe limit."
 msgstr "Eski Favorites ilişkileri, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:627
-#: includes/migrations/legacy-content-lessons.php:1894
+#: includes/migrations/legacy-content-lessons.php:710
+#: includes/migrations/legacy-content-lessons.php:2083
 msgid "The migrated lesson mapping could not be read completely."
 msgstr "Aktarılan ders eşlemesi eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1900
+#: includes/migrations/legacy-content-lessons.php:2089
 msgid "The migrated lesson mapping exceeds the configured safe limit."
 msgstr "Aktarılan ders eşlemesi, yapılandırılmış güvenli sınırı aşıyor."
 
 #. translators: %d: legacy source post ID
-#: includes/migrations/legacy-content-lessons.php:635
-#: includes/migrations/legacy-content-lessons.php:1916
+#: includes/migrations/legacy-content-lessons.php:718
+#: includes/migrations/legacy-content-lessons.php:2105
 #, php-format
 msgid "Legacy source post %d maps to more than one content lesson."
 msgstr "Eski kaynak yazı %d, birden fazla içerik dersine eşleniyor."
 
-#: includes/migrations/legacy-content-lessons.php:2177
+#: includes/migrations/legacy-content-lessons.php:2366
 msgid "The legacy completion user page could not be read completely."
 msgstr "Eski tamamlama verilerinin kullanıcı sayfası eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:2208
-#: includes/migrations/legacy-content-lessons.php:2233
+#: includes/migrations/legacy-content-lessons.php:2397
+#: includes/migrations/legacy-content-lessons.php:2422
 msgid "Start the completion migration at cursor zero, then pass its audit run ID to every continuation."
 msgstr "Tamamlama aktarımını sıfır imlecinden başlat, ardından denetim çalışma kimliğini her devam işlemine ilet."
 
 #. translators: 1: user ID, 2: migration error
-#: includes/migrations/legacy-content-lessons.php:2263
+#: includes/migrations/legacy-content-lessons.php:2452
 #, php-format
 msgid "User %1$d completion data was skipped: %2$s"
 msgstr "%1$d numaralı kullanıcının tamamlama verileri atlandı: %2$s"
 
-#: includes/migrations/legacy-content-lessons.php:2277
+#: includes/migrations/legacy-content-lessons.php:2466
 #, php-format
 msgid "User %d legacy completion data exceeds the configured safe limit."
 msgstr "%d numaralı kullanıcının eski tamamlama verileri, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:2348
+#: includes/migrations/legacy-content-lessons.php:2537
 #, php-format
 msgid "User %d completion data failed readback verification."
 msgstr "%d numaralı kullanıcının tamamlama verileri geri okuma doğrulamasını geçemedi."
 
-#: includes/migrations/legacy-content-lessons.php:2365
+#: includes/migrations/legacy-content-lessons.php:2554
 msgid "The completion migration audit exceeds the configured safe page limit."
 msgstr "Tamamlama aktarımı denetimi, yapılandırılmış güvenli sayfa sınırını aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:2441
+#: includes/migrations/legacy-content-lessons.php:2630
 msgid "The completion migration audit could not be verified after saving."
 msgstr "Tamamlama aktarımı denetimi kaydedildikten sonra doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:2483
+#: includes/migrations/legacy-content-lessons.php:2678
 msgid "Use the lessons, relations, or completions migration phase."
 msgstr "\"lessons\", \"relations\" veya \"completions\" aktarım aşamasını kullan."
 
-#: includes/migrations/legacy-content-lessons.php:2525
+#: includes/migrations/legacy-content-lessons.php:2721
 #, php-format
 msgid "Source post %1$d: %2$s"
 msgstr "Kaynak yazı %1$d: %2$s"
 
-#: includes/pages/content-lesson-pages.php:7
-#: includes/post-types/content-lesson-post-type.php:123
+#: includes/pages/content-lesson-pages.php:214
+#: includes/post-types/content-lesson-post-type.php:125
 #: templates/content-lesson-template.php:96
 msgid "Article lesson"
 msgstr "Makale dersi"
 
-#: includes/pages/content-lesson-pages.php:1086
-#: includes/shortcodes/content-lesson-index-shortcode.php:235
+#: includes/pages/content-lesson-pages.php:1295
+#: includes/shortcodes/content-lesson-index-shortcode.php:236
 msgid "Progress saved."
 msgstr "İlerleme kaydedildi."
 
-#: includes/post-types/content-lesson-post-type.php:1430
-#: includes/post-types/content-lesson-post-type.php:1481
-#: includes/post-types/content-lesson-post-type.php:1502
+#: includes/post-types/content-lesson-post-type.php:1440
+#: includes/post-types/content-lesson-post-type.php:1491
+#: includes/post-types/content-lesson-post-type.php:1512
 msgid "These prerequisites would create a lesson loop."
 msgstr "Bu önkoşullar bir ders döngüsü oluşturur."
 
-#: includes/post-types/content-lesson-post-type.php:1528
+#: includes/post-types/content-lesson-post-type.php:1538
 msgid "The prerequisite change was not saved because it would create a lesson loop."
 msgstr "Önkoşul değişikliği bir ders döngüsü oluşturacağı için kaydedilmedi."
 
-#: includes/post-types/content-lesson-post-type.php:1531
+#: includes/post-types/content-lesson-post-type.php:1541
 msgid "The prerequisite change was not saved because the dependency graph exceeded the safe validation limit."
 msgstr "Bağımlılık grafiği güvenli doğrulama sınırını aştığı için önkoşul değişikliği kaydedilmedi."
 
-#: includes/post-types/content-lesson-post-type.php:1534
+#: includes/post-types/content-lesson-post-type.php:1544
 msgid "The prerequisite change was not saved because its relationships could not be read completely. Please try again."
 msgstr "İlişkileri eksiksiz okunamadığı için önkoşul değişikliği kaydedilmedi. Lütfen tekrar dene."
 
-#: includes/post-types/content-lesson-post-type.php:1908
+#: includes/post-types/content-lesson-post-type.php:1918
 msgid "Create an article, audio, or video lesson and connect it to the appropriate word set and learning sequence."
 msgstr "Bir makale, ses veya video dersi oluştur ve uygun kelime setiyle öğrenme sırasına bağla."
 
-#: includes/post-types/content-lesson-post-type.php:1951
+#: includes/post-types/content-lesson-post-type.php:1961
 msgid "Use Article for a text-first lesson with no media player. Corpus text remains reserved for editions, translations, and linguist-facing interlinear payloads."
 msgstr "Medya oynatıcısı olmayan, metin ağırlıklı bir ders için Makale'yi kullan. Derlem metni; edisyonlar, çeviriler ve dilbilimcilere yönelik satırlar arası içerikler için ayrılmıştır."
 
@@ -27760,31 +27763,31 @@ msgstr "Ders dizini için geçerli bir kelime seti seç."
 msgid "This lesson index is not available."
 msgstr "Bu ders dizini kullanılamıyor."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:172
+#: includes/shortcodes/content-lesson-index-shortcode.php:173
 msgid "The lesson index could not be read completely."
 msgstr "Ders dizini eksiksiz okunamadı."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:377
+#: includes/shortcodes/content-lesson-index-shortcode.php:378
 msgid "No lessons were found on this page."
 msgstr "Bu sayfada ders bulunamadı."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:379
-#: includes/shortcodes/content-lesson-index-shortcode.php:490
+#: includes/shortcodes/content-lesson-index-shortcode.php:380
+#: includes/shortcodes/content-lesson-index-shortcode.php:491
 msgid "Lesson pages"
 msgstr "Ders sayfaları"
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:392
+#: includes/shortcodes/content-lesson-index-shortcode.php:393
 msgid "No lessons were found."
 msgstr "Ders bulunamadı."
 
 #. translators: %d: lesson level number
-#: includes/shortcodes/content-lesson-index-shortcode.php:424
+#: includes/shortcodes/content-lesson-index-shortcode.php:425
 #, php-format
 msgid "Level %d"
 msgstr "Seviye %d"
 
 #. translators: %s: number of prerequisite lessons
-#: includes/shortcodes/content-lesson-index-shortcode.php:467
+#: includes/shortcodes/content-lesson-index-shortcode.php:468
 #, php-format
 msgid "%s prerequisite"
 msgid_plural "%s prerequisites"
@@ -27792,19 +27795,19 @@ msgstr[0] "%s önkoşul"
 msgstr[1] "%s önkoşul"
 
 #. translators: %s: signed-in user's display name
-#: includes/shortcodes/content-lesson-index-shortcode.php:642
+#: includes/shortcodes/content-lesson-index-shortcode.php:643
 #, php-format
 msgid "Signed in as %s."
 msgstr "%s olarak giriş yapıldı."
 
 #. translators: 1 and 2: login-link tags; 3 and 4: registration-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:664
+#: includes/shortcodes/content-lesson-index-shortcode.php:665
 #, php-format
 msgid "%1$sLog in%2$s or %3$sregister%4$s to save completed lessons."
 msgstr "Tamamlanan dersleri kaydetmek için %1$sgiriş yap%2$s veya %3$skayıt ol%4$s."
 
 #. translators: 1 and 2: login-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:673
+#: includes/shortcodes/content-lesson-index-shortcode.php:674
 #, php-format
 msgid "%1$sLog in%2$s to save completed lessons."
 msgstr "Tamamlanan dersleri kaydetmek için %1$sgiriş yap%2$s."
@@ -27915,11 +27918,11 @@ msgstr "Sıra pozitif bir tam sayı olmalıdır."
 msgid "The rank could not be verified after saving."
 msgstr "Sıra kaydedildikten sonra doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:271
+#: includes/migrations/legacy-content-lessons.php:354
 msgid "The explicit legacy lesson scope exceeds the configured safe limit."
 msgstr "Açıkça belirtilen eski ders kapsamı, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:313
+#: includes/migrations/legacy-content-lessons.php:396
 msgid "The source category scope exceeds the configured safe limit."
 msgstr "Kaynak kategori kapsamı, yapılandırılmış güvenli sınırı aşıyor."
 
@@ -27928,7 +27931,7 @@ msgid "Ranked word audio details could not be loaded completely."
 msgstr "Sıralı kelime ses ayrıntıları eksiksiz yüklenemedi."
 
 #. translators: %d: user ID
-#: includes/migrations/legacy-content-lessons.php:2322
+#: includes/migrations/legacy-content-lessons.php:2511
 #, php-format
 msgid "User %d canonical completion data is at the configured safe limit and could not accept migrated lessons."
 msgstr "%d numaralı kullanıcının kanonik tamamlama verileri, yapılandırılmış güvenli sınıra ulaştığı için aktarılan dersleri kabul edemedi."
@@ -27943,144 +27946,153 @@ msgstr "Eski tamamlanan ders verileri"
 msgid "This ranked list is limited to the first %d pages."
 msgstr "Bu sıralı liste ilk %d sayfayla sınırlıdır."
 
-#: includes/migrations/legacy-content-lessons.php:56
+#: includes/migrations/legacy-content-lessons.php:139
 msgid "The requested legacy metadata snapshot type is invalid."
 msgstr "İstenen eski meta veri anlık görüntüsü türü geçersiz."
 
-#: includes/migrations/legacy-content-lessons.php:95
+#: includes/migrations/legacy-content-lessons.php:178
 msgid "The legacy metadata could not be read completely."
 msgstr "Eski meta veriler eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:106
+#: includes/migrations/legacy-content-lessons.php:189
 msgid "The legacy metadata exceeds the configured safe limit."
 msgstr "Eski meta veriler, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:129
+#: includes/migrations/legacy-content-lessons.php:212
 msgid "The legacy metadata contains duplicate single-value rows."
 msgstr "Eski meta veriler yinelenen tek değerli satırlar içeriyor."
 
-#: includes/migrations/legacy-content-lessons.php:170
+#: includes/migrations/legacy-content-lessons.php:253
 msgid "The legacy lesson post snapshot exceeds the configured safe limit."
 msgstr "Eski ders yazısı anlık görüntüsü, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:191
+#: includes/migrations/legacy-content-lessons.php:274
 msgid "The legacy lesson posts could not be read completely."
 msgstr "Eski ders yazıları eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:197
+#: includes/migrations/legacy-content-lessons.php:280
 msgid "The legacy lesson post snapshot is ambiguous."
 msgstr "Eski ders yazısı anlık görüntüsü belirsiz."
 
-#: includes/migrations/legacy-content-lessons.php:453
+#: includes/migrations/legacy-content-lessons.php:536
 msgid "The legacy lesson source categories could not be read completely."
 msgstr "Eski dersin kaynak kategorileri eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:459
+#: includes/migrations/legacy-content-lessons.php:542
 msgid "The legacy lesson source categories exceed the configured safe limit."
 msgstr "Eski dersin kaynak kategorileri, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:508
+#: includes/migrations/legacy-content-lessons.php:591
 msgid "The legacy lesson source metadata could not be read completely."
 msgstr "Eski dersin kaynak meta verileri eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:515
+#: includes/migrations/legacy-content-lessons.php:598
 msgid "The legacy lesson source metadata exceeds the configured safe limit."
 msgstr "Eski dersin kaynak meta verileri, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:522
+#: includes/migrations/legacy-content-lessons.php:605
 msgid "The legacy lesson source has duplicate single-value metadata and was not changed."
 msgstr "Eski ders kaynağında yinelenen tek değerli meta veriler bulunduğundan kaynak değiştirilmedi."
 
-#: includes/migrations/legacy-content-lessons.php:589
+#: includes/migrations/legacy-content-lessons.php:672
 msgid "Use draft, publish, pending, or private for the migrated lesson status."
 msgstr "Aktarılan ders durumu için draft, publish, pending veya private kullan."
 
-#: includes/migrations/legacy-content-lessons.php:657
+#: includes/migrations/legacy-content-lessons.php:740
 msgid "The existing migrated lesson could not be verified."
 msgstr "Mevcut aktarılmış ders doğrulanamadı."
 
-#: includes/migrations/legacy-content-lessons.php:664
+#: includes/migrations/legacy-content-lessons.php:747
 msgid "The existing migrated lesson has an unsupported status and was not changed."
 msgstr "Mevcut aktarılmış ders desteklenmeyen bir durumda olduğundan değiştirilmedi."
 
-#: includes/migrations/legacy-content-lessons.php:680
+#: includes/migrations/legacy-content-lessons.php:766
 msgid "The existing migrated lesson metadata could not be read completely."
 msgstr "Mevcut aktarılmış dersin meta verileri eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:687
-#: includes/migrations/legacy-content-lessons.php:694
+#: includes/migrations/legacy-content-lessons.php:773
+#: includes/migrations/legacy-content-lessons.php:780
 msgid "The existing migrated lesson has ambiguous metadata and was not changed."
 msgstr "Mevcut aktarılmış dersin meta verileri belirsiz olduğundan ders değiştirilmedi."
 
-#: includes/migrations/legacy-content-lessons.php:712
+#: includes/migrations/legacy-content-lessons.php:798
 msgid "The existing migrated lesson belongs to a different word set and was not changed."
 msgstr "Mevcut aktarılmış ders farklı bir kelime setine ait olduğundan değiştirilmedi."
 
-#: includes/migrations/legacy-content-lessons.php:846
+#: includes/migrations/legacy-content-lessons.php:978
 msgid "The legacy lesson source permalink could not be resolved completely."
 msgstr "Eski dersin kaynak kalıcı bağlantısı eksiksiz çözümlenemedi."
 
-#: includes/migrations/legacy-content-lessons.php:1157
+#: includes/migrations/legacy-content-lessons.php:1346
 msgid "The legacy lesson prerequisite sources could not be read completely."
 msgstr "Eski dersin önkoşul kaynakları eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1163
-#: includes/migrations/legacy-content-lessons.php:1183
+#: includes/migrations/legacy-content-lessons.php:1352
+#: includes/migrations/legacy-content-lessons.php:1372
 msgid "The legacy lesson prerequisite sources are ambiguous."
 msgstr "Eski dersin önkoşul kaynakları belirsiz."
 
-#: includes/migrations/legacy-content-lessons.php:1279
-#: includes/migrations/legacy-content-lessons.php:1335
-#: includes/migrations/legacy-content-lessons.php:1357
-#: includes/migrations/legacy-content-lessons.php:1408
+#: includes/migrations/legacy-content-lessons.php:1468
+#: includes/migrations/legacy-content-lessons.php:1524
+#: includes/migrations/legacy-content-lessons.php:1546
+#: includes/migrations/legacy-content-lessons.php:1597
 msgid "The legacy lesson link map is ambiguous and was not used."
 msgstr "Eski ders bağlantı eşlemesi belirsiz olduğundan kullanılmadı."
 
-#: includes/migrations/legacy-content-lessons.php:1293
-#: includes/migrations/legacy-content-lessons.php:1299
-#: includes/migrations/legacy-content-lessons.php:1329
-#: includes/migrations/legacy-content-lessons.php:1381
-#: includes/migrations/legacy-content-lessons.php:1397
+#: includes/migrations/legacy-content-lessons.php:1482
+#: includes/migrations/legacy-content-lessons.php:1488
+#: includes/migrations/legacy-content-lessons.php:1518
+#: includes/migrations/legacy-content-lessons.php:1570
+#: includes/migrations/legacy-content-lessons.php:1586
 msgid "The legacy lesson link map could not be read completely."
 msgstr "Eski ders bağlantı eşlemesi eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1417
-#: includes/migrations/legacy-content-lessons.php:1425
+#: includes/migrations/legacy-content-lessons.php:1606
+#: includes/migrations/legacy-content-lessons.php:1614
 msgid "A legacy or migrated lesson permalink could not be resolved completely."
 msgstr "Eski veya aktarılmış bir dersin kalıcı bağlantısı eksiksiz çözümlenemedi."
 
-#: includes/migrations/legacy-content-lessons.php:1475
-#: includes/migrations/legacy-content-lessons.php:1495
+#: includes/migrations/legacy-content-lessons.php:1664
+#: includes/migrations/legacy-content-lessons.php:1684
 msgid "A legacy lesson URL maps to more than one migrated lesson."
 msgstr "Eski bir ders URL'si birden fazla aktarılmış derse eşleniyor."
 
-#: includes/migrations/legacy-content-lessons.php:1624
+#: includes/migrations/legacy-content-lessons.php:1813
 msgid "The legacy lesson prerequisites could not be read completely."
 msgstr "Eski ders önkoşulları eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1939
+#: includes/migrations/legacy-content-lessons.php:2128
 msgid "The completion metadata user scope exceeds the configured safe limit."
 msgstr "Tamamlama meta verilerinin kullanıcı kapsamı, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:1970
+#: includes/migrations/legacy-content-lessons.php:2159
 msgid "The legacy completion metadata could not be read completely."
 msgstr "Eski tamamlama meta verileri eksiksiz okunamadı."
 
-#: includes/migrations/legacy-content-lessons.php:1976
-#: includes/migrations/legacy-content-lessons.php:1999
+#: includes/migrations/legacy-content-lessons.php:2165
+#: includes/migrations/legacy-content-lessons.php:2188
 msgid "User completion metadata contains duplicate rows and was not changed."
 msgstr "Kullanıcı tamamlama meta verileri yinelenen satırlar içerdiğinden değiştirilmedi."
 
 #. translators: %d: user ID
-#: includes/migrations/legacy-content-lessons.php:2037
-#: includes/migrations/legacy-content-lessons.php:2068
-#: includes/migrations/legacy-content-lessons.php:2127
-#: includes/migrations/legacy-content-lessons.php:2309
+#: includes/migrations/legacy-content-lessons.php:2226
+#: includes/migrations/legacy-content-lessons.php:2257
+#: includes/migrations/legacy-content-lessons.php:2316
+#: includes/migrations/legacy-content-lessons.php:2498
 #, php-format
 msgid "User %d canonical completion data exceeds the configured safe limit."
 msgstr "%d numaralı kullanıcının kanonik tamamlama verileri, yapılandırılmış güvenli sınırı aşıyor."
 
-#: includes/migrations/legacy-content-lessons.php:2103
-#: includes/migrations/legacy-content-lessons.php:2147
+#: includes/migrations/legacy-content-lessons.php:2292
+#: includes/migrations/legacy-content-lessons.php:2336
 msgid "User completion metadata could not be updated safely."
 msgstr "Kullanıcı tamamlama meta verileri güvenli biçimde güncellenemedi."
+
+#: includes/migrations/legacy-content-lessons.php:17
+msgid "Retained-source migration requires the lessons phase, one to 20 explicit source IDs, --status=publish, a limit of 20 or less, no category scope, and show-in-mix disabled."
+msgstr "Korunan kaynak aktarımı; \"lessons\" aşamasını, açıkça belirtilmiş bir ila 20 kaynak kimliğini, --status=publish seçeneğini, 20 veya daha düşük bir sınırı, kategori kapsamı olmamasını ve show-in-mix seçeneğinin devre dışı olmasını gerektirir."
+
+#: includes/migrations/legacy-content-lessons.php:821
+#: includes/migrations/legacy-content-lessons.php:907
+msgid "The existing lesson mapping uses a different retained-source mode and was not changed."
+msgstr "Mevcut ders eşlemesi farklı bir korunan kaynak modu kullandığından değiştirilmedi."

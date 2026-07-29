@@ -11,6 +11,89 @@ function ll_tools_legacy_lesson_batch_limit($raw): int {
     return max(1, min(500, absint($raw ?: 100)));
 }
 
+function ll_tools_legacy_lesson_retained_source_contract_error(string $reason = ''): WP_Error {
+    return new WP_Error(
+        'legacy_lesson_retained_source_contract_invalid',
+        __(
+            'Retained-source migration requires the lessons phase, one to 20 explicit source IDs, --status=publish, a limit of 20 or less, no category scope, and show-in-mix disabled.',
+            'll-tools-text-domain'
+        ),
+        ['reason' => sanitize_key($reason)]
+    );
+}
+
+/**
+ * Validate the deliberately narrow CLI/batch contract for retained sources.
+ *
+ * @return true|WP_Error
+ */
+function ll_tools_validate_legacy_lesson_retained_source_args(array $args) {
+    if (empty($args['retained_source'])) {
+        return true;
+    }
+
+    if (sanitize_key((string) ($args['phase'] ?? 'lessons')) !== 'lessons') {
+        return ll_tools_legacy_lesson_retained_source_contract_error('phase');
+    }
+    if (!array_key_exists('status', $args)
+        || sanitize_key((string) $args['status']) !== 'publish'
+    ) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('status');
+    }
+    if (!empty($args['category_ids'])) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('categories');
+    }
+    if (!array_key_exists('show_in_mix', $args) || !empty($args['show_in_mix'])) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('show_in_mix');
+    }
+    if (array_key_exists('show_in_mix_was_explicit', $args)
+        && (
+            empty($args['show_in_mix_was_explicit'])
+            || trim((string) ($args['show_in_mix_raw'] ?? '')) !== '0'
+        )
+    ) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('show_in_mix');
+    }
+
+    $raw_source_ids = $args['source_ids'] ?? [];
+    if (!is_array($raw_source_ids)) {
+        $raw_source_ids = preg_split('/[\s,]+/', trim((string) $raw_source_ids));
+    }
+    $source_ids = [];
+    foreach ((array) $raw_source_ids as $raw_source_id) {
+        if (!is_scalar($raw_source_id)) {
+            return ll_tools_legacy_lesson_retained_source_contract_error('source_ids');
+        }
+        $raw_source_id = trim((string) $raw_source_id);
+        if ($raw_source_id === ''
+            || !ctype_digit($raw_source_id)
+            || absint($raw_source_id) <= 0
+        ) {
+            return ll_tools_legacy_lesson_retained_source_contract_error('source_ids');
+        }
+        $source_ids[absint($raw_source_id)] = true;
+    }
+    if (count($source_ids) < 1 || count($source_ids) > 20) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('source_ids');
+    }
+
+    $limit = isset($args['limit']) ? absint($args['limit']) : 100;
+    if ($limit < 1 || $limit > 20) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('limit');
+    }
+    if (array_key_exists('limit_was_explicit', $args)
+        && (
+            empty($args['limit_was_explicit'])
+            || !ctype_digit(trim((string) ($args['limit_raw'] ?? '')))
+            || absint($args['limit_raw']) !== $limit
+        )
+    ) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('limit');
+    }
+
+    return true;
+}
+
 /**
  * Normalize a single serialized-array meta value without turning WordPress's
  * absent empty-string sentinel into an array containing one empty item.
@@ -644,7 +727,7 @@ function ll_tools_resolve_content_lesson_by_legacy_source(int $source_post_id) {
 /**
  * Verify the status and word-set ownership of an existing migration target.
  *
- * @return array{post:WP_Post,status:string,wordset_id:int}|WP_Error
+ * @return array{post:WP_Post,status:string,wordset_id:int,retained_source:bool}|WP_Error
  */
 function ll_tools_legacy_lesson_existing_target_snapshot(
     int $target_id,
@@ -671,9 +754,12 @@ function ll_tools_legacy_lesson_existing_target_snapshot(
     $target_meta = ll_tools_legacy_lesson_meta_snapshot(
         'post',
         $target_id,
-        [LL_TOOLS_CONTENT_LESSON_WORDSET_META],
+        [
+            LL_TOOLS_CONTENT_LESSON_WORDSET_META,
+            LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+        ],
         [],
-        1,
+        2,
         [
             'query' => [
                 'code' => 'legacy_lesson_target_meta_query_incomplete',
@@ -721,10 +807,31 @@ function ll_tools_legacy_lesson_existing_target_snapshot(
         );
     }
 
+    $retained_source_values = (array) (
+        $target_meta[LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META] ?? []
+    );
+    $retained_source = false;
+    if (!empty($retained_source_values)) {
+        if (count($retained_source_values) !== 1
+            || !is_scalar($retained_source_values[0])
+            || (string) $retained_source_values[0] !== '1'
+        ) {
+            return new WP_Error(
+                'legacy_lesson_retained_source_mode_mismatch',
+                __(
+                    'The existing lesson mapping uses a different retained-source mode and was not changed.',
+                    'll-tools-text-domain'
+                )
+            );
+        }
+        $retained_source = true;
+    }
+
     return [
         'post' => $target,
         'status' => $status,
         'wordset_id' => $current_wordset_id,
+        'retained_source' => $retained_source,
     ];
 }
 
@@ -742,6 +849,18 @@ function ll_tools_migrate_legacy_lesson_post(
     array $args = []
 ) {
     global $wpdb;
+
+    $retained_source = !empty($args['retained_source']);
+    if ($retained_source
+        && (
+            !array_key_exists('status', $args)
+            || sanitize_key((string) $args['status']) !== 'publish'
+            || !array_key_exists('show_in_mix', $args)
+            || !empty($args['show_in_mix'])
+        )
+    ) {
+        return ll_tools_legacy_lesson_retained_source_contract_error('post_contract');
+    }
 
     $source_posts = ll_tools_legacy_lesson_post_snapshot([$source_post_id]);
     if (is_wp_error($source_posts)) {
@@ -782,6 +901,15 @@ function ll_tools_migrate_legacy_lesson_post(
         if (is_wp_error($existing_target)) {
             return $existing_target;
         }
+        if ((bool) $existing_target['retained_source'] !== $retained_source) {
+            return new WP_Error(
+                'legacy_lesson_retained_source_mode_mismatch',
+                __(
+                    'The existing lesson mapping uses a different retained-source mode and was not changed.',
+                    'll-tools-text-domain'
+                )
+            );
+        }
     }
     $target_status = $status_was_requested
         ? $requested_status
@@ -799,11 +927,13 @@ function ll_tools_migrate_legacy_lesson_post(
     $concepts = (array) $source_snapshot['concepts'];
     $source_categories = (array) $source_snapshot['categories'];
     $source_category_ids = (array) $source_snapshot['category_ids'];
-    $content = ll_tools_legacy_lesson_transform_content(
-        (string) $source->post_content,
-        (string) $source_snapshot['processed_text']
-    );
-    if ($target_id > 0) {
+    $content = $retained_source
+        ? ''
+        : ll_tools_legacy_lesson_transform_content(
+            (string) $source->post_content,
+            (string) $source_snapshot['processed_text']
+        );
+    if (!$retained_source && $target_id > 0) {
         $link_target_map = ll_tools_legacy_lesson_link_target_map($wordset_id);
         if (is_wp_error($link_target_map)) {
             return $link_target_map;
@@ -826,7 +956,9 @@ function ll_tools_migrate_legacy_lesson_post(
         'post_status' => $target_status,
         'post_title' => (string) $source->post_title,
         'post_name' => (string) $source->post_name,
-        'post_excerpt' => ll_tools_legacy_lesson_excerpt($source, $concepts),
+        'post_excerpt' => $retained_source
+            ? wp_strip_all_tags((string) $source->post_excerpt)
+            : ll_tools_legacy_lesson_excerpt($source, $concepts),
         'post_content' => $content,
         'post_author' => (int) $source->post_author,
         'post_password' => (string) $source->post_password,
@@ -884,6 +1016,11 @@ function ll_tools_migrate_legacy_lesson_post(
                 (string) get_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META, true),
                 (string) get_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_SOURCE_URL_META, true),
                 (string) get_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_MIGRATION_META, true),
+                (string) get_post_meta(
+                    $target_id,
+                    LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+                    true
+                ),
             ]));
         }
     }
@@ -905,6 +1042,7 @@ function ll_tools_migrate_legacy_lesson_post(
         (string) $source_post_id,
         $source_url,
         '1',
+        $retained_source ? '1' : '',
     ]));
     $post_changed = $created || $existing_signature !== $next_signature;
     $default_wordset_changed = ll_tools_get_legacy_lesson_default_wordset_id() !== $wordset_id;
@@ -915,6 +1053,7 @@ function ll_tools_migrate_legacy_lesson_post(
             'target_id' => $target_id,
             'created' => $created,
             'changed' => $changed,
+            'retained_source' => $retained_source,
         ];
     }
 
@@ -932,17 +1071,23 @@ function ll_tools_migrate_legacy_lesson_post(
             'target_id' => $target_id,
             'created' => false,
             'changed' => $changed,
+            'retained_source' => $retained_source,
         ];
     }
 
-    $written_id = wp_insert_post(wp_slash($post_data), true);
+    $write_post_data = $post_data;
+    if ($created && $retained_source && $target_status === 'publish') {
+        // Keep a new bridge non-public until its redirect identity is stored.
+        $write_post_data['post_status'] = 'draft';
+    }
+    $written_id = wp_insert_post(wp_slash($write_post_data), true);
     if (is_wp_error($written_id)) {
         return $written_id;
     }
     $target_id = (int) $written_id;
     update_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
     update_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'article');
-    if (!empty($args['show_in_mix'])) {
+    if (!$retained_source && !empty($args['show_in_mix'])) {
         update_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META, '1');
     } else {
         delete_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META);
@@ -950,6 +1095,11 @@ function ll_tools_migrate_legacy_lesson_post(
     update_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META, (string) $source_post_id);
     update_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_SOURCE_URL_META, $source_url);
     update_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_MIGRATION_META, '1');
+    if ($retained_source) {
+        update_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META, '1');
+    } else {
+        delete_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META);
+    }
     if (empty($concepts)) {
         delete_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_CONCEPTS_META);
     } else {
@@ -969,6 +1119,34 @@ function ll_tools_migrate_legacy_lesson_post(
             'legacy_lesson_category_mapping_write_failed',
             __('The migrated lesson category mapping could not be saved.', 'll-tools-text-domain')
         );
+    }
+
+    if ($created && $retained_source && $target_status === 'publish') {
+        $prepublish_target = get_post($target_id);
+        if (!($prepublish_target instanceof WP_Post)
+            || $prepublish_target->post_type !== 'll_content_lesson'
+            || $prepublish_target->post_status !== 'draft'
+            || (string) $prepublish_target->post_content !== ''
+            || !ll_tools_legacy_lesson_is_retained_source_target($target_id)
+            || ll_tools_get_content_lesson_wordset_id($target_id) !== $wordset_id
+        ) {
+            return new WP_Error(
+                'legacy_lesson_write_verification_failed',
+                __('The migrated lesson could not be verified after saving.', 'll-tools-text-domain')
+            );
+        }
+        $published_id = wp_update_post([
+            'ID' => $target_id,
+            'post_status' => 'publish',
+        ], true);
+        if (is_wp_error($published_id) || (int) $published_id !== $target_id) {
+            return is_wp_error($published_id)
+                ? $published_id
+                : new WP_Error(
+                    'legacy_lesson_write_verification_failed',
+                    __('The migrated lesson could not be verified after saving.', 'll-tools-text-domain')
+                );
+        }
     }
 
     $stored_post = get_post($target_id);
@@ -1005,7 +1183,12 @@ function ll_tools_migrate_legacy_lesson_post(
         'source_mapping' => ll_tools_resolve_content_lesson_by_legacy_source($source_post_id) === $target_id,
         'wordset' => ll_tools_get_content_lesson_wordset_id($target_id) === $wordset_id,
         'kind' => ll_tools_get_content_lesson_kind($target_id) === 'article',
-        'show_in_mix' => ll_tools_get_content_lesson_show_in_mix($target_id) === !empty($args['show_in_mix']),
+        'show_in_mix' => ll_tools_get_content_lesson_show_in_mix($target_id)
+            === (!$retained_source && !empty($args['show_in_mix'])),
+        'retained_source' => ll_tools_legacy_lesson_is_retained_source_target($target_id)
+            === $retained_source,
+        'retained_source_url' => !$retained_source
+            || ll_tools_get_legacy_lesson_retained_source_url($target_id) === $source_url,
         'concepts' => ll_tools_legacy_lesson_array_meta_value(
             $target_id,
             LL_TOOLS_LEGACY_LESSON_CONCEPTS_META
@@ -1030,6 +1213,11 @@ function ll_tools_migrate_legacy_lesson_post(
             LL_TOOLS_LEGACY_LESSON_MIGRATION_META,
             true
         ) === '1',
+        'retained_source_meta' => (string) get_post_meta(
+            $target_id,
+            LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META,
+            true
+        ) === ($retained_source ? '1' : ''),
     ];
     $failed_checks = array_keys(array_filter(
         $verification_checks,
@@ -1055,6 +1243,7 @@ function ll_tools_migrate_legacy_lesson_post(
         'target_id' => $target_id,
         'created' => $created,
         'changed' => $changed,
+        'retained_source' => $retained_source,
     ];
 }
 
@@ -2453,6 +2642,12 @@ function ll_tools_migrate_legacy_lesson_completions_batch(
  */
 function ll_tools_migrate_legacy_content_lessons_batch(array $args) {
     $phase = sanitize_key((string) ($args['phase'] ?? 'lessons'));
+    $retained_source_contract = ll_tools_validate_legacy_lesson_retained_source_args(
+        array_merge($args, ['phase' => $phase])
+    );
+    if (is_wp_error($retained_source_contract)) {
+        return $retained_source_contract;
+    }
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
     if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
         return new WP_Error(
@@ -2501,6 +2696,7 @@ function ll_tools_migrate_legacy_content_lessons_batch(array $args) {
         'phase' => $phase,
         'apply' => !empty($args['apply']),
         'wordset_id' => $wordset_id,
+        'retained_source' => !empty($args['retained_source']),
         'processed' => 0,
         'created' => 0,
         'updated' => 0,
