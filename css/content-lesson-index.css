@@ -5,67 +5,90 @@
     --ll-lesson-index-green: #15803d;
     --ll-lesson-index-blue: #1d4d99;
     --ll-lesson-index-slate: #64748b;
-    --ll-lesson-index-border: #d8dee8;
+    --ll-lesson-index-border: #e6ded1;
     --ll-lesson-index-surface: #fff;
-    --ll-lesson-index-soft: #f7f9fc;
+    --ll-lesson-index-soft: #f8f5ee;
+    --ll-lesson-index-text: #2e2a24;
+    --ll-lesson-index-muted: #6b6256;
 }
 
 .ll-content-lesson-index {
     display: grid;
     gap: 1.5rem;
     margin-block: 1.25rem;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }
 
-.ll-content-lesson-index__level {
+.ll-content-lesson-index,
+.ll-content-lesson-index *,
+.ll-content-lesson-index *::before,
+.ll-content-lesson-index *::after {
+    box-sizing: border-box;
+}
+
+.ll-content-lesson-index .ll-content-lesson-index__level {
     display: grid;
     gap: 0.75rem;
 }
 
-.ll-content-lesson-index__level-title {
+.ll-content-lesson-index h2.ll-content-lesson-index__level-title {
     margin: 0;
     color: #1f2937;
     font-size: clamp(1.1rem, 1rem + 0.45vw, 1.4rem);
     line-height: 1.25;
 }
 
-.ll-content-lesson-index__grid {
+.ll-content-lesson-index ul.ll-content-lesson-index__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 330px));
+    gap: clamp(16px, 2vw, 22px);
+    align-items: stretch;
+    justify-content: start;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.ll-content-lesson-index__item {
+.ll-content-lesson-index li.ll-content-lesson-index__item {
+    margin: 0;
+    padding: 0;
     min-width: 0;
+    list-style: none;
 }
 
-.ll-content-lesson-index__link {
+.ll-content-lesson-index a.ll-content-lesson-index__link,
+.ll-content-lesson-index a.ll-content-lesson-index__link:link,
+.ll-content-lesson-index a.ll-content-lesson-index__link:visited {
     display: grid;
     grid-template-columns: 1.75rem minmax(0, 1fr);
     gap: 0.65rem;
     height: 100%;
-    padding: 0.9rem;
+    min-height: 100%;
+    padding: 14px;
     border: 1px solid var(--ll-lesson-index-border);
-    border-radius: 0.75rem;
-    background: var(--ll-lesson-index-surface);
-    color: #1f2937;
-    text-decoration: none;
-    box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+    border-radius: 18px;
+    background: var(--ll-lesson-index-surface) !important;
+    color: var(--ll-lesson-index-text) !important;
+    font: inherit !important;
+    text-decoration: none !important;
+    box-shadow: 0 8px 18px rgba(46, 42, 36, 0.08);
     transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
-.ll-content-lesson-index__link:hover,
-.ll-content-lesson-index__link:focus-visible {
-    border-color: var(--ll-lesson-index-blue);
-    color: #111827;
-    box-shadow: 0 4px 14px rgb(29 77 153 / 12%);
+.ll-content-lesson-index a.ll-content-lesson-index__link:hover,
+.ll-content-lesson-index a.ll-content-lesson-index__link:focus,
+.ll-content-lesson-index a.ll-content-lesson-index__link:focus-visible,
+.ll-content-lesson-index a.ll-content-lesson-index__link:active {
+    border-color: #b7aa98;
+    background: var(--ll-lesson-index-surface) !important;
+    color: var(--ll-lesson-index-text) !important;
+    text-decoration: none !important;
+    box-shadow: 0 12px 24px rgba(46, 42, 36, 0.14);
     transform: translateY(-1px);
 }
 
-.ll-content-lesson-index__link:focus-visible {
-    outline: 3px solid rgb(29 77 153 / 25%);
+.ll-content-lesson-index a.ll-content-lesson-index__link:focus-visible {
+    outline: 3px solid var(--ll-lesson-index-blue);
     outline-offset: 2px;
 }
 
@@ -94,15 +117,17 @@
 }
 
 .ll-content-lesson-index__title {
-    color: inherit;
-    font-weight: 700;
-    line-height: 1.3;
+    color: var(--ll-lesson-index-text) !important;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.28;
+    text-decoration: none !important;
 }
 
 .ll-content-lesson-index__excerpt {
     display: -webkit-box;
     overflow: hidden;
-    color: #475569;
+    color: var(--ll-lesson-index-muted);
     font-size: 0.92rem;
     line-height: 1.45;
     -webkit-box-orient: vertical;
@@ -123,25 +148,34 @@
     margin-top: 0.25rem;
 }
 
-.ll-content-lesson-index__page-link {
+.ll-content-lesson-index a.ll-content-lesson-index__page-link {
     justify-self: start;
     padding: 0.55rem 0.8rem;
     border: 1px solid var(--ll-lesson-index-border);
     border-radius: 0.55rem;
     background: var(--ll-lesson-index-surface);
-    color: var(--ll-lesson-index-blue);
+    color: var(--ll-lesson-index-blue) !important;
     font-weight: 700;
-    text-decoration: none;
+    text-decoration: none !important;
 }
 
 .ll-content-lesson-index__page-link:last-child {
     justify-self: end;
 }
 
-.ll-content-lesson-index__page-link:hover,
-.ll-content-lesson-index__page-link:focus-visible {
+.ll-content-lesson-index a.ll-content-lesson-index__page-link:hover,
+.ll-content-lesson-index a.ll-content-lesson-index__page-link:focus,
+.ll-content-lesson-index a.ll-content-lesson-index__page-link:focus-visible,
+.ll-content-lesson-index a.ll-content-lesson-index__page-link:active {
     border-color: var(--ll-lesson-index-blue);
-    background: #d8e8ff;
+    background: #d8e8ff !important;
+    color: var(--ll-lesson-index-blue) !important;
+    text-decoration: none !important;
+}
+
+.ll-content-lesson-index a.ll-content-lesson-index__page-link:focus-visible {
+    outline: 3px solid var(--ll-lesson-index-blue);
+    outline-offset: 2px;
 }
 
 .ll-content-lesson-index__page-number {
@@ -165,12 +199,35 @@
     font-weight: 700;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+    .ll-content-lesson-index ul.ll-content-lesson-index__grid {
+        grid-template-columns: 1fr;
+        justify-content: center;
+    }
+
+    .ll-content-lesson-index li.ll-content-lesson-index__item {
+        width: min(100%, 390px);
+        margin-inline: auto;
+    }
+
     .ll-content-lesson-index__pagination {
         gap: 0.45rem;
     }
 
     .ll-content-lesson-index__page-link {
         padding-inline: 0.65rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ll-content-lesson-index a.ll-content-lesson-index__link {
+        transition: none;
+    }
+
+    .ll-content-lesson-index a.ll-content-lesson-index__link:hover,
+    .ll-content-lesson-index a.ll-content-lesson-index__link:focus,
+    .ll-content-lesson-index a.ll-content-lesson-index__link:focus-visible,
+    .ll-content-lesson-index a.ll-content-lesson-index__link:active {
+        transform: none;
     }
 }

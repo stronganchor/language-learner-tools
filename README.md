@@ -288,6 +288,14 @@ FREE | little boy
 
 ### `[wordset_page]` / `[ll_wordset_page]`
 - Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
+- **Attributes**:
+  - `wordset`, `slug`, or `id`: explicit wordset reference.
+  - `show_title`: `1|0`; defaults to `1`.
+  - `preview_limit`: number of preview items per category card; defaults to `2`.
+  - `class`: extra wrapper classes.
+  - `redirect_to_canonical`: `1|0`; defaults to `0`. Use `1` on a retired page with a different slug to issue a query-preserving 301 to the dedicated `/<wordset>/` route.
+- Word Set Tools &rarr; Study includes a default-on setting that can remove content lessons from the wordset home while keeping those lessons available through direct links and `[ll_content_lesson_index]`.
+- Word Set Tools &rarr; Categories can add one optional, compact reference link to an individual category card. Use a site-relative path for a same-site long-form resource so exports and local/live copies stay portable.
 
 ### `[wordset_buttons]` / `[ll_wordset_buttons]`
 - Front-end list of word set launch buttons.

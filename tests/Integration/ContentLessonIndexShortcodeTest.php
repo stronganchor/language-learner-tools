@@ -721,6 +721,7 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Compatibility First', $tree);
         $this->assertStringContainsString('Compatibility Second', $tree);
+        $this->assertTrue(wp_style_is('ll-tools-content-lesson-index', 'enqueued'));
         $this->assertStringContainsString('Log in to save lesson progress', $header);
         $this->assertStringContainsString(
             urlencode((string) get_permalink($first_target_id)),

@@ -16,10 +16,118 @@ if (!defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')) {
 if (!defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')) {
     define('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY', 'll_category_lineup_direction');
 }
+if (!defined('LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY', 'll_category_card_reference_url');
+}
+if (!defined('LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY', 'll_category_card_reference_label');
+}
 
 function ll_tools_normalize_category_visibility($value): string {
     $visibility = sanitize_key((string) $value);
     return ($visibility === 'private') ? 'private' : 'public';
+}
+
+/**
+ * Keep optional category-card references portable and safe.
+ *
+ * Site-relative paths must begin with one slash. Absolute references are
+ * limited to HTTP(S); protocol-relative and executable schemes are rejected.
+ */
+function ll_tools_sanitize_category_card_reference_url($value): string {
+    $url = trim((string) $value);
+    if ($url === '' || strlen($url) > 2048) {
+        return '';
+    }
+
+    if (strpos($url, '/') === 0) {
+        if (strpos($url, '//') === 0) {
+            return '';
+        }
+
+        $parts = wp_parse_url($url);
+        if (
+            $parts === false
+            || isset($parts['scheme'])
+            || isset($parts['host'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+        ) {
+            return '';
+        }
+
+        return esc_url_raw($url);
+    }
+
+    $sanitized = esc_url_raw($url, ['http', 'https']);
+    $scheme = strtolower((string) wp_parse_url($sanitized, PHP_URL_SCHEME));
+    return $sanitized !== '' && in_array($scheme, ['http', 'https'], true)
+        ? $sanitized
+        : '';
+}
+
+function ll_tools_sanitize_category_card_reference_label($value): string {
+    $label = sanitize_text_field((string) $value);
+    if (function_exists('mb_substr')) {
+        return mb_substr($label, 0, 160);
+    }
+
+    return substr($label, 0, 160);
+}
+
+/**
+ * Read the reference configured on this exact category term.
+ *
+ * Deliberately do not fall back to isolation-source metadata: a card reference
+ * is presentation for one wordset-owned category, not shared category data.
+ *
+ * @return array{url:string,label:string}
+ */
+function ll_tools_get_category_card_reference_link($category, ?bool &$complete = null): array {
+    global $wpdb;
+
+    $complete = true;
+    $term = ll_tools_resolve_word_category_term($category);
+    if (!($term instanceof WP_Term)) {
+        return [
+            'url' => '',
+            'label' => '',
+        ];
+    }
+
+    $wpdb->last_error = '';
+    $url = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY, true);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [
+            'url' => '',
+            'label' => '',
+        ];
+    }
+
+    $url = ll_tools_sanitize_category_card_reference_url($url);
+    if ($url === '') {
+        return [
+            'url' => '',
+            'label' => '',
+        ];
+    }
+
+    $wpdb->last_error = '';
+    $label = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY, true);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [
+            'url' => '',
+            'label' => '',
+        ];
+    }
+
+    $label = ll_tools_sanitize_category_card_reference_label($label);
+    return [
+        'url' => $url,
+        'label' => $label !== '' ? $label : __('Reference', 'll-tools-text-domain'),
+    ];
 }
 
 function ll_tools_resolve_word_category_term($category): ?WP_Term {

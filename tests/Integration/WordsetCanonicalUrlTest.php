@@ -69,6 +69,100 @@ final class WordsetCanonicalUrlTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_get_wordset_page_shortcode_legacy_redirect_url());
     }
 
+    public function test_shortcode_page_with_different_slug_can_explicitly_redirect_to_canonical_route(): void
+    {
+        update_option('permalink_structure', '/%postname%/');
+
+        $fixture = $this->createWordsetLessonFixture('Explicit Canonical Redirect');
+        $wordset = $fixture['wordset'];
+        $page_slug = 'retired-vocab-page-' . strtolower(wp_generate_password(4, false));
+        $page_id = $this->createLegacyWordsetPage(
+            $page_slug,
+            '[ll_wordset_page wordset="' . esc_attr((string) $wordset->slug)
+                . '" redirect_to_canonical="1"]'
+        );
+
+        $page_url = add_query_arg('from', 'legacy-nav', (string) get_permalink($page_id));
+        $this->go_to($page_url);
+        $this->assertTrue(is_page($page_id));
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($page_url);
+
+        $this->assertSame(
+            add_query_arg('from', 'legacy-nav', ll_tools_get_wordset_page_view_url($wordset)),
+            ll_tools_get_wordset_page_shortcode_legacy_redirect_url()
+        );
+    }
+
+    public function test_shortcode_page_with_different_slug_can_explicitly_redirect_to_pretty_canonical_route(): void
+    {
+        update_option('permalink_structure', '/%postname%/');
+
+        $fixture = $this->createWordsetLessonFixture('Explicit Pretty Redirect');
+        $wordset = $fixture['wordset'];
+        $slug = sanitize_title((string) $wordset->slug);
+        $page_slug = 'retired-pretty-page-' . strtolower(wp_generate_password(4, false));
+        $page_id = $this->createLegacyWordsetPage(
+            $page_slug,
+            '[ll_wordset_page wordset="' . esc_attr($slug)
+                . '" redirect_to_canonical="1"]'
+        );
+
+        $rewrite_rules_before = get_option('rewrite_rules');
+        update_option('rewrite_rules', [
+            '^' . preg_quote($slug, '/') . '/?$' => 'index.php?ll_wordset_page=' . $slug,
+            '^' . preg_quote($slug, '/') . '/progress/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=progress',
+            '^' . preg_quote($slug, '/') . '/hidden-categories/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=hidden-categories',
+            '^' . preg_quote($slug, '/') . '/settings/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=settings',
+            '^' . preg_quote($slug, '/') . '/games/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=games',
+            '^' . preg_quote($slug, '/') . '/classes/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=classes',
+        ]);
+
+        try {
+            $page_url = add_query_arg('from', 'legacy-nav', (string) get_permalink($page_id));
+            $this->go_to($page_url);
+            $this->assertTrue(is_page($page_id));
+
+            $_SERVER['REQUEST_METHOD'] = 'GET';
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($page_url);
+
+            $this->assertSame(
+                add_query_arg('from', 'legacy-nav', home_url(user_trailingslashit($slug))),
+                ll_tools_get_wordset_page_shortcode_legacy_redirect_url()
+            );
+        } finally {
+            if ($rewrite_rules_before === false) {
+                delete_option('rewrite_rules');
+            } else {
+                update_option('rewrite_rules', $rewrite_rules_before);
+            }
+        }
+    }
+
+    public function test_shortcode_page_with_different_slug_does_not_redirect_for_unknown_flag_value(): void
+    {
+        update_option('permalink_structure', '/%postname%/');
+
+        $fixture = $this->createWordsetLessonFixture('Invalid Canonical Redirect Flag');
+        $wordset = $fixture['wordset'];
+        $page_slug = 'embedded-wordset-' . strtolower(wp_generate_password(4, false));
+        $page_id = $this->createLegacyWordsetPage(
+            $page_slug,
+            '[ll_wordset_page wordset="' . esc_attr((string) $wordset->slug)
+                . '" redirect_to_canonical="sometimes"]'
+        );
+
+        $page_url = (string) get_permalink($page_id);
+        $this->go_to($page_url);
+        $this->assertTrue(is_page($page_id));
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($page_url);
+
+        $this->assertSame('', ll_tools_get_wordset_page_shortcode_legacy_redirect_url());
+    }
+
     public function test_vocab_lesson_back_link_uses_canonical_wordset_page_url_when_page_slug_conflicts(): void
     {
         update_option('permalink_structure', '/%postname%/');

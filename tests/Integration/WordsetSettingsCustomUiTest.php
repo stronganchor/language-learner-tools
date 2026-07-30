@@ -2052,6 +2052,16 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
         update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        update_term_meta(
+            (int) $fixture['category_id'],
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY,
+            '/most-common-words/'
+        );
+        update_term_meta(
+            (int) $fixture['category_id'],
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY,
+            '1000+ word reference'
+        );
         wp_set_current_user($manager_id);
 
         $_GET = [
@@ -2067,7 +2077,29 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_categories_action" value="create"', $html);
         $this->assertStringContainsString('name="ll_wordset_categories_action" value="update"', $html);
         $this->assertStringContainsString('name="ll_wordset_category_translation"', $html);
+        $this->assertStringContainsString('Optional card reference', $html);
+        $this->assertStringContainsString('name="ll_wordset_category_card_reference_url"', $html);
+        $this->assertStringContainsString('value="/most-common-words/"', $html);
+        $this->assertStringContainsString('name="ll_wordset_category_card_reference_label"', $html);
+        $this->assertStringContainsString('value="1000+ word reference"', $html);
         $this->assertStringContainsString('Delete Category', $html);
+
+        delete_term_meta(
+            (int) $fixture['category_id'],
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY
+        );
+        $category_term = get_term((int) $fixture['category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        $rows = ll_tools_wordset_page_build_managed_category_rows(
+            $wordset_id,
+            [$category_term]
+        );
+        $this->assertCount(1, $rows);
+        $this->assertSame('', (string) ($rows[0]['card_reference_label'] ?? ''));
+        $this->assertSame(
+            __('Reference', 'll-tools-text-domain'),
+            ll_tools_get_category_card_reference_link($category_term)['label']
+        );
     }
 
     public function test_managed_category_rows_batch_content_summaries_for_delete_state(): void
@@ -2214,6 +2246,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_category_id' => (string) $created_category->term_id,
             'll_wordset_category_name' => 'Updated Manager Category',
             'll_wordset_category_translation' => 'Guncel Kategori',
+            'll_wordset_category_card_reference_url' => '/most-common-words/',
+            'll_wordset_category_card_reference_label' => '1000+ word reference',
             'll_wordset_category_parent_id' => (string) $fixture['category_id'],
         ];
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -2234,6 +2268,47 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('Updated Manager Category', (string) $updated_category->name);
         $this->assertSame(0, (int) $updated_category->parent);
         $this->assertSame('Guncel Kategori', (string) get_term_meta((int) $created_category->term_id, 'term_translation', true));
+        $this->assertSame(
+            '/most-common-words/',
+            (string) get_term_meta(
+                (int) $created_category->term_id,
+                LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY,
+                true
+            )
+        );
+        $this->assertSame(
+            '1000+ word reference',
+            (string) get_term_meta(
+                (int) $created_category->term_id,
+                LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY,
+                true
+            )
+        );
+
+        $_POST['ll_wordset_manager_settings_nonce'] = wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id);
+        $_POST['ll_wordset_category_card_reference_url'] = '';
+        $_POST['ll_wordset_category_card_reference_label'] = '';
+        $clear_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+        $clear_query = $this->parseRedirectQuery($clear_redirect);
+        $this->assertSame('Category updated.', (string) ($clear_query['ll_wordset_manager_settings_message'] ?? ''));
+        $this->assertSame(
+            '',
+            (string) get_term_meta(
+                (int) $created_category->term_id,
+                LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY,
+                true
+            )
+        );
+        $this->assertSame(
+            '',
+            (string) get_term_meta(
+                (int) $created_category->term_id,
+                LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY,
+                true
+            )
+        );
 
         $_POST = [
             'll_wordset_manager_settings_action' => 'save',

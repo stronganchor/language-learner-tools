@@ -89,6 +89,8 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             'translation' => 'Sparse Category',
             'count' => 12,
             'url' => 'https://example.test/wordset/sparse-category/',
+            'card_reference_url' => '',
+            'card_reference_label' => '',
             'mode' => 'image',
             'prompt_type' => 'audio',
             'option_type' => 'image',
@@ -140,6 +142,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($compact['preview_requires_images'] ?? false));
         foreach ([
             'wordset_id', 'translation', 'mode', 'prompt_type', 'option_type',
+            'card_reference_url', 'card_reference_label',
             'learning_supported', 'self_check_supported', 'is_public',
             'word_image_count', 'prompt_card_count', 'content_count',
             'can_delete', 'deletion_progress', 'preview_limit', 'preview',
@@ -159,6 +162,8 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
             'deletion_message' => 'Deleting category',
             'inactive_action_nonce' => 'nonce-value',
             'inactive_action_url' => 'https://example.test/action',
+            'card_reference_url' => '/extended-reference/',
+            'card_reference_label' => 'Extended reference',
             'preview' => [['type' => 'text', 'label' => 'Preview']],
             'mastered_words' => 2,
             'studied_words' => 5,
@@ -175,6 +180,8 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertSame('running', $explicit_compact['deletion_status'] ?? '');
         $this->assertSame(25, (int) ($explicit_compact['deletion_progress']['percent'] ?? 0));
         $this->assertSame(0, (int) ($explicit_compact['new_words'] ?? -1));
+        $this->assertSame('/extended-reference/', $explicit_compact['card_reference_url'] ?? '');
+        $this->assertSame('Extended reference', $explicit_compact['card_reference_label'] ?? '');
         $this->assertNotEmpty($explicit_compact['preview'] ?? []);
 
         $foreign_scope = ll_tools_wordset_page_compact_runtime_category_payload($base, 88);
@@ -350,6 +357,66 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertSame(2, substr_count($html, 'll-wordset-preview-item--lazy-skeleton'));
         $this->assertStringNotContainsString('ll-wordset-preview-item--empty', $html);
         $this->assertStringContainsString('ll-wordset-card__quiz-btn', $html);
+    }
+
+    public function test_category_card_reference_is_safe_sparse_and_not_rendered_for_virtual_cards(): void
+    {
+        $this->assertSame(
+            '/most-common-words/?view=reference#top',
+            ll_tools_sanitize_category_card_reference_url('/most-common-words/?view=reference#top')
+        );
+        $this->assertSame(
+            'https://example.test/reference/',
+            ll_tools_sanitize_category_card_reference_url('https://example.test/reference/')
+        );
+        $this->assertSame('', ll_tools_sanitize_category_card_reference_url('//example.test/reference/'));
+        $this->assertSame('', ll_tools_sanitize_category_card_reference_url('javascript:alert(1)'));
+        $this->assertSame('', ll_tools_sanitize_category_card_reference_url('mailto:editor@example.test'));
+
+        $category = wp_insert_term('Reference Card ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        update_term_meta(
+            $category_id,
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY,
+            '/most-common-words/'
+        );
+        update_term_meta(
+            $category_id,
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY,
+            '1000+ word reference'
+        );
+        $reference = ll_tools_get_category_card_reference_link($category_id);
+        $this->assertSame('/most-common-words/', $reference['url']);
+        $this->assertSame('1000+ word reference', $reference['label']);
+
+        $card = [
+            'id' => $category_id,
+            'name' => 'Most Common Words',
+            'count' => 6,
+            'url' => 'https://example.test/vocab/most-common-words/',
+            'card_reference_url' => $reference['url'],
+            'card_reference_label' => $reference['label'],
+            'preview' => [],
+            'preview_limit' => 2,
+            'learning_supported' => true,
+            'self_check_supported' => true,
+        ];
+        $html = ll_tools_wordset_page_render_category_card($card);
+        $this->assertSame(1, substr_count($html, 'll-wordset-card__reference-link'));
+        $this->assertStringContainsString('href="/most-common-words/"', $html);
+        $this->assertStringContainsString('1000+ word reference', $html);
+
+        $virtual_html = ll_tools_wordset_page_render_category_card(array_merge($card, [
+            'is_virtual_category' => true,
+            'virtual_category_type' => 'uncategorized',
+        ]));
+        $this->assertStringNotContainsString('ll-wordset-card__reference-link', $virtual_html);
+
+        $unsafe_html = ll_tools_wordset_page_render_category_card(array_merge($card, [
+            'card_reference_url' => 'javascript:alert(1)',
+        ]));
+        $this->assertStringNotContainsString('ll-wordset-card__reference-link', $unsafe_html);
     }
 
     public function test_guest_ajax_rejects_missing_lazy_cards_payload_instead_of_rebuilding_by_wordset_id(): void

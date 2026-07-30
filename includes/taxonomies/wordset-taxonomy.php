@@ -10,6 +10,9 @@ if (!defined('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY')) {
     define('LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY', 'll_wordset_sign_language_mode');
 }
+if (!defined('LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY', 'll_wordset_show_content_lessons');
+}
 if (!defined('LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY')) {
     define('LL_TOOLS_WORDSET_RECORDER_TEXT_VISIBILITY_META_KEY', 'll_wordset_recorder_text_visibility');
 }
@@ -143,6 +146,35 @@ function ll_tools_wordset_uses_sign_language_mode($wordset_ids = [], ?bool &$com
     }
 
     return false;
+}
+
+/**
+ * Whether article/listening content lessons should appear on a wordset home.
+ *
+ * Missing metadata intentionally preserves the historical default. Content
+ * lessons remain available through direct URLs and bounded lesson indexes when
+ * this wordset-level catalog placement is disabled.
+ */
+function ll_tools_wordset_should_show_content_lessons($wordset): bool {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return true;
+    }
+
+    if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY)) {
+        $show_content_lessons = true;
+    } else {
+        $raw = get_term_meta($wordset_id, LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY, true);
+        $show_content_lessons = function_exists('ll_tools_normalize_wordset_boolean_setting')
+            ? ll_tools_normalize_wordset_boolean_setting($raw) === 1
+            : !in_array(strtolower(trim((string) $raw)), ['0', 'false', 'no', 'off', ''], true);
+    }
+
+    return (bool) apply_filters(
+        'll_tools_wordset_show_content_lessons',
+        $show_content_lessons,
+        $wordset_id
+    );
 }
 
 function ll_tools_normalize_wordset_recorder_text_visibility($value): string {

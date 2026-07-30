@@ -1615,6 +1615,27 @@
         return changed || !wasReady;
     }
 
+    function normalizeCategoryCardReferenceUrl(value) {
+        const url = String(value || '').trim();
+        if (!url || url.length > 2048 || /[\u0000-\u001F\u007F\\]/.test(url)) {
+            return '';
+        }
+
+        try {
+            if (url.charAt(0) === '/') {
+                if (url.indexOf('//') === 0) {
+                    return '';
+                }
+                return url;
+            }
+
+            const absolute = new URL(url);
+            return (absolute.protocol === 'http:' || absolute.protocol === 'https:') ? url : '';
+        } catch (error) {
+            return '';
+        }
+    }
+
     function normalizeCategories(raw) {
         return (Array.isArray(raw) ? raw : []).map(function (cat, index) {
             const id = parseInt(cat && cat.id, 10) || 0;
@@ -1628,6 +1649,8 @@
                 aspect_bucket: String((cat && cat.aspect_bucket) || 'no-image') || 'no-image',
                 count: Math.max(0, parseInt(cat && cat.count, 10) || 0),
                 url: String((cat && cat.url) || ''),
+                card_reference_url: normalizeCategoryCardReferenceUrl(cat && cat.card_reference_url),
+                card_reference_label: String((cat && cat.card_reference_label) || ''),
                 mode: String((cat && cat.mode) || 'image'),
                 prompt_type: String((cat && cat.prompt_type) || 'audio'),
                 option_type: String((cat && cat.option_type) || 'image'),
@@ -8222,6 +8245,8 @@
         const isVirtualCategory = !!cat.is_virtual_category;
         const virtualCategoryType = String(cat.virtual_category_type || '').trim();
         const isPublic = categoryIsPublic(cat);
+        const cardReferenceUrl = normalizeCategoryCardReferenceUrl(cat.card_reference_url);
+        const cardReferenceLabel = String(cat.card_reference_label || i18n.referenceLabel || '').trim();
         const deletionStatus = String(cat.deletion_status || '').trim();
         const deletionActive = deletionStatus === 'running' || deletionStatus === 'failed';
         const canPreviewInactive = !deletionActive && !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
@@ -8316,6 +8341,12 @@
         html += buildWordsetCategoryPreviewMarkup(cat);
         html += '  </div>';
         html += (isPublic || canLinkInactive) ? '</a>' : '</div>';
+        if (isPublic && !isVirtualCategory && cardReferenceUrl) {
+            html += '<a class="ll-wordset-card__reference-link" href="' + escapeHtml(cardReferenceUrl) + '">'
+                + '<span class="ll-wordset-card__reference-label">' + escapeHtml(cardReferenceLabel) + '</span>'
+                + '<span class="ll-wordset-card__reference-icon" aria-hidden="true"></span>'
+                + '</a>';
+        }
         if (!isPublic) {
             html += '<div class="ll-wordset-card__public-note" role="' + (deletionActive ? 'status' : 'note') + '"' + (deletionActive ? ' aria-live="polite"' : '') + '>'
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(publicNoteLabel) + '</span>'

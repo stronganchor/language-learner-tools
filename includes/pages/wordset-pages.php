@@ -4555,7 +4555,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             ? ll_tools_get_quiz_content_cache_epoch([$wordset_id])
             : (string) $category_epoch;
         $category_cache_args = [
-            'schema' => 8,
+            'schema' => 9,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, (int) $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
@@ -4657,6 +4657,11 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             );
             $sources_complete = $sources_complete && $presentation_complete;
         }
+        $card_reference_complete = true;
+        $card_reference = function_exists('ll_tools_get_category_card_reference_link')
+            ? ll_tools_get_category_card_reference_link($category, $card_reference_complete)
+            : ['url' => '', 'label' => ''];
+        $sources_complete = $sources_complete && $card_reference_complete;
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? 'image');
         $learning_supported = !array_key_exists('learning_supported', $quiz_config) || !empty($quiz_config['learning_supported']);
@@ -4722,6 +4727,8 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'preview_deferred' => $defer_previews,
             'preview_requires_images' => $requires_images,
             'url'        => ($is_public && $lesson_post_id > 0) ? get_permalink($lesson_post_id) : '',
+            'card_reference_url' => (string) ($card_reference['url'] ?? ''),
+            'card_reference_label' => (string) ($card_reference['label'] ?? ''),
             'is_public'  => $is_public,
             'public_note' => $is_public ? '' : ($public_note !== '' ? $public_note : __('Not public yet.', 'll-tools-text-domain')),
             'word_image_count' => max(0, (int) ($row['word_image_count'] ?? 0)),
@@ -5982,8 +5989,11 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
     }
     $enhanced_categories = ll_tools_wordset_page_order_inactive_categories_last($enhanced_categories);
 
+    $show_content_lessons = function_exists('ll_tools_wordset_should_show_content_lessons')
+        ? ll_tools_wordset_should_show_content_lessons($wordset_id)
+        : true;
     $content_lessons_complete = true;
-    $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
+    $wordset_content_lessons = $show_content_lessons && function_exists('ll_tools_get_content_lessons_for_wordset')
         ? ll_tools_get_content_lessons_for_wordset(
             $wordset_id,
             $content_lessons_complete
@@ -6311,6 +6321,15 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     $is_virtual_category = !empty($cat['is_virtual_category']);
     $virtual_category_type = (string) ($cat['virtual_category_type'] ?? '');
     $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+    $card_reference_url = function_exists('ll_tools_sanitize_category_card_reference_url')
+        ? ll_tools_sanitize_category_card_reference_url((string) ($cat['card_reference_url'] ?? ''))
+        : esc_url_raw((string) ($cat['card_reference_url'] ?? ''), ['http', 'https']);
+    $card_reference_label = function_exists('ll_tools_sanitize_category_card_reference_label')
+        ? ll_tools_sanitize_category_card_reference_label((string) ($cat['card_reference_label'] ?? ''))
+        : sanitize_text_field((string) ($cat['card_reference_label'] ?? ''));
+    if ($card_reference_url !== '' && $card_reference_label === '') {
+        $card_reference_label = __('Reference', 'll-tools-text-domain');
+    }
     if (!$is_public) {
         $cat = ll_tools_wordset_page_ensure_inactive_category_actions($cat);
     }
@@ -6474,6 +6493,12 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         <?php else : ?>
             </div>
         <?php endif; ?>
+        <?php if ($is_public && !$is_virtual_category && $card_reference_url !== '') : ?>
+            <a class="ll-wordset-card__reference-link" href="<?php echo esc_url($card_reference_url); ?>">
+                <span class="ll-wordset-card__reference-label"><?php echo esc_html($card_reference_label); ?></span>
+                <span class="ll-wordset-card__reference-icon" aria-hidden="true"></span>
+            </a>
+        <?php endif; ?>
         <?php if (!$is_public) : ?>
             <div class="ll-wordset-card__public-note" role="<?php echo $deletion_active ? 'status' : 'note'; ?>"<?php echo $deletion_active ? ' aria-live="polite"' : ''; ?>>
                 <span class="ll-wordset-card__public-note-label"><?php echo esc_html($public_note_label); ?></span>
@@ -6636,6 +6661,8 @@ function ll_tools_wordset_page_compact_runtime_category_payload(array $category,
         'virtual_category_type',
         'preview_aspect_ratio',
         'last_seen_at',
+        'card_reference_url',
+        'card_reference_label',
     ] as $key) {
         if (!array_key_exists($key, $category) || (string) $category[$key] === '') {
             unset($category[$key]);
@@ -8611,6 +8638,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $sign_language_mode = isset($_POST['ll_wordset_sign_language_mode']) ? 1 : 0;
     $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
     $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
+    $show_content_lessons = isset($_POST['ll_wordset_show_content_lessons']) ? 1 : 0;
     $submitted_tool = ll_tools_get_wordset_settings_tool();
 
     $base_redirect = ll_tools_get_wordset_settings_tool_url(
@@ -8762,6 +8790,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SIGN_LANGUAGE_MODE_META_KEY, $sign_language_mode);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
         update_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY, $show_content_lessons);
     } elseif ($submitted_tool === 'categories') {
         $categories_result = ll_tools_wordset_page_save_categories_settings($wordset_id);
         if (is_wp_error($categories_result)) {
@@ -14859,12 +14888,25 @@ function ll_tools_wordset_page_build_managed_category_rows(int $wordset_id, arra
         $display_name = function_exists('ll_tools_get_category_display_name')
             ? ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
             : (string) $term->name;
+        $card_reference = function_exists('ll_tools_get_category_card_reference_link')
+            ? ll_tools_get_category_card_reference_link($term)
+            : ['url' => '', 'label' => ''];
+        $card_reference_label = get_term_meta(
+            $category_id,
+            LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY,
+            true
+        );
+        $card_reference_label = function_exists('ll_tools_sanitize_category_card_reference_label')
+            ? ll_tools_sanitize_category_card_reference_label($card_reference_label)
+            : sanitize_text_field((string) $card_reference_label);
         $delete_reason = ll_tools_wordset_page_category_delete_blocker($term, $wordset_id, $content_summary);
         $rows[] = [
             'id' => $category_id,
             'name' => (string) $term->name,
             'display_name' => $display_name,
             'translation' => (string) get_term_meta($category_id, 'term_translation', true),
+            'card_reference_url' => (string) ($card_reference['url'] ?? ''),
+            'card_reference_label' => (string) $card_reference_label,
             'slug' => (string) $term->slug,
             'parent_id' => 0,
             'word_count' => max(0, (int) ($enhanced_row['count'] ?? $content_summary['total'] ?? $term->count ?? 0)),
@@ -15989,8 +16031,31 @@ function ll_tools_wordset_page_save_categories_settings(int $wordset_id) {
     $category_translation = isset($_POST['ll_wordset_category_translation'])
         ? sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_category_translation']))
         : '';
+    $card_reference_url_input = isset($_POST['ll_wordset_category_card_reference_url'])
+        ? trim((string) wp_unslash($_POST['ll_wordset_category_card_reference_url']))
+        : '';
+    $card_reference_url = function_exists('ll_tools_sanitize_category_card_reference_url')
+        ? ll_tools_sanitize_category_card_reference_url($card_reference_url_input)
+        : esc_url_raw($card_reference_url_input, ['http', 'https']);
+    $card_reference_label = function_exists('ll_tools_sanitize_category_card_reference_label')
+        ? ll_tools_sanitize_category_card_reference_label(
+            isset($_POST['ll_wordset_category_card_reference_label'])
+                ? wp_unslash((string) $_POST['ll_wordset_category_card_reference_label'])
+                : ''
+        )
+        : sanitize_text_field(
+            isset($_POST['ll_wordset_category_card_reference_label'])
+                ? wp_unslash((string) $_POST['ll_wordset_category_card_reference_label'])
+                : ''
+        );
     if ($category_name === '') {
         return new WP_Error('category_name', __('Enter a category name.', 'll-tools-text-domain'));
+    }
+    if ($card_reference_url_input !== '' && $card_reference_url === '') {
+        return new WP_Error(
+            'category_reference_url',
+            __('Enter a site-relative or HTTP(S) reference URL.', 'll-tools-text-domain')
+        );
     }
 
     $updated = wp_update_term($category_id, 'word-category', [
@@ -16005,6 +16070,17 @@ function ll_tools_wordset_page_save_categories_settings(int $wordset_id) {
         update_term_meta($category_id, 'term_translation', $category_translation);
     } else {
         delete_term_meta($category_id, 'term_translation');
+    }
+    if ($card_reference_url !== '') {
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY, $card_reference_url);
+        if ($card_reference_label !== '') {
+            update_term_meta($category_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY, $card_reference_label);
+        } else {
+            delete_term_meta($category_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY);
+        }
+    } else {
+        delete_term_meta($category_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_URL_META_KEY);
+        delete_term_meta($category_id, LL_TOOLS_CATEGORY_CARD_REFERENCE_LABEL_META_KEY);
     }
     ll_tools_wordset_page_touch_category($category_id);
 
@@ -16181,6 +16257,8 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                             $category_id = (int) ($category_row['id'] ?? 0);
                             $name_value = (string) ($category_row['name'] ?? '');
                             $translation_value = (string) ($category_row['translation'] ?? '');
+                            $card_reference_url_value = (string) ($category_row['card_reference_url'] ?? '');
+                            $card_reference_label_value = (string) ($category_row['card_reference_label'] ?? '');
                             $presentation_label = (string) ($category_row['presentation_label'] ?? '');
                             $delete_reason = (string) ($category_row['delete_reason'] ?? '');
                             $deletion_job = isset($category_row['deletion_job']) && is_array($category_row['deletion_job']) ? $category_row['deletion_job'] : [];
@@ -16267,6 +16345,44 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                                         </label>
                                     </div>
                                 </div>
+                                <details class="ll-wordset-settings-category-reference">
+                                    <summary><?php echo esc_html__('Optional card reference', 'll-tools-text-domain'); ?></summary>
+                                    <p class="description">
+                                        <?php echo esc_html__('Add a compact link beneath this category card, such as a longer reference lesson.', 'll-tools-text-domain'); ?>
+                                    </p>
+                                    <div class="ll-wordset-settings-card__field-grid">
+                                        <div class="ll-wordset-settings-card__field">
+                                            <label for="ll-wordset-category-reference-url-<?php echo esc_attr((string) $category_id); ?>">
+                                                <span><?php echo esc_html__('Reference URL', 'll-tools-text-domain'); ?></span>
+                                                <input
+                                                    id="ll-wordset-category-reference-url-<?php echo esc_attr((string) $category_id); ?>"
+                                                    type="text"
+                                                    inputmode="url"
+                                                    name="ll_wordset_category_card_reference_url"
+                                                    class="ll-tools-settings-input"
+                                                    value="<?php echo esc_attr($card_reference_url_value); ?>"
+                                                    placeholder="/reference-page/"
+                                                    <?php if ($deletion_running) : ?>readonly="readonly"<?php endif; ?>
+                                                />
+                                            </label>
+                                            <p class="description"><?php echo esc_html__('Use a site-relative path or a full HTTP(S) URL.', 'll-tools-text-domain'); ?></p>
+                                        </div>
+                                        <div class="ll-wordset-settings-card__field">
+                                            <label for="ll-wordset-category-reference-label-<?php echo esc_attr((string) $category_id); ?>">
+                                                <span><?php echo esc_html__('Reference label', 'll-tools-text-domain'); ?></span>
+                                                <input
+                                                    id="ll-wordset-category-reference-label-<?php echo esc_attr((string) $category_id); ?>"
+                                                    type="text"
+                                                    name="ll_wordset_category_card_reference_label"
+                                                    class="ll-tools-settings-input"
+                                                    value="<?php echo esc_attr($card_reference_label_value); ?>"
+                                                    maxlength="160"
+                                                    <?php if ($deletion_running) : ?>readonly="readonly"<?php endif; ?>
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </details>
                                 <?php if ($deletion_running) : ?>
                                     <p class="description ll-wordset-settings-category-row__delete-note" role="status">
                                         <?php
@@ -22695,6 +22811,8 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
     $sign_language_mode = !empty($args['sign_language_mode']);
     $autoplay_text_audio_answer_options = !empty($args['autoplay_text_audio_answer_options']);
     $hide_lesson_text_for_non_text_quiz = !empty($args['hide_lesson_text_for_non_text_quiz']);
+    $show_content_lessons = !array_key_exists('show_content_lessons', $args)
+        || !empty($args['show_content_lessons']);
     $study_settings_action_url = ($can_manage_wordset_content && $wordset_term instanceof WP_Term && $wordset_id > 0)
         ? ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url)
         : '';
@@ -22821,6 +22939,23 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
                     </label>
                     <p class="description" style="margin-top:8px;">
                         <?php echo esc_html__('Categories can override this in their quiz settings.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Content Lessons', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-show-content-lessons" class="ll-wordset-settings-card__checkbox-item">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-settings-show-content-lessons"
+                            name="ll_wordset_show_content_lessons"
+                            value="1"
+                            <?php checked($show_content_lessons, true); ?>
+                        />
+                        <span><?php echo esc_html__('Show content lessons on the word set home page.', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Turn this off when the home page should focus on vocabulary categories. Content lessons remain available from lesson indexes and direct links.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
@@ -23061,6 +23196,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? ll_tools_wordset_uses_sign_language_mode([$wordset_id])
         : false;
     $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
+    $show_content_lessons = function_exists('ll_tools_wordset_should_show_content_lessons')
+        ? ll_tools_wordset_should_show_content_lessons($wordset_id)
+        : true;
     $wordset_is_private = ($wordset_visibility === 'private');
     $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
         ? ll_tools_get_plugin_update_status_details()
@@ -23283,27 +23421,29 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $mixed_lesson_cards = [];
     $content_lessons_complete = true;
     if ($is_main_view) {
-        $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
-            ? ll_tools_get_content_lessons_for_wordset(
-                $wordset_id,
-                $content_lessons_complete
-            )
-            : [];
-        foreach ($wordset_content_lessons as $content_lesson) {
-            if (!is_array($content_lesson)) {
-                continue;
-            }
+        if ($show_content_lessons) {
+            $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
+                ? ll_tools_get_content_lessons_for_wordset(
+                    $wordset_id,
+                    $content_lessons_complete
+                )
+                : [];
+            foreach ($wordset_content_lessons as $content_lesson) {
+                if (!is_array($content_lesson)) {
+                    continue;
+                }
 
-            if (!empty($content_lesson['show_in_mix'])) {
-                $mixed_content_lessons[] = $content_lesson;
-                continue;
-            }
+                if (!empty($content_lesson['show_in_mix'])) {
+                    $mixed_content_lessons[] = $content_lesson;
+                    continue;
+                }
 
-            $featured_content_lessons[] = $content_lesson;
-        }
-        if (!$content_lessons_complete) {
-            $featured_content_lessons = [];
-            $mixed_content_lessons = [];
+                $featured_content_lessons[] = $content_lesson;
+            }
+            if (!$content_lessons_complete) {
+                $featured_content_lessons = [];
+                $mixed_content_lessons = [];
+            }
         }
         $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards(
             $enhanced_categories,
@@ -24268,6 +24408,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'translation' => (string) ($cat['translation'] ?? ($cat['name'] ?? '')),
             'count' => (int) ($cat['count'] ?? 0),
             'url' => (string) ($cat['url'] ?? ''),
+            'card_reference_url' => (string) ($cat['card_reference_url'] ?? ''),
+            'card_reference_label' => (string) ($cat['card_reference_label'] ?? ''),
             'mode' => (string) ($cat['mode'] ?? ''),
             'prompt_type' => (string) ($cat['prompt_type'] ?? ''),
             'option_type' => (string) ($cat['option_type'] ?? ''),
@@ -24431,6 +24573,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'categoriesLabel' => __('Categories', 'll-tools-text-domain'),
             'notPublicLabel' => __('Not public', 'll-tools-text-domain'),
             'categoryNotPublicDefaultNote' => __('Not public yet.', 'll-tools-text-domain'),
+            'referenceLabel' => __('Reference', 'll-tools-text-domain'),
             'inactiveHideLabel' => __('Hide', 'll-tools-text-domain'),
             'inactiveDeleteLabel' => __('Delete', 'll-tools-text-domain'),
             'inactiveDeleteConfirm' => __('Delete this category and any linked vocab lesson? This cannot be undone.', 'll-tools-text-domain'),
@@ -25173,6 +25316,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'sign_language_mode' => $sign_language_mode,
                     'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
                     'hide_lesson_text_for_non_text_quiz' => $hide_lesson_text_for_non_text_quiz,
+                    'show_content_lessons' => $show_content_lessons,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 ?>
             <?php elseif ($settings_tool === 'language' && $can_manage_wordset_content) : ?>

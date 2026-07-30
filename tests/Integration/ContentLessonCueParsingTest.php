@@ -837,6 +837,117 @@ TSV;
         $this->assertStringContainsString('ll-wordset-card ll-wordset-card--content', $html);
     }
 
+    public function test_wordset_can_hide_content_lessons_from_home_without_hiding_bounded_index(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $featured_lesson_id = $this->createPublishedContentLesson(
+            $wordset_id,
+            'Hidden Featured Content Lesson',
+            [(int) $fixture['category_a_id']],
+            ['menu_order' => 1]
+        );
+        $mixed_lesson_id = $this->createPublishedContentLesson(
+            $wordset_id,
+            'Hidden Mixed Content Lesson',
+            [(int) $fixture['category_b_id']],
+            ['menu_order' => 2, 'show_in_mix' => true]
+        );
+
+        $this->assertTrue(ll_tools_wordset_should_show_content_lessons($wordset_id));
+        update_term_meta(
+            $wordset_id,
+            LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY,
+            '0'
+        );
+        $this->assertFalse(ll_tools_wordset_should_show_content_lessons($wordset_id));
+
+        $content_lesson_queries = 0;
+        $capture_queries = static function (WP_Query $query) use (&$content_lesson_queries): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? array_map('strval', $post_type) : [(string) $post_type];
+            if (in_array('ll_content_lesson', $post_types, true)) {
+                $content_lesson_queries++;
+            }
+        };
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+        add_action('pre_get_posts', $capture_queries);
+        try {
+            $html = ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+            $fallback_payload = ll_tools_wordset_page_build_lazy_cards_fallback_payload(
+                $wordset_id,
+                2
+            );
+        } finally {
+            remove_action('pre_get_posts', $capture_queries);
+            $_GET = $original_get;
+            set_query_var('ll_wordset_page', $original_wordset_page);
+            set_query_var('ll_wordset_view', $original_wordset_view);
+        }
+
+        $this->assertSame(0, $content_lesson_queries);
+        $this->assertStringContainsString(
+            'data-cat-id="' . (int) $fixture['category_a_id'] . '"',
+            $html
+        );
+        $this->assertStringNotContainsString('Main Lessons', $html);
+        $this->assertStringNotContainsString('Hidden Featured Content Lesson', $html);
+        $this->assertStringNotContainsString('Hidden Mixed Content Lesson', $html);
+        $fallback_category_ids = array_values(array_filter(array_map(
+            static function (array $card): int {
+                return (string) ($card['type'] ?? '') === 'category'
+                    ? (int) ($card['data']['id'] ?? 0)
+                    : 0;
+            },
+            (array) ($fallback_payload['cards'] ?? [])
+        )));
+        $this->assertContains((int) $fixture['category_a_id'], $fallback_category_ids);
+        $this->assertContains((int) $fixture['category_b_id'], $fallback_category_ids);
+        $this->assertNotContains(
+            'content',
+            array_map(
+                static function (array $card): string {
+                    return (string) ($card['type'] ?? '');
+                },
+                (array) ($fallback_payload['cards'] ?? [])
+            )
+        );
+
+        $index_page = ll_tools_get_content_lesson_index_page(
+            $wordset_id,
+            [],
+            1,
+            10
+        );
+        $this->assertIsArray($index_page);
+        $indexed_ids = array_map(
+            static function (WP_Post $post): int {
+                return (int) $post->ID;
+            },
+            (array) ($index_page['posts'] ?? [])
+        );
+        $this->assertContains($featured_lesson_id, $indexed_ids);
+        $this->assertContains($mixed_lesson_id, $indexed_ids);
+
+        update_term_meta(
+            $wordset_id,
+            LL_TOOLS_WORDSET_SHOW_CONTENT_LESSONS_META_KEY,
+            '1'
+        );
+        $this->assertTrue(ll_tools_wordset_should_show_content_lessons($wordset_id));
+    }
+
     public function test_non_main_wordset_view_does_not_query_content_lesson_cards(): void
     {
         $fixture = $this->createMixedLessonFixture();

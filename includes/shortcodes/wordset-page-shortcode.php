@@ -83,6 +83,50 @@ function ll_tools_get_wordset_page_shortcode_target_term_for_post(WP_Post $post)
     return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
 }
 
+function ll_tools_wordset_page_shortcode_requests_canonical_redirect(
+    WP_Post $post,
+    WP_Term $target_term
+): bool {
+    $content = isset($post->post_content) ? (string) $post->post_content : '';
+    if (!ll_tools_wordset_page_content_has_shortcode($content)) {
+        return false;
+    }
+
+    $regex = get_shortcode_regex(['wordset_page', 'll_wordset_page']);
+    if (!preg_match_all('/' . $regex . '/s', $content, $matches, PREG_SET_ORDER)) {
+        return false;
+    }
+
+    foreach ($matches as $match) {
+        $tag = isset($match[2]) ? (string) $match[2] : '';
+        if (!in_array($tag, ['wordset_page', 'll_wordset_page'], true)) {
+            continue;
+        }
+
+        $atts = shortcode_parse_atts((string) ($match[3] ?? ''));
+        if (!is_array($atts)) {
+            $atts = [];
+        }
+        $redirect_raw = strtolower(trim((string) ($atts['redirect_to_canonical'] ?? '')));
+        if (!in_array($redirect_raw, ['1', 'true', 'yes', 'on'], true)) {
+            continue;
+        }
+
+        $reference = ll_tools_wordset_page_shortcode_get_explicit_wordset_reference($atts);
+        $resolved = $reference !== null && function_exists('ll_tools_resolve_wordset_term')
+            ? ll_tools_resolve_wordset_term($reference)
+            : null;
+        if ($resolved instanceof WP_Term
+            && !is_wp_error($resolved)
+            && (int) $resolved->term_id === (int) $target_term->term_id
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function ll_tools_get_wordset_page_shortcode_legacy_redirect_url(): string {
     if (is_admin() || !is_singular('page')) {
         return '';
@@ -105,7 +149,11 @@ function ll_tools_get_wordset_page_shortcode_legacy_redirect_url(): string {
 
     $page_slug = sanitize_title((string) $post->post_name);
     $wordset_slug = sanitize_title((string) $wordset_term->slug);
-    if ($page_slug === '' || $page_slug !== $wordset_slug) {
+    $explicit_redirect = ll_tools_wordset_page_shortcode_requests_canonical_redirect(
+        $post,
+        $wordset_term
+    );
+    if ($page_slug === '' || ($page_slug !== $wordset_slug && !$explicit_redirect)) {
         return '';
     }
 
@@ -114,7 +162,10 @@ function ll_tools_get_wordset_page_shortcode_legacy_redirect_url(): string {
     }
 
     $redirect_url = (string) ll_tools_get_wordset_page_view_url($wordset_term);
-    if ($redirect_url === '' || strpos($redirect_url, 'll_wordset_page=') === false) {
+    if (
+        $redirect_url === ''
+        || (!$explicit_redirect && strpos($redirect_url, 'll_wordset_page=') === false)
+    ) {
         return '';
     }
 
@@ -205,6 +256,7 @@ function ll_tools_wordset_page_shortcode($atts = []): string {
         'show_title' => '1',
         'preview_limit' => '2',
         'class' => '',
+        'redirect_to_canonical' => '0',
     ], $atts, 'wordset_page');
 
     $wordset = ll_tools_wordset_page_shortcode_get_explicit_wordset_reference($atts);

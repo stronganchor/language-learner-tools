@@ -719,6 +719,49 @@ test('client-rendered deferred category cards show useful shells before previews
   await expect(animalsCard).not.toHaveAttribute('data-ll-wordset-inline-placeholder', 'true');
 });
 
+test('client-rendered category references retain safe URLs and reject executable schemes', async ({ page }) => {
+  const safeCategories = allCategories.map((category) => (
+    category.id === 22
+      ? Object.assign({}, category, {
+        card_reference_url: '/most-common-words/',
+        card_reference_label: '1000+ word reference'
+      })
+      : category
+  ));
+
+  await mountWordsetPage(page, {
+    categories: safeCategories,
+    remainingCards: safeCategories,
+    initialMainCategorySort: 'alpha-asc',
+    i18n: { referenceLabel: 'Reference' }
+  });
+
+  const safeCard = page.locator('.ll-wordset-card[data-cat-id="22"]').first();
+  await expect(safeCard.locator('.ll-wordset-card__reference-link')).toHaveAttribute(
+    'href',
+    '/most-common-words/'
+  );
+
+  const unsafeCategories = allCategories.map((category) => (
+    category.id === 22
+      ? Object.assign({}, category, {
+        card_reference_url: 'javascript:alert(1)',
+        card_reference_label: 'Unsafe reference'
+      })
+      : category
+  ));
+
+  await mountWordsetPage(page, {
+    categories: unsafeCategories,
+    remainingCards: unsafeCategories,
+    initialMainCategorySort: 'alpha-asc',
+    i18n: { referenceLabel: 'Reference' }
+  });
+
+  const unsafeCard = page.locator('.ll-wordset-card[data-cat-id="22"]').first();
+  await expect(unsafeCard.locator('.ll-wordset-card__reference-link')).toHaveCount(0);
+});
+
 test('lazy-loaded cards resolve stale deferred progress loading state', async ({ page }) => {
   await mountWordsetPage(page, {
     isLoggedIn: true,

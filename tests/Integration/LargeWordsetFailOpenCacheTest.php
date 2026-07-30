@@ -686,7 +686,7 @@ final class LargeWordsetFailOpenCacheTest extends LL_Tools_TestCase
             : (string) $category_epoch;
 
         return ll_tools_wordset_page_build_cache_key('categories_user', [
-            'schema' => 8,
+            'schema' => 9,
             'wordset_id' => $wordset_id,
             'preview_limit' => max(1, $preview_limit),
             'preview_mode' => $defer_previews ? 'deferred' : 'eager',
