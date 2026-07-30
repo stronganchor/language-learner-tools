@@ -437,9 +437,9 @@ msgid "Repair legacy image links and recreate missing word image posts."
 msgstr "Repariere alte Vokabelbild-Links und stelle fehlende Vokabelbild-Beiträge wieder her."
 
 #: includes/admin/admin-dashboard-menu.php:630
-#: includes/post-types/content-lesson-post-type.php:62
-#: includes/post-types/content-lesson-post-type.php:71
-#: includes/post-types/content-lesson-post-type.php:75
+#: includes/post-types/content-lesson-post-type.php:64
+#: includes/post-types/content-lesson-post-type.php:73
+#: includes/post-types/content-lesson-post-type.php:77
 msgid "Content Lessons"
 msgstr "Inhaltslektionen"
 
@@ -448,7 +448,7 @@ msgid "Edit main audio/video lessons and synced transcript content."
 msgstr "Bearbeite die wichtigsten Audio-/Video-Lektionen und die synchronisierten Transkriptinhalte."
 
 #: includes/admin/admin-dashboard-menu.php:639
-#: includes/lib/ai-crawler-support.php:1397
+#: includes/lib/ai-crawler-support.php:1400
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
@@ -761,9 +761,9 @@ msgstr "Alle Änderungen speichern"
 #: includes/admin/audio-processor-admin.php:135
 #: includes/admin/audio-processor-admin.php:156
 #: includes/admin/ipa-keyboard-admin.php:394
-#: includes/pages/content-lesson-pages.php:1085
+#: includes/pages/content-lesson-pages.php:1294
 #: includes/pages/wordset-pages.php:24574
-#: includes/shortcodes/content-lesson-index-shortcode.php:234
+#: includes/shortcodes/content-lesson-index-shortcode.php:388
 #: includes/shortcodes/dictionary-shortcode.php:95
 #: includes/shortcodes/word-grid-shortcode.php:3948
 #: templates/vocab-lesson-template.php:395
@@ -1444,7 +1444,7 @@ msgstr "Vokabelset"
 #: includes/pages/wordset-pages.php:11929
 #: includes/pages/wordset-pages.php:12011
 #: includes/pages/wordset-pages.php:16155
-#: includes/post-types/content-lesson-post-type.php:1809
+#: includes/post-types/content-lesson-post-type.php:1819
 #: includes/shortcodes/dictionary-shortcode.php:4046
 #: includes/shortcodes/image-copyright-grid-shortcode.php:196
 #: includes/taxonomies/word-category-taxonomy.php:1949
@@ -2054,9 +2054,9 @@ msgstr "Rückgängig"
 #: includes/admin/export-import.php:3772
 #: includes/content-lesson-progress.php:278
 #: includes/content-lesson-progress.php:407
-#: includes/pages/content-lesson-pages.php:1083
-#: includes/shortcodes/content-lesson-index-shortcode.php:232
-#: includes/shortcodes/content-lesson-index-shortcode.php:445
+#: includes/pages/content-lesson-pages.php:1292
+#: includes/shortcodes/content-lesson-index-shortcode.php:386
+#: includes/shortcodes/content-lesson-index-shortcode.php:603
 msgid "Completed"
 msgstr "Abgeschlossen"
 
@@ -2933,7 +2933,7 @@ msgstr "Satz"
 #: includes/admin/word-option-rules-admin.php:2278
 #: includes/admin/word-option-rules-admin.php:2321
 #: includes/pages/wordset-pages.php:13318
-#: includes/post-types/content-lesson-post-type.php:1961
+#: includes/post-types/content-lesson-post-type.php:1971
 #: includes/shortcodes/editor-hub-shortcode.php:1082
 #: includes/shortcodes/ranked-word-list-shortcode.php:638
 #: includes/shortcodes/ranked-word-list-shortcode.php:665
@@ -3716,7 +3716,7 @@ msgstr "Keine Vokabelsets gefunden"
 #: includes/admin/teacher-classes-page.php:755
 #: includes/admin/word-option-rules-admin.php:1882
 #: includes/admin/word-option-rules-admin.php:2624
-#: includes/post-types/content-lesson-post-type.php:1924
+#: includes/post-types/content-lesson-post-type.php:1934
 msgid "Select a word set"
 msgstr "Wähle ein Vokabelset"
 
@@ -3794,7 +3794,7 @@ msgstr "Alle unterstützten Vokabel- und Aufnahmetextfelder sind standardmäßig
 #: includes/admin/teacher-classes-page.php:738
 #: includes/admin/word-option-rules-admin.php:1880
 #: includes/pages/wordset-pages.php:11968
-#: includes/post-types/content-lesson-post-type.php:1920
+#: includes/post-types/content-lesson-post-type.php:1930
 #: includes/privacy.php:273
 #: includes/privacy.php:459
 #: includes/privacy.php:548
@@ -5761,7 +5761,7 @@ msgstr "%d Bild(er) sind weiterhin markiert und bleiben in der Warteschlange."
 #. translators: 1: current page, 2: total pages
 #: includes/admin/image-webp-optimizer-admin.php:1665
 #: includes/admin/ipa-keyboard-admin.php:465
-#: includes/pages/content-lesson-pages.php:893
+#: includes/pages/content-lesson-pages.php:1102
 #: includes/pages/wordset-pages.php:16314
 #: includes/pages/wordset-pages.php:21476
 #, php-format
@@ -5779,8 +5779,8 @@ msgstr "Seite %1$d von %2$d"
 #: includes/admin/word-option-rules-admin.php:2576
 #: includes/lib/interlinear.php:1670
 #: includes/lib/interlinear.php:1674
-#: includes/pages/content-lesson-pages.php:877
-#: includes/pages/content-lesson-pages.php:933
+#: includes/pages/content-lesson-pages.php:1086
+#: includes/pages/content-lesson-pages.php:1142
 #: includes/pages/wordset-pages.php:11935
 #: includes/pages/wordset-pages.php:12066
 #: includes/pages/wordset-pages.php:12310
@@ -5788,8 +5788,8 @@ msgstr "Seite %1$d von %2$d"
 #: includes/pages/wordset-pages.php:21194
 #: includes/pages/wordset-pages.php:21469
 #: includes/shortcodes/audio-credit-grid-shortcode.php:407
-#: includes/shortcodes/content-lesson-index-shortcode.php:382
-#: includes/shortcodes/content-lesson-index-shortcode.php:497
+#: includes/shortcodes/content-lesson-index-shortcode.php:540
+#: includes/shortcodes/content-lesson-index-shortcode.php:655
 #: includes/shortcodes/dictionary-shortcode.php:2458
 #: includes/shortcodes/image-copyright-grid-shortcode.php:590
 #: includes/taxonomies/word-category-taxonomy.php:1951
@@ -5808,8 +5808,8 @@ msgstr "Vorherige"
 #: includes/flashcard-shell.php:195
 #: includes/lib/interlinear.php:1686
 #: includes/lib/interlinear.php:1690
-#: includes/pages/content-lesson-pages.php:880
-#: includes/pages/content-lesson-pages.php:934
+#: includes/pages/content-lesson-pages.php:1089
+#: includes/pages/content-lesson-pages.php:1143
 #: includes/pages/wordset-pages.php:11939
 #: includes/pages/wordset-pages.php:12070
 #: includes/pages/wordset-pages.php:12314
@@ -5821,7 +5821,7 @@ msgstr "Vorherige"
 #: includes/pages/wordset-pages.php:26427
 #: includes/pages/wordset-pages.php:26556
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
-#: includes/shortcodes/content-lesson-index-shortcode.php:511
+#: includes/shortcodes/content-lesson-index-shortcode.php:669
 #: includes/shortcodes/dictionary-shortcode.php:2481
 #: includes/shortcodes/flashcard-widget.php:666
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
@@ -9971,7 +9971,7 @@ msgstr "Du hast nicht die Berechtigung, diesem Vokabelset Uploads zuzuweisen."
 #. translators: 1: Uploaded file name, 2: Upload error message.
 #: includes/admin/uploads/audio-upload-form.php:696
 #: includes/pages/wordset-pages.php:21107
-#: includes/post-types/content-lesson-post-type.php:947
+#: includes/post-types/content-lesson-post-type.php:949
 #: includes/shortcodes/audio-recording-shortcode.php:1629
 #, php-format
 msgid "%1$s (%2$s)"
@@ -11032,7 +11032,7 @@ msgstr "Das Textkorpus-Asset konnte nicht zur Medienbibliothek hinzugefügt werd
 msgid "Provide a corpus text post slug."
 msgstr "Gib einen Korpus-Text-Post-Slug an."
 
-#: includes/api/automation-rest.php:10334
+#: includes/api/automation-rest.php:10344
 msgid "The corpus text post could not be created or updated."
 msgstr "Der Korpus-Textbeitrag konnte nicht erstellt oder aktualisiert werden."
 
@@ -11304,8 +11304,8 @@ msgid "Unable to save dictionary entry."
 msgstr "Wörterbucheintrag kann nicht gespeichert werden."
 
 #: includes/lib/dictionary-browser.php:4229
-#: includes/post-types/content-lesson-post-type.php:937
-#: includes/post-types/content-lesson-post-type.php:1654
+#: includes/post-types/content-lesson-post-type.php:939
+#: includes/post-types/content-lesson-post-type.php:1664
 #: includes/post-types/dictionary-entry-post-type.php:631
 #: includes/post-types/dictionary-entry-post-type.php:998
 #: includes/post-types/dictionary-entry-post-type.php:1673
@@ -12534,40 +12534,40 @@ msgstr "Gib deinen Benutzernamen oder deine E-Mail und dein Passwort ein."
 msgid "Invalid login."
 msgstr "Ungültige Anmeldung."
 
-#: includes/pages/content-lesson-pages.php:10
+#: includes/pages/content-lesson-pages.php:217
 msgid "Text document"
 msgstr "Text-Dokument"
 
-#: includes/pages/content-lesson-pages.php:14
+#: includes/pages/content-lesson-pages.php:221
 #: templates/content-lesson-template.php:97
 msgid "Video lesson"
 msgstr "Video-Lektion"
 
-#: includes/pages/content-lesson-pages.php:15
+#: includes/pages/content-lesson-pages.php:222
 #: templates/content-lesson-template.php:97
 msgid "Audio lesson"
 msgstr "Audio-Lektion"
 
-#: includes/pages/content-lesson-pages.php:385
-#: includes/pages/content-lesson-pages.php:921
+#: includes/pages/content-lesson-pages.php:592
+#: includes/pages/content-lesson-pages.php:1130
 #: templates/content-lesson-template.php:122
 #: templates/content-lesson-template.php:128
 msgid "Texts"
 msgstr "Texte"
 
-#: includes/pages/content-lesson-pages.php:605
+#: includes/pages/content-lesson-pages.php:815
 #: includes/pages/wordset-pages.php:25388
 msgid "Main Lessons"
 msgstr "Hauptlektionen"
 
-#: includes/pages/content-lesson-pages.php:608
+#: includes/pages/content-lesson-pages.php:818
 #: includes/pages/wordset-pages.php:4812
 #: includes/pages/wordset-pages.php:24570
-#: includes/shortcodes/content-lesson-index-shortcode.php:447
+#: includes/shortcodes/content-lesson-index-shortcode.php:605
 msgid "Open lesson"
 msgstr "Lektion öffnen"
 
-#: includes/pages/content-lesson-pages.php:643
+#: includes/pages/content-lesson-pages.php:853
 #: includes/pages/wordset-pages.php:4846
 #, php-format
 msgid "%d vocab lesson"
@@ -12575,37 +12575,37 @@ msgid_plural "%d vocab lessons"
 msgstr[0] "%d Vokabellektion"
 msgstr[1] "%d Vokabellektionen"
 
-#: includes/pages/content-lesson-pages.php:929
+#: includes/pages/content-lesson-pages.php:1138
 msgid "Open text"
 msgstr "Text öffnen"
 
-#: includes/pages/content-lesson-pages.php:971
+#: includes/pages/content-lesson-pages.php:1180
 msgid "Related Vocab Lessons"
 msgstr "Verwandte Vokabellektionen"
 
 #: includes/admin/ipa-keyboard-admin.php:386
-#: includes/pages/content-lesson-pages.php:1101
+#: includes/pages/content-lesson-pages.php:1310
 #: includes/shortcodes/word-grid-shortcode.php:3925
 msgid "Saving review note..."
 msgstr "Überprüfungsnotiz wird gespeichert..."
 
 #: includes/admin/ipa-keyboard-admin.php:387
-#: includes/pages/content-lesson-pages.php:1102
+#: includes/pages/content-lesson-pages.php:1311
 #: includes/shortcodes/word-grid-shortcode.php:3926
 msgid "Review note saved."
 msgstr "Überprüfungsnotiz gespeichert."
 
 #: includes/admin/ipa-keyboard-admin.php:388
-#: includes/pages/content-lesson-pages.php:1103
+#: includes/pages/content-lesson-pages.php:1312
 #: includes/shortcodes/word-grid-shortcode.php:3927
 msgid "Unable to save the review note."
 msgstr "Die Überprüfungsnotiz kann nicht gespeichert werden."
 
-#: includes/pages/content-lesson-pages.php:1123
+#: includes/pages/content-lesson-pages.php:1332
 msgid "Current transcript line"
 msgstr "Aktuelle Transkriptzeile"
 
-#: includes/pages/content-lesson-pages.php:1124
+#: includes/pages/content-lesson-pages.php:1333
 msgid "Lesson transcript"
 msgstr "Lektionstranskript"
 
@@ -12627,7 +12627,7 @@ msgstr "Ungültige Shortcode-Seitenkonfiguration."
 msgid "Failed to create page"
 msgstr "Seite konnte nicht erstellt werden"
 
-#: includes/lib/ai-crawler-support.php:950
+#: includes/lib/ai-crawler-support.php:953
 #: includes/pages/dictionary-page.php:11
 #: includes/shortcodes/dictionary-shortcode.php:3979
 #: includes/shortcodes/site-tools-shortcode.php:948
@@ -14043,7 +14043,7 @@ msgid "Default Word Set"
 msgstr "Standard-Vokabelset"
 
 #: includes/pages/wordset-pages.php:118
-#: includes/shortcodes/content-lesson-index-shortcode.php:427
+#: includes/shortcodes/content-lesson-index-shortcode.php:585
 #: includes/wordset-isolation.php:4012
 msgid "Lessons"
 msgstr "Lektionen"
@@ -14383,7 +14383,7 @@ msgid "Word set settings were updated."
 msgstr "Die Vokabelset-Einstellungen wurden aktualisiert."
 
 #: includes/pages/wordset-pages.php:8266
-#: includes/post-types/content-lesson-post-type.php:1832
+#: includes/post-types/content-lesson-post-type.php:1842
 msgid "You do not have permission to manage this word set."
 msgstr "Du hast nicht die Berechtigung, dieses Vokabelset zu verwalten."
 
@@ -17332,7 +17332,7 @@ msgstr "Filter-Ebene"
 #: includes/flashcard-shell.php:108
 #: includes/pages/wordset-pages.php:21208
 #: includes/pages/wordset-pages.php:24571
-#: includes/post-types/content-lesson-post-type.php:1810
+#: includes/post-types/content-lesson-post-type.php:1820
 #: includes/shortcodes/flashcard-widget.php:698
 #: templates/audio-image-matcher-template.php:67
 msgid "Load more"
@@ -17620,158 +17620,158 @@ msgstr "Richtiges Audio"
 msgid "Play correct audio"
 msgstr "Richtiges Audio abspielen"
 
-#: includes/post-types/content-lesson-post-type.php:63
+#: includes/post-types/content-lesson-post-type.php:65
 msgid "Content Lesson"
 msgstr "Inhaltslektion"
 
-#: includes/post-types/content-lesson-post-type.php:64
+#: includes/post-types/content-lesson-post-type.php:66
 msgid "Add New Content Lesson"
 msgstr "Neue Inhaltslektion hinzufügen"
 
-#: includes/post-types/content-lesson-post-type.php:65
+#: includes/post-types/content-lesson-post-type.php:67
 msgid "Edit Content Lesson"
 msgstr "Inhaltslektion bearbeiten"
 
-#: includes/post-types/content-lesson-post-type.php:66
+#: includes/post-types/content-lesson-post-type.php:68
 msgid "New Content Lesson"
 msgstr "Neuer Inhalt Lektion"
 
-#: includes/post-types/content-lesson-post-type.php:67
+#: includes/post-types/content-lesson-post-type.php:69
 msgid "View Content Lesson"
 msgstr "Inhaltslektion anzeigen"
 
-#: includes/post-types/content-lesson-post-type.php:68
+#: includes/post-types/content-lesson-post-type.php:70
 msgid "Search Content Lessons"
 msgstr "Inhaltslektionen suchen"
 
-#: includes/post-types/content-lesson-post-type.php:69
+#: includes/post-types/content-lesson-post-type.php:71
 msgid "No content lessons found"
 msgstr "Keine inhaltlichen Lektionen gefunden"
 
-#: includes/post-types/content-lesson-post-type.php:70
+#: includes/post-types/content-lesson-post-type.php:72
 msgid "No content lessons found in Trash"
 msgstr "Keine Inhaltslektionen im Papierkorb gefunden"
 
-#: includes/post-types/content-lesson-post-type.php:122
+#: includes/post-types/content-lesson-post-type.php:124
 msgid "Audio/video lesson"
 msgstr "Audio-/Video-Lektion"
 
-#: includes/post-types/content-lesson-post-type.php:124
+#: includes/post-types/content-lesson-post-type.php:126
 msgid "Corpus text"
 msgstr "Textkorpus"
 
-#: includes/post-types/content-lesson-post-type.php:616
+#: includes/post-types/content-lesson-post-type.php:618
 msgid "The transcript source could not be parsed. Paste WebVTT, TSV, or JSON timing data."
 msgstr "Die Transkriptquelle konnte nicht geparst werden. Füge WebVTT-, TSV- oder JSON-Zeitdaten ein."
 
-#: includes/post-types/content-lesson-post-type.php:1852
+#: includes/post-types/content-lesson-post-type.php:1862
 msgid "Lesson Details"
 msgstr "Lektion Details"
 
-#: includes/post-types/content-lesson-post-type.php:1934
+#: includes/post-types/content-lesson-post-type.php:1944
 msgid "Used for front-end access checks and to surface this lesson on the word set page."
 msgstr "Wird für Frontend-Zugriffskontrollen verwendet und um diese Lektion auf der Vokabelset-Seite anzuzeigen."
 
-#: includes/post-types/content-lesson-post-type.php:1940
+#: includes/post-types/content-lesson-post-type.php:1950
 msgid "Lesson kind"
 msgstr "Art der Lektion"
 
-#: includes/post-types/content-lesson-post-type.php:1957
+#: includes/post-types/content-lesson-post-type.php:1967
 msgid "Media type"
 msgstr "Medientyp"
 
-#: includes/post-types/content-lesson-post-type.php:1962
+#: includes/post-types/content-lesson-post-type.php:1972
 msgid "Video"
 msgstr "Video"
 
-#: includes/post-types/content-lesson-post-type.php:1968
+#: includes/post-types/content-lesson-post-type.php:1978
 msgid "Media URL"
 msgstr "Medien-URL"
 
-#: includes/post-types/content-lesson-post-type.php:1977
+#: includes/post-types/content-lesson-post-type.php:1987
 msgid "Paste the direct media URL here."
 msgstr "Füge die direkten Medien-URL hier ein."
 
-#: includes/post-types/content-lesson-post-type.php:1980
+#: includes/post-types/content-lesson-post-type.php:1990
 msgid "Use a direct file URL for the audio or video you want to play on the lesson page."
 msgstr "Verwende eine direkte Datei-URL für das Audio oder Video, das du auf der Lektionsseite abspielen möchtest."
 
-#: includes/post-types/content-lesson-post-type.php:1986
+#: includes/post-types/content-lesson-post-type.php:1996
 msgid "Timing format"
 msgstr "Zeitliches Format"
 
-#: includes/post-types/content-lesson-post-type.php:1990
+#: includes/post-types/content-lesson-post-type.php:2000
 msgid "Auto detect"
 msgstr "Automatisch erkennen"
 
-#: includes/post-types/content-lesson-post-type.php:1991
+#: includes/post-types/content-lesson-post-type.php:2001
 msgid "WebVTT"
 msgstr "WebVTT"
 
-#: includes/post-types/content-lesson-post-type.php:1992
+#: includes/post-types/content-lesson-post-type.php:2002
 msgid "JSON"
 msgstr "JSON"
 
-#: includes/post-types/content-lesson-post-type.php:1993
+#: includes/post-types/content-lesson-post-type.php:2003
 msgid "TSV"
 msgstr "TSV"
 
-#: includes/post-types/content-lesson-post-type.php:1996
+#: includes/post-types/content-lesson-post-type.php:2006
 msgid "Phase 1 supports pasted WebVTT, TSV, or JSON timing payloads."
 msgstr "Phase 1 unterstützt eingefügte WebVTT-, TSV- oder JSON-Timing-Payloads."
 
-#: includes/post-types/content-lesson-post-type.php:2002
+#: includes/post-types/content-lesson-post-type.php:2012
 msgid "Transcript timing source"
 msgstr "Quelle für die Transkriptionszeit"
 
-#: includes/post-types/content-lesson-post-type.php:2010
+#: includes/post-types/content-lesson-post-type.php:2020
 msgid "Paste WebVTT, TSV, or JSON timing data here."
 msgstr "Füge hier die WebVTT-, TSV- oder JSON-Zeitdaten ein."
 
-#: includes/post-types/content-lesson-post-type.php:2013
+#: includes/post-types/content-lesson-post-type.php:2023
 msgid "Example sources: line_alignment.vtt, line_alignment.tsv, sentence_alignment.vtt, or highlight_approx.json."
 msgstr "Beispiel Quellen: line_alignment.vtt, line_alignment.tsv, sentence_alignment.vtt, oder highlight_approx.json."
 
-#: includes/post-types/content-lesson-post-type.php:2019
+#: includes/post-types/content-lesson-post-type.php:2029
 #, php-format
 msgid "%d cue parsed and ready for playback."
 msgid_plural "%d cues parsed and ready for playback."
 msgstr[0] "%d Zeitsegment geparst und für die Wiedergabe bereit."
 msgstr[1] "%d Zeitsegmente geparst und für die Wiedergabe bereit."
 
-#: includes/post-types/content-lesson-post-type.php:2034
+#: includes/post-types/content-lesson-post-type.php:2044
 msgid "Related vocab categories"
 msgstr "Verwandte Vokabel-Kategorien"
 
-#: includes/post-types/content-lesson-post-type.php:2053
+#: includes/post-types/content-lesson-post-type.php:2063
 msgid "These categories become related vocab-lesson links on the content lesson page and backlinks on drill pages. Use Ctrl/Command + click to select multiple."
 msgstr "Diese Kategorien werden auf der Inhaltslektionsseite zu Links auf verwandte Vokabellektionen und auf Übungsseiten zu Backlinks. Verwende Strg/Befehl + Klick, um mehrere auszuwählen."
 
-#: includes/post-types/content-lesson-post-type.php:2059
+#: includes/post-types/content-lesson-post-type.php:2069
 msgid "Show in lesson grid"
 msgstr "Im Lektionsraster anzeigen"
 
-#: includes/post-types/content-lesson-post-type.php:2070
+#: includes/post-types/content-lesson-post-type.php:2080
 msgid "Show this lesson as a full-size card in the main word set lesson grid."
 msgstr "Zeige diese Lektion als Karte in voller Größe im Raster des Vokabelsets an."
 
-#: includes/post-types/content-lesson-post-type.php:2073
+#: includes/post-types/content-lesson-post-type.php:2083
 msgid "When enabled, this lesson can be placed between vocab lesson cards on the word set page instead of only appearing in the separate main-lessons section."
 msgstr "Wenn diese Option aktiviert ist, kann diese Lektion zwischen den Vokabel-Lernkarten auf der Vokabelset-Seite platziert werden, anstatt nur im separaten Abschnitt für die Hauptlektionen zu erscheinen."
 
-#: includes/post-types/content-lesson-post-type.php:2079
+#: includes/post-types/content-lesson-post-type.php:2089
 msgid "Vocab lesson prerequisites"
 msgstr "Voraussetzungen für die Vokabellektion"
 
-#: includes/post-types/content-lesson-post-type.php:2098
+#: includes/post-types/content-lesson-post-type.php:2108
 msgid "When this lesson is mixed into the main grid, it is inserted after the selected vocab lessons. If multiple mixed content lessons share the same prerequisites, their Order value breaks ties."
 msgstr "Wenn diese Lektion in das Hauptgitter gemischt wird, wird sie nach den ausgewählten Vokabellektionen eingefügt. Wenn mehrere Lektionen mit gemischten Inhalten die gleichen Voraussetzungen haben, werden sie durch den Wert \"Reihenfolge\" getrennt."
 
-#: includes/post-types/content-lesson-post-type.php:2104
+#: includes/post-types/content-lesson-post-type.php:2114
 msgid "Content lesson prerequisites"
 msgstr "Voraussetzungen für den Inhalt der Lektion"
 
-#: includes/post-types/content-lesson-post-type.php:2122
+#: includes/post-types/content-lesson-post-type.php:2132
 msgid "When this lesson is mixed into the main grid, it can also be placed after earlier content lessons. Use this to keep story, review, and follow-up practice lessons in sequence."
 msgstr "Wenn diese Lektion in das Hauptgitter gemischt wird, kann sie auch nach früheren Inhaltslektionen platziert werden. Auf diese Weise kannst du die Lektionen für die Geschichte, die Wiederholung und die anschließenden Übungen in der richtigen Reihenfolge halten."
 
@@ -19797,7 +19797,7 @@ msgstr "Zurück zum Wörterbuch"
 msgid "Definitions"
 msgstr "Definitionen"
 
-#: includes/lib/ai-crawler-support.php:1276
+#: includes/lib/ai-crawler-support.php:1279
 #: includes/shortcodes/dictionary-shortcode.php:2259
 msgid "Senses"
 msgstr "Sinne"
@@ -22997,11 +22997,12 @@ msgstr "Du darfst die LL Tools-Caches auf dieser Website nicht leeren."
 msgid "Use cache=all, cache=dictionary, or cache=public."
 msgstr "Verwende cache=all, cache=dictionary oder cache=public."
 
-#: includes/api/automation-rest.php:10371
+#: includes/api/automation-rest.php:10381
 msgid "Could not find a matching corpus text post."
 msgstr "Es wurde kein passender Korpustext-Beitrag gefunden."
 
-#: includes/api/automation-rest.php:10382
+#: includes/api/automation-rest.php:10317
+#: includes/api/automation-rest.php:10392
 msgid "The matching content lesson is not a corpus text."
 msgstr "Die passende Inhaltslektion ist kein Korpustext."
 
@@ -24925,19 +24926,19 @@ msgstr "Unbenannt"
 msgid "LL Tools Site"
 msgstr "LL Tools-Website"
 
-#: includes/lib/ai-crawler-support.php:944
+#: includes/lib/ai-crawler-support.php:947
 msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
 msgstr "Öffentliche LL Tools-Inhalte zum Sprachenlernen, optimiert für KI-Agenten und Crawler."
 
-#: includes/lib/ai-crawler-support.php:949
+#: includes/lib/ai-crawler-support.php:952
 msgid "LL Tools AI index"
 msgstr "LL Tools-KI-Index"
 
-#: includes/lib/ai-crawler-support.php:949
+#: includes/lib/ai-crawler-support.php:952
 msgid "Compact generated Markdown index for AI agents."
 msgstr "Kompakter generierter Markdown-Index für KI-Agenten."
 
-#: includes/lib/ai-crawler-support.php:950
+#: includes/lib/ai-crawler-support.php:953
 msgid "Public dictionary search and browse page."
 msgstr "Öffentliche Wörterbuchseite zum Suchen und Stöbern."
 
@@ -24967,75 +24968,75 @@ msgstr "Die erwartete Übersetzung des Wörterbucheintrags stimmt nicht mit dem 
 msgid "Cannot canonicalize a word without target text."
 msgstr "Eine Vokabel ohne Zieltext kann nicht kanonisiert werden."
 
-#: includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:983
 msgid "LL Tools llms.txt"
 msgstr "LL Tools llms.txt"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:972
+#: includes/lib/ai-crawler-support.php:975
 #, php-format
 msgid "%s LL Tools AI Index"
 msgstr "%s LL Tools-KI-Index"
 
-#: includes/lib/ai-crawler-support.php:979
+#: includes/lib/ai-crawler-support.php:982
 msgid "Site-level AI discovery file."
 msgstr "KI-Discovery-Datei auf Website-Ebene."
 
-#: includes/lib/ai-crawler-support.php:958
-#: includes/lib/ai-crawler-support.php:981
+#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:984
 msgid "Schema.org structured discovery graph for the generated public exports."
 msgstr "Strukturierter Schema.org-Discovery-Graph für die generierten öffentlichen Exporte."
 
-#: includes/lib/ai-crawler-support.php:1120
+#: includes/lib/ai-crawler-support.php:1123
 msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
 msgstr "Generierter, begrenzter, anonym-öffentlicher LL Tools-Discovery-Index für KI-Agenten."
 
-#: includes/lib/ai-crawler-support.php:976
+#: includes/lib/ai-crawler-support.php:979
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Dieser generierte Index verweist KI-Agenten auf kompakte öffentliche LL Tools-Inhalte. Er ist bewusst schreibgeschützt und begrenzt; die verlinkten HTML-Seiten bleiben die kanonische Quelle für Zitate."
 
-#: includes/lib/ai-crawler-support.php:946
+#: includes/lib/ai-crawler-support.php:949
 msgid "This file lists anonymous, read-only public content. Use canonical HTML URLs for citation and the Markdown exports for compact context. Admin screens, editor workflows, recording tools, REST mutation endpoints, and private wordsets are not public crawl targets."
 msgstr "Diese Datei listet anonyme, schreibgeschützte öffentliche Inhalte auf. Verwende kanonische HTML-URLs für Zitate und die Markdown-Exporte für kompakten Kontext. Admin-Bildschirme, Editor-Workflows, Aufnahmewerkzeuge, REST-Mutationsendpunkte und private Vokabelsets sind keine öffentlichen Crawl-Ziele."
 
-#: includes/lib/ai-crawler-support.php:953
-#: includes/lib/ai-crawler-support.php:984
-#: includes/lib/ai-crawler-support.php:1034
+#: includes/lib/ai-crawler-support.php:956
+#: includes/lib/ai-crawler-support.php:987
+#: includes/lib/ai-crawler-support.php:1037
 msgid "Dictionary Markdown"
 msgstr "Wörterbuch-Markdown"
 
-#: includes/lib/ai-crawler-support.php:953
+#: includes/lib/ai-crawler-support.php:956
 msgid "Bounded public dictionary entries with definitions, sources, and canonical detail links."
 msgstr "Begrenzte öffentliche Wörterbucheinträge mit Definitionen, Quellen und kanonischen Detail-Links."
 
-#: includes/lib/ai-crawler-support.php:954
-#: includes/lib/ai-crawler-support.php:985
-#: includes/lib/ai-crawler-support.php:1040
+#: includes/lib/ai-crawler-support.php:957
+#: includes/lib/ai-crawler-support.php:988
+#: includes/lib/ai-crawler-support.php:1043
 msgid "Wordsets Markdown"
 msgstr "Vokabelsets-Markdown"
 
-#: includes/lib/ai-crawler-support.php:954
+#: includes/lib/ai-crawler-support.php:957
 msgid "Public wordset hubs and public vocab lessons."
 msgstr "Öffentliche Vokabelset-Hubs und öffentliche Vokabellektionen."
 
-#: includes/lib/ai-crawler-support.php:955
-#: includes/lib/ai-crawler-support.php:986
-#: includes/lib/ai-crawler-support.php:1046
+#: includes/lib/ai-crawler-support.php:958
+#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:1049
 msgid "Content Lessons Markdown"
 msgstr "Inhaltslektionen-Markdown"
 
-#: includes/lib/ai-crawler-support.php:958
-#: includes/lib/ai-crawler-support.php:981
+#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:984
 msgid "AI index JSON-LD"
 msgstr "AI-Index JSON-LD"
 
-#: includes/lib/ai-crawler-support.php:961
-#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:964
+#: includes/lib/ai-crawler-support.php:992
 msgid "AI crawler notes"
 msgstr "AI-Crawler-Notizen"
 
-#: includes/lib/ai-crawler-support.php:979
-#: includes/lib/ai-crawler-support.php:1022
+#: includes/lib/ai-crawler-support.php:982
+#: includes/lib/ai-crawler-support.php:1025
 msgid "Root llms.txt"
 msgstr "Root-llms.txt"
 
@@ -25093,7 +25094,7 @@ msgstr "Die ersten %1$d von %2$d importierten Kategorien werden angezeigt."
 msgid "Selecting a category exports that category only, plus word images assigned to it. Choose All categories for a full export."
 msgstr "Wenn du eine Kategorie auswählst, wird nur diese Kategorie exportiert, plus die ihr zugewiesenen Vokabelbilder. Wähle Alle Kategorien für einen vollständigen Export."
 
-#: includes/pages/content-lesson-pages.php:884
+#: includes/pages/content-lesson-pages.php:1093
 msgid "Text pages"
 msgstr "Textseiten"
 
@@ -25216,8 +25217,8 @@ msgstr "Die Aufnahmen konnten nicht geladen werden. Bitte versuche es erneut."
 #: includes/pages/wordset-pages.php:12068
 #: includes/pages/wordset-pages.php:12312
 #: includes/pages/wordset-pages.php:21201
-#: includes/shortcodes/content-lesson-index-shortcode.php:386
-#: includes/shortcodes/content-lesson-index-shortcode.php:504
+#: includes/shortcodes/content-lesson-index-shortcode.php:544
+#: includes/shortcodes/content-lesson-index-shortcode.php:662
 #, php-format
 msgid "Page %d"
 msgstr "Seite %d"
@@ -25229,7 +25230,7 @@ msgid "%d+"
 msgstr "%d+"
 
 #: includes/admin/audio-processor-admin.php:206
-#: includes/lib/ai-crawler-support.php:1491
+#: includes/lib/ai-crawler-support.php:1494
 msgid "Wordset:"
 msgstr "Vokabelset:"
 
@@ -25824,7 +25825,7 @@ msgid "Failed to update post ID %1$d: %2$s"
 msgstr "Beitrag mit der ID %1$d konnte nicht aktualisiert werden: %2$s"
 
 #: includes/admin/offline-app-export.php:55
-#: includes/post-types/content-lesson-post-type.php:1829
+#: includes/post-types/content-lesson-post-type.php:1839
 msgid "Select a valid word set."
 msgstr "Wähle ein gültiges Vokabelset aus."
 
@@ -26246,242 +26247,242 @@ msgstr "Seite %1$d von %2$d der gespeicherten Paare"
 msgid "Unable to resolve the requested word category."
 msgstr "Die angeforderte Vokabelkategorie konnte nicht aufgelöst werden."
 
-#: includes/lib/ai-crawler-support.php:955
+#: includes/lib/ai-crawler-support.php:958
 msgid "Public content lessons with compact transcript samples."
 msgstr "Öffentliche Inhaltslektionen mit kompakten Transkriptbeispielen."
 
-#: includes/lib/ai-crawler-support.php:961
+#: includes/lib/ai-crawler-support.php:964
 msgid "Operational notes about how these generated files should be interpreted."
 msgstr "Betriebliche Hinweise zur Interpretation dieser generierten Dateien."
 
-#: includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:983
 msgid "Plugin-scoped copy of the discovery file."
 msgstr "Plugin-spezifische Kopie der Discovery-Datei."
 
-#: includes/lib/ai-crawler-support.php:984
+#: includes/lib/ai-crawler-support.php:987
 msgid "Headwords, summaries, sources, dialects, and dictionary detail links."
 msgstr "Stichwörter, Zusammenfassungen, Quellen, Dialekte und Detail-Links des Wörterbuchs."
 
-#: includes/lib/ai-crawler-support.php:985
+#: includes/lib/ai-crawler-support.php:988
 msgid "Public wordset landing pages and vocab lesson routes."
 msgstr "Öffentliche Landingpages für Vokabelsets und Routen zu Vokabellektionen."
 
-#: includes/lib/ai-crawler-support.php:986
+#: includes/lib/ai-crawler-support.php:989
 msgid "Content lessons and compact transcript cue samples."
 msgstr "Inhaltslektionen und kompakte Beispiele für Transkriptsegmente."
 
-#: includes/lib/ai-crawler-support.php:989
+#: includes/lib/ai-crawler-support.php:992
 msgid "Scope and interpretation notes for these generated exports."
 msgstr "Hinweise zum Umfang und zur Interpretation dieser generierten Exporte."
 
-#: includes/lib/ai-crawler-support.php:995
-#: includes/lib/ai-crawler-support.php:1177
+#: includes/lib/ai-crawler-support.php:998
+#: includes/lib/ai-crawler-support.php:1180
 msgid "Dictionary Letter Chunks"
 msgstr "Wörterbuchabschnitte nach Buchstaben"
 
-#: includes/lib/ai-crawler-support.php:996
+#: includes/lib/ai-crawler-support.php:999
 msgid "Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample."
 msgstr "Buchstabenabschnitte stellen kleinere Wörterbuchausschnitte für Agenten bereit, die gezielten Kontext statt einer breiten Stichprobe benötigen."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1001
+#: includes/lib/ai-crawler-support.php:1004
 #, php-format
 msgid "Dictionary letter %s"
 msgstr "Wörterbuchbuchstabe %s"
 
-#: includes/lib/ai-crawler-support.php:1028
+#: includes/lib/ai-crawler-support.php:1031
 msgid "AI index Markdown"
 msgstr "KI-Index als Markdown"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:1117
+#: includes/lib/ai-crawler-support.php:1120
 #, php-format
 msgid "%s LL Tools AI discovery index"
 msgstr "%s LL Tools KI-Discovery-Index"
 
-#: includes/lib/ai-crawler-support.php:1128
-#: includes/lib/ai-crawler-support.php:1164
+#: includes/lib/ai-crawler-support.php:1131
+#: includes/lib/ai-crawler-support.php:1167
 msgid "Public Dictionary"
 msgstr "Öffentliches Wörterbuch"
 
-#: includes/lib/ai-crawler-support.php:1129
+#: includes/lib/ai-crawler-support.php:1132
 msgid "Bounded public dictionary entries exposed for compact AI context."
 msgstr "Begrenzte öffentliche Wörterbucheinträge für kompakten KI-Kontext."
 
-#: includes/lib/ai-crawler-support.php:1141
+#: includes/lib/ai-crawler-support.php:1144
 msgid "Dictionary letter Markdown exports"
 msgstr "Markdown-Exporte des Wörterbuchs nach Buchstaben"
 
 #. translators: %d: Entry limit.
-#: includes/lib/ai-crawler-support.php:1168
+#: includes/lib/ai-crawler-support.php:1171
 #, php-format
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
 msgstr "Dieser begrenzte Export enthält bis zu %d anonyme öffentliche Wörterbucheinträge. Verwende für Zitate die jeweilige kanonische Detail-URL und für die Suche die öffentliche Wörterbuchseite."
 
-#: includes/lib/ai-crawler-support.php:1172
-#: includes/lib/ai-crawler-support.php:1224
+#: includes/lib/ai-crawler-support.php:1175
+#: includes/lib/ai-crawler-support.php:1227
 msgid "Public dictionary page"
 msgstr "Öffentliche Wörterbuchseite"
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1182
+#: includes/lib/ai-crawler-support.php:1185
 #, php-format
 msgid "Letter %s"
 msgstr "Buchstabe %s"
 
-#: includes/lib/ai-crawler-support.php:1192
+#: includes/lib/ai-crawler-support.php:1195
 msgid "No public dictionary entries are currently available."
 msgstr "Derzeit sind keine öffentlichen Wörterbucheinträge verfügbar."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1212
+#: includes/lib/ai-crawler-support.php:1215
 #, php-format
 msgid "Public Dictionary: %s"
 msgstr "Öffentliches Wörterbuch: %s"
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1218
+#: includes/lib/ai-crawler-support.php:1221
 #, php-format
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
 msgstr "Dieser begrenzte Export enthält bis zu %1$d anonyme öffentliche Wörterbucheinträge für den Buchstaben %2$s."
 
-#: includes/lib/ai-crawler-support.php:1223
+#: includes/lib/ai-crawler-support.php:1226
 msgid "Dictionary Markdown index"
 msgstr "Wörterbuch-Markdown-Index"
 
-#: includes/lib/ai-crawler-support.php:1229
+#: includes/lib/ai-crawler-support.php:1232
 msgid "No public dictionary entries are currently available for this letter."
 msgstr "Für diesen Buchstaben sind derzeit keine öffentlichen Wörterbucheinträge verfügbar."
 
-#: includes/lib/ai-crawler-support.php:1248
-#: includes/lib/ai-crawler-support.php:1472
+#: includes/lib/ai-crawler-support.php:1251
+#: includes/lib/ai-crawler-support.php:1475
 msgid "Canonical URL:"
 msgstr "Kanonische URL:"
 
-#: includes/lib/ai-crawler-support.php:1250
-#: includes/lib/ai-crawler-support.php:1479
+#: includes/lib/ai-crawler-support.php:1253
+#: includes/lib/ai-crawler-support.php:1482
 msgid "Summary:"
 msgstr "Zusammenfassung:"
 
-#: includes/lib/ai-crawler-support.php:1255
+#: includes/lib/ai-crawler-support.php:1258
 msgid "Part of speech:"
 msgstr "Wortart:"
 
-#: includes/lib/ai-crawler-support.php:1260
+#: includes/lib/ai-crawler-support.php:1263
 msgid "Wordsets:"
 msgstr "Vokabelsets:"
 
-#: includes/lib/ai-crawler-support.php:1265
+#: includes/lib/ai-crawler-support.php:1268
 msgid "Sources:"
 msgstr "Quellen:"
 
-#: includes/lib/ai-crawler-support.php:1270
+#: includes/lib/ai-crawler-support.php:1273
 msgid "Dialects:"
 msgstr "Dialekte:"
 
-#: includes/lib/ai-crawler-support.php:1377
+#: includes/lib/ai-crawler-support.php:1380
 msgid "Public Wordsets and Vocab Lessons"
 msgstr "Öffentliche Vokabelsets und Vokabellektionen"
 
-#: includes/lib/ai-crawler-support.php:1379
+#: includes/lib/ai-crawler-support.php:1382
 msgid "This export lists anonymous public wordset hubs and vocab lessons. Private wordsets and private categories are excluded."
 msgstr "Dieser Export listet anonyme öffentliche Vokabelset-Hubs und Vokabellektionen auf. Private Vokabelsets und private Kategorien sind ausgeschlossen."
 
-#: includes/lib/ai-crawler-support.php:1381
+#: includes/lib/ai-crawler-support.php:1384
 msgid "Wordsets"
 msgstr "Vokabelsets"
 
-#: includes/lib/ai-crawler-support.php:1385
+#: includes/lib/ai-crawler-support.php:1388
 msgid "No public wordsets are currently available."
 msgstr "Derzeit sind keine öffentlichen Vokabelsets verfügbar."
 
-#: includes/lib/ai-crawler-support.php:1399
+#: includes/lib/ai-crawler-support.php:1402
 msgid "No public vocab lessons are currently available."
 msgstr "Derzeit sind keine öffentlichen Vokabellektionen verfügbar."
 
 #. translators: %s: Wordset name.
-#: includes/lib/ai-crawler-support.php:1420
+#: includes/lib/ai-crawler-support.php:1423
 #, php-format
 msgid "Wordset: %s"
 msgstr "Vokabelset: %s"
 
 #. translators: %s: Category name.
-#: includes/lib/ai-crawler-support.php:1438
+#: includes/lib/ai-crawler-support.php:1441
 #, php-format
 msgid "Category: %s"
 msgstr "Kategorie: %s"
 
-#: includes/lib/ai-crawler-support.php:1454
+#: includes/lib/ai-crawler-support.php:1457
 msgid "Public Content Lessons"
 msgstr "Öffentliche Inhaltslektionen"
 
 #. translators: %d: Lesson limit.
-#: includes/lib/ai-crawler-support.php:1458
+#: includes/lib/ai-crawler-support.php:1461
 #, php-format
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
 msgstr "Dieser begrenzte Export enthält bis zu %d öffentliche Inhaltslektionen. Die Transkriptsegmente sind kompakte Beispiele; verwende für die vollständige Seite die kanonische Lektions-URL."
 
-#: includes/lib/ai-crawler-support.php:1465
+#: includes/lib/ai-crawler-support.php:1468
 msgid "No public content lessons are currently available."
 msgstr "Derzeit sind keine öffentlichen Inhaltslektionen verfügbar."
 
-#: includes/lib/ai-crawler-support.php:1484
+#: includes/lib/ai-crawler-support.php:1487
 msgid "Media:"
 msgstr "Medien:"
 
-#: includes/lib/ai-crawler-support.php:1497
+#: includes/lib/ai-crawler-support.php:1500
 msgid "Categories:"
 msgstr "Kategorien:"
 
-#: includes/lib/ai-crawler-support.php:1503
+#: includes/lib/ai-crawler-support.php:1506
 msgid "Transcript Sample"
 msgstr "Transkriptbeispiel"
 
-#: includes/lib/ai-crawler-support.php:1582
+#: includes/lib/ai-crawler-support.php:1585
 msgid "LL Tools AI Crawler Notes"
 msgstr "LL Tools Hinweise für KI-Crawler"
 
-#: includes/lib/ai-crawler-support.php:1584
+#: includes/lib/ai-crawler-support.php:1587
 msgid "These generated files are intended to help AI agents discover and summarize public LL Tools content efficiently."
 msgstr "Diese generierten Dateien sollen KI-Agenten helfen, öffentliche LL Tools-Inhalte effizient zu finden und zusammenzufassen."
 
-#: includes/lib/ai-crawler-support.php:1586
+#: includes/lib/ai-crawler-support.php:1589
 msgid "Scope"
 msgstr "Umfang"
 
-#: includes/lib/ai-crawler-support.php:1587
+#: includes/lib/ai-crawler-support.php:1590
 msgid "Only anonymous public content is included."
 msgstr "Es werden nur anonyme öffentliche Inhalte einbezogen."
 
-#: includes/lib/ai-crawler-support.php:1588
+#: includes/lib/ai-crawler-support.php:1591
 msgid "Exports are bounded snapshots and may omit older or less relevant public records."
 msgstr "Exporte sind begrenzte Schnappschüsse und können ältere oder weniger relevante öffentliche Datensätze auslassen."
 
-#: includes/lib/ai-crawler-support.php:1589
+#: includes/lib/ai-crawler-support.php:1592
 msgid "Canonical HTML pages remain the source of record for citation and full context."
 msgstr "Kanonische HTML-Seiten bleiben die maßgebliche Quelle für Zitate und den vollständigen Kontext."
 
-#: includes/lib/ai-crawler-support.php:1590
+#: includes/lib/ai-crawler-support.php:1593
 msgid "These files do not grant access to private wordsets, admin pages, editor flows, recording tools, or mutation endpoints."
 msgstr "Diese Dateien gewähren keinen Zugriff auf private Vokabelsets, Admin-Seiten, redaktionelle Abläufe, Aufnahmewerkzeuge oder Änderungsendpunkte."
 
-#: includes/lib/ai-crawler-support.php:1592
+#: includes/lib/ai-crawler-support.php:1595
 msgid "Crawler Interpretation"
 msgstr "Interpretation durch Crawler"
 
-#: includes/lib/ai-crawler-support.php:1593
+#: includes/lib/ai-crawler-support.php:1596
 msgid "Prefer Markdown exports for compact context gathering."
 msgstr "Bevorzuge Markdown-Exporte, um kompakten Kontext zu sammeln."
 
-#: includes/lib/ai-crawler-support.php:1594
+#: includes/lib/ai-crawler-support.php:1597
 msgid "Prefer canonical HTML URLs when citing or sending a user to the site."
 msgstr "Bevorzuge kanonische HTML-URLs, wenn du zitierst oder Benutzer zur Website weiterleitest."
 
-#: includes/lib/ai-crawler-support.php:1595
+#: includes/lib/ai-crawler-support.php:1598
 msgid "Use the public dictionary WebMCP tool only for read-only dictionary search."
 msgstr "Verwende das öffentliche WebMCP-Werkzeug des Wörterbuchs nur für schreibgeschützte Wörterbuchsuchen."
 
-#: includes/lib/ai-crawler-support.php:1596
+#: includes/lib/ai-crawler-support.php:1599
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr "Behandle robots.txt und Antwort-Header als maßgeblich für die Crawling- und Trainingsrichtlinien, sofern die Website sie dort definiert."
 
@@ -26867,7 +26868,7 @@ msgid "Recorder queue pages"
 msgstr "Seiten der Aufnahme-Warteschlange"
 
 #: includes/pages/wordset-pages.php:21255
-#: includes/post-types/content-lesson-post-type.php:1811
+#: includes/post-types/content-lesson-post-type.php:1821
 msgid "Loading..."
 msgstr "Wird geladen..."
 
@@ -26948,11 +26949,11 @@ msgstr "Weitere Warteschlangenkategorien können derzeit nicht geladen werden."
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "Die Suchergebnisse werden noch vorbereitet. Bitte versuche es gleich noch einmal."
 
-#: includes/post-types/content-lesson-post-type.php:1812
+#: includes/post-types/content-lesson-post-type.php:1822
 msgid "Options could not be loaded."
 msgstr "Die Optionen konnten nicht geladen werden."
 
-#: includes/post-types/content-lesson-post-type.php:1820
+#: includes/post-types/content-lesson-post-type.php:1830
 msgid "You are not allowed to edit content lessons."
 msgstr "Du darfst Inhaltslektionen nicht bearbeiten."
 
@@ -27521,7 +27522,7 @@ msgid "Before this lesson"
 msgstr "Vor dieser Unterrichtsstunde"
 
 #: includes/content-lesson-progress.php:279
-#: includes/shortcodes/content-lesson-index-shortcode.php:446
+#: includes/shortcodes/content-lesson-index-shortcode.php:604
 msgid "Not completed"
 msgstr "Noch nicht abgeschlossen"
 
@@ -27534,8 +27535,8 @@ msgid "Log in to save lesson progress"
 msgstr "Melden Sie sich an, um Ihren Lernfortschritt zu speichern"
 
 #: includes/content-lesson-progress.php:408
-#: includes/pages/content-lesson-pages.php:1084
-#: includes/shortcodes/content-lesson-index-shortcode.php:233
+#: includes/pages/content-lesson-pages.php:1293
+#: includes/shortcodes/content-lesson-index-shortcode.php:387
 msgid "Mark complete"
 msgstr "Als erledigt markieren"
 
@@ -27553,8 +27554,8 @@ msgid "You cannot update progress for this lesson."
 msgstr "Der Fortschritt für diese Lektion kann nicht aktualisiert werden."
 
 #: includes/content-lesson-progress.php:474
-#: includes/pages/content-lesson-pages.php:1087
-#: includes/shortcodes/content-lesson-index-shortcode.php:236
+#: includes/pages/content-lesson-pages.php:1296
+#: includes/shortcodes/content-lesson-index-shortcode.php:390
 msgid "Lesson progress could not be saved."
 msgstr "Der Lernfortschritt konnte nicht gespeichert werden."
 
@@ -27562,184 +27563,186 @@ msgstr "Der Lernfortschritt konnte nicht gespeichert werden."
 msgid "The progress request could not be verified."
 msgstr "Die Fortschrittsanfrage konnte nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:234
+#: includes/migrations/legacy-content-lessons.php:317
 #, php-format
 msgid "Source category \"%s\" was not found."
 msgstr "Die Quellkategorie „%s“ wurde nicht gefunden."
 
-#: includes/migrations/legacy-content-lessons.php:319
+#: includes/migrations/legacy-content-lessons.php:402
 msgid "Provide explicit source post IDs or source category IDs."
 msgstr "Geben Sie die genauen IDs der Quellbeiträge oder der Quellkategorien an."
 
-#: includes/migrations/legacy-content-lessons.php:301
-#: includes/migrations/legacy-content-lessons.php:355
+#: includes/migrations/legacy-content-lessons.php:384
+#: includes/migrations/legacy-content-lessons.php:438
 msgid "The source lesson page could not be read completely."
 msgstr "Die Seite mit der Unterrichtseinheit konnte nicht vollständig geladen werden."
 
-#: includes/migrations/legacy-content-lessons.php:754
+#: includes/migrations/legacy-content-lessons.php:873
 msgid "The legacy lesson source post does not exist."
 msgstr "Der ursprüngliche Beitrag zur Lektion existiert nicht."
 
-#: includes/migrations/legacy-content-lessons.php:760
-#: includes/migrations/legacy-content-lessons.php:1592
-#: includes/migrations/legacy-content-lessons.php:2460
+#: includes/migrations/legacy-content-lessons.php:879
+#: includes/migrations/legacy-content-lessons.php:1781
+#: includes/migrations/legacy-content-lessons.php:2655
 msgid "Select a valid target word set."
 msgstr "Wählen Sie eine gültige Zielwortgruppe aus."
 
-#: includes/migrations/legacy-content-lessons.php:792
+#: includes/migrations/legacy-content-lessons.php:920
 msgid "A non-published source lesson cannot be migrated directly to published status."
 msgstr "Eine nicht veröffentlichte Unterrichtsstunde kann nicht direkt in den Status „veröffentlicht“ überführt werden."
 
-#: includes/migrations/legacy-content-lessons.php:927
-#: includes/migrations/legacy-content-lessons.php:1050
+#: includes/migrations/legacy-content-lessons.php:1066
+#: includes/migrations/legacy-content-lessons.php:1238
 msgid "The legacy lesson compatibility word set could not be saved."
 msgstr "Der Kompatibilitätswortsatz für ältere Lektionen konnte nicht gespeichert werden."
 
-#: includes/migrations/legacy-content-lessons.php:970
+#: includes/migrations/legacy-content-lessons.php:1120
 msgid "The migrated lesson category mapping could not be saved."
 msgstr "Die Zuordnung der migrierten Unterrichtskategorien konnte nicht gespeichert werden."
 
-#: includes/migrations/legacy-content-lessons.php:1043
+#: includes/migrations/legacy-content-lessons.php:1135
+#: includes/migrations/legacy-content-lessons.php:1147
+#: includes/migrations/legacy-content-lessons.php:1231
 msgid "The migrated lesson could not be verified after saving."
 msgstr "Die migrierte Lektion konnte nach dem Speichern nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:1523
+#: includes/migrations/legacy-content-lessons.php:1712
 msgid "The HTML link rewriter is unavailable."
 msgstr "Der HTML-Link-Umschreiber ist nicht verfügbar."
 
-#: includes/migrations/legacy-content-lessons.php:1539
+#: includes/migrations/legacy-content-lessons.php:1728
 msgid "The lesson contains too many links to rewrite in one bounded pass."
 msgstr "Die Lektion enthält zu viele Links, um sie in einem einzigen Durchgang umzuschreiben."
 
-#: includes/migrations/legacy-content-lessons.php:1603
+#: includes/migrations/legacy-content-lessons.php:1792
 msgid "Migrate the lesson records before migrating their prerequisites."
 msgstr "Migrieren Sie die Kursdatensätze, bevor Sie deren Voraussetzungen migrieren."
 
-#: includes/migrations/legacy-content-lessons.php:1631
-#: includes/migrations/legacy-content-lessons.php:1690
-#: includes/post-types/content-lesson-post-type.php:1402
-#: includes/post-types/content-lesson-post-type.php:1441
-#: includes/post-types/content-lesson-post-type.php:1475
-#: includes/post-types/content-lesson-post-type.php:1509
-#: includes/post-types/content-lesson-post-type.php:2263
+#: includes/migrations/legacy-content-lessons.php:1820
+#: includes/migrations/legacy-content-lessons.php:1879
+#: includes/post-types/content-lesson-post-type.php:1412
+#: includes/post-types/content-lesson-post-type.php:1451
+#: includes/post-types/content-lesson-post-type.php:1485
+#: includes/post-types/content-lesson-post-type.php:1519
+#: includes/post-types/content-lesson-post-type.php:2273
 msgid "The prerequisite graph is too large to validate safely."
 msgstr "Der Vorraussetzungsgraph ist zu groß, um ihn sicher zu validieren."
 
-#: includes/migrations/legacy-content-lessons.php:1684
-#: includes/migrations/legacy-content-lessons.php:1703
-#: includes/post-types/content-lesson-post-type.php:1415
-#: includes/post-types/content-lesson-post-type.php:1450
-#: includes/post-types/content-lesson-post-type.php:1466
-#: includes/post-types/content-lesson-post-type.php:1494
-#: includes/post-types/content-lesson-post-type.php:2235
-#: includes/post-types/content-lesson-post-type.php:2251
+#: includes/migrations/legacy-content-lessons.php:1873
+#: includes/migrations/legacy-content-lessons.php:1892
+#: includes/post-types/content-lesson-post-type.php:1425
+#: includes/post-types/content-lesson-post-type.php:1460
+#: includes/post-types/content-lesson-post-type.php:1476
+#: includes/post-types/content-lesson-post-type.php:1504
+#: includes/post-types/content-lesson-post-type.php:2245
+#: includes/post-types/content-lesson-post-type.php:2261
 msgid "The prerequisite relationships could not be read completely."
 msgstr "Die erforderlichen Beziehungen konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1776
+#: includes/migrations/legacy-content-lessons.php:1965
 msgid "The migrated lesson relations could not be verified after saving."
 msgstr "Die migrierten Lektionsbeziehungen konnten nach dem Speichern nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:1826
+#: includes/migrations/legacy-content-lessons.php:2015
 msgid "The legacy Favorites structure exceeds the configured safe limit."
 msgstr "Die alte Favoriten-Struktur überschreitet das konfigurierte Sicherheitslimit."
 
-#: includes/migrations/legacy-content-lessons.php:1835
+#: includes/migrations/legacy-content-lessons.php:2024
 msgid "The legacy Favorites associations exceed the configured safe limit."
 msgstr "Die Zuordnungen der alten Favoriten überschreiten das konfigurierte Sicherheitslimit."
 
-#: includes/migrations/legacy-content-lessons.php:627
-#: includes/migrations/legacy-content-lessons.php:1894
+#: includes/migrations/legacy-content-lessons.php:710
+#: includes/migrations/legacy-content-lessons.php:2083
 msgid "The migrated lesson mapping could not be read completely."
 msgstr "Die migrierte Lektionszuordnung konnte nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1900
+#: includes/migrations/legacy-content-lessons.php:2089
 msgid "The migrated lesson mapping exceeds the configured safe limit."
 msgstr "Die Anzahl der migrierten Lektionszuordnungen überschreitet den konfigurierten Sicherheitsgrenzwert."
 
 #. translators: %d: legacy source post ID
-#: includes/migrations/legacy-content-lessons.php:635
-#: includes/migrations/legacy-content-lessons.php:1916
+#: includes/migrations/legacy-content-lessons.php:718
+#: includes/migrations/legacy-content-lessons.php:2105
 #, php-format
 msgid "Legacy source post %d maps to more than one content lesson."
 msgstr "Der alte Quellbeitrag %d ist mehreren Lerneinheiten zugeordnet."
 
-#: includes/migrations/legacy-content-lessons.php:2177
+#: includes/migrations/legacy-content-lessons.php:2366
 msgid "The legacy completion user page could not be read completely."
 msgstr "Die Benutzer-Seite zur Fertigstellung des Legacy-Projekts konnte nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:2208
-#: includes/migrations/legacy-content-lessons.php:2233
+#: includes/migrations/legacy-content-lessons.php:2397
+#: includes/migrations/legacy-content-lessons.php:2422
 msgid "Start the completion migration at cursor zero, then pass its audit run ID to every continuation."
 msgstr "Starten Sie die Vervollständigungsmigration am Cursor-Nullpunkt und übergeben Sie anschließend deren Audit-Lauf-ID an jede Fortsetzung."
 
 #. translators: 1: user ID, 2: migration error
-#: includes/migrations/legacy-content-lessons.php:2263
+#: includes/migrations/legacy-content-lessons.php:2452
 #, php-format
 msgid "User %1$d completion data was skipped: %2$s"
 msgstr "Die Vervollständigungsdaten des Benutzers %1$d wurden übersprungen: %2$s"
 
-#: includes/migrations/legacy-content-lessons.php:2277
+#: includes/migrations/legacy-content-lessons.php:2466
 #, php-format
 msgid "User %d legacy completion data exceeds the configured safe limit."
 msgstr "Die Altdaten zur Vervollständigung des Benutzers %d überschreiten den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:2348
+#: includes/migrations/legacy-content-lessons.php:2537
 #, php-format
 msgid "User %d completion data failed readback verification."
 msgstr "Die Rücklesebestätigung der Vervollständigungsdaten des Benutzers %d ist fehlgeschlagen."
 
-#: includes/migrations/legacy-content-lessons.php:2365
+#: includes/migrations/legacy-content-lessons.php:2554
 msgid "The completion migration audit exceeds the configured safe page limit."
 msgstr "Das Migrationsaudit zum Abschluss überschreitet das konfigurierte Limit für sichere Seiten."
 
-#: includes/migrations/legacy-content-lessons.php:2441
+#: includes/migrations/legacy-content-lessons.php:2630
 msgid "The completion migration audit could not be verified after saving."
 msgstr "Das Abschluss-Migrationsaudit konnte nach dem Speichern nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:2483
+#: includes/migrations/legacy-content-lessons.php:2678
 msgid "Use the lessons, relations, or completions migration phase."
 msgstr "Verwenden Sie die Migrationsphase „Lektionen“, „Beziehungen“ oder „Ergänzungen“."
 
-#: includes/migrations/legacy-content-lessons.php:2525
+#: includes/migrations/legacy-content-lessons.php:2721
 #, php-format
 msgid "Source post %1$d: %2$s"
 msgstr "Originalbeitrag %1$d: %2$s"
 
-#: includes/pages/content-lesson-pages.php:7
-#: includes/post-types/content-lesson-post-type.php:123
+#: includes/pages/content-lesson-pages.php:214
+#: includes/post-types/content-lesson-post-type.php:125
 #: templates/content-lesson-template.php:96
 msgid "Article lesson"
 msgstr "Artikel-Lektion"
 
-#: includes/pages/content-lesson-pages.php:1086
-#: includes/shortcodes/content-lesson-index-shortcode.php:235
+#: includes/pages/content-lesson-pages.php:1295
+#: includes/shortcodes/content-lesson-index-shortcode.php:389
 msgid "Progress saved."
 msgstr "Fortschritt gespeichert."
 
-#: includes/post-types/content-lesson-post-type.php:1430
-#: includes/post-types/content-lesson-post-type.php:1481
-#: includes/post-types/content-lesson-post-type.php:1502
+#: includes/post-types/content-lesson-post-type.php:1440
+#: includes/post-types/content-lesson-post-type.php:1491
+#: includes/post-types/content-lesson-post-type.php:1512
 msgid "These prerequisites would create a lesson loop."
 msgstr "Diese Voraussetzungen würden zu einem Unterrichtskreislauf führen."
 
-#: includes/post-types/content-lesson-post-type.php:1528
+#: includes/post-types/content-lesson-post-type.php:1538
 msgid "The prerequisite change was not saved because it would create a lesson loop."
 msgstr "Die Änderung der Voraussetzung wurde nicht gespeichert, da dies zu einer Endlosschleife bei den Lektionen führen würde."
 
-#: includes/post-types/content-lesson-post-type.php:1531
+#: includes/post-types/content-lesson-post-type.php:1541
 msgid "The prerequisite change was not saved because the dependency graph exceeded the safe validation limit."
 msgstr "Die Änderung der Voraussetzung wurde nicht gespeichert, da der Abhängigkeitsgraph die sichere Validierungsgrenze überschritten hat."
 
-#: includes/post-types/content-lesson-post-type.php:1534
+#: includes/post-types/content-lesson-post-type.php:1544
 msgid "The prerequisite change was not saved because its relationships could not be read completely. Please try again."
 msgstr "Die Änderung der Voraussetzung wurde nicht gespeichert, da ihre Verknüpfungen nicht vollständig gelesen werden konnten. Bitte versuchen Sie es erneut."
 
-#: includes/post-types/content-lesson-post-type.php:1908
+#: includes/post-types/content-lesson-post-type.php:1918
 msgid "Create an article, audio, or video lesson and connect it to the appropriate word set and learning sequence."
 msgstr "Erstellen Sie eine Artikel-, Audio- oder Videolektion und verknüpfen Sie diese mit dem entsprechenden Wortschatz und dem entsprechenden Lernablauf."
 
-#: includes/post-types/content-lesson-post-type.php:1951
+#: includes/post-types/content-lesson-post-type.php:1961
 msgid "Use Article for a text-first lesson with no media player. Corpus text remains reserved for editions, translations, and linguist-facing interlinear payloads."
 msgstr "Verwenden Sie „Artikel“ für eine textorientierte Lektion ohne Mediaplayer. Der Korpustext bleibt für Ausgaben, Übersetzungen und für Linguisten bestimmte interlineare Inhalte reserviert."
 
@@ -27751,39 +27754,41 @@ msgstr "LL Tools Inhalt – Lernfortschritt"
 msgid "Completed content lesson IDs"
 msgstr "ID-Nummern der abgeschlossenen Lektionen"
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:99
+#: includes/shortcodes/content-lesson-index-shortcode.php:200
 msgid "Select a valid word set for the lesson index."
 msgstr "Wählen Sie einen gültigen Wortschatz für den Lektionenindex aus."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:111
+#: includes/shortcodes/content-lesson-index-shortcode.php:212
 msgid "This lesson index is not available."
 msgstr "Dieser Lektionenindex ist nicht verfügbar."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:172
+#: includes/shortcodes/content-lesson-index-shortcode.php:280
+#: includes/shortcodes/content-lesson-index-shortcode.php:317
+#: includes/shortcodes/content-lesson-index-shortcode.php:331
 msgid "The lesson index could not be read completely."
 msgstr "Der Lektionenindex konnte nicht vollständig gelesen werden."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:377
+#: includes/shortcodes/content-lesson-index-shortcode.php:535
 msgid "No lessons were found on this page."
 msgstr "Auf dieser Seite wurden keine Lektionen gefunden."
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:379
-#: includes/shortcodes/content-lesson-index-shortcode.php:490
+#: includes/shortcodes/content-lesson-index-shortcode.php:537
+#: includes/shortcodes/content-lesson-index-shortcode.php:648
 msgid "Lesson pages"
 msgstr "Unterrichtsseiten"
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:392
+#: includes/shortcodes/content-lesson-index-shortcode.php:550
 msgid "No lessons were found."
 msgstr "Es wurden keine Lektionen gefunden."
 
 #. translators: %d: lesson level number
-#: includes/shortcodes/content-lesson-index-shortcode.php:424
+#: includes/shortcodes/content-lesson-index-shortcode.php:582
 #, php-format
 msgid "Level %d"
 msgstr "Stufe %d"
 
 #. translators: %s: number of prerequisite lessons
-#: includes/shortcodes/content-lesson-index-shortcode.php:467
+#: includes/shortcodes/content-lesson-index-shortcode.php:625
 #, php-format
 msgid "%s prerequisite"
 msgid_plural "%s prerequisites"
@@ -27791,19 +27796,19 @@ msgstr[0] "%s Voraussetzung"
 msgstr[1] "%s Voraussetzungen"
 
 #. translators: %s: signed-in user's display name
-#: includes/shortcodes/content-lesson-index-shortcode.php:642
+#: includes/shortcodes/content-lesson-index-shortcode.php:808
 #, php-format
 msgid "Signed in as %s."
 msgstr "Angemeldet als %s."
 
 #. translators: 1 and 2: login-link tags; 3 and 4: registration-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:664
+#: includes/shortcodes/content-lesson-index-shortcode.php:830
 #, php-format
 msgid "%1$sLog in%2$s or %3$sregister%4$s to save completed lessons."
 msgstr "%1$sAnmelden%2$s oder %3$sRegistrieren%4$s, um abgeschlossene Lektionen zu speichern."
 
 #. translators: 1 and 2: login-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:673
+#: includes/shortcodes/content-lesson-index-shortcode.php:839
 #, php-format
 msgid "%1$sLog in%2$s to save completed lessons."
 msgstr "%1$sMelden Sie sich an%2$s, um abgeschlossene Lektionen zu speichern."
@@ -27914,11 +27919,11 @@ msgstr "Der Rang muss eine positive ganze Zahl sein."
 msgid "The rank could not be verified after saving."
 msgstr "Der Rang konnte nach dem Speichern nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:271
+#: includes/migrations/legacy-content-lessons.php:354
 msgid "The explicit legacy lesson scope exceeds the configured safe limit."
 msgstr "Der explizite Umfang der Legacy-Lektion überschreitet die konfigurierte Sicherheitsgrenze."
 
-#: includes/migrations/legacy-content-lessons.php:313
+#: includes/migrations/legacy-content-lessons.php:396
 msgid "The source category scope exceeds the configured safe limit."
 msgstr "Der Geltungsbereich der Quellkategorie überschreitet den konfigurierten Sicherheitsgrenzwert."
 
@@ -27927,7 +27932,7 @@ msgid "Ranked word audio details could not be loaded completely."
 msgstr "Die Audio-Details zum bewerteten Wort konnten nicht vollständig geladen werden."
 
 #. translators: %d: user ID
-#: includes/migrations/legacy-content-lessons.php:2322
+#: includes/migrations/legacy-content-lessons.php:2511
 #, php-format
 msgid "User %d canonical completion data is at the configured safe limit and could not accept migrated lessons."
 msgstr "Die kanonischen Abschlussdaten des Benutzers %d haben die konfigurierte Sicherheitsgrenze erreicht, sodass migrierte Lektionen nicht akzeptiert werden konnten."
@@ -27942,144 +27947,153 @@ msgstr "Daten zu bereits abgeschlossenen Lektionen aus dem alten System"
 msgid "This ranked list is limited to the first %d pages."
 msgstr "Diese Rangliste beschränkt sich auf die ersten %d Seiten."
 
-#: includes/migrations/legacy-content-lessons.php:56
+#: includes/migrations/legacy-content-lessons.php:139
 msgid "The requested legacy metadata snapshot type is invalid."
 msgstr "Der angeforderte Typ des Metadaten-Snapshots aus dem alten System ist ungültig."
 
-#: includes/migrations/legacy-content-lessons.php:95
+#: includes/migrations/legacy-content-lessons.php:178
 msgid "The legacy metadata could not be read completely."
 msgstr "Die Metadaten aus dem alten System konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:106
+#: includes/migrations/legacy-content-lessons.php:189
 msgid "The legacy metadata exceeds the configured safe limit."
 msgstr "Die Metadaten aus dem Altbestand überschreiten den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:129
+#: includes/migrations/legacy-content-lessons.php:212
 msgid "The legacy metadata contains duplicate single-value rows."
 msgstr "Die Alt-Metadaten enthalten doppelte Zeilen mit einem einzigen Wert."
 
-#: includes/migrations/legacy-content-lessons.php:170
+#: includes/migrations/legacy-content-lessons.php:253
 msgid "The legacy lesson post snapshot exceeds the configured safe limit."
 msgstr "Die Datenmenge des Snapshots des Legacy-Lernbeitrags überschreitet den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:191
+#: includes/migrations/legacy-content-lessons.php:274
 msgid "The legacy lesson posts could not be read completely."
 msgstr "Die alten Beiträge zum Thema „Unterricht“ konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:197
+#: includes/migrations/legacy-content-lessons.php:280
 msgid "The legacy lesson post snapshot is ambiguous."
 msgstr "Der Snapshot des Beitrags zur „Legacy-Lektion“ ist mehrdeutig."
 
-#: includes/migrations/legacy-content-lessons.php:453
+#: includes/migrations/legacy-content-lessons.php:536
 msgid "The legacy lesson source categories could not be read completely."
 msgstr "Die alten Kategorien für Unterrichtsmaterialien konnten nicht vollständig eingelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:459
+#: includes/migrations/legacy-content-lessons.php:542
 msgid "The legacy lesson source categories exceed the configured safe limit."
 msgstr "Die Anzahl der alten Lektürenquellenkategorien überschreitet den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:508
+#: includes/migrations/legacy-content-lessons.php:591
 msgid "The legacy lesson source metadata could not be read completely."
 msgstr "Die Metadaten der alten Unterrichtsquelle konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:515
+#: includes/migrations/legacy-content-lessons.php:598
 msgid "The legacy lesson source metadata exceeds the configured safe limit."
 msgstr "Die Metadaten der Legacy-Lerninhalte überschreiten den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:522
+#: includes/migrations/legacy-content-lessons.php:605
 msgid "The legacy lesson source has duplicate single-value metadata and was not changed."
 msgstr "Die alte Unterrichtsquelle enthält doppelte Ein-Wert-Metadaten und wurde nicht geändert."
 
-#: includes/migrations/legacy-content-lessons.php:589
+#: includes/migrations/legacy-content-lessons.php:672
 msgid "Use draft, publish, pending, or private for the migrated lesson status."
 msgstr "Wählen Sie als Status der migrierten Lektion „Entwurf“, „Veröffentlicht“, „Ausstehend“ oder „Privat“ aus."
 
-#: includes/migrations/legacy-content-lessons.php:657
+#: includes/migrations/legacy-content-lessons.php:740
 msgid "The existing migrated lesson could not be verified."
 msgstr "Die vorhandene migrierte Lektion konnte nicht überprüft werden."
 
-#: includes/migrations/legacy-content-lessons.php:664
+#: includes/migrations/legacy-content-lessons.php:747
 msgid "The existing migrated lesson has an unsupported status and was not changed."
 msgstr "Die bereits migrierte Lektion hat den Status „Nicht unterstützt“ und wurde nicht geändert."
 
-#: includes/migrations/legacy-content-lessons.php:680
+#: includes/migrations/legacy-content-lessons.php:766
 msgid "The existing migrated lesson metadata could not be read completely."
 msgstr "Die vorhandenen Metadaten der migrierten Lektionen konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:687
-#: includes/migrations/legacy-content-lessons.php:694
+#: includes/migrations/legacy-content-lessons.php:773
+#: includes/migrations/legacy-content-lessons.php:780
 msgid "The existing migrated lesson has ambiguous metadata and was not changed."
 msgstr "Die bereits migrierte Lektion weist mehrdeutige Metadaten auf und wurde nicht geändert."
 
-#: includes/migrations/legacy-content-lessons.php:712
+#: includes/migrations/legacy-content-lessons.php:798
 msgid "The existing migrated lesson belongs to a different word set and was not changed."
 msgstr "Die bereits migrierte Lektion gehört zu einem anderen Wortschatz und wurde nicht geändert."
 
-#: includes/migrations/legacy-content-lessons.php:846
+#: includes/migrations/legacy-content-lessons.php:978
 msgid "The legacy lesson source permalink could not be resolved completely."
 msgstr "Der Permalink zur alten Lektionsquelle konnte nicht vollständig aufgelöst werden."
 
-#: includes/migrations/legacy-content-lessons.php:1157
+#: includes/migrations/legacy-content-lessons.php:1346
 msgid "The legacy lesson prerequisite sources could not be read completely."
 msgstr "Die als Voraussetzung dienenden Quellen für die „Legacy“-Lektion konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1163
-#: includes/migrations/legacy-content-lessons.php:1183
+#: includes/migrations/legacy-content-lessons.php:1352
+#: includes/migrations/legacy-content-lessons.php:1372
 msgid "The legacy lesson prerequisite sources are ambiguous."
 msgstr "Die Quellen zu den Voraussetzungen für die „Legacy“-Lektion sind mehrdeutig."
 
-#: includes/migrations/legacy-content-lessons.php:1279
-#: includes/migrations/legacy-content-lessons.php:1335
-#: includes/migrations/legacy-content-lessons.php:1357
-#: includes/migrations/legacy-content-lessons.php:1408
+#: includes/migrations/legacy-content-lessons.php:1468
+#: includes/migrations/legacy-content-lessons.php:1524
+#: includes/migrations/legacy-content-lessons.php:1546
+#: includes/migrations/legacy-content-lessons.php:1597
 msgid "The legacy lesson link map is ambiguous and was not used."
 msgstr "Die Link-Zuordnung der alten Lektionen ist mehrdeutig und wurde nicht verwendet."
 
-#: includes/migrations/legacy-content-lessons.php:1293
-#: includes/migrations/legacy-content-lessons.php:1299
-#: includes/migrations/legacy-content-lessons.php:1329
-#: includes/migrations/legacy-content-lessons.php:1381
-#: includes/migrations/legacy-content-lessons.php:1397
+#: includes/migrations/legacy-content-lessons.php:1482
+#: includes/migrations/legacy-content-lessons.php:1488
+#: includes/migrations/legacy-content-lessons.php:1518
+#: includes/migrations/legacy-content-lessons.php:1570
+#: includes/migrations/legacy-content-lessons.php:1586
 msgid "The legacy lesson link map could not be read completely."
 msgstr "Die Link-Zuordnung der alten Lektionen konnte nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1417
-#: includes/migrations/legacy-content-lessons.php:1425
+#: includes/migrations/legacy-content-lessons.php:1606
+#: includes/migrations/legacy-content-lessons.php:1614
 msgid "A legacy or migrated lesson permalink could not be resolved completely."
 msgstr "Ein Permalink einer alten oder migrierten Lektion konnte nicht vollständig aufgelöst werden."
 
-#: includes/migrations/legacy-content-lessons.php:1475
-#: includes/migrations/legacy-content-lessons.php:1495
+#: includes/migrations/legacy-content-lessons.php:1664
+#: includes/migrations/legacy-content-lessons.php:1684
 msgid "A legacy lesson URL maps to more than one migrated lesson."
 msgstr "Eine URL einer alten Lektion ist mehr als einer migrierten Lektion zugeordnet."
 
-#: includes/migrations/legacy-content-lessons.php:1624
+#: includes/migrations/legacy-content-lessons.php:1813
 msgid "The legacy lesson prerequisites could not be read completely."
 msgstr "Die Voraussetzungen für die Legacy-Lektion konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1939
+#: includes/migrations/legacy-content-lessons.php:2128
 msgid "The completion metadata user scope exceeds the configured safe limit."
 msgstr "Der Benutzerbereich der Metadaten zur Fertigstellung überschreitet das konfigurierte Sicherheitslimit."
 
-#: includes/migrations/legacy-content-lessons.php:1970
+#: includes/migrations/legacy-content-lessons.php:2159
 msgid "The legacy completion metadata could not be read completely."
 msgstr "Die Metadaten zur Fertigstellung des Legacy-Projekts konnten nicht vollständig gelesen werden."
 
-#: includes/migrations/legacy-content-lessons.php:1976
-#: includes/migrations/legacy-content-lessons.php:1999
+#: includes/migrations/legacy-content-lessons.php:2165
+#: includes/migrations/legacy-content-lessons.php:2188
 msgid "User completion metadata contains duplicate rows and was not changed."
 msgstr "Die Metadaten zur Benutzerfertigstellung enthalten doppelte Zeilen und wurden nicht geändert."
 
 #. translators: %d: user ID
-#: includes/migrations/legacy-content-lessons.php:2037
-#: includes/migrations/legacy-content-lessons.php:2068
-#: includes/migrations/legacy-content-lessons.php:2127
-#: includes/migrations/legacy-content-lessons.php:2309
+#: includes/migrations/legacy-content-lessons.php:2226
+#: includes/migrations/legacy-content-lessons.php:2257
+#: includes/migrations/legacy-content-lessons.php:2316
+#: includes/migrations/legacy-content-lessons.php:2498
 #, php-format
 msgid "User %d canonical completion data exceeds the configured safe limit."
 msgstr "Die kanonischen Vervollständigungsdaten des Benutzers %d überschreiten den konfigurierten Sicherheitsgrenzwert."
 
-#: includes/migrations/legacy-content-lessons.php:2103
-#: includes/migrations/legacy-content-lessons.php:2147
+#: includes/migrations/legacy-content-lessons.php:2292
+#: includes/migrations/legacy-content-lessons.php:2336
 msgid "User completion metadata could not be updated safely."
 msgstr "Die Metadaten zur Benutzerfertigstellung konnten nicht sicher aktualisiert werden."
+
+#: includes/migrations/legacy-content-lessons.php:17
+msgid "Retained-source migration requires the lessons phase, one to 20 explicit source IDs, --status=publish, a limit of 20 or less, no category scope, and show-in-mix disabled."
+msgstr "Für die Migration mit beibehaltener Quelle sind die Phase „lessons“, eine bis 20 ausdrücklich angegebene Quell-IDs, --status=publish, ein Limit von höchstens 20, kein Kategoriebereich und deaktiviertes show-in-mix erforderlich."
+
+#: includes/migrations/legacy-content-lessons.php:821
+#: includes/migrations/legacy-content-lessons.php:907
+msgid "The existing lesson mapping uses a different retained-source mode and was not changed."
+msgstr "Die bestehende Lektionszuordnung verwendet einen anderen Modus mit beibehaltener Quelle und wurde nicht geändert."
