@@ -5,6 +5,10 @@
     const ajaxUrl = (cfg.ajaxUrl || '').toString();
     const gridCfg = (cfg.grid && typeof cfg.grid === 'object') ? cfg.grid : cfg;
     const gridAction = (gridCfg.action || cfg.action || 'll_tools_get_vocab_lesson_grid').toString();
+    const gridRequestTimeoutMs = Math.max(
+        5000,
+        Math.min(60000, parseInt(gridCfg.requestTimeoutMs, 10) || 20000)
+    );
     const gridI18n = (gridCfg.i18n && typeof gridCfg.i18n === 'object')
         ? gridCfg.i18n
         : ((cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {});
@@ -70,6 +74,32 @@
                 text: getGridMessage('retry', 'Retry')
             }).appendTo($feedback);
         }
+    }
+
+    function setGridProgress($shell, loaded, total, scanned, complete, preparing) {
+        const $progress = $shell.find('[data-ll-vocab-lesson-grid-progress]').first();
+        if (!$progress.length) { return; }
+
+        if (complete) {
+            $progress.attr('hidden', 'hidden').removeClass('is-indeterminate');
+            return;
+        }
+
+        const safeLoaded = Math.max(0, parseInt(loaded, 10) || 0);
+        const safeScanned = Math.max(0, parseInt(scanned, 10) || 0);
+        const safeTotal = Math.max(0, parseInt(total, 10) || 0);
+        let percent = 0;
+        if (safeTotal > 0 && preparing) {
+            percent = Math.max(2, Math.min(35, Math.round((safeScanned / safeTotal) * 35)));
+        } else if (safeTotal > 0) {
+            percent = Math.max(36, Math.min(99, 35 + Math.round((safeLoaded / safeTotal) * 65)));
+        }
+
+        $progress.removeAttr('hidden');
+        $progress.toggleClass('is-indeterminate', percent <= 0);
+        $progress.attr('aria-valuenow', String(percent));
+        $progress.find('[data-ll-vocab-lesson-grid-progress-bar]').first()
+            .css('width', percent > 0 ? String(percent) + '%' : '36%');
     }
 
     function readAjaxMessage(response, fallback) {
@@ -161,7 +191,7 @@
         });
     }
 
-    function renderGridMarkup($shell, html) {
+    function renderGridMarkup($shell, html, append) {
         const targetGrid = $shell.find('[data-ll-word-grid]').first().get(0);
         if (!targetGrid) { return false; }
 
@@ -169,7 +199,11 @@
         wrapper.innerHTML = (html || '').toString();
         const sourceGrid = wrapper.querySelector('[data-ll-word-grid]');
 
-        if (sourceGrid) {
+        if (sourceGrid && append) {
+            while (sourceGrid.firstChild) {
+                targetGrid.appendChild(sourceGrid.firstChild);
+            }
+        } else if (sourceGrid) {
             syncElementAttributes(sourceGrid, targetGrid);
             targetGrid.innerHTML = sourceGrid.innerHTML;
         } else {
@@ -203,10 +237,17 @@
         setLoading($shell, true);
         setStatus($shell, getGridMessage('loading', 'Loading lesson words...'));
 
-        $.post(ajaxUrl, {
-            action: gridAction,
-            lesson_id: lessonId,
-            nonce: nonce
+        const cursor = ($shell.data('llGridCursor') || '').toString();
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            timeout: gridRequestTimeoutMs,
+            data: {
+                action: gridAction,
+                lesson_id: lessonId,
+                nonce: nonce,
+                cursor: cursor
+            }
         }).done(function (response) {
             if (!response || response.success !== true || !response.data || typeof response.data.html !== 'string') {
                 showFeedback(
@@ -217,9 +258,52 @@
                 return;
             }
 
-            renderGridMarkup($shell, response.data.html);
+            const paged = response.data.paged === true;
+            if (paged && response.data.preparing === true) {
+                setGridProgress(
+                    $shell,
+                    response.data.loaded,
+                    response.data.total,
+                    response.data.scanned,
+                    false,
+                    true
+                );
+                const preparingDelay = Math.max(
+                    40,
+                    Math.min(1000, parseInt(response.data.retry_after_ms, 10) || 120)
+                );
+                window.setTimeout(function () {
+                    loadLessonGrid($shell);
+                }, preparingDelay);
+                return;
+            }
+
+            const append = paged && $shell.data('llGridHasRendered') === true;
+            renderGridMarkup($shell, response.data.html, append);
+            if (paged) {
+                $shell.data('llGridHasRendered', true);
+                $shell.addClass('has-rendered-grid');
+                $shell.data('llGridCursor', (response.data.next_cursor || '').toString());
+                setGridProgress(
+                    $shell,
+                    response.data.loaded,
+                    response.data.total,
+                    response.data.scanned,
+                    response.data.has_more !== true,
+                    false
+                );
+            } else {
+                setGridProgress($shell, 1, 1, 1, true, false);
+            }
             hideFeedback($shell);
-            setStatus($shell, getGridMessage('loaded', 'Lesson words loaded.'));
+            if (paged && response.data.has_more === true) {
+                setStatus($shell, getGridMessage('loading', 'Loading lesson words...'));
+                window.setTimeout(function () {
+                    loadLessonGrid($shell);
+                }, 40);
+            } else {
+                setStatus($shell, getGridMessage('loaded', 'Lesson words loaded.'));
+            }
         }).fail(function (jqXHR) {
             const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
             showFeedback(

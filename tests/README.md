@@ -361,7 +361,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/vocab-lesson-word-editor-mobile.spec.js`
   - Verifies the vocab lesson word editor keeps its save/cancel footer visible while the form body scrolls on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
-  - Verifies ordinary deferred lesson shells expose image-sized shimmer cards for expected words before hydration, hydrate the word-grid markup, and keep hidden feedback hidden under theme overrides; large-count DOM bounds remain covered in PHP.
+  - Verifies ordinary deferred lesson shells expose image-sized shimmer cards before hydration, enforce the AJAX timeout, hydrate legacy grids, and serially append prepared large-lesson pages without overlapping requests; it also keeps hidden feedback hidden under theme overrides. PHP integration coverage verifies bounded order preparation, signed cursor pages, manual order, page boundaries, and the initial large-count DOM ceiling.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`

@@ -1529,12 +1529,15 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
     /**
      * @return array<string, mixed>
      */
-    private function postVocabLessonGridAjax(int $lesson_id): array
+    private function postVocabLessonGridAjax(int $lesson_id, string $cursor = ''): array
     {
         $_POST = [
             'lesson_id' => $lesson_id,
             'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
         ];
+        if ($cursor !== '') {
+            $_POST['cursor'] = $cursor;
+        }
         $_REQUEST = $_POST;
 
         try {
@@ -1797,6 +1800,128 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $html = (string) (($response['data'] ?? [])['html'] ?? '');
         $this->assertStringContainsString('Bounded Shell Word 01', $html);
         $this->assertStringContainsString('Bounded Shell Word 40', $html);
+    }
+
+    public function test_large_public_lesson_grid_loads_in_ordered_bounded_pages(): void
+    {
+        wp_set_current_user(0);
+
+        $wordset = wp_insert_term('Paged Grid Wordset', 'wordset', ['slug' => 'paged-grid-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Paged Grid Category', 'word-category', ['slug' => 'paged-grid-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 55; $index++) {
+            $title = sprintf('Paged Grid Word %02d', $index);
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            update_post_meta($word_id, 'word_translation', $title . ' Translation');
+            $word_ids[] = $word_id;
+        }
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Paged Grid Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META, array_reverse($word_ids));
+
+        $captured_word_queries = [];
+        $capture = static function (WP_Query $query) use (&$captured_word_queries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $captured_word_queries[] = $query->query_vars;
+            }
+        };
+        $small_scan_batch = static function (): int {
+            return 24;
+        };
+        add_action('pre_get_posts', $capture);
+        add_filter('ll_tools_vocab_lesson_grid_scan_batch_size', $small_scan_batch);
+        try {
+            $preparing_first = $this->postVocabLessonGridAjax($lesson_id);
+            $preparing_second = $this->postVocabLessonGridAjax($lesson_id);
+            $first = $this->postVocabLessonGridAjax($lesson_id);
+        } finally {
+            remove_filter('ll_tools_vocab_lesson_grid_scan_batch_size', $small_scan_batch);
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertTrue($preparing_first['success']);
+        $this->assertTrue((bool) (($preparing_first['data'] ?? [])['preparing'] ?? false));
+        $this->assertSame('', (string) (($preparing_first['data'] ?? [])['html'] ?? 'missing'));
+        $this->assertSame(24, (int) (($preparing_first['data'] ?? [])['scanned'] ?? 0));
+        $this->assertTrue($preparing_second['success']);
+        $this->assertTrue((bool) (($preparing_second['data'] ?? [])['preparing'] ?? false));
+        $this->assertSame(48, (int) (($preparing_second['data'] ?? [])['scanned'] ?? 0));
+
+        $this->assertTrue($first['success']);
+        $first_data = (array) ($first['data'] ?? []);
+        $this->assertTrue((bool) ($first_data['paged'] ?? false));
+        $this->assertFalse((bool) ($first_data['preparing'] ?? true));
+        $this->assertTrue((bool) ($first_data['has_more'] ?? false));
+        $this->assertSame(24, (int) ($first_data['loaded'] ?? 0));
+        $this->assertSame(55, (int) ($first_data['total'] ?? 0));
+        $first_html = (string) ($first_data['html'] ?? '');
+        $this->assertStringContainsString('Paged Grid Word 55', $first_html);
+        $this->assertStringContainsString('Paged Grid Word 32', $first_html);
+        $this->assertStringNotContainsString('Paged Grid Word 31', $first_html);
+        $this->assertStringNotContainsString('Paged Grid Word 01', $first_html);
+        $this->assertLessThan(
+            strpos($first_html, 'Paged Grid Word 54'),
+            strpos($first_html, 'Paged Grid Word 55')
+        );
+        $this->assertNotSame('', (string) ($first_data['next_cursor'] ?? ''));
+        foreach ($captured_word_queries as $query_vars) {
+            $posts_per_page = (int) ($query_vars['posts_per_page'] ?? 0);
+            $this->assertGreaterThan(0, $posts_per_page);
+            $this->assertLessThanOrEqual(48, $posts_per_page);
+        }
+
+        $second = $this->postVocabLessonGridAjax(
+            $lesson_id,
+            (string) ($first_data['next_cursor'] ?? '')
+        );
+        $this->assertTrue($second['success']);
+        $second_data = (array) ($second['data'] ?? []);
+        $this->assertTrue((bool) ($second_data['paged'] ?? false));
+        $this->assertTrue((bool) ($second_data['has_more'] ?? false));
+        $this->assertSame(48, (int) ($second_data['loaded'] ?? 0));
+        $second_html = (string) ($second_data['html'] ?? '');
+        $this->assertStringContainsString('Paged Grid Word 31', $second_html);
+        $this->assertStringContainsString('Paged Grid Word 08', $second_html);
+        $this->assertStringNotContainsString('Paged Grid Word 32', $second_html);
+        $this->assertStringNotContainsString('Paged Grid Word 07', $second_html);
+
+        $third = $this->postVocabLessonGridAjax(
+            $lesson_id,
+            (string) ($second_data['next_cursor'] ?? '')
+        );
+        $this->assertTrue($third['success']);
+        $third_data = (array) ($third['data'] ?? []);
+        $this->assertTrue((bool) ($third_data['paged'] ?? false));
+        $this->assertFalse((bool) ($third_data['has_more'] ?? true));
+        $this->assertSame(55, (int) ($third_data['loaded'] ?? 0));
+        $third_html = (string) ($third_data['html'] ?? '');
+        $this->assertStringContainsString('Paged Grid Word 07', $third_html);
+        $this->assertStringContainsString('Paged Grid Word 01', $third_html);
+        $this->assertStringNotContainsString('Paged Grid Word 08', $third_html);
+        $this->assertSame('', (string) ($third_data['next_cursor'] ?? ''));
+
+        $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
     }
 
     public function test_shell_spec_defaults_skeleton_media_to_square_when_no_aspect_ratio_is_known(): void

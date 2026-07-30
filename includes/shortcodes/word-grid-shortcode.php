@@ -2540,7 +2540,11 @@ function ll_tools_word_grid_normalize_name_key(string $value): string {
     return strtolower($value);
 }
 
-function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$display_values_cache = []): array {
+function ll_tools_word_grid_group_same_name_or_image(
+    array $posts,
+    array &$display_values_cache = [],
+    array $image_id_cache = []
+): array {
     if (empty($posts)) {
         return $posts;
     }
@@ -2575,9 +2579,13 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
             $name_map[$name_key][$post_id] = true;
         }
 
-        $thumb_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
-            ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($post_id, true)
-            : (int) get_post_thumbnail_id($post_id);
+        if (array_key_exists($post_id, $image_id_cache)) {
+            $thumb_id = (int) $image_id_cache[$post_id];
+        } else {
+            $thumb_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($post_id, true)
+                : (int) get_post_thumbnail_id($post_id);
+        }
         if ($thumb_id > 0) {
             if (!isset($image_map[$thumb_id])) {
                 $image_map[$thumb_id] = [];
@@ -2720,6 +2728,28 @@ function ll_tools_word_grid_should_force_media_for_lesson_context(array $context
     $cache_key = $category_id . ':' . $wordset_id . ':' . ($deepest_only ? '1' : '0') . ':' . md5(wp_json_encode($specific_word_ids));
     if (array_key_exists($cache_key, $request_cache)) {
         return $request_cache[$cache_key];
+    }
+
+    if (function_exists('ll_tools_get_vocab_lesson_category_word_count_targeted_for_requirement')) {
+        $all_complete = true;
+        $all_count = ll_tools_get_vocab_lesson_category_word_count_targeted_for_requirement(
+            $category_term,
+            $wordset_id,
+            false,
+            $all_complete
+        );
+        $image_complete = true;
+        $image_count = ll_tools_get_vocab_lesson_category_word_count_targeted_for_requirement(
+            $category_term,
+            $wordset_id,
+            true,
+            $image_complete
+        );
+        if ($all_complete && $image_complete) {
+            $should_force = $all_count > 0 && $image_count === $all_count;
+            $request_cache[$cache_key] = $should_force;
+            return $should_force;
+        }
     }
 
     if (!empty($specific_word_ids)) {
@@ -5475,6 +5505,7 @@ function ll_tools_word_grid_shortcode($atts) {
     );
     if (!empty($specific_word_ids)) {
         $args['post__in'] = $specific_word_ids;
+        $args['posts_per_page'] = count($specific_word_ids);
         $args['orderby'] = 'post__in';
     }
 

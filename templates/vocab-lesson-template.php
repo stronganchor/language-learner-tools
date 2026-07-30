@@ -343,6 +343,7 @@ if (have_posts()) {
     $grid_shell_spec = null;
     $grid_shell_nonce = '';
     $grid_cached_html = '';
+    $grid_uses_paged_loading = false;
     $lesson_listening_ordered_word_ids = [];
     $render_html_attributes = static function (array $attributes): string {
         $parts = [];
@@ -381,6 +382,13 @@ if (have_posts()) {
             'grid' => [
                 'action' => 'll_tools_get_vocab_lesson_grid',
                 'enabled' => $defer_grid,
+                'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters(
+                    'll_tools_vocab_lesson_grid_request_timeout_ms',
+                    20000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
                 'i18n' => [
                     'loading' => __('Loading lesson words...', 'll-tools-text-domain'),
                     'loaded' => __('Lesson words loaded.', 'll-tools-text-domain'),
@@ -443,6 +451,15 @@ if (have_posts()) {
                     ? array_values($grid_shell_spec['cards'])
                     : [];
                 $expected_shell_count = max(count($shell_cards), $expected_shell_count);
+                if (function_exists('ll_tools_vocab_lesson_grid_should_use_paged_loading')) {
+                    $grid_uses_paged_loading = ll_tools_vocab_lesson_grid_should_use_paged_loading(
+                        $post_id,
+                        $wordset_id,
+                        $category,
+                        $expected_shell_count,
+                        false
+                    );
+                }
                 if ($expected_shell_count > count($shell_cards)) {
                     $shell_card_limit = min(120, max(6, (int) apply_filters(
                         'll_tools_vocab_lesson_initial_shell_card_limit',
@@ -480,7 +497,7 @@ if (have_posts()) {
                 $grid_shell_attributes['data-ll-rendered-shell-count'] = (string) count($shell_cards);
                 $grid_shell_spec['attributes'] = $grid_shell_attributes;
             }
-            if (function_exists('ll_tools_vocab_lesson_grid_public_cache_get')) {
+            if (!$grid_uses_paged_loading && function_exists('ll_tools_vocab_lesson_grid_public_cache_get')) {
                 $cached_grid_html = ll_tools_vocab_lesson_grid_public_cache_get($post_id, $wordset_id, $category_id);
                 if (is_string($cached_grid_html) && trim($cached_grid_html) !== '') {
                     $grid_cached_html = $cached_grid_html;
@@ -1484,6 +1501,9 @@ if (have_posts()) {
                 $is_image_choice_shell = !empty($grid_shell_spec['image_choice_shell']);
                 $is_custom_prompt_shell = $is_prompt_card_shell || $is_image_choice_shell;
                 $grid_shell_classes = 'll-vocab-lesson-grid-shell is-loading';
+                if ($grid_uses_paged_loading) {
+                    $grid_shell_classes .= ' ll-vocab-lesson-grid-shell--paged';
+                }
                 if ($is_prompt_card_shell) {
                     $grid_shell_classes .= ' ll-vocab-lesson-grid-shell--prompt-cards';
                 } elseif ($is_image_choice_shell) {
@@ -1495,10 +1515,25 @@ if (have_posts()) {
                     data-ll-vocab-lesson-grid-shell
                     data-lesson-id="<?php echo esc_attr($post_id); ?>"
                     data-nonce="<?php echo esc_attr($grid_shell_nonce); ?>"
+                    <?php if ($grid_uses_paged_loading) : ?>
+                        data-ll-grid-paged="1"
+                    <?php endif; ?>
                     aria-busy="true">
                     <div class="screen-reader-text" data-ll-vocab-lesson-grid-status role="status" aria-live="polite">
                         <?php echo esc_html__('Loading lesson words...', 'll-tools-text-domain'); ?>
                     </div>
+                    <?php if ($grid_uses_paged_loading) : ?>
+                        <div
+                            class="ll-vocab-lesson-grid-progress"
+                            data-ll-vocab-lesson-grid-progress
+                            role="progressbar"
+                            aria-label="<?php echo esc_attr__('Loading lesson words...', 'll-tools-text-domain'); ?>"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-valuenow="0">
+                            <span data-ll-vocab-lesson-grid-progress-bar></span>
+                        </div>
+                    <?php endif; ?>
                     <div <?php echo $render_html_attributes((array) ($grid_shell_spec['attributes'] ?? [])); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
                         <?php
                         $shell_cards = isset($grid_shell_spec['cards']) && is_array($grid_shell_spec['cards'])

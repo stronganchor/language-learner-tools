@@ -165,9 +165,9 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
   await page.addScriptTag({
     content: `
       (function ($) {
-        $.post = function (url, payload) {
+        $.ajax = function (options) {
           const deferred = $.Deferred();
-          window.__llLessonRequest = { url: url, payload: payload };
+          window.__llLessonRequest = { url: options.url, payload: options.data, timeout: options.timeout };
           window.setTimeout(function () {
             deferred.resolve({
               success: true,
@@ -192,12 +192,150 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
   const request = await page.evaluate(() => window.__llLessonRequest);
   expect(request.payload.lesson_id).toBe(42);
   expect(request.payload.nonce).toBe('test-nonce');
+  expect(request.timeout).toBe(20000);
 
   await expect(page.locator('.word-item[data-word-id="11"]')).toHaveCount(1);
   await expect(page.locator('.ll-vocab-lesson-skeleton-card')).toHaveCount(0);
   await expect(page.locator('[data-ll-vocab-lesson-grid-feedback]')).toHaveAttribute('hidden', 'hidden');
   await expect(page.locator('[data-ll-bulk-pos]')).toHaveValue('noun');
   await expect(page.locator('[data-ll-bulk-gender]')).toHaveValue('feminine');
+});
+
+test('large deferred lesson prepares and appends bounded pages serially', async ({ page }) => {
+  await page.goto('about:blank');
+  const pagedMarkup = buildDeferredLessonMarkup()
+    .replace(
+      'data-ll-vocab-lesson-grid-shell',
+      'data-ll-vocab-lesson-grid-shell data-ll-grid-paged="1"'
+    )
+    .replace(
+      '<div id="word-grid"',
+      '<div class="ll-vocab-lesson-grid-progress" data-ll-vocab-lesson-grid-progress role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span data-ll-vocab-lesson-grid-progress-bar></span></div><div id="word-grid"'
+    );
+  await page.setContent(pagedMarkup);
+  await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.llToolsWordGridData = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      nonce: '',
+      editNonce: '',
+      isLoggedIn: false,
+      canEdit: false,
+      state: {}
+    };
+    window.llToolsVocabLessonData = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      grid: {
+        action: 'll_tools_get_vocab_lesson_grid',
+        requestTimeoutMs: 9000,
+        i18n: {
+          loading: 'Loading lesson words...',
+          loaded: 'Lesson words loaded.',
+          error: 'Unable to load this lesson right now.',
+          retry: 'Retry'
+        }
+      }
+    };
+  });
+
+  await page.addScriptTag({ content: wordGridScriptSource });
+  await page.addScriptTag({
+    content: `
+      (function ($) {
+        const pages = [
+          {
+            paged: true,
+            preparing: true,
+            html: '',
+            has_more: true,
+            next_cursor: '',
+            loaded: 0,
+            total: 5,
+            scanned: 3,
+            retry_after_ms: 40
+          },
+          {
+            paged: true,
+            preparing: false,
+            html: '<div class="word-grid ll-word-grid" data-ll-word-grid><article class="word-item" data-word-id="1">One</article><article class="word-item" data-word-id="2">Two</article></div>',
+            has_more: true,
+            next_cursor: '2.signature',
+            loaded: 2,
+            total: 5,
+            scanned: 5
+          },
+          {
+            paged: true,
+            preparing: false,
+            html: '<div class="word-grid ll-word-grid" data-ll-word-grid><article class="word-item" data-word-id="3">Three</article><article class="word-item" data-word-id="4">Four</article></div>',
+            has_more: true,
+            next_cursor: '4.signature',
+            loaded: 4,
+            total: 5,
+            scanned: 5
+          },
+          {
+            paged: true,
+            preparing: false,
+            html: '<div class="word-grid ll-word-grid" data-ll-word-grid><article class="word-item" data-word-id="5">Five</article></div>',
+            has_more: false,
+            next_cursor: '',
+            loaded: 5,
+            total: 5,
+            scanned: 5
+          }
+        ];
+        window.__llPagedRequests = [];
+        window.__llPagedActive = 0;
+        window.__llPagedMaxActive = 0;
+        $.ajax = function (options) {
+          const deferred = $.Deferred();
+          const response = pages[window.__llPagedRequests.length];
+          window.__llPagedRequests.push({
+            cursor: options.data.cursor,
+            timeout: options.timeout
+          });
+          window.__llPagedActive += 1;
+          window.__llPagedMaxActive = Math.max(window.__llPagedMaxActive, window.__llPagedActive);
+          window.setTimeout(function () {
+            window.__llPagedActive -= 1;
+            deferred.resolve({ success: true, data: response });
+          }, 10);
+          return deferred.promise();
+        };
+      })(jQuery);
+    `
+  });
+  await page.addScriptTag({ content: vocabLessonScriptSource });
+
+  await page.waitForFunction(() => {
+    const shell = document.querySelector('[data-ll-vocab-lesson-grid-shell]');
+    return shell
+      && shell.getAttribute('aria-busy') === 'false'
+      && document.querySelectorAll('.word-item[data-word-id]').length === 5;
+  });
+
+  await expect(page.locator('.word-item[data-word-id]')).toHaveCount(5);
+  await expect(page.locator('.word-item[data-word-id="1"]')).toHaveText('One');
+  await expect(page.locator('.word-item[data-word-id="5"]')).toHaveText('Five');
+  await expect(page.locator('.ll-vocab-lesson-skeleton-card')).toHaveCount(0);
+  await expect(page.locator('[data-ll-vocab-lesson-grid-progress]')).toBeHidden();
+  await expect(page.locator('[data-ll-vocab-lesson-grid-feedback]')).toBeHidden();
+
+  const requestState = await page.evaluate(() => ({
+    requests: window.__llPagedRequests,
+    maxActive: window.__llPagedMaxActive
+  }));
+  expect(requestState.maxActive).toBe(1);
+  expect(requestState.requests.map((request) => request.cursor)).toEqual([
+    '',
+    '',
+    '2.signature',
+    '4.signature'
+  ]);
+  expect(requestState.requests.every((request) => request.timeout === 9000)).toBe(true);
 });
 
 test('hidden lesson feedback stays invisible when theme overrides hidden styling', async ({ page }) => {
