@@ -9185,6 +9185,22 @@ function ll_tools_build_user_study_selection_launch_chunks(
         $batches[$best_batch_index]['word_count'] += (int) ($category_row['word_count'] ?? 0);
     }
 
+    foreach ($batches as $batch_index => &$batch) {
+        $batch['order'] = (int) $batch_index;
+    }
+    unset($batch);
+    usort($batches, static function (array $left, array $right): int {
+        $category_count_comparison = count((array) ($right['categories'] ?? [])) <=> count((array) ($left['categories'] ?? []));
+        if ($category_count_comparison !== 0) {
+            return $category_count_comparison;
+        }
+        $word_count_comparison = ((int) ($left['word_count'] ?? 0)) <=> ((int) ($right['word_count'] ?? 0));
+        if ($word_count_comparison !== 0) {
+            return $word_count_comparison;
+        }
+        return ((int) ($left['order'] ?? PHP_INT_MAX)) <=> ((int) ($right['order'] ?? PHP_INT_MAX));
+    });
+
     $chunks = [];
     foreach ($batches as $batch) {
         $batch_categories = isset($batch['categories']) && is_array($batch['categories'])

@@ -1986,6 +1986,31 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }, $chunks)))));
     }
 
+    public function test_selection_launch_places_diverse_light_batches_before_an_isolated_catch_all(): void
+    {
+        $matched_by_category = [
+            100 => range(10001, 10093),
+        ];
+        for ($offset = 0; $offset < 78; $offset++) {
+            $category_id = 201 + $offset;
+            $first_word_id = 20001 + ($offset * 2);
+            $matched_by_category[$category_id] = [$first_word_id, $first_word_id + 1];
+        }
+
+        $chunks = ll_tools_build_user_study_selection_launch_chunks($matched_by_category, 15, 3, 5);
+
+        $this->assertCount(33, $chunks);
+        $this->assertCount(6, (array) ($chunks[0]['word_ids'] ?? []));
+        $this->assertCount(3, (array) ($chunks[0]['category_ids'] ?? []));
+        $this->assertNotContains(100, array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))));
+        $this->assertSame(249, count(array_unique(array_merge(...array_map(static function (array $chunk): array {
+            return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+        }, $chunks)))));
+        $this->assertSame(85, array_sum(array_map(static function (array $chunk): int {
+            return count((array) ($chunk['category_ids'] ?? []));
+        }, $chunks)), 'Batch ordering must move, not multiply, category hydration requests.');
+    }
+
     public function test_selection_launch_uses_the_preferred_category_soft_cap_when_valid(): void
     {
         $matched_by_category = [];
