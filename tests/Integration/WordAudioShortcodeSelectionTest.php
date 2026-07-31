@@ -17,6 +17,7 @@ final class WordAudioShortcodeSelectionTest extends LL_Tools_TestCase
         ll_enqueue_word_audio_js();
         $output = do_shortcode('[word_audio recording_type="introduction"]Shortcode Audio Word[/word_audio]');
 
+        $this->assertTrue(wp_style_is('ll-tools-style', 'enqueued'));
         $this->assertStringContainsString('class="ll-word-audio__button"', $output);
         $this->assertStringContainsString('aria-label="Play audio"', $output);
         $this->assertStringContainsString('class="ll-word-audio__audio"', $output);

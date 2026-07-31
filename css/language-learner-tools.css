@@ -25,11 +25,14 @@ p:has(.ll-word-audio) {
     display: inline;
 }
 
-.ll-word-audio__button {
+.ll-word-audio > button.ll-word-audio__button {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.25em;
+    width: 1.5rem;
+    height: 1.5rem;
     min-width: 1.5rem;
     min-height: 1.5rem;
     padding: 0;
@@ -37,16 +40,29 @@ p:has(.ll-word-audio) {
     border: 0;
     border-radius: 0.35rem;
     background: transparent;
+    box-shadow: none;
     color: inherit;
     font: inherit;
     line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
     text-decoration: none;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
 }
 
-.ll-word-audio__button:focus-visible {
+.ll-word-audio > button.ll-word-audio__button:hover,
+.ll-word-audio > button.ll-word-audio__button:active,
+.ll-word-audio > button.ll-word-audio__button:focus {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    transform: none;
+}
+
+.ll-word-audio > button.ll-word-audio__button:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 2px;
 }

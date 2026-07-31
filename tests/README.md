@@ -343,6 +343,8 @@ Representative E2E coverage areas:
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
   - Verifies a local WordPress-backed prompt-card fixture is exposed through `[audio_recording_interface]` as a prompt-audio queue item with the expected wordset, category, and prompt-card payload.
+- `tests/e2e/specs/word-audio-theme-resilience.spec.js`
+  - Verifies `[word_audio]` remains a compact 1.5rem square under later-loading Astra/Elementor-style global button rules, including hover and keyboard-focus states.
 - `tests/e2e/specs/audio-recorder-prompt-card-upload.spec.js`
   - Verifies a limited `audio_recorder` user can upload prompt-card prompt audio through the real WordPress AJAX handler, stores the prompt-audio attachment, and cannot upload to an inaccessible prompt card.
 - `tests/e2e/specs/audio-processor-queue-pagination.spec.js`
