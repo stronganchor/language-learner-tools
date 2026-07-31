@@ -13158,6 +13158,8 @@
                     };
                     if (candidateWordIds.length) {
                         publicPayload.candidate_word_ids = candidateWordIds.join(',');
+                        publicPayload.include_option_pool = '1';
+                        publicPayload.option_pool_limit = '12';
                     }
 
                     return requestPublicCategory(publicPayload, 0, [], 0).then(function (res) {
@@ -13168,13 +13170,23 @@
                                 wordsByCategory[categoryId] = res.data.slice();
                             }
                         } else if (candidateWordIds.length) {
+                            if (rejectOnFailure) {
+                                delete candidateScopedWordsByCategory[candidateScopedWordsKey(categoryId, candidateWordIds)];
+                                const rejected = $.Deferred();
+                                rejected.reject(res);
+                                return rejected.promise();
+                            }
                             setCandidateScopedWords(categoryId, candidateWordIds, []);
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
                     }, function (xhr) {
                         if (candidateWordIds.length) {
-                            setCandidateScopedWords(categoryId, candidateWordIds, []);
+                            if (rejectOnFailure) {
+                                delete candidateScopedWordsByCategory[candidateScopedWordsKey(categoryId, candidateWordIds)];
+                            } else {
+                                setCandidateScopedWords(categoryId, candidateWordIds, []);
+                            }
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
@@ -14544,17 +14556,171 @@
         };
     }
 
+    function normalizeBoundedSelectionPlanChunks(serverPlan, fallbackDetails, selectedIds, minimumWordCount) {
+        const plan = (serverPlan && typeof serverPlan === 'object' && !Array.isArray(serverPlan))
+            ? serverPlan
+            : null;
+        const minimumCount = Math.max(1, parseInt(minimumWordCount, 10) || 1);
+        const allowedCategoryLookup = {};
+        uniqueIntList(selectedIds || []).forEach(function (categoryId) {
+            allowedCategoryLookup[categoryId] = true;
+        });
+        const invalidResult = function () {
+            return {
+                chunks: [],
+                hasChunkContract: !!(plan && Array.isArray(plan.chunks)),
+                invalid: true
+            };
+        };
+        const strictCount = function (value) {
+            return (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)
+                ? value
+                : null;
+        };
+        const strictIdList = function (value, maxItems, requireAllowedCategory) {
+            if (!Array.isArray(value) || value.length > maxItems) {
+                return null;
+            }
+            const ids = [];
+            const seen = {};
+            for (let index = 0; index < value.length; index++) {
+                const id = value[index];
+                if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0 || seen[id]) {
+                    return null;
+                }
+                if (requireAllowedCategory && (!allowedCategoryLookup[id] || !categoryIdIsLaunchable(id))) {
+                    return null;
+                }
+                seen[id] = true;
+                ids.push(id);
+            }
+            return ids;
+        };
+        const sameIdList = function (left, right) {
+            if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+                return false;
+            }
+            for (let index = 0; index < left.length; index++) {
+                if (left[index] !== right[index]) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        if (!plan || !Array.isArray(plan.chunks) || plan.truncated !== false) {
+            return invalidResult();
+        }
+        const matchedCount = strictCount(plan.matched_count);
+        const plannedCount = strictCount(plan.planned_count);
+        const chunkCount = strictCount(plan.chunk_count);
+        const aliasCategoryIds = strictIdList(plan.category_ids, 8, true);
+        const aliasWordIds = strictIdList(plan.word_ids, 30, false);
+        if (
+            matchedCount === null
+            || plannedCount === null
+            || chunkCount === null
+            || aliasCategoryIds === null
+            || aliasWordIds === null
+            || chunkCount !== plan.chunks.length
+        ) {
+            return invalidResult();
+        }
+
+        const rawChunks = plan.chunks;
+        const seenWordIds = {};
+        const chunks = [];
+        let invalid = false;
+        let containsUndersizedChunk = false;
+
+        rawChunks.forEach(function (rawChunk) {
+            if (invalid) { return; }
+            if (!rawChunk || typeof rawChunk !== 'object' || Array.isArray(rawChunk)) {
+                invalid = true;
+                return;
+            }
+            const categoryIds = strictIdList(rawChunk.category_ids, 8, true);
+            const sessionWordIds = strictIdList(rawChunk.word_ids, 30, false);
+            if (!categoryIds || !categoryIds.length || !sessionWordIds || !sessionWordIds.length) {
+                invalid = true;
+                return;
+            }
+            if (sessionWordIds.length < minimumCount) {
+                containsUndersizedChunk = true;
+            }
+
+            sessionWordIds.forEach(function (wordId) {
+                if (seenWordIds[wordId]) {
+                    invalid = true;
+                    return;
+                }
+                seenWordIds[wordId] = true;
+            });
+            if (!invalid) {
+                chunks.push({
+                    category_ids: categoryIds,
+                    session_word_ids: sessionWordIds,
+                    category_label_override: String(rawChunk.category_label_override || '').trim(),
+                    details: (rawChunk.details && typeof rawChunk.details === 'object' && !Array.isArray(rawChunk.details))
+                        ? Object.assign({}, fallbackDetails || {}, rawChunk.details)
+                        : Object.assign({}, fallbackDetails || {})
+                });
+            }
+        });
+
+        const plannedWordCount = Object.keys(seenWordIds).length;
+        const firstChunk = chunks.length ? chunks[0] : null;
+        if (
+            invalid
+            || plannedCount !== matchedCount
+            || matchedCount !== plannedWordCount
+            || (firstChunk && (
+                !sameIdList(aliasCategoryIds, firstChunk.category_ids)
+                || !sameIdList(aliasWordIds, firstChunk.session_word_ids)
+            ))
+            || (!firstChunk && (aliasCategoryIds.length || aliasWordIds.length))
+        ) {
+            invalid = true;
+        }
+        if (!invalid && matchedCount < minimumCount) {
+            return {
+                chunks: [],
+                hasChunkContract: true,
+                invalid: false
+            };
+        }
+        if (!invalid && containsUndersizedChunk) {
+            invalid = true;
+        }
+
+        return {
+            chunks: invalid ? [] : chunks,
+            hasChunkContract: true,
+            invalid: invalid
+        };
+    }
+
+    function getChunkContinueLabel() {
+        if (!chunkSession || !Array.isArray(chunkSession.chunks) || !chunkSession.chunks.length) {
+            return i18n.continueLabel || '';
+        }
+        const nextPosition = Math.min(chunkSession.chunks.length, chunkSession.index + 2);
+        return String(i18n.continueLabel || '') + ' \u00b7 ' + nextPosition + '/' + chunkSession.chunks.length;
+    }
+
     function renderChunkResultsActions() {
         if (!chunkSession || !chunkSession.chunks || !chunkSession.chunks.length) {
             return false;
         }
 
         hideWordsetResultsActions();
+        $('#quiz-results').show();
 
         const $actions = $('#ll-study-results-actions');
         const $same = $('#ll-study-results-same-chunk');
         const $different = $('#ll-study-results-different-chunk');
         const $next = $('#ll-study-results-next-chunk');
+        const $suggestion = $('#ll-study-results-suggestion');
         const hasNext = chunkSession.index < (chunkSession.chunks.length - 1);
 
         if (!$actions.length || !$same.length || !$next.length) {
@@ -14565,18 +14731,38 @@
         $('#ll-gender-results-actions').hide();
         $('#restart-quiz').hide();
 
+        const matchedCount = Math.max(0, parseInt(chunkSession.matched_count, 10) || 0);
+        if ($suggestion.length && matchedCount > 0) {
+            $suggestion.text(formatTemplate(i18n.selectionWordsOnly || '', [matchedCount])).show();
+        }
+
         setResultsButtonContent($same, '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="↻"></span>', i18n.repeatLabel || '');
-            $same.show().off('click').on('click.llWordsetChunk', function (e) {
+            $same.show().prop('disabled', false).off('click').on('click.llWordsetChunk', function (e) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
-                const currentEntry = getChunkSessionEntry(chunkSession, chunkSession.index);
+                if (!chunkSession || chunkSession.repeat_pending) { return; }
+                const activeSession = chunkSession;
+                const currentEntry = getChunkSessionEntry(activeSession, activeSession.index);
                 if (!currentEntry) { return; }
-                launchFlashcards(chunkSession.mode, currentEntry.category_ids, currentEntry.session_word_ids, {
+                activeSession.repeat_pending = true;
+                $same.prop('disabled', true);
+                launchFlashcards(activeSession.mode, currentEntry.category_ids, currentEntry.session_word_ids, {
                     source: 'wordset_chunk_repeat',
                     chunked: true,
-                    sessionStarMode: chunkSession.star_mode || 'normal',
+                    sessionStarMode: activeSession.star_mode || 'normal',
                     categoryLabelOverride: currentEntry.category_label_override,
-                    details: currentEntry.details
+                    details: currentEntry.details,
+                    boundedSelectionPlan: !!activeSession.bounded_selection_plan,
+                    rejectOnLoadFailure: !!activeSession.bounded_selection_plan,
+                    onLaunchCommitted: function () {
+                        if (chunkSession !== activeSession) { return; }
+                        delete activeSession.repeat_pending;
+                    },
+                    onLaunchFailure: function () {
+                        if (chunkSession !== activeSession) { return; }
+                        delete activeSession.repeat_pending;
+                        renderChunkResultsActions();
+                    }
                 });
             });
 
@@ -14585,21 +14771,39 @@
         }
 
         if (hasNext) {
-            setResultsButtonContent($next, getModeIconMarkup(chunkSession.mode, 'll-vocab-lesson-mode-icon'), i18n.continueLabel || '');
-            $next.show().off('click').on('click.llWordsetChunk', function (e) {
+            setResultsButtonContent($next, getModeIconMarkup(chunkSession.mode, 'll-vocab-lesson-mode-icon'), getChunkContinueLabel());
+            $next.show().prop('disabled', false).off('click').on('click.llWordsetChunk', function (e) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 if (!chunkSession) { return; }
                 if (chunkSession.index >= chunkSession.chunks.length - 1) { return; }
-                chunkSession.index += 1;
-                const nextEntry = getChunkSessionEntry(chunkSession, chunkSession.index);
+                if (Number.isFinite(parseInt(chunkSession.pending_index, 10))) { return; }
+                const activeSession = chunkSession;
+                const previousIndex = activeSession.index;
+                const nextIndex = previousIndex + 1;
+                const nextEntry = getChunkSessionEntry(activeSession, nextIndex);
                 if (!nextEntry) { return; }
+                activeSession.pending_index = nextIndex;
+                $next.prop('disabled', true);
                 launchFlashcards(chunkSession.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
                     source: 'wordset_chunk_continue',
                     chunked: true,
                     sessionStarMode: chunkSession.star_mode || 'normal',
                     categoryLabelOverride: nextEntry.category_label_override,
-                    details: nextEntry.details
+                    details: nextEntry.details,
+                    boundedSelectionPlan: !!chunkSession.bounded_selection_plan,
+                    rejectOnLoadFailure: !!chunkSession.bounded_selection_plan,
+                    onLaunchCommitted: function () {
+                        if (chunkSession !== activeSession) { return; }
+                        activeSession.index = nextIndex;
+                        delete activeSession.pending_index;
+                    },
+                    onLaunchFailure: function () {
+                        if (chunkSession !== activeSession) { return; }
+                        activeSession.index = previousIndex;
+                        delete activeSession.pending_index;
+                        renderChunkResultsActions();
+                    }
                 });
             });
         } else {
@@ -14679,6 +14883,24 @@
         const allowSessionCategoryDisplay = !!(opts.allowSessionCategoryDisplay || launchDetails.allow_session_category_display);
         const preserveCategoryOrder = !!(opts.preserveCategoryOrder || launchDetails.preserve_category_order);
         const requestedCategoryLabelOverride = String(opts.categoryLabelOverride || '').trim();
+        let boundedSessionWordIdsByCategoryId = null;
+        const onLaunchCommitted = typeof opts.onLaunchCommitted === 'function' ? opts.onLaunchCommitted : null;
+        const onLaunchFailure = typeof opts.onLaunchFailure === 'function' ? opts.onLaunchFailure : null;
+        let launchOutcomeNotified = false;
+        const notifyLaunchCommitted = function () {
+            if (launchOutcomeNotified) { return; }
+            launchOutcomeNotified = true;
+            if (onLaunchCommitted) {
+                try { onLaunchCommitted(); } catch (_) { /* no-op */ }
+            }
+        };
+        const notifyLaunchFailure = function () {
+            if (launchOutcomeNotified) { return; }
+            launchOutcomeNotified = true;
+            if (onLaunchFailure) {
+                try { onLaunchFailure(); } catch (_) { /* no-op */ }
+            }
+        };
         const requestedIds = uniqueIntList(categoryIds || []);
         const ids = resolveLaunchCategoryIds(requestedIds, {
             preferCategoryId: requestedIds[0] || 0,
@@ -14688,6 +14910,7 @@
         });
 
         if (!ids.length) {
+            notifyLaunchFailure();
             alert(i18n.noCategoriesSelected || '');
             return;
         }
@@ -14701,11 +14924,48 @@
         const launchUi = hasProvidedLaunchUi ? providedLaunchUi : openFlashcardLaunchLoadingState();
         const abortLaunch = function (message) {
             closeFlashcardLaunchLoadingState(launchUi);
+            notifyLaunchFailure();
             if (message) {
                 alert(message);
             }
         };
+        const invalidateBoundedLaunchHydration = function (categoryIdsToClear, wordIdsToClear) {
+            if (!boundedSelectionPlan) {
+                return;
+            }
 
+            const scopedWordIds = uniqueIntList(wordIdsToClear || []);
+            uniqueIntList(categoryIdsToClear || []).forEach(function (categoryId) {
+                const key = candidateScopedWordsKey(categoryId, scopedWordIds);
+                if (key) {
+                    delete candidateScopedWordsByCategory[key];
+                }
+            });
+
+            const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
+                ? window.llToolsFlashcardsData
+                : {};
+            delete flashData.boundedSelectionPlan;
+            delete flashData.bounded_selection_plan;
+            delete flashData.boundedCandidateRowsByCategoryId;
+            delete flashData.bounded_candidate_rows_by_category_id;
+            delete flashData.sessionWordIdsByCategoryId;
+            delete flashData.session_word_ids_by_category_id;
+            window.llToolsFlashcardsData = flashData;
+        };
+
+        const getCanonicalPlanWordIdsForRow = function (word) {
+            const ids = [];
+            const seen = {};
+            [word && word.id, word && word.answer_word_id, word && word.progress_word_id].forEach(function (value) {
+                const wordId = parseInt(value, 10) || 0;
+                if (wordId > 0 && !seen[wordId]) {
+                    seen[wordId] = true;
+                    ids.push(wordId);
+                }
+            });
+            return ids;
+        };
         const getWordRowsForCategory = function (categoryId, lookup, candidateIds) {
             const scopedCandidateIds = uniqueIntList(candidateIds || []);
             const rows = lookup && hasCandidateScopedWords(categoryId, scopedCandidateIds)
@@ -14714,8 +14974,9 @@
             if (!rows.length) { return []; }
             if (!lookup) { return rows.slice(); }
             return rows.filter(function (word) {
-                const wordId = parseInt(word && word.id, 10) || 0;
-                return !!lookup[wordId];
+                return getCanonicalPlanWordIdsForRow(word).some(function (wordId) {
+                    return !!lookup[wordId];
+                });
             });
         };
         const hasWordRowsForCategory = function (categoryId, lookup, candidateIds) {
@@ -14768,7 +15029,14 @@
             initializeResultsFollowupPrefetchStateForLaunch(lastFlashcardLaunch);
 
             const firstCategory = selectedCats[0];
-            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, effectiveLookup, effectiveSessionIds));
+            let firstCategoryLookup = effectiveLookup;
+            if (boundedSelectionPlan && boundedSessionWordIdsByCategoryId) {
+                firstCategoryLookup = {};
+                uniqueIntList(boundedSessionWordIdsByCategoryId[String(firstCategory.id)] || []).forEach(function (wordId) {
+                    firstCategoryLookup[wordId] = true;
+                });
+            }
+            const firstRows = shuffleList(getWordRowsForCategory(firstCategory.id, firstCategoryLookup, effectiveSessionIds));
 
             const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
                 ? window.llToolsFlashcardsData
@@ -14800,6 +15068,24 @@
             flashData.fast_transitions = !!state.fast_transitions;
             flashData.sessionWordIds = effectiveSessionIds.slice();
             flashData.session_word_ids = effectiveSessionIds.slice();
+            if (boundedSelectionPlan && boundedSessionWordIdsByCategoryId) {
+                const boundedCandidateRowsByCategoryId = {};
+                effectiveCategoryIds.forEach(function (categoryId) {
+                    boundedCandidateRowsByCategoryId[String(categoryId)] = getCandidateScopedWords(
+                        categoryId,
+                        effectiveSessionIds
+                    );
+                });
+                flashData.boundedSelectionPlan = true;
+                flashData.bounded_selection_plan = true;
+                flashData.boundedCandidateRowsByCategoryId = boundedCandidateRowsByCategoryId;
+                flashData.sessionWordIdsByCategoryId = Object.assign({}, boundedSessionWordIdsByCategoryId);
+            } else {
+                delete flashData.boundedSelectionPlan;
+                delete flashData.bounded_selection_plan;
+                delete flashData.boundedCandidateRowsByCategoryId;
+                delete flashData.sessionWordIdsByCategoryId;
+            }
             flashData.lastLaunchPlan = Object.assign({}, lastFlashcardLaunch);
             flashData.last_launch_plan = Object.assign({}, lastFlashcardLaunch);
             if (preserveCategoryOrder) {
@@ -14849,15 +15135,29 @@
             $popup.show();
             $quizPopup.show();
 
-            if (typeof window.initFlashcardWidget === 'function') {
+            const abortCommittedLaunch = function () {
+                invalidateBoundedLaunchHydration(effectiveCategoryIds, effectiveSessionIds);
+                abortLaunch(i18n.selectionLaunchError || i18n.saveError || '');
+            };
+
+            if (typeof window.initFlashcardWidget !== 'function') {
+                abortCommittedLaunch();
+                return;
+            }
+
+            try {
                 const initRes = window.initFlashcardWidget(catNames, finalMode);
-                if (initRes && typeof initRes.catch === 'function') {
-                    initRes.catch(function () {
-                        closeFlashcardLaunchLoadingState(launchUi);
+                if (initRes && typeof initRes.then === 'function') {
+                    initRes.then(function () {
+                        notifyLaunchCommitted();
+                    }, function () {
+                        abortCommittedLaunch();
                     });
+                } else {
+                    notifyLaunchCommitted();
                 }
-            } else {
-                closeFlashcardLaunchLoadingState(launchUi);
+            } catch (_) {
+                abortCommittedLaunch();
             }
         };
 
@@ -14933,6 +15233,42 @@
                         effectiveRequestedCategoryLabelOverride = String(learningPlan.categoryLabelOverride || '').trim();
                     }
                 }
+            }
+
+            if (boundedSelectionPlan && effectiveSessionIds.length) {
+                const plannedWordLookup = {};
+                const assignedWordLookup = {};
+                const ownedWordIdsByCategoryId = {};
+                let categoryOwnershipIsComplete = true;
+                effectiveSessionIds.forEach(function (wordId) {
+                    plannedWordLookup[wordId] = true;
+                });
+                launchCategoryIds.forEach(function (categoryId) {
+                    const ownedWordIds = [];
+                    getWordRowsForCategory(categoryId, plannedWordLookup, effectiveSessionIds).forEach(function (word) {
+                        getCanonicalPlanWordIdsForRow(word).forEach(function (wordId) {
+                            if (plannedWordLookup[wordId] && !assignedWordLookup[wordId]) {
+                                assignedWordLookup[wordId] = true;
+                                ownedWordIds.push(wordId);
+                            }
+                        });
+                    });
+                    ownedWordIdsByCategoryId[String(categoryId)] = ownedWordIds;
+                    if (!ownedWordIds.length) {
+                        categoryOwnershipIsComplete = false;
+                    }
+                });
+                const hydrationIsComplete = categoryOwnershipIsComplete && effectiveSessionIds.every(function (wordId) {
+                    return !!assignedWordLookup[wordId];
+                });
+                if (!hydrationIsComplete) {
+                    launchCategoryIds.forEach(function (categoryId) {
+                        delete candidateScopedWordsByCategory[candidateScopedWordsKey(categoryId, effectiveSessionIds)];
+                    });
+                    abortLaunch(i18n.selectionLaunchError || i18n.saveError || '');
+                    return;
+                }
+                boundedSessionWordIdsByCategoryId = ownedWordIdsByCategoryId;
             }
 
             let selectedCats = categories.filter(function (cat) {
@@ -15126,14 +15462,6 @@
             && (criteriaKey !== '' || selectedIds.length > 8);
         if (shouldUseBoundedSelectionPlan) {
             requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode).done(function (serverPlan) {
-                const planCategoryIds = uniqueIntList(serverPlan && serverPlan.category_ids ? serverPlan.category_ids : []);
-                const planWordIds = uniqueIntList(serverPlan && serverPlan.word_ids ? serverPlan.word_ids : []);
-                if (!planCategoryIds.length || planWordIds.length < minimumWordCount) {
-                    abortSelectionLaunch(resolveEmptyMessage());
-                    return;
-                }
-
-                chunkSession = null;
                 const launchDetails = {
                     preserve_mixed_presentation: true,
                     allow_session_category_display: true,
@@ -15142,17 +15470,54 @@
                 if (criteriaKey) {
                     launchDetails.priority_focus = criteriaKey;
                 }
-                launchFlashcards(normalizedMode, planCategoryIds, planWordIds, {
-                    source: 'wordset_selection_bounded_start',
-                    chunked: false,
-                    sessionStarMode: starredOnlyActive ? 'only' : 'normal',
+
+                const normalizedPlan = normalizeBoundedSelectionPlanChunks(
+                    serverPlan,
+                    launchDetails,
+                    selectedIds,
+                    minimumWordCount
+                );
+                const planChunks = normalizedPlan.chunks;
+                if (!planChunks.length) {
+                    chunkSession = null;
+                    abortSelectionLaunch(normalizedPlan.invalid
+                        ? (i18n.selectionLaunchError || i18n.saveError || '')
+                        : resolveEmptyMessage());
+                    return;
+                }
+
+                const firstEntry = planChunks[0];
+                const hasMultipleChunks = planChunks.length > 1;
+                const plannedMatchCount = planChunks.reduce(function (total, entry) {
+                    return total + uniqueIntList(entry.session_word_ids || []).length;
+                }, 0);
+                chunkSession = hasMultipleChunks ? {
+                    mode: normalizedMode,
+                    chunks: planChunks,
+                    index: 0,
+                    matched_count: plannedMatchCount,
+                    // The bounded server plan already contains the exact starred-only
+                    // IDs when requested. Reapplying runtime star filtering can discard
+                    // prompt-card wrappers whose canonical progress ID differs from id.
+                    star_mode: 'normal',
+                    details: launchDetails,
+                    bounded_selection_plan: true
+                } : null;
+                launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
+                    source: hasMultipleChunks ? 'wordset_chunk_start' : 'wordset_selection_bounded_start',
+                    chunked: hasMultipleChunks,
+                    sessionStarMode: 'normal',
                     randomizeSessionCategoryOrder: true,
                     allowSessionCategoryDisplay: true,
                     skipCompatibilityFilter: true,
-                    details: launchDetails,
+                    categoryLabelOverride: firstEntry.category_label_override,
+                    details: firstEntry.details,
                     launchUi: launchUi,
                     boundedSelectionPlan: true,
-                    rejectOnLoadFailure: true
+                    rejectOnLoadFailure: true,
+                    onLaunchFailure: function () {
+                        chunkSession = null;
+                    }
                 });
             }).fail(function () {
                 abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');

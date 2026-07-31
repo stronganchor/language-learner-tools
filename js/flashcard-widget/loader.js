@@ -138,6 +138,75 @@
             return ids;
         }
 
+        function createWordIdLookup(raw) {
+            const lookup = {};
+            normalizeWordIdList(raw).forEach(function (id) {
+                lookup[id] = true;
+            });
+            return lookup;
+        }
+
+        function getCanonicalSessionWordIds(word) {
+            if (!word || typeof word !== 'object') {
+                return [];
+            }
+            return normalizeWordIdList([
+                word.id,
+                word.answer_word_id,
+                word.progress_word_id
+            ]);
+        }
+
+        function getMatchingCanonicalWordId(word, lookup) {
+            if (!lookup || typeof lookup !== 'object') {
+                return 0;
+            }
+            const ids = getCanonicalSessionWordIds(word);
+            for (let idx = 0; idx < ids.length; idx += 1) {
+                if (Object.prototype.hasOwnProperty.call(lookup, ids[idx])) {
+                    return ids[idx];
+                }
+            }
+            return 0;
+        }
+
+        function rowMatchesWordLookup(word, lookup) {
+            return getMatchingCanonicalWordId(word, lookup) > 0;
+        }
+
+        function isPromptCardSupportOnlyWord(word) {
+            if (!word || typeof word !== 'object') return false;
+            if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_support_only')) {
+                return parseBooleanFlag(word.is_prompt_card_support_only, false);
+            }
+            return false;
+        }
+
+        function isBoundedSelectionPlan() {
+            const data = window.llToolsFlashcardsData || {};
+            return parseBooleanFlag(
+                (typeof data.boundedSelectionPlan !== 'undefined')
+                    ? data.boundedSelectionPlan
+                    : data.bounded_selection_plan,
+                false
+            );
+        }
+
+        function getBoundedDataMap(camelKey, snakeKey) {
+            const data = window.llToolsFlashcardsData || {};
+            const value = (data[camelKey] && typeof data[camelKey] === 'object')
+                ? data[camelKey]
+                : ((data[snakeKey] && typeof data[snakeKey] === 'object') ? data[snakeKey] : null);
+            return value && !Array.isArray(value) ? value : null;
+        }
+
+        function createBoundedPreloadError(message, details) {
+            const error = new Error(message);
+            error.code = 'll_bounded_preload_invalid';
+            error.details = details || {};
+            return error;
+        }
+
         function getLastLaunchPlan() {
             const data = window.llToolsFlashcardsData || {};
             if (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object') {
@@ -193,8 +262,8 @@
                 return list;
             }
             return list.sort(function (a, b) {
-                const aId = parseInt(a && a.id, 10);
-                const bId = parseInt(b && b.id, 10);
+                const aId = getMatchingCanonicalWordId(a, rankMap);
+                const bId = getMatchingCanonicalWordId(b, rankMap);
                 const aRank = aId > 0 && Object.prototype.hasOwnProperty.call(rankMap, aId) ? rankMap[aId] : Number.MAX_SAFE_INTEGER;
                 const bRank = bId > 0 && Object.prototype.hasOwnProperty.call(rankMap, bId) ? rankMap[bId] : Number.MAX_SAFE_INTEGER;
                 return aRank - bRank;
@@ -830,7 +899,7 @@
          * @param {Array} wordData - Array of word objects.
          * @param {string} categoryName - The name of the category.
          */
-        function processFetchedWordData(wordData, categoryName) {
+        function processFetchedWordData(wordData, categoryName, options) {
             // IMPORTANT: Replace existing data instead of appending to avoid mixing wordsets
             window.wordsByCategory[categoryName] = [];
             window.optionWordsByCategory = window.optionWordsByCategory || {};
@@ -842,7 +911,14 @@
 
             const allowedWordsetIds = getAllowedWordsetIds();
             const hasWordsetFilter = allowedWordsetIds.length > 0;
-            const sessionWordLookup = getSessionWordLookup();
+            const processingOptions = options || {};
+            const hasScopedSessionWordIds = Object.prototype.hasOwnProperty.call(processingOptions, 'sessionWordIds');
+            const scopedSessionWordIds = hasScopedSessionWordIds
+                ? normalizeWordIdList(processingOptions.sessionWordIds)
+                : [];
+            const sessionWordLookup = hasScopedSessionWordIds
+                ? createWordIdLookup(scopedSessionWordIds)
+                : getSessionWordLookup();
 
             const cfg = getCategoryConfig(categoryName);
             const needsAudio = categoryRequiresAudio(cfg);
@@ -868,14 +944,6 @@
                 const ownTexts = Array.isArray(word.specific_wrong_answer_texts) ? word.specific_wrong_answer_texts.filter(Boolean) : [];
                 return ownerIds.length > 0 && ownIds.length === 0 && ownTexts.length === 0;
             };
-            const isPromptCardSupportOnlyWord = function (word) {
-                if (!word || typeof word !== 'object') return false;
-                if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card_support_only')) {
-                    return parseBool(word.is_prompt_card_support_only);
-                }
-                return false;
-            };
-
             // Filter out words that do not have a resolvable audio URL
             const filteredByCategory = Array.isArray(wordData) ? wordData.map(function (w) {
                 const url = resolvePlayableAudio(w);
@@ -918,8 +986,7 @@
 
             const filteredBySession = sessionWordLookup
                 ? filteredByPromptTargets.filter(function (w) {
-                    const wordId = parseInt(w && w.id, 10);
-                    return !!wordId && !!sessionWordLookup[wordId];
+                    return rowMatchesWordLookup(w, sessionWordLookup);
                 })
                 : filteredByPromptTargets.slice();
 
@@ -935,6 +1002,207 @@
             window.wordsByCategory[categoryName] = shouldPreserveWordOrder()
                 ? orderWordsForCurrentLaunch(window.wordsByCategory[categoryName])
                 : randomlySort(window.wordsByCategory[categoryName]);
+        }
+
+        /**
+         * Validates and installs the exact per-category rows prepared by a bounded launch.
+         * A bounded plan must never fall back to category AJAX because that can both fan out
+         * requests and silently widen or shrink the verified session selection.
+         *
+         * @param {Array<string>} categoryNames Category names selected for this launch.
+         * @returns {Promise<Object>} Resolves after every category is installed and cached.
+         */
+        function consumeBoundedPreloadedCategoryData(categoryNames) {
+            return Promise.resolve().then(function () {
+                if (!isBoundedSelectionPlan()) {
+                    throw createBoundedPreloadError('Bounded category data was requested without an active bounded selection plan.');
+                }
+
+                const requestedNames = [];
+                const seenNames = {};
+                (Array.isArray(categoryNames) ? categoryNames : []).forEach(function (value) {
+                    const name = String(value || '').trim();
+                    const key = normalizeCategoryLookupKey(name);
+                    if (name && key && !seenNames[key]) {
+                        seenNames[key] = true;
+                        requestedNames.push(name);
+                    }
+                });
+                if (!requestedNames.length) {
+                    throw createBoundedPreloadError('Bounded category data has no requested categories.');
+                }
+
+                const rowsByCategoryId = getBoundedDataMap(
+                    'boundedCandidateRowsByCategoryId',
+                    'bounded_candidate_rows_by_category_id'
+                );
+                const ownedIdsByCategoryId = getBoundedDataMap(
+                    'sessionWordIdsByCategoryId',
+                    'session_word_ids_by_category_id'
+                );
+                if (!rowsByCategoryId || !ownedIdsByCategoryId) {
+                    throw createBoundedPreloadError('Bounded category data is incomplete.', {
+                        hasRows: !!rowsByCategoryId,
+                        hasOwnership: !!ownedIdsByCategoryId
+                    });
+                }
+
+                const data = window.llToolsFlashcardsData || {};
+                const sessionWordIds = normalizeWordIdList(data.sessionWordIds || data.session_word_ids || []);
+                if (!sessionWordIds.length) {
+                    throw createBoundedPreloadError('Bounded category data has no session word IDs.');
+                }
+                const sessionLookup = createWordIdLookup(sessionWordIds);
+                const unionLookup = {};
+                const categoryPlans = [];
+
+                requestedNames.forEach(function (categoryName) {
+                    const config = getCategoryConfig(categoryName) || {};
+                    const categoryId = parseInt(config.id || config.category_id || config.term_id, 10) || 0;
+                    const mapKey = String(categoryId);
+                    if (!categoryId) {
+                        throw createBoundedPreloadError('Bounded category data cannot resolve a category ID.', {
+                            category: categoryName
+                        });
+                    }
+                    if (!Object.prototype.hasOwnProperty.call(rowsByCategoryId, mapKey) || !Array.isArray(rowsByCategoryId[mapKey])) {
+                        throw createBoundedPreloadError('Bounded category rows are missing for a requested category.', {
+                            category: categoryName,
+                            categoryId: categoryId
+                        });
+                    }
+                    if (!Object.prototype.hasOwnProperty.call(ownedIdsByCategoryId, mapKey) || !Array.isArray(ownedIdsByCategoryId[mapKey])) {
+                        throw createBoundedPreloadError('Bounded category ownership is missing for a requested category.', {
+                            category: categoryName,
+                            categoryId: categoryId
+                        });
+                    }
+
+                    const rows = rowsByCategoryId[mapKey];
+                    const ownedIds = normalizeWordIdList(ownedIdsByCategoryId[mapKey]);
+                    if (!ownedIds.length) {
+                        throw createBoundedPreloadError('Bounded category ownership is empty for a requested category.', {
+                            category: categoryName,
+                            categoryId: categoryId
+                        });
+                    }
+                    const targetRows = rows.filter(function (row) {
+                        return !isPromptCardSupportOnlyWord(row);
+                    });
+
+                    ownedIds.forEach(function (wordId) {
+                        if (!sessionLookup[wordId]) {
+                            throw createBoundedPreloadError('Bounded category ownership includes a word outside the session.', {
+                                category: categoryName,
+                                categoryId: categoryId,
+                                wordId: wordId
+                            });
+                        }
+                        if (unionLookup[wordId]) {
+                            throw createBoundedPreloadError('A bounded session word is owned by more than one category.', {
+                                category: categoryName,
+                                categoryId: categoryId,
+                                wordId: wordId
+                            });
+                        }
+                        const wordLookup = {};
+                        wordLookup[wordId] = true;
+                        if (!targetRows.some(function (row) { return rowMatchesWordLookup(row, wordLookup); })) {
+                            throw createBoundedPreloadError('Bounded category rows do not cover an owned session word.', {
+                                category: categoryName,
+                                categoryId: categoryId,
+                                wordId: wordId
+                            });
+                        }
+                        unionLookup[wordId] = true;
+                    });
+
+                    categoryPlans.push({
+                        categoryName: categoryName,
+                        categoryId: categoryId,
+                        rows: rows,
+                        ownedIds: ownedIds
+                    });
+                });
+
+                const unionIds = Object.keys(unionLookup).map(function (value) { return parseInt(value, 10); });
+                if (
+                    unionIds.length !== sessionWordIds.length
+                    || sessionWordIds.some(function (wordId) { return !unionLookup[wordId]; })
+                ) {
+                    throw createBoundedPreloadError('Bounded category ownership does not exactly match the session word IDs.', {
+                        sessionCount: sessionWordIds.length,
+                        ownedCount: unionIds.length
+                    });
+                }
+
+                window.wordsByCategory = window.wordsByCategory || {};
+                window.optionWordsByCategory = window.optionWordsByCategory || {};
+                window.categoryRoundCount = window.categoryRoundCount || {};
+                const wordsetKey = ensureWordsetCacheKey();
+                const previousState = {};
+                categoryPlans.forEach(function (plan) {
+                    const name = plan.categoryName;
+                    previousState[name] = {
+                        hadWords: Object.prototype.hasOwnProperty.call(window.wordsByCategory, name),
+                        words: window.wordsByCategory[name],
+                        hadOptions: Object.prototype.hasOwnProperty.call(window.optionWordsByCategory, name),
+                        options: window.optionWordsByCategory[name],
+                        hadRoundCount: Object.prototype.hasOwnProperty.call(window.categoryRoundCount, name),
+                        roundCount: window.categoryRoundCount[name]
+                    };
+                });
+
+                try {
+                    categoryPlans.forEach(function (plan) {
+                        const clonedRows = plan.rows.map(function (row) {
+                            return row && typeof row === 'object' ? Object.assign({}, row) : row;
+                        });
+                        processFetchedWordData(clonedRows, plan.categoryName, {
+                            sessionWordIds: plan.ownedIds
+                        });
+                        const activeRows = window.wordsByCategory[plan.categoryName] || [];
+                        const missingOwnedId = plan.ownedIds.find(function (wordId) {
+                            const lookup = {};
+                            lookup[wordId] = true;
+                            return !activeRows.some(function (row) { return rowMatchesWordLookup(row, lookup); });
+                        });
+                        if (missingOwnedId) {
+                            throw createBoundedPreloadError('A bounded session word did not survive runtime filtering.', {
+                                category: plan.categoryName,
+                                categoryId: plan.categoryId,
+                                wordId: missingOwnedId
+                            });
+                        }
+                    });
+                } catch (error) {
+                    categoryPlans.forEach(function (plan) {
+                        const name = plan.categoryName;
+                        const previous = previousState[name] || {};
+                        if (previous.hadWords) window.wordsByCategory[name] = previous.words;
+                        else delete window.wordsByCategory[name];
+                        if (previous.hadOptions) window.optionWordsByCategory[name] = previous.options;
+                        else delete window.optionWordsByCategory[name];
+                        if (previous.hadRoundCount) window.categoryRoundCount[name] = previous.roundCount;
+                        else delete window.categoryRoundCount[name];
+                    });
+                    throw error;
+                }
+
+                categoryPlans.forEach(function (plan) {
+                    const cacheKey = wordsetKey + '::' + plan.categoryName;
+                    if (!loadedCategories.includes(cacheKey)) {
+                        loadedCategories.push(cacheKey);
+                    }
+                });
+
+                return {
+                    success: true,
+                    boundedPreloaded: true,
+                    categories: requestedNames.slice(),
+                    sessionWordIds: sessionWordIds.slice()
+                };
+            });
         }
 
         /**
@@ -956,6 +1224,16 @@
             if (loadedCategories.includes(cacheKey)) {
                 if (typeof callback === 'function') callback();
                 return Promise.resolve({ cached: true, category: categoryName });
+            }
+
+            if (isBoundedSelectionPlan()) {
+                if (typeof callback === 'function') callback();
+                return Promise.resolve({
+                    success: false,
+                    category: categoryName,
+                    boundedPreloadRequired: true,
+                    code: 'll_bounded_preload_required'
+                });
             }
 
             if (getRuntimeMode() === 'offline') {
@@ -1557,6 +1835,7 @@
             isCategoryLoading,
             loadResourcesForWord,
             processFetchedWordData,
+            consumeBoundedPreloadedCategoryData,
             randomlySort,
             resetCacheForNewWordset,
         };

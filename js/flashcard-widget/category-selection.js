@@ -43,25 +43,68 @@
         } catch (_) { /* no-op */ }
     }
 
+    function resetFailedWidgetLaunch(error) {
+        try { console.error('Failed to initialize flashcard widget:', error); } catch (_) { /* no-op */ }
+        try {
+            var dom = window.LLFlashcards && window.LLFlashcards.Dom;
+            if (dom && typeof dom.hideLoadingImmediately === 'function') {
+                dom.hideLoadingImmediately();
+            } else if (dom && typeof dom.hideLoading === 'function') {
+                dom.hideLoading();
+            }
+        } catch (_) { /* no-op */ }
+        try {
+            $('#ll-tools-loading-animation').hide();
+            $('#ll-tools-category-selection-popup').hide();
+            $('#ll-tools-flashcard-quiz-popup').hide();
+            $('#ll-tools-flashcard-popup').hide();
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
+            $('html').css('overflow', '');
+        } catch (_) { /* no-op */ }
+
+        var messages = window.llToolsFlashcardsMessages || {};
+        var message = String(messages.somethingWentWrong || messages.categoryCatalogError || '').trim();
+        if (message && typeof window.alert === 'function') {
+            try { window.alert(message); } catch (_) { /* no-op */ }
+        }
+        return false;
+    }
+
+    var legacyInitShim = null;
+
     // ---- tiny shim: safely call init no matter load order ----
     function startWidget(selectedCategories, mode) {  // ADD mode parameter
-        // wait until either the namespaced or legacy global init is available
-        (function wait() {
-            if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
-                window.LLFlashcards.Main.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
-            } else if (typeof window.initFlashcardWidget === 'function') {
-                window.initFlashcardWidget(selectedCategories, mode);  // PASS mode through
-            } else {
-                setTimeout(wait, 30);
-            }
-        })();
+        // Return and internally handle the async result so callers that launch from
+        // click/embed handlers cannot leak an unhandled initializer rejection.
+        return new Promise(function (resolve, reject) {
+            (function wait() {
+                var initializer = null;
+                if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
+                    initializer = window.LLFlashcards.Main.initFlashcardWidget;
+                } else if (typeof window.initFlashcardWidget === 'function' && window.initFlashcardWidget !== legacyInitShim) {
+                    initializer = window.initFlashcardWidget;
+                }
+
+                if (!initializer) {
+                    setTimeout(wait, 30);
+                    return;
+                }
+
+                try {
+                    resolve(initializer(selectedCategories, mode));
+                } catch (error) {
+                    reject(error);
+                }
+            })();
+        }).catch(resetFailedWidgetLaunch);
     }
 
     // Also expose a legacy global stub so any inline callers don't explode.
     if (typeof window.initFlashcardWidget !== 'function') {
-        window.initFlashcardWidget = function (selectedCategories, mode) {  // ADD mode parameter
-            startWidget(selectedCategories, mode);  // PASS mode through
+        legacyInitShim = function (selectedCategories, mode) {  // ADD mode parameter
+            return startWidget(selectedCategories, mode);  // PASS mode through
         };
+        window.initFlashcardWidget = legacyInitShim;
     }
 
     var embedAutoStarted = false;

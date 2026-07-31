@@ -57,6 +57,7 @@ function buildWordsetMarkup() {
       </div>
     </div>
 
+    <p id="ll-study-results-suggestion" style="display:none;"></p>
     <div id="ll-study-results-actions" style="display:none;">
       <button id="ll-study-results-same-chunk" type="button" style="display:none;">Repeat</button>
       <button id="ll-study-results-different-chunk" type="button" style="display:none;">New words</button>
@@ -65,6 +66,7 @@ function buildWordsetMarkup() {
     <div id="ll-gender-results-actions" style="display:none;"></div>
     <button id="restart-quiz" type="button" style="display:none;">Restart</button>
     <div id="quiz-mode-buttons" style="display:none;"></div>
+    <div id="quiz-results" style="display:none;">Completed chunk results</div>
 
     <div id="ll-tools-flashcard-popup" style="display:none;">
       <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
@@ -141,6 +143,71 @@ function buildAnalyticsWordsWithHardCount(hardCount) {
   });
 
   return rows;
+}
+
+function buildBoundedChunkFixture() {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 10, 'A').map((row) => Object.assign({}, row, {
+      category_id: 11,
+      category_ids: [11],
+      status: 'studied'
+    })),
+    22: buildCategoryWordRows(22, 10, 'B').map((row) => Object.assign({}, row, {
+      category_id: 22,
+      category_ids: [22],
+      status: 'studied'
+    })),
+    33: buildCategoryWordRows(33, 10, 'C').map((row) => Object.assign({}, row, {
+      category_id: 33,
+      category_ids: [33],
+      status: 'studied'
+    }))
+  };
+  const firstChunkWordIds = wordsByCategory[11].map((row) => row.id)
+    .concat(wordsByCategory[22].slice(0, 5).map((row) => row.id));
+  const secondChunkWordIds = wordsByCategory[22].slice(5).map((row) => row.id)
+    .concat(wordsByCategory[33].map((row) => row.id));
+  const allPlannedWordIds = firstChunkWordIds.concat(secondChunkWordIds);
+
+  return {
+    wordsByCategory,
+    firstChunkWordIds,
+    secondChunkWordIds,
+    allPlannedWordIds,
+    selectionLaunchPlan: {
+      category_ids: [11, 22],
+      word_ids: firstChunkWordIds,
+      chunks: [
+        { category_ids: [11, 22], word_ids: firstChunkWordIds },
+        { category_ids: [22, 33], word_ids: secondChunkWordIds }
+      ],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: allPlannedWordIds.length,
+      planned_count: allPlannedWordIds.length,
+      chunk_count: 2,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: allPlannedWordIds.length,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  };
 }
 
 function buildPageConfig({ isLoggedIn }) {
@@ -313,9 +380,14 @@ async function mountWordsetPage(page, options = {}) {
       active: 0,
       maxActive: 0,
       categories: [],
-      actions: []
+      actions: [],
+      requests: []
     };
     window.__llSelectionPlanRequests = [];
+    window.__llFailPublicCategoryOnce = '';
+    window.__llPartialPublicCategoryOnce = null;
+    window.__llInitAttempts = [];
+    window.__llInitFailureOnce = '';
     let publicCategoryWarmingRemaining = Math.max(
       0,
       Number(bootstrap.publicCategoryWarmingResponses) || 0
@@ -340,6 +412,22 @@ async function mountWordsetPage(page, options = {}) {
       const userStudyState = (flash.userStudyState && typeof flash.userStudyState === 'object')
         ? flash.userStudyState
         : {};
+      const initAttempt = {
+        mode: String(mode || ''),
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        sessionWordIds: Array.isArray(flash.sessionWordIds) ? flash.sessionWordIds.slice() : [],
+        source: String(plan.source || ''),
+        sessionStarModeOverride: String(flash.sessionStarModeOverride || flash.session_star_mode_override || '')
+      };
+      window.__llInitAttempts.push(initAttempt);
+      const initFailure = String(window.__llInitFailureOnce || '');
+      if (initFailure) {
+        window.__llInitFailureOnce = '';
+        if (initFailure === 'throw') {
+          throw new Error('test init throw');
+        }
+        return Promise.reject(new Error('test init rejection'));
+      }
 
       window.__llLaunches.push({
         mode: String(mode || ''),
@@ -353,6 +441,12 @@ async function mountWordsetPage(page, options = {}) {
           flash.hideCategoryDisplay ||
           flash.hide_category_display
         ),
+        boundedSelectionPlan: !!(flash.boundedSelectionPlan || flash.bounded_selection_plan),
+        boundedCandidateCategoryIds: Object.keys(flash.boundedCandidateRowsByCategoryId || {})
+          .map((value) => Number(value) || 0)
+          .filter((value) => value > 0),
+        sessionWordIdsByCategoryId: JSON.parse(JSON.stringify(flash.sessionWordIdsByCategoryId || {})),
+        sessionStarModeOverride: String(flash.sessionStarModeOverride || flash.session_star_mode_override || ''),
         source: String(plan.source || '')
       });
       window.__llLaunchTrace.push('init');
@@ -366,6 +460,10 @@ async function mountWordsetPage(page, options = {}) {
 
       if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
         const categoryName = String((request && request.category) || '');
+        const candidateIds = String((request && request.candidate_word_ids) || '')
+          .split(',')
+          .map((value) => Number(value) || 0)
+          .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
         window.__llPublicCategoryRequests.active += 1;
         window.__llPublicCategoryRequests.maxActive = Math.max(
           window.__llPublicCategoryRequests.maxActive,
@@ -373,11 +471,29 @@ async function mountWordsetPage(page, options = {}) {
         );
         window.__llPublicCategoryRequests.categories.push(categoryName);
         window.__llPublicCategoryRequests.actions.push(action);
+        window.__llPublicCategoryRequests.requests.push({
+          categoryName,
+          candidateIds,
+          includeOptionPool: String((request && request.include_option_pool) || ''),
+          optionPoolLimit: String((request && request.option_pool_limit) || '')
+        });
         const resolveCategoryRequest = () => {
           window.__llPublicCategoryRequests.active = Math.max(
             0,
             window.__llPublicCategoryRequests.active - 1
           );
+          if (String(window.__llFailPublicCategoryOnce || '') === categoryName) {
+            window.__llFailPublicCategoryOnce = '';
+            deferred.reject({
+              status: 500,
+              responseJSON: {
+                success: false,
+                data: { code: 'test_category_failure' }
+              },
+              getResponseHeader: () => ''
+            });
+            return;
+          }
           if (publicCategoryWarmingRemaining > 0) {
             publicCategoryWarmingRemaining -= 1;
             deferred.reject({
@@ -396,16 +512,27 @@ async function mountWordsetPage(page, options = {}) {
           const categoryRows = Array.isArray(bootstrap.wordsByCategoryName[categoryName])
             ? bootstrap.wordsByCategoryName[categoryName]
             : [];
+          let responseRows = categoryRows;
+          const partialSpec = window.__llPartialPublicCategoryOnce;
+          if (
+            partialSpec
+            && typeof partialSpec === 'object'
+            && String(partialSpec.categoryName || '') === categoryName
+          ) {
+            const omitId = Number(partialSpec.omitId) || 0;
+            window.__llPartialPublicCategoryOnce = null;
+            responseRows = categoryRows.filter((row) => (Number(row && row.id) || 0) !== omitId);
+          }
           deferred.resolve({
             success: true,
             data: action === 'll_get_flashcard_payload_page'
               ? {
                   schema: 1,
-                  rows: categoryRows,
+                  rows: responseRows,
                   next_cursor: '',
                   complete: true
                 }
-              : categoryRows
+              : responseRows
           });
         };
         if (bootstrap.publicCategoryDelayMs > 0) {
@@ -487,9 +614,15 @@ async function mountWordsetPage(page, options = {}) {
           plan = {
             category_ids: selectedCategoryIds,
             word_ids: selectedRows,
+            chunks: selectedRows.length ? [{
+              category_ids: selectedCategoryIds,
+              word_ids: selectedRows
+            }] : [],
             criteria,
             mode: String(request.mode || 'practice'),
             matched_count: selectedRows.length,
+            planned_count: selectedRows.length,
+            chunk_count: selectedRows.length ? 1 : 0,
             truncated: false
           };
         }
@@ -525,6 +658,12 @@ async function mountWordsetPage(page, options = {}) {
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
+}
+
+async function startInProgressPracticeSelection(page) {
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
 }
 
 test('logged-out select-all shows real word count and allows listening launch', async ({ page }) => {
@@ -1335,6 +1474,803 @@ test('priority-only practice selection filters to the current study focus', asyn
     'll_get_words_by_category'
   ]);
   expect(requestStats.publicRequests.maxActive).toBe(1);
+});
+
+test('bounded selection plan continues through every category-aware chunk without duplicates or fanout', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 10, 'A').map((row) => Object.assign({}, row, {
+      category_id: 11,
+      category_ids: [11],
+      status: 'studied'
+    })),
+    22: buildCategoryWordRows(22, 10, 'B').map((row) => Object.assign({}, row, {
+      category_id: 22,
+      category_ids: [22],
+      status: 'studied'
+    })),
+    33: buildCategoryWordRows(33, 10, 'C').map((row) => Object.assign({}, row, {
+      category_id: 33,
+      category_ids: [33],
+      status: 'studied'
+    }))
+  };
+  const firstChunkWordIds = wordsByCategory[11].map((row) => row.id)
+    .concat(wordsByCategory[22].slice(0, 5).map((row) => row.id));
+  const secondChunkWordIds = wordsByCategory[22].slice(5).map((row) => row.id)
+    .concat(wordsByCategory[33].map((row) => row.id));
+  const allPlannedWordIds = firstChunkWordIds.concat(secondChunkWordIds);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [11, 22],
+      word_ids: firstChunkWordIds,
+      chunks: [
+        { category_ids: [11, 22], word_ids: firstChunkWordIds },
+        { category_ids: [22, 33], word_ids: secondChunkWordIds }
+      ],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: allPlannedWordIds.length,
+      planned_count: allPlannedWordIds.length,
+      chunk_count: 2,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: allPlannedWordIds.length,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  let launches = await page.evaluate(() => window.__llLaunches.slice());
+  expect(launches[0].source).toBe('wordset_chunk_start');
+  expect(launches[0].categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launches[0].sessionWordIds.slice().sort((a, b) => a - b))
+    .toEqual(firstChunkWordIds.slice().sort((a, b) => a - b));
+
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').show();
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toContainText('Continue');
+  await expect(continueButton).toContainText('2/2');
+  await expect(page.locator('#ll-study-results-suggestion')).toHaveText('30 words');
+  await page.evaluate(() => {
+    window.__llFailPublicCategoryOnce = 'Cat C';
+  });
+  await continueButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toBeEnabled();
+  await expect(continueButton).toContainText('2/2');
+  await expect(page.locator('#quiz-results')).toBeVisible();
+
+  await continueButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  launches = await page.evaluate(() => window.__llLaunches.slice());
+  expect(launches[1].source).toBe('wordset_chunk_continue');
+  expect(launches[1].categoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
+  expect(launches[1].sessionWordIds.slice().sort((a, b) => a - b))
+    .toEqual(secondChunkWordIds.slice().sort((a, b) => a - b));
+
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    publicRequests: {
+      maxActive: window.__llPublicCategoryRequests.maxActive,
+      categories: window.__llPublicCategoryRequests.categories.slice(),
+      requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+        categoryName: request.categoryName,
+        candidateIds: request.candidateIds.slice(),
+        includeOptionPool: request.includeOptionPool,
+        optionPoolLimit: request.optionPoolLimit
+      }))
+    }
+  }));
+  const launchedWordIds = result.launches.flatMap((launch) => launch.sessionWordIds);
+  expect(launchedWordIds).toHaveLength(allPlannedWordIds.length);
+  expect(new Set(launchedWordIds).size).toBe(allPlannedWordIds.length);
+  expect(launchedWordIds.slice().sort((a, b) => a - b))
+    .toEqual(allPlannedWordIds.slice().sort((a, b) => a - b));
+  expect(result.planRequests).toHaveLength(1);
+  expect(result.publicRequests.maxActive).toBe(1);
+  expect(result.launches.every((launch) => launch.boundedSelectionPlan)).toBeTruthy();
+  expect(result.launches[0].boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(result.launches[0].sessionWordIdsByCategoryId['11']).toEqual(wordsByCategory[11].map((row) => row.id));
+  expect(result.launches[0].sessionWordIdsByCategoryId['22']).toEqual(wordsByCategory[22].slice(0, 5).map((row) => row.id));
+  expect(result.launches[1].boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
+  expect(result.launches[1].sessionWordIdsByCategoryId['22']).toEqual(wordsByCategory[22].slice(5).map((row) => row.id));
+  expect(result.launches[1].sessionWordIdsByCategoryId['33']).toEqual(wordsByCategory[33].map((row) => row.id));
+  expect(result.publicRequests.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat C']);
+  expect(result.publicRequests.requests).toHaveLength(5);
+  result.publicRequests.requests.forEach((request, index) => {
+    const expectedChunkIds = index < 2 ? firstChunkWordIds : secondChunkWordIds;
+    expect(request.candidateIds.slice().sort((a, b) => a - b))
+      .toEqual(expectedChunkIds.slice().sort((a, b) => a - b));
+    expect(request.candidateIds.length).toBeLessThanOrEqual(15);
+    expect(request.includeOptionPool).toBe('1');
+    expect(request.optionPoolLimit).toBe('12');
+  });
+});
+
+test('chunk continuation advances only after widget initialization succeeds', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(continueButton).toContainText('2/2');
+
+  await page.evaluate(() => {
+    window.__llInitFailureOnce = 'reject';
+  });
+  await continueButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(2);
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toBeEnabled();
+  await expect(continueButton).toContainText('2/2');
+  await expect(page.locator('#quiz-results')).toBeVisible();
+
+  const requestsAfterFirstFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
+
+  await page.evaluate(() => {
+    window.__llInitFailureOnce = 'throw';
+  });
+  await continueButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(3);
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toBeEnabled();
+  await expect(continueButton).toContainText('2/2');
+  await expect(page.locator('#quiz-results')).toBeVisible();
+
+  const requestsAfterSecondFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
+  expect(requestsAfterSecondFailure.length).toBe(requestsAfterFirstFailure.length + 2);
+  expect(requestsAfterSecondFailure.slice(-2)).toEqual(['Cat B', 'Cat C']);
+
+  await continueButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    initAttempts: window.__llInitAttempts.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice()
+  }));
+  expect(result.initAttempts).toHaveLength(4);
+  expect(result.launches[1].source).toBe('wordset_chunk_continue');
+  expect(result.launches[1].sessionWordIds.slice().sort((a, b) => a - b))
+    .toEqual(fixture.secondChunkWordIds.slice().sort((a, b) => a - b));
+  expect(result.publicCategories.length).toBe(requestsAfterSecondFailure.length + 2);
+  expect(result.publicCategories.slice(-2)).toEqual(['Cat B', 'Cat C']);
+});
+
+test('chunk repeat restores the same retry action when widget initialization fails', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').show();
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+    window.__llInitFailureOnce = 'reject';
+  });
+  const repeatButton = page.locator('#ll-study-results-same-chunk');
+  await expect(repeatButton).toBeVisible();
+  await repeatButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await expect(repeatButton).toBeVisible();
+  await expect(repeatButton).toBeEnabled();
+  await expect(page.locator('#quiz-results')).toBeVisible();
+
+  const requestsAfterFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
+
+  await repeatButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  const launches = await page.evaluate(() => window.__llLaunches.slice());
+  expect(launches[1].source).toBe('wordset_chunk_repeat');
+  expect(launches[1].sessionWordIds.slice().sort((a, b) => a - b))
+    .toEqual(fixture.firstChunkWordIds.slice().sort((a, b) => a - b));
+  const requestsAfterRetry = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
+  expect(requestsAfterRetry.length).toBe(requestsAfterFailure.length + 2);
+  expect(requestsAfterRetry.slice(-2)).toEqual(['Cat A', 'Cat B']);
+});
+
+test('partial successful chunk hydration fails closed and refetches the same chunk', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  const omittedWordId = fixture.wordsByCategory[33][0].id;
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await page.evaluate(({ omitId }) => {
+    window.__llPartialPublicCategoryOnce = {
+      categoryName: 'Cat C',
+      omitId
+    };
+  }, { omitId: omittedWordId });
+  await continueButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(1);
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toBeEnabled();
+  await expect(continueButton).toContainText('2/2');
+
+  await continueButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+      categoryName: request.categoryName,
+      candidateIds: request.candidateIds.slice()
+    }))
+  }));
+  expect(result.launches[1].sessionWordIds.slice().sort((a, b) => a - b))
+    .toEqual(fixture.secondChunkWordIds.slice().sort((a, b) => a - b));
+  expect(result.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat B', 'Cat C']);
+  expect(result.requests.slice(-2).every((request) => request.candidateIds.length === 15)).toBeTruthy();
+});
+
+test('bounded hydration rejects a declared category that owns no planned word', async ({ page }) => {
+  const plannedRows = buildCategoryWordRows(11, 8, 'A').map((row) => Object.assign({}, row, {
+    category_id: 11,
+    category_ids: [11],
+    status: 'studied'
+  }));
+  const plannedWordIds = plannedRows.map((row) => row.id);
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: {
+      11: plannedRows,
+      22: [],
+      33: []
+    },
+    selectionLaunchPlan: {
+      category_ids: [11, 22],
+      word_ids: plannedWordIds,
+      chunks: [{ category_ids: [11, 22], word_ids: plannedWordIds }],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: plannedWordIds.length,
+      planned_count: plannedWordIds.length,
+      chunk_count: 1,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: plannedWordIds.length,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(0);
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    categories: window.__llPublicCategoryRequests.categories.slice()
+  }));
+  expect(result.alerts).toEqual(['Something went wrong. Please try again.']);
+  expect(result.categories).toEqual(['Cat A', 'Cat B']);
+});
+
+test('bounded hydration recognizes prompt-card answer and progress word identities', async ({ page }) => {
+  const plannedAnswerWordIds = [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108];
+  const promptCardRows = plannedAnswerWordIds.map((answerWordId, index) => ({
+    id: 9101 + index,
+    answer_word_id: answerWordId,
+    progress_word_id: answerWordId,
+    is_prompt_card: true,
+    title: `Prompt ${index + 1}`,
+    translation: `Answer ${index + 1}`,
+    label: `Answer ${index + 1}`,
+    audio: '',
+    image: '',
+    audio_files: [],
+    status: 'studied'
+  }));
+  const selectionLaunchPlan = {
+    category_ids: [11],
+    word_ids: plannedAnswerWordIds,
+    chunks: [{ category_ids: [11], word_ids: plannedAnswerWordIds }],
+    criteria: 'studied',
+    mode: 'practice',
+    matched_count: plannedAnswerWordIds.length,
+    planned_count: plannedAnswerWordIds.length,
+    chunk_count: 1,
+    truncated: false
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: {
+      11: promptCardRows,
+      22: [],
+      33: []
+    },
+    selectionLaunchPlan,
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: plannedAnswerWordIds.length,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    launches: window.__llLaunches.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice(),
+    firstCategoryData: Array.isArray(window.llToolsFlashcardsData.firstCategoryData)
+      ? window.llToolsFlashcardsData.firstCategoryData.map((row) => ({
+          id: Number(row && row.id) || 0,
+          answerWordId: Number(row && row.answer_word_id) || 0,
+          progressWordId: Number(row && row.progress_word_id) || 0
+        }))
+      : []
+  }));
+
+  expect(result.alerts).toEqual([]);
+  expect(result.publicCategories).toEqual(['Cat A']);
+  expect(result.launches[0].sessionWordIds).toEqual(plannedAnswerWordIds);
+  expect(result.launches[0].boundedSelectionPlan).toBeTruthy();
+  expect(result.launches[0].sessionWordIdsByCategoryId['11']).toEqual(plannedAnswerWordIds);
+  expect(result.firstCategoryData).toHaveLength(plannedAnswerWordIds.length);
+  expect(result.firstCategoryData.every((row) => row.id !== row.answerWordId)).toBeTruthy();
+  expect(result.firstCategoryData.map((row) => row.answerWordId).sort((a, b) => a - b))
+    .toEqual(plannedAnswerWordIds);
+  expect(result.firstCategoryData.map((row) => row.progressWordId).sort((a, b) => a - b))
+    .toEqual(plannedAnswerWordIds);
+});
+
+test('bounded starred prompt-card launch relies on the exact plan without wrapper-id star filtering', async ({ page }) => {
+  const plannedAnswerWordIds = [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108];
+  const promptCardRows = plannedAnswerWordIds.map((answerWordId, index) => ({
+    id: 9101 + index,
+    answer_word_id: answerWordId,
+    progress_word_id: answerWordId,
+    is_prompt_card: true,
+    title: `Prompt ${index + 1}`,
+    translation: `Answer ${index + 1}`,
+    label: `Answer ${index + 1}`,
+    audio: '',
+    image: '',
+    audio_files: [],
+    status: 'studied'
+  }));
+  const selectionLaunchPlan = {
+    category_ids: [11],
+    word_ids: plannedAnswerWordIds,
+    chunks: [{ category_ids: [11], word_ids: plannedAnswerWordIds }],
+    criteria: 'starred',
+    mode: 'practice',
+    matched_count: plannedAnswerWordIds.length,
+    planned_count: plannedAnswerWordIds.length,
+    chunk_count: 1,
+    truncated: false
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: {
+      11: promptCardRows,
+      22: [],
+      33: []
+    },
+    selectionLaunchPlan,
+    configPatch: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: plannedAnswerWordIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: ''
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: plannedAnswerWordIds.length,
+        new: 0,
+        starred: plannedAnswerWordIds.length,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-starred-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  const result = await page.evaluate(() => ({
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    launches: window.__llLaunches.slice(),
+    alerts: window.__llAlerts.slice()
+  }));
+  expect(result.alerts).toEqual([]);
+  expect(result.planRequests).toHaveLength(1);
+  expect(result.planRequests[0].criteria).toBe('starred');
+  expect(result.launches[0].sessionWordIds).toEqual(plannedAnswerWordIds);
+  expect(result.launches[0].sessionStarModeOverride).toBe('normal');
+  expect(result.launches[0].sessionWordIdsByCategoryId['11']).toEqual(plannedAnswerWordIds);
+});
+
+test('bounded selection plans reject malformed metadata aliases categories and hard bounds', async ({ page }) => {
+  const baseFixture = buildBoundedChunkFixture();
+  const copyPlan = () => JSON.parse(JSON.stringify(baseFixture.selectionLaunchPlan));
+  const overBoundWordIds = Array.from({ length: 31 }, (_, index) => 9001 + index);
+  const scenarios = [
+    {
+      name: 'missing chunks contract',
+      plan: (() => {
+        const plan = copyPlan();
+        delete plan.chunks;
+        return plan;
+      })()
+    },
+    {
+      name: 'planned count mismatch',
+      plan: Object.assign(copyPlan(), { planned_count: baseFixture.allPlannedWordIds.length - 1 })
+    },
+    {
+      name: 'chunk count mismatch',
+      plan: Object.assign(copyPlan(), { chunk_count: 1 })
+    },
+    {
+      name: 'truncated plan',
+      plan: Object.assign(copyPlan(), { truncated: true })
+    },
+    {
+      name: 'top aliases differ from first chunk',
+      plan: Object.assign(copyPlan(), { category_ids: [22, 11] })
+    },
+    {
+      name: 'invalid category is not filtered out',
+      plan: (() => {
+        const plan = copyPlan();
+        plan.chunks[1].category_ids = [22, 33, 999];
+        return plan;
+      })()
+    },
+    {
+      name: 'word bound exceeded',
+      plan: {
+        category_ids: [11],
+        word_ids: overBoundWordIds,
+        chunks: [{ category_ids: [11], word_ids: overBoundWordIds }],
+        criteria: 'studied',
+        mode: 'practice',
+        matched_count: overBoundWordIds.length,
+        planned_count: overBoundWordIds.length,
+        chunk_count: 1,
+        truncated: false
+      }
+    },
+    {
+      name: 'category bound exceeded',
+      plan: {
+        category_ids: [11, 22, 33, 44, 55, 66, 77, 88, 99],
+        word_ids: baseFixture.firstChunkWordIds,
+        chunks: [{
+          category_ids: [11, 22, 33, 44, 55, 66, 77, 88, 99],
+          word_ids: baseFixture.firstChunkWordIds
+        }],
+        criteria: 'studied',
+        mode: 'practice',
+        matched_count: baseFixture.firstChunkWordIds.length,
+        planned_count: baseFixture.firstChunkWordIds.length,
+        chunk_count: 1,
+        truncated: false
+      }
+    }
+  ];
+
+  for (const scenario of scenarios) {
+    await test.step(scenario.name, async () => {
+      await mountWordsetPage(page, {
+        isLoggedIn: true,
+        wordsByCategory: baseFixture.wordsByCategory,
+        selectionLaunchPlan: scenario.plan,
+        configPatch: baseFixture.configPatch
+      });
+      await startInProgressPracticeSelection(page);
+      await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+      const result = await page.evaluate(() => ({
+        alerts: window.__llAlerts.slice(),
+        launches: window.__llLaunches.slice(),
+        publicCategories: window.__llPublicCategoryRequests.categories.slice(),
+        initAttempts: window.__llInitAttempts.slice()
+      }));
+      expect(result.alerts).toEqual(['Something went wrong. Please try again.']);
+      expect(result.launches).toEqual([]);
+      expect(result.publicCategories).toEqual([]);
+      expect(result.initAttempts).toEqual([]);
+    });
+  }
+});
+
+test('empty bounded selection plan keeps the criteria-specific no-matches message', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row) => Object.assign({}, row, { status: 'studied' })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row) => Object.assign({}, row, { status: 'studied' })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, { status: 'new' }))
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [],
+      word_ids: [],
+      chunks: [],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: 0,
+      planned_count: 0,
+      chunk_count: 0,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 16,
+        new: 8,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    launches: window.__llLaunches.slice(),
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice(),
+    popupDisplay: window.getComputedStyle(document.getElementById('ll-tools-flashcard-popup')).display,
+    quizBusy: document.getElementById('ll-tools-flashcard-quiz-popup').getAttribute('aria-busy')
+  }));
+
+  expect(result.alerts).toEqual(['No in progress words are available for this selection.']);
+  expect(result.launches).toEqual([]);
+  expect(result.planRequests).toHaveLength(1);
+  expect(result.publicCategories).toEqual([]);
+  expect(result.popupDisplay).toBe('none');
+  expect(result.quizBusy).toBeNull();
+});
+
+test('bounded plan below the quiz minimum keeps the no-matches path', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row) => Object.assign({}, row, { status: 'studied' })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row) => Object.assign({}, row, { status: 'studied' })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, { status: 'new' }))
+  };
+  const belowMinimumWordIds = wordsByCategory[11].slice(0, 3).map((row) => row.id);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [11],
+      word_ids: belowMinimumWordIds,
+      chunks: [
+        { category_ids: [11], word_ids: belowMinimumWordIds }
+      ],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: belowMinimumWordIds.length,
+      planned_count: belowMinimumWordIds.length,
+      chunk_count: 1,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 16,
+        new: 8,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    launches: window.__llLaunches.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice()
+  }));
+
+  expect(result.alerts).toEqual(['No in progress words are available for this selection.']);
+  expect(result.launches).toEqual([]);
+  expect(result.publicCategories).toEqual([]);
+});
+
+test('malformed explicit bounded chunks still fail closed', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row) => Object.assign({}, row, { status: 'studied' })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row) => Object.assign({}, row, { status: 'studied' })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, { status: 'new' }))
+  };
+  const firstChunkWordIds = wordsByCategory[11].slice(0, 5).map((row) => row.id);
+  const secondChunkWordIds = [firstChunkWordIds[0]].concat(
+    wordsByCategory[22].slice(0, 4).map((row) => row.id)
+  );
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [11],
+      word_ids: firstChunkWordIds,
+      chunks: [
+        { category_ids: [11], word_ids: firstChunkWordIds },
+        { category_ids: [11, 22], word_ids: secondChunkWordIds }
+      ],
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: 9,
+      planned_count: 9,
+      chunk_count: 2,
+      truncated: false
+    },
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 16,
+        new: 8,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    launches: window.__llLaunches.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice()
+  }));
+
+  expect(result.alerts).toEqual(['Something went wrong. Please try again.']);
+  expect(result.launches).toEqual([]);
+  expect(result.publicCategories).toEqual([]);
 });
 
 test('priority-only practice stops cleanly when the bounded launch plan is rate-limited', async ({ page }) => {

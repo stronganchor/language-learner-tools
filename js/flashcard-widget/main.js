@@ -4651,6 +4651,69 @@
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
     }
 
+    function createInitialCategoryLoadError(message, result) {
+        const error = new Error(message);
+        error.code = 'll_flashcard_initial_category_load_failed';
+        error.result = result || null;
+        return error;
+    }
+
+    function prepareInitialCategoryLoad(categoryNames) {
+        const loader = root.FlashcardLoader;
+        const names = normalizeCategoryNameList(categoryNames);
+        const firstCategoryName = names[0] || '';
+        if (!loader || typeof loader.loadResourcesForCategory !== 'function') {
+            return Promise.reject(createInitialCategoryLoadError('The flashcard category loader is unavailable.'));
+        }
+        if (!firstCategoryName) {
+            return Promise.reject(createInitialCategoryLoadError('No category is available for the initial flashcard load.'));
+        }
+
+        const data = root.llToolsFlashcardsData || {};
+        const boundedSelectionPlan = parseBooleanFlag(
+            (typeof data.boundedSelectionPlan !== 'undefined')
+                ? data.boundedSelectionPlan
+                : data.bounded_selection_plan
+        );
+        let preparation = Promise.resolve({ success: true });
+        if (boundedSelectionPlan) {
+            if (typeof loader.consumeBoundedPreloadedCategoryData !== 'function') {
+                return Promise.reject(createInitialCategoryLoadError(
+                    'The bounded flashcard category handoff is unavailable.'
+                ));
+            }
+            preparation = Promise.resolve().then(function () {
+                return loader.consumeBoundedPreloadedCategoryData(names);
+            }).then(function (result) {
+                if (!result || result.success !== true) {
+                    throw createInitialCategoryLoadError(
+                        'The bounded flashcard category handoff was not accepted.',
+                        result
+                    );
+                }
+                return result;
+            });
+        }
+
+        return preparation.then(function () {
+            return loader.loadResourcesForCategory(firstCategoryName);
+        }).then(function (result) {
+            const succeeded = !!(
+                result
+                && (result.success === true || result.cached === true)
+                && result.cancelled !== true
+                && result.stale !== true
+            );
+            if (!succeeded) {
+                throw createInitialCategoryLoadError(
+                    'The first flashcard category did not load successfully.',
+                    result
+                );
+            }
+            return result;
+        });
+    }
+
     function initFlashcardWidget(selectedCategories, mode) {
         // Launch is user-initiated (button click). Warm up visualizer AudioContext
         // here so listening autoplay can use analyser data instead of fallback waves.
@@ -4755,10 +4818,6 @@
                 }
                 State.widgetActive = true;
 
-                if (root.LLFlashcards?.Results?.hideResults) {
-                    root.LLFlashcards.Results.hideResults();
-                }
-
                 const cleanedCategories = requestedCategories.slice();
                 const flashData = root.llToolsFlashcardsData || {};
                 const preserveCategoryOrder = parseBooleanFlag(
@@ -4780,8 +4839,15 @@
                 if (activeModule && typeof activeModule.initialize === 'function') {
                     try { activeModule.initialize(); } catch (err) { console.error('Mode initialization failed:', err); }
                 }
-                root.FlashcardLoader.loadResourcesForCategory(State.firstCategoryName);
-                Dom.updateCategoryNameDisplay(State.firstCategoryName);
+                return prepareInitialCategoryLoad(State.categoryNames).then(function () {
+                    // Keep the completed-session results visible until the replacement
+                    // chunk is fully validated and ready. If bounded handoff or the first
+                    // category load rejects, callers can leave the same retry controls on
+                    // screen instead of exposing an empty popup.
+                    if (root.LLFlashcards?.Results?.hideResults) {
+                        root.LLFlashcards.Results.hideResults();
+                    }
+                    Dom.updateCategoryNameDisplay(State.firstCategoryName);
 
                 $('body').addClass('ll-tools-flashcard-open');
                 activateFlashcardInteractionGuard();
@@ -4899,9 +4965,11 @@
                             $content.off('.llAutoplayKick');
                         }
                     });
+                });
             }).catch(function (err) {
-                console.error('Failed to start audio session:', err);
+                console.error('Failed to initialize flashcard widget:', err);
                 State.forceTransitionTo(STATES.IDLE, 'Initialization error');
+                throw err;
             });
         };
 

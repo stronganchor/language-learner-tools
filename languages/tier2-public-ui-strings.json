@@ -3584,13 +3584,13 @@
             "references": [
                 "includes/pages/wordset-games.php:6126",
                 "includes/pages/wordset-games.php:6399",
-                "includes/user-progress.php:8653",
-                "includes/user-progress.php:8696",
-                "includes/user-progress.php:8718",
-                "includes/user-progress.php:8856",
-                "includes/user-progress.php:8877",
-                "includes/user-progress.php:9208",
-                "includes/user-progress.php:9258",
+                "includes/user-progress.php:8777",
+                "includes/user-progress.php:8820",
+                "includes/user-progress.php:8842",
+                "includes/user-progress.php:8980",
+                "includes/user-progress.php:9001",
+                "includes/user-progress.php:9711",
+                "includes/user-progress.php:9761",
                 "includes/user-study.php:1343",
                 "includes/user-study.php:1381",
                 "includes/user-study.php:1445"
@@ -6190,7 +6190,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:24612",
-                "includes/user-progress.php:8990"
+                "includes/user-progress.php:9520"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24612"
@@ -6203,7 +6203,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:24613",
-                "includes/user-progress.php:9033"
+                "includes/user-progress.php:9482",
+                "includes/user-progress.php:9564"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24613"
@@ -6290,9 +6291,10 @@
                 "includes/admin/ipa-keyboard-admin.php:396",
                 "includes/pages/wordset-pages.php:24620",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1871",
-                "includes/user-progress.php:8998",
-                "includes/user-progress.php:9039",
-                "includes/user-progress.php:9066"
+                "includes/user-progress.php:9529",
+                "includes/user-progress.php:9575",
+                "includes/user-progress.php:9610",
+                "includes/user-progress.php:9693"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24620",
@@ -10121,9 +10123,9 @@
                 "includes/shortcodes/dictionary-shortcode.php:3296",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1890",
-                "includes/user-progress.php:8977",
-                "includes/user-progress.php:9217",
-                "includes/user-progress.php:9227"
+                "includes/user-progress.php:9507",
+                "includes/user-progress.php:9720",
+                "includes/user-progress.php:9730"
             ],
             "public_references": [
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",

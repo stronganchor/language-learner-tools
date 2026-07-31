@@ -232,6 +232,156 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString("SELECT ID, post_type FROM {$wpdb->posts}", $joined_queries);
     }
 
+    public function test_analytics_membership_batches_fail_closed_on_an_early_query_error(): void
+    {
+        global $wpdb;
+
+        $membership_queries = 0;
+        $break_first_membership_query = static function (string $query) use (&$membership_queries, $wpdb): string {
+            if (stripos($query, "SELECT ID, post_type FROM {$wpdb->posts}") === false) {
+                return $query;
+            }
+            $membership_queries++;
+            if ($membership_queries === 1) {
+                return "SELECT ID, post_type FROM {$wpdb->prefix}ll_tools_missing_membership_table";
+            }
+            return $query;
+        };
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_first_membership_query);
+        try {
+            $complete = true;
+            $post_types = ll_tools_user_progress_get_post_type_map(
+                range(900000001, 900000501),
+                $complete
+            );
+        } finally {
+            remove_filter('query', $break_first_membership_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertFalse($complete);
+        $this->assertSame([], $post_types);
+        $this->assertSame(1, $membership_queries, 'Membership reads should stop at the first failed batch.');
+    }
+
+    public function test_progress_summary_batches_fail_closed_on_an_early_query_error(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $progress_table = ll_tools_user_progress_table_names()['words'];
+        $progress_queries = 0;
+        $break_first_progress_query = static function (string $query) use (&$progress_queries, $progress_table, $wpdb): string {
+            if (stripos($query, "FROM {$progress_table}") === false || stripos($query, 'word_id IN') === false) {
+                return $query;
+            }
+            $progress_queries++;
+            if ($progress_queries === 1) {
+                return "SELECT word_id FROM {$wpdb->prefix}ll_tools_missing_progress_summary_table";
+            }
+            return $query;
+        };
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_first_progress_query);
+        try {
+            $complete = true;
+            $rows = ll_tools_get_user_word_progress_summary_rows(
+                $user_id,
+                range(910000001, 910000501),
+                $complete
+            );
+        } finally {
+            remove_filter('query', $break_first_progress_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertFalse($complete);
+        $this->assertSame([], $rows);
+        $this->assertSame(1, $progress_queries, 'Progress reads should stop at the first failed batch.');
+    }
+
+    public function test_selection_launch_plan_propagates_membership_query_failure(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $membership_queries = 0;
+        $break_membership_query = static function (string $query) use (&$membership_queries, $wpdb): string {
+            if (stripos($query, "SELECT ID, post_type FROM {$wpdb->posts}") === false) {
+                return $query;
+            }
+            $membership_queries++;
+            return "SELECT ID, post_type FROM {$wpdb->prefix}ll_tools_missing_plan_membership_table";
+        };
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_membership_query);
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                (int) $fixture['wordset_id'],
+                (array) $fixture['category_ids'],
+                'studied',
+                'practice'
+            );
+        } finally {
+            remove_filter('query', $break_membership_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThanOrEqual(1, $membership_queries);
+        $this->assertWPError($plan);
+        $this->assertSame('selection_query_failed', $plan->get_error_code());
+    }
+
+    public function test_analytics_membership_fails_closed_when_wrong_answer_owner_map_is_incomplete(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) $fixture['word_ids']));
+        $this->assertGreaterThanOrEqual(2, count($word_ids));
+
+        update_post_meta($word_ids[0], LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$word_ids[1]]);
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, [], false);
+        update_option(
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            'dirty:test-' . wp_generate_uuid4(),
+            false
+        );
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, 'options');
+        wp_cache_delete(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, 'options');
+
+        try {
+            $complete = true;
+            $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category(
+                (array) $fixture['category_ids'],
+                (int) $fixture['wordset_id'],
+                $complete
+            );
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                (int) $fixture['wordset_id'],
+                (array) $fixture['category_ids'],
+                '',
+                'practice'
+            );
+        } finally {
+            ll_tools_rebuild_specific_wrong_answer_owner_map();
+        }
+
+        $this->assertFalse($complete);
+        $this->assertSame([], $word_ids_by_category);
+        $this->assertWPError($plan);
+        $this->assertSame('selection_query_failed', $plan->get_error_code());
+    }
+
     public function test_summary_only_analytics_word_id_cache_hits_for_repeated_scope(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1397,7 +1547,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(10, (int) ($pagination['unfiltered_total'] ?? 0));
     }
 
-    public function test_selection_launch_plan_ajax_returns_only_the_bounded_in_progress_pool(): void
+    public function test_selection_launch_plan_ajax_returns_complete_in_progress_plan_with_first_chunk_aliases(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($user_id);
@@ -1451,13 +1601,120 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         sort($expected_word_ids);
         $this->assertSame($expected_word_ids, $returned_word_ids);
         $this->assertSame($category_ids, array_values(array_map('intval', (array) ($plan['category_ids'] ?? []))));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(1, $chunks);
+        $this->assertSame($plan['category_ids'], $chunks[0]['category_ids'] ?? []);
+        $this->assertSame($plan['word_ids'], $chunks[0]['word_ids'] ?? []);
         $this->assertSame(7, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(7, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(1, (int) ($plan['chunk_count'] ?? 0));
         $this->assertFalse((bool) ($plan['truncated'] ?? true));
         $this->assertSame('studied', (string) ($plan['criteria'] ?? ''));
         $this->assertSame('practice', (string) ($plan['mode'] ?? ''));
     }
 
-    public function test_selection_launch_plan_caps_words_and_quiz_payload_categories(): void
+    public function test_selection_membership_excludes_reserved_distractor_targets_but_keeps_prompt_answers(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_ids = array_values(array_map('intval', (array) $fixture['category_ids']));
+        $word_ids = array_values(array_map('intval', (array) $fixture['word_ids']));
+        $direct_category_id = (int) $category_ids[0];
+        $owner_word_id = (int) $word_ids[0];
+        $reserved_word_id = (int) $word_ids[1];
+
+        update_post_meta($owner_word_id, LL_TOOLS_SPECIFIC_WRONG_ANSWERS_META_KEY, [$reserved_word_id]);
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+
+        $prompt_category = wp_insert_term(
+            'Analytics Reserved Prompt Category ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'text_title');
+        $prompt_category_id = $this->resolveEffectiveCategoryId($prompt_category_id, $wordset_id);
+        $prompt_card_id = $this->createPromptCardForAnalytics($prompt_category_id, $wordset_id, [
+            'title' => 'Analytics Reserved Answer Prompt',
+            'prompt_text' => 'Choose the reserved answer.',
+            'correct_answer_word_id' => $reserved_word_id,
+            'wrong_answer_word_ids' => [(int) $word_ids[2]],
+            'track_answer_word_progress' => true,
+        ]);
+
+        $minimum_words = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $minimum_words);
+        try {
+            $renderable_complete = true;
+            $renderable_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category(
+                [$direct_category_id],
+                $wordset_id,
+                $renderable_complete
+            );
+            $membership_complete = true;
+            $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category(
+                [$direct_category_id, $prompt_category_id],
+                $wordset_id,
+                $membership_complete
+            );
+            $direct_plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                [$direct_category_id],
+                '',
+                'practice'
+            );
+            $prompt_plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                [$prompt_category_id],
+                '',
+                'practice'
+            );
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $minimum_words);
+        }
+
+        $this->assertTrue($renderable_complete);
+        $this->assertContains(
+            $reserved_word_id,
+            array_values(array_map('intval', (array) ($renderable_ids_by_category[$direct_category_id] ?? []))),
+            'The reserved distractor must remain in renderable payload membership for answer options.'
+        );
+        $this->assertTrue($membership_complete);
+        $this->assertNotContains(
+            $reserved_word_id,
+            array_values(array_map('intval', (array) ($word_ids_by_category[$direct_category_id] ?? []))),
+            'A specific-wrong-only word must not become a direct quiz target.'
+        );
+        $this->assertSame(
+            [$reserved_word_id],
+            array_values(array_map('intval', (array) ($word_ids_by_category[$prompt_category_id] ?? []))),
+            'A real tracking prompt card must retain its canonical answer even when that word is reserved elsewhere.'
+        );
+
+        $this->assertIsArray($direct_plan);
+        $this->assertSame(4, (int) ($direct_plan['matched_count'] ?? 0));
+        $direct_planned_ids = [];
+        foreach ((array) ($direct_plan['chunks'] ?? []) as $chunk) {
+            $direct_planned_ids = array_merge($direct_planned_ids, array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+        }
+        $this->assertNotContains($reserved_word_id, $direct_planned_ids);
+        $this->assertContains($owner_word_id, $direct_planned_ids);
+
+        $this->assertIsArray($prompt_plan);
+        $this->assertSame(1, (int) ($prompt_plan['matched_count'] ?? 0));
+        $this->assertSame([$reserved_word_id], array_values(array_map('intval', (array) ($prompt_plan['word_ids'] ?? []))));
+        $this->assertGreaterThan(0, $prompt_card_id);
+    }
+
+    public function test_selection_launch_plan_preserves_every_match_across_bounded_chunks(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         wp_set_current_user($user_id);
@@ -1483,6 +1740,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         };
         add_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
         add_filter('ll_tools_user_study_selection_launch_preferred_categories', $one_category);
+        add_filter('ll_tools_user_study_selection_launch_max_categories', $one_category);
         try {
             $plan = ll_tools_build_user_study_selection_launch_plan(
                 $user_id,
@@ -1494,13 +1752,259 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         } finally {
             remove_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
             remove_filter('ll_tools_user_study_selection_launch_preferred_categories', $one_category);
+            remove_filter('ll_tools_user_study_selection_launch_max_categories', $one_category);
         }
 
         $this->assertIsArray($plan);
         $this->assertCount(5, (array) ($plan['word_ids'] ?? []));
         $this->assertCount(1, (array) ($plan['category_ids'] ?? []));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(2, $chunks);
+        $planned_word_ids = [];
+        $planned_category_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $chunk_category_ids = array_values(array_map('intval', (array) ($chunk['category_ids'] ?? [])));
+            $this->assertCount(5, $chunk_word_ids);
+            $this->assertCount(1, $chunk_category_ids);
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+            $planned_category_ids = array_merge($planned_category_ids, $chunk_category_ids);
+        }
+        $expected_word_ids = $word_ids;
+        sort($expected_word_ids);
+        $unique_planned_word_ids = array_values(array_unique($planned_word_ids));
+        sort($unique_planned_word_ids);
+        $this->assertSame($expected_word_ids, $unique_planned_word_ids);
+        $this->assertCount(count($planned_word_ids), $unique_planned_word_ids, 'A matching word must appear in exactly one launch chunk.');
+        $expected_category_ids = $category_ids;
+        sort($expected_category_ids);
+        $planned_category_ids = array_values(array_unique($planned_category_ids));
+        sort($planned_category_ids);
+        $this->assertSame($expected_category_ids, $planned_category_ids);
+        $this->assertSame($chunks[0]['category_ids'] ?? [], (array) ($plan['category_ids'] ?? []));
+        $this->assertSame($chunks[0]['word_ids'] ?? [], (array) ($plan['word_ids'] ?? []));
         $this->assertSame(10, (int) ($plan['matched_count'] ?? 0));
-        $this->assertTrue((bool) ($plan['truncated'] ?? false));
+        $this->assertSame(10, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(2, (int) ($plan['chunk_count'] ?? 0));
+        $this->assertFalse((bool) ($plan['truncated'] ?? true));
+    }
+
+    public function test_selection_launch_plan_preserves_more_than_thirty_words_across_more_than_eight_categories(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Chunk Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category_ids = [];
+        $word_ids = [];
+        $word_category_lookup = [];
+        for ($category_index = 1; $category_index <= 10; $category_index++) {
+            $category = wp_insert_term(
+                'Analytics Chunk Category ' . $category_index . ' ' . wp_generate_password(6, false),
+                'word-category'
+            );
+            $this->assertFalse(is_wp_error($category));
+            $this->assertIsArray($category);
+            $source_category_id = (int) $category['term_id'];
+            update_term_meta($source_category_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($source_category_id, 'll_quiz_option_type', 'text_title');
+
+            $category_word_ids = [];
+            for ($word_index = 1; $word_index <= 4; $word_index++) {
+                $word_id = $this->createWordWithAudio(
+                    'Analytics Chunk Word ' . $category_index . '-' . $word_index,
+                    'Analytics Chunk Translation ' . $category_index . '-' . $word_index,
+                    $source_category_id,
+                    $wordset_id,
+                    'analytics-chunk-' . $category_index . '-' . $word_index . '.mp3'
+                );
+                $category_word_ids[] = $word_id;
+                $word_ids[] = $word_id;
+            }
+
+            $effective_category_id = $this->resolveEffectiveCategoryId($source_category_id, $wordset_id);
+            $category_ids[] = $effective_category_id;
+            foreach ($category_word_ids as $word_id) {
+                $word_category_lookup[$word_id] = $effective_category_id;
+                $this->seedWordProgressRow($user_id, $word_id, $effective_category_id, $wordset_id, [
+                    'total_coverage' => 2,
+                    'coverage_practice' => 2,
+                    'correct_clean' => 1,
+                    'stage' => 2,
+                ]);
+            }
+        }
+        $this->assertGreaterThan(30, count($word_ids));
+        $this->assertGreaterThan(8, count($category_ids));
+
+        $minimum_quiz_words = static function (): int {
+            return 1;
+        };
+        $ten_words = static function (): int {
+            return 10;
+        };
+        $three_categories = static function (): int {
+            return 3;
+        };
+        $queries = [];
+        $capture_query = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('ll_tools_quiz_min_words', $minimum_quiz_words);
+        add_filter('ll_tools_user_study_selection_launch_max_words', $ten_words);
+        add_filter('ll_tools_user_study_selection_launch_preferred_categories', $three_categories);
+        add_filter('ll_tools_user_study_selection_launch_max_categories', $three_categories);
+        add_filter('query', $capture_query);
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                $category_ids,
+                'studied',
+                'practice'
+            );
+        } finally {
+            remove_filter('query', $capture_query);
+            remove_filter('ll_tools_user_study_selection_launch_max_categories', $three_categories);
+            remove_filter('ll_tools_user_study_selection_launch_preferred_categories', $three_categories);
+            remove_filter('ll_tools_user_study_selection_launch_max_words', $ten_words);
+            remove_filter('ll_tools_quiz_min_words', $minimum_quiz_words);
+        }
+
+        $this->assertIsArray($plan);
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertNotEmpty($chunks);
+        $planned_word_ids = [];
+        $planned_category_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $chunk_category_ids = array_values(array_map('intval', (array) ($chunk['category_ids'] ?? [])));
+            $this->assertNotEmpty($chunk_word_ids);
+            $this->assertNotEmpty($chunk_category_ids);
+            $this->assertLessThanOrEqual(10, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(3, count($chunk_category_ids));
+            $this->assertGreaterThanOrEqual(5, count($chunk_word_ids), 'A balanced plan should avoid a sub-minimum tail when enough words exist.');
+            foreach ($chunk_word_ids as $word_id) {
+                $this->assertContains((int) ($word_category_lookup[$word_id] ?? 0), $chunk_category_ids);
+            }
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+            $planned_category_ids = array_merge($planned_category_ids, $chunk_category_ids);
+        }
+
+        $expected_word_ids = $word_ids;
+        sort($expected_word_ids);
+        $unique_planned_word_ids = array_values(array_unique($planned_word_ids));
+        sort($unique_planned_word_ids);
+        $this->assertSame($expected_word_ids, $unique_planned_word_ids);
+        $this->assertCount(count($planned_word_ids), $unique_planned_word_ids, 'Chunks must not duplicate matching words.');
+        $expected_category_ids = $category_ids;
+        sort($expected_category_ids);
+        $planned_category_ids = array_values(array_unique($planned_category_ids));
+        sort($planned_category_ids);
+        $this->assertSame($expected_category_ids, $planned_category_ids);
+        $this->assertSame($chunks[0]['category_ids'] ?? [], (array) ($plan['category_ids'] ?? []));
+        $this->assertSame($chunks[0]['word_ids'] ?? [], (array) ($plan['word_ids'] ?? []));
+        $this->assertSame(40, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(40, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(count($chunks), (int) ($plan['chunk_count'] ?? 0));
+        $this->assertFalse((bool) ($plan['truncated'] ?? true));
+
+        $progress_table = ll_tools_user_progress_table_names()['words'];
+        $this->assertStringNotContainsStringIgnoringCase(
+            'SELECT * FROM ' . $progress_table,
+            implode("\n", $queries),
+            'Selection planning should use projected progress rows rather than SELECT *.'
+        );
+    }
+
+    public function test_selection_launch_chunk_balancing_avoids_a_one_word_tail(): void
+    {
+        $chunks = ll_tools_build_user_study_selection_launch_chunks([
+            101 => range(1, 31),
+        ], 15, 5, 5);
+
+        $this->assertSame([11, 10, 10], array_values(array_map(static function (array $chunk): int {
+            return count((array) ($chunk['word_ids'] ?? []));
+        }, $chunks)));
+        $this->assertSame([[101], [101], [101]], array_values(array_map(static function (array $chunk): array {
+            return array_values(array_map('intval', (array) ($chunk['category_ids'] ?? [])));
+        }, $chunks)));
+    }
+
+    public function test_selection_launch_uses_the_preferred_category_soft_cap_when_valid(): void
+    {
+        $matched_by_category = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $matched_by_category[300 + $index] = [3000 + ($index * 2) - 1, 3000 + ($index * 2)];
+        }
+
+        $chunks = ll_tools_build_launchable_user_study_selection_chunks(
+            $matched_by_category,
+            15,
+            5,
+            8,
+            5,
+            3
+        );
+
+        $this->assertIsArray($chunks);
+        $this->assertCount(2, $chunks, 'A valid preferred-cap plan should not widen to the configured maximum.');
+        $planned_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $this->assertCount(5, (array) ($chunk['word_ids'] ?? []));
+            $this->assertLessThanOrEqual(3, count((array) ($chunk['category_ids'] ?? [])));
+            $planned_word_ids = array_merge($planned_word_ids, (array) ($chunk['word_ids'] ?? []));
+        }
+        sort($planned_word_ids);
+        $this->assertSame(range(3001, 3010), $planned_word_ids);
+    }
+
+    public function test_selection_launch_sparse_singletons_widen_to_the_hard_category_cap(): void
+    {
+        $matched_by_category = [];
+        for ($index = 1; $index <= 6; $index++) {
+            $matched_by_category[100 + $index] = [1000 + $index];
+        }
+
+        $chunks = ll_tools_build_launchable_user_study_selection_chunks(
+            $matched_by_category,
+            15,
+            5,
+            8,
+            5
+        );
+
+        $this->assertIsArray($chunks);
+        $this->assertCount(1, $chunks);
+        $this->assertSame(range(101, 106), array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))));
+        $this->assertSame(range(1001, 1006), array_values(array_map('intval', (array) ($chunks[0]['word_ids'] ?? []))));
+        $this->assertSame(8, (int) (ll_tools_user_study_selection_launch_limits()['hard_max_categories'] ?? 0));
+    }
+
+    public function test_selection_launch_impossible_sparse_singletons_return_typed_error(): void
+    {
+        $matched_by_category = [];
+        for ($index = 1; $index <= 9; $index++) {
+            $matched_by_category[200 + $index] = [2000 + $index];
+        }
+
+        $plan = ll_tools_build_launchable_user_study_selection_chunks(
+            $matched_by_category,
+            15,
+            5,
+            8,
+            5
+        );
+
+        $this->assertWPError($plan);
+        $this->assertSame('selection_plan_unlaunchable', $plan->get_error_code());
     }
 
     public function test_analytics_ajax_can_return_summary_without_word_rows(): void

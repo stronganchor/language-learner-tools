@@ -22,7 +22,7 @@ function buildHarnessMarkup() {
         <div id="ll-tools-prompt"></div>
         <div id="ll-tools-flashcard-content"></div>
         <div id="ll-tools-flashcard"></div>
-        <div id="quiz-results"></div>
+        <div id="quiz-results" style="display:block;">Previous results</div>
         <div id="ll-tools-mode-switcher-wrap" aria-expanded="false">
           <div id="ll-tools-mode-menu" aria-hidden="true">
             <button class="ll-tools-mode-option practice" data-mode="practice" type="button"></button>
@@ -43,6 +43,9 @@ function buildHarnessMarkup() {
 
 async function mountLaunchHarness(page, options = {}) {
   const preserveMixedPresentation = !!options.preserveMixedPresentation;
+  const initialCategoryLoadFailure = !!options.initialCategoryLoadFailure;
+  const boundedSelectionPlan = !!options.boundedSelectionPlan;
+  const boundedPreloadFailure = !!options.boundedPreloadFailure;
 
   await page.goto('about:blank');
   await page.setContent(buildHarnessMarkup());
@@ -85,6 +88,8 @@ async function mountLaunchHarness(page, options = {}) {
 
     window.__LLFlashcardsMainLoaded = false;
     window.__loadCategoryCalls = [];
+    window.__boundedPreloadCalls = [];
+    window.__hideResultsCalls = 0;
     window.__listeningCategoryCancelCalls = 0;
     window.llToolsFlashcardsData = {
       debug: false,
@@ -94,7 +99,9 @@ async function mountLaunchHarness(page, options = {}) {
       lastLaunchPlan,
       last_launch_plan: Object.assign({}, lastLaunchPlan),
       modeUi: {},
-      isUserLoggedIn: false
+      isUserLoggedIn: false,
+      boundedSelectionPlan: bootstrap.boundedSelectionPlan,
+      sessionWordIds: bootstrap.boundedSelectionPlan ? [101, 202] : []
     };
     window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal' };
 
@@ -137,7 +144,10 @@ async function mountLaunchHarness(page, options = {}) {
     };
     window.LLFlashcards.Cards = {};
     window.LLFlashcards.Results = {
-      hideResults() {},
+      hideResults() {
+        window.__hideResultsCalls += 1;
+        window.jQuery('#quiz-results').hide();
+      },
       showResults() {}
     };
     window.LLFlashcards.StateMachine = {};
@@ -162,6 +172,17 @@ async function mountLaunchHarness(page, options = {}) {
       loadAudio() {},
       loadResourcesForCategory(categoryName) {
         window.__loadCategoryCalls.push(String(categoryName || ''));
+        if (bootstrap.initialCategoryLoadFailure && window.__loadCategoryCalls.length === 1) {
+          return Promise.resolve({ success: false, category: String(categoryName || '') });
+        }
+        return Promise.resolve({ success: true, category: String(categoryName || '') });
+      },
+      consumeBoundedPreloadedCategoryData(categoryNames) {
+        window.__boundedPreloadCalls.push(Array.isArray(categoryNames) ? categoryNames.slice() : []);
+        if (bootstrap.boundedPreloadFailure) {
+          return Promise.reject(new Error('bounded handoff rejected'));
+        }
+        return Promise.resolve({ success: true, boundedPreloaded: true });
       },
       resetCacheForNewWordset() {}
     };
@@ -182,7 +203,10 @@ async function mountLaunchHarness(page, options = {}) {
     window.categoryNames = [];
     window.categoryRoundCount = {};
   }, {
-    preserveMixedPresentation
+    preserveMixedPresentation,
+    initialCategoryLoadFailure,
+    boundedSelectionPlan,
+    boundedPreloadFailure
   });
 
   await page.addScriptTag({ content: mainSource });
@@ -203,7 +227,9 @@ test('practice init keeps mixed-presentation categories when the launch plan pre
       firstCategoryName: String(window.LLFlashcards.State.firstCategoryName || ''),
       loadCategoryCalls: Array.isArray(window.__loadCategoryCalls)
         ? window.__loadCategoryCalls.slice()
-        : []
+        : [],
+      hideResultsCalls: window.__hideResultsCalls,
+      resultsDisplay: window.getComputedStyle(document.getElementById('quiz-results')).display
     };
   });
 
@@ -211,6 +237,8 @@ test('practice init keeps mixed-presentation categories when the launch plan pre
   expect(result.initialCategoryNames).toEqual(['Cat A', 'Cat B']);
   expect(result.firstCategoryName).toBe('Cat A');
   expect(Array.from(new Set(result.loadCategoryCalls))).toEqual(['Cat A', 'Cat B']);
+  expect(result.hideResultsCalls).toBe(1);
+  expect(result.resultsDisplay).toBe('none');
 });
 
 test('practice init still uses a single aspect bucket when mixed presentation is not preserved', async ({ page }) => {
@@ -236,6 +264,75 @@ test('practice init still uses a single aspect bucket when mixed presentation is
   expect(result.initialCategoryNames).toEqual(['Cat A']);
   expect(result.firstCategoryName).toBe('Cat A');
   expect(Array.from(new Set(result.loadCategoryCalls))).toEqual(['Cat A']);
+});
+
+test('practice init rejects when the explicit first-category load result fails', async ({ page }) => {
+  await mountLaunchHarness(page, {
+    preserveMixedPresentation: true,
+    initialCategoryLoadFailure: true
+  });
+
+  const result = await page.evaluate(async () => {
+    try {
+      await window.initFlashcardWidget(['Cat A', 'Cat B'], 'practice');
+      return { resolved: true };
+    } catch (error) {
+      return {
+        resolved: false,
+        code: String(error && error.code || ''),
+        message: String(error && error.message || ''),
+        state: window.LLFlashcards.State.getState(),
+        loadCategoryCalls: window.__loadCategoryCalls.slice(),
+        hideResultsCalls: window.__hideResultsCalls,
+        resultsDisplay: window.getComputedStyle(document.getElementById('quiz-results')).display
+      };
+    }
+  });
+
+  expect(result).toMatchObject({
+    resolved: false,
+    code: 'll_flashcard_initial_category_load_failed',
+    state: 'idle',
+    loadCategoryCalls: ['Cat A'],
+    hideResultsCalls: 0,
+    resultsDisplay: 'block'
+  });
+  expect(result.message).toContain('did not load successfully');
+});
+
+test('bounded practice init propagates handoff rejection before category loading starts', async ({ page }) => {
+  await mountLaunchHarness(page, {
+    preserveMixedPresentation: true,
+    boundedSelectionPlan: true,
+    boundedPreloadFailure: true
+  });
+
+  const result = await page.evaluate(async () => {
+    try {
+      await window.initFlashcardWidget(['Cat A', 'Cat B'], 'practice');
+      return { resolved: true };
+    } catch (error) {
+      return {
+        resolved: false,
+        message: String(error && error.message || ''),
+        state: window.LLFlashcards.State.getState(),
+        boundedPreloadCalls: window.__boundedPreloadCalls.map((names) => names.slice()),
+        loadCategoryCalls: window.__loadCategoryCalls.slice(),
+        hideResultsCalls: window.__hideResultsCalls,
+        resultsDisplay: window.getComputedStyle(document.getElementById('quiz-results')).display
+      };
+    }
+  });
+
+  expect(result).toMatchObject({
+    resolved: false,
+    state: 'idle',
+    boundedPreloadCalls: [['Cat A', 'Cat B']],
+    loadCategoryCalls: [],
+    hideResultsCalls: 0,
+    resultsDisplay: 'block'
+  });
+  expect(result.message).toContain('bounded handoff rejected');
 });
 
 test('mode switch and close invalidate listening category prefetch', async ({ page }) => {

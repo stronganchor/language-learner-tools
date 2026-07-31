@@ -572,8 +572,14 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
     ];
 }
 
-function ll_tools_get_word_practice_recording_types_map(array $word_ids): array {
+function ll_tools_get_word_practice_recording_types_map(array $word_ids, ?bool &$complete = null): array {
     global $wpdb;
+
+    $complete = true;
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
+        return [];
+    }
 
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
@@ -624,7 +630,14 @@ function ll_tools_get_word_practice_recording_types_map(array $word_ids): array 
                 array_merge(['audio_file_path', 'recording_type', 'word_audio', 'publish'], $chunk)
             );
 
-            foreach ((array) $wpdb->get_results($sql, ARRAY_A) as $row) {
+            $wpdb->last_error = '';
+            $rows = $wpdb->get_results($sql, ARRAY_A);
+            if ($wpdb->last_error !== '') {
+                $complete = false;
+                return [];
+            }
+
+            foreach ((array) $rows as $row) {
                 if (!is_array($row)) {
                     continue;
                 }
@@ -2752,8 +2765,14 @@ function ll_tools_user_progress_get_word_audio_entry(array $audio_files, int $pr
     return [];
 }
 
-function ll_tools_user_progress_get_post_type_map(array $post_ids): array {
+function ll_tools_user_progress_get_post_type_map(array $post_ids, ?bool &$complete = null): array {
     global $wpdb;
+
+    $complete = true;
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
+        return [];
+    }
 
     $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), static function (int $post_id): bool {
         return $post_id > 0;
@@ -2765,6 +2784,7 @@ function ll_tools_user_progress_get_post_type_map(array $post_ids): array {
     $map = [];
     foreach (array_chunk($post_ids, 500) as $chunk) {
         $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $wpdb->last_error = '';
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT ID, post_type FROM {$wpdb->posts} WHERE ID IN ({$placeholders})",
@@ -2772,6 +2792,10 @@ function ll_tools_user_progress_get_post_type_map(array $post_ids): array {
             ),
             ARRAY_A
         );
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
         foreach ((array) $rows as $row) {
             $post_id = isset($row['ID']) ? (int) $row['ID'] : 0;
             if ($post_id > 0) {
@@ -2783,13 +2807,19 @@ function ll_tools_user_progress_get_post_type_map(array $post_ids): array {
     return $map;
 }
 
-function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_card_ids): array {
+function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_card_ids, ?bool &$complete = null): array {
     global $wpdb;
+
+    $complete = true;
 
     $prompt_card_ids = array_values(array_unique(array_filter(array_map('intval', $prompt_card_ids), static function (int $prompt_card_id): bool {
         return $prompt_card_id > 0;
     })));
-    if (empty($prompt_card_ids) || !isset($wpdb) || !($wpdb instanceof wpdb)) {
+    if (empty($prompt_card_ids)) {
+        return [];
+    }
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
         return [];
     }
 
@@ -2822,6 +2852,7 @@ function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_car
             WHERE prompt.ID IN ({$placeholders})
               AND prompt.post_type = %s
         ";
+        $wpdb->last_error = '';
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 $sql,
@@ -2829,6 +2860,10 @@ function ll_tools_user_progress_prompt_card_answer_word_id_map(array $prompt_car
             ),
             ARRAY_A
         );
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
         foreach ((array) $rows as $row) {
             $prompt_card_id = isset($row['prompt_card_id']) ? (int) $row['prompt_card_id'] : 0;
             $answer_word_id = isset($row['answer_word_id']) ? (int) $row['answer_word_id'] : 0;
@@ -2886,7 +2921,7 @@ function ll_tools_user_progress_analytics_word_ids_cache_key(array $category_ids
         : 0;
 
     $payload = [
-        'schema' => 2,
+        'schema' => 3,
         'wordset_id' => max(0, $wordset_id),
         'category_ids' => $key_category_ids,
         'category_versions' => $category_versions,
@@ -2944,8 +2979,19 @@ function ll_tools_user_progress_order_word_ids_by_category(array $word_ids_by_ca
     return $ordered;
 }
 
-function ll_tools_user_progress_analytics_word_ids_by_category(array $category_ids, int $wordset_id): array {
-    if (empty($category_ids) || !function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
+function ll_tools_user_progress_analytics_word_ids_by_category(
+    array $category_ids,
+    int $wordset_id,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    if (empty($category_ids)) {
+        return [];
+    }
+    if (!function_exists('ll_tools_user_study_renderable_word_ids_by_category')) {
+        $complete = false;
         return [];
     }
 
@@ -2954,7 +3000,12 @@ function ll_tools_user_progress_analytics_word_ids_by_category(array $category_i
         return [];
     }
 
+    $wpdb->last_error = '';
     $cache_key = ll_tools_user_progress_analytics_word_ids_cache_key($category_ids, $wordset_id);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
     $cache_group = 'll_tools_user_progress';
     $cache_ttl = HOUR_IN_SECONDS;
 
@@ -2965,9 +3016,14 @@ function ll_tools_user_progress_analytics_word_ids_by_category(array $category_i
     }
 
     if ($cache_key !== '') {
+        $wpdb->last_error = '';
         $cached = wp_cache_get($cache_key, $cache_group);
         if ($cached === false) {
             $cached = get_transient($cache_key);
+        }
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
         }
         $cached_word_ids_by_category = ll_tools_user_progress_normalize_cached_analytics_word_ids($cached);
         if (is_array($cached_word_ids_by_category)) {
@@ -2981,7 +3037,17 @@ function ll_tools_user_progress_analytics_word_ids_by_category(array $category_i
         do_action('ll_tools_user_progress_analytics_word_ids_cache_status', 'miss', $cache_key, $category_ids, $wordset_id);
     }
 
-    $renderable_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category($category_ids, $wordset_id);
+    $renderable_complete = true;
+    $wpdb->last_error = '';
+    $renderable_ids_by_category = ll_tools_user_study_renderable_word_ids_by_category(
+        $category_ids,
+        $wordset_id,
+        $renderable_complete
+    );
+    if (!$renderable_complete || $wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
     if (empty($renderable_ids_by_category)) {
         if ($cache_key !== '') {
             $request_cache[$cache_key] = [];
@@ -2999,15 +3065,50 @@ function ll_tools_user_progress_analytics_word_ids_by_category(array $category_i
         }
     }
 
-    $post_types = ll_tools_user_progress_get_post_type_map(array_keys($item_ids));
+    $post_types_complete = true;
+    $post_types = ll_tools_user_progress_get_post_type_map(array_keys($item_ids), $post_types_complete);
+    if (!$post_types_complete) {
+        $complete = false;
+        return [];
+    }
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
     $prompt_card_ids = [];
+    $direct_word_ids = [];
     foreach ($post_types as $item_id => $post_type) {
         if ((string) $post_type === $prompt_card_post_type) {
             $prompt_card_ids[] = (int) $item_id;
+        } elseif ((string) $post_type === 'words') {
+            $direct_word_ids[] = (int) $item_id;
         }
     }
-    $prompt_card_answer_ids = ll_tools_user_progress_prompt_card_answer_word_id_map($prompt_card_ids);
+
+    $specific_wrong_only_lookup = [];
+    if (!empty($direct_word_ids)) {
+        if (!function_exists('ll_tools_get_specific_wrong_answer_only_word_lookup')) {
+            $complete = false;
+            return [];
+        }
+        $specific_wrong_only_complete = true;
+        $wpdb->last_error = '';
+        $specific_wrong_only_lookup = ll_tools_get_specific_wrong_answer_only_word_lookup(
+            $direct_word_ids,
+            $specific_wrong_only_complete
+        );
+        if (!$specific_wrong_only_complete || $wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+    }
+
+    $prompt_answers_complete = true;
+    $prompt_card_answer_ids = ll_tools_user_progress_prompt_card_answer_word_id_map(
+        $prompt_card_ids,
+        $prompt_answers_complete
+    );
+    if (!$prompt_answers_complete) {
+        $complete = false;
+        return [];
+    }
 
     $word_ids_by_category = [];
     foreach ($renderable_ids_by_category as $category_id => $item_ids_for_category) {
@@ -3025,7 +3126,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(array $category_i
 
             $post_type = (string) ($post_types[$item_id] ?? '');
             $word_id = 0;
-            if ($post_type === 'words') {
+            if ($post_type === 'words' && !isset($specific_wrong_only_lookup[$item_id])) {
                 $word_id = $item_id;
             } elseif ($post_type === $prompt_card_post_type) {
                 $word_id = (int) ($prompt_card_answer_ids[$item_id] ?? 0);
@@ -3398,8 +3499,18 @@ function ll_tools_user_progress_get_vocab_lesson_url_map(int $wordset_id): array
     return $map;
 }
 
-function ll_tools_get_user_word_progress_summary_rows(int $user_id, array $word_ids): array {
+function ll_tools_get_user_word_progress_summary_rows(
+    int $user_id,
+    array $word_ids,
+    ?bool &$complete = null
+): array {
     global $wpdb;
+
+    $complete = true;
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
+        return [];
+    }
     if ($user_id <= 0 || empty($word_ids)) {
         return [];
     }
@@ -3439,7 +3550,12 @@ function ll_tools_get_user_word_progress_summary_rows(int $user_id, array $word_
             WHERE user_id = %d
               AND word_id IN ({$placeholders})
         ";
+        $wpdb->last_error = '';
         $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([$user_id], $chunk)), ARRAY_A);
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
         foreach ((array) $rows as $row) {
             $wid = isset($row['word_id']) ? (int) $row['word_id'] : 0;
             if ($wid > 0) {
@@ -3477,7 +3593,15 @@ function ll_tools_get_user_word_progress_summary_rows(int $user_id, array $word_
     }
 
     if (!empty($needs_required_type_resolution)) {
-        $required_types_map = ll_tools_get_word_practice_recording_types_map($needs_required_type_resolution);
+        $required_types_complete = true;
+        $required_types_map = ll_tools_get_word_practice_recording_types_map(
+            $needs_required_type_resolution,
+            $required_types_complete
+        );
+        if (!$required_types_complete) {
+            $complete = false;
+            return [];
+        }
         foreach ($needs_required_type_resolution as $wid) {
             $out[$wid]['practice_required_recording_types_resolved'] = $required_types_map[$wid] ?? [];
         }
@@ -8925,6 +9049,7 @@ function ll_tools_user_study_queue_remove_ajax() {
 add_action('wp_ajax_ll_user_study_queue_remove', 'll_tools_user_study_queue_remove_ajax');
 
 function ll_tools_user_study_selection_launch_limits(int $wordset_id = 0): array {
+    $hard_max_categories = 8;
     [, $recommendation_max_words] = ll_tools_recommendation_session_word_bounds();
     $max_words = (int) apply_filters(
         'll_tools_user_study_selection_launch_max_words',
@@ -8944,21 +9069,426 @@ function ll_tools_user_study_selection_launch_limits(int $wordset_id = 0): array
 
     $max_words = max(5, min(30, $max_words));
     $preferred_categories = max(1, min(5, $preferred_categories));
-    $max_categories = max($preferred_categories, min(8, $max_categories));
+    $max_categories = max($preferred_categories, min($hard_max_categories, $max_categories));
 
     return [
         'max_words' => $max_words,
         'preferred_categories' => $preferred_categories,
         'max_categories' => $max_categories,
+        'hard_max_categories' => $hard_max_categories,
     ];
 }
 
 /**
- * Build a bounded word/category pool for a learner's multi-category launch.
+ * Split a complete category-aware selection into bounded launch chunks.
+ *
+ * Every matching word is assigned to its first matching category so a word
+ * shared by multiple categories appears in exactly one chunk. Categories are
+ * then distributed across the minimum number of category batches, weighted by
+ * their owned word counts, before each batch is split into evenly sized word
+ * chunks. Even sizing prevents the common 15/15/1 tail while preserving the
+ * configured per-chunk word and category limits.
+ *
+ * @param array<int,int[]> $matched_by_category
+ * @return array<int,array{category_ids:int[],word_ids:int[]}>
+ */
+function ll_tools_build_user_study_selection_launch_chunks(
+    array $matched_by_category,
+    int $max_words,
+    int $max_categories,
+    int $minimum_words
+): array {
+    $max_words = max(1, $max_words);
+    $max_categories = max(1, $max_categories);
+    $minimum_words = max(1, min($max_words, $minimum_words));
+
+    $seen_word_ids = [];
+    $word_category_lookup = [];
+    $category_rows = [];
+    $category_order = 0;
+    foreach ($matched_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || !is_array($word_ids)) {
+            continue;
+        }
+
+        $owned_word_ids = [];
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($seen_word_ids[$word_id])) {
+                continue;
+            }
+            $seen_word_ids[$word_id] = true;
+            $word_category_lookup[$word_id] = $category_id;
+            $owned_word_ids[] = $word_id;
+        }
+        if (empty($owned_word_ids)) {
+            $category_order++;
+            continue;
+        }
+
+        $category_rows[] = [
+            'category_id' => $category_id,
+            'word_ids' => $owned_word_ids,
+            'word_count' => count($owned_word_ids),
+            'order' => $category_order,
+        ];
+        $category_order++;
+    }
+    if (empty($category_rows)) {
+        return [];
+    }
+
+    $batch_count = max(1, (int) ceil(count($category_rows) / $max_categories));
+    $batches = array_fill(0, $batch_count, [
+        'categories' => [],
+        'word_count' => 0,
+    ]);
+
+    usort($category_rows, static function (array $left, array $right): int {
+        $count_comparison = ((int) ($right['word_count'] ?? 0)) <=> ((int) ($left['word_count'] ?? 0));
+        if ($count_comparison !== 0) {
+            return $count_comparison;
+        }
+        return ((int) ($left['order'] ?? PHP_INT_MAX)) <=> ((int) ($right['order'] ?? PHP_INT_MAX));
+    });
+
+    foreach ($category_rows as $category_row) {
+        $best_batch_index = null;
+        foreach ($batches as $batch_index => $batch) {
+            if (count((array) ($batch['categories'] ?? [])) >= $max_categories) {
+                continue;
+            }
+            if ($best_batch_index === null) {
+                $best_batch_index = (int) $batch_index;
+                continue;
+            }
+
+            $candidate_word_count = (int) ($batch['word_count'] ?? 0);
+            $best_word_count = (int) ($batches[$best_batch_index]['word_count'] ?? 0);
+            if (
+                $candidate_word_count < $best_word_count
+                || ($candidate_word_count === $best_word_count && (int) $batch_index < $best_batch_index)
+            ) {
+                $best_batch_index = (int) $batch_index;
+            }
+        }
+
+        if ($best_batch_index === null) {
+            $best_batch_index = count($batches);
+            $batches[] = [
+                'categories' => [],
+                'word_count' => 0,
+            ];
+        }
+        $batches[$best_batch_index]['categories'][] = $category_row;
+        $batches[$best_batch_index]['word_count'] += (int) ($category_row['word_count'] ?? 0);
+    }
+
+    $chunks = [];
+    foreach ($batches as $batch) {
+        $batch_categories = isset($batch['categories']) && is_array($batch['categories'])
+            ? $batch['categories']
+            : [];
+        if (empty($batch_categories)) {
+            continue;
+        }
+        usort($batch_categories, static function (array $left, array $right): int {
+            return ((int) ($left['order'] ?? PHP_INT_MAX)) <=> ((int) ($right['order'] ?? PHP_INT_MAX));
+        });
+
+        $batch_word_ids = [];
+        foreach ($batch_categories as $category_row) {
+            foreach ((array) ($category_row['word_ids'] ?? []) as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0) {
+                    $batch_word_ids[] = $word_id;
+                }
+            }
+        }
+        $batch_word_count = count($batch_word_ids);
+        if ($batch_word_count === 0) {
+            continue;
+        }
+
+        $batch_chunk_count = max(1, (int) ceil($batch_word_count / $max_words));
+        $base_chunk_size = (int) floor($batch_word_count / $batch_chunk_count);
+        $larger_chunk_count = $batch_word_count % $batch_chunk_count;
+        $cursor = 0;
+        for ($chunk_index = 0; $chunk_index < $batch_chunk_count; $chunk_index++) {
+            $chunk_size = $base_chunk_size + ($chunk_index < $larger_chunk_count ? 1 : 0);
+            if ($chunk_size <= 0) {
+                continue;
+            }
+            $chunk_word_ids = array_values(array_slice($batch_word_ids, $cursor, $chunk_size));
+            $cursor += $chunk_size;
+
+            $chunk_category_ids = [];
+            $chunk_category_lookup = [];
+            foreach ($chunk_word_ids as $word_id) {
+                $category_id = (int) ($word_category_lookup[(int) $word_id] ?? 0);
+                if ($category_id <= 0 || isset($chunk_category_lookup[$category_id])) {
+                    continue;
+                }
+                $chunk_category_lookup[$category_id] = true;
+                $chunk_category_ids[] = $category_id;
+            }
+            if (!empty($chunk_word_ids) && !empty($chunk_category_ids)) {
+                $chunks[] = [
+                    'category_ids' => $chunk_category_ids,
+                    'word_ids' => $chunk_word_ids,
+                ];
+            }
+        }
+    }
+
+    $category_ids_for_words = static function (array $word_ids) use ($word_category_lookup): array {
+        $category_ids = [];
+        $seen_category_ids = [];
+        foreach ($word_ids as $word_id) {
+            $category_id = (int) ($word_category_lookup[(int) $word_id] ?? 0);
+            if ($category_id <= 0 || isset($seen_category_ids[$category_id])) {
+                continue;
+            }
+            $seen_category_ids[$category_id] = true;
+            $category_ids[] = $category_id;
+        }
+        return $category_ids;
+    };
+
+    // Coalesce an undersized chunk when both bounds permit it.
+    for ($chunk_index = count($chunks) - 1; $chunk_index >= 0; $chunk_index--) {
+        if (count((array) ($chunks[$chunk_index]['word_ids'] ?? [])) >= $minimum_words) {
+            continue;
+        }
+        for ($target_index = $chunk_index - 1; $target_index >= 0; $target_index--) {
+            $merged_word_ids = array_values(array_merge(
+                (array) ($chunks[$target_index]['word_ids'] ?? []),
+                (array) ($chunks[$chunk_index]['word_ids'] ?? [])
+            ));
+            $merged_category_ids = $category_ids_for_words($merged_word_ids);
+            if (count($merged_word_ids) > $max_words || count($merged_category_ids) > $max_categories) {
+                continue;
+            }
+            $chunks[$target_index] = [
+                'category_ids' => $merged_category_ids,
+                'word_ids' => $merged_word_ids,
+            ];
+            array_splice($chunks, $chunk_index, 1);
+            break;
+        }
+    }
+
+    // If a merge is not possible, borrow words from larger chunks without
+    // pushing either side outside the configured word/category bounds.
+    foreach ($chunks as $chunk_index => $chunk) {
+        while (count((array) ($chunks[$chunk_index]['word_ids'] ?? [])) < $minimum_words) {
+            $moved = false;
+            $target_word_ids = array_values((array) ($chunks[$chunk_index]['word_ids'] ?? []));
+            foreach ($chunks as $donor_index => $donor_chunk) {
+                if ($donor_index === $chunk_index) {
+                    continue;
+                }
+                $donor_word_ids = array_values((array) ($donor_chunk['word_ids'] ?? []));
+                if (count($donor_word_ids) <= $minimum_words) {
+                    continue;
+                }
+                for ($word_index = count($donor_word_ids) - 1; $word_index >= 0; $word_index--) {
+                    $candidate_word_id = (int) $donor_word_ids[$word_index];
+                    $candidate_target_word_ids = array_merge($target_word_ids, [$candidate_word_id]);
+                    if (
+                        count($candidate_target_word_ids) > $max_words
+                        || count($category_ids_for_words($candidate_target_word_ids)) > $max_categories
+                    ) {
+                        continue;
+                    }
+
+                    array_splice($donor_word_ids, $word_index, 1);
+                    $chunks[$donor_index] = [
+                        'category_ids' => $category_ids_for_words($donor_word_ids),
+                        'word_ids' => $donor_word_ids,
+                    ];
+                    $target_word_ids = array_values($candidate_target_word_ids);
+                    $chunks[$chunk_index] = [
+                        'category_ids' => $category_ids_for_words($target_word_ids),
+                        'word_ids' => $target_word_ids,
+                    ];
+                    $moved = true;
+                    break 2;
+                }
+            }
+            if (!$moved) {
+                break;
+            }
+        }
+    }
+
+    return array_values(array_filter($chunks, static function (array $chunk): bool {
+        return !empty($chunk['category_ids']) && !empty($chunk['word_ids']);
+    }));
+}
+
+/**
+ * Validate that launch chunks are complete, unique, bounded, and runnable.
+ *
+ * @param array<int,array{category_ids:int[],word_ids:int[]}> $chunks
+ * @param array<int,int[]> $matched_by_category
+ */
+function ll_tools_validate_user_study_selection_launch_chunks(
+    array $chunks,
+    array $matched_by_category,
+    int $max_words,
+    int $max_categories,
+    int $minimum_words
+): bool {
+    $max_words = max(1, $max_words);
+    $max_categories = max(1, $max_categories);
+    $minimum_words = max(1, min($max_words, $minimum_words));
+
+    $expected_word_lookup = [];
+    $word_category_lookup = [];
+    foreach ($matched_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || !is_array($word_ids)) {
+            continue;
+        }
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($expected_word_lookup[$word_id])) {
+                continue;
+            }
+            $expected_word_lookup[$word_id] = true;
+            $word_category_lookup[$word_id] = $category_id;
+        }
+    }
+
+    $expected_word_count = count($expected_word_lookup);
+    if ($expected_word_count === 0) {
+        return empty($chunks);
+    }
+    if (empty($chunks)) {
+        return false;
+    }
+
+    $planned_word_lookup = [];
+    foreach ($chunks as $chunk) {
+        if (!is_array($chunk)) {
+            return false;
+        }
+
+        $raw_category_ids = isset($chunk['category_ids']) && is_array($chunk['category_ids'])
+            ? array_values($chunk['category_ids'])
+            : [];
+        $raw_word_ids = isset($chunk['word_ids']) && is_array($chunk['word_ids'])
+            ? array_values($chunk['word_ids'])
+            : [];
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $raw_category_ids), static function (int $category_id): bool {
+            return $category_id > 0;
+        })));
+        $word_ids = array_values(array_unique(array_filter(array_map('intval', $raw_word_ids), static function (int $word_id): bool {
+            return $word_id > 0;
+        })));
+
+        if (
+            empty($category_ids)
+            || empty($word_ids)
+            || count($category_ids) !== count($raw_category_ids)
+            || count($word_ids) !== count($raw_word_ids)
+            || count($category_ids) > $max_categories
+            || count($word_ids) > $max_words
+            || ($expected_word_count >= $minimum_words && count($word_ids) < $minimum_words)
+        ) {
+            return false;
+        }
+
+        $expected_chunk_category_lookup = [];
+        foreach ($word_ids as $word_id) {
+            if (!isset($expected_word_lookup[$word_id]) || isset($planned_word_lookup[$word_id])) {
+                return false;
+            }
+            $category_id = (int) ($word_category_lookup[$word_id] ?? 0);
+            if ($category_id <= 0) {
+                return false;
+            }
+            $expected_chunk_category_lookup[$category_id] = true;
+            $planned_word_lookup[$word_id] = true;
+        }
+
+        $chunk_category_lookup = array_fill_keys($category_ids, true);
+        if (
+            count($chunk_category_lookup) !== count($expected_chunk_category_lookup)
+            || !empty(array_diff_key($chunk_category_lookup, $expected_chunk_category_lookup))
+            || !empty(array_diff_key($expected_chunk_category_lookup, $chunk_category_lookup))
+        ) {
+            return false;
+        }
+    }
+
+    return count($planned_word_lookup) === $expected_word_count
+        && empty(array_diff_key($expected_word_lookup, $planned_word_lookup));
+}
+
+/**
+ * Build a launchable complete plan using the narrowest valid category cap.
+ *
+ * The optional preferred category count is a soft resource cap. Callers that
+ * omit it retain the original five-argument behavior and begin at the
+ * configured maximum before widening to the absolute cap.
+ *
+ * @param array<int,int[]> $matched_by_category
+ * @return array<int,array{category_ids:int[],word_ids:int[]}>|WP_Error
+ */
+function ll_tools_build_launchable_user_study_selection_chunks(
+    array $matched_by_category,
+    int $max_words,
+    int $max_categories,
+    int $hard_max_categories,
+    int $minimum_words,
+    ?int $preferred_categories = null
+) {
+    $max_words = max(1, $max_words);
+    $hard_max_categories = max(1, min(8, $hard_max_categories));
+    $max_categories = max(1, min($hard_max_categories, $max_categories));
+    $minimum_words = max(1, min($max_words, $minimum_words));
+    $preferred_categories = $preferred_categories === null
+        ? $max_categories
+        : max(1, min($max_categories, $preferred_categories));
+    $category_caps = array_values(array_unique([
+        $preferred_categories,
+        $max_categories,
+        $hard_max_categories,
+    ]));
+
+    foreach ($category_caps as $category_cap) {
+        $chunks = ll_tools_build_user_study_selection_launch_chunks(
+            $matched_by_category,
+            $max_words,
+            (int) $category_cap,
+            $minimum_words
+        );
+        if (ll_tools_validate_user_study_selection_launch_chunks(
+            $chunks,
+            $matched_by_category,
+            $max_words,
+            (int) $category_cap,
+            $minimum_words
+        )) {
+            return $chunks;
+        }
+    }
+
+    return new WP_Error(
+        'selection_plan_unlaunchable',
+        __('No quiz words are available for this selection.', 'll-tools-text-domain')
+    );
+}
+
+/**
+ * Build a complete bounded chunk plan for a learner's multi-category launch.
  *
  * This deliberately resolves only IDs and progress state. Quiz media is fetched
- * afterward for the small returned pool, avoiding a full payload drain for every
- * selected category.
+ * afterward for one bounded chunk at a time, avoiding a full payload drain for
+ * every selected category while preserving the complete matching word set.
  *
  * @return array<string,mixed>|WP_Error
  */
@@ -8990,11 +9520,12 @@ function ll_tools_build_user_study_selection_launch_plan(
         return new WP_Error('empty_scope', __('Select at least one category.', 'll-tools-text-domain'));
     }
 
+    $categories_complete = true;
     $wpdb->last_error = '';
     $categories_payload = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
+        ? ll_tools_user_study_categories_for_wordset($wordset_id, $categories_complete)
         : [];
-    if ($wpdb->last_error !== '') {
+    if (!$categories_complete || $wpdb->last_error !== '') {
         return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
     }
     $goals = ll_tools_get_user_study_goals($user_id);
@@ -9033,9 +9564,14 @@ function ll_tools_build_user_study_selection_launch_plan(
         return new WP_Error('empty_scope', __('No quiz words are available for this selection.', 'll-tools-text-domain'));
     }
 
+    $membership_complete = true;
     $wpdb->last_error = '';
-    $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category($category_ids, $wordset_id);
-    if ($wpdb->last_error !== '') {
+    $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category(
+        $category_ids,
+        $wordset_id,
+        $membership_complete
+    );
+    if (!$membership_complete || $wpdb->last_error !== '') {
         return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
     }
 
@@ -9053,30 +9589,41 @@ function ll_tools_build_user_study_selection_launch_plan(
         return [
             'category_ids' => [],
             'word_ids' => [],
+            'chunks' => [],
             'criteria' => $criteria,
             'mode' => $mode,
             'matched_count' => 0,
+            'planned_count' => 0,
+            'chunk_count' => 0,
             'truncated' => false,
         ];
     }
 
-    $wpdb->last_error = '';
-    $progress_rows = ll_tools_get_user_word_progress_rows($user_id, $all_word_ids);
-    if ($wpdb->last_error !== '') {
-        return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+    $progress_rows = [];
+    if (in_array($criteria, ['new', 'studied', 'learned', 'hard'], true)) {
+        $progress_complete = true;
+        $wpdb->last_error = '';
+        $progress_rows = function_exists('ll_tools_get_user_word_progress_summary_rows')
+            ? ll_tools_get_user_word_progress_summary_rows($user_id, $all_word_ids, $progress_complete)
+            : ll_tools_get_user_word_progress_rows($user_id, $all_word_ids);
+        if (!$progress_complete || $wpdb->last_error !== '') {
+            return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+        }
     }
-    $study_state = ll_tools_get_user_study_state($user_id);
+
     $starred_lookup = [];
-    foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_word_id) {
-        $starred_word_id = (int) $starred_word_id;
-        if ($starred_word_id > 0) {
-            $starred_lookup[$starred_word_id] = true;
+    if ($criteria === 'starred') {
+        $study_state = ll_tools_get_user_study_state($user_id);
+        foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_word_id) {
+            $starred_word_id = (int) $starred_word_id;
+            if ($starred_word_id > 0) {
+                $starred_lookup[$starred_word_id] = true;
+            }
         }
     }
 
     $matched_by_category = [];
     $matched_word_lookup = [];
-    $category_order_lookup = array_flip($category_ids);
     foreach ($category_ids as $category_id) {
         $category_matches = [];
         foreach ((array) ($word_ids_by_category[$category_id] ?? []) as $word_id) {
@@ -9106,100 +9653,56 @@ function ll_tools_build_user_study_selection_launch_plan(
         return [
             'category_ids' => [],
             'word_ids' => [],
+            'chunks' => [],
             'criteria' => $criteria,
             'mode' => $mode,
             'matched_count' => 0,
+            'planned_count' => 0,
+            'chunk_count' => 0,
             'truncated' => false,
         ];
     }
 
-    $ranked_category_ids = array_values(array_keys($matched_by_category));
-    usort($ranked_category_ids, static function (int $left_id, int $right_id) use ($matched_by_category, $category_order_lookup): int {
-        $count_comparison = count($matched_by_category[$right_id] ?? []) <=> count($matched_by_category[$left_id] ?? []);
-        if ($count_comparison !== 0) {
-            return $count_comparison;
-        }
-        return ((int) ($category_order_lookup[$left_id] ?? PHP_INT_MAX))
-            <=> ((int) ($category_order_lookup[$right_id] ?? PHP_INT_MAX));
-    });
-
     $limits = ll_tools_user_study_selection_launch_limits($wordset_id);
     [$minimum_words] = ll_tools_recommendation_session_word_bounds();
-    $chosen_category_ids = array_slice($ranked_category_ids, 0, (int) $limits['preferred_categories']);
-    $pool_lookup = [];
-    $append_category_pool = static function (int $category_id) use (&$pool_lookup, $matched_by_category): void {
-        foreach ((array) ($matched_by_category[$category_id] ?? []) as $word_id) {
+    $chunks = ll_tools_build_launchable_user_study_selection_chunks(
+        $matched_by_category,
+        (int) $limits['max_words'],
+        (int) $limits['max_categories'],
+        (int) $limits['hard_max_categories'],
+        $minimum_words,
+        (int) $limits['preferred_categories']
+    );
+    if (is_wp_error($chunks)) {
+        return $chunks;
+    }
+    $first_chunk = isset($chunks[0]) && is_array($chunks[0])
+        ? $chunks[0]
+        : ['category_ids' => [], 'word_ids' => []];
+    $planned_word_lookup = [];
+    foreach ($chunks as $chunk) {
+        foreach ((array) ($chunk['word_ids'] ?? []) as $word_id) {
             $word_id = (int) $word_id;
             if ($word_id > 0) {
-                $pool_lookup[$word_id] = $word_id;
-            }
-        }
-    };
-    foreach ($chosen_category_ids as $category_id) {
-        $append_category_pool((int) $category_id);
-    }
-    $next_category_index = count($chosen_category_ids);
-    while (
-        count($pool_lookup) < $minimum_words
-        && $next_category_index < count($ranked_category_ids)
-        && count($chosen_category_ids) < (int) $limits['max_categories']
-    ) {
-        $category_id = (int) $ranked_category_ids[$next_category_index];
-        $next_category_index++;
-        $chosen_category_ids[] = $category_id;
-        $append_category_pool($category_id);
-    }
-
-    $pool_word_ids = array_values($pool_lookup);
-    $word_category_lookup = [];
-    foreach ($chosen_category_ids as $category_id) {
-        foreach ((array) ($matched_by_category[$category_id] ?? []) as $word_id) {
-            $word_id = (int) $word_id;
-            if ($word_id > 0 && !isset($word_category_lookup[$word_id])) {
-                $word_category_lookup[$word_id] = (int) $category_id;
+                $planned_word_lookup[$word_id] = true;
             }
         }
     }
-    $selection_goals = $goals;
-    $selection_goals['priority_focus'] = $criteria;
-    $selection = function_exists('ll_tools_select_review_chunk_rows')
-        ? ll_tools_select_review_chunk_rows(
-            $pool_word_ids,
-            $progress_rows,
-            $selection_goals,
-            (int) $limits['max_words'],
-            $starred_lookup,
-            [
-                'word_category_lookup' => $word_category_lookup,
-                'category_rank_lookup' => array_flip($chosen_category_ids),
-            ]
-        )
-        : ['word_ids' => array_slice($pool_word_ids, 0, (int) $limits['max_words'])];
-    $session_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($selection['word_ids'] ?? [])), static function (int $word_id): bool {
-        return $word_id > 0;
-    })));
-    if (empty($session_word_ids)) {
-        $session_word_ids = array_slice($pool_word_ids, 0, (int) $limits['max_words']);
-    }
-
-    $session_word_lookup = array_fill_keys($session_word_ids, true);
-    $session_category_ids = [];
-    foreach ($chosen_category_ids as $category_id) {
-        foreach ((array) ($matched_by_category[$category_id] ?? []) as $word_id) {
-            if (isset($session_word_lookup[(int) $word_id])) {
-                $session_category_ids[] = (int) $category_id;
-                break;
-            }
-        }
+    $planned_count = count($planned_word_lookup);
+    if ($planned_count !== $matched_count) {
+        return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
     }
 
     return [
-        'category_ids' => array_values(array_unique($session_category_ids)),
-        'word_ids' => $session_word_ids,
+        'category_ids' => array_values(array_map('intval', (array) ($first_chunk['category_ids'] ?? []))),
+        'word_ids' => array_values(array_map('intval', (array) ($first_chunk['word_ids'] ?? []))),
+        'chunks' => $chunks,
         'criteria' => $criteria,
         'mode' => $mode,
         'matched_count' => $matched_count,
-        'truncated' => $matched_count > count($session_word_ids),
+        'planned_count' => $planned_count,
+        'chunk_count' => count($chunks),
+        'truncated' => false,
     ];
 }
 

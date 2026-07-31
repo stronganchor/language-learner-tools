@@ -87,3 +87,75 @@ test('standalone category picker loads the next bounded catalog page on demand',
   expect(requestData.get('offset')).toBe('24');
   expect(requestData.get('wordset')).toBe('demo');
 });
+
+test('standalone launch handles initializer rejection and closes the loading popup', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-tools-flashcard-container" data-wordset="demo">
+      <button id="ll-tools-start-flashcard" type="button">Start</button>
+      <div id="ll-tools-flashcard-popup" style="display:none">
+        <div id="ll-tools-category-selection-popup" style="display:none"></div>
+        <div id="ll-tools-flashcard-quiz-popup" style="display:none">
+          <div id="ll-tools-loading-animation" style="display:block"></div>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.__llAlerts = [];
+    window.__llUnhandledRejections = [];
+    window.alert = (message) => window.__llAlerts.push(String(message || ''));
+    window.addEventListener('unhandledrejection', (event) => {
+      window.__llUnhandledRejections.push(String(event.reason && event.reason.message || event.reason || ''));
+      event.preventDefault();
+    });
+    window.llToolsFlashcardsData = {
+      categories: [{ id: 1, slug: 'alpha', name: 'Alpha' }],
+      categoriesPreselected: true,
+      quiz_mode: 'practice',
+      wordset: 'demo',
+      wordsetFallback: false
+    };
+    window.llToolsFlashcardsMessages = {
+      somethingWentWrong: 'Something went wrong. Please try again.'
+    };
+    window.LLFlashcards = {
+      Util: {
+        getCategorySelectionValue(category) {
+          return category.slug;
+        }
+      },
+      Dom: {
+        hideLoadingImmediately() {
+          window.jQuery('#ll-tools-loading-animation').hide();
+        }
+      },
+      Main: {
+        initFlashcardWidget() {
+          return Promise.reject(new Error('test initialization failure'));
+        }
+      }
+    };
+  });
+  await page.addScriptTag({ content: categorySelectionSource });
+
+  await page.locator('#ll-tools-start-flashcard').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+
+  const result = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
+    unhandled: window.__llUnhandledRejections.slice(),
+    popupDisplay: window.getComputedStyle(document.getElementById('ll-tools-flashcard-popup')).display,
+    quizDisplay: window.getComputedStyle(document.getElementById('ll-tools-flashcard-quiz-popup')).display,
+    loadingDisplay: window.getComputedStyle(document.getElementById('ll-tools-loading-animation')).display,
+    bodyOpen: document.body.classList.contains('ll-tools-flashcard-open')
+  }));
+
+  expect(result.alerts).toEqual(['Something went wrong. Please try again.']);
+  expect(result.unhandled).toEqual([]);
+  expect(result.popupDisplay).toBe('none');
+  expect(result.quizDisplay).toBe('none');
+  expect(result.loadingDisplay).toBe('none');
+  expect(result.bodyOpen).toBeFalsy();
+});

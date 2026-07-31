@@ -637,6 +637,161 @@ test('flashcard loader keeps prompt-card support rows out of the target pool whi
   expect(optionIds).toEqual([551, 552, 901]);
 });
 
+test('bounded category handoff keeps canonical prompt-card targets and performs no category AJAX', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Prompt cards', 'Regular words'];
+    window.getCategoryDisplayMode = function () { return 'text'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'bounded-set',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      boundedSelectionPlan: true,
+      sessionWordIds: [501, 602],
+      categories: [
+        { id: 11, name: 'Prompt cards', prompt_type: 'text_title', option_type: 'text_title' },
+        { id: 22, name: 'Regular words', prompt_type: 'text_title', option_type: 'text_title' }
+      ],
+      boundedCandidateRowsByCategoryId: {
+        11: [
+          {
+            id: 501,
+            title: 'Prompt support',
+            label: 'Prompt support',
+            wordset_ids: [101],
+            is_prompt_card_support_only: true,
+            prompt_card_support_owner_ids: [9001]
+          },
+          {
+            id: 9001,
+            answer_word_id: 501,
+            progress_word_id: 501,
+            title: 'Canonical prompt target',
+            label: 'Canonical prompt target',
+            wordset_ids: [101],
+            is_prompt_card: true
+          }
+        ],
+        22: [
+          { id: 602, title: 'Regular target', label: 'Regular target', wordset_ids: [101] },
+          { id: 699, title: 'Option only', label: 'Option only', wordset_ids: [101] }
+        ]
+      },
+      sessionWordIdsByCategoryId: {
+        11: [501],
+        22: [602]
+      }
+    };
+    window.__llAjaxCount = 0;
+    window.jQuery.ajax = function () {
+      window.__llAjaxCount += 1;
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    const consumed = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData([
+      'Prompt cards',
+      'Regular words'
+    ]);
+    const promptLoad = await window.FlashcardLoader.loadResourcesForCategory('Prompt cards');
+    const regularLoad = await window.FlashcardLoader.loadResourcesForCategory('Regular words');
+    return {
+      consumed,
+      promptLoad,
+      regularLoad,
+      ajaxCount: window.__llAjaxCount,
+      promptTargets: (window.wordsByCategory['Prompt cards'] || []).map((row) => ({
+        id: Number(row.id) || 0,
+        answerWordId: Number(row.answer_word_id) || 0,
+        progressWordId: Number(row.progress_word_id) || 0
+      })),
+      regularTargets: (window.wordsByCategory['Regular words'] || []).map((row) => Number(row.id) || 0),
+      promptOptions: (window.optionWordsByCategory['Prompt cards'] || []).map((row) => Number(row.id) || 0).sort((a, b) => a - b),
+      regularOptions: (window.optionWordsByCategory['Regular words'] || []).map((row) => Number(row.id) || 0).sort((a, b) => a - b)
+    };
+  });
+
+  expect(result.consumed).toMatchObject({
+    success: true,
+    boundedPreloaded: true,
+    categories: ['Prompt cards', 'Regular words'],
+    sessionWordIds: [501, 602]
+  });
+  expect(result.promptLoad).toMatchObject({ cached: true, category: 'Prompt cards' });
+  expect(result.regularLoad).toMatchObject({ cached: true, category: 'Regular words' });
+  expect(result.ajaxCount).toBe(0);
+  expect(result.promptTargets).toEqual([{ id: 9001, answerWordId: 501, progressWordId: 501 }]);
+  expect(result.regularTargets).toEqual([602]);
+  expect(result.promptOptions).toEqual([501, 9001]);
+  expect(result.regularOptions).toEqual([602, 699]);
+});
+
+test('incomplete bounded category handoff rejects before any AJAX fallback', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Category One', 'Category Two'];
+    window.getCategoryDisplayMode = function () { return 'text'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'bounded-set',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      bounded_selection_plan: true,
+      session_word_ids: [501, 602],
+      categories: [
+        { id: 11, name: 'Category One', prompt_type: 'text_title', option_type: 'text_title' },
+        { id: 22, name: 'Category Two', prompt_type: 'text_title', option_type: 'text_title' }
+      ],
+      bounded_candidate_rows_by_category_id: {
+        11: [{ id: 501, title: 'Word One', label: 'Word One', wordset_ids: [101] }]
+      },
+      session_word_ids_by_category_id: {
+        11: [501],
+        22: [602]
+      }
+    };
+    window.__llAjaxCount = 0;
+    window.jQuery.ajax = function () {
+      window.__llAjaxCount += 1;
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    let rejection = null;
+    try {
+      await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Category One', 'Category Two']);
+    } catch (error) {
+      rejection = { code: String(error && error.code || ''), message: String(error && error.message || '') };
+    }
+    const fallback = await window.FlashcardLoader.loadResourcesForCategory('Category One');
+    return { rejection, fallback, ajaxCount: window.__llAjaxCount };
+  });
+
+  expect(result.rejection).toMatchObject({ code: 'll_bounded_preload_invalid' });
+  expect(result.rejection.message).toContain('missing');
+  expect(result.fallback).toMatchObject({
+    success: false,
+    boundedPreloadRequired: true,
+    code: 'll_bounded_preload_required'
+  });
+  expect(result.ajaxCount).toBe(0);
+});
+
 test('flashcard loader can skip current-word audio preload when requested', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });
