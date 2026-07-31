@@ -3630,6 +3630,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'editor_context' => '',
         'category_editor_scope' => '',
         'category_editor_counts' => '',
+        'defer_edit_panels' => '',
     ], (array) $atts);
 
     $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
@@ -3647,6 +3648,8 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
     }
     $editor_context = !empty($atts['editor_context']) && filter_var($atts['editor_context'], FILTER_VALIDATE_BOOLEAN);
+    $defer_edit_panels = !empty($atts['defer_edit_panels'])
+        && filter_var($atts['defer_edit_panels'], FILTER_VALIDATE_BOOLEAN);
     $category_editor_scope = sanitize_key((string) ($atts['category_editor_scope'] ?? ''));
     $category_editor_counts_raw = (string) ($atts['category_editor_counts'] ?? '');
     $category_editor_include_quiz_meta = $category_editor_counts_raw === ''
@@ -3790,6 +3793,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'category_quiz_use_titles'     => $category_quiz_use_titles,
         'show_staff_inactive_images'   => $show_staff_inactive_images,
         'editor_context'                => $editor_context,
+        'defer_edit_panels'             => $defer_edit_panels,
         'wordset_has_gender'           => $wordset_has_gender,
         'wordset_has_plurality'        => $wordset_has_plurality,
         'wordset_has_verb_tense'       => $wordset_has_verb_tense,
@@ -4105,7 +4109,11 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     return $config;
 }
 
-function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0, array $candidate_word_ids = []): void {
+function ll_tools_word_edit_modal_enqueue_assets(
+    int $wordset_id = 0,
+    array $candidate_word_ids = [],
+    bool $enqueue_word_grid_assets = true
+): void {
     $wordset_id = (int) $wordset_id;
     $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
         return $word_id > 0;
@@ -4120,8 +4128,10 @@ function ll_tools_word_edit_modal_enqueue_assets(int $wordset_id = 0, array $can
     if (!empty($candidate_word_ids)) {
         $context_args['word_ids'] = implode(',', $candidate_word_ids);
     }
-    $context = ll_tools_word_grid_resolve_context($context_args);
-    ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
+    if ($enqueue_word_grid_assets) {
+        $context = ll_tools_word_grid_resolve_context($context_args);
+        ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
+    }
     ll_enqueue_asset_by_timestamp('/js/word-edit-modal.js', 'll-tools-word-edit-modal', ['jquery', 'll-tools-word-grid'], true);
     wp_localize_script('ll-tools-word-edit-modal', 'llToolsWordEditModalData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
@@ -5444,6 +5454,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $wordset_has_verb_mood = !empty($context['wordset_has_verb_mood']);
     $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
     $can_edit_words = !empty($context['can_edit_words']);
+    $defer_edit_panels = $can_edit_words && !empty($context['defer_edit_panels']);
     $user_study_state = is_array($context['user_study_state'] ?? null)
         ? $context['user_study_state']
         : [
@@ -5463,7 +5474,7 @@ function ll_tools_word_grid_shortcode($atts) {
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
 
     $part_of_speech_terms = [];
-    if ($can_edit_words) {
+    if ($can_edit_words && !$defer_edit_panels) {
         $part_of_speech_terms = get_terms([
             'taxonomy' => 'part_of_speech',
             'hide_empty' => false,
@@ -5790,13 +5801,16 @@ function ll_tools_word_grid_shortcode($atts) {
         'save'        => __('Save', 'll-tools-text-domain'),
         'cancel'      => __('Cancel', 'll-tools-text-domain'),
     ];
-    $recording_type_choices = ll_tools_word_grid_get_recording_type_choices();
+    $recording_type_choices = $defer_edit_panels ? [] : ll_tools_word_grid_get_recording_type_choices();
     $show_stars = is_user_logged_in();
     $starred_ids = array_values(array_filter(array_map('intval', (array) ($user_study_state['starred_word_ids'] ?? []))));
     $show_lesson_recording_edit_triggers = $can_edit_words && ll_tools_word_grid_is_lesson_context($context);
     $can_manage_internal_notes = !empty($context['can_manage_internal_notes'])
         && function_exists('ll_tools_render_internal_review_note_field');
-    $show_word_category_editor = $can_edit_words && $wordset_id > 0 && ll_tools_word_grid_is_lesson_context($context);
+    $show_word_category_editor = $can_edit_words
+        && !$defer_edit_panels
+        && $wordset_id > 0
+        && ll_tools_word_grid_is_lesson_context($context);
     $show_word_interlinears = $lesson_id > 0
         && function_exists('ll_tools_current_user_can_view_interlinear')
         && function_exists('ll_tools_interlinear_has_payload')
@@ -5862,6 +5876,9 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($can_edit_words && $lesson_id > 0) {
             $grid_attrs .= ' data-ll-word-grid-reorderable="1"';
         }
+        if ($defer_edit_panels) {
+            $grid_attrs .= ' data-ll-word-edit-deferred-grid="1"';
+        }
         $word_grid_style_parts = [];
         if ($wordset_id > 0 && function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
             $answer_option_style = ll_tools_wordset_get_answer_option_text_style_config((int) $wordset_id);
@@ -5923,14 +5940,14 @@ function ll_tools_word_grid_shortcode($atts) {
             $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
-            $image_data = $can_edit_words
+            $image_data = ($can_edit_words && !$defer_edit_panels)
                 ? ll_tools_word_grid_get_image_data_for_word($word_id)
                 : ['id' => 0, 'url' => '', 'alt' => '', 'width' => 0, 'height' => 0, 'word_image_id' => 0];
             $word_note = trim((string) get_post_meta($word_id, 'll_word_usage_note', true));
-            $specific_wrong_answer_texts = ($can_edit_words && $has_text_only_answer_options && function_exists('ll_tools_get_word_specific_wrong_answer_texts'))
+            $specific_wrong_answer_texts = ($can_edit_words && !$defer_edit_panels && $has_text_only_answer_options && function_exists('ll_tools_get_word_specific_wrong_answer_texts'))
                 ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
                 : [];
-            $dictionary_entry_id = function_exists('ll_tools_get_word_dictionary_entry_id')
+            $dictionary_entry_id = (!$defer_edit_panels && function_exists('ll_tools_get_word_dictionary_entry_id'))
                 ? (int) ll_tools_get_word_dictionary_entry_id($word_id)
                 : 0;
             $dictionary_entry_title = $dictionary_entry_id > 0
@@ -6173,7 +6190,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     'visibility_note' => $recording_visibility_note,
                 ];
 
-                if ($can_edit_words && !empty($entry['id'])) {
+                if ($can_edit_words && !$defer_edit_panels && !empty($entry['id'])) {
                     $edit_recordings[] = [
                         'id' => (int) $entry['id'],
                         'type' => $type,
@@ -6215,7 +6232,10 @@ function ll_tools_word_grid_shortcode($atts) {
                     $actions_row_html .= '<button type="button" class="ll-word-star ll-word-grid-star ll-tools-star-button' . ($is_starred ? ' active' : '') . '" data-word-id="' . esc_attr($word_id) . '" aria-pressed="' . ($is_starred ? 'true' : 'false') . '" aria-label="' . esc_attr($star_label) . '" title="' . esc_attr($star_label) . '"></button>';
                 }
                 if ($can_edit_words) {
-                    $actions_row_html .= '<button type="button" class="ll-word-edit-toggle" data-ll-word-edit-toggle aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';
+                    $edit_button_data = $defer_edit_panels
+                        ? ' data-ll-word-edit-deferred'
+                        : ' data-ll-word-edit-toggle';
+                    $actions_row_html .= '<button type="button" class="ll-word-edit-toggle"' . $edit_button_data . ' data-word-id="' . esc_attr((string) $word_id) . '" aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';
                     $actions_row_html .= '<span class="ll-word-edit-icon" aria-hidden="true">';
                     $actions_row_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
                     $actions_row_html .= '</span>';
@@ -6312,6 +6332,8 @@ function ll_tools_word_grid_shortcode($atts) {
 
             if ($can_edit_words) {
                 echo '<div class="ll-word-save-status" data-ll-word-save-status aria-live="polite"></div>';
+            }
+            if ($can_edit_words && !$defer_edit_panels) {
                 $word_input_id = 'll-word-edit-word-' . $word_id;
                 $translation_input_id = 'll-word-edit-translation-' . $word_id;
                 $note_input_id = 'll-word-edit-note-' . $word_id;
@@ -8215,6 +8237,7 @@ function ll_tools_word_grid_create_lesson_word_handler() {
             'lesson_id'      => $lesson_id,
             'word_ids'       => (string) $word_id,
             'editor_context' => true,
+            'defer_edit_panels' => true,
         ]);
     } finally {
         unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);

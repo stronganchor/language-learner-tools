@@ -424,7 +424,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertSame($expected_category_id, (int) ($response['data']['category_id'] ?? 0));
         $this->assertSame($lesson_id, (int) get_post_meta($word_id, '_ll_created_from_vocab_lesson_id', true));
         $this->assertStringContainsString('data-word-id="' . $word_id . '"', (string) ($response['data']['html'] ?? ''));
-        $this->assertStringContainsString('data-ll-word-edit-toggle', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringContainsString('data-ll-word-edit-deferred', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', (string) ($response['data']['html'] ?? ''));
         $recent_actions = ll_tools_wordset_editor_get_recent_actions((int) $fixture['wordset_id'], 1);
         $this->assertSame('word_create', (string) ($recent_actions[0]['type'] ?? ''));
     }
@@ -460,7 +461,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $word_id);
         $this->assertSame('draft', get_post_status($word_id));
         $this->assertStringContainsString('data-word-id="' . $word_id . '"', (string) ($response['data']['html'] ?? ''));
-        $this->assertStringContainsString('data-ll-word-edit-toggle', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringContainsString('data-ll-word-edit-deferred', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', (string) ($response['data']['html'] ?? ''));
     }
 
     /**

@@ -664,7 +664,7 @@
                 "includes/pages/wordset-editor.php:4807",
                 "includes/shortcodes/editor-hub-shortcode.php:1079",
                 "includes/shortcodes/editor-hub-shortcode.php:660",
-                "includes/shortcodes/word-grid-shortcode.php:5758",
+                "includes/shortcodes/word-grid-shortcode.php:5769",
                 "templates/vocab-lesson-print-template.php:127",
                 "templates/vocab-lesson-template.php:1328"
             ],
@@ -837,13 +837,13 @@
                 "includes/shortcodes/editor-hub-shortcode.php:668",
                 "includes/shortcodes/ranked-word-list-shortcode.php:636",
                 "includes/shortcodes/ranked-word-list-shortcode.php:654",
-                "includes/shortcodes/word-grid-shortcode.php:5736"
+                "includes/shortcodes/word-grid-shortcode.php:5747"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1914",
                 "includes/shortcodes/ranked-word-list-shortcode.php:636",
                 "includes/shortcodes/ranked-word-list-shortcode.php:654",
-                "includes/shortcodes/word-grid-shortcode.php:5736"
+                "includes/shortcodes/word-grid-shortcode.php:5747"
             ]
         },
         {
@@ -1727,8 +1727,8 @@
                 "includes/shortcodes/editor-hub-shortcode.php:644",
                 "includes/shortcodes/editor-hub-shortcode.php:645",
                 "includes/shortcodes/interlinear-shortcode.php:304",
-                "includes/shortcodes/word-grid-shortcode.php:5714",
-                "includes/shortcodes/word-grid-shortcode.php:5725"
+                "includes/shortcodes/word-grid-shortcode.php:5725",
+                "includes/shortcodes/word-grid-shortcode.php:5736"
             ],
             "public_references": [
                 "includes/lib/wordset-language-settings.php:896",
@@ -1736,8 +1736,8 @@
                 "includes/pages/wordset-games.php:5283",
                 "includes/pages/wordset-pages.php:12595",
                 "includes/pages/wordset-pages.php:26682",
-                "includes/shortcodes/word-grid-shortcode.php:5714",
-                "includes/shortcodes/word-grid-shortcode.php:5725"
+                "includes/shortcodes/word-grid-shortcode.php:5725",
+                "includes/shortcodes/word-grid-shortcode.php:5736"
             ]
         },
         {
@@ -2767,7 +2767,7 @@
                 "includes/shortcodes/flashcard-widget.php:2197",
                 "includes/shortcodes/flashcard-widget.php:2250",
                 "includes/shortcodes/flashcard-widget.php:2425",
-                "includes/shortcodes/word-grid-shortcode.php:10298"
+                "includes/shortcodes/word-grid-shortcode.php:10321"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:911",
@@ -2898,12 +2898,12 @@
             "msgid": "Move earlier",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5005",
+                "includes/pages/vocab-lesson-pages.php:5062",
                 "includes/pages/wordset-pages.php:12560",
                 "includes/taxonomies/word-category-taxonomy.php:2065"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5005",
+                "includes/pages/vocab-lesson-pages.php:5062",
                 "includes/pages/wordset-pages.php:12560"
             ]
         },
@@ -2913,12 +2913,12 @@
             "msgid": "Move later",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5006",
+                "includes/pages/vocab-lesson-pages.php:5063",
                 "includes/pages/wordset-pages.php:12561",
                 "includes/taxonomies/word-category-taxonomy.php:2066"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5006",
+                "includes/pages/vocab-lesson-pages.php:5063",
                 "includes/pages/wordset-pages.php:12561"
             ]
         },
@@ -2928,10 +2928,10 @@
             "msgid": "Remove from print",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5007"
+                "includes/pages/vocab-lesson-pages.php:5064"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5007"
+                "includes/pages/vocab-lesson-pages.php:5064"
             ]
         },
         {
@@ -2940,10 +2940,10 @@
             "msgid": "Add back to print",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5008"
+                "includes/pages/vocab-lesson-pages.php:5065"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5008"
+                "includes/pages/vocab-lesson-pages.php:5065"
             ]
         },
         {
@@ -2952,11 +2952,11 @@
             "msgid": "Restore all",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5009",
+                "includes/pages/vocab-lesson-pages.php:5066",
                 "templates/vocab-lesson-print-template.php:136"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5009",
+                "includes/pages/vocab-lesson-pages.php:5066",
                 "templates/vocab-lesson-print-template.php:136"
             ]
         },
@@ -2966,11 +2966,11 @@
             "msgid": "Removed",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5010",
+                "includes/pages/vocab-lesson-pages.php:5067",
                 "templates/vocab-lesson-print-template.php:145"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5010",
+                "includes/pages/vocab-lesson-pages.php:5067",
                 "templates/vocab-lesson-print-template.php:145"
             ]
         },
@@ -2980,10 +2980,10 @@
             "msgid": "All words removed.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5011"
+                "includes/pages/vocab-lesson-pages.php:5068"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5011"
+                "includes/pages/vocab-lesson-pages.php:5068"
             ]
         },
         {
@@ -2992,10 +2992,10 @@
             "msgid": "Restore one or more words to print this lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5012"
+                "includes/pages/vocab-lesson-pages.php:5069"
             ],
             "public_references": [
-                "includes/pages/vocab-lesson-pages.php:5012"
+                "includes/pages/vocab-lesson-pages.php:5069"
             ]
         },
         {
@@ -3648,7 +3648,7 @@
                 "includes/shortcodes/audio-recording-shortcode.php:462",
                 "includes/shortcodes/audio-recording-shortcode.php:5581",
                 "includes/shortcodes/audio-recording-shortcode.php:9477",
-                "includes/shortcodes/word-grid-shortcode.php:8014"
+                "includes/shortcodes/word-grid-shortcode.php:8036"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:6212"
@@ -4607,7 +4607,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:12586",
                 "includes/shortcodes/audio-recording-shortcode.php:1589",
-                "includes/shortcodes/word-grid-shortcode.php:4064"
+                "includes/shortcodes/word-grid-shortcode.php:4068"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:12586"
@@ -4718,7 +4718,7 @@
                 "includes/shortcodes/editor-hub-shortcode.php:510",
                 "includes/shortcodes/ranked-word-list-shortcode.php:635",
                 "includes/shortcodes/ranked-word-list-shortcode.php:652",
-                "includes/shortcodes/word-grid-shortcode.php:5735"
+                "includes/shortcodes/word-grid-shortcode.php:5746"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:12594",
@@ -4728,7 +4728,7 @@
                 "includes/pages/wordset-pages.php:26678",
                 "includes/shortcodes/ranked-word-list-shortcode.php:635",
                 "includes/shortcodes/ranked-word-list-shortcode.php:652",
-                "includes/shortcodes/word-grid-shortcode.php:5735"
+                "includes/shortcodes/word-grid-shortcode.php:5746"
             ]
         },
         {
@@ -5426,7 +5426,7 @@
                 "includes/post-types/word-image-post-type.php:1220",
                 "includes/post-types/words-post-type.php:1993",
                 "includes/shortcodes/flashcard-widget.php:624",
-                "includes/shortcodes/word-grid-shortcode.php:5740"
+                "includes/shortcodes/word-grid-shortcode.php:5751"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:22748",
@@ -5435,7 +5435,7 @@
                 "includes/pages/wordset-pages.php:24644",
                 "includes/pages/wordset-pages.php:24875",
                 "includes/shortcodes/flashcard-widget.php:624",
-                "includes/shortcodes/word-grid-shortcode.php:5740"
+                "includes/shortcodes/word-grid-shortcode.php:5751"
             ]
         },
         {
@@ -5727,7 +5727,7 @@
                 "includes/shortcodes/flashcard-widget.php:715",
                 "includes/shortcodes/flashcard-widget.php:803",
                 "includes/shortcodes/flashcard-widget.php:804",
-                "includes/shortcodes/word-grid-shortcode.php:6457",
+                "includes/shortcodes/word-grid-shortcode.php:6479",
                 "templates/offline-app-shell-template.php:826",
                 "templates/vocab-lesson-template.php:177",
                 "templates/vocab-lesson-template.php:734",
@@ -6443,7 +6443,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:1487",
                 "includes/shortcodes/editor-hub-shortcode.php:1058",
                 "includes/shortcodes/editor-hub-shortcode.php:514",
-                "includes/shortcodes/word-grid-shortcode.php:6437",
+                "includes/shortcodes/word-grid-shortcode.php:6459",
                 "templates/vocab-lesson-template.php:713"
             ],
             "public_references": [
@@ -6578,14 +6578,14 @@
             "references": [
                 "includes/pages/wordset-pages.php:24656",
                 "includes/shortcodes/flashcard-widget.php:643",
-                "includes/shortcodes/word-grid-shortcode.php:3972",
-                "includes/shortcodes/word-grid-shortcode.php:6214"
+                "includes/shortcodes/word-grid-shortcode.php:3976",
+                "includes/shortcodes/word-grid-shortcode.php:6231"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24656",
                 "includes/shortcodes/flashcard-widget.php:643",
-                "includes/shortcodes/word-grid-shortcode.php:3972",
-                "includes/shortcodes/word-grid-shortcode.php:6214"
+                "includes/shortcodes/word-grid-shortcode.php:3976",
+                "includes/shortcodes/word-grid-shortcode.php:6231"
             ]
         },
         {
@@ -6595,13 +6595,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:24657",
-                "includes/shortcodes/word-grid-shortcode.php:3973",
-                "includes/shortcodes/word-grid-shortcode.php:6213"
+                "includes/shortcodes/word-grid-shortcode.php:3977",
+                "includes/shortcodes/word-grid-shortcode.php:6230"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24657",
-                "includes/shortcodes/word-grid-shortcode.php:3973",
-                "includes/shortcodes/word-grid-shortcode.php:6213"
+                "includes/shortcodes/word-grid-shortcode.php:3977",
+                "includes/shortcodes/word-grid-shortcode.php:6230"
             ]
         },
         {
@@ -7305,12 +7305,12 @@
                 "includes/pages/wordset-pages.php:16221",
                 "includes/pages/wordset-pages.php:24902",
                 "includes/pages/wordset-pages.php:24908",
-                "includes/shortcodes/word-grid-shortcode.php:5741"
+                "includes/shortcodes/word-grid-shortcode.php:5752"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:24902",
                 "includes/pages/wordset-pages.php:24908",
-                "includes/shortcodes/word-grid-shortcode.php:5741"
+                "includes/shortcodes/word-grid-shortcode.php:5752"
             ]
         },
         {
@@ -7323,7 +7323,7 @@
                 "includes/admin/word-option-rules-admin.php:2385",
                 "includes/admin/word-option-rules-admin.php:2401",
                 "includes/pages/wordset-pages.php:24956",
-                "includes/shortcodes/word-grid-shortcode.php:5783",
+                "includes/shortcodes/word-grid-shortcode.php:5794",
                 "includes/taxonomies/word-category-taxonomy.php:2056"
             ],
             "public_references": [
@@ -7590,14 +7590,14 @@
             "references": [
                 "includes/pages/wordset-pages.php:25606",
                 "includes/pages/wordset-pages.php:25607",
-                "includes/shortcodes/word-grid-shortcode.php:5742",
+                "includes/shortcodes/word-grid-shortcode.php:5753",
                 "templates/offline-app-shell-template.php:762",
                 "templates/offline-app-shell-template.php:763"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:25606",
                 "includes/pages/wordset-pages.php:25607",
-                "includes/shortcodes/word-grid-shortcode.php:5742",
+                "includes/shortcodes/word-grid-shortcode.php:5753",
                 "templates/offline-app-shell-template.php:762",
                 "templates/offline-app-shell-template.php:763"
             ]
@@ -7623,12 +7623,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:25621",
-                "includes/shortcodes/word-grid-shortcode.php:5744",
+                "includes/shortcodes/word-grid-shortcode.php:5755",
                 "templates/offline-app-shell-template.php:782"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:25621",
-                "includes/shortcodes/word-grid-shortcode.php:5744",
+                "includes/shortcodes/word-grid-shortcode.php:5755",
                 "templates/offline-app-shell-template.php:782"
             ]
         },
@@ -8022,8 +8022,8 @@
             "msgid": "Your session expired. Please try again.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:4825",
-                "includes/pages/vocab-lesson-pages.php:5210",
+                "includes/pages/vocab-lesson-pages.php:4882",
+                "includes/pages/vocab-lesson-pages.php:5267",
                 "includes/pages/wordset-pages.php:10663",
                 "includes/pages/wordset-pages.php:10772",
                 "includes/pages/wordset-pages.php:2469",
@@ -8213,7 +8213,7 @@
                 "includes/pages/wordset-pages.php:24718",
                 "includes/shortcodes/content-lesson-index-shortcode.php:388",
                 "includes/shortcodes/dictionary-shortcode.php:95",
-                "includes/shortcodes/word-grid-shortcode.php:3978",
+                "includes/shortcodes/word-grid-shortcode.php:3982",
                 "templates/vocab-lesson-template.php:403"
             ],
             "public_references": [
@@ -8964,7 +8964,7 @@
             "msgid": "Lesson words are still being prepared. Please try again in a moment.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:7157",
+                "includes/pages/vocab-lesson-pages.php:7215",
                 "includes/shortcodes/flashcard-widget.php:1945"
             ],
             "public_references": [
@@ -9465,16 +9465,16 @@
                 "includes/admin/word-option-rules-admin.php:2322",
                 "includes/pages/wordset-editor.php:4036",
                 "includes/shortcodes/flashcard-widget.php:659",
-                "includes/shortcodes/word-grid-shortcode.php:5230",
-                "includes/shortcodes/word-grid-shortcode.php:5730",
-                "includes/shortcodes/word-grid-shortcode.php:8120",
-                "includes/shortcodes/word-grid-shortcode.php:8766",
+                "includes/shortcodes/word-grid-shortcode.php:5240",
+                "includes/shortcodes/word-grid-shortcode.php:5741",
+                "includes/shortcodes/word-grid-shortcode.php:8142",
+                "includes/shortcodes/word-grid-shortcode.php:8789",
                 "templates/vocab-lesson-template.php:1706"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:659",
-                "includes/shortcodes/word-grid-shortcode.php:5230",
-                "includes/shortcodes/word-grid-shortcode.php:5730",
+                "includes/shortcodes/word-grid-shortcode.php:5240",
+                "includes/shortcodes/word-grid-shortcode.php:5741",
                 "templates/vocab-lesson-template.php:1706"
             ]
         },
@@ -9489,16 +9489,16 @@
                 "includes/shortcodes/audio-recording-shortcode.php:29",
                 "includes/shortcodes/editor-hub-shortcode.php:302",
                 "includes/shortcodes/flashcard-widget.php:660",
-                "includes/shortcodes/word-grid-shortcode.php:5225",
-                "includes/shortcodes/word-grid-shortcode.php:5692",
-                "includes/shortcodes/word-grid-shortcode.php:7705",
+                "includes/shortcodes/word-grid-shortcode.php:5235",
+                "includes/shortcodes/word-grid-shortcode.php:5703",
+                "includes/shortcodes/word-grid-shortcode.php:7727",
                 "includes/taxonomies/recording-type-taxonomy.php:41"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:660",
-                "includes/shortcodes/word-grid-shortcode.php:5225",
-                "includes/shortcodes/word-grid-shortcode.php:5692",
-                "includes/shortcodes/word-grid-shortcode.php:7705"
+                "includes/shortcodes/word-grid-shortcode.php:5235",
+                "includes/shortcodes/word-grid-shortcode.php:5703",
+                "includes/shortcodes/word-grid-shortcode.php:7727"
             ]
         },
         {
@@ -9511,16 +9511,16 @@
                 "includes/shortcodes/audio-recording-shortcode.php:31",
                 "includes/shortcodes/editor-hub-shortcode.php:303",
                 "includes/shortcodes/flashcard-widget.php:661",
-                "includes/shortcodes/word-grid-shortcode.php:5226",
-                "includes/shortcodes/word-grid-shortcode.php:5693",
-                "includes/shortcodes/word-grid-shortcode.php:7706",
+                "includes/shortcodes/word-grid-shortcode.php:5236",
+                "includes/shortcodes/word-grid-shortcode.php:5704",
+                "includes/shortcodes/word-grid-shortcode.php:7728",
                 "includes/taxonomies/recording-type-taxonomy.php:43"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:661",
-                "includes/shortcodes/word-grid-shortcode.php:5226",
-                "includes/shortcodes/word-grid-shortcode.php:5693",
-                "includes/shortcodes/word-grid-shortcode.php:7706"
+                "includes/shortcodes/word-grid-shortcode.php:5236",
+                "includes/shortcodes/word-grid-shortcode.php:5704",
+                "includes/shortcodes/word-grid-shortcode.php:7728"
             ]
         },
         {
@@ -9532,10 +9532,10 @@
                 "includes/pages/wordset-editor.php:4779",
                 "includes/shortcodes/editor-hub-shortcode.php:1063",
                 "includes/shortcodes/flashcard-widget.php:662",
-                "includes/shortcodes/word-grid-shortcode.php:3996",
-                "includes/shortcodes/word-grid-shortcode.php:5755",
-                "includes/shortcodes/word-grid-shortcode.php:6797",
-                "includes/shortcodes/word-grid-shortcode.php:6862"
+                "includes/shortcodes/word-grid-shortcode.php:4000",
+                "includes/shortcodes/word-grid-shortcode.php:5766",
+                "includes/shortcodes/word-grid-shortcode.php:6819",
+                "includes/shortcodes/word-grid-shortcode.php:6884"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:662"
@@ -10082,7 +10082,7 @@
                 "includes/admin/offline-app-export.php:3595",
                 "includes/admin/split-word-admin.php:177",
                 "includes/shortcodes/language-switcher-shortcode.php:1027",
-                "includes/shortcodes/word-grid-shortcode.php:5791",
+                "includes/shortcodes/word-grid-shortcode.php:5802",
                 "templates/offline-app-shell-template.php:691",
                 "templates/vocab-lesson-template.php:619"
             ],
@@ -10111,13 +10111,13 @@
             "msgid": "Invalid request.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:5039",
-                "includes/pages/vocab-lesson-pages.php:5170",
-                "includes/pages/vocab-lesson-pages.php:6866",
-                "includes/pages/vocab-lesson-pages.php:6871",
-                "includes/pages/vocab-lesson-pages.php:6877",
-                "includes/pages/vocab-lesson-pages.php:6970",
-                "includes/pages/vocab-lesson-pages.php:7045",
+                "includes/pages/vocab-lesson-pages.php:5096",
+                "includes/pages/vocab-lesson-pages.php:5227",
+                "includes/pages/vocab-lesson-pages.php:6923",
+                "includes/pages/vocab-lesson-pages.php:6928",
+                "includes/pages/vocab-lesson-pages.php:6934",
+                "includes/pages/vocab-lesson-pages.php:7027",
+                "includes/pages/vocab-lesson-pages.php:7103",
                 "includes/shortcodes/dictionary-shortcode.php:3296",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1862",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1890",
@@ -10388,15 +10388,15 @@
                 "includes/admin/export-import.php:589",
                 "includes/shortcodes/audio-recording-shortcode.php:30",
                 "includes/shortcodes/editor-hub-shortcode.php:301",
-                "includes/shortcodes/word-grid-shortcode.php:5224",
-                "includes/shortcodes/word-grid-shortcode.php:5691",
-                "includes/shortcodes/word-grid-shortcode.php:7704",
+                "includes/shortcodes/word-grid-shortcode.php:5234",
+                "includes/shortcodes/word-grid-shortcode.php:5702",
+                "includes/shortcodes/word-grid-shortcode.php:7726",
                 "includes/taxonomies/recording-type-taxonomy.php:42"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5224",
-                "includes/shortcodes/word-grid-shortcode.php:5691",
-                "includes/shortcodes/word-grid-shortcode.php:7704"
+                "includes/shortcodes/word-grid-shortcode.php:5234",
+                "includes/shortcodes/word-grid-shortcode.php:5702",
+                "includes/shortcodes/word-grid-shortcode.php:7726"
             ]
         },
         {
@@ -10406,14 +10406,14 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:592",
-                "includes/shortcodes/word-grid-shortcode.php:5227",
-                "includes/shortcodes/word-grid-shortcode.php:5694",
-                "includes/shortcodes/word-grid-shortcode.php:7707"
+                "includes/shortcodes/word-grid-shortcode.php:5237",
+                "includes/shortcodes/word-grid-shortcode.php:5705",
+                "includes/shortcodes/word-grid-shortcode.php:7729"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5227",
-                "includes/shortcodes/word-grid-shortcode.php:5694",
-                "includes/shortcodes/word-grid-shortcode.php:7707"
+                "includes/shortcodes/word-grid-shortcode.php:5237",
+                "includes/shortcodes/word-grid-shortcode.php:5705",
+                "includes/shortcodes/word-grid-shortcode.php:7729"
             ]
         },
         {
@@ -10422,14 +10422,14 @@
             "msgid": "In sentence",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:5228",
-                "includes/shortcodes/word-grid-shortcode.php:5695",
-                "includes/shortcodes/word-grid-shortcode.php:7708"
+                "includes/shortcodes/word-grid-shortcode.php:5238",
+                "includes/shortcodes/word-grid-shortcode.php:5706",
+                "includes/shortcodes/word-grid-shortcode.php:7730"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5228",
-                "includes/shortcodes/word-grid-shortcode.php:5695",
-                "includes/shortcodes/word-grid-shortcode.php:7708"
+                "includes/shortcodes/word-grid-shortcode.php:5238",
+                "includes/shortcodes/word-grid-shortcode.php:5706",
+                "includes/shortcodes/word-grid-shortcode.php:7730"
             ]
         },
         {
@@ -10439,11 +10439,11 @@
             "msgid_plural": null,
             "references": [
                 "includes/lib/wordset-language-settings.php:1332",
-                "includes/shortcodes/word-grid-shortcode.php:5718",
-                "includes/shortcodes/word-grid-shortcode.php:6742"
+                "includes/shortcodes/word-grid-shortcode.php:5729",
+                "includes/shortcodes/word-grid-shortcode.php:6764"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5718"
+                "includes/shortcodes/word-grid-shortcode.php:5729"
             ]
         },
         {
@@ -10457,11 +10457,11 @@
                 "includes/admin/ipa-keyboard-admin.php:805",
                 "includes/lib/wordset-language-settings.php:1333",
                 "includes/lib/wordset-language-settings.php:1337",
-                "includes/shortcodes/word-grid-shortcode.php:5719",
-                "includes/shortcodes/word-grid-shortcode.php:6746"
+                "includes/shortcodes/word-grid-shortcode.php:5730",
+                "includes/shortcodes/word-grid-shortcode.php:6768"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5719"
+                "includes/shortcodes/word-grid-shortcode.php:5730"
             ]
         },
         {
@@ -10470,10 +10470,10 @@
             "msgid": "Wordset order",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:5743"
+                "includes/shortcodes/word-grid-shortcode.php:5754"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5743"
+                "includes/shortcodes/word-grid-shortcode.php:5754"
             ]
         },
         {
@@ -10482,10 +10482,10 @@
             "msgid": "No categories match.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:5745"
+                "includes/shortcodes/word-grid-shortcode.php:5756"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:5745"
+                "includes/shortcodes/word-grid-shortcode.php:5756"
             ]
         },
         {
@@ -10494,10 +10494,10 @@
             "msgid": "%d quizzable word",
             "msgid_plural": "%d quizzable words",
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:6373"
+                "includes/shortcodes/word-grid-shortcode.php:6395"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:6373"
+                "includes/shortcodes/word-grid-shortcode.php:6395"
             ]
         },
         {
@@ -10506,10 +10506,10 @@
             "msgid": "No words found in this category.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:6881"
+                "includes/shortcodes/word-grid-shortcode.php:6903"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:6881"
+                "includes/shortcodes/word-grid-shortcode.php:6903"
             ]
         },
         {
@@ -10527,11 +10527,11 @@
                 "includes/post-types/words-post-type.php:2051",
                 "includes/post-types/words-post-type.php:2054",
                 "includes/shortcodes/editor-hub-shortcode.php:653",
-                "includes/shortcodes/word-grid-shortcode.php:7695",
+                "includes/shortcodes/word-grid-shortcode.php:7717",
                 "templates/vocab-lesson-template.php:1224"
             ],
             "public_references": [
-                "includes/shortcodes/word-grid-shortcode.php:7695"
+                "includes/shortcodes/word-grid-shortcode.php:7717"
             ]
         },
         {
@@ -10638,14 +10638,14 @@
             "msgid": "Lesson not found.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:4834",
-                "includes/pages/vocab-lesson-pages.php:5046",
-                "includes/pages/vocab-lesson-pages.php:5192",
-                "includes/pages/vocab-lesson-pages.php:6725",
-                "includes/pages/vocab-lesson-pages.php:7050",
-                "includes/pages/vocab-lesson-pages.php:7059",
-                "includes/pages/vocab-lesson-pages.php:7062",
-                "includes/pages/vocab-lesson-pages.php:7065",
+                "includes/pages/vocab-lesson-pages.php:4891",
+                "includes/pages/vocab-lesson-pages.php:5103",
+                "includes/pages/vocab-lesson-pages.php:5249",
+                "includes/pages/vocab-lesson-pages.php:6782",
+                "includes/pages/vocab-lesson-pages.php:7108",
+                "includes/pages/vocab-lesson-pages.php:7117",
+                "includes/pages/vocab-lesson-pages.php:7120",
+                "includes/pages/vocab-lesson-pages.php:7123",
                 "includes/taxonomies/word-category-taxonomy.php:2379",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
@@ -10904,10 +10904,10 @@
             "msgid": "Unable to load this lesson right now.",
             "msgid_plural": null,
             "references": [
-                "includes/pages/vocab-lesson-pages.php:6469",
-                "includes/pages/vocab-lesson-pages.php:6522",
-                "includes/pages/vocab-lesson-pages.php:6555",
-                "includes/pages/vocab-lesson-pages.php:6824",
+                "includes/pages/vocab-lesson-pages.php:6526",
+                "includes/pages/vocab-lesson-pages.php:6579",
+                "includes/pages/vocab-lesson-pages.php:6612",
+                "includes/pages/vocab-lesson-pages.php:6881",
                 "templates/vocab-lesson-template.php:395"
             ],
             "public_references": [
@@ -10920,7 +10920,7 @@
             "msgid": "Star all",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/word-grid-shortcode.php:3974",
+                "includes/shortcodes/word-grid-shortcode.php:3978",
                 "templates/vocab-lesson-template.php:544"
             ],
             "public_references": [

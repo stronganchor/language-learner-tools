@@ -4583,6 +4583,41 @@
         $row.addClass('is-edit-trigger-visible');
     }
 
+    function openDeferredWordEditor($item, recordingId, $trigger) {
+        if (!$item || !$item.length) {
+            return false;
+        }
+
+        const opener = window.LLToolsWordEditModal && window.LLToolsWordEditModal.open;
+        if (typeof opener !== 'function') {
+            return false;
+        }
+
+        const wordId = parseInt($item.attr('data-word-id'), 10) || 0;
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+        const categoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
+        if (!wordId || !wordsetId) {
+            return false;
+        }
+
+        const $button = ($trigger && $trigger.length) ? $trigger : $();
+        $button.prop('disabled', true);
+        setWordSaveStatus($item, '', '');
+        Promise.resolve(opener({
+            wordId: wordId,
+            wordsetId: wordsetId,
+            categoryId: categoryId,
+            recordingId: parseInt(recordingId, 10) || 0
+        })).catch(function (error) {
+            const message = error && error.message ? error.message : editMessages.error;
+            setWordSaveStatus($item, message, 'error');
+        }).finally(function () {
+            $button.prop('disabled', false);
+        });
+        return true;
+    }
+
     function openRecordingEditor($item, recordingId) {
         if (!$item || !$item.length || $item.hasClass('ll-word-save-pending')) {
             return;
@@ -4595,6 +4630,9 @@
 
         const $recording = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]').first();
         if (!$recording.length) {
+            if ($item.closest('[data-ll-word-edit-deferred-grid]').length) {
+                openDeferredWordEditor($item, recId);
+            }
             return;
         }
 
@@ -6857,6 +6895,7 @@
                         '[data-ll-word-edit-panel]',
                         '[data-ll-word-edit-backdrop]',
                         '[data-ll-word-edit-toggle]',
+                        '[data-ll-word-edit-deferred]',
                         '[data-ll-recording-edit-trigger]'
                     ].join(','),
                     start: function (event, ui) {
@@ -8470,6 +8509,63 @@
                 flushBulkControlQueue($wrap);
             });
         }
+
+        $grids.on('click', '[data-ll-word-edit-deferred]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $button = $(this);
+            const $item = $button.closest('.word-item');
+            if (!openDeferredWordEditor($item, 0, $button)) {
+                setWordSaveStatus($item, editMessages.error, 'error');
+            }
+        });
+
+        $(document)
+            .off('lltools:word-grid-word-updated.llDeferredLessonCards')
+            .on('lltools:word-grid-word-updated.llDeferredLessonCards', function (_event, detail) {
+                const payload = detail && typeof detail === 'object' ? detail : {};
+                const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+                const wordId = parseInt(payload.wordId || payload.word_id || data.word_id, 10) || 0;
+                if (!wordId) {
+                    return;
+                }
+
+                $('[data-ll-word-edit-deferred-grid] .word-item[data-word-id="' + wordId + '"]').each(function () {
+                    const $item = $(this);
+                    if (payload.item && payload.item === $item.get(0)) {
+                        return;
+                    }
+                    if (typeof data.word_text === 'string') {
+                        $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
+                    }
+                    if (typeof data.word_translation === 'string') {
+                        $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
+                    }
+                    if (typeof data.word_note === 'string') {
+                        setWordNote($item, data.word_note);
+                    }
+                    if (data.image && typeof data.image === 'object') {
+                        applyWordImageData($item, data.image);
+                    }
+                    if (Array.isArray(data.recordings)) {
+                        applyRecordingCaptions($item, data.recordings);
+                    }
+                    if (data.part_of_speech || data.grammatical_gender || data.grammatical_plurality || data.verb_tense || data.verb_mood) {
+                        applyPosMetaUpdate(
+                            $item,
+                            data.part_of_speech || {},
+                            data.grammatical_gender || {},
+                            data.grammatical_plurality || {},
+                            data.verb_tense || {},
+                            data.verb_mood || {}
+                        );
+                    }
+                    if (data.lesson_visible === false) {
+                        $item.remove();
+                    }
+                });
+                updateGridLayouts();
+            });
 
         $grids.on('click', '[data-ll-word-edit-toggle]', function (e) {
             e.preventDefault();

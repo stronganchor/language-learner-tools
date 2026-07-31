@@ -201,6 +201,64 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
   await expect(page.locator('[data-ll-bulk-gender]')).toHaveValue('feminine');
 });
 
+test('staff lesson cards load the detached editor only after an edit action', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div
+      class="word-grid ll-word-grid"
+      data-ll-word-grid
+      data-ll-word-edit-deferred-grid="1"
+      data-ll-wordset-id="17"
+      data-ll-category-id="29"
+    >
+      <article class="word-item" data-word-id="41">
+        <button type="button" data-ll-word-edit-deferred>Edit word</button>
+        <div class="ll-word-recording-row ll-word-recording-row--editable" data-recording-id="73">
+          <button type="button" data-ll-recording-edit-trigger data-recording-id="73">Edit recording</button>
+        </div>
+        <div data-ll-word-save-status></div>
+      </article>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsWordGridData = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      nonce: '',
+      editNonce: 'edit-nonce',
+      isLoggedIn: true,
+      canEdit: true,
+      state: {}
+    };
+    window.__llDetachedEditorCalls = [];
+    window.LLToolsWordEditModal = {
+      open(options) {
+        window.__llDetachedEditorCalls.push(options);
+        return Promise.resolve({ wordId: options.wordId });
+      }
+    };
+  });
+  await page.addScriptTag({ content: wordGridScriptSource });
+
+  await page.locator('[data-ll-word-edit-deferred]').click();
+  await expect.poll(() => page.evaluate(() => window.__llDetachedEditorCalls.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llDetachedEditorCalls[0])).toMatchObject({
+    wordId: 41,
+    wordsetId: 17,
+    categoryId: 29,
+    recordingId: 0
+  });
+
+  await page.locator('[data-ll-recording-edit-trigger]').click();
+  await expect.poll(() => page.evaluate(() => window.__llDetachedEditorCalls.length)).toBe(2);
+  expect(await page.evaluate(() => window.__llDetachedEditorCalls[1])).toMatchObject({
+    wordId: 41,
+    wordsetId: 17,
+    categoryId: 29,
+    recordingId: 73
+  });
+});
+
 test('large deferred lesson prepares and appends bounded pages serially', async ({ page }) => {
   await page.goto('about:blank');
   const pagedMarkup = buildDeferredLessonMarkup()

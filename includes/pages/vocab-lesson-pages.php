@@ -4492,6 +4492,63 @@ function ll_tools_enqueue_vocab_lesson_word_options_modal_assets(): void {
 }
 add_action('wp_enqueue_scripts', 'll_tools_enqueue_vocab_lesson_word_options_modal_assets', 130);
 
+function ll_tools_enqueue_vocab_lesson_deferred_word_editor_assets(): void {
+    if (
+        !is_singular('ll_vocab_lesson')
+        || !is_user_logged_in()
+        || !function_exists('ll_tools_word_edit_modal_enqueue_assets')
+    ) {
+        return;
+    }
+
+    $lesson_id = (int) get_queried_object_id();
+    $wordset_id = $lesson_id > 0
+        ? (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true)
+        : 0;
+    if (
+        $wordset_id <= 0
+        || !current_user_can('view_ll_tools')
+        || !function_exists('ll_tools_user_can_edit_vocab_words')
+        || !ll_tools_user_can_edit_vocab_words($wordset_id)
+    ) {
+        return;
+    }
+
+    // The lesson already enqueues the word-grid runtime with lesson-specific
+    // configuration. Only add the detached editor shell and loader here.
+    ll_tools_word_edit_modal_enqueue_assets($wordset_id, [], false);
+}
+add_action('wp_enqueue_scripts', 'll_tools_enqueue_vocab_lesson_deferred_word_editor_assets', 131);
+
+function ll_tools_print_vocab_lesson_deferred_word_editor_host(): void {
+    static $printed = false;
+    if (
+        $printed
+        || !is_singular('ll_vocab_lesson')
+        || !is_user_logged_in()
+        || !function_exists('ll_tools_word_edit_modal_host_html')
+    ) {
+        return;
+    }
+
+    $lesson_id = (int) get_queried_object_id();
+    $wordset_id = $lesson_id > 0
+        ? (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true)
+        : 0;
+    if (
+        $wordset_id <= 0
+        || !current_user_can('view_ll_tools')
+        || !function_exists('ll_tools_user_can_edit_vocab_words')
+        || !ll_tools_user_can_edit_vocab_words($wordset_id)
+    ) {
+        return;
+    }
+
+    $printed = true;
+    echo ll_tools_word_edit_modal_host_html($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+}
+add_action('wp_footer', 'll_tools_print_vocab_lesson_deferred_word_editor_host', 4);
+
 function ll_tools_vocab_lesson_bootstrap_flashcards() {
     static $bootstrapped = false;
     if (!is_singular('ll_vocab_lesson')) {
@@ -6343,7 +6400,7 @@ function ll_tools_vocab_lesson_grid_order_cache_key(
     }
 
     return 'll_vl_grid_order_' . md5(
-        'schema-2|' . $viewer_scope . '|' . ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id)
+        'schema-3|' . $viewer_scope . '|' . ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id)
     );
 }
 
@@ -7000,6 +7057,7 @@ function ll_tools_vocab_lesson_grid_paged_response(
                 'deepest_only' => true,
                 'lesson_id' => $lesson_id,
                 'word_ids' => implode(',', $page_word_ids),
+                'defer_edit_panels' => $can_edit_words ? '1' : '',
             ]);
         } finally {
             unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
@@ -7176,6 +7234,10 @@ function ll_tools_get_vocab_lesson_grid_handler() {
                     'wordset' => (string) $wordset->slug,
                     'deepest_only' => true,
                     'lesson_id' => $lesson_id,
+                    'defer_edit_panels' => (
+                        function_exists('ll_tools_user_can_edit_vocab_words')
+                        && ll_tools_user_can_edit_vocab_words($wordset_id)
+                    ) ? '1' : '',
                 ]);
             } finally {
                 unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);

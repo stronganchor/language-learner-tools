@@ -2048,6 +2048,10 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Paged Staff Draft 01', $all_html);
         $this->assertStringContainsString('Paged Staff Draft 02', $all_html);
         $this->assertSame(2, substr_count($all_html, 'll-word-item--draft'));
+        $this->assertStringContainsString('data-ll-word-edit-deferred', $all_html);
+        $this->assertStringContainsString('data-ll-word-edit-deferred-grid="1"', $all_html);
+        $this->assertStringNotContainsString('data-ll-word-edit-panel', $all_html);
+        $this->assertStringNotContainsString('data-ll-word-category-list', $all_html);
 
         $this->assertNotEmpty($word_query_sizes);
         foreach ($word_query_sizes as $posts_per_page) {
