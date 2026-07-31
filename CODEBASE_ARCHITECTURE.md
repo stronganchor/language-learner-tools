@@ -88,7 +88,8 @@ read_first:
   - Registers the generated `ll_quiz_page` CPT and creates one `/quiz/<category>` record per `word-category` (meta `_ll_tools_word_category_id`).
   - Migrates legacy generated WP Page children into the CPT, keeps legacy records discoverable during migration, and hides any remaining generated Page records from the normal Pages admin list.
   - Syncs on category/content changes; daily and on file mtime change; manual cleanup in admin.
-  - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`.
+  - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`; popup and iframe fallbacks keep dialog semantics, focus containment/restoration, translated loading/failure/timeout states, and retry/direct-open recovery.
+  - The quiz/game viewport zoom guard is an intentional mobile child-UX policy: accidental pinch/double-tap zoom during quizzes is prevented because young learners commonly cannot recover the layout. Preserve it unless product requirements explicitly change; accessibility work should improve semantics, keyboard/focus behavior, reduced motion, and recovery without silently removing this guard.
 - `includes/pages/embed-page.php`
   - Minimal page for iframes; noindex; uses `[flashcard_widget]`.
   - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
@@ -113,6 +114,7 @@ read_first:
   - Provides atomic fixed-window counters, expiring per-client leases, exact-owner release, and bounded cache-wait polling for anonymous cache-miss admission.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
+  - Missing local files may use only validated public HTTP(S) fallback URLs. Remote bytes stream into a size-bounded temporary file, must validate as an allowed raster image, and publish through an exact-owner per-key lease into the uploads cache. Fresh disk hits avoid origin work; contention waits briefly for the owner, then serves validated stale data no older than 14 days or redirects to the safe origin. Origin failures back off for five minutes. Each attachment/size bucket keeps at most four cached images and 32 MB by default, attachment deletion removes all deterministic shards for that attachment, and daily maintenance advances through the 65,536 attachment/size shards in bounded one-minute continuations with native seeks capped at 1,024 entries. Open cache handles protect Windows readers across atomic replacement, and fallback response cache headers never outlive the server freshness TTL.
 
 # Direct bootstrap include index
 
@@ -393,17 +395,29 @@ js/
   wordset-games.js
   wordset-settings-media.js
   vocab-lesson-page.js
+  vocab-lesson-print-page.js
+  vocab-lesson-word-options-modal.js
   content-lesson-player.js
+  content-lesson-progress.js
   content-lesson-admin.js
+  text-document.js
+  text-document-review-notes.js
   word-audio.js
+  word-grid.js
+  word-edit-modal.js
   manage-wordsets.js
   bulk-category-edit.js
   dictionary-shortcode.js
   editor-hub.js
   export-import-admin.js
+  language-switcher.js
   login-window.js
   frontend-utility-menu.js
   public-viewport-guard.js
+  self-check-shared.js
+  site-tools.js
+  wordset-buttons-refresh.js
+  wordset-offline-export.js
 css/
   language-learner-tools.css
   quiz-pages.css
@@ -411,6 +425,21 @@ css/
   recording-interface.css
   audio-processor.css
   audio-image-matcher.css
+  content-lesson-admin.css
+  content-lesson-index.css
+  content-lesson-pages.css
+  dictionary-shortcode.css
+  frontend-utility-menu.css
+  language-switcher.css
+  ranked-word-list.css
+  self-check-shared.css
+  site-tools.css
+  vocab-lesson-admin.css
+  vocab-lesson-pages.css
+  vocab-lesson-word-options-modal.css
+  wordset-games.css
+  wordset-offline-export.css
+  wordset-pages.css
   flashcard/
     base.css
     mode-practice.css
@@ -682,6 +711,7 @@ wordset can opt into it.
 - Audio Processor: `includes/admin/audio-processor-admin.php` + `js/audio-processor.js`.
   - Queue, duplicate, and reprocess tabs load 40 rows by default through a nonce/capability-guarded AJAX page, hard-clamped to 25-50 rows. Normal continuation uses a user/tab-bound HMAC cursor over `(post_date|post_modified, ID)` and returns the next `ll_ap_cursor`. Direct cursorless legacy links may use SQL `OFFSET` only through the filterable 5,000-row compatibility ceiling (50,000 hard maximum); deeper or invalid-cursor requests rebase to page one, while a valid signed cursor keeps keyset continuation beyond that ceiling. Keep selection page-local, preserve return tab/page after processing or splitting, and show loading/error/retry/empty states without hydrating the remaining queue.
 - Audio Image Matcher: `includes/admin/audio-image-matcher.php`, `templates/audio-image-matcher-template.php`, `js/audio-image-matcher.js`.
+  - Candidate images are paged (48 by default, 96 hard maximum), requests and mutations remain serialized, read failures expose loading/error/timeout/retry state, and assignment POSTs stay visibly saving until their authoritative response rather than timing out into an ambiguous duplicate write. Image choices are native buttons with keyboard/focus restoration; global used counts deduplicate canonical and legacy links and are refreshed for both sides of a rematch.
 - Missing Audio report: `includes/admin/missing-audio-admin-page.php`.
 - Recording Types admin: `includes/admin/recording-types-admin.php`.
 - Bulk Translations: `includes/admin/bulk-translation-admin.php` (DeepL + dictionary fallback).
@@ -754,13 +784,13 @@ wordset can opt into it.
 - Missing or invalid normal-page recommendation queues hydrate category payloads from the materialized wordset category-ID scope in a 12-category window, hard-capped at 24, rotated from the last logical recommendation anchor. A usable existing queue skips that work; incomplete scope, goals, order, or category-build reads must not write a replacement queue.
 - Every isolation-migration batch must defer category-generated-page maintenance, discard only the IDs it queued, and preserve any enclosing deferral scope exactly. Only after the completed checkpoint is durably readable may finalization CAS-persist a new migration-owned generated-page reconciliation generation. Its locked coordinator pre-arms retry transport, waits for pre-existing workers, tags complete cursor-zero bounded quiz/vocab passes, repairs stranded child events after locks clear, and retains intent until both exact passes complete. Completion never clears the shared untagged pre-armed event, which may safely no-op or transport a concurrent newer generation; `admin_init` may restore missing transport while intent remains. Never replay immediate whole-wordset vocab counts from the migration loop.
 - Wordset main-page category search reads from the durable `wp_ll_wordset_category_search` materialization and stays scoped to allowed categories. Schema v3 keys rows by a durable build generation; expired-lease takeover atomically rotates that generation, readers expose only the completed published generation, and old generations are removed in bounded chunks, so a stalled stale write can never clobber visible replacement rows. Builders advance with an ID keyset in bounded batches, cap source text before PHP hydration, chunk relationship reads and byte/row-limited inserts, renew an exact-owner lease before writes, back off transient failures, stop deterministic failure loops, and publish completion only for the same dependency signature and generation. Queries chunk category/image/detail hydration, preserve locale-independent diacritic matching and deepest-category assignment, and return a retryable preparation state until the generation is complete; the frontend must retain loading/error state and an explicit Retry control rather than treating preparation failure as no matches. Deleting a wordset removes its rows, state, lease, and scheduled event. Staff-only pending-transcription search remains a separate lookup requiring at least three characters: it first selects capped published word IDs in the wordset, then capped published `word_audio` IDs, and only then performs the unindexed text comparison. It may identify matching word/category cards but must not expose transcription text or enter anonymous shared caches.
-- Anonymous flashcard and dictionary cache misses use the atomic counters and expiring client leases in `includes/lib/public-ajax-resource-guards.php`; do not replace them with transient get/increment/set admission. Flashcards preserve the 1,000-ID session compatibility ceiling but bound raw candidate parsing, charge candidate scopes in 100-ID units, admit at most two uncached builders per client, and serialize public multi-category frontend hydration while retaining the popup loading state across bounded warming retries. Dictionary live search takes its same-query build lock before charging the client budget, briefly waits for the winning cache builder, admits at most two distinct cold builders per client, and returns a retryable warming payload while retaining the loading state. Cache hits bypass these miss guards.
+- Anonymous flashcard and dictionary cache misses use the atomic counters and expiring client leases in `includes/lib/public-ajax-resource-guards.php`; do not replace them with transient get/increment/set admission. Flashcards preserve the 1,000-ID session compatibility ceiling but bound raw candidate parsing, charge candidate scopes in 100-ID units, admit at most two uncached builders per client, and serialize public multi-category frontend hydration while retaining the popup loading state across bounded warming retries. Dictionary live search takes its same-query build lock before charging the client budget, briefly waits for the winning cache builder, admits at most two distinct cold builders per client, and returns a retryable warming payload while retaining the loading state. Before any public dictionary query argument is unslashed, normalized, cached, admitted, recursively traversed, or expanded into SQL, `q`, scope, page, canonical/legacy letter, POS, source, dialect, and entry input must pass hard-clamped raw-byte, value-byte, cardinality, and shape limits. Only scope/POS/source accept bounded multi-values; scalar arrays are rejected. AJAX rejects invalid arguments and ordinary GET/static-cache normalization drops them to safe defaults. Cache hits bypass the cold-build guards.
 - Full-category flashcard reads use `ll_get_flashcard_payload_page` and `wp_ll_flashcard_payload_rows`; do not restore a no-candidate `ll_get_words_by_category` whole-category build. Preserve the canonical scope, schema readback, exact-owner leases, generation/signature fences, byte-bounded persistence, signed keyset cursor, locale switch/restore, at-rest speaker redaction, response-only progress overlay, and bounded stale-scope cleanup as one protocol.
 - Cacheable anonymous dictionary URLs are deterministic by site-default locale. Browser/cookie-negotiated non-default dictionary traffic must bypass edge caching with no-store headers instead of varying `/sozluk/` by `Accept-Language` or `Cookie`.
 - Public dictionary requests should canonicalize noisy browse state early, including dictionary front pages that are excluded from static HTML caching: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, internal navigation/auth args such as `ll_wordset_back` and `ll_tools_auth` are stripped from public URLs, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
 - Public dictionary result cards must batch linked-word counts for the bounded visible entry IDs; keep full linked-word previews separate and capped rather than adding per-entry count queries to page hydration.
 - Custom STT endpoints must stay wordset-scoped and validate both saved and request-time URLs against private/reserved hosts or resolved private IP ranges before proxying. Hosted audio reads are bounded before and during file access: the default limit is 10 MiB, the filterable hard ceiling is 25 MiB, and an oversized body returns `stt_audio_too_large` with HTTP 413. Remote response bodies use WordPress HTTP `limit_response_size`, default to 256 KiB, and hard-cap at 1 MiB; cap-reaching, content-length-oversized, truncated, or invalid-JSON responses fail closed. The bounded legacy plain-text response remains opt-in only through `ll_tools_remote_stt_allow_plain_text_response`.
-- Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
+- Automation REST write endpoints must keep server-side throttles/caps, serialized resource guards for expensive writes, and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site. The legacy raw-account-password Basic compatibility path bounds header/username/password bytes before Base64 decoding or hashing, then reserves a coarse canonical direct-peer allowance and a peer-plus-normalized-login allowance, so oversized input and rotating usernames cannot bypass admission. Successful authentication refunds both reservations; failures remain generic, and exhaustion emits HTTP 429 with `Retry-After`. Cookie and application-password authentication remain preferred and must not be downgraded into that compatibility path.
 - REST word-row discovery must page IDs before row hydration. `missing-meta` uses bounded candidate offsets, broad bulk updates persist `scan_after_id` in resume state, and `/report` returns page-scoped counts while the CLI remains the explicit full-report surface. `/report-summary` calculates coverage with aggregate SQL rather than materializing the wordset. Review-note reads default to 100 and cap at 250 rows with deterministic title-plus-ID ordering and continuation metadata. Interlinear list reads default to 50 and cap at 100 rows across both supported post types with one global offset; list responses omit heavy payloads by default, while a specific-lesson read includes its payload unless explicitly disabled. Both list families accept legacy offsets only through the filterable 5,000-row compatibility ceiling (10,000 hard maximum), return HTTP 400 above it, and expose `max_offset` plus `offset_limit_reached` when a caller must narrow its filters.
 - Site Sync snapshots are always bounded: omitted, zero, or negative `per_page` values use the 100-row default, positive values are capped at 250, and every response carries continuation metadata. Transcription pages select recording IDs directly through the wordset relationship, and metadata pages hydrate only the requested word page. The Site Sync admin may assemble a complete comparison only by iterating those bounded pages; do not restore an unpaged REST or database-hydration path.
 - User-study bootstrap and HTTP responses defer word rows by default. The compatibility word-fetch endpoint requires explicit candidate IDs (maximum 200) across at most three categories; raw scalar/array inputs must be truncated before parsing. Analytics word hydration separately defaults to and hard-caps at 250 rows when words are requested; a missing or zero limit is not an unbounded opt-in. Progress reset discovery advances in 500-ID pages (hard maximum 1,000) and deletes stored progress in 300-ID chunks. Preserve these bounds when adding reset or analytics callers.
@@ -770,6 +800,7 @@ wordset can opt into it.
 - Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime. Offline authentication sessions live in an InnoDB table as one indexed row per `(user_id, session_key)` in `wp_ll_tools_offline_sessions`, with hashed secrets, exact column/index/prefix validation, expiry/activity indexes, transactional eight-session eviction, and bounded cleanup. Authentication touch and revocation are fenced by the exact secret hash so a replacement token cannot be accepted or deleted; logout authenticates without extending expiry. Legacy serialized user-meta sessions are imported lazily and their exact raw snapshot is CAS-deleted only after exact row/hash readback succeeds; legacy exact-key revocation also uses bounded CAS retries and preserves concurrent or hash-replaced sessions. A concurrent old-code writer, failed import, or conflict must retain source data and fail closed. The eight-session allowance supports independent devices/browser profiles, not eight progress branches; progress events still merge through the existing sync protocol.
 - Offline bundle preparation must reject a compressed input larger than 2 GiB before constructing `AdmZip` or replacing the prepared workspace; code-level overrides remain hard-capped at 4 GiB. Keep the existing entry-count, per-entry, total-uncompressed, traversal, and symlink validation before extraction.
 - Deferred normal vocab lessons use a category-targeted cached count, render up to six bounded content-aware shell cards, and add lightweight image-sized shimmer cards up to a 60-card initial DOM ceiling. The cold count keeps specific wrong-answer candidate discovery scoped to the lesson category. If the exact expected category count is larger, one `+N` remainder card communicates the rest without creating unbounded nodes or hydrating additional words, recordings, or media. Large standard learner grids must continue through the serial order-materialization and signed page-cursor path; do not restore one full HTML response or an unbounded all-word/media probe. The text-answer media decision compares targeted all-word and image-backed aggregates so every page uses one category-wide presentation. Prompt-card lessons keep their separate bounded three-card shell.
+- Staff inactive-category preview preparation advances word-image conversion in bounded ID-keyset batches (10 by default, 25 hard maximum per continuation) behind an exact-owner renewable lease. The cursor advances only after complete success or an idempotently terminal disappearance; retryable failures stay on the same image. JavaScript continues one serial batch while exposing polite progress; no-JavaScript requests persist the cursor and can be resumed. Do not restore the former all-image query/mutation loop. The published lesson-category map remains a complete semantic map: cold rebuilds are single-owner, a complete seven-day last-known-good payload returns immediately under contention, and a truly cold contended build fails closed instead of starting a duplicate scan. The winning cold builder still enumerates all published lessons; replace that proportional pass with durable materialization only if production measurements justify the added state machinery.
 - The offline export admin page must lazy-load category options for the selected wordset through its guarded AJAX endpoint; do not rebuild an inline all-wordset category map during initial render.
 - Offline STT accepts at most 15 seconds of 16 kHz mono inference audio. Keep browser blob/duration checks and the Android PCM byte, Java sample, and JNI sample ceilings aligned; the native boundary remains authoritative.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.

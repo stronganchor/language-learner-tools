@@ -63,11 +63,14 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         ll_qp_enqueue_assets();
 
         $this->assertTrue(wp_script_is('ll-quiz-pages-js', 'enqueued'));
+        $this->assertTrue(wp_style_is('ll-quiz-pages-css', 'enqueued'));
 
         $localized = wp_scripts()->get_data('ll-quiz-pages-js', 'data');
         $this->assertIsString($localized);
         $this->assertStringContainsString('llQuizPages', $localized);
         $this->assertStringContainsString('closeConfirm', $localized);
+        $this->assertStringContainsString('loadTimeoutLabel', $localized);
+        $this->assertStringContainsString('openDirectLabel', $localized);
     }
 
     public function test_quiz_pages_script_localizes_turkish_close_label(): void

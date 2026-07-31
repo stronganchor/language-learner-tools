@@ -1,15 +1,13 @@
 # Maintenance Backlog
 
-Updated July 24, 2026 after the weekly maintenance/performance audit and
-autonomous follow-up pass. Recent closed passes include the June 19 public flashcard AJAX
-cache-stampede and WebP optimizer queue resource guards, the June 26 flat
-category regression alignment, dictionary detail linked-word cap, AI crawler
-export cache/cheap HEAD guard, testing-doc inventory refresh, Playwright
-flake-tracking closeout, and the July 3 audio credit grid, vocab lesson grid,
-image copyright grid public-surface guards, plus the July 10 Turkish i18n,
-testing-doc drift cleanup, dictionary toolbar AJAX cold-miss guard, and
-transcription-validation candidate query cap, plus the REST category-scope
-query guard.
+Updated July 31, 2026 after the weekly maintenance/performance audit and
+autonomous follow-up pass. The July 31 work preserved the intentional mobile
+quiz/game zoom guard while closing dual-scope raw-password REST admission,
+bounded public dictionary input, resumable inactive-preview preparation,
+single-owner lesson-map rebuilding with last-known-good service, masked-media
+fallback cache protection, recoverable accessible quiz dialogs, matcher
+loading/retry/keyboard UX, localization guards, and focused local browser
+coverage.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -17,13 +15,55 @@ being folded into a small opportunistic fix.
 ## Current Short List
 
 The active maintenance list is now narrowed to changes that need product,
-compatibility, storage, or human-language judgment. The July 24 autonomous pass
+compatibility, storage, or human-language judgment. The July 31 autonomous pass
 closed the safe resource-guard, bounded-query, loading-state, localization, and
-regression work. Keep new performance work
-evidence-led and scoped to a measured growth dimension.
+regression work. Remaining work is native review of machine-assisted German
+and residual Turkish admin/formal copy, compatibility review before removing
+externally callable helpers, and a durable lesson-map materializer only if
+production measurements justify replacing the winning cold full scan. Keep
+new performance work evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
 
+- July 31 security and resource protection:
+  raw Basic compatibility auth now reserves both a coarse direct-peer allowance
+  and a peer/login allowance before password hashing, refunds both on success,
+  and cannot be bypassed by rotating usernames. Every public dictionary query
+  argument is shape/byte/cardinality bounded before normalization or recursive
+  cache-key traversal. The masked-media fallback adds bounded contention wait,
+  safe-origin redirect, a 14-day stale ceiling, five-minute failure backoff,
+  four-file/32-MB bucket caps, attachment-shard deletion cleanup, and daily
+  bounded cursor maintenance with one-minute continuations. Browser/CDN cache
+  lifetimes now decay with the file's remaining server freshness, and the
+  65,536-shard sweep stops at its final shard instead of wrapping into another
+  continuation cycle.
+- July 31 quiz and matcher recovery:
+  shared and standalone quiz dialogs now provide dialog semantics, focus
+  containment/restoration, background isolation, translated loading, timeout,
+  error, retry, and direct-open recovery, plus reduced-motion behavior. The
+  existing mobile quiz/game zoom suppression remains intentional. Audio/Image
+  Matcher requests and mutations are serialized; image/audio reads expose
+  retry and abort on timeout, while assignments remain visibly saving until
+  their authoritative response prevents ambiguous duplicate writes. Image
+  choices are accessible native keyboard buttons, and rematches refresh
+  deduplicated global used counts for both the old and new image. Candidate
+  images remain paged at 48 by default with a 96-item hard maximum.
+- July 31 preview, lesson-map, and browser coverage:
+  inactive previews advance 10 items by default and at most 25 per continuation,
+  retry a failed item without advancing its cursor, renew exact-owner leases,
+  and expose serial progress. Lesson-map contenders immediately receive a
+  complete last-known-good map instead of duplicating or waiting behind the
+  full rebuild. Real WordPress browser coverage now exercises content-index
+  pagination/accessibility, ranked numeric ordering/translations/pagination,
+  and retained-source permanent redirects.
+- July 31 localization and test inventory:
+  German and Turkish are enforced as configured full-catalog locales, Turkish
+  learner terminology and high-confidence informal public copy have regression
+  guards, and a no-install discovery lists 479 Playwright tests in 97 spec
+  files. The refreshed POT contains 5,994 messages, the public manifest
+  contains 792 current strings, Turkish and German pass the complete-catalog
+  gate at 5,994/5,994, and all eight active tier-2 locales pass the public
+  manifest gate at 792/792 with current compiled catalogs.
 - July 24 durable flashcard payload materialization:
   no-candidate category loads now advance a generation-fenced SQL materializer
   in bounded primary-word, image, and prompt-card batches, then read immutable
@@ -322,21 +362,22 @@ evidence-led and scoped to a measured growth dimension.
   with 313 passed and 1 skipped. Later follow-ups expanded the suite; the June
   26 documentation refresh listed 363 tests in 81 files, and the July 10 weekly
   audit listed 368 tests in 81 files. The July 17 discovery listed 436 tests in
-  95 files, and a fresh local discovery on July 24, 2026 lists 453 tests in 95
-  spec files. These are dated discovery snapshots, not a
+  95 files, a July 24 discovery listed 453 tests in 95 files, and a July 31,
+  2026 no-install discovery lists 479 tests in 97 spec files. These are dated
+  discovery snapshots, not a
   fixed suite contract. No hung spec was isolated. Treat the unsharded local
   E2E command as a long serial suite in automation; use `--list`, shards, and a
   timeout of at least 35 minutes before declaring a runner hang.
 - June 10 wordset category search indexing follow-up: the main wordset render
   path localizes a tokenized `categorySearch` config instead of the full
-  per-category word-search text. As of July 24, the first word/translation
+  per-category word-search text. As of July 31, the first word/translation
   search request reads a durable bounded materialization rather than building
   the whole search index on a public request; preparation remains retryable and
   preserves hidden-selection cleanup, empty-state behavior, clear-button
   behavior, lazy-card hydration, and diacritic-insensitive matching.
 
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
-   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, a WordPress-backed real route with uploaded WAV playback/cue seeking/related-vocab behavior, and corpus collection/reader/source variants. Extend this coverage when the payload or media contract changes rather than retaining the former media/corpus gap.
+   - Content lessons in the mixed lesson grid now have PHP ordering coverage plus focused browser coverage for rendered order, content-card search, category-only selection behavior, a WordPress-backed real route with uploaded WAV playback/cue seeking/related-vocab behavior, corpus collection/reader/source variants, public content-index pagination/accessibility, ranked numeric ordering/translations/pagination, and retained-shadow permanent redirects. Extend this coverage when the payload or media contract changes rather than retaining the former media/corpus gap.
    - Prompt-card recorder queue flows. Focused browser fixtures now cover prompt-card prompt-audio upload/advance behavior, a local WordPress-backed prompt-card queue item, and a limited-recorder real multipart prompt-audio upload with an inaccessible-card rejection check. Remaining prompt-card recorder gaps are real browser microphone permission permutations and future data-contract changes. Prompt-card quiz payload and lesson-grid shells also have focused browser coverage; keep extending those specs when the data contract changes.
    - Teacher class flows now have frontend Playwright coverage for a
      teacher-role user creating/deleting a class, signup invite registration,
@@ -511,7 +552,7 @@ evidence-led and scoped to a measured growth dimension.
    - Expand `[ll_language_switcher]` display modes for larger tier-2 language
      sets, including compact icon/button triggers and a dropdown or modal list.
 
-5. Formalize a generic bulk-operation job framework.
+4. Formalize a generic bulk-operation job framework.
    - Existing REST automation works well as a control plane for reports, dry
      runs, bounded writes, and import job polling, while WP-CLI works well for
      trusted server-side maintenance.
@@ -528,6 +569,6 @@ evidence-led and scoped to a measured growth dimension.
 
 ## Lower Priority
 
-1. Audio/Image Matcher scalability.
-   - Current categories are usually small, so pagination or lazy loading for the matcher is deferred.
-   - Relevant files: `includes/admin/audio-image-matcher.php`, `js/audio-image-matcher.js`.
+No additional low-priority code item is carried forward from this audit. Add
+new entries only when measured behavior or a concrete compatibility decision
+justifies them.

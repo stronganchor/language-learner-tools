@@ -84,6 +84,13 @@
 
     const Effects = {
         startConfetti(opts) {
+            try {
+                if (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    return;
+                }
+            } catch (_) {
+                // Fall through when the media-query API is unavailable.
+            }
             const settings = Object.assign({ particleCount: 6, angle: 60, spread: 55, origin: null, duration: 2000 }, opts || {});
             try {
                 const my = ensureInstance();

@@ -67,7 +67,8 @@ test('paged text-to-text learning popup renders prompt and answer introduction p
 
   const wordsResponsePromise = page.waitForResponse((response) => (
     response.url().includes('/wp-admin/admin-ajax.php')
-    && (response.request().postData() || '').includes('action=ll_get_words_by_category')
+    && response.status() === 200
+    && (response.request().postData() || '').includes('action=ll_get_flashcard_payload_page')
     && (response.request().postData() || '').includes(`wordset=${fixture.wordsetId}`)
     && (response.request().postData() || '').includes('prompt_type=text_translation')
     && (response.request().postData() || '').includes('option_type=text_title')
@@ -83,8 +84,8 @@ test('paged text-to-text learning popup renders prompt and answer introduction p
   expect(wordsResponse.ok()).toBe(true);
   const wordsPayload = await wordsResponse.json();
   expect(wordsPayload.success).toBe(true);
-  expect(Array.isArray(wordsPayload.data)).toBe(true);
-  expect(wordsPayload.data.length).toBeGreaterThanOrEqual(fixture.words.length);
+  const wordsRows = Array.isArray(wordsPayload.data?.rows) ? wordsPayload.data.rows : [];
+  expect(wordsRows.length).toBeGreaterThanOrEqual(fixture.words.length);
 
   const launchCategory = await page.evaluate((categoryName) => {
     const target = String(categoryName || '').trim().toLowerCase();

@@ -24,37 +24,14 @@ add_action('admin_menu', 'll_register_audio_image_matcher_admin_page');
 function ll_aim_enqueue_admin_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-image-matcher') return;
 
-    // Enqueue flashcard styles so we can reuse those classes
+    // Enqueue only the shared flashcard base used by the image cards.
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style', [], false);
-    ll_enqueue_asset_by_timestamp(
-        '/css/flashcard/mode-practice.css',
-        'll-tools-flashcard-mode-practice',
-        ['ll-tools-flashcard-style'],
-        false
-    );
-    ll_enqueue_asset_by_timestamp(
-        '/css/flashcard/mode-learning.css',
-        'll-tools-flashcard-mode-learning',
-        ['ll-tools-flashcard-style'],
-        false
-    );
-    ll_enqueue_asset_by_timestamp(
-        '/css/flashcard/mode-listening.css',
-        'll-tools-flashcard-mode-listening',
-        ['ll-tools-flashcard-style'],
-        false
-    );
 
     // Then our matcher-specific overrides
     ll_enqueue_asset_by_timestamp(
         '/css/audio-image-matcher.css',
         'll-aim-admin-css',
-        [
-            'll-tools-flashcard-style',
-            'll-tools-flashcard-mode-practice',
-            'll-tools-flashcard-mode-learning',
-            'll-tools-flashcard-mode-listening'
-        ],
+        ['ll-tools-flashcard-style'],
         false
     );
 
@@ -76,7 +53,9 @@ function ll_aim_enqueue_admin_assets($hook) {
         'initialWordsetId' => $active_wordset_id,
         'initialCategoryId' => isset($_GET['term_id']) ? intval($_GET['term_id']) : 0,
         'initialCategoryRows' => $initial_category_rows,
+        'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters('ll_aim_request_timeout_ms', 15000))),
         'i18n'    => [
+            'loadingCategories' => __('Loading categories…', 'll-tools-text-domain'),
             'loadingDefault' => __('Loading…', 'll-tools-text-domain'),
             'loadingImages' => __('Loading images…', 'll-tools-text-domain'),
             'loadingNextAudio' => __('Loading next audio…', 'll-tools-text-domain'),
@@ -90,7 +69,13 @@ function ll_aim_enqueue_admin_assets($hook) {
             'selectCategoryPrompt' => __('Please select a category.', 'll-tools-text-domain'),
             'loadMoreImages' => __('Load more', 'll-tools-text-domain'),
             'loadingMoreImages' => __('Loading more...', 'll-tools-text-domain'),
-            'imageLoadError' => __('Something went wrong', 'll-tools-text-domain'),
+            'imageLoadError' => __('Could not load images.', 'll-tools-text-domain'),
+            'nextLoadError' => __('Could not load the next audio.', 'll-tools-text-domain'),
+            'categoryLoadError' => __('Could not load categories.', 'll-tools-text-domain'),
+            'requestTimedOut' => __('The request timed out. Please try again.', 'll-tools-text-domain'),
+            'retryButton' => __('Retry', 'll-tools-text-domain'),
+            'imageChoiceLabel' => __('Choose image: %s', 'll-tools-text-domain'),
+            'alreadyPickedLabel' => __('Already picked', 'll-tools-text-domain'),
             'selectOption' => __('— Select —', 'll-tools-text-domain'),
         ],
     ]);
@@ -424,7 +409,6 @@ function ll_aim_get_images_handler() {
         'no_found_rows'  => true,
     ]);
 
-    $thumb_ids = [];
     $image_ids = [];
     $thumb_id_by_image_id = [];
     foreach ($images as $img_post) {
@@ -432,53 +416,46 @@ function ll_aim_get_images_handler() {
         $image_ids[$image_id] = true;
         $thumb_id = (int) get_post_thumbnail_id($img_post->ID);
         $thumb_id_by_image_id[$image_id] = $thumb_id;
-        if ($thumb_id > 0) {
-            $thumb_ids[$thumb_id] = true;
-        }
     }
 
-    $used_count_by_thumb_id = [];
     $used_count_by_image_id = [];
-    if (!empty($thumb_ids)) {
-        global $wpdb;
-        $thumb_id_list = array_keys($thumb_ids);
-        $placeholders = implode(', ', array_fill(0, count($thumb_id_list), '%d'));
-        $sql = "
-            SELECT CAST(pm.meta_value AS UNSIGNED) AS thumb_id, COUNT(*) AS used_count
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm
-                ON pm.post_id = p.ID
-               AND pm.meta_key = '_thumbnail_id'
-            WHERE p.post_type = 'words'
-              AND p.post_status = 'publish'
-              AND CAST(pm.meta_value AS UNSIGNED) IN ($placeholders)
-            GROUP BY CAST(pm.meta_value AS UNSIGNED)
-        ";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $thumb_id_list), ARRAY_A);
-        foreach ((array) $rows as $row) {
-            $thumb_id = (int) ($row['thumb_id'] ?? 0);
-            if ($thumb_id <= 0) {
-                continue;
-            }
-            $used_count_by_thumb_id[$thumb_id] = (int) ($row['used_count'] ?? 0);
-        }
-    }
     if (!empty($image_ids)) {
         global $wpdb;
         $image_id_list = array_keys($image_ids);
         $placeholders = implode(', ', array_fill(0, count($image_id_list), '%d'));
         $sql = "
-            SELECT CAST(pm.meta_value AS UNSIGNED) AS image_id, COUNT(*) AS used_count
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm
-                ON pm.post_id = p.ID
-               AND pm.meta_key = '_ll_autopicked_image_id'
-            WHERE p.post_type = 'words'
-              AND p.post_status = 'publish'
-              AND CAST(pm.meta_value AS UNSIGNED) IN ($placeholders)
-            GROUP BY CAST(pm.meta_value AS UNSIGNED)
+            SELECT usage_rows.image_id, COUNT(DISTINCT usage_rows.word_id) AS used_count
+            FROM (
+                SELECT image_thumb.post_id AS image_id, word_post.ID AS word_id
+                FROM {$wpdb->postmeta} image_thumb
+                INNER JOIN {$wpdb->postmeta} word_thumb
+                    ON word_thumb.meta_key = '_thumbnail_id'
+                   AND CAST(word_thumb.meta_value AS UNSIGNED) = CAST(image_thumb.meta_value AS UNSIGNED)
+                INNER JOIN {$wpdb->posts} word_post
+                    ON word_post.ID = word_thumb.post_id
+                   AND word_post.post_type = 'words'
+                   AND word_post.post_status = 'publish'
+                WHERE image_thumb.meta_key = '_thumbnail_id'
+                  AND image_thumb.post_id IN ($placeholders)
+                  AND CAST(image_thumb.meta_value AS UNSIGNED) > 0
+
+                UNION
+
+                SELECT CAST(linked_image.meta_value AS UNSIGNED) AS image_id, linked_word.ID AS word_id
+                FROM {$wpdb->posts} linked_word
+                INNER JOIN {$wpdb->postmeta} linked_image
+                    ON linked_image.post_id = linked_word.ID
+                   AND linked_image.meta_key = '_ll_autopicked_image_id'
+                WHERE linked_word.post_type = 'words'
+                  AND linked_word.post_status = 'publish'
+                  AND CAST(linked_image.meta_value AS UNSIGNED) IN ($placeholders)
+            ) usage_rows
+            GROUP BY usage_rows.image_id
         ";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $image_id_list), ARRAY_A);
+        $rows = $wpdb->get_results($wpdb->prepare(
+            $sql,
+            array_merge($image_id_list, $image_id_list)
+        ), ARRAY_A);
         foreach ((array) $rows as $row) {
             $image_id = (int) ($row['image_id'] ?? 0);
             if ($image_id <= 0) {
@@ -494,9 +471,9 @@ function ll_aim_get_images_handler() {
         $thumb_id = (int) ($thumb_id_by_image_id[$image_id] ?? 0);
         $thumb_url = $thumb_id ? wp_get_attachment_image_url($thumb_id, 'medium') : '';
 
-        // Always count actual published words using this image (ignore cached meta)
-        $used_count = $thumb_id ? (int) ($used_count_by_thumb_id[$thumb_id] ?? 0) : 0;
-        $used_count += (int) ($used_count_by_image_id[$image_id] ?? 0);
+        // Count unique published words, even when both canonical link and
+        // legacy featured-image metadata point at the same image.
+        $used_count = (int) ($used_count_by_image_id[$image_id] ?? 0);
 
         $out[] = [
             'id'         => $img_post->ID,
@@ -567,6 +544,7 @@ function ll_aim_get_next_handler() {
                 ? ll_tools_get_effective_word_image_data_for_word($pid, 'medium', true)
                 : [];
             $current_thumb = is_array($image_data) ? (string) ($image_data['url'] ?? '') : '';
+            $current_image_id = is_array($image_data) ? (int) ($image_data['word_image_id'] ?? 0) : 0;
             if ($current_thumb === '' && has_post_thumbnail($pid)) {
                 $current_thumb = (string) get_the_post_thumbnail_url($pid, 'medium');
             }
@@ -578,6 +556,7 @@ function ll_aim_get_next_handler() {
                 'audio_url'     => $audio_url,
                 'edit_link'     => get_edit_post_link($pid, 'raw'),
                 'current_thumb' => $has_image ? $current_thumb : '',
+                'current_image_id' => $has_image ? $current_image_id : 0,
             ];
             break;
         }

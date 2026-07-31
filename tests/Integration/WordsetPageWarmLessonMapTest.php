@@ -88,6 +88,184 @@ final class WordsetPageWarmLessonMapTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_published_lesson_map_serves_last_known_good_during_same_key_rebuild(): void
+    {
+        $wordset = wp_insert_term(
+            'Lesson map stale wordset ' . wp_generate_password(10, false, false),
+            'wordset'
+        );
+        $category = wp_insert_term(
+            'Lesson map stale category ' . wp_generate_password(10, false, false),
+            'word-category'
+        );
+        $this->assertNotWPError($wordset);
+        $this->assertNotWPError($category);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $category_id = (int) ($category['term_id'] ?? 0);
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, $wordset_id);
+
+        $lesson_id = wp_insert_post([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Lesson map stale fixture',
+            'meta_input' => [
+                LL_TOOLS_VOCAB_LESSON_WORDSET_META => (string) $wordset_id,
+                LL_TOOLS_VOCAB_LESSON_CATEGORY_META => (string) $category_id,
+            ],
+        ], true);
+        $this->assertIsInt($lesson_id);
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+
+        $initial = ll_tools_wordset_page_get_published_vocab_lesson_category_map($wordset_id);
+        $this->assertSame($lesson_id, (int) ($initial['map'][$category_id] ?? 0));
+
+        ll_tools_invalidate_wordset_page_lesson_cache();
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+        $cache_key = $this->currentPublishedLessonMapCacheKey($wordset_id);
+        $this->assertTrue(ll_tools_wordset_page_acquire_cache_rebuild_lock($cache_key, 30));
+        $waitFilterCalled = false;
+        $waitFilter = static function (int $waitMs) use (&$waitFilterCalled): int {
+            $waitFilterCalled = true;
+            return $waitMs;
+        };
+        add_filter('ll_tools_wordset_page_published_lesson_map_cache_build_wait_ms', $waitFilter);
+
+        try {
+            $stale = ll_tools_wordset_page_get_published_vocab_lesson_category_map($wordset_id);
+        } finally {
+            remove_filter('ll_tools_wordset_page_published_lesson_map_cache_build_wait_ms', $waitFilter);
+            ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
+        }
+
+        $this->assertFalse($waitFilterCalled, 'A last-known-good map should return without entering the contention wait.');
+        $this->assertTrue((bool) ($stale['complete'] ?? false));
+        $this->assertTrue((bool) ($stale['stale'] ?? false));
+        $this->assertSame($lesson_id, (int) ($stale['map'][$category_id] ?? 0));
+    }
+
+    public function test_published_lesson_map_fails_closed_when_cold_build_is_already_running(): void
+    {
+        $wordset = wp_insert_term(
+            'Lesson map cold contention ' . wp_generate_password(10, false, false),
+            'wordset'
+        );
+        $this->assertNotWPError($wordset);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $cache_key = $this->currentPublishedLessonMapCacheKey($wordset_id);
+        $this->assertTrue(ll_tools_wordset_page_acquire_cache_rebuild_lock($cache_key, 30));
+        $noWait = static fn (): int => 0;
+        add_filter('ll_tools_wordset_page_published_lesson_map_cache_build_wait_ms', $noWait);
+
+        try {
+            $result = ll_tools_wordset_page_get_published_vocab_lesson_category_map($wordset_id);
+        } finally {
+            remove_filter('ll_tools_wordset_page_published_lesson_map_cache_build_wait_ms', $noWait);
+            ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
+        }
+
+        $this->assertFalse((bool) ($result['complete'] ?? true));
+        $this->assertSame('building', (string) ($result['signature'] ?? ''));
+        $this->assertSame([], (array) ($result['map'] ?? []));
+    }
+
+    public function test_old_generation_cannot_overwrite_last_known_good_after_dependency_drift(): void
+    {
+        $wordset = wp_insert_term(
+            'Lesson map generation fence ' . wp_generate_password(10, false, false),
+            'wordset'
+        );
+        $category = wp_insert_term(
+            'Lesson map generation category ' . wp_generate_password(10, false, false),
+            'word-category'
+        );
+        $this->assertNotWPError($wordset);
+        $this->assertNotWPError($category);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $category_id = (int) ($category['term_id'] ?? 0);
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, $wordset_id);
+
+        $lesson_id = wp_insert_post([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Lesson map generation fixture',
+            'meta_input' => [
+                LL_TOOLS_VOCAB_LESSON_WORDSET_META => (string) $wordset_id,
+                LL_TOOLS_VOCAB_LESSON_CATEGORY_META => (string) $category_id,
+            ],
+        ], true);
+        $this->assertIsInt($lesson_id);
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+
+        $last_known_key = ll_tools_wordset_page_build_cache_key('published_lesson_map_lkg', [
+            'schema' => 1,
+            'wordset_id' => $wordset_id,
+        ]);
+        $sentinel = [
+            'map' => [$category_id => 987654],
+            'signature' => 'newer-generation',
+            'complete' => true,
+        ];
+        $request_cache = [];
+        ll_tools_wordset_page_store_cached_payload(
+            $last_known_key,
+            $sentinel,
+            HOUR_IN_SECONDS,
+            $request_cache
+        );
+
+        if (get_option('ll_tools_wordset_cache_epoch', false) === false) {
+            add_option('ll_tools_wordset_cache_epoch', 1, '', false);
+        }
+        ll_tools_read_option_epoch('ll_tools_wordset_cache_epoch', true);
+
+        $drifted = false;
+        $driftEpoch = static function (WP_Query $query) use (&$drifted): void {
+            if ($drifted || $query->get('post_type') !== 'll_vocab_lesson') {
+                return;
+            }
+            $drifted = true;
+            global $wpdb;
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->options}
+                 SET option_value = CAST(option_value AS UNSIGNED) + 1
+                 WHERE option_name = %s",
+                'll_tools_wordset_cache_epoch'
+            ));
+        };
+        add_action('pre_get_posts', $driftEpoch);
+        try {
+            $result = ll_tools_wordset_page_get_published_vocab_lesson_category_map($wordset_id);
+        } finally {
+            remove_action('pre_get_posts', $driftEpoch);
+        }
+
+        $this->assertTrue($drifted);
+        $this->assertTrue((bool) ($result['stale'] ?? false));
+        $this->assertSame('newer-generation', (string) ($result['signature'] ?? ''));
+        $readback_cache = [];
+        $readback = ll_tools_wordset_page_get_cached_payload($last_known_key, $readback_cache);
+        $this->assertSame($sentinel, $readback);
+        ll_tools_wordset_page_delete_durable_cached_payload($last_known_key);
+    }
+
+    public function test_cache_rebuild_lock_release_cannot_delete_a_replacement_owner(): void
+    {
+        $cache_key = 'replacement-owner-' . wp_generate_password(12, false, false);
+        $option_name = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
+        $this->assertTrue(ll_tools_wordset_page_acquire_cache_rebuild_lock($cache_key, 30));
+
+        $replacement = 'replacement:' . (time() + 60);
+        update_option($option_name, $replacement, false);
+        $this->assertFalse(ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 30));
+        ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
+
+        try {
+            $this->assertSame($replacement, get_option($option_name));
+        } finally {
+            delete_option($option_name);
+        }
+    }
+
     public function test_published_lesson_map_rotates_with_category_identity_generation(): void
     {
         global $wpdb;
@@ -227,5 +405,26 @@ final class WordsetPageWarmLessonMapTest extends LL_Tools_TestCase
             }
         ));
         $this->assertSame([], $lesson_queries, 'A warm row payload must be checked before the all-lesson map is queried.');
+    }
+
+    private function currentPublishedLessonMapCacheKey(int $wordset_id): string
+    {
+        $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+            ? max(1, (int) ll_tools_get_category_cache_epoch())
+            : 1;
+        $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+            ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+            : 1;
+        $content_fallback_epoch = function_exists('ll_tools_get_quiz_content_fallback_epoch')
+            ? ll_tools_get_quiz_content_fallback_epoch()
+            : 'qcf-unavailable';
+
+        return ll_tools_wordset_page_build_cache_key('published_lesson_map', [
+            'schema' => 3,
+            'wordset_id' => $wordset_id,
+            'category_epoch' => $category_epoch,
+            'wordset_epoch' => $wordset_epoch,
+            'content_fallback_epoch' => $content_fallback_epoch,
+        ]);
     }
 }

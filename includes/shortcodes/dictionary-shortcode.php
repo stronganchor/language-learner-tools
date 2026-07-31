@@ -4,6 +4,15 @@ if (!defined('WPINC')) { die; }
 if (!defined('LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX')) {
     define('LL_TOOLS_DICTIONARY_AJAX_CACHE_BUILD_LOCK_OPTION_PREFIX', '_ll_tools_dictionary_ajax_cache_lock_');
 }
+if (!defined('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_RAW_BYTES_HARD')) {
+    define('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_RAW_BYTES_HARD', 8192);
+}
+if (!defined('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUES_HARD')) {
+    define('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUES_HARD', 64);
+}
+if (!defined('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUE_BYTES_HARD')) {
+    define('LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUE_BYTES_HARD', 512);
+}
 
 function ll_tools_dictionary_shortcode_query_keys(): array {
     return [
@@ -33,6 +42,232 @@ function ll_tools_dictionary_public_search_max_length(): int {
     $max_length = (int) apply_filters('ll_tools_dictionary_public_search_max_length', 80);
 
     return max(20, min(191, $max_length));
+}
+
+/**
+ * Return bounded raw-input limits for public dictionary query arguments.
+ *
+ * These limits apply before unslashing, sanitization, registry hydration,
+ * cache-key generation, SQL construction, or rate-limit reservation.
+ *
+ * @return array<string,array{max_raw_bytes:int,max_values:int,max_value_bytes:int}>
+ */
+function ll_tools_dictionary_public_filter_limits(): array {
+    $defaults = [
+        'll_dictionary_q' => [
+            'max_raw_bytes' => 512,
+            'max_values' => 1,
+            'max_value_bytes' => 512,
+        ],
+        'll_dictionary_scope' => [
+            'max_raw_bytes' => 512,
+            'max_values' => 8,
+            'max_value_bytes' => 80,
+        ],
+        'll_dictionary_page' => [
+            'max_raw_bytes' => 12,
+            'max_values' => 1,
+            'max_value_bytes' => 12,
+        ],
+        'll_dictionary_letter' => [
+            'max_raw_bytes' => 32,
+            'max_values' => 1,
+            'max_value_bytes' => 32,
+        ],
+        'letter' => [
+            'max_raw_bytes' => 32,
+            'max_values' => 1,
+            'max_value_bytes' => 32,
+        ],
+        'll_dictionary_pos' => [
+            'max_raw_bytes' => 2048,
+            'max_values' => 32,
+            'max_value_bytes' => 96,
+        ],
+        'll_dictionary_source' => [
+            'max_raw_bytes' => 4096,
+            'max_values' => 32,
+            'max_value_bytes' => 191,
+        ],
+        'll_dictionary_dialect' => [
+            'max_raw_bytes' => 128,
+            'max_values' => 1,
+            'max_value_bytes' => 128,
+        ],
+        'll_dictionary_entry' => [
+            'max_raw_bytes' => 20,
+            'max_values' => 1,
+            'max_value_bytes' => 20,
+        ],
+    ];
+    $filtered = apply_filters('ll_tools_dictionary_public_filter_limits', $defaults);
+    $filtered = is_array($filtered) ? $filtered : [];
+    $limits = [];
+
+    foreach ($defaults as $key => $fallback) {
+        $candidate = isset($filtered[$key]) && is_array($filtered[$key])
+            ? $filtered[$key]
+            : [];
+        $limits[$key] = [
+            'max_raw_bytes' => max(1, min(
+                LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_RAW_BYTES_HARD,
+                (int) ($candidate['max_raw_bytes'] ?? $fallback['max_raw_bytes'])
+            )),
+            'max_values' => max(1, min(
+                LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUES_HARD,
+                (int) ($candidate['max_values'] ?? $fallback['max_values'])
+            )),
+            'max_value_bytes' => max(1, min(
+                LL_TOOLS_DICTIONARY_PUBLIC_FILTER_MAX_VALUE_BYTES_HARD,
+                (int) ($candidate['max_value_bytes'] ?? $fallback['max_value_bytes'])
+            )),
+        ];
+    }
+
+    return $limits;
+}
+
+/**
+ * Validate one raw public dictionary filter without normalizing its values.
+ *
+ * @param mixed $raw_value
+ */
+function ll_tools_dictionary_public_filter_input_error(string $key, $raw_value): ?WP_Error {
+    $limits = ll_tools_dictionary_public_filter_limits();
+    if (!isset($limits[$key])) {
+        return null;
+    }
+
+    $limit = $limits[$key];
+    $is_multi_value = in_array($key, [
+        'll_dictionary_scope',
+        'll_dictionary_pos',
+        'll_dictionary_source',
+    ], true);
+    if (!$is_multi_value && is_array($raw_value)) {
+        return new WP_Error(
+            'll_tools_dictionary_filter_input_invalid',
+            __('Invalid request.', 'll-tools-text-domain'),
+            ['parameter' => $key, 'reason' => 'shape']
+        );
+    }
+
+    $raw_values = is_array($raw_value) ? $raw_value : [$raw_value];
+    if (count($raw_values) > $limit['max_values']) {
+        return new WP_Error(
+            'll_tools_dictionary_filter_input_too_large',
+            __('Invalid request.', 'll-tools-text-domain'),
+            ['parameter' => $key, 'reason' => 'cardinality']
+        );
+    }
+
+    $raw_bytes = 0;
+    $value_count = 0;
+    $token_pattern = $key === 'll_dictionary_scope' ? '/[\s,|]+/' : '/[\s,|_]+/';
+
+    foreach ($raw_values as $raw_item) {
+        if (!is_scalar($raw_item) && $raw_item !== null) {
+            return new WP_Error(
+                'll_tools_dictionary_filter_input_invalid',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['parameter' => $key, 'reason' => 'shape']
+            );
+        }
+
+        $raw_item = (string) $raw_item;
+        $raw_bytes += strlen($raw_item);
+        if ($raw_bytes > $limit['max_raw_bytes']) {
+            return new WP_Error(
+                'll_tools_dictionary_filter_input_too_large',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['parameter' => $key, 'reason' => 'raw_bytes']
+            );
+        }
+
+        if ($is_multi_value) {
+            $tokens = preg_split($token_pattern, $raw_item, -1, PREG_SPLIT_NO_EMPTY);
+            $tokens = is_array($tokens) ? $tokens : [];
+        } else {
+            $tokens = $raw_item === '' ? [] : [$raw_item];
+        }
+        foreach ($tokens as $token) {
+            if (strlen((string) $token) > $limit['max_value_bytes']) {
+                return new WP_Error(
+                    'll_tools_dictionary_filter_input_too_large',
+                    __('Invalid request.', 'll-tools-text-domain'),
+                    ['parameter' => $key, 'reason' => 'value_bytes']
+                );
+            }
+        }
+        $value_count += count($tokens);
+        if ($value_count > $limit['max_values']) {
+            return new WP_Error(
+                'll_tools_dictionary_filter_input_too_large',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['parameter' => $key, 'reason' => 'cardinality']
+            );
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Return the first invalid public dictionary filter in one request.
+ *
+ * @param array<string,mixed> $source
+ */
+function ll_tools_dictionary_public_filter_request_error(array $source): ?WP_Error {
+    foreach (array_keys(ll_tools_dictionary_public_filter_limits()) as $key) {
+        if (!array_key_exists($key, $source)) {
+            continue;
+        }
+
+        $error = ll_tools_dictionary_public_filter_input_error($key, $source[$key]);
+        if ($error instanceof WP_Error) {
+            return $error;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Drop only invalid public dictionary filters to their safe default states.
+ *
+ * @param array<string,mixed> $source
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_public_filter_bounded_request(array $source): array {
+    foreach (array_keys(ll_tools_dictionary_public_filter_limits()) as $key) {
+        if (
+            array_key_exists($key, $source)
+            && ll_tools_dictionary_public_filter_input_error($key, $source[$key]) instanceof WP_Error
+        ) {
+            unset($source[$key]);
+        }
+    }
+
+    return $source;
+}
+
+/**
+ * Reject oversized public AJAX filters before cache or query preparation.
+ *
+ * @param array<string,mixed> $source
+ */
+function ll_tools_dictionary_reject_invalid_public_filters_ajax(array $source): void {
+    $error = ll_tools_dictionary_public_filter_request_error($source);
+    if (!$error instanceof WP_Error) {
+        return;
+    }
+
+    $data = $error->get_error_data();
+    wp_send_json_error([
+        'code' => $error->get_error_code(),
+        'message' => $error->get_error_message(),
+        'parameter' => is_array($data) ? (string) ($data['parameter'] ?? '') : '',
+    ], 400);
 }
 
 function ll_tools_dictionary_public_search_is_noise(string $search): bool {
@@ -432,6 +667,9 @@ function ll_tools_dictionary_shortcode_resolve_search_scopes_from_request(array 
     if (!array_key_exists('ll_dictionary_scope', $source)) {
         return ll_tools_dictionary_shortcode_resolve_search_scopes([]);
     }
+    if (ll_tools_dictionary_public_filter_input_error('ll_dictionary_scope', $source['ll_dictionary_scope']) instanceof WP_Error) {
+        return ll_tools_dictionary_shortcode_resolve_search_scopes([]);
+    }
 
     $raw_scope = wp_unslash($source['ll_dictionary_scope']);
     if (is_array($raw_scope)) {
@@ -482,10 +720,12 @@ function ll_tools_dictionary_shortcode_split_compact_filter_values($raw_value, a
         : preg_split('/[\s,|]+/', (string) $raw_value, -1, PREG_SPLIT_NO_EMPTY);
     $known_values = array_values(array_filter(array_map('sanitize_title', array_map('strval', $known_values))));
     $resolved = [];
+    $resolved_lookup = [];
 
-    $add_value = static function (string $value) use (&$resolved): void {
+    $add_value = static function (string $value) use (&$resolved, &$resolved_lookup): void {
         $value = sanitize_title($value);
-        if ($value !== '' && $value !== 'all' && !in_array($value, $resolved, true)) {
+        if ($value !== '' && $value !== 'all' && !isset($resolved_lookup[$value])) {
+            $resolved_lookup[$value] = true;
             $resolved[] = $value;
         }
     };
@@ -530,6 +770,9 @@ function ll_tools_dictionary_shortcode_resolve_pos_slugs_from_request(array $sou
     if (!array_key_exists('ll_dictionary_pos', $source)) {
         return [];
     }
+    if (ll_tools_dictionary_public_filter_input_error('ll_dictionary_pos', $source['ll_dictionary_pos']) instanceof WP_Error) {
+        return [];
+    }
 
     $known_slugs = [];
     if (function_exists('ll_tools_dictionary_get_pos_filter_options')) {
@@ -568,6 +811,9 @@ function ll_tools_dictionary_shortcode_resolve_source_ids_from_request(array $so
     if (!array_key_exists('ll_dictionary_source', $source)) {
         return [];
     }
+    if (ll_tools_dictionary_public_filter_input_error('ll_dictionary_source', $source['ll_dictionary_source']) instanceof WP_Error) {
+        return [];
+    }
 
     $raw_value = wp_unslash($source['ll_dictionary_source']);
     $raw_values = is_array($raw_value)
@@ -583,12 +829,14 @@ function ll_tools_dictionary_shortcode_resolve_source_ids_from_request(array $so
     }, array_keys(is_array($source_registry) ? $source_registry : []));
     $registered_source_ids = array_values(array_filter(array_unique($registered_source_ids)));
     $source_ids = [];
+    $source_id_lookup = [];
 
-    $register_source_id = static function (string $source_id) use (&$source_ids): void {
+    $register_source_id = static function (string $source_id) use (&$source_ids, &$source_id_lookup): void {
         $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
             ? ll_tools_dictionary_normalize_source_id($source_id)
             : sanitize_title($source_id);
-        if ($source_id !== '' && !in_array($source_id, $source_ids, true)) {
+        if ($source_id !== '' && !isset($source_id_lookup[$source_id])) {
+            $source_id_lookup[$source_id] = true;
             $source_ids[] = $source_id;
         }
     };
@@ -3271,6 +3519,8 @@ function ll_tools_dictionary_render_toolbar_panel(
  * Handle admin-only inline dictionary entry edits from the public dictionary UI.
  */
 function ll_tools_dictionary_handle_entry_update(): void {
+    ll_tools_dictionary_reject_invalid_public_filters_ajax($_POST);
+
     $entry_id = isset($_POST['entry_id']) ? (int) wp_unslash((string) $_POST['entry_id']) : 0;
     $nonce = isset($_POST['nonce']) ? (string) wp_unslash((string) $_POST['nonce']) : '';
     $update_type = isset($_POST['update_type']) ? sanitize_key(wp_unslash((string) $_POST['update_type'])) : 'title';
@@ -3451,6 +3701,7 @@ add_action('wp_ajax_ll_tools_dictionary_update_entry', 'll_tools_dictionary_hand
 
 function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
+    ll_tools_dictionary_reject_invalid_public_filters_ajax($_POST);
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
     if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
@@ -3536,6 +3787,7 @@ add_action('wp_ajax_nopriv_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dic
  */
 function ll_tools_dictionary_handle_entry_detail(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
+    ll_tools_dictionary_reject_invalid_public_filters_ajax($_POST);
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
     if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
@@ -3683,6 +3935,7 @@ add_action('wp_ajax_nopriv_ll_tools_dictionary_entry_detail', 'll_tools_dictiona
  */
 function ll_tools_dictionary_handle_live_search(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
+    ll_tools_dictionary_reject_invalid_public_filters_ajax($_POST);
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
     if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
@@ -3886,6 +4139,10 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         'title' => '',
         'gloss_lang' => '',
     ], $atts, $tag ?: 'll_dictionary');
+
+    // Keep later render helpers and static/global request consumers from
+    // re-reading an oversized filter after it has been defaulted safely.
+    $_GET = ll_tools_dictionary_public_filter_bounded_request($_GET);
 
     ll_tools_dictionary_enqueue_assets();
 

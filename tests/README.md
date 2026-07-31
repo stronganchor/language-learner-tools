@@ -153,16 +153,19 @@ tests/bin/run-tests.sh tests/Integration/UserProgressSelfCheckSignalTest.php
 tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 ```
 
-For the database-free Turkish full-catalog gate, run:
+For the database-free core full-catalog locale gates, run:
 
 ```bash
 php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
+php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --details --json
 ```
 
 This treats missing, blank, partial, fuzzy, stale, duplicate, structurally
 invalid, or uncompiled current POT entries as failures. It compares compiled
-MO and PHP messages with the PO; `PublicUiTranslationManifestTest.php` also verifies
-that every active Turkish entry reaches the compiled runtime catalog.
+MO and PHP messages with each PO; `PublicUiTranslationManifestTest.php` also
+verifies that every active entry for each locale configured under
+`core_full_locales` in `languages/tier2-public-ui-sources.php` reaches the
+compiled runtime catalog.
 
 ## 5) What the PHPUnit suite covers (high level)
 
@@ -220,6 +223,11 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   multi-category hydration, retryable warming responses, response-only progress
   overlay, speaker-ID redaction, and cache-hit bypass behavior.
 - `AutomationRestApiTest` covers aggregate report-summary counts plus bounded review-note and cross-post-type interlinear pagination; interlinear list payloads are omitted by default while exact-lesson reads retain the payload-on default.
+- `RestPasswordAuthAdmissionTest` covers coarse direct-peer plus peer/login raw-password admission, rotating-login resistance, generic failures, successful reservation refunds, and cleanup namespace registration.
+- `DictionaryPublicFilterBoundsTest` covers byte/cardinality/shape admission for all public dictionary query arguments, early AJAX rejection, safe static-cache defaults, and normal bounded cache hits.
+- `MediaProxyFallbackCacheTest` covers bounded disk fallback storage, stale/contended service, failure backoff, exact-owner publishing, cache pruning, and attachment/scheduled cleanup.
+- `WordsetPageInactiveCategoryCardsTest` covers persisted preview cursors, same-item retry, bounded continuation, contention, and exact-owner lease renewal/release; `WordsetPageWarmLessonMapTest` covers single-owner rebuilds and immediate last-known-good service.
+- `FlashcardShellRendererTest` and `QuizPagePostTypeTest` cover shared/standalone dialog semantics and translated iframe recovery configuration.
 - `SecurityHardeningRegressionTest` covers the hosted-STT pre-read and bounded-read audio-size ceiling, and `AudioProcessorQueuePaginationTest` covers signed user/tab keyset cursors with the legacy direct deep-page fallback.
 - Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export/archive boundary checks, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
@@ -244,8 +252,9 @@ tests/bin/run-e2e.sh --shard=4/4
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
 the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
 expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
-files, the July 17 discovery listed 436 tests in 95 files, and a fresh July 24,
-2026 discovery lists 453 tests in 95 spec files.
+files, the July 17 discovery listed 436 tests in 95 files, the July 24
+discovery listed 453 tests in 95 files, and a July 31, 2026 no-install
+discovery lists 479 tests in 97 spec files.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
@@ -271,7 +280,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/admin-maintenance-pages.spec.js`
   - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/audio-image-matcher-pagination.spec.js`
-  - Verifies the Audio/Image Matcher appends bounded candidate-image pages, sends the continuation offset, and hides Load more after the final page.
+  - Verifies matcher requests stay serialized, delayed Start/Skip/page actions cannot overlap, image and next-audio failures expose retry, timed-out reads abort cleanly, slow assignment writes stay authoritative, failed assignments restore the current choice, native image buttons work once via Enter or Space, and rematches refresh both old/new used states.
 - `tests/e2e/specs/audio-recorder-category-switch.spec.js`
   - Verifies the category-neutral recorder overview, three neutral loading shells plus overflow cue, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path.
 - `tests/e2e/specs/wordset-buttons-loading-refresh.spec.js`
@@ -325,9 +334,11 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-mode-transitions.spec.js`
   - Opens `/learn/`, starts the first quiz card, and verifies mode transitions.
 - `tests/e2e/specs/quiz-popup-fallback-modal.spec.js`
-  - Verifies quiz launch falls back to the iframe modal shell when the inline flashcard launcher is absent.
+  - Verifies quiz launch falls back to the iframe modal shell when the inline flashcard launcher is absent, including timeout/retry/embed-ready behavior and translated load-error/direct-open recovery.
 - `tests/e2e/specs/quiz-popup-open-close.spec.js`
-  - Verifies quiz popup open/close behavior and page-state cleanup.
+  - Verifies quiz popup open/close behavior, page-state cleanup, background selection blocking, and guarded Backspace/browser-back close behavior.
+- `tests/e2e/specs/quiz-iframe-recovery.spec.js`
+  - Verifies shared and standalone quiz dialogs trap focus, isolate background content, restore the opener, expose timeout/load-error recovery, wait for and accept late embed-ready signals, and honor reduced-motion preferences.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
@@ -352,7 +363,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/audio-upload-speaker-search.spec.js`
   - Verifies bulk audio upload searches a bounded manager-visible speaker endpoint and exposes selected, empty, and request-error states without preloading every account.
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
-  - Verifies a local WordPress-backed content lesson route plays a real uploaded WAV with range support and finite duration, seeks from a transcript cue, and renders notes plus its related vocab lesson link. The same fixture verifies a corpus collection page, reader navigation, single accessible title, and public Sources view.
+  - Verifies a local WordPress-backed content lesson route plays a real uploaded WAV with range support and finite duration, seeks from a transcript cue, and renders notes plus its related vocab lesson link. The same fixture verifies a corpus collection page and reader, public content-index pagination/accessibility, ranked numeric order/translations/pagination, and a retained-shadow permanent redirect.
 - `tests/e2e/specs/content-lesson-progress.spec.js`
   - Verifies completion autosave sends one canonical request, exposes saving/saved accessible state, updates the completion control only after success, and preserves the prior state when saving fails.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
@@ -528,7 +539,7 @@ tests/bin/run-performance-benchmark.sh
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
 - If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
   - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`
-- Dictionary browser/import changes should always include `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php` before the full suite. Dictionary admin-import UI changes should also include `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js`.
+- Dictionary browser/import changes should always include `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php` before the full suite. Public query-shape/admission changes should also run `Integration/DictionaryPublicFilterBoundsTest.php`; dictionary admin-import UI changes should include `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js`.
 - One PHPUnit import regression may be skipped on some machines:
   - `ExternalCsvBundleImportTest::test_import_decodes_windows_1255_csv_values_and_generates_quiz_page`
   - This depends on runtime `iconv` / `mbstring` support for reliably round-tripping the non-UTF Hebrew fixture encoding.

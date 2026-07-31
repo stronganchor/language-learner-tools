@@ -14,6 +14,32 @@ test('quiz card opens popup and close button restores page state', async ({ page
   const loader = page.locator('#ll-tools-loading-animation');
   await expect(popup).toBeVisible({ timeout: 60000 });
   await expect(page.locator('body')).toHaveClass(/ll-qpg-popup-active/);
+  await expect(popup).toHaveAttribute('role', 'dialog');
+  await expect(popup).toHaveAttribute('aria-modal', 'true');
+  await expect(popup).toHaveAttribute('aria-labelledby', 'll-tools-flashcard-dialog-title');
+  await expect(popup).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('#ll-tools-close-flashcard')).toBeFocused();
+
+  const triggerIsIsolated = await firstTrigger.evaluate((trigger) => {
+    let node = trigger;
+    while (node && node !== document.body) {
+      if (node.hasAttribute && node.hasAttribute('inert') && node.getAttribute('aria-hidden') === 'true') {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  });
+  expect(triggerIsIsolated).toBe(true);
+
+  await page.evaluate(() => {
+    const outside = document.createElement('button');
+    outside.id = 'll-dialog-outside-focus-probe';
+    outside.textContent = 'Outside';
+    document.body.appendChild(outside);
+    outside.focus();
+  });
+  await expect(page.locator('#ll-tools-close-flashcard')).toBeFocused();
 
   await page.evaluate(() => {
     const el = document.getElementById('ll-tools-loading-animation');
@@ -28,6 +54,8 @@ test('quiz card opens popup and close button restores page state', async ({ page
   await expect(popup).toBeHidden({ timeout: 30000 });
   await expect(loader).toBeHidden({ timeout: 30000 });
   await expect(page.locator('body')).not.toHaveClass(/ll-qpg-popup-active/);
+  await expect(popup).toHaveAttribute('aria-hidden', 'true');
+  await expect(firstTrigger).toBeFocused();
 
   await page.evaluate(() => {
     if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.showLoading === 'function') {

@@ -1121,10 +1121,6 @@ function ll_tools_should_render_header_language_switcher(): bool {
     return (bool) apply_filters('ll_tools_header_language_switcher_enabled', true);
 }
 
-function ll_tools_header_language_switcher_styles(): string {
-    return '';
-}
-
 function ll_tools_maybe_enqueue_header_language_switcher_assets(): void {
     if (!ll_tools_should_render_header_language_switcher()) {
         return;

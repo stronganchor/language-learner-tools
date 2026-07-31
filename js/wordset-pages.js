@@ -8424,22 +8424,48 @@
         });
     }
 
-    function setInactiveCategoryActionFormBusy($form, busy) {
+    function setInactiveCategoryActionFormBusy($form, busy, statusMessage) {
         const $targetForm = ($form && $form.length) ? $form.first() : $();
         if (!$targetForm.length) {
             return;
         }
 
         const $button = $targetForm.find('.ll-wordset-card__inactive-action').first();
+        const $card = $targetForm.closest('.ll-wordset-card--inactive[data-cat-id]').first();
+        const $previewTriggers = $card.find('[data-ll-wordset-inactive-preview-trigger]');
+        const $note = $card.find('.ll-wordset-card__public-note').first();
         $targetForm.toggleClass('is-submitting', !!busy);
-        if (!$button.length) {
-            return;
+        $card.toggleClass('is-preparing-preview', !!busy).attr('aria-busy', busy ? 'true' : null);
+        $previewTriggers.attr('aria-disabled', busy ? 'true' : null);
+
+        if ($note.length && String(statusMessage || '').trim() !== '') {
+            if (typeof $note.data('llPreviewOriginalHtml') === 'undefined') {
+                $note.data('llPreviewOriginalHtml', $note.html());
+                $note.data('llPreviewOriginalRole', $note.attr('role') || '');
+                $note.data('llPreviewOriginalLive', $note.attr('aria-live') || '');
+            }
+            $note.attr({ role: 'status', 'aria-live': 'polite' });
+            $note.find('.ll-wordset-card__public-note-label').text(i18n.previewPreparingLabel || i18n.notPublicLabel || '');
+            $note.find('.ll-wordset-card__public-note-text').text(String(statusMessage || '').trim());
+        } else if (!busy && $note.length && typeof $note.data('llPreviewOriginalHtml') !== 'undefined') {
+            const originalRole = String($note.data('llPreviewOriginalRole') || '');
+            const originalLive = String($note.data('llPreviewOriginalLive') || '');
+            $note.html($note.data('llPreviewOriginalHtml'));
+            $note.attr('role', originalRole || 'note');
+            if (originalLive) {
+                $note.attr('aria-live', originalLive);
+            } else {
+                $note.removeAttr('aria-live');
+            }
+            $note.removeData('llPreviewOriginalHtml llPreviewOriginalRole llPreviewOriginalLive');
         }
 
-        if (busy) {
-            $button.prop('disabled', true).attr('aria-busy', 'true');
-        } else {
-            $button.prop('disabled', false).removeAttr('aria-busy');
+        if ($button.length) {
+            if (busy) {
+                $button.prop('disabled', true).attr('aria-busy', 'true');
+            } else {
+                $button.prop('disabled', false).removeAttr('aria-busy');
+            }
         }
     }
 
@@ -8487,9 +8513,24 @@
         return $source.closest('.ll-wordset-card--inactive[data-cat-id]').find('[data-ll-wordset-inactive-preview-form]').first();
     }
 
+    function isInactiveCategoryPreviewActivationBlocked($trigger) {
+        const $source = ($trigger && $trigger.length) ? $trigger.first() : $();
+        if (!$source.length) {
+            return true;
+        }
+        if (String($source.attr('aria-disabled') || '') === 'true') {
+            return true;
+        }
+        return false;
+    }
+
     function submitInactiveCategoryPreviewForm($form) {
         const formEl = ($form && $form.length) ? $form.get(0) : null;
         if (!formEl) {
+            return;
+        }
+        if (ajaxUrl) {
+            submitInactiveCategoryActionForm($form);
             return;
         }
         if (typeof formEl.requestSubmit === 'function') {
@@ -8504,6 +8545,21 @@
         const action = String(data.result || fallbackAction || '').trim();
         const categoryId = parseInt(data.category_id, 10) || parseInt(fallbackCategoryId, 10) || 0;
         if (!categoryId) {
+            return;
+        }
+
+        if (action === 'preview' && String(data.preview_url || '').trim() !== '') {
+            window.location.assign(String(data.preview_url || '').trim());
+            return;
+        }
+
+        if (action === 'preparing') {
+            const message = String(data.message || i18n.previewPreparing || '').trim();
+            setInactiveCategoryActionFormBusy(
+                $('.ll-wordset-card[data-cat-id="' + categoryId + '"] [data-ll-wordset-inactive-preview-form]').first(),
+                true,
+                message
+            );
             return;
         }
 
@@ -8600,7 +8656,7 @@
 
         const actionName = String($targetForm.find('input[name="ll_wordset_inactive_category_action"]').val() || '').trim();
         const categoryId = parseInt($targetForm.find('input[name="ll_wordset_inactive_category_id"]').val(), 10) || 0;
-        if (actionName !== 'hide' && actionName !== 'delete') {
+        if (actionName !== 'hide' && actionName !== 'delete' && actionName !== 'preview') {
             return $.Deferred().reject().promise();
         }
 
@@ -8609,20 +8665,36 @@
             name: 'action',
             value: 'll_tools_wordset_inactive_category_action'
         });
-        setInactiveCategoryActionFormBusy($targetForm, true);
+        setInactiveCategoryActionFormBusy(
+            $targetForm,
+            true,
+            actionName === 'preview' ? (i18n.previewPreparing || '') : ''
+        );
 
         return $.ajax({
             type: 'POST',
             url: ajaxUrl,
             data: $.param(data),
-            dataType: 'json'
+            dataType: 'json',
+            timeout: 30000
         }).done(function (response) {
             if (!response || !response.success) {
                 alert(getInactiveCategoryActionErrorMessage(response));
                 setInactiveCategoryActionFormBusy($targetForm, false);
                 return;
             }
-            applyInactiveCategoryActionResult(response.data || {}, actionName, categoryId);
+            const responseData = response.data || {};
+            applyInactiveCategoryActionResult(responseData, actionName, categoryId);
+            if (String(responseData.result || '') === 'preparing') {
+                $targetForm.removeClass('is-submitting');
+                const retryAfterMs = Math.max(
+                    250,
+                    Math.min(5000, (parseInt(responseData.retry_after, 10) || 1) * 1000)
+                );
+                window.setTimeout(function () {
+                    submitInactiveCategoryActionForm($targetForm);
+                }, retryAfterMs);
+            }
         }).fail(function (xhr) {
             alert(getInactiveCategoryActionErrorMessage(xhr));
             setInactiveCategoryActionFormBusy($targetForm, false);
@@ -15734,7 +15806,11 @@
                 return;
             }
             e.preventDefault();
-            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($(this)));
+            const $trigger = $(this);
+            if (isInactiveCategoryPreviewActivationBlocked($trigger)) {
+                return;
+            }
+            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($trigger));
         });
 
         $root.on('keydown', '[data-ll-wordset-inactive-preview-trigger]', function (e) {
@@ -15743,7 +15819,11 @@
                 return;
             }
             e.preventDefault();
-            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($(this)));
+            const $trigger = $(this);
+            if (isInactiveCategoryPreviewActivationBlocked($trigger)) {
+                return;
+            }
+            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($trigger));
         });
 
         $root.on('submit', '[data-ll-wordset-card-action-form]', function (e) {
@@ -15755,7 +15835,7 @@
             }
 
             const actionName = String($form.find('input[name="ll_wordset_inactive_category_action"]').val() || '').trim();
-            if (actionName !== 'hide' && actionName !== 'delete') {
+            if (actionName !== 'hide' && actionName !== 'delete' && actionName !== 'preview') {
                 return;
             }
             if (!ajaxUrl) {

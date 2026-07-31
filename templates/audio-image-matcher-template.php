@@ -48,8 +48,13 @@ if (!defined('WPINC')) { die; }
             <?php esc_html_e('Hide images already matched', 'll-tools-text-domain'); ?>
         </label>
 
-        <button class="button button-primary" id="ll-aim-start"><?php esc_html_e('Start Matching', 'll-tools-text-domain'); ?></button>
-        <button class="button" id="ll-aim-skip" disabled><?php esc_html_e('Skip', 'll-tools-text-domain'); ?></button>
+        <button class="button button-primary" id="ll-aim-start" type="button"><?php esc_html_e('Start Matching', 'll-tools-text-domain'); ?></button>
+        <button class="button" id="ll-aim-skip" type="button" disabled><?php esc_html_e('Skip', 'll-tools-text-domain'); ?></button>
+    </div>
+
+    <div id="ll-aim-feedback">
+        <span id="ll-aim-status" role="status" aria-live="polite"></span>
+        <button class="button" id="ll-aim-retry" type="button" hidden><?php esc_html_e('Retry', 'll-tools-text-domain'); ?></button>
     </div>
 
     <div id="ll-aim-stage" style="display:none;">
@@ -62,11 +67,10 @@ if (!defined('WPINC')) { die; }
                 <span class="ll-aim-cap"></span>
             </div>
         </div>
-        <div id="ll-aim-images"></div>
+        <div id="ll-aim-images" role="group" aria-label="<?php esc_attr_e('Image choices', 'll-tools-text-domain'); ?>"></div>
         <div id="ll-aim-image-page-controls">
             <button class="button" id="ll-aim-load-more-images" type="button" hidden><?php esc_html_e('Load more', 'll-tools-text-domain'); ?></button>
             <span id="ll-aim-image-page-status" role="status" aria-live="polite"></span>
         </div>
-        <div id="ll-aim-status" style="margin-top:8px; color:#666;"></div>
     </div>
 </div>

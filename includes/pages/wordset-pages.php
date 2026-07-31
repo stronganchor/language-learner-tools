@@ -868,22 +868,104 @@ function ll_tools_wordset_page_acquire_cache_rebuild_lock(string $cache_key, int
     $option_name = ll_tools_wordset_page_cache_rebuild_lock_option($cache_key);
     $now = time();
     $expires_at = $now + $ttl;
+    $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : wp_generate_password(32, false, false);
+    $value = $token . ':' . $expires_at;
 
-    if (add_option($option_name, (string) $expires_at, '', false)) {
+    if (add_option($option_name, $value, '', false)) {
+        $GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key] = [
+            'option_name' => $option_name,
+            'value' => $value,
+        ];
         return true;
     }
 
-    $current_expires_at = (int) get_option($option_name, 0);
+    $stored = (string) get_option($option_name, '');
+    $separator = strrpos($stored, ':');
+    $current_expires_at = $separator === false ? (int) $stored : (int) substr($stored, $separator + 1);
     if ($current_expires_at > $now) {
         return false;
     }
 
-    delete_option($option_name);
-    return add_option($option_name, (string) $expires_at, '', false);
+    global $wpdb;
+    $updated = $wpdb->update(
+        $wpdb->options,
+        ['option_value' => $value],
+        ['option_name' => $option_name, 'option_value' => $stored],
+        ['%s'],
+        ['%s', '%s']
+    );
+    wp_cache_delete($option_name, 'options');
+    if ($updated !== 1) {
+        return false;
+    }
+
+    $GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key] = [
+        'option_name' => $option_name,
+        'value' => $value,
+    ];
+    return true;
+}
+
+function ll_tools_wordset_page_renew_cache_rebuild_lock(string $cache_key, int $ttl = 30): bool {
+    $lease = $GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key] ?? null;
+    if (!is_array($lease)) {
+        return false;
+    }
+
+    $option_name = (string) ($lease['option_name'] ?? '');
+    $old_value = (string) ($lease['value'] ?? '');
+    $separator = strrpos($old_value, ':');
+    $token = $separator === false ? '' : substr($old_value, 0, $separator);
+    if ($option_name === '' || $old_value === '' || $token === '') {
+        return false;
+    }
+
+    $new_value = $token . ':' . (time() + max(5, (int) $ttl));
+    global $wpdb;
+    if ($new_value === $old_value) {
+        $current_value = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $option_name
+        ));
+        return is_string($current_value) && hash_equals($old_value, $current_value);
+    }
+
+    $updated = $wpdb->update(
+        $wpdb->options,
+        ['option_value' => $new_value],
+        ['option_name' => $option_name, 'option_value' => $old_value],
+        ['%s'],
+        ['%s', '%s']
+    );
+    wp_cache_delete($option_name, 'options');
+    if ($updated !== 1) {
+        return false;
+    }
+
+    $GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key]['value'] = $new_value;
+    return true;
 }
 
 function ll_tools_wordset_page_release_cache_rebuild_lock(string $cache_key): void {
-    delete_option(ll_tools_wordset_page_cache_rebuild_lock_option($cache_key));
+    $lease = $GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key] ?? null;
+    unset($GLOBALS['ll_tools_wordset_page_cache_rebuild_leases'][$cache_key]);
+    if (!is_array($lease)) {
+        return;
+    }
+
+    $option_name = (string) ($lease['option_name'] ?? '');
+    $value = (string) ($lease['value'] ?? '');
+    if ($option_name === '' || $value === '') {
+        return;
+    }
+
+    global $wpdb;
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        $option_name,
+        $value
+    ));
+    wp_cache_delete($option_name, 'options');
 }
 
 function ll_tools_wordset_page_wait_for_cached_payload(string $cache_key, array &$request_cache, int $wait_ms = 1500, string $cache_group = 'll_tools') {
@@ -2391,7 +2473,339 @@ function ll_tools_wordset_page_ensure_inactive_category_actions(array $cat): arr
 }
 
 /**
- * @return array{word_ids:int[],image_count:int,created_count:int,error_count:int}|WP_Error
+ * Return one keyset-paginated batch of word images for preview preparation.
+ *
+ * @return int[]|WP_Error
+ */
+function ll_tools_wordset_page_get_category_word_image_batch(
+    int $category_id,
+    int $wordset_id,
+    int $after_id,
+    int $limit,
+    ?bool &$complete = null
+) {
+    $complete = true;
+    $category_id = max(0, (int) $category_id);
+    $wordset_id = max(0, (int) $wordset_id);
+    $after_id = max(0, (int) $after_id);
+    $limit = max(1, min(100, (int) $limit));
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return [];
+    }
+
+    global $wpdb;
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_placeholders = ll_tools_wordset_page_build_sql_placeholders(count($statuses), '%s');
+    $owner_meta_key = defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')
+        ? (string) LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY
+        : '';
+    $use_owner_meta = $owner_meta_key !== '' && function_exists('ll_tools_get_word_image_owner_meta_query');
+    $owner_join = '';
+    $owner_where = '';
+    $wordset_join = '';
+
+    if ($use_owner_meta) {
+        $owner_join = "
+            LEFT JOIN {$wpdb->postmeta} AS owner_meta
+                ON owner_meta.post_id = posts.ID
+                AND owner_meta.meta_key = %s
+        ";
+        $owner_where = "AND (owner_meta.meta_value = %s OR owner_meta.post_id IS NULL OR owner_meta.meta_value IN ('0', ''))";
+        $query_args = array_merge(
+            [$owner_meta_key, $category_id, $after_id, 'word_images'],
+            $statuses,
+            [(string) $wordset_id, $limit + 1]
+        );
+    } else {
+        $wordset_tt_id = ll_tools_wordset_page_get_term_taxonomy_id($wordset_id, 'wordset');
+        if ($wordset_tt_id <= 0) {
+            $complete = false;
+            return new WP_Error(
+                'preview_prepare_scope',
+                __('Unable to verify the word set for this lesson preview.', 'll-tools-text-domain')
+            );
+        }
+        $wordset_join = "
+            INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+                ON wordset_relationships.object_id = posts.ID
+                AND wordset_relationships.term_taxonomy_id = %d
+        ";
+        $query_args = array_merge(
+            [$category_id, $wordset_tt_id, $after_id, 'word_images'],
+            $statuses,
+            [$limit + 1]
+        );
+    }
+
+    $sql = "
+        SELECT DISTINCT posts.ID
+        FROM {$wpdb->posts} AS posts
+        {$owner_join}
+        INNER JOIN {$wpdb->term_relationships} AS category_relationships
+            ON category_relationships.object_id = posts.ID
+        INNER JOIN {$wpdb->term_taxonomy} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = 'word-category'
+            AND category_taxonomy.term_id = %d
+        {$wordset_join}
+        WHERE posts.ID > %d
+            AND posts.post_type = %s
+            AND posts.post_status IN ({$status_placeholders})
+            {$owner_where}
+        ORDER BY posts.ID ASC
+        LIMIT %d
+    ";
+
+    $wpdb->last_error = '';
+    $image_ids = $wpdb->get_col(ll_tools_wordset_page_prepare_sql($sql, $query_args));
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return new WP_Error(
+            'preview_prepare_query',
+            __('Unable to load the next preview preparation batch.', 'll-tools-text-domain')
+        );
+    }
+
+    $image_ids = array_values(array_unique(array_filter(array_map('intval', (array) $image_ids), static function (int $image_id): bool {
+        return $image_id > 0;
+    })));
+    $complete = count($image_ids) <= $limit;
+
+    return array_slice($image_ids, 0, $limit);
+}
+
+function ll_tools_wordset_page_preview_job_option(int $category_id, int $wordset_id): string {
+    return '_ll_tools_wsp_preview_job_' . md5($wordset_id . ':' . $category_id);
+}
+
+function ll_tools_wordset_page_preview_lock_option(int $category_id, int $wordset_id): string {
+    return '_ll_tools_wsp_preview_lock_' . md5($wordset_id . ':' . $category_id);
+}
+
+/**
+ * @return array{key:string,value:string,token:string}|null
+ */
+function ll_tools_wordset_page_acquire_preview_prepare_lock(
+    int $category_id,
+    int $wordset_id,
+    int $ttl = 45
+): ?array {
+    $ttl = max(15, min(120, (int) $ttl));
+    $option_name = ll_tools_wordset_page_preview_lock_option($category_id, $wordset_id);
+    $token = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : wp_generate_password(32, false, false);
+    $value = $token . ':' . (time() + $ttl);
+    if (add_option($option_name, $value, '', false)) {
+        return ['key' => $option_name, 'value' => $value, 'token' => $token];
+    }
+
+    $stored = (string) get_option($option_name, '');
+    $separator = strrpos($stored, ':');
+    $expires_at = $separator === false ? 0 : (int) substr($stored, $separator + 1);
+    if ($expires_at > time()) {
+        return null;
+    }
+
+    global $wpdb;
+    $updated = $wpdb->update(
+        $wpdb->options,
+        ['option_value' => $value],
+        ['option_name' => $option_name, 'option_value' => $stored],
+        ['%s'],
+        ['%s', '%s']
+    );
+    wp_cache_delete($option_name, 'options');
+
+    return $updated === 1
+        ? ['key' => $option_name, 'value' => $value, 'token' => $token]
+        : null;
+}
+
+/**
+ * Extend one exact-owner preview lease before and after expensive item work.
+ *
+ * @param array{key:string,value:string,token:string} $lease
+ */
+function ll_tools_wordset_page_renew_preview_prepare_lock(array &$lease, int $ttl = 45): bool {
+    $option_name = (string) ($lease['key'] ?? '');
+    $old_value = (string) ($lease['value'] ?? '');
+    $token = (string) ($lease['token'] ?? '');
+    if ($option_name === '' || $old_value === '' || $token === '') {
+        return false;
+    }
+
+    $ttl = max(15, min(120, (int) $ttl));
+    $new_value = $token . ':' . (time() + $ttl);
+    if ($new_value === $old_value) {
+        global $wpdb;
+        $current_value = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $option_name
+        ));
+        return is_string($current_value) && hash_equals($old_value, $current_value);
+    }
+
+    global $wpdb;
+    $updated = $wpdb->update(
+        $wpdb->options,
+        ['option_value' => $new_value],
+        ['option_name' => $option_name, 'option_value' => $old_value],
+        ['%s'],
+        ['%s', '%s']
+    );
+    wp_cache_delete($option_name, 'options');
+    if ($updated !== 1) {
+        return false;
+    }
+
+    $lease['value'] = $new_value;
+    return true;
+}
+
+/**
+ * @param array{key:string,value:string,token:string} $lease
+ */
+function ll_tools_wordset_page_release_preview_prepare_lock(array $lease): void {
+    $option_name = (string) ($lease['key'] ?? '');
+    $value = (string) ($lease['value'] ?? '');
+    if ($option_name === '' || $value === '') {
+        return;
+    }
+
+    global $wpdb;
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        $option_name,
+        $value
+    ));
+    wp_cache_delete($option_name, 'options');
+}
+
+function ll_tools_wordset_page_persist_preview_job(string $job_key, array $job): bool {
+    $job['version'] = 2;
+    $job['revision'] = max(0, (int) ($job['revision'] ?? 0)) + 1;
+    $job['updated_at'] = time();
+    update_option($job_key, $job, false);
+    $stored = get_option($job_key, null);
+
+    return is_array($stored)
+        && (int) ($stored['revision'] ?? 0) === (int) $job['revision']
+        && (int) ($stored['cursor'] ?? -1) === (int) ($job['cursor'] ?? -2);
+}
+
+/**
+ * Delete only the exact preview-job snapshot completed by this lease owner.
+ */
+function ll_tools_wordset_page_delete_preview_job_if_unchanged(string $job_key, array $job): bool {
+    if ($job_key === '' || empty($job)) {
+        return false;
+    }
+
+    global $wpdb;
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        $job_key,
+        maybe_serialize($job)
+    ));
+    wp_cache_delete($job_key, 'options');
+
+    if ($deleted === 1) {
+        return true;
+    }
+
+    // Another completed owner may already have removed the same job. A
+    // replacement snapshot, however, must survive and makes this worker stale.
+    return get_option($job_key, false) === false;
+}
+
+/**
+ * Prepare one image completely, or return a retryable failure.
+ *
+ * A post deleted after the bounded ID query is an idempotently terminal item,
+ * represented by zero so the cursor can safely advance.
+ *
+ * @return int|WP_Error
+ */
+function ll_tools_wordset_page_prepare_one_preview_image(
+    int $image_id,
+    int $category_id,
+    int $wordset_id
+) {
+    $image_post = get_post($image_id);
+    if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images') {
+        return 0;
+    }
+
+    $word_id = ll_find_or_create_word_for_image($image_id, $image_post, [$wordset_id]);
+    if (is_wp_error($word_id) || (int) $word_id <= 0) {
+        return new WP_Error(
+            'preview_prepare_word',
+            __('A word image could not be prepared for the lesson preview.', 'll-tools-text-domain')
+        );
+    }
+    $word_id = (int) $word_id;
+
+    $wordset_ids = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
+    if (is_wp_error($wordset_ids)) {
+        return new WP_Error(
+            'preview_prepare_wordset_read',
+            __('A prepared word could not be verified for the lesson preview.', 'll-tools-text-domain')
+        );
+    }
+    $wordset_ids = array_map('intval', (array) $wordset_ids);
+    if (!in_array($wordset_id, $wordset_ids, true)) {
+        $wordset_ids[] = $wordset_id;
+        $set_result = wp_set_object_terms(
+            $word_id,
+            array_values(array_unique(array_filter($wordset_ids))),
+            'wordset',
+            false
+        );
+        if (is_wp_error($set_result)) {
+            return new WP_Error(
+                'preview_prepare_wordset_write',
+                __('A prepared word could not be added to the lesson word set.', 'll-tools-text-domain')
+            );
+        }
+    }
+
+    $category_ids = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($category_ids)) {
+        return new WP_Error(
+            'preview_prepare_category_read',
+            __('A prepared word category could not be verified for the lesson preview.', 'll-tools-text-domain')
+        );
+    }
+    $category_ids = array_map('intval', (array) $category_ids);
+    if (!in_array($category_id, $category_ids, true)) {
+        $category_ids[] = $category_id;
+        $set_result = wp_set_object_terms(
+            $word_id,
+            array_values(array_unique(array_filter($category_ids))),
+            'word-category',
+            false
+        );
+        if (is_wp_error($set_result)) {
+            return new WP_Error(
+                'preview_prepare_category_write',
+                __('A prepared word could not be added to the lesson category.', 'll-tools-text-domain')
+            );
+        }
+    }
+
+    return $word_id;
+}
+
+/**
+ * @return array{
+ *   word_ids:int[],
+ *   image_count:int,
+ *   created_count:int,
+ *   error_count:int,
+ *   complete:bool,
+ *   cursor:int,
+ *   retry_after?:int
+ * }|WP_Error
  */
 function ll_tools_wordset_page_prepare_word_images_for_lesson_preview(int $category_id, int $wordset_id) {
     $category_id = (int) $category_id;
@@ -2403,44 +2817,203 @@ function ll_tools_wordset_page_prepare_word_images_for_lesson_preview(int $categ
         return new WP_Error('word_image_prepare_unavailable', __('Word image preparation is not available right now.', 'll-tools-text-domain'));
     }
 
-    $image_ids = ll_tools_wordset_page_get_category_word_image_ids($category_id, $wordset_id);
+    $lease_ttl = max(30, min(120, (int) apply_filters(
+        'll_tools_wordset_page_preview_prepare_lease_ttl',
+        45,
+        $category_id,
+        $wordset_id
+    )));
+    $lease = ll_tools_wordset_page_acquire_preview_prepare_lock(
+        $category_id,
+        $wordset_id,
+        $lease_ttl
+    );
+    if ($lease === null) {
+        return new WP_Error(
+            'preview_prepare_busy',
+            __('This lesson preview is already being prepared. Please try again shortly.', 'll-tools-text-domain')
+        );
+    }
+
+    $job_key = ll_tools_wordset_page_preview_job_option($category_id, $wordset_id);
+    $job = get_option($job_key, []);
+    if (
+        !is_array($job)
+        || (int) ($job['wordset_id'] ?? 0) !== $wordset_id
+        || (int) ($job['category_id'] ?? 0) !== $category_id
+    ) {
+        $job = [
+            'version' => 2,
+            'revision' => 0,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'cursor' => 0,
+            'processed' => 0,
+            'created_count' => 0,
+            'error_count' => 0,
+            'retry_image_id' => 0,
+            'retry_count' => 0,
+            'last_error' => '',
+            'started_at' => time(),
+        ];
+        if (!ll_tools_wordset_page_persist_preview_job($job_key, $job)) {
+            ll_tools_wordset_page_release_preview_prepare_lock($lease);
+            return new WP_Error(
+                'preview_prepare_state',
+                __('Lesson preview preparation progress could not be saved.', 'll-tools-text-domain')
+            );
+        }
+        $job = (array) get_option($job_key, $job);
+    }
+
+    $batch_size = max(1, min(25, (int) apply_filters(
+        'll_tools_wordset_page_preview_prepare_batch_size',
+        10,
+        $category_id,
+        $wordset_id
+    )));
+    $runtime_seconds = max(2.0, min(20.0, (float) apply_filters(
+        'll_tools_wordset_page_preview_prepare_runtime_seconds',
+        18.0,
+        $category_id,
+        $wordset_id
+    )));
+    $retry_limit = max(1, min(10, (int) apply_filters(
+        'll_tools_wordset_page_preview_prepare_retry_limit',
+        3,
+        $category_id,
+        $wordset_id
+    )));
+    $deadline = microtime(true) + $runtime_seconds;
+    $batch_complete = true;
+    $image_ids = ll_tools_wordset_page_get_category_word_image_batch(
+        $category_id,
+        $wordset_id,
+        max(0, (int) ($job['cursor'] ?? 0)),
+        $batch_size,
+        $batch_complete
+    );
+    if (!ll_tools_wordset_page_renew_preview_prepare_lock($lease, $lease_ttl)) {
+        ll_tools_wordset_page_release_preview_prepare_lock($lease);
+        return new WP_Error(
+            'preview_prepare_busy',
+            __('This lesson preview is already being prepared. Please try again shortly.', 'll-tools-text-domain')
+        );
+    }
+    if (is_wp_error($image_ids)) {
+        ll_tools_wordset_page_release_preview_prepare_lock($lease);
+        return $image_ids;
+    }
+
     $word_ids = [];
-    $error_count = 0;
-    foreach ($image_ids as $image_id) {
-        $image_post = get_post((int) $image_id);
-        if (!($image_post instanceof WP_Post) || $image_post->post_type !== 'word_images') {
-            $error_count++;
-            continue;
+    $retry_after = 1;
+    try {
+        foreach ($image_ids as $image_id) {
+            if (microtime(true) >= $deadline) {
+                $batch_complete = false;
+                break;
+            }
+            if (!ll_tools_wordset_page_renew_preview_prepare_lock($lease, $lease_ttl)) {
+                return new WP_Error(
+                    'preview_prepare_busy',
+                    __('This lesson preview is already being prepared. Please try again shortly.', 'll-tools-text-domain')
+                );
+            }
+
+            $image_id = (int) $image_id;
+            $prepared_word_id = ll_tools_wordset_page_prepare_one_preview_image(
+                $image_id,
+                $category_id,
+                $wordset_id
+            );
+
+            // Do not publish progress after a slow item if another worker took
+            // over the expired lease. Its idempotent retry owns the cursor.
+            if (!ll_tools_wordset_page_renew_preview_prepare_lock($lease, $lease_ttl)) {
+                return new WP_Error(
+                    'preview_prepare_busy',
+                    __('This lesson preview is already being prepared. Please try again shortly.', 'll-tools-text-domain')
+                );
+            }
+
+            if (is_wp_error($prepared_word_id)) {
+                $same_retry = (int) ($job['retry_image_id'] ?? 0) === $image_id;
+                $job['retry_image_id'] = $image_id;
+                $job['retry_count'] = $same_retry
+                    ? max(0, (int) ($job['retry_count'] ?? 0)) + 1
+                    : 1;
+                if (!$same_retry) {
+                    $job['error_count'] = max(0, (int) ($job['error_count'] ?? 0)) + 1;
+                }
+                $job['last_error'] = $prepared_word_id->get_error_code();
+                if (!ll_tools_wordset_page_persist_preview_job($job_key, $job)) {
+                    return new WP_Error(
+                        'preview_prepare_state',
+                        __('Lesson preview preparation progress could not be saved.', 'll-tools-text-domain')
+                    );
+                }
+
+                if ((int) $job['retry_count'] >= $retry_limit) {
+                    return new WP_Error(
+                        'preview_prepare_item_failed',
+                        __('One word image still could not be prepared. Please try the preview again.', 'll-tools-text-domain'),
+                        [
+                            'image_id' => $image_id,
+                            'retry_count' => (int) $job['retry_count'],
+                        ]
+                    );
+                }
+
+                $batch_complete = false;
+                break;
+            }
+
+            $job['cursor'] = max((int) ($job['cursor'] ?? 0), $image_id);
+            $job['processed'] = max(0, (int) ($job['processed'] ?? 0)) + 1;
+            $job['retry_image_id'] = 0;
+            $job['retry_count'] = 0;
+            $job['last_error'] = '';
+            if ((int) $prepared_word_id > 0) {
+                $word_ids[] = (int) $prepared_word_id;
+                $job['created_count'] = max(0, (int) ($job['created_count'] ?? 0)) + 1;
+            } else {
+                // The queried post disappeared. It is terminal for this
+                // snapshot, but record the skip for operational visibility.
+                $job['error_count'] = max(0, (int) ($job['error_count'] ?? 0)) + 1;
+            }
+
+            if (!ll_tools_wordset_page_persist_preview_job($job_key, $job)) {
+                return new WP_Error(
+                    'preview_prepare_state',
+                    __('Lesson preview preparation progress could not be saved.', 'll-tools-text-domain')
+                );
+            }
+            $job = (array) get_option($job_key, $job);
         }
 
-        $word_id = ll_find_or_create_word_for_image((int) $image_id, $image_post, [$wordset_id]);
-        if (is_wp_error($word_id) || (int) $word_id <= 0) {
-            $error_count++;
-            continue;
+        if ($batch_complete) {
+            if (
+                !ll_tools_wordset_page_renew_preview_prepare_lock($lease, $lease_ttl)
+                || !ll_tools_wordset_page_delete_preview_job_if_unchanged($job_key, $job)
+            ) {
+                return new WP_Error(
+                    'preview_prepare_busy',
+                    __('This lesson preview is already being prepared. Please try again shortly.', 'll-tools-text-domain')
+                );
+            }
         }
-
-        $word_id = (int) $word_id;
-        $word_ids[] = $word_id;
-        $wordset_ids = wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids']);
-        $wordset_ids = is_wp_error($wordset_ids) ? [] : array_map('intval', (array) $wordset_ids);
-        if (!in_array($wordset_id, $wordset_ids, true)) {
-            $wordset_ids[] = $wordset_id;
-            wp_set_object_terms($word_id, array_values(array_unique(array_filter($wordset_ids))), 'wordset', false);
-        }
-
-        $category_ids = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
-        $category_ids = is_wp_error($category_ids) ? [] : array_map('intval', (array) $category_ids);
-        if (!in_array($category_id, $category_ids, true)) {
-            $category_ids[] = $category_id;
-            wp_set_object_terms($word_id, array_values(array_unique(array_filter($category_ids))), 'word-category', false);
-        }
+    } finally {
+        ll_tools_wordset_page_release_preview_prepare_lock($lease);
     }
 
     return [
         'word_ids' => array_values(array_unique($word_ids)),
-        'image_count' => count($image_ids),
-        'created_count' => count(array_unique($word_ids)),
-        'error_count' => $error_count,
+        'image_count' => max(0, (int) ($job['processed'] ?? 0)),
+        'created_count' => max(0, (int) ($job['created_count'] ?? 0)),
+        'error_count' => max(0, (int) ($job['error_count'] ?? 0)),
+        'complete' => $batch_complete,
+        'cursor' => max(0, (int) ($job['cursor'] ?? 0)),
+        'retry_after' => $retry_after,
     ];
 }
 
@@ -2533,8 +3106,57 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
     $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
 
     $prepare_result = ll_tools_wordset_page_prepare_word_images_for_lesson_preview($category_id, $wordset_id);
-    if (is_wp_error($prepare_result) && max(0, (int) ($summary['total'] ?? 0)) <= 0 && max(0, (int) ($summary['prompt_card_count'] ?? 0)) <= 0) {
-        return new WP_Error('preview_prepare', $prepare_result->get_error_message());
+    if (is_wp_error($prepare_result)) {
+        if ($prepare_result->get_error_code() === 'preview_prepare_busy') {
+            $job = get_option(ll_tools_wordset_page_preview_job_option($category_id, $wordset_id), []);
+            $processed = is_array($job) ? max(0, (int) ($job['processed'] ?? 0)) : 0;
+
+            return [
+                'result' => 'preparing',
+                'wordset_id' => $wordset_id,
+                'category_id' => $category_id,
+                'preparation_progress' => [
+                    'processed' => $processed,
+                    'error_count' => is_array($job) ? max(0, (int) ($job['error_count'] ?? 0)) : 0,
+                ],
+                'message' => $prepare_result->get_error_message(),
+                'retry_after' => 1,
+            ];
+        }
+
+        $word_image_count = max(0, (int) ($summary['word_image_count'] ?? 0));
+        if (
+            $word_image_count > 0
+            || (
+                max(0, (int) ($summary['total'] ?? 0)) <= 0
+                && max(0, (int) ($summary['prompt_card_count'] ?? 0)) <= 0
+            )
+        ) {
+            return new WP_Error('preview_prepare', $prepare_result->get_error_message());
+        }
+    }
+    if (is_array($prepare_result) && empty($prepare_result['complete'])) {
+        $processed = max(0, (int) ($prepare_result['image_count'] ?? 0));
+        return [
+            'result' => 'preparing',
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'preparation_progress' => [
+                'processed' => $processed,
+                'error_count' => max(0, (int) ($prepare_result['error_count'] ?? 0)),
+            ],
+            'retry_after' => max(1, min(5, (int) ($prepare_result['retry_after'] ?? 1))),
+            'message' => sprintf(
+                /* translators: %d: number of word images prepared */
+                _n(
+                    'Preparing lesson preview: %d image processed.',
+                    'Preparing lesson preview: %d images processed.',
+                    $processed,
+                    'll-tools-text-domain'
+                ),
+                $processed
+            ),
+        ];
     }
 
     $preview_result = function_exists('ll_tools_get_or_create_vocab_lesson_preview_page')
@@ -2666,6 +3288,8 @@ function ll_tools_wordset_page_handle_inactive_category_action_ajax(): void {
         'deletion_status' => (string) ($result['deletion_status'] ?? ''),
         'deletion_progress' => is_array($result['deletion_progress'] ?? null) ? $result['deletion_progress'] : [],
         'deletion_message' => (string) ($result['deletion_message'] ?? ''),
+        'preparation_progress' => is_array($result['preparation_progress'] ?? null) ? $result['preparation_progress'] : [],
+        'retry_after' => max(0, (int) ($result['retry_after'] ?? 0)),
         'message' => $message,
     ]);
 }
@@ -2779,6 +3403,46 @@ function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $catego
     return __('Not public yet.', 'll-tools-text-domain');
 }
 
+/**
+ * @return array{category_epoch:int,wordset_epoch:int,content_fallback_epoch:string}
+ */
+function ll_tools_wordset_page_published_lesson_map_dependencies(bool $force = false): array {
+    if ($force && function_exists('ll_tools_read_option_epoch')) {
+        foreach ([
+            'll_tools_wc_cache_epoch',
+            'll_tools_wordset_cache_epoch',
+            'll_tools_structural_failsafe_epoch',
+            'll_tools_quiz_content_failsafe_epoch',
+            'll_tools_quiz_content_unknown_epoch',
+        ] as $option_name) {
+            ll_tools_read_option_epoch($option_name, true);
+        }
+    }
+
+    return [
+        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch')
+            ? max(1, (int) ll_tools_get_category_cache_epoch())
+            : 1,
+        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch')
+            ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+            : 1,
+        'content_fallback_epoch' => function_exists('ll_tools_get_quiz_content_fallback_epoch')
+            ? (string) ll_tools_get_quiz_content_fallback_epoch()
+            : 'qcf-unavailable',
+    ];
+}
+
+/**
+ * @param mixed $payload
+ */
+function ll_tools_wordset_page_is_complete_published_lesson_map_payload($payload): bool {
+    return is_array($payload)
+        && isset($payload['map'], $payload['signature'])
+        && is_array($payload['map'])
+        && is_string($payload['signature'])
+        && !empty($payload['complete']);
+}
+
 function ll_tools_wordset_page_get_published_vocab_lesson_category_map(int $wordset_id): array {
     static $request_cache = [];
 
@@ -2791,36 +3455,64 @@ function ll_tools_wordset_page_get_published_vocab_lesson_category_map(int $word
         ];
     }
 
-    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
-        ? max(1, (int) ll_tools_get_category_cache_epoch())
-        : 1;
-    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
-        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
-        : 1;
-    $content_fallback_epoch = function_exists('ll_tools_get_quiz_content_fallback_epoch')
-        ? ll_tools_get_quiz_content_fallback_epoch()
-        : 'qcf-unavailable';
+    $dependencies = ll_tools_wordset_page_published_lesson_map_dependencies();
     $cache_key = ll_tools_wordset_page_build_cache_key('published_lesson_map', [
         'schema' => 3,
         'wordset_id' => $wordset_id,
-        'category_epoch' => $category_epoch,
-        'wordset_epoch' => $wordset_epoch,
-        'content_fallback_epoch' => $content_fallback_epoch,
+        'category_epoch' => $dependencies['category_epoch'],
+        'wordset_epoch' => $dependencies['wordset_epoch'],
+        'content_fallback_epoch' => $dependencies['content_fallback_epoch'],
     ]);
     $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
-    if (
-        is_array($cached)
-        && isset($cached['map'], $cached['signature'])
-        && is_array($cached['map'])
-        && is_string($cached['signature'])
-        && !empty($cached['complete'])
-    ) {
+    if (ll_tools_wordset_page_is_complete_published_lesson_map_payload($cached)) {
         return $cached;
     }
 
-    global $wpdb;
-    $wpdb->last_error = '';
-    $lesson_posts = get_posts([
+    $last_known_key = ll_tools_wordset_page_build_cache_key('published_lesson_map_lkg', [
+        'schema' => 1,
+        'wordset_id' => $wordset_id,
+    ]);
+    $last_known = ll_tools_wordset_page_get_cached_payload($last_known_key, $request_cache);
+    $has_last_known = ll_tools_wordset_page_is_complete_published_lesson_map_payload($last_known);
+    $latest_last_known = static function () use ($last_known_key, &$request_cache): ?array {
+        unset($request_cache[$last_known_key]);
+        $candidate = ll_tools_wordset_page_get_cached_payload($last_known_key, $request_cache);
+        if (!ll_tools_wordset_page_is_complete_published_lesson_map_payload($candidate)) {
+            return null;
+        }
+        $candidate['stale'] = true;
+        return $candidate;
+    };
+
+    if (!ll_tools_wordset_page_acquire_cache_rebuild_lock($cache_key, 120)) {
+        // A known-good map is preferable to holding a live request behind a
+        // full same-wordset rebuild. Epoch changes still make the stale state
+        // explicit, and the winning request refreshes it in the background.
+        if ($has_last_known) {
+            $last_known['stale'] = true;
+            return $last_known;
+        }
+
+        $wait_ms = max(0, min(750, (int) apply_filters(
+            'll_tools_wordset_page_published_lesson_map_cache_build_wait_ms',
+            250,
+            $wordset_id
+        )));
+        $waited = ll_tools_wordset_page_wait_for_cached_payload($cache_key, $request_cache, $wait_ms);
+        if (ll_tools_wordset_page_is_complete_published_lesson_map_payload($waited)) {
+            return $waited;
+        }
+        return [
+            'map' => [],
+            'signature' => 'building',
+            'complete' => false,
+        ];
+    }
+
+    try {
+        global $wpdb;
+        $wpdb->last_error = '';
+        $lesson_posts = get_posts([
         'post_type'      => 'll_vocab_lesson',
         'post_status'    => 'publish',
         'posts_per_page' => -1,
@@ -2835,12 +3527,20 @@ function ll_tools_wordset_page_get_published_vocab_lesson_category_map(int $word
                 'value' => (string) $wordset_id,
             ],
         ],
-    ]);
-    $query_complete = $wpdb->last_error === '';
-    $lesson_posts = array_values(array_filter(array_map('intval', (array) $lesson_posts), static function (int $lesson_id): bool {
-        return $lesson_id > 0;
-    }));
-    if (!empty($lesson_posts)) {
+        ]);
+        if (!ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 120)) {
+            $fallback = $latest_last_known();
+            return $fallback ?? [
+                'map' => [],
+                'signature' => 'building',
+                'complete' => false,
+            ];
+        }
+        $query_complete = $wpdb->last_error === '';
+        $lesson_posts = array_values(array_filter(array_map('intval', (array) $lesson_posts), static function (int $lesson_id): bool {
+            return $lesson_id > 0;
+        }));
+        if (!empty($lesson_posts)) {
         // The semantic pass reads preview/category metadata for every lesson,
         // and category cards later need each permalink. Prime exactly this
         // bounded lesson set instead of issuing two lookups per category.
@@ -2863,11 +3563,28 @@ function ll_tools_wordset_page_get_published_vocab_lesson_category_map(int $word
             ]);
             $query_complete = $query_complete && $wpdb->last_error === '';
         }
-    }
+        }
+        if (!ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 120)) {
+            $fallback = $latest_last_known();
+            return $fallback ?? [
+                'map' => [],
+                'signature' => 'building',
+                'complete' => false,
+            ];
+        }
 
-    $lesson_map = [];
-    $signature_parts = [];
-    foreach ($lesson_posts as $lesson_id) {
+        $lesson_map = [];
+        $signature_parts = [];
+        $lease_valid = true;
+        foreach ($lesson_posts as $lesson_index => $lesson_id) {
+        if (
+            ((int) $lesson_index % 100) === 0
+            && !ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 120)
+        ) {
+            $lease_valid = false;
+            $query_complete = false;
+            break;
+        }
         $lesson_id = (int) $lesson_id;
         $wpdb->last_error = '';
         $is_preview_only = function_exists('ll_tools_vocab_lesson_is_preview_only')
@@ -2921,21 +3638,96 @@ function ll_tools_wordset_page_get_published_vocab_lesson_category_map(int $word
             }
         }
         $signature_parts[] = $lesson_id . ':' . $stored_category_id . ':' . implode(',', $candidate_ids);
-    }
+        }
 
-    $result = [
+        $result = [
         'map' => $lesson_map,
         'signature' => empty($signature_parts) ? 'empty' : substr(md5(implode('|', $signature_parts)), 0, 12),
         'complete' => $query_complete,
-    ];
-    $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl(
+        ];
+        $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl(
         'll_tools_wordset_page_published_lesson_map_cache_ttl',
         HOUR_IN_SECONDS
-    );
-    if (!$query_complete) {
+        );
+        if (!$query_complete) {
+            if (!$lease_valid) {
+                $fallback = $latest_last_known();
+                if ($fallback !== null) {
+                    return $fallback;
+                }
+            }
+            if ($has_last_known) {
+                $last_known['stale'] = true;
+                return $last_known;
+            }
+            return $result;
+        }
+
+        // The fresh cache key is generation-specific, while the last-known-
+        // good key is shared per wordset. Fence both publications so an old
+        // long-running generation cannot replace a newer LKG after mutation.
+        if (
+            !ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 120)
+            || ll_tools_wordset_page_published_lesson_map_dependencies(true) !== $dependencies
+        ) {
+            $fallback = $latest_last_known();
+            return $fallback ?? [
+                'map' => [],
+                'signature' => 'changed',
+                'complete' => false,
+            ];
+        }
+
+        $result = ll_tools_wordset_page_store_cached_payload(
+            $cache_key,
+            $result,
+            $cache_ttl,
+            $request_cache
+        );
+        if (
+            !ll_tools_wordset_page_renew_cache_rebuild_lock($cache_key, 120)
+            || ll_tools_wordset_page_published_lesson_map_dependencies(true) !== $dependencies
+        ) {
+            $fallback = $latest_last_known();
+            return $fallback ?? [
+                'map' => [],
+                'signature' => 'changed',
+                'complete' => false,
+            ];
+        }
+        $last_known_publish_lock_key = $last_known_key . ':publish';
+        if (!ll_tools_wordset_page_acquire_cache_rebuild_lock($last_known_publish_lock_key, 30)) {
+            return $result;
+        }
+        try {
+            // Serialize the stable wordset-only publication key across every
+            // epoch-specific builder. The forced check inside this lock closes
+            // the final check/write race: an old builder either publishes
+            // first and is replaced by the new one, or observes drift and skips.
+            if (ll_tools_wordset_page_published_lesson_map_dependencies(true) !== $dependencies) {
+                $fallback = $latest_last_known();
+                return $fallback ?? [
+                    'map' => [],
+                    'signature' => 'changed',
+                    'complete' => false,
+                ];
+            }
+            ll_tools_wordset_page_store_cached_payload(
+                $last_known_key,
+                $result,
+                ll_tools_wordset_page_normalize_cache_ttl(
+                    'll_tools_wordset_page_published_lesson_map_lkg_cache_ttl',
+                    7 * DAY_IN_SECONDS
+                ),
+                $request_cache
+            );
+        } finally {
+            ll_tools_wordset_page_release_cache_rebuild_lock($last_known_publish_lock_key);
+        }
         return $result;
+    } finally {
+        ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
     }
-    return ll_tools_wordset_page_store_cached_payload($cache_key, $result, $cache_ttl, $request_cache);
 }
 
 function ll_tools_wordset_page_prime_category_eligibility_terms(array $category_ids): bool {
@@ -8204,6 +8996,12 @@ function ll_tools_wordset_page_inactive_category_notice(): ?array {
             return [
                 'type' => 'success',
                 'message' => __('Deletion in progress. Run the next batch to continue.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($result === 'preparing') {
+            return [
+                'type' => 'success',
+                'message' => __('Lesson preview preparation is in progress. Open the preview again to continue.', 'll-tools-text-domain'),
             ];
         }
 
@@ -24577,6 +25375,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'inactiveHideLabel' => __('Hide', 'll-tools-text-domain'),
             'inactiveDeleteLabel' => __('Delete', 'll-tools-text-domain'),
             'inactiveDeleteConfirm' => __('Delete this category and any linked vocab lesson? This cannot be undone.', 'll-tools-text-domain'),
+            'previewPreparingLabel' => __('Preparing preview', 'll-tools-text-domain'),
+            'previewPreparing' => __('Preparing lesson preview...', 'll-tools-text-domain'),
             'continueDeletionLabel' => __('Continue Deletion', 'll-tools-text-domain'),
             'retryDeletionLabel' => __('Retry Deletion', 'll-tools-text-domain'),
             'categoryManagementAria' => __('Category management for %s', 'll-tools-text-domain'),

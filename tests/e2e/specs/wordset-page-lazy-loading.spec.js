@@ -387,7 +387,9 @@ function buildConfig(options = {}) {
 
   return {
     view: 'main',
-    ajaxUrl: '/fake-admin-ajax.php',
+    ajaxUrl: Object.prototype.hasOwnProperty.call(options, 'ajaxUrl')
+      ? String(options.ajaxUrl || '')
+      : '/fake-admin-ajax.php',
     nonce: String(options.nonce || ''),
     isLoggedIn: !!options.isLoggedIn,
     wordsetId: 77,
@@ -1117,6 +1119,7 @@ test('inactive category card body submits preview form without a visible preview
     categories: [allCategories[0], inactiveCategory],
     remainingCards: [],
     isLoggedIn: true,
+    ajaxUrl: '',
     lazyCards: {
       enabled: false,
       loaded: 1,
@@ -1133,6 +1136,49 @@ test('inactive category card body submits preview form without a visible preview
     return page.evaluate(() => window.__llInactivePreviewSubmits);
   }).toEqual([{ action: 'preview', categoryId: 44 }]);
   await expect(page.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
+});
+
+test('inactive preview triggers cannot start a second polling chain during retry delay', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    inactiveActionResponses: [{
+      result: 'preparing',
+      category_id: 44,
+      retry_after: 1,
+      message: 'Preparing preview...'
+    }],
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'matematik');
+  const card = page.locator('.ll-wordset-card--inactive[data-cat-id="44"]');
+  const trigger = card.locator('.ll-wordset-card__lesson-link--inactive-preview');
+  await trigger.click();
+  await expect(card).toHaveAttribute('aria-busy', 'true');
+  await expect(trigger).toHaveAttribute('aria-disabled', 'true');
+
+  await trigger.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 0
+    }));
+    element.dispatchEvent(new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Enter'
+    }));
+  });
+  await page.waitForTimeout(100);
+
+  expect(await page.evaluate(() => window.__llInactiveActionAjaxCalls.length)).toBe(1);
 });
 
 test('inactive category preview links keep native new-tab gestures', async ({ page }) => {

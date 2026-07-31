@@ -278,6 +278,9 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
     if ($raw_args === null) {
         $raw_args = $_GET;
     }
+    if (function_exists('ll_tools_dictionary_public_filter_bounded_request')) {
+        $raw_args = ll_tools_dictionary_public_filter_bounded_request($raw_args);
+    }
 
     $allowed = array_flip(ll_tools_dictionary_static_cache_query_keys());
     $normalized = [];

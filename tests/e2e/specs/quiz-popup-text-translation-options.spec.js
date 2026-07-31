@@ -110,7 +110,8 @@ test('quiz popup keeps text translation answer options from a paged launch card'
       return false;
     }
     const postData = response.request().postData() || '';
-    return postData.includes('action=ll_get_words_by_category')
+    return response.status() === 200
+      && postData.includes('action=ll_get_flashcard_payload_page')
       && postData.includes(`wordset=${fixture.wordsetId}`)
       && postData.includes('prompt_type=audio')
       && postData.includes('option_type=text_translation');
@@ -126,8 +127,8 @@ test('quiz popup keeps text translation answer options from a paged launch card'
   expect(wordsResponse.ok()).toBe(true);
   const wordsPayload = await wordsResponse.json();
   expect(wordsPayload.success).toBe(true);
-  expect(Array.isArray(wordsPayload.data)).toBe(true);
-  expect(wordsPayload.data.length).toBeGreaterThanOrEqual(fixture.words.length);
+  const wordsRows = Array.isArray(wordsPayload.data?.rows) ? wordsPayload.data.rows : [];
+  expect(wordsRows.length).toBeGreaterThanOrEqual(fixture.words.length);
 
   const launchCategory = await page.evaluate((categoryName) => {
     const target = String(categoryName || '').trim().toLowerCase();
@@ -146,7 +147,7 @@ test('quiz popup keeps text translation answer options from a paged launch card'
     option_type: 'text_translation'
   });
 
-  const rowsByTitle = new Map(wordsPayload.data.map((word) => [String(word.title || '').trim(), word]));
+  const rowsByTitle = new Map(wordsRows.map((word) => [String(word.title || '').trim(), word]));
   for (const word of fixture.words) {
     const row = rowsByTitle.get(String(word.title || '').trim());
     expect(row, `AJAX row for ${word.title}`).toBeTruthy();

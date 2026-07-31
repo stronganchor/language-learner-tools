@@ -7,6 +7,23 @@
     gap: 12px;
 }
 
+#ll-aim-feedback {
+    display: flex;
+    min-height: 32px;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+}
+
+#ll-aim-status {
+    color: #50575e;
+}
+
+#ll-aim-status.is-error {
+    color: #b32d2e;
+    font-weight: 600;
+}
+
 #ll-aim-image-page-controls {
     display: flex;
     min-height: 40px;
@@ -15,6 +32,7 @@
     margin-top: 12px;
 }
 
+#ll-aim-retry[hidden],
 #ll-aim-load-more-images[hidden] {
     display: none !important;
 }
@@ -31,9 +49,47 @@
 /* Wrapper for each card to hold image + labels below */
 .ll-aim-card {
     display: flex;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     flex-direction: column;
     align-items: center;
+    margin: 0;
+    padding: 8px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: #1d2327;
+    font: inherit;
+    line-height: normal;
+    text-transform: none;
+    box-shadow: none;
+    appearance: none;
     cursor: pointer;
+}
+
+.ll-aim-card .ll-aim-image-wrapper {
+    max-width: 100%;
+}
+
+.ll-aim-card:hover:not(:disabled) {
+    border-color: #72aee6;
+    background: #f0f6fc;
+}
+
+.ll-aim-card:focus-visible {
+    border-color: #2271b1;
+    outline: 3px solid #72aee6;
+    outline-offset: 2px;
+}
+
+.ll-aim-card:disabled {
+    opacity: .62;
+    cursor: wait;
+}
+
+.ll-aim-card.is-saving {
+    border-color: #2271b1;
 }
 
 /* Labels below the image */
@@ -80,6 +136,17 @@
     -webkit-text-size-adjust: none;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+}
+
+@media (forced-colors: active) {
+    .ll-aim-card {
+        border-color: ButtonBorder;
+    }
+
+    .ll-aim-card:focus-visible,
+    .ll-aim-card.is-picked {
+        border-color: Highlight;
+    }
 }
 
 .ll-aim-badge {
