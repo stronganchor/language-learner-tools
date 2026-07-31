@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.92\n"
+"Project-Id-Version: Language Learner Tools 6.6.93\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-31T06:21:17+00:00\n"
+"POT-Creation-Date: 2026-07-31T08:36:23+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -1173,8 +1173,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:21310
 #: includes/pages/wordset-pages.php:21585
 #: includes/shortcodes/audio-credit-grid-shortcode.php:407
-#: includes/shortcodes/content-lesson-index-shortcode.php:540
-#: includes/shortcodes/content-lesson-index-shortcode.php:655
+#: includes/shortcodes/content-lesson-index-shortcode.php:542
+#: includes/shortcodes/content-lesson-index-shortcode.php:708
 #: includes/shortcodes/dictionary-shortcode.php:2458
 #: includes/shortcodes/image-copyright-grid-shortcode.php:590
 #: includes/taxonomies/word-category-taxonomy.php:2059
@@ -1206,7 +1206,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:26572
 #: includes/pages/wordset-pages.php:26701
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
-#: includes/shortcodes/content-lesson-index-shortcode.php:669
+#: includes/shortcodes/content-lesson-index-shortcode.php:722
 #: includes/shortcodes/dictionary-shortcode.php:2481
 #: includes/shortcodes/flashcard-widget.php:666
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
@@ -1222,8 +1222,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:12097
 #: includes/pages/wordset-pages.php:12341
 #: includes/pages/wordset-pages.php:21317
-#: includes/shortcodes/content-lesson-index-shortcode.php:544
-#: includes/shortcodes/content-lesson-index-shortcode.php:662
+#: includes/shortcodes/content-lesson-index-shortcode.php:546
+#: includes/shortcodes/content-lesson-index-shortcode.php:715
 msgid "Page %d"
 msgstr ""
 
@@ -2343,10 +2343,11 @@ msgstr ""
 #: includes/admin/export-import.php:1633
 #: includes/admin/export-import.php:3772
 #: includes/content-lesson-progress.php:278
-#: includes/content-lesson-progress.php:407
+#: includes/content-lesson-progress.php:391
+#: includes/content-lesson-progress.php:419
 #: includes/pages/content-lesson-pages.php:1292
 #: includes/shortcodes/content-lesson-index-shortcode.php:386
-#: includes/shortcodes/content-lesson-index-shortcode.php:603
+#: includes/shortcodes/content-lesson-index-shortcode.php:621
 msgid "Completed"
 msgstr ""
 
@@ -10637,6 +10638,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:922
 #: includes/pages/wordset-pages.php:24237
 #: includes/pages/wordset-pages.php:24248
+#: includes/shortcodes/content-lesson-index-shortcode.php:627
 msgid "Ready"
 msgstr ""
 
@@ -12957,7 +12959,8 @@ msgid "Before this lesson"
 msgstr ""
 
 #: includes/content-lesson-progress.php:279
-#: includes/shortcodes/content-lesson-index-shortcode.php:604
+#: includes/content-lesson-progress.php:392
+#: includes/shortcodes/content-lesson-index-shortcode.php:669
 msgid "Not completed"
 msgstr ""
 
@@ -12965,36 +12968,36 @@ msgstr ""
 msgid "Continue learning"
 msgstr ""
 
-#: includes/content-lesson-progress.php:402
+#: includes/content-lesson-progress.php:414
 msgid "Log in to save lesson progress"
 msgstr ""
 
-#: includes/content-lesson-progress.php:408
+#: includes/content-lesson-progress.php:420
 #: includes/pages/content-lesson-pages.php:1293
 #: includes/shortcodes/content-lesson-index-shortcode.php:387
 msgid "Mark complete"
 msgstr ""
 
-#: includes/content-lesson-progress.php:442
-#: includes/content-lesson-progress.php:490
+#: includes/content-lesson-progress.php:454
+#: includes/content-lesson-progress.php:502
 msgid "Log in to save lesson progress."
 msgstr ""
 
-#: includes/content-lesson-progress.php:451
+#: includes/content-lesson-progress.php:463
 msgid "Select a valid published lesson."
 msgstr ""
 
-#: includes/content-lesson-progress.php:467
+#: includes/content-lesson-progress.php:479
 msgid "You cannot update progress for this lesson."
 msgstr ""
 
-#: includes/content-lesson-progress.php:474
+#: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1296
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
 msgid "Lesson progress could not be saved."
 msgstr ""
 
-#: includes/content-lesson-progress.php:497
+#: includes/content-lesson-progress.php:509
 msgid "The progress request could not be verified."
 msgstr ""
 
@@ -15939,7 +15942,7 @@ msgstr ""
 #: includes/pages/content-lesson-pages.php:818
 #: includes/pages/wordset-pages.php:4819
 #: includes/pages/wordset-pages.php:24714
-#: includes/shortcodes/content-lesson-index-shortcode.php:605
+#: includes/shortcodes/content-lesson-index-shortcode.php:615
 msgid "Open lesson"
 msgstr ""
 
@@ -17598,7 +17601,7 @@ msgid "Default Word Set"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:118
-#: includes/shortcodes/content-lesson-index-shortcode.php:585
+#: includes/shortcodes/content-lesson-index-shortcode.php:587
 #: includes/wordset-isolation.php:4012
 msgid "Lessons"
 msgstr ""
@@ -23448,43 +23451,44 @@ msgstr ""
 msgid "The lesson index could not be read completely."
 msgstr ""
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:535
+#: includes/shortcodes/content-lesson-index-shortcode.php:537
 msgid "No lessons were found on this page."
 msgstr ""
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:537
-#: includes/shortcodes/content-lesson-index-shortcode.php:648
+#: includes/shortcodes/content-lesson-index-shortcode.php:539
+#: includes/shortcodes/content-lesson-index-shortcode.php:701
 msgid "Lesson pages"
 msgstr ""
 
-#: includes/shortcodes/content-lesson-index-shortcode.php:550
+#: includes/shortcodes/content-lesson-index-shortcode.php:552
 msgid "No lessons were found."
 msgstr ""
 
 #. translators: %d: lesson level number
-#: includes/shortcodes/content-lesson-index-shortcode.php:582
+#: includes/shortcodes/content-lesson-index-shortcode.php:584
 msgid "Level %d"
 msgstr ""
 
 #. translators: %s: number of prerequisite lessons
-#: includes/shortcodes/content-lesson-index-shortcode.php:625
+#: includes/shortcodes/content-lesson-index-shortcode.php:635
+#: includes/shortcodes/content-lesson-index-shortcode.php:676
 msgid "%s prerequisite"
 msgid_plural "%s prerequisites"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: signed-in user's display name
-#: includes/shortcodes/content-lesson-index-shortcode.php:808
+#: includes/shortcodes/content-lesson-index-shortcode.php:861
 msgid "Signed in as %s."
 msgstr ""
 
 #. translators: 1 and 2: login-link tags; 3 and 4: registration-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:830
+#: includes/shortcodes/content-lesson-index-shortcode.php:883
 msgid "%1$sLog in%2$s or %3$sregister%4$s to save completed lessons."
 msgstr ""
 
 #. translators: 1 and 2: login-link tags
-#: includes/shortcodes/content-lesson-index-shortcode.php:839
+#: includes/shortcodes/content-lesson-index-shortcode.php:892
 msgid "%1$sLog in%2$s to save completed lessons."
 msgstr ""
 

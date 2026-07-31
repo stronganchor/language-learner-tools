@@ -169,6 +169,12 @@
     outline: none !important;
 }
 
+.ll-content-lesson-progress-button:focus-visible,
+.ll-content-lesson-progress-login:focus-visible {
+    outline: 3px solid var(--ll-cl-accent) !important;
+    outline-offset: 2px !important;
+}
+
 .ll-content-lesson-progress-button:disabled {
     cursor: wait !important;
     opacity: 0.72 !important;
@@ -226,6 +232,11 @@
     border-color: var(--ll-cl-accent) !important;
     color: var(--ll-cl-accent) !important;
     outline: none !important;
+}
+
+.ll-content-lesson-prerequisites__item a:focus-visible {
+    outline: 3px solid var(--ll-cl-accent) !important;
+    outline-offset: 2px !important;
 }
 
 .ll-content-lesson-prerequisites__item.is-completed a {

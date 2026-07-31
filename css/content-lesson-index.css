@@ -109,6 +109,28 @@
     color: var(--ll-lesson-index-green);
 }
 
+.ll-content-lesson-index__item.is-ready .ll-content-lesson-index__status-icon {
+    background: #dbeafe;
+    color: var(--ll-lesson-index-blue);
+}
+
+.ll-content-lesson-index__item.has-unmet-prerequisites .ll-content-lesson-index__status-icon {
+    background: #fff3c4;
+    color: #8a5d00;
+}
+
+.ll-content-lesson-index__item.is-completed .ll-content-lesson-index__link {
+    border-color: #a7e3b5;
+}
+
+.ll-content-lesson-index__item.is-ready .ll-content-lesson-index__link {
+    border-color: #bfd6f4;
+}
+
+.ll-content-lesson-index__item.has-unmet-prerequisites .ll-content-lesson-index__link {
+    border-color: #ecd28d;
+}
+
 .ll-content-lesson-index__body {
     display: grid;
     align-content: start;
@@ -135,9 +157,32 @@
 }
 
 .ll-content-lesson-index__meta {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 1.6rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #eceff3;
     color: var(--ll-lesson-index-slate);
     font-size: 0.8rem;
     font-weight: 600;
+    line-height: 1.25;
+}
+
+.ll-content-lesson-index__meta--completed {
+    background: #d7f8dd;
+    color: var(--ll-lesson-index-green);
+}
+
+.ll-content-lesson-index__meta--ready {
+    background: #dbeafe;
+    color: var(--ll-lesson-index-blue);
+}
+
+.ll-content-lesson-index__meta--incomplete {
+    background: #fff3c4;
+    color: #785000;
 }
 
 .ll-content-lesson-index__pagination {

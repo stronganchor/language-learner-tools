@@ -69,6 +69,25 @@ fi
 # When WP-CLI runs through Windows PHP, it may emit absolute drive-letter paths in
 # `#:` location lines inside the POT. Those paths are machine-specific noise and
 # make diffs harder to review, so normalize back to plugin-relative paths.
+# Worktrees do not necessarily live under wp-content/plugins or use the plugin
+# directory name, so strip the exact current root in both WSL and Windows form
+# before applying the installed-plugin fallback.
+POT_ROOT_WINDOWS=""
+if command -v wslpath >/dev/null 2>&1; then
+  POT_ROOT_WINDOWS="$(wslpath -w "$ROOT_DIR" 2>/dev/null || true)"
+elif command -v cygpath >/dev/null 2>&1; then
+  POT_ROOT_WINDOWS="$(cygpath -w "$ROOT_DIR" 2>/dev/null || true)"
+fi
+POT_ROOT_DIR="$ROOT_DIR" POT_ROOT_WINDOWS="$POT_ROOT_WINDOWS" perl -0pi -e '
+  BEGIN {
+    my @roots = grep { length($_) } (
+      $ENV{"POT_ROOT_DIR"} // "",
+      $ENV{"POT_ROOT_WINDOWS"} // ""
+    );
+    $root_pattern = join("|", map { quotemeta($_) } @roots);
+  }
+  s{(?m)^#:\s+(?:$root_pattern)[\\/]}{#: }g if $root_pattern ne "";
+' "$POT_FILE"
 # Normalize absolute plugin paths (Windows or WSL) back to plugin-relative paths.
 perl -0pi -e 's{(?m)^#:\s+.*?(?:wp-content[\/\\]plugins[\/\\]language-learner-tools[\/\\])}{#: }g' "$POT_FILE"
 

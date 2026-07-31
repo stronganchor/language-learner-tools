@@ -4,7 +4,7 @@
     "source_policy": "Public visitor and learner-facing UI strings. Excludes wp-admin, REST/CLI/admin tooling, front-end manager-only settings, recorder queue management, and teacher-class management. Includes language switching, auth, public lesson/card/game/dictionary surfaces, learner progress, hidden-category controls, and learner study preferences.",
     "source_config": "languages/tier2-public-ui-sources.php",
     "source_pot": "languages/ll-tools-text-domain.pot",
-    "entry_count": 776,
+    "entry_count": 777,
     "entries": [
         {
             "key": "97df477b40918339cf72087680438a4cb268a860",
@@ -29,16 +29,18 @@
                 "includes/admin/export-import.php:1633",
                 "includes/admin/export-import.php:3772",
                 "includes/content-lesson-progress.php:278",
-                "includes/content-lesson-progress.php:407",
+                "includes/content-lesson-progress.php:391",
+                "includes/content-lesson-progress.php:419",
                 "includes/pages/content-lesson-pages.php:1292",
                 "includes/shortcodes/content-lesson-index-shortcode.php:386",
-                "includes/shortcodes/content-lesson-index-shortcode.php:603"
+                "includes/shortcodes/content-lesson-index-shortcode.php:621"
             ],
             "public_references": [
                 "includes/content-lesson-progress.php:278",
-                "includes/content-lesson-progress.php:407",
+                "includes/content-lesson-progress.php:391",
+                "includes/content-lesson-progress.php:419",
                 "includes/shortcodes/content-lesson-index-shortcode.php:386",
-                "includes/shortcodes/content-lesson-index-shortcode.php:603"
+                "includes/shortcodes/content-lesson-index-shortcode.php:621"
             ]
         },
         {
@@ -48,11 +50,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/content-lesson-progress.php:279",
-                "includes/shortcodes/content-lesson-index-shortcode.php:604"
+                "includes/content-lesson-progress.php:392",
+                "includes/shortcodes/content-lesson-index-shortcode.php:669"
             ],
             "public_references": [
                 "includes/content-lesson-progress.php:279",
-                "includes/shortcodes/content-lesson-index-shortcode.php:604"
+                "includes/content-lesson-progress.php:392",
+                "includes/shortcodes/content-lesson-index-shortcode.php:669"
             ]
         },
         {
@@ -73,10 +77,10 @@
             "msgid": "Log in to save lesson progress",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:402"
+                "includes/content-lesson-progress.php:414"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:402"
+                "includes/content-lesson-progress.php:414"
             ]
         },
         {
@@ -85,12 +89,12 @@
             "msgid": "Mark complete",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:408",
+                "includes/content-lesson-progress.php:420",
                 "includes/pages/content-lesson-pages.php:1293",
                 "includes/shortcodes/content-lesson-index-shortcode.php:387"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:408",
+                "includes/content-lesson-progress.php:420",
                 "includes/shortcodes/content-lesson-index-shortcode.php:387"
             ]
         },
@@ -100,12 +104,12 @@
             "msgid": "Log in to save lesson progress.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:442",
-                "includes/content-lesson-progress.php:490"
+                "includes/content-lesson-progress.php:454",
+                "includes/content-lesson-progress.php:502"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:442",
-                "includes/content-lesson-progress.php:490"
+                "includes/content-lesson-progress.php:454",
+                "includes/content-lesson-progress.php:502"
             ]
         },
         {
@@ -114,10 +118,10 @@
             "msgid": "Select a valid published lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:451"
+                "includes/content-lesson-progress.php:463"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:451"
+                "includes/content-lesson-progress.php:463"
             ]
         },
         {
@@ -126,10 +130,10 @@
             "msgid": "You cannot update progress for this lesson.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:467"
+                "includes/content-lesson-progress.php:479"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:467"
+                "includes/content-lesson-progress.php:479"
             ]
         },
         {
@@ -138,12 +142,12 @@
             "msgid": "Lesson progress could not be saved.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:474",
+                "includes/content-lesson-progress.php:486",
                 "includes/pages/content-lesson-pages.php:1296",
                 "includes/shortcodes/content-lesson-index-shortcode.php:390"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:474",
+                "includes/content-lesson-progress.php:486",
                 "includes/shortcodes/content-lesson-index-shortcode.php:390"
             ]
         },
@@ -153,10 +157,10 @@
             "msgid": "The progress request could not be verified.",
             "msgid_plural": null,
             "references": [
-                "includes/content-lesson-progress.php:497"
+                "includes/content-lesson-progress.php:509"
             ],
             "public_references": [
-                "includes/content-lesson-progress.php:497"
+                "includes/content-lesson-progress.php:509"
             ]
         },
         {
@@ -562,8 +566,8 @@
                 "includes/pages/wordset-pages.php:21310",
                 "includes/pages/wordset-pages.php:21585",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:407",
-                "includes/shortcodes/content-lesson-index-shortcode.php:540",
-                "includes/shortcodes/content-lesson-index-shortcode.php:655",
+                "includes/shortcodes/content-lesson-index-shortcode.php:542",
+                "includes/shortcodes/content-lesson-index-shortcode.php:708",
                 "includes/shortcodes/dictionary-shortcode.php:2458",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:590",
                 "includes/taxonomies/word-category-taxonomy.php:2059"
@@ -574,8 +578,8 @@
                 "includes/pages/content-lesson-pages.php:1086",
                 "includes/pages/content-lesson-pages.php:1142",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:407",
-                "includes/shortcodes/content-lesson-index-shortcode.php:540",
-                "includes/shortcodes/content-lesson-index-shortcode.php:655",
+                "includes/shortcodes/content-lesson-index-shortcode.php:542",
+                "includes/shortcodes/content-lesson-index-shortcode.php:708",
                 "includes/shortcodes/dictionary-shortcode.php:2458",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:590"
             ]
@@ -625,7 +629,7 @@
                 "includes/pages/wordset-pages.php:26572",
                 "includes/pages/wordset-pages.php:26701",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:408",
-                "includes/shortcodes/content-lesson-index-shortcode.php:669",
+                "includes/shortcodes/content-lesson-index-shortcode.php:722",
                 "includes/shortcodes/dictionary-shortcode.php:2481",
                 "includes/shortcodes/flashcard-widget.php:666",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:591",
@@ -641,7 +645,7 @@
                 "includes/pages/wordset-pages.php:26572",
                 "includes/pages/wordset-pages.php:26701",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:408",
-                "includes/shortcodes/content-lesson-index-shortcode.php:669",
+                "includes/shortcodes/content-lesson-index-shortcode.php:722",
                 "includes/shortcodes/dictionary-shortcode.php:2481",
                 "includes/shortcodes/flashcard-widget.php:666",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:591"
@@ -2510,13 +2514,13 @@
                 "includes/pages/content-lesson-pages.php:818",
                 "includes/pages/wordset-pages.php:24714",
                 "includes/pages/wordset-pages.php:4819",
-                "includes/shortcodes/content-lesson-index-shortcode.php:605"
+                "includes/shortcodes/content-lesson-index-shortcode.php:615"
             ],
             "public_references": [
                 "includes/pages/content-lesson-pages.php:818",
                 "includes/pages/wordset-pages.php:24714",
                 "includes/pages/wordset-pages.php:4819",
-                "includes/shortcodes/content-lesson-index-shortcode.php:605"
+                "includes/shortcodes/content-lesson-index-shortcode.php:615"
             ]
         },
         {
@@ -3705,12 +3709,12 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:118",
-                "includes/shortcodes/content-lesson-index-shortcode.php:585",
+                "includes/shortcodes/content-lesson-index-shortcode.php:587",
                 "includes/wordset-isolation.php:4012"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:118",
-                "includes/shortcodes/content-lesson-index-shortcode.php:585"
+                "includes/shortcodes/content-lesson-index-shortcode.php:587"
             ]
         },
         {
@@ -8235,10 +8239,10 @@
             "msgid": "No lessons were found on this page.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:535"
+                "includes/shortcodes/content-lesson-index-shortcode.php:537"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:535"
+                "includes/shortcodes/content-lesson-index-shortcode.php:537"
             ]
         },
         {
@@ -8247,12 +8251,12 @@
             "msgid": "Lesson pages",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:537",
-                "includes/shortcodes/content-lesson-index-shortcode.php:648"
+                "includes/shortcodes/content-lesson-index-shortcode.php:539",
+                "includes/shortcodes/content-lesson-index-shortcode.php:701"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:537",
-                "includes/shortcodes/content-lesson-index-shortcode.php:648"
+                "includes/shortcodes/content-lesson-index-shortcode.php:539",
+                "includes/shortcodes/content-lesson-index-shortcode.php:701"
             ]
         },
         {
@@ -8266,12 +8270,12 @@
                 "includes/pages/wordset-pages.php:12097",
                 "includes/pages/wordset-pages.php:12341",
                 "includes/pages/wordset-pages.php:21317",
-                "includes/shortcodes/content-lesson-index-shortcode.php:544",
-                "includes/shortcodes/content-lesson-index-shortcode.php:662"
+                "includes/shortcodes/content-lesson-index-shortcode.php:546",
+                "includes/shortcodes/content-lesson-index-shortcode.php:715"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:544",
-                "includes/shortcodes/content-lesson-index-shortcode.php:662"
+                "includes/shortcodes/content-lesson-index-shortcode.php:546",
+                "includes/shortcodes/content-lesson-index-shortcode.php:715"
             ]
         },
         {
@@ -8280,10 +8284,10 @@
             "msgid": "No lessons were found.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:550"
+                "includes/shortcodes/content-lesson-index-shortcode.php:552"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:550"
+                "includes/shortcodes/content-lesson-index-shortcode.php:552"
             ]
         },
         {
@@ -8292,10 +8296,25 @@
             "msgid": "Level %d",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:582"
+                "includes/shortcodes/content-lesson-index-shortcode.php:584"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:582"
+                "includes/shortcodes/content-lesson-index-shortcode.php:584"
+            ]
+        },
+        {
+            "key": "6df2eadc36a465f73e7e591fc2da209a9df86612",
+            "context": "",
+            "msgid": "Ready",
+            "msgid_plural": null,
+            "references": [
+                "includes/admin/teacher-classes-page.php:922",
+                "includes/pages/wordset-pages.php:24237",
+                "includes/pages/wordset-pages.php:24248",
+                "includes/shortcodes/content-lesson-index-shortcode.php:627"
+            ],
+            "public_references": [
+                "includes/shortcodes/content-lesson-index-shortcode.php:627"
             ]
         },
         {
@@ -8304,10 +8323,12 @@
             "msgid": "%s prerequisite",
             "msgid_plural": "%s prerequisites",
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:625"
+                "includes/shortcodes/content-lesson-index-shortcode.php:635",
+                "includes/shortcodes/content-lesson-index-shortcode.php:676"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:625"
+                "includes/shortcodes/content-lesson-index-shortcode.php:635",
+                "includes/shortcodes/content-lesson-index-shortcode.php:676"
             ]
         },
         {
@@ -8316,10 +8337,10 @@
             "msgid": "Signed in as %s.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:808"
+                "includes/shortcodes/content-lesson-index-shortcode.php:861"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:808"
+                "includes/shortcodes/content-lesson-index-shortcode.php:861"
             ]
         },
         {
@@ -8328,10 +8349,10 @@
             "msgid": "%1$sLog in%2$s or %3$sregister%4$s to save completed lessons.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:830"
+                "includes/shortcodes/content-lesson-index-shortcode.php:883"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:830"
+                "includes/shortcodes/content-lesson-index-shortcode.php:883"
             ]
         },
         {
@@ -8340,10 +8361,10 @@
             "msgid": "%1$sLog in%2$s to save completed lessons.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:839"
+                "includes/shortcodes/content-lesson-index-shortcode.php:892"
             ],
             "public_references": [
-                "includes/shortcodes/content-lesson-index-shortcode.php:839"
+                "includes/shortcodes/content-lesson-index-shortcode.php:892"
             ]
         },
         {

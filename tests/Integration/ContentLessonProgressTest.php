@@ -243,10 +243,24 @@ final class ContentLessonProgressTest extends LL_Tools_TestCase
         );
         $this->assertCount(1, $dependent_rows);
         $this->assertSame($lesson_id, (int) $dependent_rows[0]['id']);
+        $dependent_html = ll_tools_render_content_lesson_dependents(
+            $first_id,
+            $user_id
+        );
         $this->assertStringContainsString(
             'Continue learning',
-            ll_tools_render_content_lesson_dependents($first_id, $user_id)
+            $dependent_html
         );
+        $this->assertStringContainsString('&#8594;', $dependent_html);
+
+        ll_tools_set_content_lesson_completion($user_id, $lesson_id, true);
+        $completed_dependent_html = ll_tools_render_content_lesson_dependents(
+            $first_id,
+            $user_id
+        );
+        $this->assertStringContainsString('is-completed', $completed_dependent_html);
+        $this->assertStringContainsString('&#10003;', $completed_dependent_html);
+        $this->assertStringContainsString('Completed', $completed_dependent_html);
     }
 
     public function test_article_kind_save_clears_media_only_fields(): void

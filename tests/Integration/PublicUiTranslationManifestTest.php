@@ -360,6 +360,18 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertStringContainsString('i18n make-php "$RUNTIME_PO"', $script);
         $this->assertStringNotContainsString('i18n make-mo "$TR_PO_FILE"', $script);
         $this->assertStringNotContainsString('i18n make-php "$TR_PO_FILE"', $script);
+        $this->assertStringContainsString(
+            'POT_ROOT_WINDOWS="$(wslpath -w "$ROOT_DIR"',
+            $script
+        );
+        $this->assertStringContainsString(
+            'POT_ROOT_WINDOWS="$(cygpath -w "$ROOT_DIR"',
+            $script
+        );
+        $this->assertStringContainsString(
+            'POT_ROOT_DIR="$ROOT_DIR" POT_ROOT_WINDOWS="$POT_ROOT_WINDOWS"',
+            $script
+        );
     }
 
     public function test_active_tier2_locales_must_cover_every_public_manifest_entry(): void

@@ -373,14 +373,26 @@ function ll_tools_render_content_lesson_dependents(int $lesson_id, int $user_id 
     $html .= esc_html__('Continue learning', 'll-tools-text-domain');
     $html .= '</h2><ul class="ll-content-lesson-prerequisites__list">';
     foreach ($rows as $row) {
+        $is_completed = !empty($row['completed']);
         $class_name = 'll-content-lesson-prerequisites__item';
-        if (!empty($row['completed'])) {
+        if ($is_completed) {
             $class_name .= ' is-completed';
         }
         $html .= '<li class="' . esc_attr($class_name) . '"><a href="'
             . esc_url((string) $row['url']) . '">';
-        $html .= '<span class="ll-content-lesson-prerequisites__status" aria-hidden="true">&#8594;</span>';
+        $html .= '<span class="ll-content-lesson-prerequisites__status" aria-hidden="true">'
+            . ($is_completed ? '&#10003;' : '&#8594;')
+            . '</span>';
         $html .= '<span>' . esc_html((string) $row['title']) . '</span>';
+        if ($user_id > 0 || is_user_logged_in()) {
+            $html .= '<span class="screen-reader-text"> &mdash; '
+                . esc_html(
+                    $is_completed
+                        ? __('Completed', 'll-tools-text-domain')
+                        : __('Not completed', 'll-tools-text-domain')
+                )
+                . '</span>';
+        }
         $html .= '</a></li>';
     }
     $html .= '</ul></section>';

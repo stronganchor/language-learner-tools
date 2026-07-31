@@ -117,7 +117,19 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-lesson-id="' . $first_id . '"', $first_page);
         $this->assertStringContainsString('data-lesson-id="' . $second_id . '"', $first_page);
         $this->assertStringContainsString('class="ll-content-lesson-index__item is-completed"', $first_page);
-        $this->assertStringContainsString('1 prerequisite', $first_page);
+        $this->assertStringContainsString(
+            'data-lesson-id="' . $first_id . '" data-lesson-state="completed"',
+            $first_page
+        );
+        $this->assertStringContainsString(
+            'class="ll-content-lesson-index__item has-unmet-prerequisites"',
+            $first_page
+        );
+        $this->assertStringContainsString(
+            'data-lesson-id="' . $second_id . '" data-lesson-state="prerequisites-incomplete"',
+            $first_page
+        );
+        $this->assertStringContainsString('0 / 1 prerequisite', $first_page);
         $this->assertStringContainsString('ll_lesson_page_grammar=2', html_entity_decode($first_page));
         $this->assertStringNotContainsString(
             'data-lesson-id="' . $culture_id . '"',
@@ -129,10 +141,38 @@ final class ContentLessonIndexShortcodeTest extends LL_Tools_TestCase
         );
         $this->assertTrue(wp_style_is('ll-tools-content-lesson-index', 'enqueued'));
 
+        $this->assertTrue(
+            ll_tools_set_content_lesson_completion($user_id, $third_id, true)
+        );
+        $unlocked_first_page = do_shortcode($shortcode);
+        $this->assertStringContainsString(
+            'class="ll-content-lesson-index__item is-ready" data-lesson-id="'
+                . $second_id . '" data-lesson-state="ready"',
+            $unlocked_first_page
+        );
+        $this->assertStringNotContainsString(
+            'data-lesson-id="' . $second_id
+                . '" data-lesson-state="prerequisites-incomplete"',
+            $unlocked_first_page
+        );
+        $this->assertStringNotContainsString('0 / 1 prerequisite', $unlocked_first_page);
+        $this->assertTrue(
+            ll_tools_set_content_lesson_completion($user_id, $third_id, false)
+        );
+
         $_GET['ll_lesson_page_grammar'] = '2';
         $second_page = do_shortcode($shortcode);
         $this->assertSame(1, substr_count($second_page, 'data-lesson-id="'));
         $this->assertStringContainsString('data-lesson-id="' . $third_id . '"', $second_page);
+        $this->assertStringContainsString(
+            'data-lesson-id="' . $third_id . '" data-lesson-state="ready"',
+            $second_page
+        );
+        $this->assertStringContainsString(
+            'class="ll-content-lesson-index__item is-ready"',
+            $second_page
+        );
+        $this->assertStringContainsString('>Ready</span>', $second_page);
         $this->assertStringContainsString('>Previous</a>', $second_page);
         $this->assertStringNotContainsString('>Next</a>', $second_page);
 

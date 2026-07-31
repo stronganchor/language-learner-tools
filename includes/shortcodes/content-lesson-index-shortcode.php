@@ -402,15 +402,17 @@ function ll_tools_content_lesson_index_current_url(string $query_arg): string {
 }
 
 /**
- * Count already-saved prerequisite IDs from the primed page meta cache.
+ * Read already-saved prerequisite IDs from the primed page meta cache.
  *
  * This intentionally does not call the full prerequisite getter, whose
  * same-wordset validation query is appropriate for editing and lesson-page
  * details but would become an N+1 query on a 100-card index page.
+ *
+ * @return int[]
  */
-function ll_tools_content_lesson_index_prerequisite_count(int $lesson_id): int {
+function ll_tools_content_lesson_index_prerequisite_ids(int $lesson_id): array {
     if ($lesson_id <= 0) {
-        return 0;
+        return [];
     }
 
     $raw = get_post_meta(
@@ -429,10 +431,10 @@ function ll_tools_content_lesson_index_prerequisite_count(int $lesson_id): int {
     foreach (array_slice($raw, 0, $limit) as $raw_id) {
         $prerequisite_id = absint($raw_id);
         if ($prerequisite_id > 0 && $prerequisite_id !== $lesson_id) {
-            $ids[$prerequisite_id] = true;
+            $ids[$prerequisite_id] = $prerequisite_id;
         }
     }
-    return count($ids);
+    return array_values($ids);
 }
 
 /**
@@ -594,20 +596,59 @@ function ll_tools_render_content_lesson_index(
             $lesson_id = (int) $post->ID;
             $card = ll_tools_content_lesson_index_card_data($post);
             $is_completed = !empty($completed_lookup[$lesson_id]);
+            $prerequisite_ids = ll_tools_content_lesson_index_prerequisite_ids(
+                $lesson_id
+            );
+            $prerequisite_count = count($prerequisite_ids);
+            $completed_prerequisite_count = 0;
+            foreach ($prerequisite_ids as $prerequisite_id) {
+                if (!empty($completed_lookup[$prerequisite_id])) {
+                    $completed_prerequisite_count++;
+                }
+            }
+            $remaining_prerequisite_count = max(
+                0,
+                $prerequisite_count - $completed_prerequisite_count
+            );
             $item_class = 'll-content-lesson-index__item';
+            $lesson_state = 'open';
+            $status = __('Open lesson', 'll-tools-text-domain');
+            $status_class = '';
+            $icon = '&#8594;';
             if ($is_completed) {
                 $item_class .= ' is-completed';
+                $lesson_state = 'completed';
+                $status = __('Completed', 'll-tools-text-domain');
+                $status_class = ' ll-content-lesson-index__meta--completed';
+                $icon = '&#10003;';
+            } elseif ($user_id > 0 && $remaining_prerequisite_count === 0) {
+                $item_class .= ' is-ready';
+                $lesson_state = 'ready';
+                $status = __('Ready', 'll-tools-text-domain');
+                $status_class = ' ll-content-lesson-index__meta--ready';
+                $icon = '&#8594;';
+            } elseif ($user_id > 0) {
+                $item_class .= ' has-unmet-prerequisites';
+                $lesson_state = 'prerequisites-incomplete';
+                $prerequisite_label = sprintf(
+                    /* translators: %s: number of prerequisite lessons */
+                    _n(
+                        '%s prerequisite',
+                        '%s prerequisites',
+                        $prerequisite_count,
+                        'll-tools-text-domain'
+                    ),
+                    number_format_i18n($prerequisite_count)
+                );
+                $status = number_format_i18n($completed_prerequisite_count)
+                    . ' / ' . $prerequisite_label;
+                $status_class = ' ll-content-lesson-index__meta--incomplete';
+                $icon = '!';
             }
-            $status = $user_id > 0
-                ? ($is_completed
-                    ? __('Completed', 'll-tools-text-domain')
-                    : __('Not completed', 'll-tools-text-domain'))
-                : __('Open lesson', 'll-tools-text-domain');
-            $icon = $is_completed ? '&#10003;' : ($user_id > 0 ? '&#9675;' : '&#8594;');
-            $prerequisite_count = ll_tools_content_lesson_index_prerequisite_count($lesson_id);
 
             $html .= '<li class="' . esc_attr($item_class)
-                . '" data-lesson-id="' . esc_attr((string) $lesson_id) . '">';
+                . '" data-lesson-id="' . esc_attr((string) $lesson_id)
+                . '" data-lesson-state="' . esc_attr($lesson_state) . '">';
             $html .= '<a class="ll-content-lesson-index__link" href="'
                 . esc_url((string) ($card['url'] ?? '')) . '">';
             $html .= '<span class="ll-content-lesson-index__status-icon" aria-hidden="true">'
@@ -619,7 +660,17 @@ function ll_tools_render_content_lesson_index(
                 $html .= '<span class="ll-content-lesson-index__excerpt">'
                     . esc_html((string) $card['excerpt']) . '</span>';
             }
-            if ($prerequisite_count > 0) {
+            if ($user_id > 0) {
+                $html .= '<span class="ll-content-lesson-index__meta'
+                    . esc_attr($status_class) . '">'
+                    . esc_html($status);
+                if ($lesson_state === 'prerequisites-incomplete') {
+                    $html .= '<span class="screen-reader-text"> &mdash; '
+                        . esc_html__('Not completed', 'll-tools-text-domain')
+                        . '</span>';
+                }
+                $html .= '</span>';
+            } elseif ($prerequisite_count > 0) {
                 $prerequisite_label = sprintf(
                     /* translators: %s: number of prerequisite lessons */
                     _n(
@@ -633,8 +684,10 @@ function ll_tools_render_content_lesson_index(
                 $html .= '<span class="ll-content-lesson-index__meta">'
                     . esc_html($prerequisite_label) . '</span>';
             }
-            $html .= '<span class="screen-reader-text"> &mdash; '
-                . esc_html($status) . '</span>';
+            if ($user_id <= 0) {
+                $html .= '<span class="screen-reader-text"> &mdash; '
+                    . esc_html($status) . '</span>';
+            }
             $html .= '</span></a></li>';
         }
         $html .= '</ul></section>';
