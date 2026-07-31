@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.95\n"
+"Project-Id-Version: Language Learner Tools 6.6.96\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-31T14:45:45+00:00\n"
+"POT-Creation-Date: 2026-07-31T15:28:37+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -6352,10 +6352,10 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:396
 #: includes/pages/wordset-pages.php:24620
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:9529
-#: includes/user-progress.php:9575
-#: includes/user-progress.php:9610
-#: includes/user-progress.php:9693
+#: includes/user-progress.php:9537
+#: includes/user-progress.php:9583
+#: includes/user-progress.php:9618
+#: includes/user-progress.php:9701
 msgid "Something went wrong. Please try again."
 msgstr ""
 
@@ -16511,9 +16511,9 @@ msgstr ""
 #: includes/shortcodes/dictionary-shortcode.php:3296
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
-#: includes/user-progress.php:9507
-#: includes/user-progress.php:9720
-#: includes/user-progress.php:9730
+#: includes/user-progress.php:9515
+#: includes/user-progress.php:9728
+#: includes/user-progress.php:9738
 msgid "Invalid request."
 msgstr ""
 
@@ -17559,8 +17559,8 @@ msgstr ""
 #: includes/user-progress.php:8842
 #: includes/user-progress.php:8980
 #: includes/user-progress.php:9001
-#: includes/user-progress.php:9711
-#: includes/user-progress.php:9761
+#: includes/user-progress.php:9719
+#: includes/user-progress.php:9769
 #: includes/user-study.php:1343
 #: includes/user-study.php:1381
 #: includes/user-study.php:1445
@@ -20752,13 +20752,13 @@ msgid "Unable to save right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24612
-#: includes/user-progress.php:9520
+#: includes/user-progress.php:9528
 msgid "Select at least one category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24613
-#: includes/user-progress.php:9482
-#: includes/user-progress.php:9564
+#: includes/user-progress.php:9490
+#: includes/user-progress.php:9572
 msgid "No quiz words are available for this selection."
 msgstr ""
 

@@ -383,7 +383,10 @@ Representative E2E coverage areas:
     closed for an impossible sparse layout, then serially hydrate only the
     current chunk before Next Set advances. Direct specific-wrong-answer-only
     rows remain available as options without entering the target plan, while a
-    prompt card's canonical answer remains targetable. Verified candidate rows are handed
+    prompt card's canonical answer remains targetable. Category queues are
+    kept contiguous for low request fan-out but ordered small-first inside each
+    balanced batch so a large catch-all lesson cannot monopolize the opening chunk,
+    and the selected progress filter remains visible across continuation. Verified candidate rows are handed
     directly to the flashcard runtime without a second AJAX fetch for the same
     chunk; a simulated 429 must close every loading surface, issue no category
     requests, and show one retryable error.

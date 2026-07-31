@@ -9193,7 +9193,15 @@ function ll_tools_build_user_study_selection_launch_chunks(
         if (empty($batch_categories)) {
             continue;
         }
+        // Keep each category queue contiguous so candidate hydration remains
+        // request-efficient, but place smaller queues before a dominant broad
+        // category. This lets the opening chunk demonstrate the multi-category
+        // scope without repeating every category request in every chunk.
         usort($batch_categories, static function (array $left, array $right): int {
+            $count_comparison = ((int) ($left['word_count'] ?? 0)) <=> ((int) ($right['word_count'] ?? 0));
+            if ($count_comparison !== 0) {
+                return $count_comparison;
+            }
             return ((int) ($left['order'] ?? PHP_INT_MAX)) <=> ((int) ($right['order'] ?? PHP_INT_MAX));
         });
 

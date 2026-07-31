@@ -1600,7 +1600,11 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         sort($returned_word_ids);
         sort($expected_word_ids);
         $this->assertSame($expected_word_ids, $returned_word_ids);
-        $this->assertSame($category_ids, array_values(array_map('intval', (array) ($plan['category_ids'] ?? []))));
+        $this->assertSame(
+            [$category_ids[1], $category_ids[0]],
+            array_values(array_map('intval', (array) ($plan['category_ids'] ?? []))),
+            'The smaller owned queue should lead the balanced launch batch.'
+        );
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertCount(1, $chunks);
         $this->assertSame($plan['category_ids'], $chunks[0]['category_ids'] ?? []);
@@ -1936,6 +1940,50 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame([[101], [101], [101]], array_values(array_map(static function (array $chunk): array {
             return array_values(array_map('intval', (array) ($chunk['category_ids'] ?? [])));
         }, $chunks)));
+    }
+
+    public function test_selection_launch_places_small_category_queues_before_a_dominant_batch_peer(): void
+    {
+        $chunks = ll_tools_build_user_study_selection_launch_chunks([
+            101 => range(1001, 1031),
+            102 => range(2001, 2005),
+            103 => range(3001, 3005),
+        ], 15, 3, 5);
+
+        $this->assertCount(3, $chunks);
+        $this->assertSame([14, 14, 13], array_values(array_map(static function (array $chunk): int {
+            return count((array) ($chunk['word_ids'] ?? []));
+        }, $chunks)));
+        $this->assertSame(
+            [102, 103, 101],
+            array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))),
+            'A large catch-all category must not hide the multi-category scope of the first chunk.'
+        );
+        $this->assertSame(41, count(array_unique(array_merge(...array_map(static function (array $chunk): array {
+            return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+        }, $chunks)))));
+        $this->assertSame(5, array_sum(array_map(static function (array $chunk): int {
+            return count((array) ($chunk['category_ids'] ?? []));
+        }, $chunks)), 'Small-first ordering must not multiply category hydration across chunks.');
+    }
+
+    public function test_selection_launch_keeps_equal_category_queues_contiguous_for_request_efficiency(): void
+    {
+        $matched_by_category = [];
+        for ($offset = 0; $offset < 8; $offset++) {
+            $category_id = 201 + $offset;
+            $matched_by_category[$category_id] = range(4001 + ($offset * 15), 4015 + ($offset * 15));
+        }
+
+        $chunks = ll_tools_build_user_study_selection_launch_chunks($matched_by_category, 15, 8, 5);
+
+        $this->assertCount(8, $chunks);
+        $this->assertSame([1, 1, 1, 1, 1, 1, 1, 1], array_values(array_map(static function (array $chunk): int {
+            return count((array) ($chunk['category_ids'] ?? []));
+        }, $chunks)), 'Equal category queues should require one candidate request per chunk, not eight.');
+        $this->assertSame(120, count(array_unique(array_merge(...array_map(static function (array $chunk): array {
+            return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+        }, $chunks)))));
     }
 
     public function test_selection_launch_uses_the_preferred_category_soft_cap_when_valid(): void

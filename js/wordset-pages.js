@@ -15488,6 +15488,9 @@
 
                 const firstEntry = planChunks[0];
                 const hasMultipleChunks = planChunks.length > 1;
+                const boundedCategoryLabelOverride = criteriaKey
+                    ? resolveSelectionCriteriaLabel(criteriaKey)
+                    : '';
                 const plannedMatchCount = planChunks.reduce(function (total, entry) {
                     return total + uniqueIntList(entry.session_word_ids || []).length;
                 }, 0);
@@ -15501,6 +15504,7 @@
                     // prompt-card wrappers whose canonical progress ID differs from id.
                     star_mode: 'normal',
                     details: launchDetails,
+                    category_label_override: boundedCategoryLabelOverride,
                     bounded_selection_plan: true
                 } : null;
                 launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
@@ -15510,7 +15514,7 @@
                     randomizeSessionCategoryOrder: true,
                     allowSessionCategoryDisplay: true,
                     skipCompatibilityFilter: true,
-                    categoryLabelOverride: firstEntry.category_label_override,
+                    categoryLabelOverride: firstEntry.category_label_override || boundedCategoryLabelOverride,
                     details: firstEntry.details,
                     launchUi: launchUi,
                     boundedSelectionPlan: true,

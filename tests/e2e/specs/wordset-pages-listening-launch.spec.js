@@ -210,6 +210,96 @@ function buildBoundedChunkFixture() {
   };
 }
 
+function buildDeferredCategorySelectionFixture() {
+  const categoryIds = [11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132];
+  const categories = categoryIds.map((categoryId, index) => ({
+    id: categoryId,
+    slug: `cat-${String.fromCharCode(97 + index)}`,
+    name: `Cat ${String.fromCharCode(65 + index)}`,
+    translation: `Cat ${String.fromCharCode(65 + index)}`,
+    count: index < 6 ? 29 : 28,
+    url: '#',
+    mode: 'image',
+    prompt_type: 'audio',
+    option_type: 'image',
+    learning_supported: true,
+    gender_supported: false,
+    aspect_bucket: 'ratio:1_1',
+    hidden: false,
+    preview: []
+  }));
+  const wordsByCategory = {};
+  const ownerByWordId = {};
+  categories.forEach((category, index) => {
+    wordsByCategory[category.id] = buildCategoryWordRows(category.id, category.count, `L${index + 1}-`)
+      .map((row) => Object.assign({}, row, {
+        category_id: category.id,
+        category_ids: [category.id],
+        status: 'studied'
+      }));
+    wordsByCategory[category.id].forEach((row) => {
+      ownerByWordId[row.id] = category.id;
+    });
+  });
+
+  const categoryGroups = [
+    [11, 44, 77],
+    [22, 55, 88],
+    [33, 66, 99],
+    [110, 121, 132]
+  ];
+  const chunksByGroup = categoryGroups.map((group) => {
+    const interleavedWordIds = [];
+    const maximumCategorySize = Math.max(...group.map((categoryId) => wordsByCategory[categoryId].length));
+    for (let wordIndex = 0; wordIndex < maximumCategorySize; wordIndex += 1) {
+      group.forEach((categoryId) => {
+        const row = wordsByCategory[categoryId][wordIndex];
+        if (row) {
+          interleavedWordIds.push(row.id);
+        }
+      });
+    }
+    const groupChunks = [];
+    for (let offset = 0; offset < interleavedWordIds.length; offset += 15) {
+      const wordIds = interleavedWordIds.slice(offset, offset + 15);
+      groupChunks.push({
+        category_ids: Array.from(new Set(wordIds.map((wordId) => ownerByWordId[wordId]))),
+        word_ids: wordIds
+      });
+    }
+    return groupChunks;
+  });
+  const chunks = [];
+  const maximumGroupChunks = Math.max(...chunksByGroup.map((groupChunks) => groupChunks.length));
+  for (let chunkIndex = 0; chunkIndex < maximumGroupChunks; chunkIndex += 1) {
+    chunksByGroup.forEach((groupChunks) => {
+      if (groupChunks[chunkIndex]) {
+        chunks.push(groupChunks[chunkIndex]);
+      }
+    });
+  }
+  const allPlannedWordIds = chunks.flatMap((chunk) => chunk.word_ids);
+
+  return {
+    categoryIds,
+    categories,
+    wordsByCategory,
+    ownerByWordId,
+    allPlannedWordIds,
+    selectionLaunchPlan: {
+      category_ids: chunks[0].category_ids,
+      word_ids: chunks[0].word_ids,
+      chunks,
+      criteria: 'studied',
+      mode: 'practice',
+      matched_count: allPlannedWordIds.length,
+      planned_count: allPlannedWordIds.length,
+      chunk_count: chunks.length,
+      truncated: false
+    }
+  };
+}
+
 function buildPageConfig({ isLoggedIn }) {
   return {
     view: 'main',
@@ -440,6 +530,11 @@ async function mountWordsetPage(page, options = {}) {
           plan.hide_category_display ||
           flash.hideCategoryDisplay ||
           flash.hide_category_display
+        ),
+        categoryDisplayOverride: String(
+          flash.categoryDisplayOverride ||
+          flash.category_display_override ||
+          ''
         ),
         boundedSelectionPlan: !!(flash.boundedSelectionPlan || flash.bounded_selection_plan),
         boundedCandidateCategoryIds: Object.keys(flash.boundedCandidateRowsByCategoryId || {})
@@ -1545,6 +1640,7 @@ test('bounded selection plan continues through every category-aware chunk withou
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
   let launches = await page.evaluate(() => window.__llLaunches.slice());
   expect(launches[0].source).toBe('wordset_chunk_start');
+  expect(launches[0].categoryDisplayOverride).toBe('In progress words');
   expect(launches[0].categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
   expect(launches[0].sessionWordIds.slice().sort((a, b) => a - b))
     .toEqual(firstChunkWordIds.slice().sort((a, b) => a - b));
@@ -1575,6 +1671,7 @@ test('bounded selection plan continues through every category-aware chunk withou
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
   launches = await page.evaluate(() => window.__llLaunches.slice());
   expect(launches[1].source).toBe('wordset_chunk_continue');
+  expect(launches[1].categoryDisplayOverride).toBe('In progress words');
   expect(launches[1].categoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
   expect(launches[1].sessionWordIds.slice().sort((a, b) => a - b))
     .toEqual(secondChunkWordIds.slice().sort((a, b) => a - b));
@@ -1616,6 +1713,157 @@ test('bounded selection plan continues through every category-aware chunk withou
     expect(request.candidateIds.length).toBeLessThanOrEqual(15);
     expect(request.includeOptionPool).toBe('1');
     expect(request.optionPoolLimit).toBe('12');
+  });
+});
+
+test('deferred-category select all launches all 342 in-progress words without current-chunk fanout', async ({ page }) => {
+  const fixture = buildDeferredCategorySelectionFixture();
+  const chunks = fixture.selectionLaunchPlan.chunks;
+  const expectedWordIds = Object.values(fixture.wordsByCategory)
+    .flatMap((rows) => rows.map((row) => row.id));
+  const plannedWordIds = chunks.flatMap((chunk) => chunk.word_ids);
+  const categoryNameById = Object.fromEntries(
+    fixture.categories.map((category) => [category.id, category.name])
+  );
+
+  expect(plannedWordIds).toHaveLength(342);
+  expect(new Set(plannedWordIds).size).toBe(342);
+  expect(plannedWordIds.slice().sort((a, b) => a - b))
+    .toEqual(expectedWordIds.slice().sort((a, b) => a - b));
+  chunks.forEach((chunk) => {
+    expect(chunk.word_ids.length).toBeGreaterThanOrEqual(5);
+    expect(chunk.word_ids.length).toBeLessThanOrEqual(15);
+    expect(chunk.category_ids.length).toBeLessThanOrEqual(8);
+    expect(Array.from(new Set(chunk.word_ids.map((wordId) => fixture.ownerByWordId[wordId]))))
+      .toEqual(chunk.category_ids);
+  });
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: {
+      categories: fixture.categories,
+      visibleCategoryIds: fixture.categoryIds,
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 342,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const renderedCategoryIds = await page.locator('[data-ll-wordset-select]').evaluateAll((checks) => (
+    checks.map((check) => Number(check.value) || 0)
+  ));
+  expect(renderedCategoryIds).toEqual([11, 22, 33]);
+  expect(fixture.categoryIds).toHaveLength(12);
+  expect(chunks[0].category_ids).toEqual([11, 44, 77]);
+  expect(chunks[0].category_ids.filter((categoryId) => !renderedCategoryIds.includes(categoryId)))
+    .toEqual([44, 77]);
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-selection-text]')).toHaveText('342 words');
+  await expect(page.locator('[data-ll-wordset-selection-priority-label]')).toHaveText('In progress only');
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const firstResult = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    publicRequests: {
+      maxActive: window.__llPublicCategoryRequests.maxActive,
+      categories: window.__llPublicCategoryRequests.categories.slice(),
+      actions: window.__llPublicCategoryRequests.actions.slice(),
+      requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+        categoryName: request.categoryName,
+        candidateIds: request.candidateIds.slice(),
+        includeOptionPool: request.includeOptionPool,
+        optionPoolLimit: request.optionPoolLimit
+      }))
+    }
+  }));
+  const firstLaunch = firstResult.launches[0];
+  const expectedFirstCategoryNames = chunks[0].category_ids.map((categoryId) => categoryNameById[categoryId]);
+  expect(firstResult.planRequests).toEqual([{
+    categoryIds: fixture.categoryIds,
+    criteria: 'studied',
+    mode: 'practice'
+  }]);
+  expect(firstLaunch.source).toBe('wordset_chunk_start');
+  expect(firstLaunch.categoryDisplayOverride).toBe('In progress words');
+  expect(firstLaunch.categoryIds.slice().sort((a, b) => a - b))
+    .toEqual(chunks[0].category_ids.slice().sort((a, b) => a - b));
+  expect(firstLaunch.sessionWordIds).toEqual(chunks[0].word_ids);
+  expect(firstLaunch.boundedCandidateCategoryIds.slice().sort((a, b) => a - b))
+    .toEqual(chunks[0].category_ids.slice().sort((a, b) => a - b));
+  chunks[0].category_ids.forEach((categoryId) => {
+    expect(firstLaunch.sessionWordIdsByCategoryId[String(categoryId)])
+      .toEqual(chunks[0].word_ids.filter((wordId) => fixture.ownerByWordId[wordId] === categoryId));
+  });
+  expect(firstResult.publicRequests.maxActive).toBe(1);
+  expect(firstResult.publicRequests.categories.slice().sort())
+    .toEqual(expectedFirstCategoryNames.slice().sort());
+  expect(new Set(firstResult.publicRequests.categories).size).toBe(firstResult.publicRequests.categories.length);
+  expect(firstResult.publicRequests.actions).toEqual(
+    Array(chunks[0].category_ids.length).fill('ll_get_words_by_category')
+  );
+  expect(firstResult.publicRequests.requests).toHaveLength(chunks[0].category_ids.length);
+  firstResult.publicRequests.requests.forEach((request) => {
+    expect(request.candidateIds).toEqual(chunks[0].word_ids);
+    expect(request.candidateIds.length).toBeLessThanOrEqual(15);
+    expect(request.includeOptionPool).toBe('1');
+    expect(request.optionPoolLimit).toBe('12');
+  });
+
+  await page.evaluate(() => {
+    window.jQuery('#quiz-results').show();
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(page.locator('#ll-study-results-suggestion')).toHaveText('342 words');
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toContainText(`2/${chunks.length}`);
+  await continueButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  const continuedResult = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+      categoryName: request.categoryName,
+      candidateIds: request.candidateIds.slice()
+    }))
+  }));
+  const secondLaunch = continuedResult.launches[1];
+  const expectedSecondCategoryNames = chunks[1].category_ids.map((categoryId) => categoryNameById[categoryId]);
+  expect(continuedResult.planRequests).toHaveLength(1);
+  expect(secondLaunch.source).toBe('wordset_chunk_continue');
+  expect(secondLaunch.categoryDisplayOverride).toBe('In progress words');
+  expect(secondLaunch.categoryIds.slice().sort((a, b) => a - b))
+    .toEqual(chunks[1].category_ids.slice().sort((a, b) => a - b));
+  expect(secondLaunch.sessionWordIds).toEqual(chunks[1].word_ids);
+  expect(continuedResult.maxActive).toBe(1);
+  expect(continuedResult.categories.slice(firstResult.publicRequests.categories.length).sort())
+    .toEqual(expectedSecondCategoryNames.slice().sort());
+  expect(continuedResult.requests).toHaveLength(chunks[0].category_ids.length + chunks[1].category_ids.length);
+  continuedResult.requests.slice(firstResult.publicRequests.requests.length).forEach((request) => {
+    expect(request.candidateIds).toEqual(chunks[1].word_ids);
   });
 });
 
