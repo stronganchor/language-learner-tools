@@ -5565,7 +5565,7 @@ function ll_tools_word_grid_shortcode($atts) {
         $visible_word_ids = ll_tools_filter_word_ids_with_effective_images($image_filter_word_ids, true);
         $visible_lookup = array_fill_keys($visible_word_ids, true);
         if (count($visible_lookup) !== count((array) $query->posts)) {
-            if ($show_staff_hidden_words && empty($specific_word_ids)) {
+            if ($show_staff_hidden_words) {
                 foreach ($image_filter_word_ids as $post_id) {
                     if (!isset($visible_lookup[$post_id]) && get_post_status($post_id) === 'publish') {
                         $presentation_hidden_word_lookup[$post_id] = true;
@@ -5604,7 +5604,7 @@ function ll_tools_word_grid_shortcode($atts) {
             }
         }
         if (count($audio_visible_lookup) !== count($audio_filter_word_ids)) {
-            if ($show_staff_hidden_words && empty($specific_word_ids)) {
+            if ($show_staff_hidden_words) {
                 foreach ($audio_filter_word_ids as $post_id) {
                     if (!isset($audio_visible_lookup[$post_id]) && get_post_status($post_id) === 'publish') {
                         $presentation_hidden_word_lookup[$post_id] = true;

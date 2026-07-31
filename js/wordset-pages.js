@@ -13029,6 +13029,7 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []);
         const candidateWordIds = uniqueIntList(opts.sessionWordIds || opts.session_word_ids || opts.candidateWordIds || opts.candidate_word_ids || []);
+        const rejectOnFailure = !!opts.rejectOnFailure;
         if (!ids.length) {
             return $.Deferred().resolve(wordsByCategory).promise();
         }
@@ -13049,7 +13050,7 @@
 
         {
             const publicWarmingMaxRetries = 2;
-            const payloadWarmingMaxRetries = 60;
+            const payloadWarmingMaxRetries = 4;
             const publicRetryDelayMs = function (xhr) {
                 let retryAfter = 0;
                 const responseData = xhr
@@ -13171,12 +13172,18 @@
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
-                    }, function () {
+                    }, function (xhr) {
                         if (candidateWordIds.length) {
                             setCandidateScopedWords(categoryId, candidateWordIds, []);
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
+                        if (rejectOnFailure) {
+                            const rejected = $.Deferred();
+                            rejected.reject(xhr);
+                            return rejected.promise();
+                        }
+                        return undefined;
                     });
                 });
             });
@@ -13187,10 +13194,47 @@
 
             return publicRequestChain.then(function () {
                 return wordsByCategory;
-            }, function () {
+            }, function (xhr) {
+                if (rejectOnFailure) {
+                    const rejected = $.Deferred();
+                    rejected.reject(xhr);
+                    return rejected.promise();
+                }
                 return wordsByCategory;
             });
         }
+    }
+
+    function requestSelectionLaunchPlan(categoryIds, criteria, mode) {
+        const ids = uniqueIntList(categoryIds || []);
+        if (!isLoggedIn || !ajaxUrl || !nonce || !ids.length) {
+            const unavailable = $.Deferred();
+            unavailable.reject();
+            return unavailable.promise();
+        }
+
+        return $.post(ajaxUrl, {
+            action: 'll_user_study_selection_launch_plan',
+            nonce: nonce,
+            wordset_id: wordsetId,
+            category_ids: ids,
+            criteria: normalizePriorityFocus(criteria || ''),
+            mode: normalizeMode(mode) || 'practice'
+        }).then(function (response) {
+            const plan = response
+                && response.success
+                && response.data
+                && response.data.plan
+                && typeof response.data.plan === 'object'
+                ? response.data.plan
+                : null;
+            if (plan) {
+                return plan;
+            }
+            const invalid = $.Deferred();
+            invalid.reject(response);
+            return invalid.promise();
+        });
     }
 
     function collectWordIdsForCategories(categoryIds, options) {
@@ -14629,6 +14673,8 @@
         const normalizedMode = normalizeMode(mode) || 'practice';
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');
         const randomizeSessionCategoryOrder = !!opts.randomizeSessionCategoryOrder;
+        const boundedSelectionPlan = !!opts.boundedSelectionPlan;
+        const rejectOnLoadFailure = !!opts.rejectOnLoadFailure;
         const launchDetails = (opts.details && typeof opts.details === 'object') ? Object.assign({}, opts.details) : {};
         const allowSessionCategoryDisplay = !!(opts.allowSessionCategoryDisplay || launchDetails.allow_session_category_display);
         const preserveCategoryOrder = !!(opts.preserveCategoryOrder || launchDetails.preserve_category_order);
@@ -14842,15 +14888,16 @@
         const learningMinimumWordsForInitialFetch = learningCriteriaFilteredForInitialFetch
             ? LEARNING_MIN_CHUNK_SIZE
             : getSelectionMinimumWordCount();
-        const needsFullRowsForLearningPlan = finalMode === 'learning' && (
+        const needsFullRowsForLearningPlan = !boundedSelectionPlan && finalMode === 'learning' && (
             learningCriteriaFilteredForInitialFetch ||
             (sessionIds.length > 0 && sessionIds.length < learningMinimumWordsForInitialFetch)
         );
         const launchEnsureOptions = needsFullRowsForLearningPlan ? {} : {
-            sessionWordIds: sessionIds
+            sessionWordIds: sessionIds,
+            rejectOnFailure: rejectOnLoadFailure
         };
 
-        ensureWordsForCategories(ids, launchEnsureOptions).always(function () {
+        ensureWordsForCategories(ids, launchEnsureOptions).done(function () {
             let launchCategoryIds = ids.slice();
             let effectiveSessionIds = sessionIds.slice();
             let effectiveRequestedCategoryLabelOverride = requestedCategoryLabelOverride;
@@ -14861,9 +14908,9 @@
                 const minimumWords = isCriteriaFiltered
                     ? LEARNING_MIN_CHUNK_SIZE
                     : getSelectionMinimumWordCount();
-                const shouldRebuildLearningPlan = isCriteriaFiltered || (
+                const shouldRebuildLearningPlan = !boundedSelectionPlan && (isCriteriaFiltered || (
                     effectiveSessionIds.length > 0 && effectiveSessionIds.length < minimumWords
-                );
+                ));
 
                 if (shouldRebuildLearningPlan) {
                     const learningPlan = buildLearningSelectionLaunchPlan(launchCategoryIds, {
@@ -15005,6 +15052,8 @@
                 selectedCats = shuffleList(selectedCats);
             }
             commitFlashcardLaunch(selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup);
+        }).fail(function () {
+            abortLaunch(i18n.selectionLaunchError || i18n.saveError || '');
         });
     }
 
@@ -15069,6 +15118,47 @@
                 alert(message);
             }
         };
+
+        const shouldUseBoundedSelectionPlan = isLoggedIn
+            && !!ajaxUrl
+            && !!nonce
+            && normalizedMode !== 'learning'
+            && (criteriaKey !== '' || selectedIds.length > 8);
+        if (shouldUseBoundedSelectionPlan) {
+            requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode).done(function (serverPlan) {
+                const planCategoryIds = uniqueIntList(serverPlan && serverPlan.category_ids ? serverPlan.category_ids : []);
+                const planWordIds = uniqueIntList(serverPlan && serverPlan.word_ids ? serverPlan.word_ids : []);
+                if (!planCategoryIds.length || planWordIds.length < minimumWordCount) {
+                    abortSelectionLaunch(resolveEmptyMessage());
+                    return;
+                }
+
+                chunkSession = null;
+                const launchDetails = {
+                    preserve_mixed_presentation: true,
+                    allow_session_category_display: true,
+                    bounded_selection_plan: true
+                };
+                if (criteriaKey) {
+                    launchDetails.priority_focus = criteriaKey;
+                }
+                launchFlashcards(normalizedMode, planCategoryIds, planWordIds, {
+                    source: 'wordset_selection_bounded_start',
+                    chunked: false,
+                    sessionStarMode: starredOnlyActive ? 'only' : 'normal',
+                    randomizeSessionCategoryOrder: true,
+                    allowSessionCategoryDisplay: true,
+                    skipCompatibilityFilter: true,
+                    details: launchDetails,
+                    launchUi: launchUi,
+                    boundedSelectionPlan: true,
+                    rejectOnLoadFailure: true
+                });
+            }).fail(function () {
+                abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');
+            });
+            return;
+        }
 
         ensureWordsForCategories(selectedIds).always(function () {
             if (normalizedMode === 'learning') {

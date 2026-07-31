@@ -267,6 +267,7 @@ function buildPageConfig({ isLoggedIn }) {
       noNewWordsInSelection: 'No new words are available for this selection.',
       noStudiedWordsInSelection: 'No in progress words are available for this selection.',
       noLearnedWordsInSelection: 'No learned words are available for this selection.',
+      selectionLaunchError: 'Something went wrong. Please try again.',
       priorityFocusNew: 'New words',
       priorityFocusStudied: 'In progress words',
       priorityFocusLearned: 'Learned words',
@@ -311,8 +312,10 @@ async function mountWordsetPage(page, options = {}) {
     window.__llPublicCategoryRequests = {
       active: 0,
       maxActive: 0,
-      categories: []
+      categories: [],
+      actions: []
     };
+    window.__llSelectionPlanRequests = [];
     let publicCategoryWarmingRemaining = Math.max(
       0,
       Number(bootstrap.publicCategoryWarmingResponses) || 0
@@ -369,6 +372,7 @@ async function mountWordsetPage(page, options = {}) {
           window.__llPublicCategoryRequests.active
         );
         window.__llPublicCategoryRequests.categories.push(categoryName);
+        window.__llPublicCategoryRequests.actions.push(action);
         const resolveCategoryRequest = () => {
           window.__llPublicCategoryRequests.active = Math.max(
             0,
@@ -412,6 +416,90 @@ async function mountWordsetPage(page, options = {}) {
         return deferred.promise();
       }
 
+      if (action === 'll_user_study_selection_launch_plan') {
+        window.__llSelectionPlanRequests.push({
+          categoryIds: Array.isArray(request.category_ids) ? request.category_ids.slice() : [],
+          criteria: String(request.criteria || ''),
+          mode: String(request.mode || '')
+        });
+        if (bootstrap.selectionPlanFailureStatus > 0) {
+          deferred.reject({
+            status: bootstrap.selectionPlanFailureStatus,
+            responseJSON: {
+              success: false,
+              data: {
+                code: bootstrap.selectionPlanFailureStatus === 429 ? 'rate_limited' : 'selection_failed',
+                message: 'Something went wrong. Please try again.'
+              }
+            },
+            getResponseHeader: () => ''
+          });
+          return deferred.promise();
+        }
+
+        let plan = (bootstrap.selectionLaunchPlan && typeof bootstrap.selectionLaunchPlan === 'object')
+          ? bootstrap.selectionLaunchPlan
+          : null;
+        if (!plan) {
+          const requestedCategoryIds = Array.isArray(request.category_ids)
+            ? request.category_ids.map((id) => Number(id) || 0).filter(Boolean)
+            : [];
+          const criteria = String(request.criteria || '');
+          const starredLookup = {};
+          const state = (bootstrap.config.state && typeof bootstrap.config.state === 'object')
+            ? bootstrap.config.state
+            : {};
+          (Array.isArray(state.starred_word_ids) ? state.starred_word_ids : []).forEach((id) => {
+            starredLookup[Number(id) || 0] = true;
+          });
+          const selectedRows = [];
+          const selectedCategoryIds = [];
+          const seenWordIds = {};
+          requestedCategoryIds.forEach((categoryId) => {
+            const category = (Array.isArray(bootstrap.config.categories) ? bootstrap.config.categories : [])
+              .find((item) => Number(item && item.id) === categoryId);
+            const categoryName = String((category && category.name) || '');
+            const rows = Array.isArray(bootstrap.wordsByCategoryName[categoryName])
+              ? bootstrap.wordsByCategoryName[categoryName]
+              : [];
+            let categoryHasMatch = false;
+            rows.forEach((row) => {
+              const wordId = Number(row && row.id) || 0;
+              const status = String((row && row.status) || 'new');
+              const difficulty = Number((row && row.difficulty_score) || 0);
+              const matches = !criteria
+                || (criteria === 'new' && status === 'new')
+                || (criteria === 'studied' && status === 'studied')
+                || (criteria === 'learned' && (status === 'mastered' || status === 'learned'))
+                || (criteria === 'starred' && !!starredLookup[wordId])
+                || (criteria === 'hard' && status !== 'new' && difficulty >= Number(bootstrap.config.hardWordDifficultyThreshold || 4));
+              if (!wordId || !matches || seenWordIds[wordId] || selectedRows.length >= 15) {
+                return;
+              }
+              seenWordIds[wordId] = true;
+              selectedRows.push(wordId);
+              categoryHasMatch = true;
+            });
+            if (categoryHasMatch) {
+              selectedCategoryIds.push(categoryId);
+            }
+          });
+          plan = {
+            category_ids: selectedCategoryIds,
+            word_ids: selectedRows,
+            criteria,
+            mode: String(request.mode || 'practice'),
+            matched_count: selectedRows.length,
+            truncated: false
+          };
+        }
+        deferred.resolve({
+          success: true,
+          data: { plan }
+        });
+        return deferred.promise();
+      }
+
       if (action === 'll_user_study_recommendation') {
         deferred.resolve({
           success: true,
@@ -431,7 +519,9 @@ async function mountWordsetPage(page, options = {}) {
     wordsByCategory,
     wordsByCategoryName,
     publicCategoryDelayMs: Math.max(0, Number(options.publicCategoryDelayMs) || 0),
-    publicCategoryWarmingResponses: Math.max(0, Number(options.publicCategoryWarmingResponses) || 0)
+    publicCategoryWarmingResponses: Math.max(0, Number(options.publicCategoryWarmingResponses) || 0),
+    selectionLaunchPlan: options.selectionLaunchPlan || null,
+    selectionPlanFailureStatus: Math.max(0, Number(options.selectionPlanFailureStatus) || 0)
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -1227,11 +1317,110 @@ test('priority-only practice selection filters to the current study focus', asyn
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_bounded_start');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
   expect(launch.sessionWordIds.slice().sort((a, b) => a - b)).toEqual(expectedStudiedWordIds);
+  const requestStats = await page.evaluate(() => ({
+    plans: Array.isArray(window.__llSelectionPlanRequests) ? window.__llSelectionPlanRequests.slice() : [],
+    publicRequests: window.__llPublicCategoryRequests
+  }));
+  expect(requestStats.plans).toEqual([{
+    categoryIds: [11, 22, 33],
+    criteria: 'studied',
+    mode: 'practice'
+  }]);
+  expect(requestStats.publicRequests.categories).toEqual(['Cat A', 'Cat B']);
+  expect(requestStats.publicRequests.actions).toEqual([
+    'll_get_words_by_category',
+    'll_get_words_by_category'
+  ]);
+  expect(requestStats.publicRequests.maxActive).toBe(1);
 });
 
-test('starred-only practice selection launches one full filtered activity', async ({ page }) => {
+test('priority-only practice stops cleanly when the bounded launch plan is rate-limited', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row) => Object.assign({}, row, {
+      category_id: 11,
+      category_ids: [11],
+      status: 'studied',
+      difficulty_score: 1
+    })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row) => Object.assign({}, row, {
+      category_id: 22,
+      category_ids: [22],
+      status: 'studied',
+      difficulty_score: 1
+    })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, {
+      category_id: 33,
+      category_ids: [33],
+      status: 'new',
+      difficulty_score: 0
+    }))
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionPlanFailureStatus: 429,
+    configPatch: {
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 16,
+        new: 8,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.length : 0);
+  }).toBe(1);
+
+  const result = await page.evaluate(() => {
+    const popup = document.getElementById('ll-tools-flashcard-popup');
+    const quizPopup = document.getElementById('ll-tools-flashcard-quiz-popup');
+    const loader = document.getElementById('ll-tools-loading-animation');
+    return {
+      alerts: Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [],
+      launches: Array.isArray(window.__llLaunches) ? window.__llLaunches.slice() : [],
+      planRequests: Array.isArray(window.__llSelectionPlanRequests) ? window.__llSelectionPlanRequests.slice() : [],
+      publicRequests: window.__llPublicCategoryRequests,
+      popupDisplay: popup ? window.getComputedStyle(popup).display : '',
+      quizDisplay: quizPopup ? window.getComputedStyle(quizPopup).display : '',
+      loaderDisplay: loader ? window.getComputedStyle(loader).display : '',
+      quizBusy: quizPopup ? quizPopup.getAttribute('aria-busy') : ''
+    };
+  });
+
+  expect(result.alerts).toEqual([
+    'Something went wrong. Please try again.'
+  ]);
+  expect(result.launches).toEqual([]);
+  expect(result.planRequests).toHaveLength(1);
+  expect(result.publicRequests.categories).toEqual([]);
+  expect(result.popupDisplay).toBe('none');
+  expect(result.quizDisplay).toBe('none');
+  expect(result.loaderDisplay).toBe('none');
+  expect(result.quizBusy).toBeNull();
+});
+
+test('starred-only practice selection launches one bounded filtered activity', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 13, 'A'),
     22: buildCategoryWordRows(22, 12, 'B'),
@@ -1336,10 +1525,10 @@ test('starred-only practice selection launches one full filtered activity', asyn
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
-  expect(launch.source).toBe('wordset_selection_start');
-  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
-  expect(launch.sessionWordIds.length).toBe(37);
-  expect(new Set(launch.sessionWordIds).size).toBe(37);
+  expect(launch.source).toBe('wordset_selection_bounded_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launch.sessionWordIds.length).toBe(15);
+  expect(new Set(launch.sessionWordIds).size).toBe(15);
   expect(alerts).toEqual([]);
 });
 
@@ -1439,7 +1628,7 @@ test('practice selection launches the full selected category scope', async ({ pa
   expect(alerts).toEqual([]);
 });
 
-test('starred-only practice selection keeps small categories in the same full activity', async ({ page }) => {
+test('starred-only practice selection caps a multi-category activity at fifteen words', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 7, 'ImgA'),
     22: buildCategoryWordRows(22, 6, 'ImgB'),
@@ -1542,9 +1731,9 @@ test('starred-only practice selection keeps small categories in the same full ac
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
-  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.source).toBe('wordset_selection_bounded_start');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
-  expect(launch.sessionWordIds.length).toBe(17);
+  expect(launch.sessionWordIds.length).toBe(15);
   expect(alerts).toEqual([]);
 });
 

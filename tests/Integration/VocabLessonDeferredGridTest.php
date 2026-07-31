@@ -506,6 +506,27 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertIsInt($position_hidden);
         $this->assertGreaterThan($position_alpha, $position_hidden);
         $this->assertGreaterThan($position_zebra, $position_hidden);
+
+        $doing_ajax = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $doing_ajax);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+        try {
+            $specific_staff_html = ll_tools_word_grid_shortcode([
+                'category' => 'deferred-presentation-hidden-category',
+                'wordset' => 'deferred-presentation-hidden-wordset',
+                'deepest_only' => true,
+                'lesson_id' => $lesson_id,
+                'word_ids' => implode(',', [$alpha_id, $hidden_id]),
+            ]);
+        } finally {
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+            remove_filter('wp_doing_ajax', $doing_ajax);
+        }
+        $this->assertStringContainsString('Alpha Visible', $specific_staff_html);
+        $this->assertStringContainsString('Middle Hidden', $specific_staff_html);
+        $this->assertStringContainsString('data-ll-word-presentation-hidden-reason="missing_image"', $specific_staff_html);
     }
 
     public function test_lesson_grid_ajax_shows_published_audio_mismatches_to_staff_at_bottom(): void
@@ -1922,6 +1943,121 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($third_data['next_cursor'] ?? ''));
 
         $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
+    }
+
+    public function test_large_staff_lesson_grid_pages_drafts_without_unbounded_word_queries(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $wordset = wp_insert_term('Paged Staff Wordset', 'wordset', ['slug' => 'paged-staff-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Paged Staff Category', 'word-category', ['slug' => 'paged-staff-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        for ($index = 1; $index <= 52; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => sprintf('Paged Staff Published %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            update_post_meta($word_id, 'word_translation', 'Published Translation ' . $index);
+        }
+        for ($index = 1; $index <= 2; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'draft',
+                'post_title' => sprintf('Paged Staff Draft %02d', $index),
+            ]);
+            wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            update_post_meta($word_id, 'word_translation', 'Draft Translation ' . $index);
+        }
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Paged Staff Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $word_query_sizes = [];
+        $capture = static function (WP_Query $query) use (&$word_query_sizes): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $word_query_sizes[] = (int) $query->get('posts_per_page');
+            }
+        };
+        $small_scan_batch = static function (): int {
+            return 24;
+        };
+        add_action('pre_get_posts', $capture);
+        add_filter('ll_tools_vocab_lesson_grid_scan_batch_size', $small_scan_batch);
+        try {
+            $preparing_first = $this->postVocabLessonGridAjax($lesson_id);
+            $preparing_second = $this->postVocabLessonGridAjax($lesson_id);
+            $first = $this->postVocabLessonGridAjax($lesson_id);
+            $second = $this->postVocabLessonGridAjax(
+                $lesson_id,
+                (string) (($first['data'] ?? [])['next_cursor'] ?? '')
+            );
+            $third = $this->postVocabLessonGridAjax(
+                $lesson_id,
+                (string) (($second['data'] ?? [])['next_cursor'] ?? '')
+            );
+        } finally {
+            remove_filter('ll_tools_vocab_lesson_grid_scan_batch_size', $small_scan_batch);
+            remove_action('pre_get_posts', $capture);
+        }
+
+        $this->assertTrue((bool) ($preparing_first['success'] ?? false));
+        $this->assertTrue((bool) (($preparing_first['data'] ?? [])['preparing'] ?? false));
+        $this->assertSame(24, (int) (($preparing_first['data'] ?? [])['scanned'] ?? 0));
+        $this->assertTrue((bool) ($preparing_second['success'] ?? false));
+        $this->assertTrue((bool) (($preparing_second['data'] ?? [])['preparing'] ?? false));
+        $this->assertSame(48, (int) (($preparing_second['data'] ?? [])['scanned'] ?? 0));
+
+        $first_data = (array) ($first['data'] ?? []);
+        $second_data = (array) ($second['data'] ?? []);
+        $third_data = (array) ($third['data'] ?? []);
+        $this->assertTrue((bool) ($first_data['paged'] ?? false));
+        $this->assertTrue((bool) ($second_data['paged'] ?? false));
+        $this->assertTrue((bool) ($third_data['paged'] ?? false));
+        $this->assertSame(54, (int) ($first_data['total'] ?? 0));
+        $this->assertSame(24, (int) ($first_data['loaded'] ?? 0));
+        $this->assertSame(48, (int) ($second_data['loaded'] ?? 0));
+        $this->assertSame(54, (int) ($third_data['loaded'] ?? 0));
+        $this->assertFalse((bool) ($third_data['has_more'] ?? true));
+
+        $all_html = (string) ($first_data['html'] ?? '')
+            . (string) ($second_data['html'] ?? '')
+            . (string) ($third_data['html'] ?? '');
+        $this->assertStringContainsString('Paged Staff Published 01', $all_html);
+        $this->assertStringContainsString('Paged Staff Published 52', $all_html);
+        $this->assertStringContainsString('Paged Staff Draft 01', $all_html);
+        $this->assertStringContainsString('Paged Staff Draft 02', $all_html);
+        $this->assertSame(2, substr_count($all_html, 'll-word-item--draft'));
+
+        $this->assertNotEmpty($word_query_sizes);
+        foreach ($word_query_sizes as $posts_per_page) {
+            $this->assertGreaterThan(0, $posts_per_page);
+            $this->assertLessThanOrEqual(24, $posts_per_page);
+        }
+        $this->assertNotSame(
+            ll_tools_vocab_lesson_grid_order_cache_key($lesson_id, $wordset_id, $category_id, 'public'),
+            ll_tools_vocab_lesson_grid_order_cache_key($lesson_id, $wordset_id, $category_id, 'staff:' . $admin_id)
+        );
     }
 
     public function test_shell_spec_defaults_skeleton_media_to_square_when_no_aspect_ratio_is_known(): void

@@ -24617,6 +24617,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'noStudiedWordsInSelection' => __('No in progress words are available for this selection.', 'll-tools-text-domain'),
             'noLearnedWordsInSelection' => __('No learned words are available for this selection.', 'll-tools-text-domain'),
             'noStarredHardWordsInSelection' => __('No starred hard words are available for this selection.', 'll-tools-text-domain'),
+            'selectionLaunchError' => __('Something went wrong. Please try again.', 'll-tools-text-domain'),
             'hiddenEmpty' => __('No hidden categories in this word set.', 'll-tools-text-domain'),
             'hiddenCountLabel' => __('Hidden Categories', 'll-tools-text-domain'),
             'queueEmpty' => __('No upcoming activities yet.', 'll-tools-text-domain'),

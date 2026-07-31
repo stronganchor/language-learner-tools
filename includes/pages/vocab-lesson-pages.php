@@ -6303,10 +6303,6 @@ function ll_tools_vocab_lesson_grid_should_use_paged_loading(
         return false;
     }
 
-    if (function_exists('ll_tools_user_can_edit_vocab_words') && ll_tools_user_can_edit_vocab_words($wordset_id)) {
-        return false;
-    }
-
     if ($expected_count <= 0 && function_exists('ll_tools_get_vocab_lesson_category_word_count_targeted')) {
         $count_complete = true;
         $expected_count = ll_tools_get_vocab_lesson_category_word_count_targeted(
@@ -6338,10 +6334,16 @@ function ll_tools_vocab_lesson_grid_should_use_paged_loading(
 function ll_tools_vocab_lesson_grid_order_cache_key(
     int $lesson_id,
     int $wordset_id,
-    int $category_id
+    int $category_id,
+    string $viewer_scope = 'public'
 ): string {
+    $viewer_scope = trim($viewer_scope);
+    if ($viewer_scope === '') {
+        $viewer_scope = 'public';
+    }
+
     return 'll_vl_grid_order_' . md5(
-        'schema-1|' . ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id)
+        'schema-2|' . $viewer_scope . '|' . ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id)
     );
 }
 
@@ -6402,7 +6404,8 @@ function ll_tools_vocab_lesson_grid_candidate_rows(
     int $wordset_id,
     int $category_id,
     int $after_word_id,
-    int $limit
+    int $limit,
+    bool $include_drafts = false
 ) {
     global $wpdb;
 
@@ -6436,6 +6439,7 @@ function ll_tools_vocab_lesson_grid_candidate_rows(
     }
 
     $category_placeholders = implode(',', array_fill(0, count($category_tt_ids), '%d'));
+    $status_placeholders = $include_drafts ? '%s, %s' : '%s';
     $sql = "
         SELECT DISTINCT p.ID, p.post_title, p.post_date
         FROM {$wpdb->posts} p
@@ -6446,21 +6450,17 @@ function ll_tools_vocab_lesson_grid_candidate_rows(
             ON wordset_rel.object_id = p.ID
            AND wordset_rel.term_taxonomy_id = %d
         WHERE p.post_type = %s
-          AND p.post_status = %s
+          AND p.post_status IN ({$status_placeholders})
           AND p.ID > %d
         ORDER BY p.ID ASC
         LIMIT %d
     ";
-    $params = array_merge(
-        $category_tt_ids,
-        [
-            $wordset_tt_id,
-            'words',
-            'publish',
-            max(0, $after_word_id),
-            max(1, $limit),
-        ]
-    );
+    $params = array_merge($category_tt_ids, [$wordset_tt_id, 'words', 'publish']);
+    if ($include_drafts) {
+        $params[] = 'draft';
+    }
+    $params[] = max(0, $after_word_id);
+    $params[] = max(1, $limit);
 
     $wpdb->last_error = '';
     $prepared_sql = $wpdb->prepare($sql, $params);
@@ -6495,8 +6495,11 @@ function ll_tools_vocab_lesson_grid_context(
 function ll_tools_vocab_lesson_grid_filter_candidate_ids(
     array $candidate_ids,
     int $category_id,
-    array $context
+    array $context,
+    bool $show_staff_hidden_words = false,
+    ?array &$presentation_hidden_reasons = null
 ) {
+    $presentation_hidden_reasons = [];
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
@@ -6518,11 +6521,29 @@ function ll_tools_vocab_lesson_grid_filter_candidate_ids(
             if (!$image_complete) {
                 return new WP_Error('image_filter_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
             }
-            $word_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($image_map): bool {
-                return !empty($image_map[$word_id]);
-            }));
+            if ($show_staff_hidden_words) {
+                foreach ($word_ids as $word_id) {
+                    if (empty($image_map[$word_id]) && get_post_status($word_id) === 'publish') {
+                        $presentation_hidden_reasons[$word_id] = 'missing_image';
+                    }
+                }
+            } else {
+                $word_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($image_map): bool {
+                    return !empty($image_map[$word_id]);
+                }));
+            }
         } elseif (function_exists('ll_tools_filter_word_ids_with_effective_images')) {
-            $word_ids = ll_tools_filter_word_ids_with_effective_images($word_ids, true);
+            $visible_word_ids = ll_tools_filter_word_ids_with_effective_images($word_ids, true);
+            if ($show_staff_hidden_words) {
+                $visible_lookup = array_fill_keys($visible_word_ids, true);
+                foreach ($word_ids as $word_id) {
+                    if (!isset($visible_lookup[$word_id]) && get_post_status($word_id) === 'publish') {
+                        $presentation_hidden_reasons[$word_id] = 'missing_image';
+                    }
+                }
+            } else {
+                $word_ids = $visible_word_ids;
+            }
         }
     }
 
@@ -6533,13 +6554,29 @@ function ll_tools_vocab_lesson_grid_filter_candidate_ids(
             if (!$audio_complete) {
                 return new WP_Error('audio_filter_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
             }
-            $word_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($audio_map): bool {
-                return !empty($audio_map[$word_id]);
-            }));
+            if ($show_staff_hidden_words) {
+                foreach ($word_ids as $word_id) {
+                    if (empty($audio_map[$word_id]) && get_post_status($word_id) === 'publish') {
+                        $presentation_hidden_reasons[$word_id] = 'missing_audio';
+                    }
+                }
+            } else {
+                $word_ids = array_values(array_filter($word_ids, static function (int $word_id) use ($audio_map): bool {
+                    return !empty($audio_map[$word_id]);
+                }));
+            }
         } elseif (function_exists('ll_tools_word_has_published_audio')) {
-            $word_ids = array_values(array_filter($word_ids, static function (int $word_id): bool {
-                return ll_tools_word_has_published_audio($word_id);
-            }));
+            if ($show_staff_hidden_words) {
+                foreach ($word_ids as $word_id) {
+                    if (!ll_tools_word_has_published_audio($word_id) && get_post_status($word_id) === 'publish') {
+                        $presentation_hidden_reasons[$word_id] = 'missing_audio';
+                    }
+                }
+            } else {
+                $word_ids = array_values(array_filter($word_ids, static function (int $word_id): bool {
+                    return ll_tools_word_has_published_audio($word_id);
+                }));
+            }
         }
     }
 
@@ -6617,6 +6654,16 @@ function ll_tools_vocab_lesson_grid_finalize_order_state(
     ) {
         $posts = ll_tools_word_grid_sort_posts_by_display_title($posts, $display_values_cache);
     }
+    $presentation_hidden_lookup = [];
+    foreach ($rows as $row) {
+        $word_id = (int) ($row['id'] ?? 0);
+        if ($word_id > 0 && !empty($row['h'])) {
+            $presentation_hidden_lookup[$word_id] = true;
+        }
+    }
+    if (!empty($presentation_hidden_lookup) && function_exists('ll_tools_word_grid_move_lookup_posts_to_end')) {
+        $posts = ll_tools_word_grid_move_lookup_posts_to_end($posts, $presentation_hidden_lookup);
+    }
 
     $ordered_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
         return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
@@ -6656,7 +6703,7 @@ function ll_tools_vocab_lesson_grid_advance_order_state(
         $state = ll_tools_vocab_lesson_grid_order_state_get($cache_key);
         if (!is_array($state)) {
             $state = [
-                'schema' => 1,
+                'schema' => 2,
                 'cursor_id' => 0,
                 'scanned' => 0,
                 'rows' => [],
@@ -6677,6 +6724,8 @@ function ll_tools_vocab_lesson_grid_advance_order_state(
         if (!empty($context['access_denied'])) {
             return new WP_Error('access_denied', __('Lesson not found.', 'll-tools-text-domain'));
         }
+        $show_staff_hidden_words = function_exists('ll_tools_word_grid_should_show_staff_hidden_words')
+            && ll_tools_word_grid_should_show_staff_hidden_words($context);
 
         $batch_size = ll_tools_vocab_lesson_grid_scan_batch_size(
             $lesson_id,
@@ -6687,7 +6736,8 @@ function ll_tools_vocab_lesson_grid_advance_order_state(
             (int) $wordset->term_id,
             (int) $category->term_id,
             max(0, (int) ($state['cursor_id'] ?? 0)),
-            $batch_size
+            $batch_size,
+            $show_staff_hidden_words
         );
         if (is_wp_error($candidate_rows)) {
             return $candidate_rows;
@@ -6696,10 +6746,13 @@ function ll_tools_vocab_lesson_grid_advance_order_state(
         $candidate_ids = array_values(array_filter(array_map(static function (array $row): int {
             return (int) ($row['ID'] ?? 0);
         }, $candidate_rows)));
+        $presentation_hidden_reasons = [];
         $visible_word_ids = ll_tools_vocab_lesson_grid_filter_candidate_ids(
             $candidate_ids,
             (int) $category->term_id,
-            $context
+            $context,
+            $show_staff_hidden_words,
+            $presentation_hidden_reasons
         );
         if (is_wp_error($visible_word_ids)) {
             return $visible_word_ids;
@@ -6749,6 +6802,9 @@ function ll_tools_vocab_lesson_grid_advance_order_state(
                 'x' => (string) ($display['translation_text'] ?? ''),
                 's' => !empty($display['store_in_title']),
                 'i' => $image_id,
+                'h' => isset($presentation_hidden_reasons[$word_id])
+                    ? (string) $presentation_hidden_reasons[$word_id]
+                    : '',
             ];
         }
 
@@ -6854,10 +6910,16 @@ function ll_tools_vocab_lesson_grid_paged_response(
     int $expected_count,
     string $cursor
 ) {
+    $can_edit_words = function_exists('ll_tools_user_can_edit_vocab_words')
+        && ll_tools_user_can_edit_vocab_words((int) $wordset->term_id);
+    $viewer_scope = $can_edit_words
+        ? 'staff:' . max(0, get_current_user_id())
+        : 'public';
     $order_cache_key = ll_tools_vocab_lesson_grid_order_cache_key(
         $lesson_id,
         (int) $wordset->term_id,
-        (int) $category->term_id
+        (int) $category->term_id,
+        $viewer_scope
     );
     $offset = ll_tools_vocab_lesson_grid_cursor_offset($cursor, $lesson_id, $order_cache_key);
     if (is_wp_error($offset)) {
@@ -7016,6 +7078,14 @@ function ll_tools_get_vocab_lesson_grid_handler() {
     $expected_count = function_exists('ll_tools_get_vocab_lesson_category_word_count_targeted')
         ? ll_tools_get_vocab_lesson_category_word_count_targeted($category, $wordset_id, $count_complete)
         : 0;
+    if (
+        function_exists('ll_tools_user_can_edit_vocab_words')
+        && ll_tools_user_can_edit_vocab_words($wordset_id)
+        && function_exists('ll_tools_wordset_page_get_category_content_summary')
+    ) {
+        $category_content_summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
+        $expected_count = max($expected_count, max(0, (int) ($category_content_summary['total'] ?? 0)));
+    }
     $uses_paged_loading = $count_complete && ll_tools_vocab_lesson_grid_should_use_paged_loading(
         $lesson_id,
         $wordset_id,

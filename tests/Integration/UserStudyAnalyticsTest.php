@@ -1397,6 +1397,112 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(10, (int) ($pagination['unfiltered_total'] ?? 0));
     }
 
+    public function test_selection_launch_plan_ajax_returns_only_the_bounded_in_progress_pool(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        $category_ids = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        $this->assertCount(10, $word_ids);
+        $this->assertCount(2, $category_ids);
+
+        $studied_by_category = [
+            $category_ids[0] => [$word_ids[0], $word_ids[1], $word_ids[3], $word_ids[4]],
+            $category_ids[1] => [$word_ids[2], $word_ids[6], $word_ids[7]],
+        ];
+        foreach ($studied_by_category as $category_id => $studied_word_ids) {
+            foreach ($studied_word_ids as $word_id) {
+                $this->seedWordProgressRow($user_id, $word_id, $category_id, (int) $fixture['wordset_id'], [
+                    'total_coverage' => 2,
+                    'coverage_practice' => 2,
+                    'correct_clean' => 1,
+                    'stage' => 2,
+                ]);
+            }
+        }
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $category_ids,
+            'criteria' => 'studied',
+            'mode' => 'practice',
+        ];
+        $_REQUEST = $_POST;
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_selection_launch_plan_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $plan = (array) ($response['data']['plan'] ?? []);
+        $returned_word_ids = array_values(array_map('intval', (array) ($plan['word_ids'] ?? [])));
+        $expected_word_ids = array_values(array_merge(
+            (array) $studied_by_category[$category_ids[0]],
+            (array) $studied_by_category[$category_ids[1]]
+        ));
+        sort($returned_word_ids);
+        sort($expected_word_ids);
+        $this->assertSame($expected_word_ids, $returned_word_ids);
+        $this->assertSame($category_ids, array_values(array_map('intval', (array) ($plan['category_ids'] ?? []))));
+        $this->assertSame(7, (int) ($plan['matched_count'] ?? 0));
+        $this->assertFalse((bool) ($plan['truncated'] ?? true));
+        $this->assertSame('studied', (string) ($plan['criteria'] ?? ''));
+        $this->assertSame('practice', (string) ($plan['mode'] ?? ''));
+    }
+
+    public function test_selection_launch_plan_caps_words_and_quiz_payload_categories(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        $category_ids = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        foreach ($word_ids as $index => $word_id) {
+            $category_id = in_array($index, [2, 6, 7, 8, 9], true) ? $category_ids[1] : $category_ids[0];
+            $this->seedWordProgressRow($user_id, $word_id, $category_id, (int) $fixture['wordset_id'], [
+                'total_coverage' => 1,
+                'coverage_practice' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+        }
+
+        $five_words = static function (): int {
+            return 5;
+        };
+        $one_category = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+        add_filter('ll_tools_user_study_selection_launch_preferred_categories', $one_category);
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                (int) $fixture['wordset_id'],
+                $category_ids,
+                'studied',
+                'practice'
+            );
+        } finally {
+            remove_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+            remove_filter('ll_tools_user_study_selection_launch_preferred_categories', $one_category);
+        }
+
+        $this->assertIsArray($plan);
+        $this->assertCount(5, (array) ($plan['word_ids'] ?? []));
+        $this->assertCount(1, (array) ($plan['category_ids'] ?? []));
+        $this->assertSame(10, (int) ($plan['matched_count'] ?? 0));
+        $this->assertTrue((bool) ($plan['truncated'] ?? false));
+    }
+
     public function test_analytics_ajax_can_return_summary_without_word_rows(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
