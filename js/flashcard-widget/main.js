@@ -59,8 +59,9 @@
             || normalized === 'image_text_title';
     }
 
-    // Keep the popup in its original flashcard container so responsive CSS
-    // variables remain in scope; isolate the surrounding page while it is open.
+    // Keep focus and background isolation state for both the category selector
+    // and the quiz dialog. The quiz itself is portaled below to preserve the
+    // established full-screen presentation across themes and viewport sizes.
     const inlineQuizDialogState = {
         dialog: null,
         opener: null,
@@ -134,9 +135,8 @@
         const popupRoot = dialog.closest('#ll-tools-flashcard-popup') || dialog;
         let activeBranch = popupRoot;
 
-        // Keep the popup in its original container so it retains quiz font,
-        // sizing, and compact-layout custom properties. Isolate every sibling
-        // along the branch from the popup to <body> instead of portaling it.
+        // Isolate every sibling along the active branch up to <body>. This works
+        // before the first quiz launch and after the established portal move.
         while (activeBranch && activeBranch !== doc.body) {
             const parent = activeBranch.parentElement;
             if (!parent) {
@@ -233,6 +233,25 @@
         root.document.removeEventListener('focusin', onInlineQuizDialogFocusIn, true);
     }
 
+    function shouldPortalQuizDialog(dialog) {
+        if (!dialog || dialog.id !== 'll-tools-flashcard-quiz-popup') {
+            return false;
+        }
+
+        const data = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        if (data.isEmbed || data.is_embed) {
+            return false;
+        }
+
+        try {
+            return root.self === root.top;
+        } catch (_) {
+            return false;
+        }
+    }
+
     function activateInlineQuizDialog(dialog, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (typeof dialog === 'string' && root.document) {
@@ -240,6 +259,18 @@
         }
         if (!dialog) {
             return false;
+        }
+
+        // The pre-6.6.98 top-level quiz presentation lived directly under
+        // <body>. Keep that placement so page/container theme rules and
+        // compact-layout variables cannot unexpectedly restyle the full-screen
+        // quiz. Embedded quizzes remain inline; in a top-level runtime the
+        // shared root keeps this body-level placement if categories reopen.
+        if (shouldPortalQuizDialog(dialog) && root.document && root.document.body) {
+            const popupRoot = dialog.closest('#ll-tools-flashcard-popup');
+            if (popupRoot && popupRoot.parentElement !== root.document.body) {
+                root.document.body.appendChild(popupRoot);
+            }
         }
 
         if (!inlineQuizDialogState.opener) {

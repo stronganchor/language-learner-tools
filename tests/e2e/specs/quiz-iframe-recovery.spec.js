@@ -18,7 +18,7 @@ const jqueryScriptPath = path.resolve(__dirname, '../node_modules/jquery/dist/jq
 const quizPagesCssPath = path.resolve(__dirname, '../../../css/quiz-pages.css');
 const flashcardBaseCssPath = path.resolve(__dirname, '../../../css/flashcard/base.css');
 
-test('shared inline quiz dialog traps focus, isolates the page, and restores its opener', async ({ page }) => {
+test('shared quiz dialog portals to body, traps focus, isolates the page, and restores its opener', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent(`
     <main id="page-content">
@@ -68,14 +68,14 @@ test('shared inline quiz dialog traps focus, isolates the page, and restores its
   await expect(page.locator('#ll-tools-close-flashcard')).toBeFocused();
   await expect(page.locator('#page-content')).toHaveAttribute('inert', '');
   await expect(page.locator('#page-content')).toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('#container-sibling')).toHaveAttribute('inert', '');
-  await expect(page.locator('#container-sibling')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#ll-tools-flashcard-container')).toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-tools-flashcard-container')).toHaveAttribute('aria-hidden', 'true');
   expect(await page.locator('#ll-tools-flashcard-popup').evaluate((element) => (
-    element.parentElement ? element.parentElement.id : ''
-  ))).toBe('ll-tools-flashcard-container');
+    element.parentElement ? element.parentElement.tagName.toLowerCase() : ''
+  ))).toBe('body');
   expect(await popup.evaluate((element) => (
     window.getComputedStyle(element).getPropertyValue('--ll-answer-option-font-weight').trim()
-  ))).toBe('812');
+  ))).toBe('');
 
   await page.locator('#quiz-action').focus();
   await page.keyboard.press('Tab');
@@ -96,8 +96,119 @@ test('shared inline quiz dialog traps focus, isolates the page, and restores its
   await expect(popup).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('#page-content')).not.toHaveAttribute('inert', '');
   await expect(page.locator('#page-content')).not.toHaveAttribute('aria-hidden', 'true');
-  await expect(page.locator('#container-sibling')).not.toHaveAttribute('inert', '');
-  await expect(page.locator('#container-sibling')).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#ll-tools-flashcard-container')).not.toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-tools-flashcard-container')).not.toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#quiz-opener')).toBeFocused();
+});
+
+test('top-level mobile quiz keeps its established card, header, and audio sizing', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div
+      id="ll-tools-flashcard-container"
+      class="ll-compact-quiz-layout ll-image-options-scaled"
+      style="--ll-answer-option-fit-size: 72px; --ll-repeat-icon-size: 32px; --ll-quiz-header-gap: 8px"
+    >
+      <div id="ll-tools-flashcard-popup">
+        <div id="ll-tools-flashcard-quiz-popup" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+          <header id="ll-tools-flashcard-header">
+            <button id="ll-tools-close-flashcard" type="button">Close</button>
+            <button id="ll-tools-repeat-flashcard" type="button">
+              <span class="ll-repeat-icon-wrap"><span class="ll-audio-play-icon">Play</span></span>
+            </button>
+          </header>
+          <div class="flashcard-container ll-answer-option-image-card ll-answer-option-image-caption-card">
+            <span class="ll-answer-option-image-caption-media"></span>
+            <span class="ll-answer-option-image-caption">Answer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addStyleTag({ path: flashcardBaseCssPath });
+  await page.evaluate(() => {
+    document.body.classList.add('ll-tools-flashcard-open');
+    window.LLFlashcards = {
+      Util: {},
+      State: { STATES: {} },
+      Dom: {},
+      Effects: {},
+      Selection: {},
+      Cards: {},
+      Results: {},
+      StateMachine: {},
+      ModeConfig: {}
+    };
+  });
+  await page.addScriptTag({ path: jqueryScriptPath });
+  await page.addScriptTag({ content: flashcardMainScriptSource });
+
+  await page.evaluate(() => {
+    window.LLToolsQuizDialog.activate('#ll-tools-flashcard-quiz-popup');
+  });
+
+  await expect(page.locator('.ll-answer-option-image-caption-card')).toHaveCSS('width', '150px');
+  await expect(page.locator('#ll-tools-repeat-flashcard .ll-repeat-icon-wrap')).toHaveCSS('width', '42px');
+  await expect(page.locator('#ll-tools-flashcard-header')).toHaveCSS('gap', '15px');
+});
+
+test('embedded quiz dialog stays in its container with compact layout variables in scope', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <main id="page-content">
+      <button id="quiz-opener" type="button">Open quiz</button>
+    </main>
+    <div id="ll-tools-flashcard-container" style="--ll-answer-option-font-weight: 812">
+      <div id="ll-tools-flashcard-popup">
+        <div
+          id="ll-tools-flashcard-quiz-popup"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quiz-title"
+          aria-hidden="true"
+          tabindex="-1"
+        >
+          <h2 id="quiz-title">Quiz</h2>
+          <button id="ll-tools-close-flashcard" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = { isEmbed: true };
+    window.LLFlashcards = {
+      Util: {},
+      State: { STATES: {} },
+      Dom: {},
+      Effects: {},
+      Selection: {},
+      Cards: {},
+      Results: {},
+      StateMachine: {},
+      ModeConfig: {}
+    };
+  });
+  await page.addScriptTag({ path: jqueryScriptPath });
+  await page.addScriptTag({ content: flashcardMainScriptSource });
+
+  await page.locator('#quiz-opener').focus();
+  await page.evaluate(() => {
+    window.LLToolsQuizDialog.activate('#ll-tools-flashcard-quiz-popup');
+  });
+
+  const popup = page.locator('#ll-tools-flashcard-quiz-popup');
+  expect(await page.locator('#ll-tools-flashcard-popup').evaluate((element) => (
+    element.parentElement ? element.parentElement.id : ''
+  ))).toBe('ll-tools-flashcard-container');
+  expect(await popup.evaluate((element) => (
+    window.getComputedStyle(element).getPropertyValue('--ll-answer-option-font-weight').trim()
+  ))).toBe('812');
+  await expect(page.locator('#page-content')).toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-tools-close-flashcard')).toBeFocused();
+
+  await page.evaluate(() => window.LLToolsQuizDialog.deactivate());
+  await expect(page.locator('#page-content')).not.toHaveAttribute('inert', '');
   await expect(page.locator('#quiz-opener')).toBeFocused();
 });
 

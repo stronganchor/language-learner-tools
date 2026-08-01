@@ -89,6 +89,7 @@ read_first:
   - Migrates legacy generated WP Page children into the CPT, keeps legacy records discoverable during migration, and hides any remaining generated Page records from the normal Pages admin list.
   - Syncs on category/content changes; daily and on file mtime change; manual cleanup in admin.
   - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`; popup and iframe fallbacks keep dialog semantics, focus containment/restoration, translated loading/failure/timeout states, and retry/direct-open recovery.
+  - A top-level full-screen quiz portals `#ll-tools-flashcard-popup` to `document.body` before dialog activation so wordset/theme descendants, compact-layout variables, and transformed ancestors cannot restyle or scale it. True embed/iframe runtimes stay inside `#ll-tools-flashcard-container` so their bounded viewport-fit variables remain in scope. Preserve focus trapping, background isolation, and opener restoration in both placements.
   - The quiz/game viewport zoom guard is an intentional mobile child-UX policy: accidental pinch/double-tap zoom during quizzes is prevented because young learners commonly cannot recover the layout. Preserve it unless product requirements explicitly change; accessibility work should improve semantics, keyboard/focus behavior, reduced motion, and recovery without silently removing this guard.
 - `includes/pages/embed-page.php`
   - Minimal page for iframes; noindex; uses `[flashcard_widget]`.
