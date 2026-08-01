@@ -764,6 +764,9 @@
             );
 
             if (queuedOnlyLastShown && !hasBridgeWord) {
+                if (ctx && typeof ctx.tryContinueLogicalSession === 'function' && ctx.tryContinueLogicalSession()) {
+                    return true;
+                }
                 if (ctx && typeof ctx.updatePracticeModeProgress === 'function') {
                     ctx.updatePracticeModeProgress();
                 }
@@ -796,6 +799,10 @@
 
         if (hasPendingOrUnloadedCategories(loader)) {
             return restartAfterPendingLoad();
+        }
+
+        if (context && typeof context.tryContinueLogicalSession === 'function' && context.tryContinueLogicalSession()) {
+            return true;
         }
 
         if (context && typeof context.updatePracticeModeProgress === 'function') {

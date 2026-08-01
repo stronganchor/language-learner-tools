@@ -375,9 +375,18 @@
         if (!tracker || typeof tracker.trackModeSessionComplete !== 'function') {
             return;
         }
+        const flashData = root.llToolsFlashcardsData || {};
+        const logicalCategoryIdsRaw = Array.isArray(flashData.logicalSessionCategoryIds)
+            ? flashData.logicalSessionCategoryIds
+            : (Array.isArray(flashData.logical_session_category_ids) ? flashData.logical_session_category_ids : []);
+        const logicalCategoryIds = logicalCategoryIdsRaw.map(function (value) {
+            return parseInt(value, 10) || 0;
+        }).filter(function (id, index, ids) {
+            return id > 0 && ids.indexOf(id) === index;
+        });
         const names = Array.isArray(State && State.categoryNames) ? State.categoryNames : [];
-        let categoryIds = [];
-        if (typeof tracker.categoryNameToId === 'function') {
+        let categoryIds = logicalCategoryIds.slice();
+        if (!categoryIds.length && typeof tracker.categoryNameToId === 'function') {
             categoryIds = names.map(function (name) {
                 return parseInt(tracker.categoryNameToId(name), 10) || 0;
             }).filter(function (id) {

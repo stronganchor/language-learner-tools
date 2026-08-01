@@ -478,6 +478,8 @@ async function mountWordsetPage(page, options = {}) {
     window.__llPartialPublicCategoryOnce = null;
     window.__llInitAttempts = [];
     window.__llInitFailureOnce = '';
+    window.__llBoundedSessionAppends = [];
+    window.__llBoundedSessionAppendFailureOnce = '';
     let publicCategoryWarmingRemaining = Math.max(
       0,
       Number(bootstrap.publicCategoryWarmingResponses) || 0
@@ -492,6 +494,32 @@ async function mountWordsetPage(page, options = {}) {
       window.__llVisualizerWarmups = Number(window.__llVisualizerWarmups || 0) + 1;
       window.__llLaunchTrace.push('warmup');
       return Promise.resolve(true);
+    };
+    window.LLFlashcards.Main = window.LLFlashcards.Main || {};
+    window.LLFlashcards.Main.appendBoundedSelectionChunk = function (catNames) {
+      const flash = window.llToolsFlashcardsData || {};
+      window.__llBoundedSessionAppends.push({
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        sessionWordIds: Array.isArray(flash.sessionWordIds) ? flash.sessionWordIds.slice() : [],
+        logicalSessionWordIds: Array.isArray(flash.logicalSessionWordIds)
+          ? flash.logicalSessionWordIds.slice()
+          : [],
+        boundedCandidateCategoryIds: Object.keys(flash.boundedCandidateRowsByCategoryId || {})
+          .map((value) => Number(value) || 0)
+          .filter((value) => value > 0),
+        sessionWordIdsByCategoryId: JSON.parse(JSON.stringify(flash.sessionWordIdsByCategoryId || {}))
+      });
+
+      const appendFailure = String(window.__llBoundedSessionAppendFailureOnce || '');
+      if (appendFailure) {
+        window.__llBoundedSessionAppendFailureOnce = '';
+        if (appendFailure === 'throw') {
+          throw new Error('test bounded append throw');
+        }
+        return Promise.reject(new Error('test bounded append rejection'));
+      }
+
+      return Promise.resolve({ success: true });
     };
 
     window.initFlashcardWidget = function (catNames, mode) {
@@ -523,6 +551,10 @@ async function mountWordsetPage(page, options = {}) {
         mode: String(mode || ''),
         catNames: Array.isArray(catNames) ? catNames.slice() : [],
         sessionWordIds: Array.isArray(flash.sessionWordIds) ? flash.sessionWordIds.slice() : [],
+        logicalSessionWordIds: Array.isArray(flash.logicalSessionWordIds)
+          ? flash.logicalSessionWordIds.slice()
+          : [],
+        boundedSessionContinuationType: typeof flash.boundedSessionContinuation,
         categoryIds: Array.isArray(plan.category_ids)
           ? plan.category_ids.slice()
           : (Array.isArray(userStudyState.category_ids) ? userStudyState.category_ids.slice() : []),
@@ -759,6 +791,41 @@ async function startInProgressPracticeSelection(page) {
   await page.locator('[data-ll-wordset-select-all]').click();
   await page.locator('[data-ll-wordset-selection-priority-only]').check();
   await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+}
+
+async function invokeBoundedSessionContinuation(page, callCount = 1) {
+  return page.evaluate(async (requestedCallCount) => {
+    const flash = window.llToolsFlashcardsData || {};
+    const continuation = flash.boundedSessionContinuation;
+    if (typeof continuation !== 'function') {
+      return {
+        callable: false,
+        samePromise: false,
+        outcomes: []
+      };
+    }
+
+    const count = Math.max(1, Number(requestedCallCount) || 1);
+    const promises = [];
+    for (let index = 0; index < count; index += 1) {
+      try {
+        promises.push(continuation());
+      } catch (error) {
+        promises.push(Promise.reject(error));
+      }
+    }
+    const samePromise = promises.length < 2 || promises.every((promise) => promise === promises[0]);
+    const outcomes = await Promise.all(promises.map((promise) => Promise.resolve(promise).then(
+      (value) => ({ status: 'fulfilled', value }),
+      (error) => ({ status: 'rejected', message: String((error && error.message) || error || '') })
+    )));
+
+    return {
+      callable: true,
+      samePromise,
+      outcomes
+    };
+  }, callCount);
 }
 
 test('logged-out select-all shows real word count and allows listening launch', async ({ page }) => {
@@ -1571,113 +1638,37 @@ test('priority-only practice selection filters to the current study focus', asyn
   expect(requestStats.publicRequests.maxActive).toBe(1);
 });
 
-test('bounded selection plan continues through every category-aware chunk without duplicates or fanout', async ({ page }) => {
-  const wordsByCategory = {
-    11: buildCategoryWordRows(11, 10, 'A').map((row) => Object.assign({}, row, {
-      category_id: 11,
-      category_ids: [11],
-      status: 'studied'
-    })),
-    22: buildCategoryWordRows(22, 10, 'B').map((row) => Object.assign({}, row, {
-      category_id: 22,
-      category_ids: [22],
-      status: 'studied'
-    })),
-    33: buildCategoryWordRows(33, 10, 'C').map((row) => Object.assign({}, row, {
-      category_id: 33,
-      category_ids: [33],
-      status: 'studied'
-    }))
-  };
-  const firstChunkWordIds = wordsByCategory[11].map((row) => row.id)
-    .concat(wordsByCategory[22].slice(0, 5).map((row) => row.id));
-  const secondChunkWordIds = wordsByCategory[22].slice(5).map((row) => row.id)
-    .concat(wordsByCategory[33].map((row) => row.id));
-  const allPlannedWordIds = firstChunkWordIds.concat(secondChunkWordIds);
-
+test('bounded selection continuation coalesces one serial next-batch request', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
   await mountWordsetPage(page, {
     isLoggedIn: true,
-    wordsByCategory,
-    selectionLaunchPlan: {
-      category_ids: [11, 22],
-      word_ids: firstChunkWordIds,
-      chunks: [
-        { category_ids: [11, 22], word_ids: firstChunkWordIds },
-        { category_ids: [22, 33], word_ids: secondChunkWordIds }
-      ],
-      criteria: 'studied',
-      mode: 'practice',
-      matched_count: allPlannedWordIds.length,
-      planned_count: allPlannedWordIds.length,
-      chunk_count: 2,
-      truncated: false
-    },
-    configPatch: {
-      goals: {
-        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
-        ignored_category_ids: [],
-        preferred_wordset_ids: [77],
-        placement_known_category_ids: [],
-        daily_new_word_target: 0,
-        priority_focus: 'studied'
-      },
-      summaryCounts: {
-        mastered: 0,
-        studied: allPlannedWordIds.length,
-        new: 0,
-        starred: 0,
-        hard: 0
-      },
-      nextActivity: null,
-      recommendationQueue: []
-    }
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
   });
 
-  await page.locator('[data-ll-wordset-select-all]').click();
-  await page.locator('[data-ll-wordset-selection-priority-only]').check();
-  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+  await startInProgressPracticeSelection(page);
 
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  let launches = await page.evaluate(() => window.__llLaunches.slice());
-  expect(launches[0].source).toBe('wordset_chunk_start');
-  expect(launches[0].categoryDisplayOverride).toBe('In progress words');
-  expect(launches[0].categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
-  expect(launches[0].sessionWordIds.slice().sort((a, b) => a - b))
-    .toEqual(firstChunkWordIds.slice().sort((a, b) => a - b));
+  const initialLaunch = await page.evaluate(() => window.__llLaunches[0]);
+  expect(initialLaunch.source).toBe('wordset_chunk_start');
+  expect(initialLaunch.categoryDisplayOverride).toBe('In progress words');
+  expect(initialLaunch.categoryIds).toEqual([11, 22, 33]);
+  expect(initialLaunch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
+  expect(initialLaunch.logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(initialLaunch.boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
 
-  await page.evaluate(() => {
-    window.jQuery('#quiz-results').show();
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toContainText('Continue');
-  await expect(continueButton).toContainText('2/2');
-  await expect(page.locator('#ll-study-results-suggestion')).toHaveText('30 words');
-  await page.evaluate(() => {
-    window.__llFailPublicCategoryOnce = 'Cat C';
-  });
-  await continueButton.click();
-
-  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toBeEnabled();
-  await expect(continueButton).toContainText('2/2');
-  await expect(page.locator('#quiz-results')).toBeVisible();
-
-  await continueButton.click();
-
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
-  launches = await page.evaluate(() => window.__llLaunches.slice());
-  expect(launches[1].source).toBe('wordset_chunk_continue');
-  expect(launches[1].categoryDisplayOverride).toBe('In progress words');
-  expect(launches[1].categoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
-  expect(launches[1].sessionWordIds.slice().sort((a, b) => a - b))
-    .toEqual(secondChunkWordIds.slice().sort((a, b) => a - b));
+  const continuation = await invokeBoundedSessionContinuation(page, 2);
+  expect(continuation.callable).toBeTruthy();
+  expect(continuation.samePromise).toBeTruthy();
+  expect(continuation.outcomes).toEqual([
+    { status: 'fulfilled', value: { success: true, index: 1, chunk_count: 2 } },
+    { status: 'fulfilled', value: { success: true, index: 1, chunk_count: 2 } }
+  ]);
 
   const result = await page.evaluate(() => ({
     launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
     planRequests: window.__llSelectionPlanRequests.slice(),
     publicRequests: {
       maxActive: window.__llPublicCategoryRequests.maxActive,
@@ -1690,38 +1681,79 @@ test('bounded selection plan continues through every category-aware chunk withou
       }))
     }
   }));
-  const launchedWordIds = result.launches.flatMap((launch) => launch.sessionWordIds);
-  expect(launchedWordIds).toHaveLength(allPlannedWordIds.length);
-  expect(new Set(launchedWordIds).size).toBe(allPlannedWordIds.length);
-  expect(launchedWordIds.slice().sort((a, b) => a - b))
-    .toEqual(allPlannedWordIds.slice().sort((a, b) => a - b));
+  expect(result.launches).toHaveLength(1);
+  expect(result.appends).toHaveLength(1);
+  expect(result.appends[0].catNames.slice().sort()).toEqual(['Cat B', 'Cat C']);
+  expect(result.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  expect(result.appends[0].logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(result.appends[0].boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
+  expect(result.appends[0].sessionWordIdsByCategoryId['22'])
+    .toEqual(fixture.wordsByCategory[22].slice(5).map((row) => row.id));
+  expect(result.appends[0].sessionWordIdsByCategoryId['33'])
+    .toEqual(fixture.wordsByCategory[33].map((row) => row.id));
   expect(result.planRequests).toHaveLength(1);
   expect(result.publicRequests.maxActive).toBe(1);
-  expect(result.launches.every((launch) => launch.boundedSelectionPlan)).toBeTruthy();
-  expect(result.launches[0].boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
-  expect(result.launches[0].sessionWordIdsByCategoryId['11']).toEqual(wordsByCategory[11].map((row) => row.id));
-  expect(result.launches[0].sessionWordIdsByCategoryId['22']).toEqual(wordsByCategory[22].slice(0, 5).map((row) => row.id));
-  expect(result.launches[1].boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([22, 33]);
-  expect(result.launches[1].sessionWordIdsByCategoryId['22']).toEqual(wordsByCategory[22].slice(5).map((row) => row.id));
-  expect(result.launches[1].sessionWordIdsByCategoryId['33']).toEqual(wordsByCategory[33].map((row) => row.id));
-  expect(result.publicRequests.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat C']);
-  expect(result.publicRequests.requests).toHaveLength(5);
+  expect(result.publicRequests.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
+  expect(result.publicRequests.requests).toHaveLength(4);
   result.publicRequests.requests.forEach((request, index) => {
-    const expectedChunkIds = index < 2 ? firstChunkWordIds : secondChunkWordIds;
+    const expectedChunkIds = index < 2 ? fixture.firstChunkWordIds : fixture.secondChunkWordIds;
     expect(request.candidateIds.slice().sort((a, b) => a - b))
       .toEqual(expectedChunkIds.slice().sort((a, b) => a - b));
     expect(request.candidateIds.length).toBeLessThanOrEqual(15);
     expect(request.includeOptionPool).toBe('1');
     expect(request.optionPoolLimit).toBe('12');
   });
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
-test('deferred-category select all launches all 342 in-progress words without current-chunk fanout', async ({ page }) => {
+test('bounded non-practice sessions retain explicit next-chunk navigation', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
+    mode: 'listening'
+  });
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const initial = await page.evaluate(() => ({
+    launch: window.__llLaunches[0],
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(initial.launch.mode).toBe('listening');
+  expect(initial.launch.source).toBe('wordset_chunk_start');
+  expect(initial.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
+  expect(initial.continuationType).toBe('undefined');
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(continueButton).toBeVisible();
+  await continueButton.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+  const nextLaunch = await page.evaluate(() => window.__llLaunches[1]);
+  expect(nextLaunch.mode).toBe('listening');
+  expect(nextLaunch.source).toBe('wordset_chunk_continue');
+  expect(nextLaunch.sessionWordIds).toEqual(fixture.secondChunkWordIds);
+});
+
+test('deferred-category select all hands one 342-word runtime session to bounded hydration', async ({ page }) => {
   const fixture = buildDeferredCategorySelectionFixture();
   const chunks = fixture.selectionLaunchPlan.chunks;
   const expectedWordIds = Object.values(fixture.wordsByCategory)
     .flatMap((rows) => rows.map((row) => row.id));
   const plannedWordIds = chunks.flatMap((chunk) => chunk.word_ids);
+  const plannedCategoryIds = Array.from(new Set(chunks.flatMap((chunk) => chunk.category_ids)));
   const categoryNameById = Object.fromEntries(
     fixture.categories.map((category) => [category.id, category.name])
   );
@@ -1805,9 +1837,7 @@ test('deferred-category select all launches all 342 in-progress words without cu
   }]);
   expect(firstLaunch.source).toBe('wordset_chunk_start');
   expect(firstLaunch.categoryDisplayOverride).toBe('In progress words');
-  expect(firstLaunch.categoryIds.slice().sort((a, b) => a - b))
-    .toEqual(chunks[0].category_ids.slice().sort((a, b) => a - b));
-  expect(firstLaunch.sessionWordIds).toEqual(chunks[0].word_ids);
+  expect(firstLaunch.categoryIds).toEqual(plannedCategoryIds);
   expect(firstLaunch.boundedCandidateCategoryIds.slice().sort((a, b) => a - b))
     .toEqual(chunks[0].category_ids.slice().sort((a, b) => a - b));
   chunks[0].category_ids.forEach((categoryId) => {
@@ -1829,45 +1859,30 @@ test('deferred-category select all launches all 342 in-progress words without cu
     expect(request.optionPoolLimit).toBe('12');
   });
 
-  await page.evaluate(() => {
-    window.jQuery('#quiz-results').show();
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+  // The stubbed widget cannot answer through a hydration boundary. Its init
+  // snapshot is the runtime handoff: the loader-scoped session stays on the
+  // first chunk, while a separate logical session and continuation hook keep
+  // planner boundaries inside one uninterrupted quiz.
+  expect(firstLaunch.sessionWordIds).toEqual(chunks[0].word_ids);
+  expect.soft({
+    count: firstLaunch.logicalSessionWordIds.length,
+    uniqueCount: new Set(firstLaunch.logicalSessionWordIds).size,
+    matchesPlan: JSON.stringify(firstLaunch.logicalSessionWordIds) === JSON.stringify(plannedWordIds)
+  }).toEqual({
+    count: 342,
+    uniqueCount: 342,
+    matchesPlan: true
   });
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-  await expect(page.locator('#ll-study-results-suggestion')).toHaveText('342 words');
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toContainText(`2/${chunks.length}`);
-  await continueButton.click();
+  expect.soft(firstLaunch.boundedSessionContinuationType).toBe('function');
+  expect(firstResult.launches).toHaveLength(1);
+  expect(firstResult.planRequests).toHaveLength(1);
 
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
-  const continuedResult = await page.evaluate(() => ({
-    launches: window.__llLaunches.slice(),
-    planRequests: window.__llSelectionPlanRequests.slice(),
-    maxActive: window.__llPublicCategoryRequests.maxActive,
-    categories: window.__llPublicCategoryRequests.categories.slice(),
-    requests: window.__llPublicCategoryRequests.requests.map((request) => ({
-      categoryName: request.categoryName,
-      candidateIds: request.candidateIds.slice()
-    }))
-  }));
-  const secondLaunch = continuedResult.launches[1];
-  const expectedSecondCategoryNames = chunks[1].category_ids.map((categoryId) => categoryNameById[categoryId]);
-  expect(continuedResult.planRequests).toHaveLength(1);
-  expect(secondLaunch.source).toBe('wordset_chunk_continue');
-  expect(secondLaunch.categoryDisplayOverride).toBe('In progress words');
-  expect(secondLaunch.categoryIds.slice().sort((a, b) => a - b))
-    .toEqual(chunks[1].category_ids.slice().sort((a, b) => a - b));
-  expect(secondLaunch.sessionWordIds).toEqual(chunks[1].word_ids);
-  expect(continuedResult.maxActive).toBe(1);
-  expect(continuedResult.categories.slice(firstResult.publicRequests.categories.length).sort())
-    .toEqual(expectedSecondCategoryNames.slice().sort());
-  expect(continuedResult.requests).toHaveLength(chunks[0].category_ids.length + chunks[1].category_ids.length);
-  continuedResult.requests.slice(firstResult.publicRequests.requests.length).forEach((request) => {
-    expect(request.candidateIds).toEqual(chunks[1].word_ids);
-  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(continueButton).toBeHidden();
 });
 
-test('chunk continuation advances only after widget initialization succeeds', async ({ page }) => {
+test('bounded continuation advances only after append acceptance and keeps a failed batch retryable', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   await mountWordsetPage(page, {
     isLoggedIn: true,
@@ -1879,57 +1894,135 @@ test('chunk continuation advances only after widget initialization succeeds', as
   await startInProgressPracticeSelection(page);
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
   await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+    window.__llBoundedSessionAppendFailureOnce = 'throw';
   });
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-  await expect(continueButton).toContainText('2/2');
-
-  await page.evaluate(() => {
-    window.__llInitFailureOnce = 'reject';
+  const failedContinuation = await invokeBoundedSessionContinuation(page);
+  expect(failedContinuation).toEqual({
+    callable: true,
+    samePromise: true,
+    outcomes: [{
+      status: 'rejected',
+      message: 'The bounded practice continuation failed to load.'
+    }]
   });
-  await continueButton.click();
-  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(2);
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toBeEnabled();
-  await expect(continueButton).toContainText('2/2');
-  await expect(page.locator('#quiz-results')).toBeVisible();
 
-  const requestsAfterFirstFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
+  const failedState = await page.evaluate(() => ({
+    appends: window.__llBoundedSessionAppends.slice(),
+    launches: window.__llLaunches.slice(),
+    initAttempts: window.__llInitAttempts.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(failedState.appends).toHaveLength(1);
+  expect(failedState.appends[0].catNames.slice().sort()).toEqual(['Cat B', 'Cat C']);
+  expect(failedState.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  expect(failedState.launches).toHaveLength(1);
+  expect(failedState.initAttempts).toHaveLength(1);
+  expect(failedState.publicCategories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
+  expect(failedState.continuationType).toBe('function');
 
-  await page.evaluate(() => {
-    window.__llInitFailureOnce = 'throw';
+  const acceptedContinuation = await invokeBoundedSessionContinuation(page);
+  expect(acceptedContinuation).toEqual({
+    callable: true,
+    samePromise: true,
+    outcomes: [{
+      status: 'fulfilled',
+      value: { success: true, index: 1, chunk_count: 2 }
+    }]
   });
-  await continueButton.click();
-  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(2);
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(3);
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toBeEnabled();
-  await expect(continueButton).toContainText('2/2');
-  await expect(page.locator('#quiz-results')).toBeVisible();
 
-  const requestsAfterSecondFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
-  expect(requestsAfterSecondFailure.length).toBe(requestsAfterFirstFailure.length + 2);
-  expect(requestsAfterSecondFailure.slice(-2)).toEqual(['Cat B', 'Cat C']);
-
-  await continueButton.click();
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
   const result = await page.evaluate(() => ({
     launches: window.__llLaunches.slice(),
     initAttempts: window.__llInitAttempts.slice(),
-    publicCategories: window.__llPublicCategoryRequests.categories.slice()
+    appends: window.__llBoundedSessionAppends.slice(),
+    publicCategories: window.__llPublicCategoryRequests.categories.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
   }));
-  expect(result.initAttempts).toHaveLength(4);
-  expect(result.launches[1].source).toBe('wordset_chunk_continue');
-  expect(result.launches[1].sessionWordIds.slice().sort((a, b) => a - b))
-    .toEqual(fixture.secondChunkWordIds.slice().sort((a, b) => a - b));
-  expect(result.publicCategories.length).toBe(requestsAfterSecondFailure.length + 2);
-  expect(result.publicCategories.slice(-2)).toEqual(['Cat B', 'Cat C']);
+  expect(result.launches).toHaveLength(1);
+  expect(result.initAttempts).toHaveLength(1);
+  expect(result.appends).toHaveLength(2);
+  expect(result.appends[1].catNames.slice().sort()).toEqual(result.appends[0].catNames.slice().sort());
+  expect(result.appends[1].sessionWordIds).toEqual(result.appends[0].sessionWordIds);
+  expect(result.appends[1].logicalSessionWordIds).toEqual(result.appends[0].logicalSessionWordIds);
+  expect(result.appends[1].boundedCandidateCategoryIds.slice().sort((a, b) => a - b))
+    .toEqual(result.appends[0].boundedCandidateCategoryIds.slice().sort((a, b) => a - b));
+  expect(result.appends[1].sessionWordIdsByCategoryId).toEqual(result.appends[0].sessionWordIdsByCategoryId);
+  expect(result.publicCategories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat B', 'Cat C']);
+  expect(result.continuationType).toBe('undefined');
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
-test('chunk repeat restores the same retry action when widget initialization fails', async ({ page }) => {
+test('closing a logical session rejects an in-flight bounded append before commit', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch,
+    publicCategoryDelayMs: 25
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  const closedOutcome = await page.evaluate(async () => {
+    const continuation = (window.llToolsFlashcardsData || {}).boundedSessionContinuation;
+    const pending = continuation();
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+    return Promise.resolve(pending).then(
+      (value) => ({ status: 'fulfilled', value }),
+      (error) => ({ status: 'rejected', message: String((error && error.message) || error || '') })
+    );
+  });
+  expect(closedOutcome).toEqual({
+    status: 'rejected',
+    message: 'The bounded practice continuation failed to load.'
+  });
+
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
+    publicCategories: window.__llPublicCategoryRequests.categories.slice()
+  }));
+  expect(result.launches).toHaveLength(1);
+  expect(result.appends).toHaveLength(0);
+  expect(result.continuationType).toBe('undefined');
+  expect(result.publicCategories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
+});
+
+test('a stale initial hydration cannot clear the replacement logical session', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch,
+    publicCategoryDelayMs: 40
+  });
+
+  await startInProgressPracticeSelection(page);
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+  await startInProgressPracticeSelection(page);
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const result = await page.evaluate(() => ({
+    launch: window.__llLaunches[0],
+    appends: window.__llBoundedSessionAppends.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
+    planRequests: window.__llSelectionPlanRequests.slice()
+  }));
+  expect(result.launch.source).toBe('wordset_chunk_start');
+  expect(result.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
+  expect(result.appends).toHaveLength(0);
+  expect(result.continuationType).toBe('function');
+  expect(result.planRequests).toHaveLength(2);
+});
+
+test('final repeat restarts the first bounded batch with the full logical scope', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   await mountWordsetPage(page, {
     isLoggedIn: true,
@@ -1940,35 +2033,40 @@ test('chunk repeat restores the same retry action when widget initialization fai
 
   await startInProgressPracticeSelection(page);
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
+
   await page.evaluate(() => {
-    window.jQuery('#quiz-results').show();
     window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-    window.__llInitFailureOnce = 'reject';
+    const repeatButton = window.document.querySelector('#ll-study-results-same-chunk');
+    if (repeatButton) {
+      repeatButton.click();
+    }
   });
-  const repeatButton = page.locator('#ll-study-results-same-chunk');
-  await expect(repeatButton).toBeVisible();
-  await repeatButton.click();
-
-  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await expect(repeatButton).toBeVisible();
-  await expect(repeatButton).toBeEnabled();
-  await expect(page.locator('#quiz-results')).toBeVisible();
-
-  const requestsAfterFailure = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
-
-  await repeatButton.click();
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
-  const launches = await page.evaluate(() => window.__llLaunches.slice());
-  expect(launches[1].source).toBe('wordset_chunk_repeat');
-  expect(launches[1].sessionWordIds.slice().sort((a, b) => a - b))
-    .toEqual(fixture.firstChunkWordIds.slice().sort((a, b) => a - b));
-  const requestsAfterRetry = await page.evaluate(() => window.__llPublicCategoryRequests.categories.slice());
-  expect(requestsAfterRetry.length).toBe(requestsAfterFailure.length + 2);
-  expect(requestsAfterRetry.slice(-2)).toEqual(['Cat A', 'Cat B']);
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    planRequests: window.__llSelectionPlanRequests.slice()
+  }));
+  const repeatedLaunch = result.launches[1];
+  expect(repeatedLaunch.source).toBe('wordset_logical_session_repeat');
+  expect(repeatedLaunch.categoryIds).toEqual([11, 22, 33]);
+  expect(repeatedLaunch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
+  expect(repeatedLaunch.logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(repeatedLaunch.boundedCandidateCategoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(repeatedLaunch.boundedSessionContinuationType).toBe('function');
+  expect(result.appends).toHaveLength(1);
+  expect(result.planRequests).toHaveLength(1);
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
-test('partial successful chunk hydration fails closed and refetches the same chunk', async ({ page }) => {
+test('partial bounded hydration fails closed and refetches the same batch on continuation retry', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   const omittedWordId = fixture.wordsByCategory[33][0].id;
   await mountWordsetPage(page, {
@@ -1980,39 +2078,75 @@ test('partial successful chunk hydration fails closed and refetches the same chu
 
   await startInProgressPracticeSelection(page);
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
-  });
-  const continueButton = page.locator('#ll-study-results-next-chunk');
   await page.evaluate(({ omitId }) => {
     window.__llPartialPublicCategoryOnce = {
       categoryName: 'Cat C',
       omitId
     };
   }, { omitId: omittedWordId });
-  await continueButton.click();
+  const failedContinuation = await invokeBoundedSessionContinuation(page);
+  expect(failedContinuation).toEqual({
+    callable: true,
+    samePromise: true,
+    outcomes: [{
+      status: 'rejected',
+      message: 'The bounded practice continuation failed to load.'
+    }]
+  });
 
-  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  await expect.poll(async () => page.evaluate(() => window.__llInitAttempts.length)).toBe(1);
-  await expect(continueButton).toBeVisible();
-  await expect(continueButton).toBeEnabled();
-  await expect(continueButton).toContainText('2/2');
-
-  await continueButton.click();
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
-  const result = await page.evaluate(() => ({
+  const failedState = await page.evaluate(() => ({
+    alerts: window.__llAlerts.slice(),
     launches: window.__llLaunches.slice(),
+    initAttempts: window.__llInitAttempts.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
     categories: window.__llPublicCategoryRequests.categories.slice(),
     requests: window.__llPublicCategoryRequests.requests.map((request) => ({
       categoryName: request.categoryName,
       candidateIds: request.candidateIds.slice()
-    }))
+    })),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
   }));
-  expect(result.launches[1].sessionWordIds.slice().sort((a, b) => a - b))
-    .toEqual(fixture.secondChunkWordIds.slice().sort((a, b) => a - b));
+  expect(failedState.alerts).toEqual([]);
+  expect(failedState.launches).toHaveLength(1);
+  expect(failedState.initAttempts).toHaveLength(1);
+  expect(failedState.appends).toHaveLength(0);
+  expect(failedState.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
+  expect(failedState.requests.slice(-2).every((request) => (
+    JSON.stringify(request.candidateIds) === JSON.stringify(fixture.secondChunkWordIds)
+  ))).toBeTruthy();
+  expect(failedState.maxActive).toBe(1);
+  expect(failedState.continuationType).toBe('function');
+
+  const acceptedContinuation = await invokeBoundedSessionContinuation(page);
+  expect(acceptedContinuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+      categoryName: request.categoryName,
+      candidateIds: request.candidateIds.slice()
+    })),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(result.launches).toHaveLength(1);
+  expect(result.appends).toHaveLength(1);
+  expect(result.appends[0].catNames.slice().sort()).toEqual(['Cat B', 'Cat C']);
+  expect(result.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
   expect(result.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat B', 'Cat C']);
-  expect(result.requests.slice(-2).every((request) => request.candidateIds.length === 15)).toBeTruthy();
+  expect(result.requests.slice(-2).every((request) => (
+    request.candidateIds.length === 15
+      && JSON.stringify(request.candidateIds) === JSON.stringify(fixture.secondChunkWordIds)
+  ))).toBeTruthy();
+  expect(result.maxActive).toBe(1);
+  expect(result.continuationType).toBe('undefined');
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
 test('bounded hydration rejects a declared category that owns no planned word', async ({ page }) => {

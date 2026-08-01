@@ -19,6 +19,10 @@ const practiceSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/practice.js'),
   'utf8'
 );
+const resultsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/results.js'),
+  'utf8'
+);
 const learningSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/learning.js'),
   'utf8'
@@ -1510,6 +1514,286 @@ test('practice mode waits for pending category loads before showing results', as
 
   expect(outcome.startCalls).toBe(1);
   expect(outcome.showResultsCalls).toBe(0);
+});
+
+test('practice mode continues a bounded logical session before emitting final results', async ({ page }) => {
+  const firstCategory = 'First chunk';
+  const nextCategory = 'Next chunk';
+  const quizResults = {
+    correctOnFirstTry: 1,
+    incorrect: [3052],
+    wordAttempts: {
+      3051: { seen: 1, clean: 1, hadWrong: false },
+      3052: { seen: 1, clean: 0, hadWrong: true }
+    }
+  };
+
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentCategoryName: firstCategory,
+      categoryNames: [firstCategory],
+      initialCategoryNames: [firstCategory],
+      wordsByCategory: {
+        [firstCategory]: [{ id: 3051, title: 'First word', label: 'First word' }]
+      },
+      categoryRepetitionQueues: {},
+      practiceForcedReplays: {},
+      completedCategories: {
+        [firstCategory]: true
+      },
+      quizResults,
+      usedWordIDs: [3051, 3052],
+      lastWordShownId: 3052,
+      isFirstRound: false
+    }
+  });
+
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    document.body.innerHTML = `
+      <div id="ll-tools-prompt"></div>
+      <div id="ll-tools-flashcard"></div>
+      <div id="quiz-results">
+        <div id="quiz-results-title"></div>
+        <div id="quiz-results-message"></div>
+        <div id="quiz-results-categories"></div>
+        <div><span id="correct-count"></span>/<span id="total-questions"></span></div>
+      </div>
+      <button id="restart-quiz" type="button"></button>
+      <div id="quiz-mode-buttons"></div>
+    `;
+
+    window.__practiceCapturedResults = window.LLFlashcards.Results;
+    window.__practiceContractEvents = [];
+    window.__practiceModeSessionCompleteCalls = 0;
+    window.__practiceModeSessionCompletePayloads = [];
+    window.__practiceResultsShownCalls = 0;
+    window.LLFlashcards.Dom = {
+      hideLoading: function () {}
+    };
+    window.LLFlashcards.Effects = {
+      startConfetti: function () {}
+    };
+    window.LLFlashcards.ProgressTracker = {
+      categoryNameToId: function (name) {
+        return name === 'First chunk' ? 81 : (name === 'Next chunk' ? 82 : 0);
+      },
+      trackModeSessionComplete: function (payload) {
+        window.__practiceModeSessionCompleteCalls += 1;
+        window.__practiceModeSessionCompletePayloads.push(payload);
+        window.__practiceContractEvents.push('mode_session_complete');
+      }
+    };
+    window.jQuery(document).on('lltools:flashcard-results-shown', function () {
+      window.__practiceResultsShownCalls += 1;
+      window.__practiceContractEvents.push('results_shown');
+    });
+  });
+  await page.addScriptTag({ content: resultsSource });
+  await page.evaluate(() => {
+    Object.assign(window.__practiceCapturedResults, window.LLFlashcards.Results);
+    window.LLFlashcards.Results = window.__practiceCapturedResults;
+  });
+
+  const outcome = await page.evaluate(({ firstCategory, nextCategory }) => {
+    const Practice = window.LLFlashcards.Modes.Practice;
+    const State = window.LLFlashcards.State;
+    const initialQuizResults = State.quizResults;
+    const initialUsedWordIDs = State.usedWordIDs;
+    let hasNextChunk = true;
+
+    const context = {
+      tryContinueLogicalSession: function () {
+        if (!hasNextChunk) {
+          window.__practiceContractEvents.push('continuation_exhausted');
+          return false;
+        }
+
+        window.__practiceContractEvents.push('continuation_appended');
+        hasNextChunk = false;
+        State.wordsByCategory[nextCategory] = [{
+          id: 3053,
+          title: 'Next word',
+          label: 'Next word'
+        }];
+        State.categoryNames.push(nextCategory);
+        State.initialCategoryNames.push(nextCategory);
+        State.completedCategories[nextCategory] = false;
+        State.currentCategoryName = nextCategory;
+        State.currentCategory = State.wordsByCategory[nextCategory];
+        return true;
+      },
+      updatePracticeModeProgress: function () {
+        window.__practiceContractEvents.push('progress_updated');
+      }
+    };
+
+    const intermediateHandled = Practice.handleNoTarget(context);
+    const intermediate = {
+      handled: intermediateHandled,
+      quizResultsSameReference: State.quizResults === initialQuizResults,
+      usedWordIDsSameReference: State.usedWordIDs === initialUsedWordIDs,
+      quizResults: JSON.parse(JSON.stringify(State.quizResults)),
+      usedWordIDs: State.usedWordIDs.slice(),
+      appendedWordIDs: State.wordsByCategory[nextCategory].map(word => Number(word.id) || 0),
+      resultsShownCalls: window.__practiceResultsShownCalls,
+      modeSessionCompleteCalls: window.__practiceModeSessionCompleteCalls,
+      modeSessionCompleteTracked: !!State.modeSessionCompleteTracked,
+      events: window.__practiceContractEvents.slice()
+    };
+
+    State.completedCategories[firstCategory] = true;
+    State.completedCategories[nextCategory] = true;
+    const finalHandled = Practice.handleNoTarget(context);
+
+    return {
+      intermediate,
+      final: {
+        handled: finalHandled,
+        quizResultsSameReference: State.quizResults === initialQuizResults,
+        usedWordIDsSameReference: State.usedWordIDs === initialUsedWordIDs,
+        quizResults: JSON.parse(JSON.stringify(State.quizResults)),
+        usedWordIDs: State.usedWordIDs.slice(),
+        resultsShownCalls: window.__practiceResultsShownCalls,
+        modeSessionCompleteCalls: window.__practiceModeSessionCompleteCalls,
+        modeSessionCompletePayloads: window.__practiceModeSessionCompletePayloads.slice(),
+        modeSessionCompleteTracked: !!State.modeSessionCompleteTracked,
+        events: window.__practiceContractEvents.slice(),
+        transition: window.__practiceLastTransition
+      }
+    };
+  }, { firstCategory, nextCategory });
+
+  expect(outcome.intermediate).toEqual({
+    handled: true,
+    quizResultsSameReference: true,
+    usedWordIDsSameReference: true,
+    quizResults,
+    usedWordIDs: [3051, 3052],
+    appendedWordIDs: [3053],
+    resultsShownCalls: 0,
+    modeSessionCompleteCalls: 0,
+    modeSessionCompleteTracked: false,
+    events: ['continuation_appended']
+  });
+  expect(outcome.final.handled).toBe(true);
+  expect(outcome.final.quizResultsSameReference).toBe(true);
+  expect(outcome.final.usedWordIDsSameReference).toBe(true);
+  expect(outcome.final.quizResults).toEqual(quizResults);
+  expect(outcome.final.usedWordIDs).toEqual([3051, 3052]);
+  expect(outcome.final.resultsShownCalls).toBe(1);
+  expect(outcome.final.modeSessionCompleteCalls).toBe(1);
+  expect(outcome.final.modeSessionCompletePayloads).toEqual([{
+    mode: 'practice',
+    categoryIds: [81, 82]
+  }]);
+  expect(outcome.final.modeSessionCompleteTracked).toBe(true);
+  expect(outcome.final.events).toEqual([
+    'continuation_appended',
+    'continuation_exhausted',
+    'progress_updated',
+    'mode_session_complete',
+    'results_shown'
+  ]);
+  expect(outcome.final.transition).toEqual({
+    state: 'showing_results',
+    reason: 'Quiz complete'
+  });
+});
+
+test('flashcard main appends a same-category bounded chunk without resetting cumulative practice state', async ({ page }) => {
+  const categoryName = 'Actions';
+  await mountPracticeExposureHarness(page, { categoryName });
+
+  const outcome = await page.evaluate(async ({ categoryName }) => {
+    const State = window.LLFlashcards.State;
+    const quizResults = {
+      correctOnFirstTry: 1,
+      incorrect: [4102],
+      wordAttempts: {
+        4101: { seen: 1, clean: 1, hadWrong: false },
+        4102: { seen: 1, clean: 0, hadWrong: true }
+      }
+    };
+    const usedWordIDs = [4101, 4102];
+    const replayQueue = [{
+      wordData: { id: 4102, title: 'Old replay' },
+      reappearRound: 4,
+      forceReplay: true,
+      needsCleanReplay: true
+    }];
+
+    State.quizResults = quizResults;
+    State.usedWordIDs = usedWordIDs;
+    State.initialCategoryNames = [categoryName];
+    State.categoryNames = [categoryName];
+    State.completedCategories = { [categoryName]: true };
+    State.categoryRoundCount = { [categoryName]: 3 };
+    State.categoryRepetitionQueues = { [categoryName]: replayQueue };
+    State.wordsByCategory = {
+      [categoryName]: [{ id: 4101, title: 'Old one' }, { id: 4102, title: 'Old two' }]
+    };
+    State.currentCategoryName = categoryName;
+    State.currentCategory = State.wordsByCategory[categoryName];
+    State.isFirstRound = false;
+
+    window.llToolsFlashcardsData.logicalSessionWordIds = [4101, 4102, 4103, 4104];
+    window.llToolsFlashcardsData.logicalSessionTotal = 4;
+    window.llToolsFlashcardsData.sessionWordIds = [4103, 4104];
+    window.FlashcardLoader.consumeBoundedPreloadedCategoryData = async function (names) {
+      State.wordsByCategory[categoryName] = [
+        { id: 4103, title: 'New three' },
+        { id: 4104, title: 'New four' }
+      ];
+      return {
+        success: true,
+        categories: names.slice(),
+        sessionWordIds: [4103, 4104]
+      };
+    };
+
+    const result = await window.LLFlashcards.Main.appendBoundedSelectionChunk([categoryName]);
+    return {
+      result,
+      quizResultsSameReference: State.quizResults === quizResults,
+      usedWordIDsSameReference: State.usedWordIDs === usedWordIDs,
+      replayQueueSameReference: State.categoryRepetitionQueues[categoryName] === replayQueue,
+      quizResults: JSON.parse(JSON.stringify(State.quizResults)),
+      usedWordIDs: State.usedWordIDs.slice(),
+      replayWordIDs: State.categoryRepetitionQueues[categoryName].map((item) => Number(item.wordData.id) || 0),
+      activeWordIDs: State.currentCategory.map((word) => Number(word.id) || 0),
+      categoryNames: State.categoryNames.slice(),
+      initialCategoryNames: State.initialCategoryNames.slice(),
+      completed: State.completedCategories[categoryName],
+      roundCount: State.categoryRoundCount[categoryName],
+      totalWordCount: State.totalWordCount
+    };
+  }, { categoryName });
+
+  expect(outcome.result).toEqual({
+    success: true,
+    categories: [categoryName],
+    sessionWordIds: [4103, 4104]
+  });
+  expect(outcome.quizResultsSameReference).toBeTruthy();
+  expect(outcome.usedWordIDsSameReference).toBeTruthy();
+  expect(outcome.replayQueueSameReference).toBeTruthy();
+  expect(outcome.quizResults).toEqual({
+    correctOnFirstTry: 1,
+    incorrect: [4102],
+    wordAttempts: {
+      4101: { seen: 1, clean: 1, hadWrong: false },
+      4102: { seen: 1, clean: 0, hadWrong: true }
+    }
+  });
+  expect(outcome.usedWordIDs).toEqual([4101, 4102]);
+  expect(outcome.replayWordIDs).toEqual([4102]);
+  expect(outcome.activeWordIDs).toEqual([4103, 4104]);
+  expect(outcome.categoryNames).toEqual([categoryName]);
+  expect(outcome.initialCategoryNames).toEqual([categoryName]);
+  expect(outcome.completed).toBe(false);
+  expect(outcome.roundCount).toBe(0);
+  expect(outcome.totalWordCount).toBe(4);
 });
 
 test('practice options never include duplicate images', async ({ page }) => {

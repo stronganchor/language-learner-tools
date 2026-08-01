@@ -2,7 +2,7 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.6.97\n"
+"Project-Id-Version: Language Learner Tools 6.6.98\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -695,7 +695,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:21324
 #: includes/pages/wordset-pages.php:24715
 #: includes/post-types/content-lesson-post-type.php:1820
-#: includes/shortcodes/flashcard-widget.php:698
+#: includes/shortcodes/flashcard-widget.php:700
 #: templates/audio-image-matcher-template.php:67
 msgid "Load more"
 msgstr ""
@@ -709,8 +709,8 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:93
 #: includes/shortcodes/flashcard-widget.php:696
 #: includes/shortcodes/flashcard-widget.php:697
-#: includes/shortcodes/flashcard-widget.php:700
 #: includes/shortcodes/flashcard-widget.php:702
+#: includes/shortcodes/flashcard-widget.php:704
 #: includes/shortcodes/wordset-buttons-shortcode.php:1583
 #: includes/shortcodes/wordset-buttons-shortcode.php:1620
 msgid "Something went wrong"
@@ -1137,6 +1137,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:26698
 #: includes/shortcodes/audio-recording-shortcode.php:1579
 #: includes/shortcodes/audio-recording-shortcode.php:1746
+#: includes/shortcodes/flashcard-widget.php:699
 #: templates/vocab-lesson-template.php:396
 msgid "Retry"
 msgstr ""
@@ -6351,6 +6352,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:396
 #: includes/pages/wordset-pages.php:24620
+#: includes/shortcodes/flashcard-widget.php:698
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
 #: includes/user-progress.php:9553
 #: includes/user-progress.php:9599
@@ -7118,7 +7120,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24677
 #: includes/pages/wordset-pages.php:24968
 #: includes/pages/wordset-pages.php:25653
-#: includes/shortcodes/flashcard-widget.php:709
+#: includes/shortcodes/flashcard-widget.php:711
 #: templates/offline-app-shell-template.php:809
 msgid "Select all"
 msgstr ""
@@ -7126,7 +7128,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:591
 #: includes/pages/wordset-pages.php:25183
 #: includes/pages/wordset-pages.php:25713
-#: includes/shortcodes/flashcard-widget.php:708
+#: includes/shortcodes/flashcard-widget.php:710
 #: templates/offline-app-shell-template.php:832
 msgid "Clear selection"
 msgstr ""
@@ -13007,8 +13009,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:23228
 #: includes/pages/wordset-pages.php:24710
 #: includes/shortcodes/flashcard-widget.php:652
-#: includes/shortcodes/flashcard-widget.php:714
-#: includes/shortcodes/flashcard-widget.php:797
+#: includes/shortcodes/flashcard-widget.php:716
+#: includes/shortcodes/flashcard-widget.php:799
 #: includes/shortcodes/quiz-pages-shortcodes.php:2853
 #: templates/offline-app-shell-template.php:823
 #: templates/offline-app-shell-template.php:854
@@ -13023,10 +13025,10 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24709
 #: includes/shortcodes/flashcard-widget.php:645
 #: includes/shortcodes/flashcard-widget.php:650
-#: includes/shortcodes/flashcard-widget.php:713
-#: includes/shortcodes/flashcard-widget.php:718
-#: includes/shortcodes/flashcard-widget.php:783
-#: includes/shortcodes/flashcard-widget.php:784
+#: includes/shortcodes/flashcard-widget.php:715
+#: includes/shortcodes/flashcard-widget.php:720
+#: includes/shortcodes/flashcard-widget.php:785
+#: includes/shortcodes/flashcard-widget.php:786
 #: templates/offline-app-shell-template.php:817
 #: templates/vocab-lesson-template.php:175
 msgid "Learn"
@@ -13040,10 +13042,10 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:644
 #: includes/shortcodes/flashcard-widget.php:649
 #: includes/shortcodes/flashcard-widget.php:654
-#: includes/shortcodes/flashcard-widget.php:712
-#: includes/shortcodes/flashcard-widget.php:717
-#: includes/shortcodes/flashcard-widget.php:777
-#: includes/shortcodes/flashcard-widget.php:778
+#: includes/shortcodes/flashcard-widget.php:714
+#: includes/shortcodes/flashcard-widget.php:719
+#: includes/shortcodes/flashcard-widget.php:779
+#: includes/shortcodes/flashcard-widget.php:780
 #: templates/content-lesson-template.php:253
 #: templates/offline-app-shell-template.php:820
 #: templates/vocab-lesson-template.php:174
@@ -13059,9 +13061,9 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:646
 #: includes/shortcodes/flashcard-widget.php:651
 #: includes/shortcodes/flashcard-widget.php:656
-#: includes/shortcodes/flashcard-widget.php:716
-#: includes/shortcodes/flashcard-widget.php:790
-#: includes/shortcodes/flashcard-widget.php:791
+#: includes/shortcodes/flashcard-widget.php:718
+#: includes/shortcodes/flashcard-widget.php:792
+#: includes/shortcodes/flashcard-widget.php:793
 #: templates/offline-app-shell-template.php:829
 #: templates/vocab-lesson-template.php:176
 msgid "Self check"
@@ -13081,9 +13083,9 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:648
 #: includes/shortcodes/flashcard-widget.php:653
 #: includes/shortcodes/flashcard-widget.php:658
-#: includes/shortcodes/flashcard-widget.php:715
-#: includes/shortcodes/flashcard-widget.php:803
-#: includes/shortcodes/flashcard-widget.php:804
+#: includes/shortcodes/flashcard-widget.php:717
+#: includes/shortcodes/flashcard-widget.php:805
+#: includes/shortcodes/flashcard-widget.php:806
 #: includes/shortcodes/word-grid-shortcode.php:6479
 #: templates/offline-app-shell-template.php:826
 #: templates/vocab-lesson-template.php:177
@@ -13095,14 +13097,14 @@ msgstr ""
 #: includes/flashcard-shell.php:84
 #: includes/shortcodes/flashcard-widget.php:647
 #: includes/shortcodes/flashcard-widget.php:657
-#: includes/shortcodes/flashcard-widget.php:796
+#: includes/shortcodes/flashcard-widget.php:798
 msgid "Listening"
 msgstr ""
 
 #: includes/flashcard-shell.php:101
 #: includes/pages/wordset-pages.php:24598
 #: includes/pages/wordset-pages.php:24678
-#: includes/shortcodes/flashcard-widget.php:710
+#: includes/shortcodes/flashcard-widget.php:712
 msgid "Deselect all"
 msgstr ""
 
@@ -13164,7 +13166,7 @@ msgstr ""
 #: includes/lib/wordset-language-settings.php:133
 #: includes/pages/wordset-pages.php:24587
 #: includes/pages/wordset-pages.php:25504
-#: includes/shortcodes/flashcard-widget.php:720
+#: includes/shortcodes/flashcard-widget.php:722
 #: templates/offline-app-shell-template.php:727
 msgid "Recommended"
 msgstr ""
@@ -13765,7 +13767,7 @@ msgstr ""
 
 #: includes/lib/flashcard-payload-materializer.php:791
 #: includes/lib/flashcard-payload-materializer.php:822
-#: includes/shortcodes/flashcard-widget.php:2260
+#: includes/shortcodes/flashcard-widget.php:2262
 msgid "You do not have permission to view this flashcard content."
 msgstr ""
 
@@ -14919,9 +14921,9 @@ msgstr ""
 #: includes/pages/quiz-pages.php:911
 #: includes/pages/vocab-lesson-pages.php:2895
 #: includes/pages/vocab-lesson-pages.php:3046
-#: includes/shortcodes/flashcard-widget.php:2197
-#: includes/shortcodes/flashcard-widget.php:2250
-#: includes/shortcodes/flashcard-widget.php:2425
+#: includes/shortcodes/flashcard-widget.php:2199
+#: includes/shortcodes/flashcard-widget.php:2252
+#: includes/shortcodes/flashcard-widget.php:2427
 #: includes/shortcodes/word-grid-shortcode.php:10321
 msgid "Invalid category."
 msgstr ""
@@ -16574,7 +16576,7 @@ msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:7215
-#: includes/shortcodes/flashcard-widget.php:1945
+#: includes/shortcodes/flashcard-widget.php:1947
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
@@ -17837,7 +17839,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:6529
 #: includes/pages/wordset-pages.php:24604
-#: includes/shortcodes/flashcard-widget.php:729
+#: includes/shortcodes/flashcard-widget.php:731
 msgid "%1$s: %2$s"
 msgstr ""
 
@@ -19733,7 +19735,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:16251
 #: includes/pages/wordset-pages.php:25666
-#: includes/shortcodes/flashcard-widget.php:726
+#: includes/shortcodes/flashcard-widget.php:728
 msgid "No categories match this search."
 msgstr ""
 
@@ -20247,7 +20249,7 @@ msgid "Queue by Category"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:22005
-#: includes/shortcodes/flashcard-widget.php:1528
+#: includes/shortcodes/flashcard-widget.php:1530
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr ""
 
@@ -20695,24 +20697,24 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24569
 #: includes/pages/wordset-pages.php:24570
 #: includes/pages/wordset-pages.php:25510
-#: includes/shortcodes/flashcard-widget.php:721
+#: includes/shortcodes/flashcard-widget.php:723
 #: templates/offline-app-shell-template.php:733
 msgid "Loading next recommendation..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24571
-#: includes/shortcodes/flashcard-widget.php:723
+#: includes/shortcodes/flashcard-widget.php:725
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24572
-#: includes/shortcodes/flashcard-widget.php:724
+#: includes/shortcodes/flashcard-widget.php:726
 msgid "Recommended: %1$s in %2$s."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:24588
 #: includes/pages/wordset-pages.php:25686
-#: includes/shortcodes/flashcard-widget.php:706
+#: includes/shortcodes/flashcard-widget.php:708
 #: templates/offline-app-shell-template.php:814
 msgid "Select categories to study together"
 msgstr ""
@@ -20724,8 +20726,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:24591
 #: includes/pages/wordset-pages.php:24625
 #: includes/shortcodes/flashcard-widget.php:670
-#: includes/shortcodes/flashcard-widget.php:711
-#: includes/shortcodes/flashcard-widget.php:725
+#: includes/shortcodes/flashcard-widget.php:713
+#: includes/shortcodes/flashcard-widget.php:727
 msgid "%d words"
 msgstr ""
 
@@ -23916,7 +23918,7 @@ msgid "%d answers"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:636
-#: includes/shortcodes/flashcard-widget.php:701
+#: includes/shortcodes/flashcard-widget.php:703
 #: templates/content-lesson-template.php:195
 #: templates/content-lesson-template.php:243
 msgid "No content available."
@@ -24016,73 +24018,73 @@ msgstr ""
 msgid "Some words need context support again."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:703
+#: includes/shortcodes/flashcard-widget.php:705
 msgid "Quiz round requires at least two options."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:704
+#: includes/shortcodes/flashcard-widget.php:706
 msgid "Round setup: %1$d of %2$d required options are available."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:705
+#: includes/shortcodes/flashcard-widget.php:707
 msgid "Error details"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:707
+#: includes/shortcodes/flashcard-widget.php:709
 #: templates/offline-app-shell-template.php:836
 msgid "No categories are available in this offline app."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:719
+#: includes/shortcodes/flashcard-widget.php:721
 msgid "Select category: %s"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:722
+#: includes/shortcodes/flashcard-widget.php:724
 msgid "Start with a category below, or connect sync to get the next study step."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:727
+#: includes/shortcodes/flashcard-widget.php:729
 msgid "Learning mode is not available for this selection."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:728
+#: includes/shortcodes/flashcard-widget.php:730
 msgid "Gender mode is not available for this selection."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:758
+#: includes/shortcodes/flashcard-widget.php:760
 msgid "Female and male symbols icon"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:1760
-#: includes/shortcodes/flashcard-widget.php:1958
+#: includes/shortcodes/flashcard-widget.php:1762
+#: includes/shortcodes/flashcard-widget.php:1960
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2104
+#: includes/shortcodes/flashcard-widget.php:2106
 msgid "Preparing flashcard data. Please wait a moment."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2111
+#: includes/shortcodes/flashcard-widget.php:2113
 msgid "Flashcard data changed. Please restart the quiz."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2117
+#: includes/shortcodes/flashcard-widget.php:2119
 msgid "Invalid flashcard page cursor."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2126
+#: includes/shortcodes/flashcard-widget.php:2128
 msgid "Flashcard data is temporarily unavailable."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2169
+#: includes/shortcodes/flashcard-widget.php:2171
 msgid "Invalid flashcard locale."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2229
+#: includes/shortcodes/flashcard-widget.php:2231
 msgid "Invalid wordset."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2613
+#: includes/shortcodes/flashcard-widget.php:2615
 msgid "This flashcard category must be loaded in pages. Please refresh the page."
 msgstr ""
 

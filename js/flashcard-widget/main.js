@@ -22,6 +22,7 @@
     let firstRoundRecoveryAttempts = 0;
     let sessionWordFilterRecoveryAttempts = 0;
     let practiceProgressMinDisplayRatio = 0;
+    let logicalSessionContinuationPromise = null;
     const flashcardInteractionGuard = {
         active: false,
         historyActive: false,
@@ -582,6 +583,7 @@
 
     function newSession() {
         __LLSession++;
+        logicalSessionContinuationPromise = null;
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
         firstRoundRecoveryAttempts = 0;
@@ -1495,6 +1497,14 @@
 
     function getPracticeProgressSessionWordIds() {
         const data = root.llToolsFlashcardsData || {};
+        const logical = getSessionWordIdsFromData({
+            sessionWordIds: Array.isArray(data.logicalSessionWordIds)
+                ? data.logicalSessionWordIds
+                : data.logical_session_word_ids
+        });
+        if (logical.length) {
+            return logical;
+        }
         const direct = getSessionWordIdsFromData(data);
         if (direct.length) {
             return direct;
@@ -4289,6 +4299,7 @@
                 Results,
                 FlashcardLoader: root.FlashcardLoader,
                 FlashcardAudio: root.FlashcardAudio,
+                tryContinueLogicalSession,
                 flashcardContainer: $flashcardContainer
             });
             return;
@@ -4310,6 +4321,7 @@
                     runQuizRound,
                     startQuizRound,
                     updatePracticeModeProgress,
+                    tryContinueLogicalSession,
                     FlashcardLoader: root.FlashcardLoader,
                     Dom,
                     setGuardedTimeout
@@ -4317,6 +4329,10 @@
                 : false;
 
             if (handled) {
+                return;
+            }
+
+            if (tryContinueLogicalSession()) {
                 return;
             }
 
@@ -4649,6 +4665,150 @@
         $('#ll-tools-repeat-flashcard').hide();
         $('#ll-tools-category-stack, #ll-tools-category-display').hide();
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
+    }
+
+    function getLogicalSessionContinuation() {
+        const data = root.llToolsFlashcardsData || {};
+        const continuation = data.boundedSessionContinuation || data.bounded_session_continuation ||
+            data.requestLogicalSessionContinuation || data.request_logical_session_continuation;
+        return typeof continuation === 'function' ? continuation : null;
+    }
+
+    function showLogicalSessionContinuationError() {
+        const messages = root.llToolsFlashcardsMessages || {};
+        showLoadingError({
+            reason: 'bounded-session-continuation',
+            errorMessage: messages.sessionContinuationError || messages.somethingWentWrong || ''
+        });
+
+        const $retry = $('#restart-quiz');
+        if (!$retry.length) {
+            return;
+        }
+        $retry
+            .text(messages.retry || 'Retry')
+            .show()
+            .off('click')
+            .on('click.llLogicalSessionRetry', function (event) {
+                event.preventDefault();
+                $('#quiz-results').hide();
+                $('#ll-tools-flashcard').show();
+                State.forceTransitionTo(STATES.QUIZ_READY, 'Retrying bounded session continuation');
+                tryContinueLogicalSession();
+            });
+    }
+
+    function appendBoundedSelectionChunk(categoryNames) {
+        const loader = root.FlashcardLoader;
+        const names = normalizeCategoryNameList(categoryNames);
+        const data = root.llToolsFlashcardsData || {};
+        const currentSession = __LLSession;
+
+        if (!State.widgetActive || State.isLearningMode || State.isListeningMode || State.isGenderMode || State.isSelfCheckMode) {
+            return Promise.reject(new Error('A bounded practice continuation is not active.'));
+        }
+        if (!names.length || !loader || typeof loader.consumeBoundedPreloadedCategoryData !== 'function') {
+            return Promise.reject(new Error('The bounded practice continuation data is unavailable.'));
+        }
+
+        return Promise.resolve(loader.consumeBoundedPreloadedCategoryData(names)).then(function (result) {
+            if (currentSession !== __LLSession || !State.widgetActive) {
+                const staleError = new Error('The bounded practice continuation is stale.');
+                staleError.code = 'll_flashcard_stale_continuation';
+                throw staleError;
+            }
+            if (!result || result.success !== true) {
+                throw new Error('The bounded practice continuation was not accepted.');
+            }
+
+            const availableNames = names.filter(function (name) {
+                return State.wordsByCategory && Array.isArray(State.wordsByCategory[name]) && State.wordsByCategory[name].length > 0;
+            });
+            if (!availableNames.length) {
+                throw new Error('The bounded practice continuation has no playable words.');
+            }
+
+            State.completedCategories = State.completedCategories || {};
+            State.categoryRoundCount = State.categoryRoundCount || {};
+            State.categoryRepetitionQueues = State.categoryRepetitionQueues || {};
+            State.initialCategoryNames = Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : [];
+            State.categoryNames = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+
+            availableNames.forEach(function (name) {
+                State.completedCategories[name] = false;
+                State.categoryRoundCount[name] = 0;
+                if (!Array.isArray(State.categoryRepetitionQueues[name])) {
+                    State.categoryRepetitionQueues[name] = [];
+                }
+                if (State.initialCategoryNames.indexOf(name) === -1) {
+                    State.initialCategoryNames.push(name);
+                }
+                if (State.categoryNames.indexOf(name) === -1) {
+                    State.categoryNames.push(name);
+                }
+            });
+
+            State.currentCategoryName = availableNames[0];
+            State.currentCategory = State.wordsByCategory[State.currentCategoryName];
+            State.currentCategoryRoundCount = 0;
+            State.isFirstRound = false;
+            State.totalWordCount = Math.max(
+                State.totalWordCount || 0,
+                parseInt(data.logicalSessionTotal || data.logical_session_total, 10) || 0
+            );
+            root.categoryNames = State.categoryNames;
+            updatePracticeModeProgress();
+
+            return {
+                success: true,
+                categories: availableNames.slice(),
+                sessionWordIds: getSessionWordIdsFromData(data)
+            };
+        });
+    }
+
+    function tryContinueLogicalSession() {
+        const continuation = getLogicalSessionContinuation();
+        if (!continuation) {
+            return false;
+        }
+        if (logicalSessionContinuationPromise) {
+            return true;
+        }
+
+        const currentSession = __LLSession;
+        const movedToLoading = State.transitionTo(STATES.LOADING, 'Loading bounded practice continuation');
+        if (!movedToLoading) {
+            State.forceTransitionTo(STATES.LOADING, 'Forcing bounded practice continuation load');
+        }
+        Dom.showLoading();
+
+        logicalSessionContinuationPromise = Promise.resolve().then(function () {
+            return continuation();
+        }).then(function (result) {
+            if (currentSession !== __LLSession || !State.widgetActive) {
+                return;
+            }
+            if (!result || result.success !== true) {
+                throw new Error('The bounded practice continuation did not load.');
+            }
+            const ready = State.transitionTo(STATES.QUIZ_READY, 'Bounded practice continuation ready');
+            if (!ready) {
+                State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded practice continuation ready');
+            }
+            logicalSessionContinuationPromise = null;
+            runQuizRound();
+        }).catch(function (error) {
+            if (currentSession !== __LLSession || !State.widgetActive) {
+                logicalSessionContinuationPromise = null;
+                return;
+            }
+            console.error('Failed to continue bounded practice session:', error);
+            logicalSessionContinuationPromise = null;
+            showLogicalSessionContinuationError();
+        });
+
+        return true;
     }
 
     function createInitialCategoryLoadError(message, result) {
@@ -5285,6 +5445,8 @@
     };
     root.LLFlashcards.Main = {
         initFlashcardWidget,
+        appendBoundedSelectionChunk,
+        tryContinueLogicalSession,
         startQuizRound,
         runQuizRound,
         onCorrectAnswer,

@@ -695,6 +695,8 @@ function ll_flashcards_get_messages(): array {
         // Error messages
         'loadingError'            => __('Something went wrong', 'll-tools-text-domain'),
         'somethingWentWrong'      => __('Something went wrong', 'll-tools-text-domain'),
+        'sessionContinuationError'=> __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+        'retry'                   => __('Retry', 'll-tools-text-domain'),
         'categoryCatalogLoadMore' => __('Load more', 'll-tools-text-domain'),
         'categoryCatalogLoading'  => __('Loading categories...', 'll-tools-text-domain'),
         'categoryCatalogError'    => __('Something went wrong', 'll-tools-text-domain'),

@@ -654,6 +654,7 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
       wordsetFallback: false,
       boundedSelectionPlan: true,
       sessionWordIds: [501, 602],
+      logicalSessionWordIds: [501, 602, 703, 704],
       categories: [
         { id: 11, name: 'Prompt cards', prompt_type: 'text_title', option_type: 'text_title' },
         { id: 22, name: 'Regular words', prompt_type: 'text_title', option_type: 'text_title' }
@@ -707,6 +708,7 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
       consumed,
       promptLoad,
       regularLoad,
+      logicalSessionWordIds: window.llToolsFlashcardsData.logicalSessionWordIds.slice(),
       ajaxCount: window.__llAjaxCount,
       promptTargets: (window.wordsByCategory['Prompt cards'] || []).map((row) => ({
         id: Number(row.id) || 0,
@@ -725,6 +727,7 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
     categories: ['Prompt cards', 'Regular words'],
     sessionWordIds: [501, 602]
   });
+  expect(result.logicalSessionWordIds).toEqual([501, 602, 703, 704]);
   expect(result.promptLoad).toMatchObject({ cached: true, category: 'Prompt cards' });
   expect(result.regularLoad).toMatchObject({ cached: true, category: 'Regular words' });
   expect(result.ajaxCount).toBe(0);
@@ -732,6 +735,32 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
   expect(result.regularTargets).toEqual([602]);
   expect(result.promptOptions).toEqual([501, 9001]);
   expect(result.regularOptions).toEqual([602, 699]);
+
+  const continued = await page.evaluate(async () => {
+    const flash = window.llToolsFlashcardsData;
+    flash.sessionWordIds = [703, 704];
+    flash.boundedCandidateRowsByCategoryId = {
+      11: [{ id: 703, title: 'Next prompt target', label: 'Next prompt target', wordset_ids: [101] }],
+      22: [{ id: 704, title: 'Next regular target', label: 'Next regular target', wordset_ids: [101] }]
+    };
+    flash.sessionWordIdsByCategoryId = { 11: [703], 22: [704] };
+    const consumed = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData([
+      'Prompt cards',
+      'Regular words'
+    ]);
+    return {
+      consumed,
+      logicalSessionWordIds: flash.logicalSessionWordIds.slice(),
+      promptTargets: (window.wordsByCategory['Prompt cards'] || []).map((row) => Number(row.id) || 0),
+      regularTargets: (window.wordsByCategory['Regular words'] || []).map((row) => Number(row.id) || 0),
+      ajaxCount: window.__llAjaxCount
+    };
+  });
+  expect(continued.consumed.sessionWordIds).toEqual([703, 704]);
+  expect(continued.logicalSessionWordIds).toEqual([501, 602, 703, 704]);
+  expect(continued.promptTargets).toEqual([703]);
+  expect(continued.regularTargets).toEqual([704]);
+  expect(continued.ajaxCount).toBe(0);
 });
 
 test('incomplete bounded category handoff rejects before any AJAX fallback', async ({ page }) => {
