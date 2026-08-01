@@ -59,17 +59,240 @@
             || normalized === 'image_text_title';
     }
 
-    // Keep the quiz popup at the top document level so theme/container transforms
-    // cannot clip or scale it when opened from lesson/dashboard contexts.
-    function ensureFlashcardPopupPortal() {
-        const doc = root.document;
-        if (!doc || !doc.body) { return; }
-        const popupRoot = doc.getElementById('ll-tools-flashcard-popup');
-        if (!popupRoot || popupRoot.parentNode === doc.body) { return; }
+    // Keep the popup in its original flashcard container so responsive CSS
+    // variables remain in scope; isolate the surrounding page while it is open.
+    const inlineQuizDialogState = {
+        dialog: null,
+        opener: null,
+        background: [],
+        listenersBound: false
+    };
+
+    function isInlineDialogFocusable(element) {
+        if (!element || typeof element.focus !== 'function') {
+            return false;
+        }
+        if (element.hidden || element.getAttribute('aria-hidden') === 'true' || element.hasAttribute('disabled')) {
+            return false;
+        }
+        if (typeof element.getClientRects === 'function' && element.getClientRects().length === 0) {
+            return false;
+        }
         try {
-            doc.body.appendChild(popupRoot);
+            const style = root.getComputedStyle ? root.getComputedStyle(element) : null;
+            if (style && (style.display === 'none' || style.visibility === 'hidden')) {
+                return false;
+            }
         } catch (_) { /* no-op */ }
+        return !element.closest('[inert]');
     }
+
+    function getInlineDialogFocusables(dialog) {
+        if (!dialog || typeof dialog.querySelectorAll !== 'function') {
+            return [];
+        }
+        const selector = [
+            'a[href]',
+            'area[href]',
+            'button:not([disabled])',
+            'input:not([disabled]):not([type="hidden"])',
+            'select:not([disabled])',
+            'textarea:not([disabled])',
+            'iframe',
+            '[contenteditable=""]',
+            '[contenteditable="true"]',
+            '[tabindex]:not([tabindex="-1"])'
+        ].join(',');
+        return Array.from(dialog.querySelectorAll(selector)).filter(isInlineDialogFocusable);
+    }
+
+    function restoreInlineDialogBackground() {
+        inlineQuizDialogState.background.forEach(function (record) {
+            const element = record.element;
+            if (!element) {
+                return;
+            }
+            if (record.hadInert) {
+                element.setAttribute('inert', record.inertValue);
+            } else {
+                element.removeAttribute('inert');
+            }
+            if (record.hadAriaHidden) {
+                element.setAttribute('aria-hidden', record.ariaHiddenValue);
+            } else {
+                element.removeAttribute('aria-hidden');
+            }
+        });
+        inlineQuizDialogState.background = [];
+    }
+
+    function isolateInlineDialogBackground(dialog) {
+        const doc = root.document;
+        if (!doc || !doc.body || !dialog) {
+            return;
+        }
+        const popupRoot = dialog.closest('#ll-tools-flashcard-popup') || dialog;
+        let activeBranch = popupRoot;
+
+        // Keep the popup in its original container so it retains quiz font,
+        // sizing, and compact-layout custom properties. Isolate every sibling
+        // along the branch from the popup to <body> instead of portaling it.
+        while (activeBranch && activeBranch !== doc.body) {
+            const parent = activeBranch.parentElement;
+            if (!parent) {
+                break;
+            }
+            Array.from(parent.children).forEach(function (element) {
+                if (element === activeBranch) {
+                    return;
+                }
+                const tagName = String(element.tagName || '').toLowerCase();
+                if (tagName === 'script' || tagName === 'style' || tagName === 'link' || tagName === 'template') {
+                    return;
+                }
+                inlineQuizDialogState.background.push({
+                    element: element,
+                    hadInert: element.hasAttribute('inert'),
+                    inertValue: element.getAttribute('inert') || '',
+                    hadAriaHidden: element.hasAttribute('aria-hidden'),
+                    ariaHiddenValue: element.getAttribute('aria-hidden') || ''
+                });
+                element.setAttribute('inert', '');
+                element.setAttribute('aria-hidden', 'true');
+            });
+            activeBranch = parent;
+        }
+    }
+
+    function focusInlineQuizDialog(dialog, initialFocusSelector) {
+        if (!dialog) {
+            return;
+        }
+        let target = null;
+        if (initialFocusSelector) {
+            try {
+                target = dialog.querySelector(initialFocusSelector);
+            } catch (_) { /* no-op */ }
+        }
+        if (!isInlineDialogFocusable(target)) {
+            target = getInlineDialogFocusables(dialog)[0] || dialog;
+        }
+        try {
+            target.focus({ preventScroll: true });
+        } catch (_) {
+            try { target.focus(); } catch (_ignore) { /* no-op */ }
+        }
+    }
+
+    function onInlineQuizDialogKeydown(event) {
+        const dialog = inlineQuizDialogState.dialog;
+        if (!dialog || event.defaultPrevented || event.key !== 'Tab') {
+            return;
+        }
+        const focusables = getInlineDialogFocusables(dialog);
+        if (!focusables.length) {
+            event.preventDefault();
+            focusInlineQuizDialog(dialog);
+            return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = root.document.activeElement;
+        if (event.shiftKey && (active === first || !dialog.contains(active))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+
+    function onInlineQuizDialogFocusIn(event) {
+        const dialog = inlineQuizDialogState.dialog;
+        if (!dialog || dialog.contains(event.target)) {
+            return;
+        }
+        focusInlineQuizDialog(dialog, '#ll-tools-close-flashcard, #ll-tools-close-category-selection');
+    }
+
+    function bindInlineQuizDialogListeners() {
+        if (inlineQuizDialogState.listenersBound || !root.document) {
+            return;
+        }
+        inlineQuizDialogState.listenersBound = true;
+        root.document.addEventListener('keydown', onInlineQuizDialogKeydown, true);
+        root.document.addEventListener('focusin', onInlineQuizDialogFocusIn, true);
+    }
+
+    function unbindInlineQuizDialogListeners() {
+        if (!inlineQuizDialogState.listenersBound || !root.document) {
+            return;
+        }
+        inlineQuizDialogState.listenersBound = false;
+        root.document.removeEventListener('keydown', onInlineQuizDialogKeydown, true);
+        root.document.removeEventListener('focusin', onInlineQuizDialogFocusIn, true);
+    }
+
+    function activateInlineQuizDialog(dialog, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        if (typeof dialog === 'string' && root.document) {
+            dialog = root.document.querySelector(dialog);
+        }
+        if (!dialog) {
+            return false;
+        }
+
+        if (!inlineQuizDialogState.opener) {
+            const candidate = opts.opener || (root.document ? root.document.activeElement : null);
+            if (candidate && candidate !== root.document.body && !dialog.contains(candidate)) {
+                inlineQuizDialogState.opener = candidate;
+            }
+        }
+
+        if (inlineQuizDialogState.dialog && inlineQuizDialogState.dialog !== dialog) {
+            inlineQuizDialogState.dialog.setAttribute('aria-hidden', 'true');
+        }
+        restoreInlineDialogBackground();
+        inlineQuizDialogState.dialog = dialog;
+        dialog.setAttribute('aria-hidden', 'false');
+        isolateInlineDialogBackground(dialog);
+        bindInlineQuizDialogListeners();
+        focusInlineQuizDialog(
+            dialog,
+            opts.initialFocus || '#ll-tools-close-flashcard, #ll-tools-close-category-selection'
+        );
+        return true;
+    }
+
+    function deactivateInlineQuizDialog(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const dialog = inlineQuizDialogState.dialog;
+        if (dialog) {
+            dialog.setAttribute('aria-hidden', 'true');
+        }
+        inlineQuizDialogState.dialog = null;
+        restoreInlineDialogBackground();
+        unbindInlineQuizDialogListeners();
+
+        const opener = inlineQuizDialogState.opener;
+        inlineQuizDialogState.opener = null;
+        if (opts.restoreFocus === false || !opener || !opener.isConnected || typeof opener.focus !== 'function') {
+            return;
+        }
+        try {
+            opener.focus({ preventScroll: true });
+        } catch (_) {
+            try { opener.focus(); } catch (_ignore) { /* no-op */ }
+        }
+    }
+
+    root.LLToolsQuizDialog = {
+        activate: activateInlineQuizDialog,
+        deactivate: deactivateInlineQuizDialog,
+        activeDialog: function () {
+            return inlineQuizDialogState.dialog;
+        }
+    };
 
     function setQuizGuardPageClass(enabled) {
         const doc = root.document;
@@ -4885,7 +5108,7 @@
         }
 
         const proceed = () => {
-            ensureFlashcardPopupPortal();
+            activateInlineQuizDialog('#ll-tools-flashcard-quiz-popup');
             resetWordsetScopedCachesIfNeeded();
             newSession();
 
@@ -5316,6 +5539,7 @@
             });
 
         closingCleanupPromise = cleanupPromise.finally(function () {
+            deactivateInlineQuizDialog();
             try {
                 $(document).trigger('lltools:flashcard-closed');
             } catch (_) { /* no-op */ }

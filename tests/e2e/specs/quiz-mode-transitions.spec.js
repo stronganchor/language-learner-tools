@@ -100,7 +100,7 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
       iconSvgCount: document.querySelectorAll('.ll-study-check-btn .ll-study-check-icon svg').length,
       cardBottom: cardRect ? cardRect.bottom : 0,
       actionsTop: actionsRect ? actionsRect.top : 0,
-      popupParentTag: popupRoot && popupRoot.parentElement ? popupRoot.parentElement.tagName.toLowerCase() : '',
+      popupParentId: popupRoot && popupRoot.parentElement ? popupRoot.parentElement.id : '',
       flashcardHasAudioLineLayout: !!(flashcard && flashcard.classList.contains('audio-line-layout')),
       contentHasAudioLineMode: !!(flashcardContent && flashcardContent.classList.contains('audio-line-mode'))
     };
@@ -109,7 +109,7 @@ test('quiz popup supports mode transitions in the primary learn flow', async ({ 
   expect(selfCheckUi.knowNamespace).toBe('http://www.w3.org/2000/svg');
   expect(selfCheckUi.iconSvgCount).toBeGreaterThanOrEqual(3);
   expect(selfCheckUi.actionsTop).toBeGreaterThanOrEqual(selfCheckUi.cardBottom - 1);
-  expect(selfCheckUi.popupParentTag).toBe('body');
+  expect(selfCheckUi.popupParentId).toBe('ll-tools-flashcard-container');
   expect(selfCheckUi.flashcardHasAudioLineLayout).toBe(false);
   expect(selfCheckUi.contentHasAudioLineMode).toBe(false);
 

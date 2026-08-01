@@ -105,6 +105,7 @@ test('standalone launch handles initializer rejection and closes the loading pop
   await page.evaluate(() => {
     window.__llAlerts = [];
     window.__llUnhandledRejections = [];
+    window.__llDialogDeactivateCount = 0;
     window.alert = (message) => window.__llAlerts.push(String(message || ''));
     window.addEventListener('unhandledrejection', (event) => {
       window.__llUnhandledRejections.push(String(event.reason && event.reason.message || event.reason || ''));
@@ -119,6 +120,12 @@ test('standalone launch handles initializer rejection and closes the loading pop
     };
     window.llToolsFlashcardsMessages = {
       somethingWentWrong: 'Something went wrong. Please try again.'
+    };
+    window.LLToolsQuizDialog = {
+      activate() {},
+      deactivate() {
+        window.__llDialogDeactivateCount += 1;
+      }
     };
     window.LLFlashcards = {
       Util: {
@@ -149,7 +156,8 @@ test('standalone launch handles initializer rejection and closes the loading pop
     popupDisplay: window.getComputedStyle(document.getElementById('ll-tools-flashcard-popup')).display,
     quizDisplay: window.getComputedStyle(document.getElementById('ll-tools-flashcard-quiz-popup')).display,
     loadingDisplay: window.getComputedStyle(document.getElementById('ll-tools-loading-animation')).display,
-    bodyOpen: document.body.classList.contains('ll-tools-flashcard-open')
+    bodyOpen: document.body.classList.contains('ll-tools-flashcard-open'),
+    dialogDeactivateCount: window.__llDialogDeactivateCount
   }));
 
   expect(result.alerts).toEqual(['Something went wrong. Please try again.']);
@@ -158,4 +166,52 @@ test('standalone launch handles initializer rejection and closes the loading pop
   expect(result.quizDisplay).toBe('none');
   expect(result.loadingDisplay).toBe('none');
   expect(result.bodyOpen).toBeFalsy();
+  expect(result.dialogDeactivateCount).toBe(1);
+});
+
+test('embedded launch reports an initializer rejection as an error state', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-tools-flashcard-container" data-wordset="demo">
+      <div id="ll-tools-flashcard-popup" style="display:none">
+        <div id="ll-tools-flashcard-quiz-popup" style="display:none">
+          <div id="ll-tools-loading-animation" style="display:block"></div>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.alert = () => {};
+    window.llToolsFlashcardsData = {
+      isEmbed: true,
+      categories: [{ id: 1, slug: 'alpha', name: 'Alpha' }],
+      quiz_mode: 'practice',
+      wordset: 'demo',
+      wordsetFallback: false
+    };
+    window.llToolsFlashcardsMessages = {
+      somethingWentWrong: 'Something went wrong. Please try again.'
+    };
+    window.LLFlashcards = {
+      Util: {
+        getCategorySelectionValue(category) {
+          return category.slug;
+        }
+      },
+      Dom: {
+        hideLoadingImmediately() {
+          window.jQuery('#ll-tools-loading-animation').hide();
+        }
+      },
+      Main: {
+        initFlashcardWidget() {
+          return Promise.reject(new Error('test embedded initialization failure'));
+        }
+      }
+    };
+  });
+  await page.addScriptTag({ content: categorySelectionSource });
+
+  await expect.poll(async () => page.evaluate(() => window.__LL_EMBED_STATE || '')).toBe('ll-embed-error');
 });

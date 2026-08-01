@@ -138,21 +138,23 @@ For network-sensitive regressions on Local sites:
 - Measure an actionable selector becoming visible, not just the `load` event.
 - For release-to-release performance comparison, use `tests/bin/run-performance-benchmark.sh` so the fixture is reused or refreshed against the selected profile manifest; the default profile uses `tests/performance/fixtures/performance-wordsets.json`.
 
-### Turkish full-catalog localization guard
+### Core full-catalog localization guards
 
-Turkish is not limited to the public tier-2 manifest. Before accepting a POT/PO
-refresh, run the database-free full-catalog check:
+Configured core locales are not limited to the public tier-2 manifest. Before
+accepting a POT/PO refresh, run both database-free full-catalog checks:
 
 ```bash
 php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
+php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --details --json
 ```
 
 A matching HEAD is not sufficient reason for scheduled upkeep to skip when
 this command reports missing, blank, partial, fuzzy, stale, duplicate,
-structurally invalid, or uncompiled Turkish entries. The checker compares the
-compiled MO and PHP messages with the PO, so stale runtime copy also fails the guard.
-Fill new catalog entries, rebuild both compiled artifacts, and rerun
-`Integration/PublicUiTranslationManifestTest.php`.
+structurally invalid, or uncompiled entries. Every locale configured under
+`core_full_locales` in `languages/tier2-public-ui-sources.php` must pass. The
+checker compares compiled MO and PHP messages with each PO, so stale runtime
+copy also fails the guard. Fill new catalog entries, rebuild both compiled
+artifacts, and rerun `Integration/PublicUiTranslationManifestTest.php`.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -219,7 +221,7 @@ When diagnosing quiz popup prompt/option behavior for a target category outside 
 Full Playwright run times out under an automation cap:
 - Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
 - Then run `tests/bin/run-e2e.sh --shard=1/4` through `--shard=4/4` to isolate whether a spec actually hangs.
-- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, the July 17 discovery listed 436 tests in 95 spec files, and the July 24 discovery listed 453 tests in 95 spec files. The final July 24 serial run completed with 440 passed and 13 intentionally skipped. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, the July 17 discovery listed 436 tests in 95 spec files, the July 24 discovery listed 453 tests in 95 spec files, and the July 31 no-install discovery listed 479 tests in 97 spec files. The final July 24 serial run completed with 440 passed and 13 intentionally skipped. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
 - If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
 `page-speed-throttled-load.spec.js` fails:
@@ -286,8 +288,9 @@ PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
 
 For behavior changes touching quiz/recording flows:
 
-1. For quiz-page popup launch or presentation-config changes, first run `tests/bin/run-e2e.sh specs/quiz-popup-text-translation-options.spec.js specs/text-to-text-learning-intro.spec.js`. These protect trigger-authoritative prompt/option configuration when the launched category is absent from the initial paged registry.
-2. For flashcard payload materializer, page-cursor, cold-warmup, or deferred
+1. For quiz dialog, iframe recovery, or accessibility changes, run `Integration/FlashcardShellRendererTest.php`, `Integration/QuizPagePostTypeTest.php`, `specs/quiz-iframe-recovery.spec.js`, `specs/quiz-popup-fallback-modal.spec.js`, and `specs/quiz-popup-open-close.spec.js`. For popup launch or presentation-config changes, also run `specs/quiz-popup-text-translation-options.spec.js` and `specs/text-to-text-learning-intro.spec.js`; these protect trigger-authoritative prompt/option configuration when the launched category is absent from the initial paged registry.
+2. For Audio/Image Matcher pagination or interaction changes, run `Integration/AudioImageMatcherLazyLoadTest.php`, `Integration/AssetEnqueueTest.php`, and `specs/audio-image-matcher-pagination.spec.js`.
+3. For flashcard payload materializer, page-cursor, cold-warmup, or deferred
    bootstrap changes, run:
 
    ```bash
@@ -305,11 +308,12 @@ For behavior changes touching quiz/recording flows:
    option parity. Query-shape assertions should keep primary/prompt scans on
    keysets and page reads on a metadata-first row/byte budget; do not weaken
    them to accept a full-category fallback.
-3. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
-4. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
-5. `tests/bin/run-tests.sh`
-6. `tests/bin/run-e2e.sh`
-7. Update `tests/README.md` if test scope or runner behavior changed.
+4. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
+5. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
+6. For raw-password REST admission, run `Integration/RestPasswordAuthAdmissionTest.php`. For public dictionary input, run `Integration/DictionaryPublicFilterBoundsTest.php`. For inactive previews and lesson maps, run `Integration/WordsetPageInactiveCategoryCardsTest.php` and `Integration/WordsetPageWarmLessonMapTest.php`. For masked-media fallback cache changes, run `Integration/MediaProxyFallbackCacheTest.php`.
+7. `tests/bin/run-tests.sh`
+8. `tests/bin/run-e2e.sh`
+9. Update `tests/README.md` if test scope or runner behavior changed.
 
 For public-page shell, asset, or template changes that could affect perceived load time:
 
@@ -324,9 +328,9 @@ Wordset-boundary changes should also include:
 
 Dictionary import/search changes should also include:
 
-1. `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php`
-2. `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js` when the admin importer flow changes
-3. Add or update a dedicated Playwright spec if the public `[ll_dictionary]` interaction model changes, because current browser coverage is still weighted toward admin import plus PHPUnit integration
+1. Run `Integration/DictionaryPublicFilterBoundsTest.php` for public raw-input/admission changes and `specs/dictionary-shortcode-deferred-toolbar.spec.js` when the public interaction model changes.
+2. Retain `Integration/DictionaryFeatureTest.php` for search/import semantics.
+3. Run `specs/admin-import-preview-undo.spec.js` when the admin importer UI changes.
 
 ## 9) Known Environment-Dependent Skips
 

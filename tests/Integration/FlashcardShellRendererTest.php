@@ -21,6 +21,11 @@ final class FlashcardShellRendererTest extends LL_Tools_TestCase
         $this->assertSame(1, substr_count($html, 'id="ll-tools-flashcard-quiz-popup"'));
         $this->assertSame(1, substr_count($html, 'id="ll-tools-category-selection-popup"'));
         $this->assertStringContainsString('class="ll-tools-category-selection-title"', $html);
+        $this->assertSame(2, substr_count($html, 'role="dialog"'));
+        $this->assertSame(2, substr_count($html, 'aria-modal="true"'));
+        $this->assertStringContainsString('aria-labelledby="ll-tools-category-selection-title"', $html);
+        $this->assertStringContainsString('aria-labelledby="ll-tools-flashcard-dialog-title"', $html);
+        $this->assertStringContainsString('id="ll-tools-flashcard-dialog-title"', $html);
         $this->assertStringContainsString('id="ll-tools-category-display"', $html);
         $this->assertStringContainsString('Animals', $html);
         $this->assertStringContainsString('id="ll-tools-loading-status"', $html);

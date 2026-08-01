@@ -16,6 +16,18 @@ if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_MIN_GRACE_SECONDS')) {
 if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_MAX_RUNTIME_SECONDS')) {
     define('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_MAX_RUNTIME_SECONDS', 2.0);
 }
+if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK')) {
+    define('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK', 'll_tools_media_proxy_cache_maintenance_event');
+}
+if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CURSOR_OPTION')) {
+    define('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CURSOR_OPTION', '_ll_tools_media_proxy_cache_maintenance_cursor');
+}
+if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK')) {
+    define(
+        'LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK',
+        'll_tools_media_proxy_cache_maintenance_continuation'
+    );
+}
 
 /**
  * Exact transient-key prefixes owned by bounded LL Tools caches/rate limits.
@@ -71,6 +83,8 @@ function ll_tools_expired_transient_maintenance_namespaces(): array {
         'registration-rate-limit' => 'll_tools_reg_attempt_',
         'username-rate-limit' => 'll_tools_user_suggest_',
         'login-rate-limit' => 'll_tools_login_attempt_',
+        'rest-basic-auth-rate-limit' => 'll_tools_rest_basic_fail_',
+        'rest-basic-auth-peer-rate-limit' => 'll_tools_rest_basic_peer_',
         'offline-login-rate-limit' => 'll_tools_offline_login_',
         'offline-sync-rate-limit' => 'll_tools_offline_sync_',
         'speaking-rate-limit' => 'll_tools_speaking_txn_rl_',
@@ -434,10 +448,97 @@ function ll_tools_clear_expired_transient_maintenance_schedule(): void {
     wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK);
 }
 
+function ll_tools_schedule_media_proxy_cache_maintenance_for_current_site(): void {
+    if (!wp_next_scheduled(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK)) {
+        wp_schedule_event(
+            time() + 3 * HOUR_IN_SECONDS,
+            'daily',
+            LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK
+        );
+    }
+}
+
+function ll_tools_schedule_media_proxy_cache_maintenance(bool $network_wide = false): void {
+    if (
+        !$network_wide
+        || !is_multisite()
+        || !function_exists('get_sites')
+        || !function_exists('switch_to_blog')
+        || !function_exists('restore_current_blog')
+    ) {
+        ll_tools_schedule_media_proxy_cache_maintenance_for_current_site();
+        return;
+    }
+
+    $offset = 0;
+    do {
+        $site_ids = get_sites([
+            'fields' => 'ids',
+            'number' => 100,
+            'offset' => $offset,
+        ]);
+        foreach ((array) $site_ids as $site_id) {
+            switch_to_blog((int) $site_id);
+            try {
+                ll_tools_schedule_media_proxy_cache_maintenance_for_current_site();
+            } finally {
+                restore_current_blog();
+            }
+        }
+        $offset += count((array) $site_ids);
+    } while (count((array) $site_ids) === 100);
+}
+
+function ll_tools_clear_media_proxy_cache_maintenance_schedule_for_current_site(): void {
+    wp_clear_scheduled_hook(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK);
+    wp_clear_scheduled_hook(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK);
+    if (function_exists('ll_tools_media_proxy_clear_cache_maintenance_state')) {
+        ll_tools_media_proxy_clear_cache_maintenance_state();
+    } else {
+        delete_option(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CURSOR_OPTION);
+    }
+}
+
+function ll_tools_clear_media_proxy_cache_maintenance_schedule(bool $network_wide = false): void {
+    if (
+        !$network_wide
+        || !is_multisite()
+        || !function_exists('get_sites')
+        || !function_exists('switch_to_blog')
+        || !function_exists('restore_current_blog')
+    ) {
+        ll_tools_clear_media_proxy_cache_maintenance_schedule_for_current_site();
+        return;
+    }
+
+    $offset = 0;
+    do {
+        $site_ids = get_sites([
+            'fields' => 'ids',
+            'number' => 100,
+            'offset' => $offset,
+        ]);
+        foreach ((array) $site_ids as $site_id) {
+            switch_to_blog((int) $site_id);
+            try {
+                ll_tools_clear_media_proxy_cache_maintenance_schedule_for_current_site();
+            } finally {
+                restore_current_blog();
+            }
+        }
+        $offset += count((array) $site_ids);
+    } while (count((array) $site_ids) === 100);
+}
+
 add_action('init', 'll_tools_schedule_expired_transient_maintenance', 30);
 add_action(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK, 'll_tools_run_expired_transient_maintenance');
+add_action('init', 'll_tools_schedule_media_proxy_cache_maintenance', 31);
+add_action(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK, 'll_tools_run_media_proxy_cache_maintenance');
+add_action(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK, 'll_tools_run_media_proxy_cache_maintenance');
 
 if (defined('LL_TOOLS_MAIN_FILE')) {
     register_activation_hook(LL_TOOLS_MAIN_FILE, 'll_tools_schedule_expired_transient_maintenance');
     register_deactivation_hook(LL_TOOLS_MAIN_FILE, 'll_tools_clear_expired_transient_maintenance_schedule');
+    register_activation_hook(LL_TOOLS_MAIN_FILE, 'll_tools_schedule_media_proxy_cache_maintenance');
+    register_deactivation_hook(LL_TOOLS_MAIN_FILE, 'll_tools_clear_media_proxy_cache_maintenance_schedule');
 }

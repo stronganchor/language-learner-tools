@@ -4,19 +4,43 @@ declare(strict_types=1);
 final class AudioImageMatcherLazyLoadTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQf4xX0AAAAASUVORK5CYII=';
+    private const FLASHCARD_MODE_STYLE_HANDLES = [
+        'll-tools-flashcard-mode-practice',
+        'll-tools-flashcard-mode-learning',
+        'll-tools-flashcard-mode-listening',
+    ];
 
     /** @var array<string,mixed> */
     private $getBackup = [];
+
+    /** @var string[] */
+    private $preexistingFlashcardModeStyles = [];
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->getBackup = $_GET;
+        $this->preexistingFlashcardModeStyles = [];
+
+        foreach (self::FLASHCARD_MODE_STYLE_HANDLES as $handle) {
+            if (wp_style_is($handle, 'enqueued')) {
+                $this->preexistingFlashcardModeStyles[] = $handle;
+            }
+            wp_dequeue_style($handle);
+        }
     }
 
     protected function tearDown(): void
     {
         $_GET = $this->getBackup;
+
+        foreach (self::FLASHCARD_MODE_STYLE_HANDLES as $handle) {
+            wp_dequeue_style($handle);
+        }
+        foreach ($this->preexistingFlashcardModeStyles as $handle) {
+            wp_enqueue_style($handle);
+        }
+
         parent::tearDown();
     }
 
@@ -37,12 +61,26 @@ final class AudioImageMatcherLazyLoadTest extends LL_Tools_TestCase
         $html = (string) ob_get_clean();
 
         $this->assertStringContainsString('id="ll-aim-category"', $html);
+        $this->assertStringContainsString('id="ll-aim-status" role="status" aria-live="polite"', $html);
+        $this->assertStringContainsString('id="ll-aim-retry" type="button" hidden', $html);
+        $this->assertStringContainsString('id="ll-aim-images" role="group"', $html);
         $this->assertStringContainsString((string) $fixture['category_one_label'], $html);
         $this->assertStringNotContainsString((string) $fixture['category_two_label'], $html);
+
+        $matcher_style = wp_styles()->registered['ll-aim-admin-css'] ?? null;
+        $this->assertInstanceOf(_WP_Dependency::class, $matcher_style);
+        $this->assertSame(['ll-tools-flashcard-style'], $matcher_style->deps);
+        $this->assertFalse(wp_style_is('ll-tools-flashcard-mode-practice', 'enqueued'));
+        $this->assertFalse(wp_style_is('ll-tools-flashcard-mode-learning', 'enqueued'));
+        $this->assertFalse(wp_style_is('ll-tools-flashcard-mode-listening', 'enqueued'));
 
         $localized = (string) wp_scripts()->get_data('ll-audio-image-matcher', 'data');
         $this->assertStringContainsString('llAimData', $localized);
         $this->assertStringContainsString('initialCategoryRows', $localized);
+        $this->assertStringContainsString('"requestTimeoutMs":"15000"', $localized);
+        $this->assertStringContainsString('"retryButton"', $localized);
+        $this->assertStringContainsString('"imageChoiceLabel"', $localized);
+        $this->assertStringContainsString('"requestTimedOut"', $localized);
         $this->assertStringContainsString((string) $fixture['category_one_label'], $localized);
         $this->assertStringNotContainsString('categoryOptionsByWordset', $localized);
         $this->assertStringNotContainsString((string) $fixture['category_two_label'], $localized);
@@ -92,7 +130,7 @@ final class AudioImageMatcherLazyLoadTest extends LL_Tools_TestCase
 
         $word_id = $this->createWordWithAudio($wordset_id, $category_id, 'AIM Linked Word');
         update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
-        delete_post_meta($word_id, '_thumbnail_id');
+        set_post_thumbnail($word_id, $attachment_id);
 
         $this->setCurrentUserWithViewCapability();
 
@@ -243,6 +281,11 @@ final class AudioImageMatcherLazyLoadTest extends LL_Tools_TestCase
         $this->assertIsArray($item);
         $this->assertSame($word_id, (int) ($item['id'] ?? 0));
         $this->assertNotSame('', (string) ($item['current_thumb'] ?? ''));
+        $effective_image_data = ll_tools_get_effective_word_image_data_for_word($word_id, 'medium', true);
+        $this->assertSame(
+            (int) ($effective_image_data['word_image_id'] ?? 0),
+            (int) ($item['current_image_id'] ?? 0)
+        );
     }
 
     /**

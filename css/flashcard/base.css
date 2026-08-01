@@ -3002,3 +3002,22 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 #ll-tools-flashcard-container.ll-micro-quiz-layout .ll-tools-mode-switcher-wrap > * + * {
     margin-top: 6px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+    #ll-tools-flashcard-popup,
+    #ll-tools-flashcard-popup *,
+    #ll-tools-flashcard-popup *::before,
+    #ll-tools-flashcard-popup *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
+    }
+
+    #ll-tools-loading-animation.ll-tools-loading-animation--visualizer .ll-tools-visualizer-bar {
+        height: 18px !important;
+        transform: none !important;
+    }
+}

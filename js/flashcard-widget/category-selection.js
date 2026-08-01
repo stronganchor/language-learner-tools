@@ -43,8 +43,27 @@
         } catch (_) { /* no-op */ }
     }
 
+    function activateQuizDialog(selector, opener) {
+        try {
+            var manager = window.LLToolsQuizDialog;
+            if (manager && typeof manager.activate === 'function') {
+                manager.activate(selector, { opener: opener || document.activeElement });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
+    function deactivateQuizDialog() {
+        try {
+            var manager = window.LLToolsQuizDialog;
+            if (manager && typeof manager.deactivate === 'function') {
+                manager.deactivate();
+            }
+        } catch (_) { /* no-op */ }
+    }
+
     function resetFailedWidgetLaunch(error) {
         try { console.error('Failed to initialize flashcard widget:', error); } catch (_) { /* no-op */ }
+        deactivateQuizDialog();
         try {
             var dom = window.LLFlashcards && window.LLFlashcards.Dom;
             if (dom && typeof dom.hideLoadingImmediately === 'function') {
@@ -79,8 +98,10 @@
         return new Promise(function (resolve, reject) {
             (function wait() {
                 var initializer = null;
+                var initializerContext = window;
                 if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.initFlashcardWidget === 'function') {
                     initializer = window.LLFlashcards.Main.initFlashcardWidget;
+                    initializerContext = window.LLFlashcards.Main;
                 } else if (typeof window.initFlashcardWidget === 'function' && window.initFlashcardWidget !== legacyInitShim) {
                     initializer = window.initFlashcardWidget;
                 }
@@ -91,7 +112,7 @@
                 }
 
                 try {
-                    resolve(initializer(selectedCategories, mode));
+                    Promise.resolve(initializer.call(initializerContext, selectedCategories, mode)).then(resolve, reject);
                 } catch (error) {
                     reject(error);
                 }
@@ -109,7 +130,8 @@
 
     var embedAutoStarted = false;
 
-    function notifyEmbedReady() {
+    function notifyEmbedState(type) {
+        window.__LL_EMBED_STATE = type;
         try {
             var targetOrigin = window.location.origin;
             if (document.referrer) {
@@ -118,12 +140,12 @@
                 } catch (_) { /* ignore */ }
             }
             if (window.parent && window.parent !== window) {
-                window.parent.postMessage({ type: 'll-embed-ready' }, targetOrigin);
+                window.parent.postMessage({ type: type }, targetOrigin);
             }
         } catch (e) {
             try {
                 if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'll-embed-ready' }, '*');
+                    window.parent.postMessage({ type: type }, '*');
                 }
             } catch (_) { /* ignore */ }
         }
@@ -166,6 +188,7 @@
         $('body').addClass('ll-tools-flashcard-open');
         $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
         $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
+        activateQuizDialog('#ll-tools-flashcard-quiz-popup');
 
         var util = (window.LLFlashcards && window.LLFlashcards.Util) || {};
         var categories = data.categories.map(function (category) {
@@ -177,8 +200,11 @@
         if (!categories.length) return;
 
         showEmbedAutoplayOverlay();
-        startWidget(categories, data.quiz_mode);
-        notifyEmbedReady();
+        startWidget(categories, data.quiz_mode).then(function (result) {
+            notifyEmbedState(result === false ? 'll-embed-error' : 'll-embed-ready');
+        }).catch(function () {
+            notifyEmbedState('ll-embed-error');
+        });
     }
 
     $(autoStartEmbedQuiz);
@@ -254,6 +280,7 @@
 
         // IMPORTANT: match the actual template id
         $('#ll-tools-category-selection-popup').show();
+        activateQuizDialog('#ll-tools-category-selection-popup');
     }
 
     // Event handler for the "Uncheck All" button
@@ -330,7 +357,8 @@
         if (selectedCategories.length > 0) {
             $('#ll-tools-category-selection-popup').hide();
             $('#ll-tools-flashcard-quiz-popup').show();
-            startWidget(selectedCategories, llToolsFlashcardsData.quiz_mode);
+            activateQuizDialog('#ll-tools-flashcard-quiz-popup');
+            startWidget(selectedCategories, llToolsFlashcardsData.quiz_mode).catch(function () { /* main UI reports launch failures */ });
         }
     });
 
@@ -351,7 +379,8 @@
 
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {
             $('#ll-tools-flashcard-quiz-popup').show();
-            startWidget(preselectedCategories, llToolsFlashcardsData.quiz_mode);
+            activateQuizDialog('#ll-tools-flashcard-quiz-popup', this);
+            startWidget(preselectedCategories, llToolsFlashcardsData.quiz_mode).catch(function () { /* main UI reports launch failures */ });
         } else {
             $('#ll-tools-category-selection-popup').show();
             showCategorySelection();
@@ -379,6 +408,7 @@
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
         } catch (_) {}
+        deactivateQuizDialog();
     });
 
     // Event handler for the close button on the category selection screen
@@ -394,6 +424,7 @@
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
         } catch (_) {}
+        deactivateQuizDialog();
     });
 
 })(jQuery);

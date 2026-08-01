@@ -240,6 +240,260 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_vocab_lesson_is_preview_only($lesson_id));
     }
 
+    public function test_preview_preparation_pages_large_image_categories_before_redirecting(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $image_ids = [(int) $fixture['image_id']];
+
+        for ($index = 0; $index < 2; $index++) {
+            $image_id = self::factory()->post->create([
+                'post_type' => 'word_images',
+                'post_status' => 'publish',
+                'post_title' => 'Paged Preview Image ' . $index . ' ' . wp_generate_password(4, false),
+            ]);
+            set_post_thumbnail($image_id, $this->createImageAttachment());
+            if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+                ll_tools_set_word_image_wordset_owner((int) $image_id, $wordset_id);
+            }
+            wp_set_post_terms($image_id, [$category_id], 'word-category', false);
+            wp_set_post_terms($image_id, [$wordset_id], 'wordset', false);
+            $image_ids[] = (int) $image_id;
+        }
+
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $batch_size = static function (): int {
+            return 1;
+        };
+        $captured_queries = [];
+        $capture = static function (string $query) use (&$captured_queries): string {
+            if (strpos($query, 'posts.ID >') !== false && strpos($query, "posts.post_type = 'word_images'") !== false) {
+                $captured_queries[] = $query;
+            }
+            return $query;
+        };
+        add_filter('ll_tools_wordset_page_preview_prepare_batch_size', $batch_size);
+        add_filter('query', $capture);
+
+        try {
+            $results = [];
+            for ($attempt = 0; $attempt < 3; $attempt++) {
+                $results[] = ll_tools_wordset_page_process_inactive_category_action(
+                    'preview',
+                    $wordset_id,
+                    $wordset_id,
+                    $category_id,
+                    wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+                );
+            }
+        } finally {
+            remove_filter('query', $capture);
+            remove_filter('ll_tools_wordset_page_preview_prepare_batch_size', $batch_size);
+        }
+
+        $this->assertSame('preparing', (string) ($results[0]['result'] ?? ''));
+        $this->assertSame(1, (int) ($results[0]['preparation_progress']['processed'] ?? 0));
+        $this->assertSame('preparing', (string) ($results[1]['result'] ?? ''));
+        $this->assertSame(2, (int) ($results[1]['preparation_progress']['processed'] ?? 0));
+        $this->assertSame('preview', (string) ($results[2]['result'] ?? ''));
+        $this->assertNotSame('', (string) ($results[2]['preview_url'] ?? ''));
+        $this->assertCount(3, $captured_queries);
+        foreach ($captured_queries as $query) {
+            $this->assertStringContainsString('LIMIT 2', $query);
+        }
+        foreach ($image_ids as $image_id) {
+            $prepared_words = get_posts([
+                'post_type' => 'words',
+                'post_status' => 'any',
+                'posts_per_page' => 2,
+                'fields' => 'ids',
+                'meta_key' => '_ll_autopicked_image_id',
+                'meta_value' => (string) $image_id,
+            ]);
+            $this->assertCount(1, $prepared_words);
+        }
+    }
+
+    public function test_preview_preparation_contention_reports_progress_without_creating_the_lesson(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+        $job_key = '_ll_tools_wsp_preview_job_' . md5($wordset_id . ':' . $category_id);
+        $lock_key = '_ll_tools_wsp_preview_lock_' . md5($wordset_id . ':' . $category_id);
+        update_option($job_key, [
+            'version' => 1,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'cursor' => 0,
+            'processed' => 7,
+            'created_count' => 6,
+            'error_count' => 1,
+        ], false);
+        add_option($lock_key, 'other-owner:' . (time() + 60), '', false);
+
+        try {
+            $result = ll_tools_wordset_page_process_inactive_category_action(
+                'preview',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+            );
+        } finally {
+            delete_option($lock_key);
+            delete_option($job_key);
+        }
+
+        $this->assertIsArray($result);
+        $this->assertSame('preparing', (string) ($result['result'] ?? ''));
+        $this->assertSame(7, (int) ($result['preparation_progress']['processed'] ?? 0));
+        $this->assertSame(1, (int) ($result['preparation_progress']['error_count'] ?? 0));
+        $this->assertStringContainsString('already being prepared', (string) ($result['message'] ?? ''));
+        $this->assertSame([], get_posts([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'any',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                    'value' => (string) $wordset_id,
+                ],
+                [
+                    'key' => LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+                    'value' => (string) $category_id,
+                ],
+            ],
+        ]));
+    }
+
+    public function test_preview_preparation_retries_a_failed_image_without_advancing_its_cursor(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $image_id = (int) $fixture['image_id'];
+        $attachment_id = (int) get_post_thumbnail_id($image_id);
+        $this->assertGreaterThan(0, $attachment_id);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        delete_post_thumbnail($image_id);
+
+        $nonce = wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id);
+        $job_key = ll_tools_wordset_page_preview_job_option($category_id, $wordset_id);
+        try {
+            $first = ll_tools_wordset_page_process_inactive_category_action(
+                'preview',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                $nonce
+            );
+            $second = ll_tools_wordset_page_process_inactive_category_action(
+                'preview',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                $nonce
+            );
+            $third = ll_tools_wordset_page_process_inactive_category_action(
+                'preview',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                $nonce
+            );
+
+            $this->assertSame('preparing', (string) ($first['result'] ?? ''));
+            $this->assertSame('preparing', (string) ($second['result'] ?? ''));
+            $this->assertWPError($third);
+            $this->assertSame('preview_prepare', $third->get_error_code());
+
+            $failed_job = get_option($job_key, []);
+            $this->assertIsArray($failed_job);
+            $this->assertSame(0, (int) ($failed_job['cursor'] ?? -1));
+            $this->assertSame(0, (int) ($failed_job['processed'] ?? -1));
+            $this->assertSame($image_id, (int) ($failed_job['retry_image_id'] ?? 0));
+            $this->assertSame(3, (int) ($failed_job['retry_count'] ?? 0));
+
+            set_post_thumbnail($image_id, $attachment_id);
+            $recovered = ll_tools_wordset_page_process_inactive_category_action(
+                'preview',
+                $wordset_id,
+                $wordset_id,
+                $category_id,
+                $nonce
+            );
+        } finally {
+            set_post_thumbnail($image_id, $attachment_id);
+            delete_option($job_key);
+            delete_option(ll_tools_wordset_page_preview_lock_option($category_id, $wordset_id));
+        }
+
+        $this->assertIsArray($recovered);
+        $this->assertSame('preview', (string) ($recovered['result'] ?? ''));
+        $this->assertNotSame('', (string) ($recovered['preview_url'] ?? ''));
+        $this->assertFalse(get_option($job_key, false));
+        $prepared_words = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'any',
+            'posts_per_page' => 2,
+            'fields' => 'ids',
+            'meta_key' => '_ll_autopicked_image_id',
+            'meta_value' => (string) $image_id,
+        ]);
+        $this->assertCount(1, $prepared_words);
+    }
+
+    public function test_preview_prepare_lease_renewal_and_release_are_exact_owner_safe(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $lease = ll_tools_wordset_page_acquire_preview_prepare_lock($category_id, $wordset_id, 30);
+        $this->assertIsArray($lease);
+        $this->assertTrue(ll_tools_wordset_page_renew_preview_prepare_lock($lease, 60));
+
+        $lock_key = ll_tools_wordset_page_preview_lock_option($category_id, $wordset_id);
+        $replacement = 'replacement-owner:' . (time() + 60);
+        update_option($lock_key, $replacement, false);
+
+        $this->assertFalse(ll_tools_wordset_page_renew_preview_prepare_lock($lease, 60));
+        ll_tools_wordset_page_release_preview_prepare_lock($lease);
+        $this->assertSame($replacement, get_option($lock_key));
+        delete_option($lock_key);
+    }
+
+    public function test_preview_job_completion_cannot_delete_a_replacement_revision(): void
+    {
+        $job_key = '_ll_tools_preview_job_test_' . wp_generate_password(12, false, false);
+        $original = [
+            'version' => 2,
+            'revision' => 4,
+            'wordset_id' => 101,
+            'category_id' => 202,
+            'cursor' => 303,
+        ];
+        $replacement = array_merge($original, [
+            'revision' => 5,
+            'cursor' => 404,
+        ]);
+        add_option($job_key, $original, '', false);
+        update_option($job_key, $replacement, false);
+
+        try {
+            $this->assertFalse(ll_tools_wordset_page_delete_preview_job_if_unchanged($job_key, $original));
+            $this->assertSame($replacement, get_option($job_key));
+            $this->assertTrue(ll_tools_wordset_page_delete_preview_job_if_unchanged($job_key, $replacement));
+            $this->assertFalse(get_option($job_key, false));
+        } finally {
+            delete_option($job_key);
+        }
+    }
+
     public function test_contention_without_a_category_job_returns_busy_instead_of_false_progress(): void
     {
         $fixture = $this->createWordsetFixture();

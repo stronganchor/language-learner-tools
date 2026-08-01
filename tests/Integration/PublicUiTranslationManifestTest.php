@@ -59,74 +59,96 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         );
     }
 
-    public function test_turkish_catalog_fully_translates_every_current_pot_entry(): void
+    public function test_core_full_locale_catalogs_fully_translate_every_current_pot_entry(): void
     {
         $root = $this->pluginRoot();
+        $config = ll_tools_public_i18n_load_config($root);
         $pot_entries = ll_tools_public_i18n_parse_po_file(
             $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain.pot'
         );
-        $po_entries = ll_tools_public_i18n_parse_po_file(
-            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
-        );
         $pot_by_key = ll_tools_public_i18n_entries_by_key($pot_entries);
-        $po_by_key = ll_tools_public_i18n_entries_by_key($po_entries);
         $catalog_entries = ll_tools_public_i18n_catalog_entries_from_pot(
             $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain.pot'
         );
-        $coverage = ll_tools_public_i18n_check_full_catalog_coverage(
-            'tr_TR',
-            $catalog_entries,
-            $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
-        );
-        $seen_keys = [];
-        $duplicate_msgids = [];
-        foreach ($po_entries as $entry) {
-            if (($entry['msgid'] ?? '') === '') {
-                continue;
-            }
+        $core_full_locales = array_keys((array) ($config['core_full_locales'] ?? []));
+        $this->assertNotEmpty($core_full_locales, 'Configure at least one core full-catalog locale.');
 
-            $entry_key = ll_tools_public_i18n_entry_key($entry);
-            if (isset($seen_keys[$entry_key])) {
-                $duplicate_msgids[] = (string) ($entry['msgid'] ?? '');
-                continue;
-            }
+        foreach ($core_full_locales as $locale) {
+            $locale = (string) $locale;
+            $label = (string) ($config['core_full_locales'][$locale] ?? $locale);
+            $po_path = $root . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR
+                . 'll-tools-text-domain-' . $locale . '.po';
+            $po_entries = ll_tools_public_i18n_parse_po_file($po_path);
+            $po_by_key = ll_tools_public_i18n_entries_by_key($po_entries);
+            $coverage = ll_tools_public_i18n_check_full_catalog_coverage(
+                $locale,
+                $catalog_entries,
+                $po_path
+            );
+            $seen_keys = [];
+            $duplicate_msgids = [];
+            foreach ($po_entries as $entry) {
+                if (($entry['msgid'] ?? '') === '') {
+                    continue;
+                }
 
-            $seen_keys[$entry_key] = true;
+                $entry_key = ll_tools_public_i18n_entry_key($entry);
+                if (isset($seen_keys[$entry_key])) {
+                    $duplicate_msgids[] = (string) ($entry['msgid'] ?? '');
+                    continue;
+                }
+
+                $seen_keys[$entry_key] = true;
+            }
+            $missing = array_values(array_map(
+                static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
+                array_diff_key($pot_by_key, $po_by_key)
+            ));
+            $stale = array_values(array_map(
+                static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
+                array_diff_key($po_by_key, $pot_by_key)
+            ));
+            $fuzzy = array_values(array_filter(
+                $po_entries,
+                static fn (array $entry): bool => in_array('fuzzy', (array) ($entry['flags'] ?? []), true)
+            ));
+
+            $this->assertSame(
+                [],
+                $missing,
+                sprintf('Merge and translate every current POT entry in the %s (%s) PO.', $label, $locale)
+            );
+            $this->assertSame(
+                [],
+                $stale,
+                sprintf('Remove stale active %s (%s) entries after merging the current POT.', $label, $locale)
+            );
+            $this->assertSame(
+                [],
+                $duplicate_msgids,
+                sprintf(
+                    'Keep only one active %s (%s) catalog entry per context, msgid, and plural combination.',
+                    $label,
+                    $locale
+                )
+            );
+            $this->assertSame(
+                [],
+                $fuzzy,
+                sprintf('Resolve or clear fuzzy %s (%s) catalog entries before rebuilding locale artifacts.', $label, $locale)
+            );
+            $this->assertTrue(
+                $coverage['complete'],
+                sprintf(
+                    '%s (%s) full-catalog coverage is incomplete (missing: %d, untranslated/invalid: %d, validation errors: %d).',
+                    $label,
+                    $locale,
+                    (int) $coverage['missing'],
+                    (int) $coverage['untranslated'],
+                    (int) $coverage['validation_error_count']
+                )
+            );
         }
-        $missing = array_values(array_map(
-            static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
-            array_diff_key($pot_by_key, $po_by_key)
-        ));
-        $stale = array_values(array_map(
-            static fn (array $entry): string => (string) ($entry['msgid'] ?? ''),
-            array_diff_key($po_by_key, $pot_by_key)
-        ));
-        $fuzzy = array_values(array_filter(
-            $po_entries,
-            static fn (array $entry): bool => in_array('fuzzy', (array) ($entry['flags'] ?? []), true)
-        ));
-
-        $this->assertSame(
-            [],
-            $missing,
-            'Merge and translate every current POT entry in the Turkish PO.'
-        );
-        $this->assertSame([], $stale, 'Remove stale active Turkish entries after merging the current POT.');
-        $this->assertSame(
-            [],
-            $duplicate_msgids,
-            'Keep only one active Turkish catalog entry per context, msgid, and plural combination.'
-        );
-        $this->assertSame([], $fuzzy, 'Resolve or clear fuzzy Turkish catalog entries before rebuilding locale artifacts.');
-        $this->assertTrue(
-            $coverage['complete'],
-            sprintf(
-                'Turkish full-catalog coverage is incomplete (missing: %d, untranslated/invalid: %d, validation errors: %d).',
-                (int) $coverage['missing'],
-                (int) $coverage['untranslated'],
-                (int) $coverage['validation_error_count']
-            )
-        );
     }
 
     public function test_translation_template_keeps_genc_palu_source_text_in_utf8(): void
@@ -224,6 +246,44 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
                     'Use informal second-person Turkish for permission errors: ' . $msgid
                 );
             }
+            if (preg_match('/\blearners?\b/i', $msgid)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\böğrenen/iu',
+                    $translation,
+                    'Use the canonical öğrenci glossary term for learner: ' . $msgid
+                );
+            }
+        }
+    }
+
+    public function test_turkish_catalog_keeps_reviewed_informal_public_copy(): void
+    {
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $this->pluginRoot() . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $translations = [];
+        foreach ($entries as $entry) {
+            $msgid = (string) ($entry['msgid'] ?? '');
+            if ($msgid !== '') {
+                $translations[$msgid] = (string) (($entry['msgstr'][0] ?? ''));
+            }
+        }
+
+        $expected = [
+            'Allow new users to create learner accounts from learner-facing progress sign-in screens. This also turns WordPress user registration on or off for the site.'
+                => 'Yeni kullanıcıların, öğrencilere yönelik ilerleme oturum açma ekranlarından öğrenci hesapları oluşturmasına izin ver. Bu ayrıca site için WordPress kullanıcı kaydını açar veya kapatır.',
+            'Microphone access was not granted. If no browser prompt appears, open Site settings from the lock icon and allow Microphone for this site, then reload.'
+                => 'Mikrofon erişimi verilmedi. Tarayıcı izin penceresi görünmezse kilit simgesinden Site ayarlarını aç, bu site için Mikrofona izin ver ve sayfayı yeniden yükle.',
+            'Create teacher classes, invite learners, and review student progress.'
+                => 'Öğretmen sınıfları oluştur, öğrencileri davet et ve öğrenci ilerlemesini incele.',
+            'The category catalog is temporarily unavailable. Please try again.'
+                => 'Kategori kataloğu geçici olarak kullanılamıyor. Lütfen yeniden dene.',
+            'Search is still preparing. Please try again.'
+                => 'Arama hâlâ hazırlanıyor. Lütfen yeniden dene.',
+        ];
+
+        foreach ($expected as $msgid => $translation) {
+            $this->assertSame($translation, $translations[$msgid] ?? null, $msgid);
         }
     }
 

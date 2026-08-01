@@ -113,11 +113,316 @@ function ll_tools_rest_automation_password_auth_is_allowed(): bool {
     return (bool) apply_filters('ll_tools_rest_allow_password_auth', $allowed, ll_tools_rest_automation_get_route_path());
 }
 
+function ll_tools_rest_automation_normalize_password_auth_client_ip(string $raw_ip): string {
+    $raw_ip = trim($raw_ip);
+    if ($raw_ip === '' || filter_var($raw_ip, FILTER_VALIDATE_IP) === false) {
+        return 'unknown';
+    }
+
+    if (function_exists('inet_pton') && function_exists('inet_ntop')) {
+        $packed = @inet_pton($raw_ip);
+        if (is_string($packed)) {
+            $canonical = @inet_ntop($packed);
+            if (is_string($canonical) && $canonical !== '') {
+                return strtolower($canonical);
+            }
+        }
+    }
+
+    return strtolower($raw_ip);
+}
+
+/**
+ * Normalize the direct peer address used by the raw-password admission guard.
+ *
+ * Forwarded headers are intentionally excluded here. A site-specific proxy may
+ * rewrite REMOTE_ADDR before PHP, but an arbitrary client cannot select another
+ * counter by spoofing X-Forwarded-For or similar headers.
+ */
+function ll_tools_rest_automation_password_auth_client_ip(): string {
+    $raw_ip = isset($_SERVER['REMOTE_ADDR'])
+        ? (string) wp_unslash($_SERVER['REMOTE_ADDR'])
+        : '';
+
+    return ll_tools_rest_automation_normalize_password_auth_client_ip($raw_ip);
+}
+
+/**
+ * Normalize a login identifier without retaining it in the counter option key.
+ */
+function ll_tools_rest_automation_password_auth_identifier(string $identifier): string {
+    // Bound normalization work even if a nonstandard server accepts a very
+    // large Authorization header.
+    $identifier = trim(substr($identifier, 0, 320));
+    $identifier = sanitize_text_field($identifier);
+    $identifier = function_exists('mb_strtolower')
+        ? mb_strtolower($identifier, 'UTF-8')
+        : strtolower($identifier);
+
+    return $identifier !== '' ? $identifier : '<empty>';
+}
+
+/**
+ * Return the bounded fixed-window failed-password policy.
+ *
+ * @return array{limit:int,window:int,now:int}
+ */
+function ll_tools_rest_automation_password_auth_failure_policy(
+    string $identifier,
+    string $client_ip
+): array {
+    $route = ll_tools_rest_automation_get_route_path();
+    $limit = (int) apply_filters(
+        'll_tools_rest_password_auth_failure_limit',
+        8,
+        $identifier,
+        $client_ip,
+        $route
+    );
+    $window = (int) apply_filters(
+        'll_tools_rest_password_auth_failure_window',
+        10 * MINUTE_IN_SECONDS,
+        $identifier,
+        $client_ip,
+        $route
+    );
+    $now = (int) apply_filters(
+        'll_tools_rest_password_auth_failure_now',
+        time(),
+        $identifier,
+        $client_ip,
+        $route
+    );
+
+    return [
+        'limit' => max(1, min(100, $limit)),
+        'window' => max(MINUTE_IN_SECONDS, min(DAY_IN_SECONDS, $window)),
+        'now' => max(1, $now),
+    ];
+}
+
+/**
+ * Build the opaque counter identifier for one direct peer and login name.
+ */
+function ll_tools_rest_automation_password_auth_counter_identifier(
+    string $identifier,
+    string $client_ip = ''
+): string {
+    $identifier = ll_tools_rest_automation_password_auth_identifier($identifier);
+    $client_ip = $client_ip !== ''
+        ? ll_tools_rest_automation_normalize_password_auth_client_ip($client_ip)
+        : ll_tools_rest_automation_password_auth_client_ip();
+
+    return $client_ip . '|' . $identifier;
+}
+
+/**
+ * Atomically reserve one raw-password authentication attempt.
+ *
+ * Successful authentication refunds exactly this reservation. Failed
+ * authentication leaves it in place, so the durable counter represents only
+ * failures after each request finishes while admission remains concurrency
+ * safe.
+ *
+ * @return array{
+ *   allowed:bool,
+ *   count:int,
+ *   limit:int,
+ *   retry_after:int,
+ *   value_option_name?:string,
+ *   peer_reservation?:array<string,mixed>
+ * }
+ */
+function ll_tools_rest_automation_password_auth_reserve(
+    string $identifier,
+    string $client_ip = ''
+): array {
+    $normalized_identifier = ll_tools_rest_automation_password_auth_identifier($identifier);
+    $client_ip = ll_tools_rest_automation_normalize_password_auth_client_ip(
+        $client_ip !== '' ? $client_ip : ll_tools_rest_automation_password_auth_client_ip()
+    );
+    $counter_identifier = ll_tools_rest_automation_password_auth_counter_identifier(
+        $normalized_identifier,
+        $client_ip
+    );
+    $policy = ll_tools_rest_automation_password_auth_failure_policy(
+        $normalized_identifier,
+        $client_ip
+    );
+    $peer_limit = (int) apply_filters(
+        'll_tools_rest_password_auth_peer_failure_limit',
+        max(12, $policy['limit'] * 3),
+        $client_ip,
+        ll_tools_rest_automation_get_route_path()
+    );
+    $peer_limit = max(1, min(500, $peer_limit));
+    $peer_status = ll_tools_public_ajax_reserve_counter(
+        'll_tools_rest_basic_peer_',
+        $client_ip,
+        $peer_limit,
+        $policy['window'],
+        1,
+        $policy['now']
+    );
+    if (!empty($peer_status['allowed'])) {
+        $peer_names = ll_tools_public_ajax_counter_option_names(
+            'll_tools_rest_basic_peer_',
+            $client_ip,
+            $policy['window'],
+            $policy['now']
+        );
+        $peer_status['value_option_name'] = (string) $peer_names['value'];
+    } else {
+        $peer_status['guard_scope'] = 'peer';
+        return $peer_status;
+    }
+
+    $status = ll_tools_public_ajax_reserve_counter(
+        'll_tools_rest_basic_fail_',
+        $counter_identifier,
+        $policy['limit'],
+        $policy['window'],
+        1,
+        $policy['now']
+    );
+
+    if (!empty($status['allowed'])) {
+        $names = ll_tools_public_ajax_counter_option_names(
+            'll_tools_rest_basic_fail_',
+            $counter_identifier,
+            $policy['window'],
+            $policy['now']
+        );
+        $status['value_option_name'] = (string) $names['value'];
+    }
+    $status['peer_reservation'] = $peer_status;
+    $status['guard_scope'] = 'peer_identifier';
+
+    return $status;
+}
+
+/**
+ * Refund one successful raw-password admission reservation atomically.
+ */
+function ll_tools_rest_automation_password_auth_refund(array $reservation): void {
+    global $wpdb;
+
+    $peer_reservation = is_array($reservation['peer_reservation'] ?? null)
+        ? $reservation['peer_reservation']
+        : [];
+    if (!empty($peer_reservation)) {
+        ll_tools_rest_automation_password_auth_refund($peer_reservation);
+    }
+
+    $option_name = (string) ($reservation['value_option_name'] ?? '');
+    $allowed_prefixes = [
+        '_transient_ll_tools_rest_basic_fail_',
+        '_transient_ll_tools_rest_basic_peer_',
+    ];
+    $owned_option = false;
+    foreach ($allowed_prefixes as $allowed_prefix) {
+        if (strpos($option_name, $allowed_prefix) === 0) {
+            $owned_option = true;
+            break;
+        }
+    }
+    if ($option_name === '' || !$owned_option) {
+        return;
+    }
+
+    $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = CASE
+             WHEN CAST(option_value AS UNSIGNED) > 0
+             THEN CAST(option_value AS UNSIGNED) - 1
+             ELSE 0
+         END
+         WHERE option_name = %s",
+        $option_name
+    ));
+    wp_cache_delete($option_name, 'options');
+}
+
+/**
+ * Remove failed-password counters for one exact direct-peer/login pair.
+ *
+ * Intended for focused operational cleanup and tests, not request-path use.
+ */
+function ll_tools_rest_automation_password_auth_reset_failures(
+    string $identifier,
+    string $client_ip = ''
+): void {
+    $client_ip = ll_tools_rest_automation_normalize_password_auth_client_ip(
+        $client_ip !== '' ? $client_ip : ll_tools_rest_automation_password_auth_client_ip()
+    );
+    ll_tools_public_ajax_reset_counter(
+        'll_tools_rest_basic_fail_',
+        ll_tools_rest_automation_password_auth_counter_identifier($identifier, $client_ip)
+    );
+    ll_tools_public_ajax_reset_counter(
+        'll_tools_rest_basic_peer_',
+        $client_ip
+    );
+}
+
+function ll_tools_rest_automation_password_auth_limit_error(array $status): WP_Error {
+    return new WP_Error(
+        'll_tools_rest_basic_auth_rate_limited',
+        __('Too many login attempts from this connection. Please try again in a few minutes.', 'll-tools-text-domain'),
+        [
+            'status' => 429,
+            'retry_after_seconds' => max(1, (int) ($status['retry_after'] ?? 1)),
+        ]
+    );
+}
+
+/**
+ * Bound raw credential parsing before Base64 decoding or password hashing.
+ *
+ * @return array{header_bytes:int,username_bytes:int,password_bytes:int}
+ */
+function ll_tools_rest_automation_basic_auth_input_limits(): array {
+    $defaults = [
+        'header_bytes' => 8192,
+        'username_bytes' => 320,
+        'password_bytes' => 4096,
+    ];
+    $hard = [
+        'header_bytes' => 16384,
+        'username_bytes' => 1024,
+        'password_bytes' => 8192,
+    ];
+    $filtered = apply_filters('ll_tools_rest_basic_auth_input_limits', $defaults);
+    $filtered = is_array($filtered) ? $filtered : [];
+
+    foreach ($defaults as $key => $fallback) {
+        $defaults[$key] = max(1, min($hard[$key], (int) ($filtered[$key] ?? $fallback)));
+    }
+    return $defaults;
+}
+
+function ll_tools_rest_automation_invalid_basic_auth_credentials(): array {
+    return [
+        'username' => '',
+        'password' => '',
+        'invalid' => true,
+    ];
+}
+
 function ll_tools_rest_automation_get_basic_auth_credentials(): array {
+    $limits = ll_tools_rest_automation_basic_auth_input_limits();
     if (isset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'])) {
+        $raw_username = (string) $_SERVER['PHP_AUTH_USER'];
+        $raw_password = (string) $_SERVER['PHP_AUTH_PW'];
+        if (
+            strlen($raw_username) > $limits['username_bytes']
+            || strlen($raw_password) > $limits['password_bytes']
+        ) {
+            return ll_tools_rest_automation_invalid_basic_auth_credentials();
+        }
         return [
-            'username' => wp_unslash((string) $_SERVER['PHP_AUTH_USER']),
-            'password' => wp_unslash((string) $_SERVER['PHP_AUTH_PW']),
+            'username' => wp_unslash($raw_username),
+            'password' => wp_unslash($raw_password),
         ];
     }
 
@@ -130,7 +435,15 @@ function ll_tools_rest_automation_get_basic_auth_credentials(): array {
             continue;
         }
 
-        $raw_header = trim((string) $_SERVER[$header_key]);
+        $raw_header = (string) $_SERVER[$header_key];
+        $header_prefix = substr($raw_header, 0, 64);
+        if (!preg_match('/^[\x20\t\r\n]*Basic[ \t]+/i', $header_prefix)) {
+            continue;
+        }
+        if (strlen($raw_header) > $limits['header_bytes']) {
+            return ll_tools_rest_automation_invalid_basic_auth_credentials();
+        }
+        $raw_header = trim($raw_header);
         if (!preg_match('/^Basic\s+(.+)$/i', $raw_header, $matches)) {
             continue;
         }
@@ -141,6 +454,12 @@ function ll_tools_rest_automation_get_basic_auth_credentials(): array {
         }
 
         [$username, $password] = explode(':', $decoded, 2);
+        if (
+            strlen($username) > $limits['username_bytes']
+            || strlen($password) > $limits['password_bytes']
+        ) {
+            return ll_tools_rest_automation_invalid_basic_auth_credentials();
+        }
         return [
             'username' => $username,
             'password' => $password,
@@ -157,6 +476,11 @@ function ll_tools_rest_automation_clear_auth_runtime_state(): void {
 
 function ll_tools_rest_automation_determine_current_user($user_id) {
     if (!empty($user_id)) {
+        if (ll_tools_rest_automation_is_request()) {
+            // Core cookie/application-password authentication completed before
+            // this raw-password compatibility layer.
+            ll_tools_rest_automation_clear_auth_runtime_state();
+        }
         return $user_id;
     }
 
@@ -167,7 +491,12 @@ function ll_tools_rest_automation_determine_current_user($user_id) {
     }
 
     $credentials = ll_tools_rest_automation_get_basic_auth_credentials();
-    if (empty($credentials['username']) && empty($credentials['password'])) {
+    $invalid_credentials = !empty($credentials['invalid']);
+    if (
+        !$invalid_credentials
+        && empty($credentials['username'])
+        && empty($credentials['password'])
+    ) {
         return $user_id;
     }
 
@@ -180,19 +509,35 @@ function ll_tools_rest_automation_determine_current_user($user_id) {
         return $user_id;
     }
 
+    $reservation = ll_tools_rest_automation_password_auth_reserve(
+        $invalid_credentials ? '__invalid__' : (string) $credentials['username']
+    );
+    if (empty($reservation['allowed'])) {
+        $GLOBALS['ll_tools_rest_automation_auth_error'] = ll_tools_rest_automation_password_auth_limit_error(
+            $reservation
+        );
+        return $user_id;
+    }
+
+    if ($invalid_credentials) {
+        $GLOBALS['ll_tools_rest_automation_auth_error'] = ll_tools_rest_automation_error(
+            'll_tools_rest_invalid_basic_credentials',
+            __('Unable to authenticate this REST request.', 'll-tools-text-domain'),
+            401
+        );
+        return $user_id;
+    }
+
     $authenticated = wp_authenticate((string) $credentials['username'], (string) $credentials['password']);
     if ($authenticated instanceof WP_User) {
+        ll_tools_rest_automation_password_auth_refund($reservation);
         $GLOBALS['ll_tools_rest_automation_auth_mode'] = 'basic_password';
         return (int) $authenticated->ID;
     }
 
-    $message = $authenticated instanceof WP_Error
-        ? $authenticated->get_error_message()
-        : __('Unable to authenticate this REST request.', 'll-tools-text-domain');
-
     $GLOBALS['ll_tools_rest_automation_auth_error'] = ll_tools_rest_automation_error(
         'll_tools_rest_invalid_basic_credentials',
-        $message,
+        __('Unable to authenticate this REST request.', 'll-tools-text-domain'),
         401
     );
 
@@ -201,22 +546,51 @@ function ll_tools_rest_automation_determine_current_user($user_id) {
 add_filter('determine_current_user', 'll_tools_rest_automation_determine_current_user', 30);
 
 function ll_tools_rest_automation_authentication_errors($result) {
-    if (!empty($result)) {
-        return $result;
-    }
-
     if (!ll_tools_rest_automation_is_request()) {
         return $result;
     }
 
     $auth_error = $GLOBALS['ll_tools_rest_automation_auth_error'] ?? null;
     if ($auth_error instanceof WP_Error) {
+        // Core attempts application-password validation before this raw account
+        // password compatibility layer. When raw authentication was attempted,
+        // its generic/limited result is authoritative and must not leak the
+        // more specific upstream credential failure.
         return $auth_error;
     }
 
     return $result;
 }
 add_filter('rest_authentication_errors', 'll_tools_rest_automation_authentication_errors');
+
+/**
+ * Add standards-friendly retry metadata to raw-password admission failures.
+ */
+function ll_tools_rest_automation_auth_retry_after_header(
+    $response,
+    $server,
+    WP_REST_Request $request
+) {
+    unset($server, $request);
+
+    $response = rest_ensure_response($response);
+    if (!$response instanceof WP_REST_Response || $response->get_status() !== 429) {
+        return $response;
+    }
+
+    $data = $response->get_data();
+    if (!is_array($data) || (string) ($data['code'] ?? '') !== 'll_tools_rest_basic_auth_rate_limited') {
+        return $response;
+    }
+
+    $error_data = is_array($data['data'] ?? null) ? $data['data'] : [];
+    $retry_after = max(1, (int) ($error_data['retry_after_seconds'] ?? 1));
+    $response->header('Retry-After', (string) $retry_after);
+    $response->header('X-LL-Tools-Auth-Guard', 'limited');
+
+    return $response;
+}
+add_filter('rest_post_dispatch', 'll_tools_rest_automation_auth_retry_after_header', 20, 3);
 
 function ll_tools_rest_automation_forbidden_message(): string {
     return __('You are not allowed to use LL Tools automation on this site.', 'll-tools-text-domain');

@@ -69,7 +69,7 @@ function ll_tools_content_lesson_route_fixture_tag_term(int $term_id, string $fi
 function ll_tools_content_lesson_route_fixture_delete_posts(): int {
     $deleted = 0;
     $ids = get_posts([
-        'post_type' => ['ll_content_lesson', 'll_vocab_lesson', 'page'],
+        'post_type' => ['ll_content_lesson', 'll_vocab_lesson', 'words', 'page', 'post'],
         'post_status' => 'any',
         'posts_per_page' => -1,
         'fields' => 'ids',
@@ -226,13 +226,15 @@ function ll_tools_content_lesson_route_fixture_create_silent_wav(): array {
 }
 
 function ll_tools_content_lesson_route_fixture_run(): array {
-    $fixture_version = '2026-07-17.1';
+    $fixture_version = '2026-07-31.1';
     $wordset_name = 'E2E Content Lesson Wordset';
     $wordset_slug = 'll-e2e-content-lesson';
     $category_name = 'E2E Dialogue Practice';
     $category_slug = 'll-e2e-content-lesson-dialogue';
     $content_lesson_title = 'E2E Audio Story Route';
     $content_lesson_slug = 'll-e2e-content-lesson-route';
+    $index_lesson_title = 'E2E Lesson Index Follow-up';
+    $index_lesson_slug = 'll-e2e-content-lesson-index-follow-up';
     $vocab_lesson_title = 'E2E Dialogue Practice Vocab';
     $vocab_lesson_slug = 'll-e2e-content-lesson-vocab';
     $corpus_collection = 'll-e2e-corpus';
@@ -241,15 +243,28 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     $corpus_lesson_title = 'E2E Corpus Reader';
     $corpus_lesson_slug = 'll-e2e-corpus-text-route';
     $corpus_lesson_excerpt = 'A source-backed corpus text for the real lesson route.';
+    $lesson_index_title = 'E2E Content Lesson Index';
+    $lesson_index_slug = 'll-e2e-content-lesson-index';
+    $ranked_list_title = 'E2E Ranked Word List';
+    $ranked_list_slug = 'll-e2e-ranked-word-list';
+    $retained_source_title = 'E2E Retained Lesson Source';
+    $retained_source_slug = 'll-e2e-retained-lesson-source';
+    $retained_shadow_title = 'E2E Retained Lesson Shadow';
+    $retained_shadow_slug = 'll-e2e-retained-lesson-shadow';
     $notes = 'These notes confirm the content lesson template renders post content after the transcript.';
     $excerpt = 'A short fixture story for the real content lesson route.';
     $transcript_source = "WEBVTT\n\n00:00:01.000 --> 00:00:03.500\nFirst fixture cue.\n\n00:00:04.000 --> 00:00:06.250\nSecond fixture cue.";
 
     foreach ([
         [$content_lesson_slug, 'll_content_lesson'],
+        [$index_lesson_slug, 'll_content_lesson'],
         [$vocab_lesson_slug, 'll_vocab_lesson'],
         [$corpus_lesson_slug, 'll_content_lesson'],
         [$corpus_collection_slug, 'page'],
+        [$lesson_index_slug, 'page'],
+        [$ranked_list_slug, 'page'],
+        [$retained_source_slug, 'post'],
+        [$retained_shadow_slug, 'll_content_lesson'],
     ] as $post_slug) {
         ll_tools_content_lesson_route_fixture_assert_post_slug_available($post_slug[0], $post_slug[1]);
     }
@@ -323,6 +338,18 @@ function ll_tools_content_lesson_route_fixture_run(): array {
     update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_CUES_META, $cues);
     update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$category_id]);
 
+    $index_lesson_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'll_content_lesson',
+        'post_status' => 'publish',
+        'post_title' => $index_lesson_title,
+        'post_name' => $index_lesson_slug,
+        'post_excerpt' => 'A second ordinary lesson for the paginated public index.',
+        'post_content' => 'The public lesson index can reach this second page.',
+        'menu_order' => 15,
+    ], $fixture_version);
+    update_post_meta($index_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
+    update_post_meta($index_lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'article');
+
     $corpus_lesson_id = ll_tools_content_lesson_route_fixture_insert_post([
         'post_type' => 'll_content_lesson',
         'post_status' => 'publish',
@@ -369,12 +396,116 @@ function ll_tools_content_lesson_route_fixture_run(): array {
         ll_tools_content_lesson_route_fixture_fail('Unable to save corpus route fixture: ' . $corpus_result->get_error_message());
     }
 
+    $lesson_index_page_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'post_title' => $lesson_index_title,
+        'post_name' => $lesson_index_slug,
+        'post_content' => sprintf(
+            '[ll_content_lesson_index wordset="%d" per_page="1" list_id="e2e-lessons"]',
+            $wordset_id
+        ),
+    ], $fixture_version);
+
+    $ranked_words = [
+        [
+            'title' => 'E2E Ranked Two',
+            'slug' => 'll-e2e-ranked-two',
+            'translation' => 'Second ranked translation',
+            'rank' => 2,
+        ],
+        [
+            'title' => 'E2E Ranked Ten',
+            'slug' => 'll-e2e-ranked-ten',
+            'translation' => 'Tenth ranked translation',
+            'rank' => 10,
+        ],
+        [
+            'title' => 'E2E Ranked Hundred',
+            'slug' => 'll-e2e-ranked-hundred',
+            'translation' => 'Hundredth ranked translation',
+            'rank' => 100,
+        ],
+    ];
+    $ranked_word_ids = [];
+    foreach ($ranked_words as $ranked_word) {
+        ll_tools_content_lesson_route_fixture_assert_post_slug_available(
+            (string) $ranked_word['slug'],
+            'words'
+        );
+        $word_id = ll_tools_content_lesson_route_fixture_insert_post([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => (string) $ranked_word['title'],
+            'post_name' => (string) $ranked_word['slug'],
+        ], $fixture_version);
+        $category_result = wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+        $wordset_result = wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        if (is_wp_error($category_result) || is_wp_error($wordset_result)) {
+            $error = is_wp_error($category_result) ? $category_result : $wordset_result;
+            ll_tools_content_lesson_route_fixture_fail(
+                'Unable to assign ranked word fixture terms: ' . $error->get_error_message()
+            );
+        }
+        update_post_meta($word_id, 'word_translation', (string) $ranked_word['translation']);
+        update_post_meta($word_id, LL_TOOLS_RANKED_WORD_META_KEY, (string) $ranked_word['rank']);
+        $ranked_word_ids[] = $word_id;
+    }
+
+    $ranked_list_page_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'post_title' => $ranked_list_title,
+        'post_name' => $ranked_list_slug,
+        'post_content' => sprintf(
+            '[ll_ranked_word_list category="%d" wordset="%d" per_page="2" list_id="e2e-ranked"]',
+            $category_id,
+            $wordset_id
+        ),
+    ], $fixture_version);
+
+    $retained_source_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'post_title' => $retained_source_title,
+        'post_name' => $retained_source_slug,
+        'post_content' => 'This retained public source remains the canonical lesson URL.',
+    ], $fixture_version);
+    $retained_source_url = (string) get_permalink($retained_source_id);
+    if ($retained_source_url === '') {
+        ll_tools_content_lesson_route_fixture_fail('Unable to resolve the retained lesson source URL.');
+    }
+
+    $retained_shadow_id = ll_tools_content_lesson_route_fixture_insert_post([
+        'post_type' => 'll_content_lesson',
+        'post_status' => 'publish',
+        'post_title' => $retained_shadow_title,
+        'post_name' => $retained_shadow_slug,
+        'post_content' => '',
+        'menu_order' => 30,
+    ], $fixture_version);
+    update_post_meta($retained_shadow_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (string) $wordset_id);
+    update_post_meta($retained_shadow_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'article');
+    update_post_meta($retained_shadow_id, LL_TOOLS_LEGACY_LESSON_SOURCE_POST_META, (string) $retained_source_id);
+    update_post_meta($retained_shadow_id, LL_TOOLS_LEGACY_LESSON_SOURCE_URL_META, $retained_source_url);
+    update_post_meta($retained_shadow_id, LL_TOOLS_LEGACY_LESSON_MIGRATION_META, '1');
+    update_post_meta($retained_shadow_id, LL_TOOLS_LEGACY_LESSON_RETAINED_SOURCE_META, '1');
+
     clean_term_cache([$wordset_id], 'wordset');
     clean_term_cache([$category_id], 'word-category');
-    clean_post_cache($content_lesson_id);
-    clean_post_cache($vocab_lesson_id);
-    clean_post_cache($corpus_collection_page_id);
-    clean_post_cache($corpus_lesson_id);
+    foreach (array_merge([
+        $content_lesson_id,
+        $index_lesson_id,
+        $vocab_lesson_id,
+        $corpus_collection_page_id,
+        $corpus_lesson_id,
+        $lesson_index_page_id,
+        $ranked_list_page_id,
+        $retained_source_id,
+        $retained_shadow_id,
+    ], $ranked_word_ids) as $post_id) {
+        clean_post_cache((int) $post_id);
+    }
     if (function_exists('ll_tools_bump_category_cache_version')) {
         ll_tools_bump_category_cache_version([$category_id]);
     }
@@ -410,6 +541,34 @@ function ll_tools_content_lesson_route_fixture_run(): array {
         'corpusReaderTranslation' => 'Fixture corpus reader translation.',
         'corpusSourceLabel' => 'E2E source witness',
         'corpusSourceCitation' => 'Fixture collection, page 1.',
+        'lessonIndexPageId' => $lesson_index_page_id,
+        'lessonIndexTitle' => $lesson_index_title,
+        'lessonIndexPath' => ll_tools_content_lesson_route_fixture_relative_url($lesson_index_page_id),
+        'lessonIndexLessonTitles' => [$content_lesson_title, $index_lesson_title],
+        'rankedListPageId' => $ranked_list_page_id,
+        'rankedListTitle' => $ranked_list_title,
+        'rankedListPath' => ll_tools_content_lesson_route_fixture_relative_url($ranked_list_page_id),
+        'rankedRegionLabel' => 'Ranked words in ' . $category_name,
+        'rankedWords' => array_values(array_map(
+            static function (array $word, int $word_id): array {
+                return [
+                    'id' => $word_id,
+                    'title' => (string) $word['title'],
+                    'translation' => (string) $word['translation'],
+                    'rank' => (int) $word['rank'],
+                ];
+            },
+            $ranked_words,
+            $ranked_word_ids
+        )),
+        'retainedSourceId' => $retained_source_id,
+        'retainedSourceTitle' => $retained_source_title,
+        'retainedSourcePath' => ll_tools_content_lesson_route_fixture_relative_url($retained_source_id),
+        'retainedShadowId' => $retained_shadow_id,
+        'retainedShadowTitle' => $retained_shadow_title,
+        'retainedShadowPath' => wp_make_link_relative(
+            home_url('/lesson/' . $retained_shadow_slug . '/')
+        ),
         'cues' => array_values(array_map(static function (array $cue): array {
             return [
                 'id' => (int) ($cue['id'] ?? 0),

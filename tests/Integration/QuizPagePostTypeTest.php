@@ -99,11 +99,16 @@ final class QuizPagePostTypeTest extends LL_Tools_TestCase
 
         $html = ll_tools_build_quiz_page_content($term);
 
-        $this->assertStringContainsString('class="ll-tools-iframe-loading-status screen-reader-text"', $html);
+        $this->assertStringContainsString('class="ll-tools-iframe-loading-status"', $html);
         $this->assertStringContainsString('role="status"', $html);
         $this->assertStringContainsString('Loading quiz...', $html);
+        $this->assertStringContainsString('aria-busy="true"', $html);
+        $this->assertStringContainsString('class="ll-tools-iframe-retry"', $html);
+        $this->assertStringContainsString('class="ll-tools-iframe-open-direct"', $html);
+        $this->assertStringContainsString('Open quiz in a new tab', $html);
         $this->assertStringContainsString('class="ll-tools-quiz-iframe"', $html);
         $this->assertStringContainsString('title="Quiz Content"', $html);
+        $this->assertStringContainsString('aria-describedby="ll-tools-quiz-iframe-status-', $html);
     }
 
     public function test_legacy_quiz_page_migration_moves_pages_to_dedicated_post_type(): void

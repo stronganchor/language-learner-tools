@@ -899,6 +899,8 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
         'display_name' => $display_name,
         'iframe_title' => __('Quiz Content', 'll-tools-text-domain'),
         'loading_status' => __('Loading quiz...', 'll-tools-text-domain'),
+        'retry_label' => __('Retry', 'll-tools-text-domain'),
+        'open_direct_label' => __('Open quiz in a new tab', 'll-tools-text-domain'),
         'slug'         => $term->slug,
     ]);
     return (string) ob_get_clean();
@@ -1827,6 +1829,7 @@ function ll_qp_enqueue_popup_assets(): void {
     $enqueued = true;
 
     ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', [], true);
+    ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
     wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
         'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
         'labels' => [
@@ -1834,6 +1837,12 @@ function ll_qp_enqueue_popup_assets(): void {
             'closeLabel'   => __('Close', 'll-tools-text-domain'),
             'iframeTitle'  => __('Quiz Content', 'll-tools-text-domain'),
             'closeConfirm' => __('Close this quiz? Your current progress in this popup will be lost.', 'll-tools-text-domain'),
+            'loadingLabel' => __('Loading quiz...', 'll-tools-text-domain'),
+            'readyLabel' => __('Quiz ready.', 'll-tools-text-domain'),
+            'loadErrorLabel' => __('The quiz could not be loaded.', 'll-tools-text-domain'),
+            'loadTimeoutLabel' => __('The quiz is taking too long to load.', 'll-tools-text-domain'),
+            'retryLabel' => __('Retry', 'll-tools-text-domain'),
+            'openDirectLabel' => __('Open quiz in a new tab', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -1845,7 +1854,6 @@ function ll_qp_enqueue_assets() {
     }
 
     ll_qp_enqueue_popup_assets();
-    ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
 }
 
 /** Enqueue quiz page assets only when WordPress is rendering a quiz page context. */

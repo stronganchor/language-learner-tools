@@ -152,3 +152,172 @@ test('corpus text route renders the reader, collection navigation, assets, and s
   await expect(page.locator('script[src*="/js/text-document.js"]')).toHaveCount(1);
   await expect(page.locator('script[src*="/js/content-lesson-player.js"]')).toHaveCount(0);
 });
+
+test('public content lesson index exposes accessible cards and clean two-way pagination', async ({ page }) => {
+  let fixture;
+  try {
+    fixture = seedFixture();
+  } catch (error) {
+    if (error && error.isWpCliUnavailable) {
+      test.skip(true, `Unable to seed WordPress content lesson index fixture through WP-CLI: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
+
+  expect(fixture.lessonIndexPath).toMatch(/\/ll-e2e-content-lesson-index\/?$/);
+  expect(fixture.lessonIndexLessonTitles).toHaveLength(2);
+  await page.goto(fixture.lessonIndexPath, { waitUntil: 'domcontentloaded' });
+
+  const index = page.locator('.ll-content-lesson-index');
+  await expect(index).toBeVisible({ timeout: 60000 });
+  await expect(index).toHaveAttribute('data-page', '1');
+  await expect(index.locator('.ll-content-lesson-index__item')).toHaveCount(1);
+
+  const level = index.locator('.ll-content-lesson-index__level');
+  const levelHeading = level.getByRole('heading', { level: 2 });
+  const levelHeadingId = await levelHeading.getAttribute('id');
+  expect(levelHeadingId).toBeTruthy();
+  await expect(level).toHaveAttribute('aria-labelledby', levelHeadingId);
+  await expect(level.locator('ul')).toHaveCount(1);
+
+  const firstCard = index.locator('.ll-content-lesson-index__link');
+  await expect(firstCard.locator('.ll-content-lesson-index__title')).toHaveText(
+    fixture.lessonIndexLessonTitles[0]
+  );
+  await expect(firstCard.locator('.screen-reader-text')).toContainText('Open lesson');
+  await expect(firstCard).toHaveAttribute('href', /\/lesson\//);
+
+  const pagination = index.getByRole('navigation', { name: 'Lesson pages' });
+  const nextLink = pagination.getByRole('link', { name: 'Next', exact: true });
+  const nextHref = await nextLink.getAttribute('href');
+  const nextUrl = new URL(nextHref, page.url());
+  const nextParams = Array.from(nextUrl.searchParams.entries());
+  expect(nextParams).toEqual([['ll_lesson_page_e2e-lessons', '2']]);
+
+  await nextLink.click();
+  await expect(page).toHaveURL(/ll_lesson_page_e2e-lessons=2/);
+  await expect(index).toHaveAttribute('data-page', '2');
+  await expect(index.locator('.ll-content-lesson-index__item')).toHaveCount(1);
+  await expect(index.locator('.ll-content-lesson-index__title')).toHaveText(
+    fixture.lessonIndexLessonTitles[1]
+  );
+
+  const previousLink = index
+    .getByRole('navigation', { name: 'Lesson pages' })
+    .getByRole('link', { name: 'Previous', exact: true });
+  const previousHref = await previousLink.getAttribute('href');
+  const previousUrl = new URL(previousHref, page.url());
+  expect(Array.from(previousUrl.searchParams.keys())).toEqual([]);
+
+  await previousLink.click();
+  await expect(page).toHaveURL(new RegExp(`${fixture.lessonIndexPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+  await expect(index).toHaveAttribute('data-page', '1');
+  await expect(index.locator('.ll-content-lesson-index__title')).toHaveText(
+    fixture.lessonIndexLessonTitles[0]
+  );
+});
+
+test('public ranked word list preserves numeric order, translations, and clean pagination', async ({ page }) => {
+  let fixture;
+  try {
+    fixture = seedFixture();
+  } catch (error) {
+    if (error && error.isWpCliUnavailable) {
+      test.skip(true, `Unable to seed WordPress ranked word fixture through WP-CLI: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
+
+  expect(fixture.rankedListPath).toMatch(/\/ll-e2e-ranked-word-list\/?$/);
+  expect(fixture.rankedWords.map((word) => word.rank)).toEqual([2, 10, 100]);
+  await page.goto(fixture.rankedListPath, { waitUntil: 'domcontentloaded' });
+
+  const list = page.locator('.ll-ranked-word-list');
+  await expect(list).toBeVisible({ timeout: 60000 });
+  await expect(list).toHaveAttribute('aria-label', fixture.rankedRegionLabel);
+  const tableRegion = list.locator('.ll-ranked-word-list__table-wrap');
+  await expect(tableRegion).toHaveAttribute('role', 'region');
+  await expect(tableRegion).toHaveAttribute('tabindex', '0');
+  await expect(tableRegion).toHaveAttribute('aria-label', fixture.rankedRegionLabel);
+  await expect(tableRegion.getByRole('table')).toBeVisible();
+  await expect(tableRegion.getByRole('columnheader', { name: 'Rank' })).toBeVisible();
+  await expect(tableRegion.getByRole('columnheader', { name: 'Word' })).toBeVisible();
+  await expect(tableRegion.getByRole('columnheader', { name: 'Translation' })).toBeVisible();
+
+  const rows = tableRegion.locator('tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator('.ll-ranked-word-list__rank')).toHaveText(['2', '10']);
+  await expect(rows.locator('.ll-ranked-word-list__word')).toHaveText(
+    fixture.rankedWords.slice(0, 2).map((word) => word.title)
+  );
+  await expect(rows.locator('.ll-ranked-word-list__translation')).toHaveText(
+    fixture.rankedWords.slice(0, 2).map((word) => word.translation)
+  );
+
+  const nextLink = list
+    .getByRole('navigation', { name: 'Ranked word list pages' })
+    .getByRole('link', { name: 'Next page', exact: true });
+  const nextHref = await nextLink.getAttribute('href');
+  const nextUrl = new URL(nextHref, page.url());
+  const nextParams = Array.from(nextUrl.searchParams.entries());
+  expect(nextParams).toHaveLength(1);
+  expect(nextParams[0][0]).toMatch(/^ll_ranked_page_[a-f0-9]{12}$/);
+  expect(nextParams[0][1]).toBe('2');
+
+  await nextLink.click();
+  await expect(page).toHaveURL(/ll_ranked_page_[a-f0-9]{12}=2/);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.locator('.ll-ranked-word-list__rank')).toHaveText(['100']);
+  await expect(rows.locator('.ll-ranked-word-list__word')).toHaveText([
+    fixture.rankedWords[2].title
+  ]);
+  await expect(rows.locator('.ll-ranked-word-list__translation')).toHaveText([
+    fixture.rankedWords[2].translation
+  ]);
+
+  const previousLink = list
+    .getByRole('navigation', { name: 'Ranked word list pages' })
+    .getByRole('link', { name: 'Previous page', exact: true });
+  const previousHref = await previousLink.getAttribute('href');
+  const previousUrl = new URL(previousHref, page.url());
+  expect(Array.from(previousUrl.searchParams.entries())).toEqual([
+    [nextParams[0][0], '1']
+  ]);
+
+  await previousLink.click();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator('.ll-ranked-word-list__rank')).toHaveText(['2', '10']);
+});
+
+test('retained lesson shadow route permanently redirects to its public source', async ({ page }) => {
+  let fixture;
+  try {
+    fixture = seedFixture();
+  } catch (error) {
+    if (error && error.isWpCliUnavailable) {
+      test.skip(true, `Unable to seed WordPress retained lesson fixture through WP-CLI: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
+
+  expect(fixture.retainedShadowPath).toMatch(/\/lesson\/ll-e2e-retained-lesson-shadow\/?$/);
+  expect(fixture.retainedSourcePath).toMatch(/\/ll-e2e-retained-lesson-source\/?$/);
+
+  const response = await page.request.get(fixture.retainedShadowPath, {
+    maxRedirects: 0
+  });
+  expect(response.status()).toBe(301);
+  const location = response.headers().location;
+  expect(location).toBeTruthy();
+  expect(new URL(location, response.url()).pathname).toBe(
+    new URL(fixture.retainedSourcePath, response.url()).pathname
+  );
+
+  await page.goto(fixture.retainedShadowPath, { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(new RegExp(`${fixture.retainedSourcePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+  await expect(page.getByRole('heading', { name: fixture.retainedSourceTitle })).toBeVisible();
+  await expect(page.getByText('This retained public source remains the canonical lesson URL.')).toBeVisible();
+});

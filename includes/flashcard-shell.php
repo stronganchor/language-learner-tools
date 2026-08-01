@@ -95,8 +95,16 @@ function ll_tools_render_flashcard_overlay_shell(array $args = []): void {
     ?>
     <div id="ll-tools-flashcard-popup" style="display:none;">
       <?php if ($include_category_selection) : ?>
-        <div id="ll-tools-category-selection-popup" style="display:none;">
-          <h3 class="ll-tools-category-selection-title"><?php echo esc_html__('Categories', 'll-tools-text-domain'); ?></h3>
+        <div
+          id="ll-tools-category-selection-popup"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ll-tools-category-selection-title"
+          aria-hidden="true"
+          tabindex="-1"
+          style="display:none;"
+        >
+          <h3 id="ll-tools-category-selection-title" class="ll-tools-category-selection-title"><?php echo esc_html__('Categories', 'll-tools-text-domain'); ?></h3>
           <div class="ll-tools-category-selection-buttons">
             <button id="ll-tools-uncheck-all" type="button"><?php echo esc_html__('Deselect all', 'll-tools-text-domain'); ?></button>
             <button id="ll-tools-check-all" type="button"><?php echo esc_html__('Select all', 'll-tools-text-domain'); ?></button>
@@ -113,7 +121,16 @@ function ll_tools_render_flashcard_overlay_shell(array $args = []): void {
         </div>
       <?php endif; ?>
 
-      <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+      <div
+        id="ll-tools-flashcard-quiz-popup"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ll-tools-flashcard-dialog-title"
+        aria-hidden="true"
+        tabindex="-1"
+        style="display:none;"
+      >
+        <h2 id="ll-tools-flashcard-dialog-title" class="screen-reader-text"><?php echo esc_html__('Quiz', 'll-tools-text-domain'); ?></h2>
         <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
         <div id="ll-tools-flashcard-header" style="display:none;">
           <div id="ll-tools-learning-progress" style="display:none;"></div>
