@@ -5140,6 +5140,10 @@
 
         const proceed = () => {
             activateInlineQuizDialog('#ll-tools-flashcard-quiz-popup');
+            // Protect the visible loading state immediately. Resource hydration
+            // may still be in flight, but back navigation, selection, and zoom
+            // guards must behave like the active quiz from the moment it opens.
+            activateFlashcardInteractionGuard();
             resetWordsetScopedCachesIfNeeded();
             newSession();
 
