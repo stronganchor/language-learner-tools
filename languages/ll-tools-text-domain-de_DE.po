@@ -28309,30 +28309,30 @@ msgstr "Das Stammverzeichnis des Remote-Bild-Caches liegt außerhalb des Upload-
 msgid "Invalid media proxy cache context."
 msgstr "Ungültiger Medienproxy-Cache-Kontext."
 
-#: includes/lib/media-proxy.php:577
+#: includes/lib/media-proxy.php:584
 msgid "Remote image cache path is invalid."
 msgstr "Der Pfad des Remote-Bild-Caches ist ungültig."
 
-#: includes/lib/media-proxy.php:624
+#: includes/lib/media-proxy.php:639
 msgid "Remote image cache is still being prepared."
 msgstr "Der Remote-Bild-Cache wird noch vorbereitet."
 
-#: includes/lib/media-proxy.php:964
+#: includes/lib/media-proxy.php:979
 msgid "Remote image cache storage is unavailable."
 msgstr "Der Speicher für den Remote-Bild-Cache ist nicht verfügbar."
 
-#: includes/lib/media-proxy.php:983
+#: includes/lib/media-proxy.php:998
 msgid "Remote image download failed."
 msgstr "Das Remote-Bild konnte nicht heruntergeladen werden."
 
-#: includes/lib/media-proxy.php:996
+#: includes/lib/media-proxy.php:1011
 msgid "Remote image response was invalid or too large."
 msgstr "Die Antwort für das Remote-Bild war ungültig oder zu groß."
 
-#: includes/lib/media-proxy.php:1010
+#: includes/lib/media-proxy.php:1025
 msgid "Remote image could not be cached."
 msgstr "Das Remote-Bild konnte nicht zwischengespeichert werden."
 
-#: includes/lib/media-proxy.php:1035
+#: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "Die Aktualisierung des Remote-Bildes wurde vorübergehend zurückgestellt."

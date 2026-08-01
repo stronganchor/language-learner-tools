@@ -5610,36 +5610,36 @@ msgid "Invalid media proxy cache context."
 msgstr "Contesto della cache del proxy multimediale non valido."
 
 #. ll-tools-public-key: c9ef452671ecaf8f74c70d405ecf236e91c27b64
-#: includes/lib/media-proxy.php:577
+#: includes/lib/media-proxy.php:584
 msgid "Remote image cache path is invalid."
 msgstr "Il percorso della cache delle immagini remote non è valido."
 
 #. ll-tools-public-key: 4a5dada965ed4ff5dcd5f4c5642299c5f04bc95e
-#: includes/lib/media-proxy.php:624
+#: includes/lib/media-proxy.php:639
 msgid "Remote image cache is still being prepared."
 msgstr "La cache delle immagini remote è ancora in fase di preparazione."
 
 #. ll-tools-public-key: 2d7c32d7b228c1121a5076640846c18e84aa4417
-#: includes/lib/media-proxy.php:964
+#: includes/lib/media-proxy.php:979
 msgid "Remote image cache storage is unavailable."
 msgstr "Lo spazio di archiviazione della cache delle immagini remote non è disponibile."
 
 #. ll-tools-public-key: 9553f7c3917f3c78989410d127c4cf2c09b6a7ca
-#: includes/lib/media-proxy.php:983
+#: includes/lib/media-proxy.php:998
 msgid "Remote image download failed."
 msgstr "Impossibile scaricare l’immagine remota."
 
 #. ll-tools-public-key: 70ed75517ba37c53c4c1e794d8fd0a7dad0a75aa
-#: includes/lib/media-proxy.php:996
+#: includes/lib/media-proxy.php:1011
 msgid "Remote image response was invalid or too large."
 msgstr "La risposta dell’immagine remota non è valida o è troppo grande."
 
 #. ll-tools-public-key: 592fbf36a52e9a99768cf6287ee213d2c3aaa571
-#: includes/lib/media-proxy.php:1010
+#: includes/lib/media-proxy.php:1025
 msgid "Remote image could not be cached."
 msgstr "Impossibile memorizzare l’immagine remota nella cache."
 
 #. ll-tools-public-key: 82b9b4b7c99045e3936f2c2ec7a259d6bc2e11b5
-#: includes/lib/media-proxy.php:1035
+#: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "L’aggiornamento dell’immagine remota è temporaneamente sospeso."

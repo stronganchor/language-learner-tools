@@ -28310,30 +28310,30 @@ msgstr "Uzak görsel önbelleğinin kök dizini yüklemeler dizininin dışında
 msgid "Invalid media proxy cache context."
 msgstr "Medya proxy önbellek bağlamı geçersiz."
 
-#: includes/lib/media-proxy.php:577
+#: includes/lib/media-proxy.php:584
 msgid "Remote image cache path is invalid."
 msgstr "Uzak görsel önbellek yolu geçersiz."
 
-#: includes/lib/media-proxy.php:624
+#: includes/lib/media-proxy.php:639
 msgid "Remote image cache is still being prepared."
 msgstr "Uzak görsel önbelleği hâlâ hazırlanıyor."
 
-#: includes/lib/media-proxy.php:964
+#: includes/lib/media-proxy.php:979
 msgid "Remote image cache storage is unavailable."
 msgstr "Uzak görsel önbelleği için depolama alanı kullanılamıyor."
 
-#: includes/lib/media-proxy.php:983
+#: includes/lib/media-proxy.php:998
 msgid "Remote image download failed."
 msgstr "Uzak görsel indirilemedi."
 
-#: includes/lib/media-proxy.php:996
+#: includes/lib/media-proxy.php:1011
 msgid "Remote image response was invalid or too large."
 msgstr "Uzak görsel yanıtı geçersiz veya çok büyük."
 
-#: includes/lib/media-proxy.php:1010
+#: includes/lib/media-proxy.php:1025
 msgid "Remote image could not be cached."
 msgstr "Uzak görsel önbelleğe alınamadı."
 
-#: includes/lib/media-proxy.php:1035
+#: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "Uzak görsel yenileme işlemi geçici olarak ertelendi."

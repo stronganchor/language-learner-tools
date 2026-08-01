@@ -5586,36 +5586,36 @@ msgid "Invalid media proxy cache context."
 msgstr "미디어 프록시 캐시 컨텍스트가 올바르지 않습니다."
 
 #. ll-tools-public-key: c9ef452671ecaf8f74c70d405ecf236e91c27b64
-#: includes/lib/media-proxy.php:577
+#: includes/lib/media-proxy.php:584
 msgid "Remote image cache path is invalid."
 msgstr "원격 이미지 캐시 경로가 올바르지 않습니다."
 
 #. ll-tools-public-key: 4a5dada965ed4ff5dcd5f4c5642299c5f04bc95e
-#: includes/lib/media-proxy.php:624
+#: includes/lib/media-proxy.php:639
 msgid "Remote image cache is still being prepared."
 msgstr "원격 이미지 캐시를 아직 준비하는 중입니다."
 
 #. ll-tools-public-key: 2d7c32d7b228c1121a5076640846c18e84aa4417
-#: includes/lib/media-proxy.php:964
+#: includes/lib/media-proxy.php:979
 msgid "Remote image cache storage is unavailable."
 msgstr "원격 이미지 캐시 저장소를 사용할 수 없습니다."
 
 #. ll-tools-public-key: 9553f7c3917f3c78989410d127c4cf2c09b6a7ca
-#: includes/lib/media-proxy.php:983
+#: includes/lib/media-proxy.php:998
 msgid "Remote image download failed."
 msgstr "원격 이미지를 다운로드하지 못했습니다."
 
 #. ll-tools-public-key: 70ed75517ba37c53c4c1e794d8fd0a7dad0a75aa
-#: includes/lib/media-proxy.php:996
+#: includes/lib/media-proxy.php:1011
 msgid "Remote image response was invalid or too large."
 msgstr "원격 이미지 응답이 올바르지 않거나 너무 큽니다."
 
 #. ll-tools-public-key: 592fbf36a52e9a99768cf6287ee213d2c3aaa571
-#: includes/lib/media-proxy.php:1010
+#: includes/lib/media-proxy.php:1025
 msgid "Remote image could not be cached."
 msgstr "원격 이미지를 캐시하지 못했습니다."
 
 #. ll-tools-public-key: 82b9b4b7c99045e3936f2c2ec7a259d6bc2e11b5
-#: includes/lib/media-proxy.php:1035
+#: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "원격 이미지 새로 고침이 일시적으로 연기되었습니다."

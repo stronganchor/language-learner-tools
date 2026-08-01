@@ -1639,15 +1639,27 @@
             ]
         },
         {
+            "key": "70ed75517ba37c53c4c1e794d8fd0a7dad0a75aa",
+            "context": "",
+            "msgid": "Remote image response was invalid or too large.",
+            "msgid_plural": null,
+            "references": [
+                "includes/lib/media-proxy.php:1011"
+            ],
+            "public_references": [
+                "includes/lib/media-proxy.php:1011"
+            ]
+        },
+        {
             "key": "592fbf36a52e9a99768cf6287ee213d2c3aaa571",
             "context": "",
             "msgid": "Remote image could not be cached.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:1010"
+                "includes/lib/media-proxy.php:1025"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:1010"
+                "includes/lib/media-proxy.php:1025"
             ]
         },
         {
@@ -1656,10 +1668,10 @@
             "msgid": "Remote image refresh is temporarily backed off.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:1035"
+                "includes/lib/media-proxy.php:1050"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:1035"
+                "includes/lib/media-proxy.php:1050"
             ]
         },
         {
@@ -1716,10 +1728,10 @@
             "msgid": "Remote image cache path is invalid.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:577"
+                "includes/lib/media-proxy.php:584"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:577"
+                "includes/lib/media-proxy.php:584"
             ]
         },
         {
@@ -1728,10 +1740,10 @@
             "msgid": "Remote image cache is still being prepared.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:624"
+                "includes/lib/media-proxy.php:639"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:624"
+                "includes/lib/media-proxy.php:639"
             ]
         },
         {
@@ -1740,10 +1752,10 @@
             "msgid": "Remote image cache storage is unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:964"
+                "includes/lib/media-proxy.php:979"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:964"
+                "includes/lib/media-proxy.php:979"
             ]
         },
         {
@@ -1752,22 +1764,10 @@
             "msgid": "Remote image download failed.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/media-proxy.php:983"
+                "includes/lib/media-proxy.php:998"
             ],
             "public_references": [
-                "includes/lib/media-proxy.php:983"
-            ]
-        },
-        {
-            "key": "70ed75517ba37c53c4c1e794d8fd0a7dad0a75aa",
-            "context": "",
-            "msgid": "Remote image response was invalid or too large.",
-            "msgid_plural": null,
-            "references": [
-                "includes/lib/media-proxy.php:996"
-            ],
-            "public_references": [
-                "includes/lib/media-proxy.php:996"
+                "includes/lib/media-proxy.php:998"
             ]
         },
         {
