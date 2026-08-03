@@ -489,6 +489,268 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         $this->assertFalse(ll_tools_flashcard_payload_lock_is_active($scopeHash));
     }
 
+    public function test_option_row_reader_finds_an_eligible_word_after_more_than_two_hundred_raw_misses(): void
+    {
+        $term = $this->createCategory(
+            'Late Materialized Option',
+            'audio',
+            'text_translation'
+        );
+        $targetId = $this->createWord($term, 'Early eligible target', 'Early translation');
+        $this->addAudioToWord($targetId, 'Early eligible audio');
+
+        for ($index = 1; $index <= 205; $index++) {
+            $this->createWord(
+                $term,
+                sprintf('Raw ineligible word %03d', $index),
+                sprintf('Raw ineligible translation %03d', $index)
+            );
+        }
+
+        $distractorId = $this->createWord($term, 'Late eligible distractor', 'Late translation');
+        $this->addAudioToWord($distractorId, 'Late eligible audio');
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+        $scope = $this->buildScope($term);
+
+        $cold = ll_tools_flashcard_payload_read_option_rows($scope, [$targetId], 12);
+        $this->assertWPError($cold);
+        $this->assertSame('flashcard_payload_warming', $cold->get_error_code());
+
+        $published = $this->warmScope($scope);
+        $this->assertSame(2, (int) ($published['row_count'] ?? 0));
+
+        $rows = ll_tools_flashcard_payload_read_option_rows($scope, [$targetId], 12);
+        $this->assertIsArray($rows);
+        $this->assertSame([$distractorId], $this->rowIds($rows));
+    }
+
+    public function test_option_row_reader_caps_output_and_excludes_every_canonical_alias_under_lease(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createTextFixture('Bounded Option Reader', 18);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+        $published = $this->warmScope($scope);
+        $generation = (string) ($published['published_generation'] ?? '');
+        $targetId = (int) $fixture['word_ids'][0];
+        $answerAliasId = (int) $fixture['word_ids'][1];
+        $progressAliasId = (int) $fixture['word_ids'][2];
+
+        foreach ([
+            $answerAliasId => ['answer_word_id' => $targetId],
+            $progressAliasId => ['progress_word_id' => $targetId],
+        ] as $rowId => $changes) {
+            $storedPayload = (string) $wpdb->get_var($wpdb->prepare(
+                'SELECT payload FROM ' . ll_tools_flashcard_payload_table_name()
+                    . ' WHERE scope_hash = %s AND generation = %s'
+                    . " AND row_kind = 'word' AND row_id = %d",
+                $scopeHash,
+                $generation,
+                $rowId
+            ));
+            $decoded = json_decode($storedPayload, true);
+            $this->assertIsArray($decoded);
+            $decoded = array_merge($decoded, $changes);
+            $updatedPayload = (string) wp_json_encode($decoded);
+            $this->assertSame(
+                1,
+                $wpdb->update(
+                    ll_tools_flashcard_payload_table_name(),
+                    [
+                        'payload' => $updatedPayload,
+                        'payload_bytes' => strlen($updatedPayload),
+                    ],
+                    [
+                        'scope_hash' => $scopeHash,
+                        'generation' => $generation,
+                        'row_kind' => 'word',
+                        'row_id' => $rowId,
+                    ],
+                    ['%s', '%d'],
+                    ['%s', '%s', '%s', '%d']
+                )
+            );
+        }
+
+        $metadataQueries = [];
+        $observedLease = false;
+        $captureRead = static function (string $sql) use (
+            $scopeHash,
+            &$metadataQueries,
+            &$observedLease
+        ): string {
+            if (
+                stripos($sql, 'OCTET_LENGTH(payload) AS actual_payload_bytes') !== false
+                && stripos($sql, "row_kind IN ('word', 'prompt')") !== false
+                && stripos($sql, 'ORDER BY sort_group ASC, row_id ASC') !== false
+            ) {
+                $metadataQueries[] = $sql;
+                $observedLease = ll_tools_flashcard_payload_lock_is_active($scopeHash);
+            }
+            return $sql;
+        };
+
+        $normalizedScope = $scope;
+        $normalizedScope['scope_hash'] = str_repeat('f', 64);
+        add_filter('query', $captureRead);
+        try {
+            $rows = ll_tools_flashcard_payload_read_option_rows(
+                $normalizedScope,
+                [$targetId],
+                99
+            );
+        } finally {
+            remove_filter('query', $captureRead);
+        }
+
+        $this->assertIsArray($rows);
+        $this->assertCount(12, $rows);
+        $this->assertSame(
+            array_slice($fixture['word_ids'], 3, 12),
+            $this->rowIds($rows)
+        );
+        $this->assertCount(1, $metadataQueries);
+        $this->assertMatchesRegularExpression('/LIMIT\s+48\b/i', $metadataQueries[0]);
+        $this->assertStringNotContainsString(' OFFSET ', strtoupper($metadataQueries[0]));
+        $this->assertTrue($observedLease);
+        $this->assertFalse(ll_tools_flashcard_payload_lock_is_active($scopeHash));
+    }
+
+    public function test_option_row_reader_preserves_prompt_and_support_rows_without_duplicate_answer_identity(): void
+    {
+        global $wpdb;
+
+        $term = $this->createCategory(
+            'Prompt Support Options',
+            'audio',
+            'text_translation'
+        );
+        $answerId = $this->createWord($term, 'Prompt answer', 'Answer translation');
+        $wrongId = $this->createWord($term, 'Prompt wrong option', 'Wrong translation');
+        $this->addAudioToWord($wrongId, 'Prompt wrong option audio');
+        $promptCardId = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Materialized prompt card',
+        ]);
+        wp_set_object_terms($promptCardId, [(int) $term->term_id], 'word-category');
+        update_post_meta(
+            $promptCardId,
+            LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY,
+            'https://example.com/materialized-prompt.mp3'
+        );
+        update_post_meta(
+            $promptCardId,
+            LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY,
+            $answerId
+        );
+        update_post_meta(
+            $promptCardId,
+            LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY,
+            [$wrongId]
+        );
+        update_post_meta(
+            $promptCardId,
+            LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY,
+            1
+        );
+        ll_tools_rebuild_specific_wrong_answer_owner_map();
+
+        $scope = $this->buildScope($term);
+        $published = $this->warmScope($scope);
+        $storedKinds = $wpdb->get_col($wpdb->prepare(
+            'SELECT row_kind FROM ' . ll_tools_flashcard_payload_table_name()
+                . ' WHERE scope_hash = %s AND generation = %s ORDER BY row_kind ASC',
+            (string) $scope['scope_hash'],
+            (string) ($published['published_generation'] ?? '')
+        ));
+        $this->assertContains('prompt', $storedKinds);
+        $this->assertContains('word', $storedKinds);
+
+        $unscopedOptions = ll_tools_flashcard_payload_read_option_rows($scope, [], 12);
+        $this->assertIsArray($unscopedOptions);
+        $expectedUnscopedIds = [$wrongId, $promptCardId];
+        sort($expectedUnscopedIds, SORT_NUMERIC);
+        $this->assertSame($expectedUnscopedIds, $this->rowIds($unscopedOptions));
+        $promptRows = array_values(array_filter(
+            $unscopedOptions,
+            static function (array $row) use ($promptCardId): bool {
+                return !empty($row['is_prompt_card'])
+                    && (int) ($row['id'] ?? 0) === $promptCardId;
+            }
+        ));
+        $this->assertCount(1, $promptRows);
+        $this->assertSame($answerId, (int) ($promptRows[0]['answer_word_id'] ?? 0));
+        $this->assertSame($answerId, (int) ($promptRows[0]['progress_word_id'] ?? 0));
+        $this->assertContains(
+            $wrongId,
+            array_map('intval', (array) ($promptRows[0]['specific_wrong_answer_ids'] ?? []))
+        );
+
+        $targetScopedOptions = ll_tools_flashcard_payload_read_option_rows(
+            $scope,
+            [$promptCardId, $answerId],
+            12
+        );
+        $this->assertIsArray($targetScopedOptions);
+        $this->assertSame([$wrongId], $this->rowIds($targetScopedOptions));
+        $wrongRow = $targetScopedOptions[0];
+        $storedWrongPayload = (string) $wpdb->get_var($wpdb->prepare(
+            'SELECT payload FROM ' . ll_tools_flashcard_payload_table_name()
+                . ' WHERE scope_hash = %s AND generation = %s'
+                . " AND row_kind = 'word' AND row_id = %d",
+            (string) $scope['scope_hash'],
+            (string) ($published['published_generation'] ?? ''),
+            $wrongId
+        ));
+        $storedWrongRow = json_decode($storedWrongPayload, true);
+        $this->assertIsArray($storedWrongRow);
+        $this->assertSame($storedWrongRow, $wrongRow);
+    }
+
+    public function test_option_row_reader_rejects_signature_drift_during_its_fenced_read(): void
+    {
+        $fixture = $this->createTextFixture('Option Reader Drift', 3);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+        $this->warmScope($scope);
+        $observedRead = false;
+        $observedLease = false;
+        $drifted = false;
+        $captureRead = static function (string $sql) use (
+            $scopeHash,
+            &$observedRead,
+            &$observedLease,
+            &$drifted
+        ): string {
+            if (
+                !$drifted
+                && stripos($sql, 'OCTET_LENGTH(payload) AS actual_payload_bytes') !== false
+                && stripos($sql, "row_kind IN ('word', 'prompt')") !== false
+            ) {
+                $drifted = true;
+                $observedRead = true;
+                $observedLease = ll_tools_flashcard_payload_lock_is_active($scopeHash);
+                ll_tools_bump_category_cache_epoch();
+            }
+            return $sql;
+        };
+
+        add_filter('query', $captureRead);
+        try {
+            $result = ll_tools_flashcard_payload_read_option_rows($scope, [], 12);
+        } finally {
+            remove_filter('query', $captureRead);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('stale_flashcard_payload_cursor', $result->get_error_code());
+        $this->assertTrue($observedRead);
+        $this->assertTrue($observedLease);
+        $this->assertFalse(ll_tools_flashcard_payload_lock_is_active($scopeHash));
+    }
+
     public function test_locale_is_part_of_scope_identity_and_request_locale_is_allowlisted(): void
     {
         $fixture = $this->createTextFixture('Locale Scope', 1);
@@ -867,6 +1129,23 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         update_post_meta($wordId, 'word_translation', $translation);
 
         return (int) $wordId;
+    }
+
+    private function addAudioToWord(int $wordId, string $title): int
+    {
+        $audioId = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_parent' => $wordId,
+        ]);
+        update_post_meta(
+            $audioId,
+            'audio_file_path',
+            sprintf('/wp-content/uploads/materializer-option-%d.mp3', $audioId)
+        );
+
+        return (int) $audioId;
     }
 
     /**

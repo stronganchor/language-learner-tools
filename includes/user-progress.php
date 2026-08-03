@@ -9514,6 +9514,7 @@ function ll_tools_build_launchable_user_study_selection_chunks(
  * afterward for one bounded chunk at a time, avoiding a full payload drain for
  * every selected category while preserving the complete matching word set.
  *
+ * @param int[] $candidate_word_ids Optional exact canonical target IDs.
  * @return array<string,mixed>|WP_Error
  */
 function ll_tools_build_user_study_selection_launch_plan(
@@ -9521,7 +9522,8 @@ function ll_tools_build_user_study_selection_launch_plan(
     int $wordset_id,
     array $requested_category_ids,
     string $criteria = '',
-    string $mode = 'practice'
+    string $mode = 'practice',
+    array $candidate_word_ids = []
 ) {
     global $wpdb;
 
@@ -9536,6 +9538,13 @@ function ll_tools_build_user_study_selection_launch_plan(
     if ($mode === '') {
         $mode = 'practice';
     }
+    $candidate_word_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $has_exact_candidate_scope = !empty($candidate_word_ids);
+    $candidate_word_lookup = $has_exact_candidate_scope
+        ? array_fill_keys($candidate_word_ids, true)
+        : [];
 
     $requested_category_ids = array_values(array_unique(array_filter(array_map('intval', $requested_category_ids), static function (int $category_id): bool {
         return $category_id > 0;
@@ -9624,7 +9633,7 @@ function ll_tools_build_user_study_selection_launch_plan(
     }
 
     $progress_rows = [];
-    if (in_array($criteria, ['new', 'studied', 'learned', 'hard'], true)) {
+    if (!$has_exact_candidate_scope && in_array($criteria, ['new', 'studied', 'learned', 'hard'], true)) {
         $progress_complete = true;
         $wpdb->last_error = '';
         $progress_rows = function_exists('ll_tools_get_user_word_progress_summary_rows')
@@ -9636,7 +9645,7 @@ function ll_tools_build_user_study_selection_launch_plan(
     }
 
     $starred_lookup = [];
-    if ($criteria === 'starred') {
+    if (!$has_exact_candidate_scope && $criteria === 'starred') {
         $study_state = ll_tools_get_user_study_state($user_id);
         foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_word_id) {
             $starred_word_id = (int) $starred_word_id;
@@ -9658,7 +9667,11 @@ function ll_tools_build_user_study_selection_launch_plan(
             $progress_row = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
                 ? $progress_rows[$word_id]
                 : null;
-            if (
+            if ($has_exact_candidate_scope) {
+                if (!isset($candidate_word_lookup[$word_id])) {
+                    continue;
+                }
+            } elseif (
                 $criteria !== ''
                 && !ll_tools_user_study_word_matches_priority_focus($word_id, $progress_row, $criteria, $starred_lookup)
             ) {
@@ -9753,6 +9766,41 @@ function ll_tools_user_study_selection_launch_plan_ajax() {
     if (count($category_ids) > $max_input_categories) {
         wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 400);
     }
+    $candidate_word_ids = [];
+    if (array_key_exists('candidate_word_ids', $_POST)) {
+        $candidate_word_limit = max(1, min(5000, (int) apply_filters(
+            'll_tools_user_study_selection_launch_candidate_word_id_limit',
+            5000,
+            $wordset_id
+        )));
+        $candidate_word_ids_raw = wp_unslash($_POST['candidate_word_ids']);
+        $candidate_input_is_too_large = false;
+        if (is_array($candidate_word_ids_raw)) {
+            $candidate_input_is_too_large = count($candidate_word_ids_raw) > $candidate_word_limit;
+        } elseif (is_scalar($candidate_word_ids_raw)) {
+            $candidate_input_is_too_large = strlen((string) $candidate_word_ids_raw) > max(
+                4096,
+                min(131072, $candidate_word_limit * 24)
+            );
+        } else {
+            $candidate_input_is_too_large = true;
+        }
+        if ($candidate_input_is_too_large) {
+            wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 400);
+        }
+
+        $candidate_word_ids = function_exists('ll_tools_parse_request_id_list')
+            ? ll_tools_parse_request_id_list($candidate_word_ids_raw, $candidate_word_limit + 1)
+            : array_values(array_unique(array_filter(array_map('intval', (array) $candidate_word_ids_raw), static function (int $word_id): bool {
+                return $word_id > 0;
+            })));
+        if (count($candidate_word_ids) > $candidate_word_limit) {
+            wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 400);
+        }
+        if (empty($candidate_word_ids)) {
+            wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], 400);
+        }
+    }
     $criteria = isset($_POST['criteria'])
         ? sanitize_key(wp_unslash((string) $_POST['criteria']))
         : '';
@@ -9765,7 +9813,8 @@ function ll_tools_user_study_selection_launch_plan_ajax() {
         $wordset_id,
         $category_ids,
         $criteria,
-        $mode
+        $mode,
+        $candidate_word_ids
     );
     if (is_wp_error($plan)) {
         $error_code = (string) $plan->get_error_code();

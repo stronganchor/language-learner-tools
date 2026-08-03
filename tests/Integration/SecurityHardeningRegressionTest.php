@@ -279,6 +279,266 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertLessThanOrEqual(5, count($ids));
     }
 
+    public function test_public_word_fetch_option_pool_scans_past_ineligible_candidates(): void
+    {
+        $target_fixture = $this->create_flashcard_word_with_audio(333);
+        $category = get_term_by('name', $target_fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+
+        $ineligible_word_ids = [];
+        for ($index = 1; $index <= 12; $index++) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => 'Ineligible Pool Word ' . $index,
+            ]);
+            wp_set_object_terms($word_id, [(int) $category->term_id], 'word-category');
+            update_post_meta($word_id, 'word_translation', 'Ineligible Translation ' . $index);
+            $ineligible_word_ids[] = (int) $word_id;
+        }
+
+        $distractor_fixture = $this->create_flashcard_word_with_audio(444);
+        wp_set_current_user(0);
+
+        $_POST = [
+            'category' => $target_fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $target_fixture['word_id'],
+            'include_option_pool' => '1',
+            'option_pool_limit' => '12',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $rows)));
+
+        $this->assertContains((int) $target_fixture['word_id'], $ids);
+        $this->assertContains((int) $distractor_fixture['word_id'], $ids);
+        foreach ($ineligible_word_ids as $ineligible_word_id) {
+            $this->assertNotContains($ineligible_word_id, $ids);
+        }
+    }
+
+    public function test_public_word_fetch_uses_materialized_option_pool_after_fast_window_underfills(): void
+    {
+        $target_fixture = $this->create_flashcard_word_with_audio(555);
+        $category = get_term_by('name', $target_fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+
+        $ineligible_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Early Ineligible Pool Word',
+        ]);
+        wp_set_object_terms($ineligible_word_id, [(int) $category->term_id], 'word-category');
+        update_post_meta($ineligible_word_id, 'word_translation', 'Early Ineligible Translation');
+
+        $distractor_fixture = $this->create_flashcard_word_with_audio(666);
+        $request = [
+            'category' => $target_fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $target_fixture['word_id'],
+            'include_option_pool' => '1',
+            'option_pool_limit' => '1',
+        ];
+        $scan_one_raw_word = static function (): int {
+            return 1;
+        };
+        $response = [];
+        $warming_reasons = [];
+        wp_set_current_user(0);
+        add_filter(
+            'll_tools_flashcards_public_ajax_option_pool_scan_limit',
+            $scan_one_raw_word
+        );
+
+        try {
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $_POST = $request;
+                $_REQUEST = $_POST;
+                $response = $this->run_json_endpoint(static function (): void {
+                    ll_get_words_by_category_ajax();
+                });
+                if (!empty($response['success'])) {
+                    break;
+                }
+                $this->assertSame('cache_warming', (string) ($response['data']['code'] ?? ''));
+                $warming_reasons[] = (string) ($response['data']['reason'] ?? '');
+            }
+        } finally {
+            remove_filter(
+                'll_tools_flashcards_public_ajax_option_pool_scan_limit',
+                $scan_one_raw_word
+            );
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertNotEmpty($warming_reasons);
+        $this->assertNotContains('', $warming_reasons);
+        $this->assertSame(
+            ['option_pool_materializing'],
+            array_values(array_unique($warming_reasons))
+        );
+        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, $rows)));
+        $this->assertContains((int) $target_fixture['word_id'], $ids);
+        $this->assertContains((int) $distractor_fixture['word_id'], $ids);
+        $this->assertNotContains($ineligible_word_id, $ids);
+    }
+
+    public function test_public_word_fetch_option_pool_preserves_prompt_card_via_answer_word_id(): void
+    {
+        $category_name = 'Prompt Pool Category ' . wp_generate_password(6, false);
+        $category_id = $this->ensure_term('word-category', $category_name, sanitize_title($category_name));
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $target_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Prompt Pool Target',
+        ]);
+        wp_set_object_terms($target_word_id, [$category_id], 'word-category');
+        update_post_meta($target_word_id, 'word_translation', 'Target Translation');
+        $target_audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $target_word_id,
+            'post_title' => 'Prompt Pool Target Audio',
+        ]);
+        update_post_meta($target_audio_id, 'audio_file_path', '/wp-content/uploads/prompt-pool-target.mp3');
+
+        $answer_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Prompt Pool Answer',
+        ]);
+        wp_set_object_terms($answer_word_id, [$category_id], 'word-category');
+        update_post_meta($answer_word_id, 'word_translation', 'Answer Translation');
+
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Prompt Pool Card',
+        ]);
+        wp_set_object_terms($prompt_card_id, [$category_id], 'word-category');
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Choose the prompt-card answer.');
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, 'https://example.com/prompt-pool-card.mp3');
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, $answer_word_id);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, [$target_word_id]);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_TRACK_ANSWER_WORD_PROGRESS_META_KEY, 1);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'category' => $category_name,
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $target_word_id,
+            'include_option_pool' => '1',
+            'option_pool_limit' => '1',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $prompt_row = null;
+        foreach ($rows as $row) {
+            if (is_array($row) && (int) ($row['prompt_card_id'] ?? 0) === $prompt_card_id) {
+                $prompt_row = $row;
+                break;
+            }
+        }
+
+        $this->assertIsArray($prompt_row);
+        $this->assertTrue((bool) ($prompt_row['is_prompt_card'] ?? false));
+        $this->assertSame($prompt_card_id, (int) ($prompt_row['id'] ?? 0));
+        $this->assertSame($answer_word_id, (int) ($prompt_row['answer_word_id'] ?? 0));
+        $this->assertSame($answer_word_id, (int) ($prompt_row['progress_word_id'] ?? 0));
+    }
+
+    public function test_candidate_option_guard_only_accepts_usable_text_fallbacks(): void
+    {
+        $target = [
+            'id' => 701,
+            'title' => 'Işık',
+            'label' => 'Işık',
+            'translation' => 'Light',
+            'specific_wrong_answer_texts' => ['ışık'],
+        ];
+
+        $this->assertFalse(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target],
+            [701],
+            ['option_type' => 'text_title']
+        ));
+
+        $target['specific_wrong_answer_texts'] = ['Shadow'];
+        $this->assertTrue(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target],
+            [701],
+            ['option_type' => 'text_title']
+        ));
+        $this->assertFalse(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target],
+            [701],
+            ['option_type' => 'image']
+        ));
+
+        $target['specific_wrong_answer_texts'] = ['LİGHT'];
+        $this->assertFalse(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target],
+            [701],
+            ['option_type' => 'text_translation']
+        ));
+
+        $prompt_image_support = [
+            'id' => 702,
+            'is_prompt_card_prompt_image_support' => true,
+            'prompt_card_support_roles' => ['prompt'],
+        ];
+        $this->assertFalse(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target, $prompt_image_support],
+            [701],
+            ['option_type' => 'image']
+        ));
+
+        $this->assertTrue(ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+            [$target, ['id' => 702, 'title' => 'Shadow']],
+            [701],
+            ['option_type' => 'image']
+        ));
+    }
+
     public function test_public_flashcard_ajax_cache_is_anonymous_and_epoch_scoped(): void
     {
         wp_set_current_user(0);

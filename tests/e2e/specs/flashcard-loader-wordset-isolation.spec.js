@@ -670,13 +670,22 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
             prompt_card_support_owner_ids: [9001]
           },
           {
+            id: 502,
+            title: 'Prompt wrong option',
+            label: 'Prompt wrong option',
+            wordset_ids: [101],
+            is_specific_wrong_answer_only: true,
+            specific_wrong_answer_owner_ids: [9001]
+          },
+          {
             id: 9001,
             answer_word_id: 501,
             progress_word_id: 501,
             title: 'Canonical prompt target',
             label: 'Canonical prompt target',
             wordset_ids: [101],
-            is_prompt_card: true
+            is_prompt_card: true,
+            specific_wrong_answer_ids: [502]
           }
         ],
         22: [
@@ -733,15 +742,21 @@ test('bounded category handoff keeps canonical prompt-card targets and performs 
   expect(result.ajaxCount).toBe(0);
   expect(result.promptTargets).toEqual([{ id: 9001, answerWordId: 501, progressWordId: 501 }]);
   expect(result.regularTargets).toEqual([602]);
-  expect(result.promptOptions).toEqual([501, 9001]);
+  expect(result.promptOptions).toEqual([501, 502, 9001]);
   expect(result.regularOptions).toEqual([602, 699]);
 
   const continued = await page.evaluate(async () => {
     const flash = window.llToolsFlashcardsData;
     flash.sessionWordIds = [703, 704];
     flash.boundedCandidateRowsByCategoryId = {
-      11: [{ id: 703, title: 'Next prompt target', label: 'Next prompt target', wordset_ids: [101] }],
-      22: [{ id: 704, title: 'Next regular target', label: 'Next regular target', wordset_ids: [101] }]
+      11: [
+        { id: 703, title: 'Next prompt target', label: 'Next prompt target', wordset_ids: [101] },
+        { id: 705, title: 'Next prompt option', label: 'Next prompt option', wordset_ids: [101] }
+      ],
+      22: [
+        { id: 704, title: 'Next regular target', label: 'Next regular target', wordset_ids: [101] },
+        { id: 706, title: 'Next regular option', label: 'Next regular option', wordset_ids: [101] }
+      ]
     };
     flash.sessionWordIdsByCategoryId = { 11: [703], 22: [704] };
     const consumed = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData([
@@ -819,6 +834,157 @@ test('incomplete bounded category handoff rejects before any AJAX fallback', asy
     code: 'll_bounded_preload_required'
   });
   expect(result.ajaxCount).toBe(0);
+});
+
+test('target-only bounded category handoff rejects atomically before quiz setup', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = { Solo: 7 };
+    window.categoryNames = ['Solo'];
+    window.getCategoryDisplayMode = function () { return 'text'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'bounded-set',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      boundedSelectionPlan: true,
+      sessionWordIds: [501],
+      categories: [
+        { id: 11, name: 'Solo', prompt_type: 'text_title', option_type: 'text_title' }
+      ],
+      boundedCandidateRowsByCategoryId: {
+        11: [
+          { id: 501, title: 'Target', label: 'Target', wordset_ids: [101] },
+          { id: 502, title: 'Valid option', label: 'Valid option', wordset_ids: [101] }
+        ]
+      },
+      sessionWordIdsByCategoryId: { 11: [501] }
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Solo']);
+    window.llToolsFlashcardsData.boundedCandidateRowsByCategoryId = {
+      11: [{ id: 501, title: 'Only target', label: 'Only target', wordset_ids: [101] }]
+    };
+    let rejection = null;
+    try {
+      await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Solo']);
+    } catch (error) {
+      rejection = {
+        code: String(error && error.code || ''),
+        message: String(error && error.message || ''),
+        details: error && error.details ? Object.assign({}, error.details) : {}
+      };
+    }
+    return {
+      rejection,
+      targetIds: (window.wordsByCategory.Solo || []).map((row) => Number(row.id) || 0),
+      optionIds: (window.optionWordsByCategory.Solo || []).map((row) => Number(row.id) || 0).sort((a, b) => a - b),
+      roundCount: Number(window.categoryRoundCount.Solo) || 0
+    };
+  });
+
+  expect(result.rejection).toMatchObject({
+    code: 'll_bounded_preload_invalid',
+    details: { availableOptions: 1, requiredOptions: 2 }
+  });
+  expect(result.rejection.message).toContain('fewer than two');
+  expect(result.targetIds).toEqual([501]);
+  expect(result.optionIds).toEqual([501, 502]);
+  expect(result.roundCount).toBe(7);
+});
+
+test('bounded target-only handoff accepts only runtime-usable text fallbacks', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Fallbacks'];
+    window.getCategoryDisplayMode = function () { return 'text'; };
+    window.llToolsFlashcardsData = {
+      wordset: 'bounded-set',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      boundedSelectionPlan: true,
+      sessionWordIds: [601],
+      categories: [
+        { id: 11, name: 'Fallbacks', prompt_type: 'text_title', option_type: 'image' }
+      ],
+      boundedCandidateRowsByCategoryId: {},
+      sessionWordIdsByCategoryId: { 11: [601] }
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const result = await page.evaluate(async () => {
+    const flash = window.llToolsFlashcardsData;
+    const category = flash.categories[0];
+    const tryConsume = async function (optionType, wrongTexts, rowValues) {
+      const values = rowValues && typeof rowValues === 'object' ? rowValues : {};
+      category.option_type = optionType;
+      flash.boundedCandidateRowsByCategoryId = {
+        11: [{
+          id: 601,
+          title: String(values.title || 'Only target'),
+          label: String(values.label || 'Only target'),
+          translation: String(values.translation || ''),
+          image: optionType === 'image' ? 'target.jpg' : '',
+          wordset_ids: [101],
+          specific_wrong_answer_texts: wrongTexts.slice()
+        }]
+      };
+      try {
+        const value = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Fallbacks']);
+        return { status: 'fulfilled', value };
+      } catch (error) {
+        return {
+          status: 'rejected',
+          code: String(error && error.code || ''),
+          availableOptions: Number(error && error.details && error.details.availableOptions) || 0
+        };
+      }
+    };
+
+    return {
+      imageWithText: await tryConsume('image', ['Different text']),
+      textMatchingTitle: await tryConsume('text_title', ['Only target']),
+      translationMatchingOption: await tryConsume('text_translation', ['day'], {
+        title: 'roj',
+        label: 'day',
+        translation: 'day'
+      }),
+      textWithDistinctFallback: await tryConsume('text_title', ['Different text'])
+    };
+  });
+
+  expect(result.imageWithText).toEqual({
+    status: 'rejected',
+    code: 'll_bounded_preload_invalid',
+    availableOptions: 1
+  });
+  expect(result.textMatchingTitle).toEqual({
+    status: 'rejected',
+    code: 'll_bounded_preload_invalid',
+    availableOptions: 1
+  });
+  expect(result.translationMatchingOption).toEqual({
+    status: 'rejected',
+    code: 'll_bounded_preload_invalid',
+    availableOptions: 1
+  });
+  expect(result.textWithDistinctFallback).toMatchObject({
+    status: 'fulfilled',
+    value: { success: true, boundedPreloaded: true }
+  });
 });
 
 test('flashcard loader can skip current-word audio preload when requested', async ({ page }) => {

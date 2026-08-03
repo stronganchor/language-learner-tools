@@ -1988,7 +1988,7 @@ function ll_tools_flashcards_public_ajax_option_pool_limit($value): int {
     return max(0, min(50, $limit));
 }
 
-function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, array $wordset_ids, array $exclude_word_ids, int $limit): array {
+function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, array $wordset_ids, array $exclude_word_ids, int $limit, array $base_config): array {
     $limit = max(0, min(50, $limit));
     if ($limit <= 0) {
         return [];
@@ -2035,10 +2035,20 @@ function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, arr
         $tax_query['relation'] = 'AND';
     }
 
+    // The first raw posts in a category are not necessarily quiz-eligible. Scan
+    // a larger but strictly capped window, then project those IDs through the
+    // canonical eligibility path before adding them to the public payload.
+    $scan_limit = max($limit, min(200, (int) apply_filters(
+        'll_tools_flashcards_public_ajax_option_pool_scan_limit',
+        max(50, $limit * 4),
+        $limit,
+        (int) $term->term_id,
+        $wordset_terms
+    )));
     $args = [
         'post_type' => 'words',
         'post_status' => 'publish',
-        'posts_per_page' => $limit,
+        'posts_per_page' => $scan_limit,
         'fields' => 'ids',
         'orderby' => 'ID',
         'order' => 'ASC',
@@ -2054,9 +2064,257 @@ function ll_tools_flashcards_public_ajax_option_pool_word_ids(WP_Term $term, arr
     }
 
     $query = new WP_Query($args);
-    return array_values(array_unique(array_filter(array_map('intval', (array) $query->posts), static function (int $word_id): bool {
+    $raw_word_ids = array_values(array_unique(array_filter(array_map('intval', (array) $query->posts), static function (int $word_id): bool {
         return $word_id > 0;
     })));
+    if (empty($raw_word_ids)) {
+        return [];
+    }
+
+    $eligible_word_ids = [];
+    $seen_eligible_word_ids = [];
+    foreach (array_chunk($raw_word_ids, 50) as $raw_word_id_chunk) {
+        $projection_config = $base_config;
+        $projection_config['__skip_quiz_config_merge'] = true;
+        $projection_config['__candidate_word_ids'] = $raw_word_id_chunk;
+        $projection_config['__eligibility_projection'] = true;
+        $projection_config['__skip_image_similarity_pairs'] = true;
+
+        $projection_complete = true;
+        $rows = ll_get_words_by_category(
+            $term,
+            (string) ($base_config['option_type'] ?? 'image'),
+            $wordset_terms,
+            $projection_config,
+            $projection_complete
+        );
+        if (!$projection_complete) {
+            return [];
+        }
+
+        $raw_word_lookup = array_fill_keys(array_map('intval', $raw_word_id_chunk), true);
+        $eligible_raw_word_lookup = [];
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            // Prompt-card projections use the prompt-card post as the row ID,
+            // while the bounded candidate contract remains keyed by its canonical
+            // answer/progress word. Preserve that canonical ID so the subsequent
+            // payload materialization can recreate the playable prompt-card row.
+            foreach (['id', 'answer_word_id', 'progress_word_id'] as $row_id_key) {
+                $eligible_raw_word_id = (int) ($row[$row_id_key] ?? 0);
+                if ($eligible_raw_word_id > 0 && isset($raw_word_lookup[$eligible_raw_word_id])) {
+                    $eligible_raw_word_lookup[$eligible_raw_word_id] = true;
+                }
+            }
+        }
+
+        foreach ($raw_word_id_chunk as $word_id) {
+            $word_id = (int) $word_id;
+            if (
+                $word_id <= 0
+                || !isset($eligible_raw_word_lookup[$word_id])
+                || isset($seen_eligible_word_ids[$word_id])
+            ) {
+                continue;
+            }
+            $eligible_word_ids[] = $word_id;
+            $seen_eligible_word_ids[$word_id] = true;
+            if (count($eligible_word_ids) >= $limit) {
+                break 2;
+            }
+        }
+    }
+
+    return $eligible_word_ids;
+}
+
+function ll_tools_flashcards_public_ajax_row_option_identity(array $row): int {
+    $answer_word_id = (int) ($row['answer_word_id'] ?? 0);
+    return $answer_word_id > 0
+        ? $answer_word_id
+        : max(0, (int) ($row['id'] ?? 0));
+}
+
+function ll_tools_flashcards_public_ajax_normalize_option_text($value): string {
+    $value = trim(is_scalar($value) ? (string) $value : '');
+    if ($value === '') {
+        return '';
+    }
+
+    // Match the browser's Turkish-aware comparison so dotted/dotless I does
+    // not turn a duplicate rendered label into an apparent fallback option.
+    $value = strtr($value, [
+        'I' => 'ı',
+        'İ' => 'i',
+    ]);
+    $value = function_exists('mb_strtolower')
+        ? mb_strtolower($value, 'UTF-8')
+        : strtolower($value);
+
+    return str_replace("\u{0307}", '', $value);
+}
+
+function ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+    array $rows,
+    array $candidate_word_ids,
+    array $base_config
+): bool {
+    $option_id_lookup = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $support_roles = array_values(array_filter(array_map(static function ($role): string {
+            return trim((string) $role);
+        }, (array) ($row['prompt_card_support_roles'] ?? []))));
+        if (
+            !empty($row['is_prompt_card_prompt_image_support'])
+            || (
+                in_array('prompt', $support_roles, true)
+                && !in_array('correct', $support_roles, true)
+            )
+        ) {
+            continue;
+        }
+        $option_id = ll_tools_flashcards_public_ajax_row_option_identity($row);
+        if ($option_id > 0) {
+            $option_id_lookup[$option_id] = true;
+        }
+    }
+    if (count($option_id_lookup) >= 2) {
+        return true;
+    }
+
+    $option_type = strtolower(trim((string) ($base_config['option_type'] ?? '')));
+    if (!in_array($option_type, ['text', 'text_title', 'text_translation'], true)) {
+        return false;
+    }
+
+    $candidate_lookup = array_fill_keys(array_values(array_filter(array_map(
+        'intval',
+        $candidate_word_ids
+    ), static function (int $word_id): bool {
+        return $word_id > 0;
+    })), true);
+    if (empty($candidate_lookup)) {
+        return false;
+    }
+
+    $target_count = 0;
+    foreach ($rows as $row) {
+        if (!is_array($row) || !empty($row['is_prompt_card_support_only'])) {
+            continue;
+        }
+        $matches_candidate = false;
+        foreach (['id', 'answer_word_id', 'progress_word_id'] as $word_id_key) {
+            $word_id = (int) ($row[$word_id_key] ?? 0);
+            if ($word_id > 0 && isset($candidate_lookup[$word_id])) {
+                $matches_candidate = true;
+                break;
+            }
+        }
+        if (!$matches_candidate) {
+            continue;
+        }
+
+        $target_count++;
+        $rendered_text_lookup = [];
+        foreach (['title', 'label'] as $text_key) {
+            $normalized = ll_tools_flashcards_public_ajax_normalize_option_text(
+                $row[$text_key] ?? ''
+            );
+            if ($normalized !== '') {
+                $rendered_text_lookup[$normalized] = true;
+            }
+        }
+        if ($option_type === 'text_translation') {
+            $translation_values = [$row['translation'] ?? ''];
+            foreach ((array) ($row['recording_translations_by_type'] ?? []) as $translation) {
+                $translation_values[] = $translation;
+            }
+            foreach ((array) ($row['audio_files'] ?? []) as $audio_file) {
+                if (is_array($audio_file)) {
+                    $translation_values[] = $audio_file['recording_translation'] ?? '';
+                }
+            }
+            foreach ($translation_values as $translation) {
+                $normalized = ll_tools_flashcards_public_ajax_normalize_option_text($translation);
+                if ($normalized !== '') {
+                    $rendered_text_lookup[$normalized] = true;
+                }
+            }
+        }
+
+        $has_usable_text_fallback = false;
+        foreach ((array) ($row['specific_wrong_answer_texts'] ?? []) as $wrong_text) {
+            $normalized = ll_tools_flashcards_public_ajax_normalize_option_text($wrong_text);
+            if ($normalized !== '' && !isset($rendered_text_lookup[$normalized])) {
+                $has_usable_text_fallback = true;
+                break;
+            }
+        }
+        if (!$has_usable_text_fallback) {
+            return false;
+        }
+    }
+
+    return $target_count > 0;
+}
+
+function ll_tools_flashcards_public_ajax_row_exclusion_ids(array $rows, array $seed_ids = []): array {
+    $lookup = [];
+    foreach ($seed_ids as $seed_id) {
+        $seed_id = (int) $seed_id;
+        if ($seed_id > 0) {
+            $lookup[$seed_id] = true;
+        }
+    }
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        foreach (['id', 'answer_word_id', 'progress_word_id'] as $word_id_key) {
+            $word_id = (int) ($row[$word_id_key] ?? 0);
+            if ($word_id > 0) {
+                $lookup[$word_id] = true;
+            }
+        }
+    }
+
+    return array_map('intval', array_keys($lookup));
+}
+
+function ll_tools_flashcards_public_ajax_merge_option_rows(array $rows, array $option_rows): array {
+    $seen = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row_id = (int) ($row['id'] ?? 0);
+        if ($row_id > 0) {
+            $seen[(!empty($row['is_prompt_card']) ? 'prompt:' : 'word:') . $row_id] = true;
+        }
+    }
+    foreach ($option_rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row_id = (int) ($row['id'] ?? 0);
+        if ($row_id <= 0) {
+            continue;
+        }
+        $key = (!empty($row['is_prompt_card']) ? 'prompt:' : 'word:') . $row_id;
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $rows[] = $row;
+        $seen[$key] = true;
+    }
+
+    return $rows;
 }
 
 function ll_tools_flashcards_public_ajax_cache_args(WP_Term $term, array $wordset_ids, bool $wordset_fallback, array $base_config, array $candidate_word_ids = [], bool $include_option_pool = false, int $option_pool_limit = 0): array {
@@ -2073,7 +2331,7 @@ function ll_tools_flashcards_public_ajax_cache_args(WP_Term $term, array $wordse
         'use_titles' => !empty($base_config['use_titles']),
         'term_id' => (int) $term->term_id,
         'term_slug' => (string) $term->slug,
-        'payload_conflict_schema' => 2,
+        'payload_conflict_schema' => 4,
         'quiz_config' => $base_config,
     ];
 
@@ -2091,7 +2349,7 @@ function ll_tools_flashcards_public_ajax_cache_args(WP_Term $term, array $wordse
 /**
  * Send a stable HTTP mapping for materializer/read errors.
  */
-function ll_tools_flashcards_send_payload_page_error(WP_Error $error): void {
+function ll_tools_flashcards_send_payload_page_error(WP_Error $error, array $context = []): void {
     $code = (string) $error->get_error_code();
     $data = $error->get_error_data();
     $data = is_array($data) ? $data : [];
@@ -2101,11 +2359,15 @@ function ll_tools_flashcards_send_payload_page_error(WP_Error $error): void {
             header('Retry-After: ' . $retry_after);
         }
         ll_tools_flashcards_send_public_ajax_cache_header('WARMING');
-        wp_send_json_error([
+        $response = [
             'code' => 'cache_warming',
             'message' => __('Preparing flashcard data. Please wait a moment.', 'll-tools-text-domain'),
             'retry_after' => $retry_after,
-        ], 429);
+        ];
+        if ((string) ($context['reason'] ?? '') === 'option_pool_materializing') {
+            $response['reason'] = 'option_pool_materializing';
+        }
+        wp_send_json_error($response, 429);
     }
     if ($code === 'stale_flashcard_payload_cursor') {
         wp_send_json_error([
@@ -2555,7 +2817,8 @@ function ll_get_words_by_category_ajax() {
                 $term,
                 $wordset_ids,
                 $candidate_word_ids,
-                $option_pool_limit
+                $option_pool_limit,
+                $base_config
             );
             if (!empty($option_pool_word_ids)) {
                 $seen_candidate_word_ids = array_fill_keys(array_map('intval', $effective_candidate_word_ids), true);
@@ -2627,6 +2890,55 @@ function ll_get_words_by_category_ajax() {
             );
         }
 
+        if (
+            $include_option_pool
+            && !empty($candidate_word_ids)
+            && !ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+                (array) $words,
+                $candidate_word_ids,
+                $base_config
+            )
+            && function_exists('ll_tools_flashcard_payload_read_option_rows')
+        ) {
+            $canonical_config = ll_tools_flashcard_payload_normalize_config((array) $base_config);
+            $option_scope = ll_tools_flashcard_payload_build_scope(
+                $term,
+                $wordset_ids,
+                $canonical_config
+            );
+            if (is_wp_error($option_scope)) {
+                ll_tools_flashcards_public_ajax_release_client_inflight($public_client_lease);
+                if ($public_cache_build_lock_acquired) {
+                    ll_tools_flashcards_public_ajax_release_build_lock($public_cache_args);
+                    $public_cache_build_lock_acquired = false;
+                }
+                ll_tools_flashcards_send_payload_page_error($option_scope);
+            }
+
+            $option_rows = ll_tools_flashcard_payload_read_option_rows(
+                $option_scope,
+                ll_tools_flashcards_public_ajax_row_exclusion_ids(
+                    (array) $words,
+                    $candidate_word_ids
+                ),
+                min(12, max(1, $option_pool_limit))
+            );
+            if (is_wp_error($option_rows)) {
+                ll_tools_flashcards_public_ajax_release_client_inflight($public_client_lease);
+                if ($public_cache_build_lock_acquired) {
+                    ll_tools_flashcards_public_ajax_release_build_lock($public_cache_args);
+                    $public_cache_build_lock_acquired = false;
+                }
+                ll_tools_flashcards_send_payload_page_error($option_rows, [
+                    'reason' => 'option_pool_materializing',
+                ]);
+            }
+            $words = ll_tools_flashcards_public_ajax_merge_option_rows(
+                (array) $words,
+                (array) $option_rows
+            );
+        }
+
         if (is_user_logged_in() && function_exists('ll_tools_attach_user_practice_progress_to_words')) {
             $words = ll_tools_attach_user_practice_progress_to_words((array) $words, get_current_user_id(), [
                 'wordset_id' => (count($wordset_ids) === 1) ? (int) $wordset_ids[0] : 0,
@@ -2639,7 +2951,17 @@ function ll_get_words_by_category_ajax() {
         // Frontend flashcard payloads should not expose internal speaker user IDs.
         $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
 
-        ll_tools_flashcards_public_ajax_cache_set($public_cache_args, $words);
+        if (
+            !$include_option_pool
+            || empty($candidate_word_ids)
+            || ll_tools_flashcards_public_ajax_rows_have_minimum_options(
+                (array) $words,
+                $candidate_word_ids,
+                $base_config
+            )
+        ) {
+            ll_tools_flashcards_public_ajax_cache_set($public_cache_args, $words);
+        }
     } finally {
         ll_tools_flashcards_public_ajax_release_client_inflight($public_client_lease);
         if ($public_cache_build_lock_acquired) {

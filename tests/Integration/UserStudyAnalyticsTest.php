@@ -1617,6 +1617,98 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('practice', (string) ($plan['mode'] ?? ''));
     }
 
+    public function test_selection_launch_plan_ajax_preserves_exact_candidates_across_bounded_chunks(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $word_ids = array_values(array_map('intval', (array) ($fixture['word_ids'] ?? [])));
+        $category_ids = array_values(array_map('intval', (array) ($fixture['category_ids'] ?? [])));
+        $outside_word_id = (int) self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Outside exact selection ' . wp_generate_password(4, false),
+        ]);
+        $requested_word_ids = array_merge(array_reverse($word_ids), [$outside_word_id]);
+
+        $five_words = static function (): int {
+            return 5;
+        };
+        add_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+        try {
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_user_study'),
+                'wordset_id' => $fixture['wordset_id'],
+                'category_ids' => $category_ids,
+                'candidate_word_ids' => implode(',', $requested_word_ids),
+                // No progress is seeded. Exact candidates must remain authoritative
+                // even though this criterion would otherwise return no matches.
+                'criteria' => 'learned',
+                'mode' => 'practice',
+            ];
+            $_REQUEST = $_POST;
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_selection_launch_plan_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $plan = (array) ($response['data']['plan'] ?? []);
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(2, $chunks);
+
+        $planned_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $this->assertCount(5, $chunk_word_ids);
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+        }
+
+        sort($word_ids);
+        $unique_planned_word_ids = array_values(array_unique($planned_word_ids));
+        sort($unique_planned_word_ids);
+        $this->assertSame($word_ids, $unique_planned_word_ids);
+        $this->assertNotContains($outside_word_id, $planned_word_ids);
+        $this->assertSame(10, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(10, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(2, (int) ($plan['chunk_count'] ?? 0));
+        $this->assertSame('learned', (string) ($plan['criteria'] ?? ''));
+    }
+
+    public function test_selection_launch_plan_ajax_rejects_an_empty_exact_candidate_scope(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'candidate_word_ids' => '',
+            'criteria' => '',
+            'mode' => 'practice',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_selection_launch_plan_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('Invalid request.', (string) ($response['data']['message'] ?? ''));
+    }
+
     public function test_selection_membership_excludes_reserved_distractor_targets_but_keeps_prompt_answers(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

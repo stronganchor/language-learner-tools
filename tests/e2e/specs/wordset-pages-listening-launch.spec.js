@@ -629,7 +629,8 @@ async function mountWordsetPage(page, options = {}) {
                 success: false,
                 data: {
                   code: 'cache_warming',
-                  retry_after: 0
+                  retry_after: 0,
+                  reason: String(bootstrap.publicCategoryWarmingReason || '')
                 }
               },
               getResponseHeader: () => ''
@@ -780,6 +781,7 @@ async function mountWordsetPage(page, options = {}) {
     wordsByCategoryName,
     publicCategoryDelayMs: Math.max(0, Number(options.publicCategoryDelayMs) || 0),
     publicCategoryWarmingResponses: Math.max(0, Number(options.publicCategoryWarmingResponses) || 0),
+    publicCategoryWarmingReason: String(options.publicCategoryWarmingReason || ''),
     selectionLaunchPlan: options.selectionLaunchPlan || null,
     selectionPlanFailureStatus: Math.max(0, Number(options.selectionPlanFailureStatus) || 0)
   });
@@ -1707,6 +1709,28 @@ test('bounded selection continuation coalesces one serial next-batch request', a
   await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
+test('bounded candidate hydration keeps retrying while its materialized option pool warms', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch,
+    publicCategoryWarmingResponses: 3,
+    publicCategoryWarmingReason: 'option_pool_materializing'
+  });
+
+  await startInProgressPracticeSelection(page);
+
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const requests = await page.evaluate(() => ({
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    actions: window.__llPublicCategoryRequests.actions.slice()
+  }));
+  expect(requests.categories.slice(0, 4)).toEqual(['Cat A', 'Cat A', 'Cat A', 'Cat A']);
+  expect(requests.actions.every((action) => action === 'll_get_words_by_category')).toBeTruthy();
+});
+
 test('bounded non-practice sessions retain explicit next-chunk navigation', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
@@ -1911,7 +1935,17 @@ test('bounded continuation advances only after append acceptance and keeps a fai
     launches: window.__llLaunches.slice(),
     initAttempts: window.__llInitAttempts.slice(),
     publicCategories: window.__llPublicCategoryRequests.categories.slice(),
-    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
+    flashSessionWordIds: Array.isArray((window.llToolsFlashcardsData || {}).sessionWordIds)
+      ? window.llToolsFlashcardsData.sessionWordIds.slice()
+      : [],
+    flashBoundedCandidateCategoryIds: Object.keys(
+      (window.llToolsFlashcardsData || {}).boundedCandidateRowsByCategoryId || {}
+    ).map((value) => Number(value) || 0).sort((a, b) => a - b),
+    flashSessionWordIdsByCategoryId: Object.assign(
+      {},
+      (window.llToolsFlashcardsData || {}).sessionWordIdsByCategoryId || {}
+    )
   }));
   expect(failedState.appends).toHaveLength(1);
   expect(failedState.appends[0].catNames.slice().sort()).toEqual(['Cat B', 'Cat C']);
@@ -1920,6 +1954,11 @@ test('bounded continuation advances only after append acceptance and keeps a fai
   expect(failedState.initAttempts).toHaveLength(1);
   expect(failedState.publicCategories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
   expect(failedState.continuationType).toBe('function');
+  expect(failedState.flashSessionWordIds).toEqual(failedState.launches[0].sessionWordIds);
+  expect(failedState.flashBoundedCandidateCategoryIds)
+    .toEqual(failedState.launches[0].boundedCandidateCategoryIds.slice().sort((a, b) => a - b));
+  expect(failedState.flashSessionWordIdsByCategoryId)
+    .toEqual(failedState.launches[0].sessionWordIdsByCategoryId);
 
   const acceptedContinuation = await invokeBoundedSessionContinuation(page);
   expect(acceptedContinuation).toEqual({

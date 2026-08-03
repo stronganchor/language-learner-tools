@@ -3245,6 +3245,321 @@ function ll_tools_flashcard_payload_decode_cursor(
 }
 
 /**
+ * Return every canonical identity carried by one materialized quiz row.
+ *
+ * Prompt-card rows use their post ID for the row identity while their answer
+ * and progress identities remain attached separately. Option-pool exclusions
+ * must honor all three so a target cannot return through a support alias.
+ *
+ * @return int[]
+ */
+function ll_tools_flashcard_payload_option_row_canonical_ids(array $row): array {
+    return ll_tools_flashcard_payload_unique_ints([
+        (int) ($row['id'] ?? 0),
+        (int) ($row['answer_word_id'] ?? 0),
+        (int) ($row['progress_word_id'] ?? 0),
+    ]);
+}
+
+/**
+ * Decide whether a durable word row can support an option for the targets that
+ * were excluded from the materialized option pool.
+ */
+function ll_tools_flashcard_payload_option_row_is_useful(
+    array $row,
+    array $excluded_canonical_lookup
+): bool {
+    if ((int) ($row['id'] ?? 0) <= 0) {
+        return false;
+    }
+
+    foreach (ll_tools_flashcard_payload_option_row_canonical_ids($row) as $canonical_id) {
+        if (isset($excluded_canonical_lookup[$canonical_id])) {
+            return false;
+        }
+    }
+
+    // A prompt row carries a complete rendered answer and is a valid option
+    // identity for another target. Its separately materialized support word,
+    // when present, is deduplicated later by answer_word_id.
+    if (!empty($row['is_prompt_card'])) {
+        return true;
+    }
+
+    $support_roles = ll_tools_flashcard_payload_unique_strings(
+        (array) ($row['prompt_card_support_roles'] ?? [])
+    );
+    $is_prompt_image_only = !empty($row['is_prompt_card_prompt_image_support'])
+        || (
+            in_array('prompt', $support_roles, true)
+            && !in_array('correct', $support_roles, true)
+        );
+    if ($is_prompt_image_only) {
+        return false;
+    }
+
+    $owner_ids = ll_tools_flashcard_payload_unique_ints(
+        (array) ($row['specific_wrong_answer_owner_ids'] ?? [])
+    );
+    if (!empty($owner_ids)) {
+        $owner_matches_target = false;
+        foreach ($owner_ids as $owner_id) {
+            if (isset($excluded_canonical_lookup[$owner_id])) {
+                $owner_matches_target = true;
+                break;
+            }
+        }
+        if (!$owner_matches_target) {
+            return false;
+        }
+    } elseif (!empty($row['is_specific_wrong_answer_only'])) {
+        return false;
+    }
+
+    if (!empty($row['is_prompt_card_support_only'])) {
+        $is_answer_support = !empty($row['is_prompt_card_answer_option_support'])
+            || in_array('correct', $support_roles, true)
+            || in_array('wrong', $support_roles, true);
+        if (!$is_answer_support && empty($owner_ids)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Read a fixed set of option-support rows from one completed generation.
+ *
+ * Primary word rows are considered first, then prompt rows, then prompt-only
+ * support words. That order prevents support rows from hiding an independently
+ * eligible word while still retaining prompt-card answer identities when no
+ * standalone word row exists. The reader inspects at most four stored rows per
+ * requested useful option and never exposes or follows a continuation cursor.
+ *
+ * @return array<int,array<string,mixed>>|WP_Error
+ */
+function ll_tools_flashcard_payload_read_option_rows(
+    array $scope,
+    array $exclude_canonical_ids = [],
+    int $limit = 12
+) {
+    global $wpdb;
+
+    $scope = ll_tools_flashcard_payload_normalize_scope($scope);
+    $scope_hash = ll_tools_flashcard_payload_scope_hash($scope);
+    $useful_limit = max(1, min(12, $limit));
+    $scan_limit = min(48, max($useful_limit, $useful_limit * 4));
+    $exclude_canonical_ids = ll_tools_flashcard_payload_unique_ints(
+        $exclude_canonical_ids
+    );
+    $excluded_canonical_lookup = array_fill_keys($exclude_canonical_ids, true);
+
+    $ready = ll_tools_flashcard_payload_ensure_ready($scope);
+    if (is_wp_error($ready)) {
+        return $ready;
+    }
+    if (!$ready) {
+        return new WP_Error(
+            'flashcard_payload_warming',
+            __('Flashcard data is still being prepared.', 'll-tools-text-domain'),
+            ['retry_after' => 1]
+        );
+    }
+
+    $scope_lock = ll_tools_acquire_flashcard_payload_lock($scope_hash, 90);
+    if (empty($scope_lock['acquired'])) {
+        return new WP_Error(
+            'flashcard_payload_warming',
+            __('Flashcard data is still being prepared.', 'll-tools-text-domain'),
+            ['retry_after' => 1]
+        );
+    }
+
+    try {
+        $signature = ll_tools_flashcard_payload_dependency_signature($scope);
+        $state = ll_tools_get_flashcard_payload_state($scope_hash);
+        if (!ll_tools_flashcard_payload_state_is_ready($scope, $signature, $state, false)) {
+            return new WP_Error(
+                'flashcard_payload_warming',
+                __('Flashcard data is still being prepared.', 'll-tools-text-domain'),
+                ['retry_after' => 1]
+            );
+        }
+        $generation = (string) $state['published_generation'];
+
+        if (!ll_tools_renew_flashcard_payload_lock($scope_lock)) {
+            return new WP_Error('stale_flashcard_payload_cursor');
+        }
+
+        $exclude_sql = '';
+        $metadata_args = [$scope_hash, $generation];
+        if (!empty($exclude_canonical_ids)) {
+            $exclude_sql = ' AND row_id NOT IN ('
+                . implode(',', array_fill(0, count($exclude_canonical_ids), '%d'))
+                . ')';
+            $metadata_args = array_merge($metadata_args, $exclude_canonical_ids);
+        }
+        $metadata_args[] = $scan_limit;
+        $metadata_sql = "SELECT row_kind, row_id, sort_group, payload_bytes,
+                               OCTET_LENGTH(payload) AS actual_payload_bytes
+                        FROM " . ll_tools_flashcard_payload_table_name() . "
+                        WHERE scope_hash = %s
+                          AND generation = %s
+                          AND row_kind IN ('word', 'prompt')
+                          {$exclude_sql}
+                        ORDER BY sort_group ASC, row_id ASC
+                        LIMIT %d";
+        $wpdb->last_error = '';
+        $row_metadata = $wpdb->get_results(
+            $wpdb->prepare($metadata_sql, $metadata_args),
+            ARRAY_A
+        );
+        if ($wpdb->last_error !== '') {
+            return new WP_Error('flashcard_payload_read_failed');
+        }
+
+        $byte_limit = max(256 * 1024, min(4 * 1024 * 1024, (int) apply_filters(
+            'll_tools_flashcard_payload_page_byte_limit',
+            2 * 1024 * 1024
+        )));
+        $row_byte_limit = ll_tools_flashcard_payload_row_byte_limit();
+        $selected_metadata = [];
+        $bytes = 0;
+        foreach ((array) $row_metadata as $metadata) {
+            $row_bytes = max(0, (int) ($metadata['payload_bytes'] ?? 0));
+            $actual_row_bytes = max(0, (int) ($metadata['actual_payload_bytes'] ?? 0));
+            if (
+                $row_bytes <= 0
+                || $row_bytes !== $actual_row_bytes
+                || $row_bytes > $row_byte_limit
+            ) {
+                return new WP_Error('flashcard_payload_corrupt_row');
+            }
+            if ($bytes + $row_bytes > $byte_limit) {
+                if (empty($selected_metadata)) {
+                    return new WP_Error('flashcard_payload_page_row_too_large');
+                }
+                break;
+            }
+            $selected_metadata[] = $metadata;
+            $bytes += $row_bytes;
+        }
+
+        $payload_rows = [];
+        if (!empty($selected_metadata)) {
+            if (!ll_tools_renew_flashcard_payload_lock($scope_lock)) {
+                return new WP_Error('stale_flashcard_payload_cursor');
+            }
+
+            $payload_args = [$scope_hash, $generation];
+            if (!empty($exclude_canonical_ids)) {
+                $payload_args = array_merge($payload_args, $exclude_canonical_ids);
+            }
+            $payload_args[] = count($selected_metadata);
+            $payload_sql = "SELECT row_kind, row_id, sort_group, payload, payload_bytes
+                            FROM " . ll_tools_flashcard_payload_table_name() . "
+                            WHERE scope_hash = %s
+                              AND generation = %s
+                              AND row_kind IN ('word', 'prompt')
+                              {$exclude_sql}
+                            ORDER BY sort_group ASC, row_id ASC
+                            LIMIT %d";
+            $wpdb->last_error = '';
+            $payload_records = $wpdb->get_results(
+                $wpdb->prepare($payload_sql, $payload_args),
+                ARRAY_A
+            );
+            if (
+                $wpdb->last_error !== ''
+                || count((array) $payload_records) !== count($selected_metadata)
+            ) {
+                return new WP_Error('flashcard_payload_read_failed');
+            }
+
+            $seen_option_identities = [];
+            foreach ((array) $payload_records as $index => $record) {
+                $metadata = $selected_metadata[$index] ?? [];
+                if (
+                    !in_array((string) ($record['row_kind'] ?? ''), ['word', 'prompt'], true)
+                    || (string) ($record['row_kind'] ?? '') !== (string) ($metadata['row_kind'] ?? '')
+                    || (int) ($record['row_id'] ?? 0) !== (int) ($metadata['row_id'] ?? 0)
+                    || (int) ($record['sort_group'] ?? 0) !== (int) ($metadata['sort_group'] ?? 0)
+                    || (int) ($record['payload_bytes'] ?? 0) !== (int) ($metadata['payload_bytes'] ?? 0)
+                    || strlen((string) ($record['payload'] ?? ''))
+                        !== (int) ($metadata['payload_bytes'] ?? 0)
+                ) {
+                    return new WP_Error('flashcard_payload_read_failed');
+                }
+
+                $decoded = json_decode((string) ($record['payload'] ?? ''), true);
+                if (
+                    !is_array($decoded)
+                    || (int) ($decoded['id'] ?? 0) !== (int) ($record['row_id'] ?? 0)
+                    || (!empty($decoded['is_prompt_card']) !== ((string) $record['row_kind'] === 'prompt'))
+                ) {
+                    return new WP_Error('flashcard_payload_corrupt_row');
+                }
+                if (!ll_tools_flashcard_payload_option_row_is_useful(
+                    $decoded,
+                    $excluded_canonical_lookup
+                )) {
+                    continue;
+                }
+
+                $option_identity = (int) ($decoded['answer_word_id'] ?? 0);
+                if ($option_identity <= 0) {
+                    $option_identity = (int) ($decoded['id'] ?? 0);
+                }
+                if ($option_identity <= 0 || isset($seen_option_identities[$option_identity])) {
+                    continue;
+                }
+                $seen_option_identities[$option_identity] = true;
+                $payload_rows[] = $decoded;
+                if (count($payload_rows) >= $useful_limit) {
+                    break;
+                }
+            }
+        }
+
+        if (!ll_tools_renew_flashcard_payload_lock($scope_lock)) {
+            return new WP_Error('stale_flashcard_payload_cursor');
+        }
+        $final_state = ll_tools_get_flashcard_payload_state($scope_hash);
+        if (
+            !ll_tools_flashcard_payload_state_is_ready(
+                $scope,
+                $signature,
+                $final_state,
+                false
+            )
+            || !hash_equals(
+                $generation,
+                (string) ($final_state['published_generation'] ?? '')
+            )
+            || !hash_equals(
+                $signature,
+                ll_tools_flashcard_payload_dependency_signature($scope)
+            )
+        ) {
+            return new WP_Error('stale_flashcard_payload_cursor');
+        }
+        if (!ll_tools_flashcard_payload_touch_access_locked(
+            $scope_hash,
+            $final_state,
+            $signature,
+            $scope_lock
+        )) {
+            return new WP_Error('stale_flashcard_payload_cursor');
+        }
+
+        return $payload_rows;
+    } finally {
+        ll_tools_release_flashcard_payload_lock($scope_lock);
+    }
+}
+
+/**
  * Read one generation-stable, byte-bounded page.
  *
  * @return array<string,mixed>|WP_Error

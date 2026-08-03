@@ -6152,6 +6152,47 @@
             return;
         }
 
+        if (
+            normalizedMode === 'practice'
+            && initialSessionWordIds.length > CHUNK_SIZE
+            && isLoggedIn
+            && ajaxUrl
+            && nonce
+        ) {
+            const launchUi = openFlashcardLaunchLoadingState();
+            const abortBoundedProgressLaunch = function (message) {
+                closeFlashcardLaunchLoadingState(launchUi);
+                if (message) {
+                    alert(message);
+                }
+            };
+            requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
+                candidateWordIds: initialSessionWordIds
+            }).done(function (serverPlan) {
+                launchBoundedPracticeSelectionPlan(serverPlan, {
+                    categoryIds: initialLaunchPlan.categoryIds,
+                    minimumWordCount: minimumWordCount,
+                    source: 'wordset_progress_bounded_start',
+                    launchUi: launchUi,
+                    details: {
+                        preserve_mixed_presentation: true,
+                        allow_session_category_display: true,
+                        preserve_category_order: true,
+                        bounded_selection_plan: true,
+                        progress_selection: true
+                    },
+                    onEmpty: function (normalizedPlan) {
+                        abortBoundedProgressLaunch(normalizedPlan && normalizedPlan.invalid
+                            ? (i18n.selectionLaunchError || i18n.saveError || '')
+                            : (i18n.noWordsInSelection || ''));
+                    }
+                });
+            }).fail(function () {
+                abortBoundedProgressLaunch(i18n.selectionLaunchError || i18n.saveError || '');
+            });
+            return;
+        }
+
         const needsLearningExpansion = normalizedMode === 'learning' && initialSessionWordIds.length < LEARNING_MIN_CHUNK_SIZE;
         const ensureOptions = needsLearningExpansion ? {} : {
             sessionWordIds: initialSessionWordIds
@@ -13229,7 +13270,9 @@
                         : {};
                     const isWarming = Number(xhr && xhr.status) === 429
                         && String(responseData.code || '') === 'cache_warming';
+                    const usesMaterializedOptionPool = String(responseData.reason || '') === 'option_pool_materializing';
                     const retryLimit = String(payload.action || '') === 'll_get_flashcard_payload_page'
+                        || usesMaterializedOptionPool
                         ? payloadWarmingMaxRetries
                         : publicWarmingMaxRetries;
                     if (isWarming && attemptNumber < retryLimit) {
@@ -13347,22 +13390,33 @@
         }
     }
 
-    function requestSelectionLaunchPlan(categoryIds, criteria, mode) {
+    function requestSelectionLaunchPlan(categoryIds, criteria, mode, options) {
         const ids = uniqueIntList(categoryIds || []);
+        const opts = (options && typeof options === 'object') ? options : {};
+        const candidateWordIds = uniqueIntList(
+            opts.candidateWordIds || opts.candidate_word_ids || []
+        );
         if (!isLoggedIn || !ajaxUrl || !nonce || !ids.length) {
             const unavailable = $.Deferred();
             unavailable.reject();
             return unavailable.promise();
         }
 
-        return $.post(ajaxUrl, {
+        const request = {
             action: 'll_user_study_selection_launch_plan',
             nonce: nonce,
             wordset_id: wordsetId,
             category_ids: ids,
             criteria: normalizePriorityFocus(criteria || ''),
             mode: normalizeMode(mode) || 'practice'
-        }).then(function (response) {
+        };
+        if (candidateWordIds.length) {
+            // Keep the exact selection in one form variable. Array serialization
+            // can be truncated by PHP's max_input_vars on large progress queues.
+            request.candidate_word_ids = candidateWordIds.join(',');
+        }
+
+        return $.post(ajaxUrl, request).then(function (response) {
             const plan = response
                 && response.success
                 && response.data
@@ -14960,6 +15014,98 @@
         };
     }
 
+    function launchBoundedPracticeSelectionPlan(serverPlan, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const selectedIds = uniqueIntList(opts.categoryIds || opts.category_ids || []);
+        const minimumWordCount = Math.max(1, parseInt(opts.minimumWordCount, 10) || 1);
+        const launchDetails = (opts.details && typeof opts.details === 'object')
+            ? Object.assign({}, opts.details)
+            : {};
+        const normalizedPlan = normalizeBoundedSelectionPlanChunks(
+            serverPlan,
+            launchDetails,
+            selectedIds,
+            minimumWordCount
+        );
+        const planChunks = normalizedPlan.chunks;
+        if (!planChunks.length) {
+            chunkSession = null;
+            if (typeof opts.onEmpty === 'function') {
+                opts.onEmpty(normalizedPlan);
+            }
+            return false;
+        }
+
+        const logicalSessionWordIds = [];
+        const logicalSessionCategoryIds = [];
+        planChunks.forEach(function (entry) {
+            uniqueIntList(entry.session_word_ids || []).forEach(function (wordId) {
+                logicalSessionWordIds.push(wordId);
+            });
+            uniqueIntList(entry.category_ids || []).forEach(function (categoryId) {
+                if (logicalSessionCategoryIds.indexOf(categoryId) === -1) {
+                    logicalSessionCategoryIds.push(categoryId);
+                }
+            });
+        });
+
+        const categoryLabelOverride = String(opts.categoryLabelOverride || '').trim();
+        const source = String(opts.source || 'wordset_progress_bounded_start');
+        const firstEntry = planChunks[0];
+        if (planChunks.length > 1) {
+            chunkSession = {
+                mode: 'practice',
+                chunks: planChunks,
+                index: 0,
+                matched_count: logicalSessionWordIds.length,
+                session_word_ids: logicalSessionWordIds,
+                category_ids: logicalSessionCategoryIds,
+                star_mode: 'normal',
+                details: launchDetails,
+                category_label_override: categoryLabelOverride,
+                bounded_selection_plan: true,
+                continuous: true
+            };
+            const activeSession = chunkSession;
+            launchContinuousChunkSession(activeSession, {
+                source: source,
+                launchUi: opts.launchUi,
+                onLaunchFailure: function () {
+                    if (chunkSession === activeSession) {
+                        chunkSession = null;
+                    }
+                    if (typeof opts.onLaunchFailure === 'function') {
+                        opts.onLaunchFailure();
+                    }
+                }
+            });
+            return true;
+        }
+
+        chunkSession = null;
+        launchFlashcards('practice', firstEntry.category_ids, firstEntry.session_word_ids, {
+            source: source,
+            chunked: false,
+            sessionStarMode: 'normal',
+            randomizeSessionCategoryOrder: true,
+            allowSessionCategoryDisplay: true,
+            skipCompatibilityFilter: true,
+            categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
+            details: firstEntry.details,
+            launchUi: opts.launchUi,
+            boundedSelectionPlan: true,
+            rejectOnLoadFailure: true,
+            logicalSessionWordIds: logicalSessionWordIds,
+            logicalSessionCategoryIds: logicalSessionCategoryIds,
+            onLaunchFailure: function () {
+                if (typeof opts.onLaunchFailure === 'function') {
+                    opts.onLaunchFailure();
+                }
+            }
+        });
+        return true;
+    }
+
     function getChunkContinueLabel() {
         if (!chunkSession || !Array.isArray(chunkSession.chunks) || !chunkSession.chunks.length) {
             return i18n.continueLabel || '';
@@ -15365,6 +15511,25 @@
             const flashData = (window.llToolsFlashcardsData && typeof window.llToolsFlashcardsData === 'object')
                 ? window.llToolsFlashcardsData
                 : {};
+            const previousFlashData = appendToLogicalSession
+                ? Object.assign({}, flashData, {
+                    userStudyState: flashData.userStudyState && typeof flashData.userStudyState === 'object'
+                        ? Object.assign({}, flashData.userStudyState)
+                        : flashData.userStudyState
+                })
+                : null;
+            const restorePreviousFlashData = function () {
+                if (!previousFlashData) {
+                    return;
+                }
+                Object.keys(flashData).forEach(function (key) {
+                    delete flashData[key];
+                });
+                Object.keys(previousFlashData).forEach(function (key) {
+                    flashData[key] = previousFlashData[key];
+                });
+                window.llToolsFlashcardsData = flashData;
+            };
 
             // Wordset-page launches should start with a fresh gender plan scope.
             // Otherwise a stale armed plan from a previous gender results action can
@@ -15493,6 +15658,7 @@
                     return;
                 }
                 invalidateBoundedLaunchHydration(effectiveCategoryIds, effectiveSessionIds);
+                restorePreviousFlashData();
                 abortLaunch(i18n.selectionLaunchError || i18n.saveError || '');
             };
 

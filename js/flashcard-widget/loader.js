@@ -1174,6 +1174,84 @@
                                 wordId: missingOwnedId
                             });
                         }
+
+                        const optionRows = window.optionWordsByCategory[plan.categoryName] || [];
+                        const distinctOptionIds = {};
+                        optionRows.forEach(function (row) {
+                            // A prompt-card row and its canonical answer/support row
+                            // represent the same answer identity even though their post
+                            // IDs differ. Counting both would allow an indistinguishable
+                            // two-card round through this preload boundary.
+                            const canonicalAnswerId = parseInt(row && row.answer_word_id, 10) || 0;
+                            const optionId = canonicalAnswerId > 0
+                                ? String(canonicalAnswerId)
+                                : (row && row.id !== undefined && row.id !== null
+                                    ? String(row.id).trim()
+                                    : '');
+                            if (optionId !== '') {
+                                distinctOptionIds[optionId] = true;
+                            }
+                        });
+                        if (Object.keys(distinctOptionIds).length < 2) {
+                            const categoryConfig = getCategoryConfig(plan.categoryName) || {};
+                            const optionType = String(categoryConfig.option_type || categoryConfig.mode || '').trim().toLowerCase();
+                            const textFallbackIsSupported = [
+                                'text',
+                                'text_title',
+                                'text_translation'
+                            ].indexOf(optionType) !== -1;
+                            const normalizeFallbackText = function (value) {
+                                const base = (value === null || value === undefined) ? '' : String(value).trim();
+                                if (base === '') return '';
+                                const prepared = base.replace(/[I\u0130]/g, function (character) {
+                                    return character === 'I' ? '\u0131' : 'i';
+                                });
+                                let lowered = prepared;
+                                try {
+                                    lowered = prepared.toLocaleLowerCase('tr');
+                                } catch (_) {
+                                    lowered = prepared.toLowerCase();
+                                }
+                                return lowered.replace(/\u0307/g, '');
+                            };
+                            const everyTargetHasTextFallback = textFallbackIsSupported && activeRows.length > 0 && activeRows.every(function (row) {
+                                const renderedTargetTexts = {};
+                                [row && row.title, row && row.label].forEach(function (value) {
+                                    const key = normalizeFallbackText(value);
+                                    if (key) renderedTargetTexts[key] = true;
+                                });
+                                if (optionType === 'text_translation') {
+                                    [row && row.translation].forEach(function (value) {
+                                        const key = normalizeFallbackText(value);
+                                        if (key) renderedTargetTexts[key] = true;
+                                    });
+                                    const recordingTranslations = row && row.recording_translations_by_type;
+                                    if (recordingTranslations && typeof recordingTranslations === 'object') {
+                                        Object.keys(recordingTranslations).forEach(function (recordingType) {
+                                            const key = normalizeFallbackText(recordingTranslations[recordingType]);
+                                            if (key) renderedTargetTexts[key] = true;
+                                        });
+                                    }
+                                    (Array.isArray(row && row.audio_files) ? row.audio_files : []).forEach(function (audioFile) {
+                                        const key = normalizeFallbackText(audioFile && audioFile.recording_translation);
+                                        if (key) renderedTargetTexts[key] = true;
+                                    });
+                                }
+                                return Array.isArray(row && row.specific_wrong_answer_texts)
+                                    && row.specific_wrong_answer_texts.some(function (value) {
+                                        const normalizedValue = normalizeFallbackText(value);
+                                        return normalizedValue !== '' && !renderedTargetTexts[normalizedValue];
+                                    });
+                            });
+                            if (!everyTargetHasTextFallback) {
+                                throw createBoundedPreloadError('Bounded category data has fewer than two usable quiz options.', {
+                                    category: plan.categoryName,
+                                    categoryId: plan.categoryId,
+                                    availableOptions: Object.keys(distinctOptionIds).length,
+                                    requiredOptions: 2
+                                });
+                            }
+                        }
                     });
                 } catch (error) {
                     categoryPlans.forEach(function (plan) {

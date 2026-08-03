@@ -550,6 +550,7 @@ async function mountProgressPage(page, options = {}) {
     });
     window.llWordsetPageData = bootstrapConfig;
     window.__llAnalyticsRequests = [];
+    window.__llSelectionPlanRequests = [];
     window.__llFetchWordsRequests = [];
     window.__llFlashcardLaunches = [];
     window.__confettiCalls = 0;
@@ -562,7 +563,13 @@ async function mountProgressPage(page, options = {}) {
         mode,
         sessionWordIds: window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.sessionWordIds)
           ? window.llToolsFlashcardsData.sessionWordIds.slice()
-          : []
+          : [],
+        logicalSessionWordIds: window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.logicalSessionWordIds)
+          ? window.llToolsFlashcardsData.logicalSessionWordIds.slice()
+          : [],
+        lastLaunchPlan: window.llToolsFlashcardsData && window.llToolsFlashcardsData.lastLaunchPlan
+          ? Object.assign({}, window.llToolsFlashcardsData.lastLaunchPlan)
+          : null
       });
       return Promise.resolve();
     };
@@ -595,6 +602,42 @@ async function mountProgressPage(page, options = {}) {
           action,
           request: Object.assign({}, request),
           deferred
+        });
+        return deferred.promise();
+      }
+
+      if (action === 'll_user_study_selection_launch_plan') {
+        const candidateIds = (Array.isArray(request.candidate_word_ids)
+          ? request.candidate_word_ids
+          : String(request.candidate_word_ids || '').split(','))
+          .map((value) => Number(value) || 0)
+          .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
+        const chunks = [];
+        for (let offset = 0; offset < candidateIds.length; offset += 15) {
+          chunks.push({
+            category_ids: [11],
+            word_ids: candidateIds.slice(offset, offset + 15)
+          });
+        }
+        window.__llSelectionPlanRequests.push({
+          action,
+          request: Object.assign({}, request)
+        });
+        deferred.resolve({
+          success: true,
+          data: {
+            plan: {
+              category_ids: chunks[0] ? chunks[0].category_ids.slice() : [],
+              word_ids: chunks[0] ? chunks[0].word_ids.slice() : [],
+              chunks,
+              criteria: '',
+              mode: 'practice',
+              matched_count: candidateIds.length,
+              planned_count: candidateIds.length,
+              chunk_count: chunks.length,
+              truncated: false
+            }
+          }
         });
         return deferred.promise();
       }
@@ -1162,9 +1205,13 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
     }
   });
 
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llFetchWordsRequests) ? window.__llFetchWordsRequests.length : 0);
-  }).toBe(1);
+  await expect.poll(async () => page.evaluate(() => (
+    Array.isArray(window.__llSelectionPlanRequests) ? window.__llSelectionPlanRequests.length : 0
+  ))).toBe(1);
+
+  await expect.poll(async () => page.evaluate(() => (
+    Array.isArray(window.__llFetchWordsRequests) ? window.__llFetchWordsRequests.length : 0
+  ))).toBe(1);
 
   await expect.poll(async () => {
     return page.evaluate(() => {
@@ -1174,25 +1221,49 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
         .map((value) => Number(value) || 0)
         .filter(Boolean);
       const launches = Array.isArray(window.__llFlashcardLaunches) ? window.__llFlashcardLaunches : [];
+      const planRequest = Array.isArray(window.__llSelectionPlanRequests) && window.__llSelectionPlanRequests[0]
+        ? window.__llSelectionPlanRequests[0].request
+        : {};
+      const plannedCandidateIds = (Array.isArray(planRequest.candidate_word_ids)
+        ? planRequest.candidate_word_ids
+        : String(planRequest.candidate_word_ids || '').split(','))
+        .map((value) => Number(value) || 0)
+        .filter(Boolean);
       return {
+        candidatePayloadType: typeof planRequest.candidate_word_ids,
+        plannedCandidateCount: plannedCandidateIds.length,
+        firstPlannedCandidate: plannedCandidateIds[0] || 0,
+        lastPlannedCandidate: plannedCandidateIds[plannedCandidateIds.length - 1] || 0,
         candidateCount: ids.length,
         firstCandidate: ids[0] || 0,
         lastCandidate: ids[ids.length - 1] || 0,
         launchCount: launches.length,
-        sessionCount: launches[0] ? launches[0].sessionWordIds.length : 0
+        sessionCount: launches[0] ? launches[0].sessionWordIds.length : 0,
+        logicalSessionCount: launches[0] ? launches[0].logicalSessionWordIds.length : 0,
+        launchSource: launches[0] && launches[0].lastLaunchPlan
+          ? String(launches[0].lastLaunchPlan.source || '')
+          : '',
+        chunked: !!(launches[0] && launches[0].lastLaunchPlan && launches[0].lastLaunchPlan.chunked)
       };
     });
   }).toEqual({
-    candidateCount: allMatchingIds.length,
+    candidatePayloadType: 'string',
+    plannedCandidateCount: allMatchingIds.length,
+    firstPlannedCandidate: allMatchingIds[0],
+    lastPlannedCandidate: allMatchingIds[allMatchingIds.length - 1],
+    candidateCount: 15,
     firstCandidate: allMatchingIds[0],
-    lastCandidate: allMatchingIds[allMatchingIds.length - 1],
+    lastCandidate: allMatchingIds[14],
     launchCount: 1,
-    sessionCount: allMatchingIds.length
+    sessionCount: 15,
+    logicalSessionCount: allMatchingIds.length,
+    launchSource: 'wordset_progress_bounded_start',
+    chunked: true
   });
 }
 
 test('progress select all filtered launches practice with every matching word id', async ({ page }) => {
-  const allMatchingIds = Array.from({ length: 42 }, (_unused, index) => 101 + index);
+  const allMatchingIds = Array.from({ length: 1205 }, (_unused, index) => 101 + index);
   await assertFilteredProgressPracticeLaunch(page, {
     filterKey: 'starred',
     filterLabel: 'Starred',
@@ -1200,10 +1271,10 @@ test('progress select all filtered launches practice with every matching word id
     allMatchingIds,
     starredIds: allMatchingIds,
     summary: {
-      totalWords: 80,
-      studiedWords: 42,
-      newWords: 38,
-      starredWords: 42
+      totalWords: 1240,
+      studiedWords: 1205,
+      newWords: 35,
+      starredWords: 1205
     }
   });
 });

@@ -183,7 +183,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Recorder integration coverage verifies the recording interface renders bounded identity-free queue-summary shells and button cards with counts/previews while resolved empty categories disappear; the no-category shortcode query-shape regression forbids the legacy uncached relationship-wide discovery scans. The manager stream performs zero cold summary refreshes during PHP render, emits three named shimmer cards for the active batch plus lightweight hidden markers, exposes only an error-state Retry control, and prefers the queue image's requested thumbnail over a linked word thumbnail or raw oversized URL. Recorder stream generations change for ordered category identity/scope changes but remain stable across ordinary per-category content invalidation so later resource-safe batches do not restart the overview. Completed target summaries also invalidate and rebuild when a wordless image's sibling category changes privacy/scope or is deleted, because that sibling can change the image's effective recording-type union. A same-user admin-to-recorder demotion regression proves the user-scoped catalog, category map, and completed summary all stop reusing private category names, counts, and previews.
 - `WordsetPageCategorySearchIndexTest` verifies the public category-search materializer installs only after schema/primary-key readback, migrates idempotently to generation-scoped rows, advances with bounded ID-keyset batches, chunks relationship and byte-limited writes, resumes durable state, rotates generations on expired-lease takeover, hides late stale rows, fences publication with an exact-owner lease and dependency-signature/generation CAS, backs off failures without a hot cron loop, uses locale-independent normalization, and returns direct bounded matches without hydrating the complete wordset. It also verifies staff can find cards through pending `recording_text` using bounded published word/audio candidates without exposing the transcription, scanning for queries shorter than three characters, or changing anonymous results.
 - `VocabLessonDeferredGridTest` verifies the deferred shell exposes the exact cached expected lesson count while hydrating content for only the first six cards, keeps specific wrong-answer counting category-scoped, and bounds large-category placeholder DOM with one remainder card. Its staff regressions prove large lessons scan and render in bounded pages, keep per-user order state separate from public state, retain drafts, preserve missing-media warning cards in candidate-specific page renders, and replace repeated hidden editor/category catalogs with lightweight detached-editor triggers.
-- `UserStudyAnalyticsTest` verifies logged-in multi-category launch plans apply exact `new`/`studied`/`learned`/`starred`/`hard` progress criteria over the ID-only analytics scope, preserve every matching word exactly once across successful balanced category-aware transport chunks, widen sparse tails only to the hard category cap, return a typed fail-closed error when an even sparser layout cannot form valid rounds, enforce per-chunk word/category caps plus nonce and wordset access through the AJAX route, and leave media hydration to the current candidate-specific chunk; browser coverage composes those chunks into one logical practice session.
+- `UserStudyAnalyticsTest` verifies logged-in multi-category launch plans apply exact `new`/`studied`/`learned`/`starred`/`hard` progress criteria over the ID-only analytics scope, accept a bounded exact-candidate snapshot while still intersecting it with current renderable wordset/category membership, preserve every matching word exactly once across successful balanced category-aware transport chunks, widen sparse tails only to the hard category cap, return a typed fail-closed error when an even sparser layout cannot form valid rounds, enforce per-chunk word/category caps plus nonce and wordset access through the AJAX route, and leave media hydration to the current candidate-specific chunk; browser coverage composes those chunks into one logical practice session.
 - `CanonicalWordImageReadPathsTest` and `VocabLessonPromptCardCountTest` verify compact image-qualified vocabulary counts materialize the target-wordset copy-source set instead of correlating it per word, preserve direct/linked/copy semantics (including prompt-card fallback), ignore foreign or isolation-disabled copies, and never create a missing copy during an aggregate read.
 - `WordsetPageSavedSortInitialChunkTest` verifies that a 227-category saved metric sort preserves canonical initial/lazy offsets while analytics is deferred, retains the client sort preference, keeps the full localized runtime config under its sparse-payload budget, and performs no full metrics-collector or `word_audio` hydration.
 - `WordsetPageLazyCardsAjaxTest` verifies lazy category shells are ID-only ordered references into a sparse complete registry, explicit negative capability/progress state survives compaction, Genç-scale registry JSON stays bounded, and lazy payload persistence failures retain a complete non-AJAX fallback.
@@ -208,7 +208,9 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   boundary, keeps private wordset/category support out of public rows, holds a
   scope lease across each bounded page read, exact-generation-fences cleanup,
   sweeps old rows whose state disappeared after a lost lease, and prevents
-  queued workers from reviving missing or retiring state.
+  queued workers from reviving missing or retiring state. Its fixed option-row
+  reader returns no cursor, waits for a completed generation, excludes target
+  aliases, and caps useful same-scope distractors at 12.
 - `QuizPagesShortcodeCatalogTest` verifies durable keyset catalog generations, stale-serving and usable-snapshot rules (including empty stale snapshots), epoch-drift recovery without resetting the only valid compatible partial generation, plugin-versioned builder fencing, worker-side suppression of every per-category derived transient namespace, early unrelated-cron suppression, and signed bounded no-JavaScript continuation.
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
@@ -221,7 +223,9 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   miss budgets, exact-owner per-client leases, same-query cache waits, bounded
   candidate input, the separate materialized-page request budget, serialized
   multi-category hydration, retryable warming responses, response-only progress
-  overlay, speaker-ID redaction, and cache-hit bypass behavior.
+  overlay, speaker-ID redaction, quiz-eligible option-pool refill past earlier
+  invalid rows (including canonical prompt-card answers), completed-generation
+  fallback after a fast-window underfill, and cache-hit bypass behavior.
 - `AutomationRestApiTest` covers aggregate report-summary counts plus bounded review-note and cross-post-type interlinear pagination; interlinear list payloads are omitted by default while exact-lesson reads retain the payload-on default.
 - `RestPasswordAuthAdmissionTest` covers coarse direct-peer plus peer/login raw-password admission, rotating-login resistance, generic failures, successful reservation refunds, and cleanup namespace registration.
 - `DictionaryPublicFilterBoundsTest` covers byte/cardinality/shape admission for all public dictionary query arguments, early AJAX rejection, safe static-cache defaults, and normal bounded cache hits.
@@ -295,8 +299,9 @@ Representative E2E coverage areas:
   - Verifies stale category AJAX responses cannot overwrite current wordset
     data in the flashcard loader, category preloads are serialized, retryable
     `429` category responses are retried, immutable payload pages are drained in
-    order with the rendered locale, and one stale-cursor restart cannot mix
-    generations.
+    order with the rendered locale, one stale-cursor restart cannot mix
+    generations, and an underfilled bounded category handoff rolls back
+    atomically before quiz setup.
 - `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
   - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
@@ -350,6 +355,8 @@ Representative E2E coverage areas:
   - Verifies main wordset category search uses the durable tokenized async word/translation lookup while preserving a loading state across bounded preparation retries, exposing an explicit error/Retry state instead of a false empty result, stopping irrelevant warming when a visible result navigates, pausing it while a result quiz owns the popup loader, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
+- `tests/e2e/specs/wordset-page-progress-loading.spec.js`
+  - Verifies a filtered progress-table Select all queue with more than 1,000 exact word IDs is transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial continuation.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
