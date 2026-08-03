@@ -362,7 +362,7 @@ function ll_tools_context_pack_definitions(): array
                 'Interactive category deletion uses one wordset-scoped persisted job, bridges the previous per-category lock namespace with a rollback-expiring marker, transactionally revalidates both lease rows on state writes, saves before mutation, reconciles remaining rows after interruption, and keeps Continue/Retry visible until completion.',
                 'Word-grid bulk edits prepare rollback chunks before mutation, revalidate persisted targets, fence state writes by lease, verify mutation/restore readback, and delete expired chunks in bounded scheduled batches.',
                 'Ranked reference collections query one exact-category page, cap it at 100 words, order by the allowlisted numeric rank meta plus ID, and bulk-collect audio only for displayed IDs; rank imports accept only bounded caller-supplied rows and exact ID/title resolution.',
-                'Public wordset-button counts use bounded keyset discovery plus resumable prompt-card and raw-word budgets; partial generations are never authoritative and anonymous last-known-good HTML remains structurally scoped.',
+                'Public wordset-button counts use bounded keyset discovery plus resumable prompt-card and raw-word budgets; partial generations are never authoritative, anonymous last-known-good HTML remains structurally scoped, and a cold anonymous response is non-cacheable with signed status-only polling that schedules rather than executes worker scans.',
             ],
             'sources' => [
                 'includes/pages/wordset-pages.php',

@@ -15,6 +15,7 @@
             ajaxUrl: String(root.getAttribute('data-ajax-url') || localized.ajaxUrl || ''),
             action: String(root.getAttribute('data-ajax-action') || localized.action || 'll_tools_wordset_buttons_refresh'),
             nonce: String(root.getAttribute('data-nonce') || localized.nonce || ''),
+            statusToken: String(root.getAttribute('data-status-token') || ''),
             retryMs: positiveInteger(localized.retryMs, 1500),
             requestTimeoutMs: positiveInteger(localized.requestTimeoutMs, 20000),
             maxFailures: positiveInteger(localized.maxFailures, 5),
@@ -72,6 +73,10 @@
         retry.textContent = config.retryLabel || '↻';
         retry.setAttribute('aria-label', config.retryLabel || '↻');
         retry.addEventListener('click', function () {
+            if (state.reloadOnRetry) {
+                window.location.reload();
+                return;
+            }
             state.showingRetry = false;
             state.failures = 0;
             state.nonceRefreshes = 0;
@@ -122,9 +127,11 @@
         return Math.min(30000, config.retryMs * Math.pow(2, Math.max(0, failures - 1)));
     }
 
-    function refreshExpiredNonce(root, state, response, payload) {
+    function refreshExpiredNonce(root, state, response, payload, config) {
         var data = payload && payload.data ? payload.data : {};
         if (
+            config.statusToken
+            ||
             response.status !== 403
             || data.code !== 'invalid_nonce'
             || typeof data.nonce !== 'string'
@@ -151,7 +158,7 @@
         }
 
         var config = rootConfig(root);
-        if (!config.ajaxUrl || !config.nonce || typeof window.fetch !== 'function') {
+        if (!config.ajaxUrl || (!config.nonce && !config.statusToken) || typeof window.fetch !== 'function') {
             state.configWaits += 1;
             if (state.configWaits >= 20) {
                 showRetry(root, state);
@@ -170,10 +177,14 @@
             : 0;
         var body = new URLSearchParams();
         body.set('action', config.action);
-        body.set('nonce', config.nonce);
-        body.set('tag', String(root.getAttribute('data-shortcode-tag') || 'll_wordset_buttons'));
-        body.set('class', String(root.getAttribute('data-shortcode-class') || ''));
-        body.set('hide_empty', root.getAttribute('data-hide-empty') === '1' ? '1' : '0');
+        if (config.statusToken) {
+            body.set('token', config.statusToken);
+        } else {
+            body.set('nonce', config.nonce);
+            body.set('tag', String(root.getAttribute('data-shortcode-tag') || 'll_wordset_buttons'));
+            body.set('class', String(root.getAttribute('data-shortcode-class') || ''));
+            body.set('hide_empty', root.getAttribute('data-hide-empty') === '1' ? '1' : '0');
+        }
 
         window.fetch(config.ajaxUrl, {
             method: 'POST',
@@ -189,7 +200,27 @@
             });
         }).then(function (result) {
             if (!result.response.ok) {
-                if (refreshExpiredNonce(root, state, result.response, result.payload)) {
+                if (refreshExpiredNonce(root, state, result.response, result.payload, config)) {
+                    return;
+                }
+                var errorData = result.payload && result.payload.data ? result.payload.data : {};
+                if (result.response.status === 429 && config.statusToken) {
+                    var retryHeader = parseInt(result.response.headers.get('Retry-After') || '', 10);
+                    var retryAfterMs = positiveInteger(
+                        errorData.retryAfterMs,
+                        Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader * 1000 : config.retryMs
+                    );
+                    state.failures = 0;
+                    schedule(root, state, retryAfterMs);
+                    return;
+                }
+                if (
+                    config.statusToken
+                    && [403, 409, 410].indexOf(result.response.status) !== -1
+                    && ['invalid_status_token', 'expired_status_token', 'stale_status_token'].indexOf(String(errorData.code || '')) !== -1
+                ) {
+                    state.reloadOnRetry = true;
+                    showRetry(root, state);
                     return;
                 }
                 throw new Error('wordset-buttons-refresh-http');
@@ -241,6 +272,7 @@
             timer: 0,
             visibilityHandler: null,
             showingRetry: false,
+            reloadOnRetry: false,
             startedAt: Date.now(),
             loadingHtml: root.innerHTML
         };

@@ -134,6 +134,7 @@ function getAllowedAdminAjaxActions(networkConfig) {
     'll_get_flashcard_payload_page',
     'll_tools_wordset_page_lazy_cards',
     'll_tools_wordset_page_category_search',
+    'll_tools_wordset_buttons_status',
     'll_tools_get_vocab_lesson_grid'
   ]);
   configured.forEach((action) => allowed.add(action));
