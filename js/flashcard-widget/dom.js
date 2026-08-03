@@ -673,9 +673,12 @@
             setSoundGateOverlayVisible(true);
             return true;
         },
-        restoreHeaderUI() {
+        restoreHeaderUI(options) {
+            const opts = (options && typeof options === 'object') ? options : {};
             $('#ll-tools-flashcard-header').show();
-            $('#ll-tools-learning-progress').hide();
+            if (!opts.preserveProgress) {
+                $('#ll-tools-learning-progress').hide();
+            }
             const selfCheckActive = !!(State && State.isSelfCheckMode);
             if (!selfCheckActive) {
                 $('#ll-tools-category-stack').show();

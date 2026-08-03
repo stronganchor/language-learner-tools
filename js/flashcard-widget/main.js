@@ -4531,7 +4531,9 @@
 
         $flashcardContainer.show();
         $flashcardContainer.empty();
-        Dom.restoreHeaderUI();
+        Dom.restoreHeaderUI({
+            preserveProgress: !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode
+        });
 
         root.FlashcardAudio.pauseAllAudio();
         Dom.showLoading();

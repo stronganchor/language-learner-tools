@@ -7,6 +7,10 @@ const stateSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/state.js'),
   'utf8'
 );
+const domSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'),
+  'utf8'
+);
 const mainSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/main.js'),
   'utf8'
@@ -392,6 +396,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
     window.__LLFlashcardsMainLoaded = false;
     window.__progressCalls = [];
     window.__progressDisplayRatios = [];
+    window.__restoreHeaderOptions = [];
     window.__showResultsCount = 0;
     window.__currentTarget = null;
     window.__targets = bootstrap.roundTargets.slice();
@@ -416,7 +421,9 @@ async function mountPracticeProgressHarness(page, options = {}) {
     };
     window.LLFlashcards.Dom = {
       clearRepeatButtonBinding() {},
-      restoreHeaderUI() {},
+      restoreHeaderUI(options) {
+        window.__restoreHeaderOptions.push(Object.assign({}, options || {}));
+      },
       showLoading() {},
       hideLoading() { return Promise.resolve(); },
       hideLoadingImmediately() { return Promise.resolve(); },
@@ -614,6 +621,49 @@ test('practice progress reaches full on the actual last answer without inserting
   }));
   expect(finalState.remainingTargets).toBe(0);
   expect(finalState.flowState).toBe('showing_results');
+});
+
+test('practice round transitions preserve the visible progress bar', async ({ page }) => {
+  await mountPracticeProgressHarness(page);
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+  const restoreOptions = await page.evaluate(() => window.__restoreHeaderOptions.slice());
+  expect(restoreOptions.at(-1)).toEqual({ preserveProgress: true });
+});
+
+test('header restoration leaves practice progress visible when requested', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-quiz-popup"></div>
+    <div id="ll-tools-flashcard-content"></div>
+    <div id="ll-tools-flashcard-header"></div>
+    <div id="ll-tools-learning-progress"></div>
+    <div id="ll-tools-category-stack"></div>
+    <div id="ll-tools-category-display"></div>
+    <button id="ll-tools-repeat-flashcard" type="button"></button>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.LLFlashcards = {
+      State: { isSelfCheckMode: false },
+      Util: {}
+    };
+    window.llToolsFlashcardsData = {};
+  });
+  await page.addScriptTag({ content: domSource });
+
+  const display = await page.evaluate(() => {
+    const progress = document.getElementById('ll-tools-learning-progress');
+    window.LLFlashcards.Dom.updateSimpleProgress(1, 3);
+    window.LLFlashcards.Dom.restoreHeaderUI({ preserveProgress: true });
+    return window.getComputedStyle(progress).display;
+  });
+
+  expect(display).not.toBe('none');
 });
 
 test('practice progress reopens a completed word while its wrong-answer replay is pending', async ({ page }) => {
