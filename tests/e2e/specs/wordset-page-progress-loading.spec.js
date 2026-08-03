@@ -296,7 +296,13 @@ function buildProgressPageMarkup() {
           </div>
           <div data-ll-wordset-progress-selection-bar hidden>
             <span data-ll-wordset-progress-selection-count></span>
+            <span data-ll-wordset-progress-launch-feedback role="status" aria-live="polite" aria-atomic="true" hidden>
+              <span data-ll-wordset-progress-launch-message></span>
+              <button type="button" data-ll-wordset-progress-launch-retry hidden>Retry</button>
+            </span>
+            <button type="button" data-ll-wordset-progress-selection-mode data-mode="learning">Learn</button>
             <button type="button" data-ll-wordset-progress-selection-mode data-mode="practice">Practice</button>
+            <button type="button" data-ll-wordset-progress-selection-mode data-mode="listening">Listen</button>
             <button type="button" data-ll-wordset-progress-selection-clear>Clear</button>
           </div>
         </div>
@@ -395,6 +401,7 @@ function buildPageConfig(overrides = {}) {
       deselectAll: 'Deselect all',
       noCategoriesSelected: 'Select at least one category.',
       noWordsInSelection: 'No quiz words are available for this selection.',
+      selectionLaunchError: 'Something went wrong. Please try again.',
       continueLabel: 'Continue',
       repeatLabel: 'Repeat',
       categoriesLabel: 'Categories',
@@ -574,7 +581,10 @@ async function mountProgressPage(page, options = {}) {
       return Promise.resolve();
     };
 
-    window.alert = function () {};
+    window.__llAlerts = [];
+    window.alert = function (message) {
+      window.__llAlerts.push(String(message || ''));
+    };
 
     window.__resolveAnalyticsRequest = function (index, analytics) {
       const entry = Array.isArray(window.__llAnalyticsRequests)
@@ -589,6 +599,17 @@ async function mountProgressPage(page, options = {}) {
           analytics
         }
       });
+      return true;
+    };
+
+    window.__rejectAnalyticsRequest = function (index, statusText) {
+      const entry = Array.isArray(window.__llAnalyticsRequests)
+        ? window.__llAnalyticsRequests[index]
+        : null;
+      if (!entry || !entry.deferred) {
+        return false;
+      }
+      entry.deferred.reject({ status: 503 }, String(statusText || 'error'), 'Unavailable');
       return true;
     };
 
@@ -607,6 +628,8 @@ async function mountProgressPage(page, options = {}) {
       }
 
       if (action === 'll_user_study_selection_launch_plan') {
+        const requestedMode = String(request.mode || 'practice');
+        const isLearning = requestedMode === 'learning';
         const candidateIds = (Array.isArray(request.candidate_word_ids)
           ? request.candidate_word_ids
           : String(request.candidate_word_ids || '').split(','))
@@ -614,29 +637,42 @@ async function mountProgressPage(page, options = {}) {
           .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
         const chunks = [];
         for (let offset = 0; offset < candidateIds.length; offset += 15) {
+          const chunkWordIds = candidateIds.slice(offset, offset + 15);
           chunks.push({
             category_ids: [11],
-            word_ids: candidateIds.slice(offset, offset + 15)
+            word_ids: chunkWordIds,
+            ...(isLearning ? {
+              target_word_ids: chunkWordIds.slice(),
+              compatibility_key: 'ratio:1_1|audio->image'
+            } : {})
           });
         }
+        const firstChunk = chunks[0] || null;
+        const plan = {
+          category_ids: firstChunk ? firstChunk.category_ids.slice() : [],
+          word_ids: firstChunk ? firstChunk.word_ids.slice() : [],
+          ...(isLearning ? {
+            target_word_ids: firstChunk ? firstChunk.target_word_ids.slice() : [],
+            compatibility_key: firstChunk ? firstChunk.compatibility_key : ''
+          } : {}),
+          chunks,
+          criteria: '',
+          mode: requestedMode,
+          matched_count: candidateIds.length,
+          planned_count: candidateIds.length,
+          expanded_count: 0,
+          chunk_count: chunks.length,
+          truncated: false
+        };
         window.__llSelectionPlanRequests.push({
           action,
-          request: Object.assign({}, request)
+          request: Object.assign({}, request),
+          plan
         });
         deferred.resolve({
           success: true,
           data: {
-            plan: {
-              category_ids: chunks[0] ? chunks[0].category_ids.slice() : [],
-              word_ids: chunks[0] ? chunks[0].word_ids.slice() : [],
-              chunks,
-              criteria: '',
-              mode: 'practice',
-              matched_count: candidateIds.length,
-              planned_count: candidateIds.length,
-              chunk_count: chunks.length,
-              truncated: false
-            }
+            plan
           }
         });
         return deferred.promise();
@@ -693,6 +729,109 @@ async function mountProgressPage(page, options = {}) {
   }, config);
 
   await page.addScriptTag({ content: wordsetScriptSource });
+}
+
+async function prepareAllFilteredProgressSelection(page, options = {}) {
+  const allMatchingIds = Array.isArray(options.allMatchingIds)
+    ? options.allMatchingIds.slice()
+    : Array.from({ length: 24 }, (_unused, index) => 101 + index);
+  const summary = {
+    totalWords: Math.max(40, allMatchingIds.length),
+    masteredWords: 0,
+    studiedWords: allMatchingIds.length,
+    newWords: Math.max(0, 40 - allMatchingIds.length),
+    hardWords: 0,
+    starredWords: allMatchingIds.length
+  };
+
+  await mountProgressPage(page, {
+    config: {
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: allMatchingIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    ...summary,
+    words: buildProgressWords(1, 30),
+    wordsPagination: {
+      enabled: true,
+      total: summary.totalWords,
+      unfiltered_total: summary.totalWords,
+      filtered: false,
+      offset: 0,
+      limit: 30,
+      loaded: 30,
+      next_offset: 30,
+      has_more: true
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+  await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+
+  const filteredPayload = buildAnalytics({
+    ...summary,
+    words: allMatchingIds.map((id) => buildProgressWords(id, 1, { starredIds: allMatchingIds })[0]),
+    wordsPagination: {
+      enabled: false,
+      total: allMatchingIds.length,
+      unfiltered_total: summary.totalWords,
+      filtered: true,
+      offset: 0,
+      limit: allMatchingIds.length,
+      loaded: allMatchingIds.length,
+      next_offset: null,
+      has_more: false
+    }
+  });
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, filteredPayload);
+
+  const selectAll = page.locator('[data-ll-wordset-progress-select-all]');
+  await expect(selectAll).toHaveText('Select all: Starred');
+  await selectAll.click();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${allMatchingIds.length} selected words`);
+
+  return {
+    allMatchingIds,
+    launchRequestIndex: 2
+  };
+}
+
+function buildAllFilteredWordIdAnalytics(wordIds) {
+  const ids = Array.isArray(wordIds) ? wordIds.slice() : [];
+  const payload = buildAnalytics({
+    totalWords: Math.max(40, ids.length),
+    studiedWords: ids.length,
+    newWords: Math.max(0, 40 - ids.length),
+    starredWords: ids.length,
+    words: [],
+    wordsPagination: {
+      enabled: false,
+      total: ids.length,
+      unfiltered_total: Math.max(40, ids.length),
+      filtered: true,
+      offset: 0,
+      limit: 0,
+      loaded: 0,
+      next_offset: null,
+      has_more: false
+    }
+  });
+  payload.word_ids = ids;
+  return payload;
 }
 
 test('progress summary counts stay blank while initial analytics loads', async ({ page }) => {
@@ -1293,6 +1432,188 @@ test('progress select all new words launches practice with the remaining new wor
       starredWords: 0
     }
   });
+});
+
+test('progress all-filtered launch is single-flight and disables every mode while word IDs load', async ({ page }) => {
+  const { launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+
+  await page.evaluate(() => {
+    const button = document.querySelector('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+    button.click();
+    button.click();
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  const launchRequestCount = await page.evaluate(() => window.__llAnalyticsRequests.filter((entry) => (
+    String(entry.request && entry.request.include_word_ids || '') === '1'
+  )).length);
+  expect(launchRequestCount).toBe(1);
+
+  const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
+  const modeButtons = page.locator('[data-ll-wordset-progress-selection-mode]');
+  const activeButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+  const feedback = page.locator('[data-ll-wordset-progress-launch-feedback]');
+  await expect(selectionBar).toHaveAttribute('aria-busy', 'true');
+  await expect(modeButtons).toHaveCount(3);
+  await expect.poll(async () => modeButtons.evaluateAll((buttons) => buttons.every((button) => button.disabled))).toBe(true);
+  await expect(activeButton).toHaveAttribute('aria-busy', 'true');
+  await expect(activeButton).toHaveClass(/is-loading/);
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toHaveClass(/is-loading/);
+  await expect(page.locator('[data-ll-wordset-progress-launch-message]')).toHaveText('Loading progress...');
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+
+  await page.evaluate((index) => window.__rejectAnalyticsRequest(index), launchRequestIndex);
+});
+
+test('progress all-filtered launch failure shows inline Retry without a native alert', async ({ page }) => {
+  const { launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+
+  await page.evaluate((index) => window.__rejectAnalyticsRequest(index), launchRequestIndex);
+
+  const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
+  const modeButtons = page.locator('[data-ll-wordset-progress-selection-mode]');
+  const feedback = page.locator('[data-ll-wordset-progress-launch-feedback]');
+  await expect(selectionBar).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(async () => modeButtons.evaluateAll((buttons) => buttons.every((button) => !button.disabled))).toBe(true);
+  await expect(feedback).toBeVisible();
+  await expect(feedback).toHaveClass(/is-error/);
+  await expect(page.locator('[data-ll-wordset-progress-launch-message]'))
+    .toHaveText('Something went wrong. Please try again.');
+  await expect(page.locator('[data-ll-wordset-progress-launch-retry]')).toBeVisible();
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress launch Retry repeats the same snapshot once and succeeds', async ({ page }) => {
+  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+
+  const firstRequest = await page.evaluate((index) => (
+    Object.assign({}, window.__llAnalyticsRequests[index].request || {})
+  ), launchRequestIndex);
+  await page.evaluate((index) => window.__rejectAnalyticsRequest(index), launchRequestIndex);
+  const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
+  await expect(retry).toBeVisible();
+  await retry.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(4);
+  const retryRequest = await page.evaluate(() => (
+    Object.assign({}, window.__llAnalyticsRequests[3].request || {})
+  ));
+  expect(retryRequest).toEqual(firstRequest);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'true');
+  await expect(retry).toBeHidden();
+
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: 3,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  const launch = await page.evaluate(() => window.__llFlashcardLaunches[0]);
+  expect(launch.mode).toBe('practice');
+  expect(launch.sessionWordIds).toEqual(allMatchingIds.slice(0, 15));
+  expect(launch.logicalSessionWordIds).toEqual(allMatchingIds);
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress all-filtered Learning hydrates and launches only its bounded first chunk', async ({ page }) => {
+  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+
+  const state = await page.evaluate(() => {
+    const planEntry = window.__llSelectionPlanRequests[0] || {};
+    const planRequest = planEntry.request || {};
+    const plan = planEntry.plan || {};
+    const hydrationRequest = window.__llFetchWordsRequests[0].request || {};
+    const launch = window.__llFlashcardLaunches[0] || {};
+    const parseIds = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
+      .map((item) => Number(item) || 0)
+      .filter(Boolean);
+    return {
+      planMode: String(planRequest.mode || ''),
+      planCandidateIds: parseIds(planRequest.candidate_word_ids),
+      planExpandedCount: Number(plan.expanded_count) || 0,
+      planChunks: Array.isArray(plan.chunks) ? plan.chunks.map((chunk) => ({
+        wordIds: parseIds(chunk.word_ids),
+        targetWordIds: parseIds(chunk.target_word_ids),
+        compatibilityKey: String(chunk.compatibility_key || '')
+      })) : [],
+      hydrationCandidateIds: parseIds(hydrationRequest.candidate_word_ids),
+      launchMode: String(launch.mode || ''),
+      launchSessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
+      launchSource: launch.lastLaunchPlan ? String(launch.lastLaunchPlan.source || '') : '',
+      chunked: !!(launch.lastLaunchPlan && launch.lastLaunchPlan.chunked)
+    };
+  });
+
+  expect(state).toEqual({
+    planMode: 'learning',
+    planCandidateIds: allMatchingIds,
+    planExpandedCount: 0,
+    planChunks: [
+      {
+        wordIds: allMatchingIds.slice(0, 15),
+        targetWordIds: allMatchingIds.slice(0, 15),
+        compatibilityKey: 'ratio:1_1|audio->image'
+      },
+      {
+        wordIds: allMatchingIds.slice(15),
+        targetWordIds: allMatchingIds.slice(15),
+        compatibilityKey: 'ratio:1_1|audio->image'
+      }
+    ],
+    hydrationCandidateIds: allMatchingIds.slice(0, 15),
+    launchMode: 'learning',
+    launchSessionWordIds: allMatchingIds.slice(0, 15),
+    launchSource: 'wordset_progress_bounded_start',
+    chunked: true
+  });
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('changing filters invalidates an in-flight progress launch', async ({ page }) => {
+  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+
+  await page.locator('[data-ll-wordset-progress-search]').fill('changed scope');
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+  await page.waitForTimeout(100);
+
+  expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 
 test('progress unstar updates the visible row without reloading analytics', async ({ page }) => {

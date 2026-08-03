@@ -8335,6 +8335,66 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     white-space: nowrap;
 }
 
+.ll-wordset-progress-launch-feedback {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--ll-wp-muted);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.ll-wordset-progress-launch-feedback[hidden] {
+    display: none !important;
+}
+
+.ll-wordset-progress-launch-feedback.is-loading::before {
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(71, 85, 105, 0.22);
+    border-top-color: #475569;
+    border-radius: 50%;
+    content: "";
+    flex: 0 0 auto;
+    animation: ll-wordset-progress-spin 0.75s linear infinite;
+}
+
+.ll-wordset-progress-launch-feedback.is-error {
+    color: #b42318;
+}
+
+.ll-wordset-progress-launch-feedback__message {
+    min-width: 0;
+}
+
+.ll-wordset-progress-launch-feedback__retry {
+    appearance: none !important;
+    border: 1px solid #d0d5dd !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    color: #344054 !important;
+    cursor: pointer;
+    font: inherit !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    padding: 5px 9px !important;
+    white-space: nowrap;
+}
+
+.ll-wordset-progress-launch-feedback__retry:hover,
+.ll-wordset-progress-launch-feedback__retry:focus-visible {
+    border-color: #667085 !important;
+    box-shadow: 0 0 0 3px rgba(71, 84, 103, 0.12) !important;
+    outline: none !important;
+}
+
+.ll-wordset-progress-selection-bar .ll-wordset-mode-button.is-loading {
+    cursor: wait;
+}
+
 .ll-wordset-selection-bar__priority-toggle,
 .ll-wordset-selection-bar__starred-toggle,
 .ll-wordset-selection-bar__hard-toggle {

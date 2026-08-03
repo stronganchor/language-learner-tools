@@ -25969,6 +25969,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </div>
                         <div class="ll-wordset-selection-bar ll-wordset-progress-selection-bar" data-ll-wordset-progress-selection-bar hidden>
                             <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html(sprintf(__('%d selected words', 'll-tools-text-domain'), 0)); ?></span>
+                            <span class="ll-wordset-progress-launch-feedback" data-ll-wordset-progress-launch-feedback role="status" aria-live="polite" aria-atomic="true" hidden>
+                                <span class="ll-wordset-progress-launch-feedback__message" data-ll-wordset-progress-launch-message></span>
+                                <button type="button" class="ll-wordset-progress-launch-feedback__retry" data-ll-wordset-progress-launch-retry hidden>
+                                    <?php echo esc_html__('Retry', 'll-tools-text-domain'); ?>
+                                </button>
+                            </span>
                             <div class="ll-wordset-selection-bar__actions">
                                 <?php
                                 $progress_selection_modes = ll_tools_get_study_launch_mode_order($gender_enabled);

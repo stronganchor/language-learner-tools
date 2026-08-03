@@ -2020,6 +2020,291 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_learning_selection_launch_plan_separates_compatibility_groups_and_adds_only_compatible_fillers(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Learning Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $audio_text = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Audio Text',
+            'audio',
+            'text_title',
+            8
+        );
+        $text_text = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Text Text',
+            'text_title',
+            'text_title',
+            8
+        );
+        $target_word_ids = array_merge(
+            array_slice($audio_text['word_ids'], 0, 5),
+            array_slice($text_text['word_ids'], 0, 5)
+        );
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [$audio_text['category_id'], $text_text['category_id']],
+            '',
+            'learning',
+            $target_word_ids
+        );
+
+        $this->assertIsArray($plan);
+        $this->assertSame('learning', (string) ($plan['mode'] ?? ''));
+        $this->assertSame(10, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(16, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(6, (int) ($plan['expanded_count'] ?? 0));
+        $this->assertSame(8, (int) ($plan['minimum_words'] ?? 0));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(2, $chunks);
+
+        $expected_keys = ['no-image|audio->text', 'no-image|text->text'];
+        $actual_keys = [];
+        $planned_word_ids = [];
+        $planned_target_word_ids = [];
+        $all_words_by_category = [
+            (int) $audio_text['category_id'] => array_values(array_map('intval', $audio_text['word_ids'])),
+            (int) $text_text['category_id'] => array_values(array_map('intval', $text_text['word_ids'])),
+        ];
+        foreach ($chunks as $chunk) {
+            $chunk_category_ids = array_values(array_map('intval', (array) ($chunk['category_ids'] ?? [])));
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $chunk_target_word_ids = array_values(array_map('intval', (array) ($chunk['target_word_ids'] ?? [])));
+            $compatibility_key = (string) ($chunk['compatibility_key'] ?? '');
+            $this->assertCount(1, $chunk_category_ids);
+            $this->assertCount(8, $chunk_word_ids);
+            $this->assertCount(5, $chunk_target_word_ids);
+            $this->assertSame([], array_values(array_diff($chunk_target_word_ids, $chunk_word_ids)));
+            $this->assertContains($compatibility_key, $expected_keys);
+            foreach ($chunk_word_ids as $word_id) {
+                $this->assertContains($word_id, $all_words_by_category[$chunk_category_ids[0]] ?? []);
+            }
+            $actual_keys[] = $compatibility_key;
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+            $planned_target_word_ids = array_merge($planned_target_word_ids, $chunk_target_word_ids);
+        }
+        sort($expected_keys);
+        sort($actual_keys);
+        $this->assertSame($expected_keys, $actual_keys);
+        $this->assertCount(16, array_unique($planned_word_ids));
+        sort($target_word_ids);
+        $planned_target_word_ids = array_values(array_unique($planned_target_word_ids));
+        sort($planned_target_word_ids);
+        $this->assertSame($target_word_ids, $planned_target_word_ids);
+        $this->assertSame($chunks[0]['category_ids'], $plan['category_ids']);
+        $this->assertSame($chunks[0]['word_ids'], $plan['word_ids']);
+        $this->assertSame($chunks[0]['target_word_ids'], $plan['target_word_ids']);
+        $this->assertSame($chunks[0]['compatibility_key'], $plan['compatibility_key']);
+    }
+
+    public function test_learning_selection_launch_plan_balances_large_exact_scope_into_eight_to_fifteen_word_chunks(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Large Learning Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Large Learning',
+            'audio',
+            'text_translation',
+            24
+        );
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [$category['category_id']],
+            '',
+            'learning',
+            $category['word_ids']
+        );
+
+        $this->assertIsArray($plan);
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(2, $chunks);
+        $planned_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $chunk_target_word_ids = array_values(array_map('intval', (array) ($chunk['target_word_ids'] ?? [])));
+            $this->assertCount(12, $chunk_word_ids);
+            $this->assertSame($chunk_word_ids, $chunk_target_word_ids);
+            $this->assertLessThanOrEqual(15, count($chunk_word_ids));
+            $this->assertGreaterThanOrEqual(8, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+        }
+        $expected_word_ids = array_values(array_map('intval', $category['word_ids']));
+        sort($expected_word_ids);
+        sort($planned_word_ids);
+        $this->assertSame($expected_word_ids, $planned_word_ids);
+        $this->assertSame(24, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(24, (int) ($plan['planned_count'] ?? 0));
+        $this->assertSame(0, (int) ($plan['expanded_count'] ?? -1));
+    }
+
+    public function test_learning_selection_launch_plan_fails_closed_when_a_compatibility_group_cannot_reach_eight_words(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Short Learning Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Short Learning',
+            'audio',
+            'text_title',
+            7
+        );
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [$category['category_id']],
+            '',
+            'learning',
+            array_slice($category['word_ids'], 0, 5)
+        );
+
+        $this->assertWPError($plan);
+        $this->assertSame('learning_selection_unlaunchable', $plan->get_error_code());
+    }
+
+    public function test_learning_selection_chunk_builder_rehomes_shared_fillers_for_constrained_groups(): void
+    {
+        $audio_target_ids = range(1001, 1006);
+        $text_target_ids = range(2001, 2007);
+        $shared_filler_ids = [9001, 9002];
+        $audio_only_filler_id = 9003;
+        $chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
+            [
+                101 => $audio_target_ids,
+                201 => $text_target_ids,
+            ],
+            [
+                101 => array_merge($audio_target_ids, $shared_filler_ids, [$audio_only_filler_id]),
+                201 => array_merge($text_target_ids, $shared_filler_ids),
+            ],
+            [
+                101 => [
+                    'aspect_bucket' => 'no-image',
+                    'prompt_type' => 'audio',
+                    'option_type' => 'text_title',
+                    'learning_supported' => true,
+                ],
+                201 => [
+                    'aspect_bucket' => 'no-image',
+                    'prompt_type' => 'text_title',
+                    'option_type' => 'text_title',
+                    'learning_supported' => true,
+                ],
+            ],
+            15,
+            8
+        );
+
+        $this->assertIsArray($chunks);
+        $this->assertCount(2, $chunks);
+        $chunks_by_key = [];
+        foreach ($chunks as $chunk) {
+            $chunks_by_key[(string) ($chunk['compatibility_key'] ?? '')] = $chunk;
+        }
+        $audio_filler_ids = array_values(array_diff(
+            array_map('intval', (array) ($chunks_by_key['no-image|audio->text']['word_ids'] ?? [])),
+            $audio_target_ids
+        ));
+        $text_filler_ids = array_values(array_diff(
+            array_map('intval', (array) ($chunks_by_key['no-image|text->text']['word_ids'] ?? [])),
+            $text_target_ids
+        ));
+        $audio_shared_filler_ids = array_values(array_intersect($audio_filler_ids, $shared_filler_ids));
+        $text_shared_filler_ids = array_values(array_intersect($text_filler_ids, $shared_filler_ids));
+        $this->assertCount(2, $audio_filler_ids);
+        $this->assertContains(
+            $audio_only_filler_id,
+            $audio_filler_ids,
+            'The first group must rehome one of its shared assignments to the group-specific filler.'
+        );
+        $this->assertCount(1, $audio_shared_filler_ids);
+        $this->assertCount(1, $text_filler_ids);
+        $this->assertCount(
+            1,
+            $text_shared_filler_ids,
+            'The later group must receive a shared filler after the augmenting path reassigns the earlier slots.'
+        );
+        $this->assertNotSame($audio_shared_filler_ids[0], $text_shared_filler_ids[0]);
+        $planned_word_ids = array_merge(
+            (array) ($chunks_by_key['no-image|audio->text']['word_ids'] ?? []),
+            (array) ($chunks_by_key['no-image|text->text']['word_ids'] ?? [])
+        );
+        $this->assertCount(16, array_unique(array_map('intval', $planned_word_ids)));
+    }
+
+    public function test_learning_selection_chunk_builder_keeps_sparse_category_groups_bounded(): void
+    {
+        $matched_by_category = [];
+        $word_ids_by_category = [];
+        $category_payload_lookup = [];
+        $expected_target_ids = [];
+        for ($index = 1; $index <= 9; $index++) {
+            $category_id = 100 + $index;
+            $target_word_id = 1000 + $index;
+            $filler_word_id = 2000 + $index;
+            $matched_by_category[$category_id] = [$target_word_id];
+            $word_ids_by_category[$category_id] = [$target_word_id, $filler_word_id];
+            $category_payload_lookup[$category_id] = [
+                'aspect_bucket' => 'ratio:4:3',
+                'prompt_type' => 'audio_text_title',
+                'option_type' => 'text_translation',
+                'learning_supported' => true,
+            ];
+            $expected_target_ids[] = $target_word_id;
+        }
+
+        $chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
+            $matched_by_category,
+            $word_ids_by_category,
+            $category_payload_lookup,
+            15,
+            8
+        );
+
+        $this->assertIsArray($chunks);
+        $this->assertCount(2, $chunks);
+        $planned_word_ids = [];
+        $planned_target_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $this->assertCount(8, $chunk_word_ids);
+            $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
+            $this->assertSame('ratio:4:3|audio_text->text', (string) ($chunk['compatibility_key'] ?? ''));
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+            $planned_target_ids = array_merge(
+                $planned_target_ids,
+                array_map('intval', (array) ($chunk['target_word_ids'] ?? []))
+            );
+        }
+        $this->assertCount(16, array_unique($planned_word_ids));
+        sort($expected_target_ids);
+        sort($planned_target_ids);
+        $this->assertSame($expected_target_ids, $planned_target_ids);
+    }
+
     public function test_selection_launch_chunk_balancing_avoids_a_one_word_tail(): void
     {
         $chunks = ll_tools_build_user_study_selection_launch_chunks([
@@ -2441,6 +2726,43 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$cat_a, $cat_b],
             'word_ids' => [$word_a, $word_b, $word_c, $word_d, $word_e, $word_f, $word_g, $word_h, $word_i, $word_j],
+        ];
+    }
+
+    /**
+     * @return array{category_id:int,word_ids:int[]}
+     */
+    private function createLearningSelectionCategory(
+        int $wordset_id,
+        string $label,
+        string $prompt_type,
+        string $option_type,
+        int $word_count
+    ): array {
+        $category = wp_insert_term(
+            'Analytics ' . $label . ' Category ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $source_category_id = (int) $category['term_id'];
+        update_term_meta($source_category_id, 'll_quiz_prompt_type', $prompt_type);
+        update_term_meta($source_category_id, 'll_quiz_option_type', $option_type);
+
+        $word_ids = [];
+        for ($index = 1; $index <= $word_count; $index++) {
+            $word_ids[] = $this->createWordWithAudio(
+                'Analytics ' . $label . ' Word ' . $index,
+                'Analytics ' . $label . ' Translation ' . $index,
+                $source_category_id,
+                $wordset_id,
+                sanitize_title($label) . '-' . $index . '.mp3'
+            );
+        }
+
+        return [
+            'category_id' => $this->resolveEffectiveCategoryId($source_category_id, $wordset_id),
+            'word_ids' => $word_ids,
         ];
     }
 

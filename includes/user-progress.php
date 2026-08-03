@@ -9508,6 +9508,418 @@ function ll_tools_build_launchable_user_study_selection_chunks(
 }
 
 /**
+ * Normalize a learning prompt type for category compatibility comparisons.
+ */
+function ll_tools_user_study_learning_prompt_compatibility_type($value): string {
+    $key = strtolower(trim((string) $value));
+    if (in_array($key, ['text_title', 'text_translation'], true)) {
+        return 'text';
+    }
+    if (in_array($key, ['audio_text_title', 'audio_text_translation'], true)) {
+        return 'audio_text';
+    }
+    if (in_array($key, ['image_text_title', 'image_text_translation'], true)) {
+        return 'image_text';
+    }
+    return $key !== '' ? $key : 'audio';
+}
+
+/**
+ * Normalize a learning option type for category compatibility comparisons.
+ */
+function ll_tools_user_study_learning_option_compatibility_type($value): string {
+    $key = strtolower(trim((string) $value));
+    if (in_array($key, ['text_title', 'text_translation'], true)) {
+        return 'text';
+    }
+    return $key !== '' ? $key : 'image';
+}
+
+/**
+ * Build the canonical category compatibility key used by Learning launches.
+ *
+ * Keep this in sync with getCategoryCompatibilityKey() in js/wordset-pages.js.
+ *
+ * @param array<string,mixed> $category_meta
+ */
+function ll_tools_user_study_learning_compatibility_key(array $category_meta): string {
+    $aspect_bucket = trim((string) ($category_meta['aspect_bucket'] ?? ''));
+    if ($aspect_bucket === '') {
+        $aspect_bucket = 'no-image';
+    }
+
+    $sign_language_mode = !empty($category_meta['sign_language_mode']);
+    $learning_prompt_type = trim((string) ($category_meta['learning_prompt_type'] ?? ''));
+    $learning_option_type = trim((string) ($category_meta['learning_option_type'] ?? ''));
+    $prompt_type = $learning_prompt_type !== ''
+        ? $learning_prompt_type
+        : ($sign_language_mode ? 'image' : (string) ($category_meta['prompt_type'] ?? 'audio'));
+    $option_type = $learning_option_type !== ''
+        ? $learning_option_type
+        : ($sign_language_mode
+            ? 'image'
+            : (string) ($category_meta['option_type'] ?? ($category_meta['mode'] ?? 'image')));
+
+    return $aspect_bucket
+        . '|'
+        . ll_tools_user_study_learning_prompt_compatibility_type($prompt_type)
+        . '->'
+        . ll_tools_user_study_learning_option_compatibility_type($option_type);
+}
+
+/**
+ * Build bounded, presentation-compatible Learning chunks.
+ *
+ * Target IDs are assigned to their first eligible category exactly once. A
+ * short chunk may then use non-target words from the same compatibility group
+ * as filler, but target and filler identities remain distinct in the contract.
+ *
+ * @param array<int,int[]>              $matched_by_category
+ * @param array<int,int[]>              $word_ids_by_category
+ * @param array<int,array<string,mixed>> $category_payload_lookup
+ * @return array<int,array{category_ids:int[],word_ids:int[],target_word_ids:int[],compatibility_key:string}>|WP_Error
+ */
+function ll_tools_build_user_study_learning_selection_launch_chunks(
+    array $matched_by_category,
+    array $word_ids_by_category,
+    array $category_payload_lookup,
+    int $max_words = 15,
+    int $max_categories = 8
+) {
+    $minimum_words = 8;
+    $max_words = max($minimum_words, min(15, $max_words));
+    $max_categories = max(1, min(8, $max_categories));
+    $unlaunchable = static function (): WP_Error {
+        return new WP_Error(
+            'learning_selection_unlaunchable',
+            __('No quiz words are available for this selection.', 'll-tools-text-domain')
+        );
+    };
+
+    $category_group_lookup = [];
+    $group_category_ids = [];
+    foreach ($word_ids_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        $category_meta = $category_payload_lookup[$category_id] ?? null;
+        if (
+            $category_id <= 0
+            || !is_array($word_ids)
+            || !is_array($category_meta)
+            || !ll_tools_category_meta_supports_progress_mode('learning', $category_meta)
+        ) {
+            continue;
+        }
+        $compatibility_key = ll_tools_user_study_learning_compatibility_key($category_meta);
+        $category_group_lookup[$category_id] = $compatibility_key;
+        if (!isset($group_category_ids[$compatibility_key])) {
+            $group_category_ids[$compatibility_key] = [];
+        }
+        $group_category_ids[$compatibility_key][] = $category_id;
+    }
+
+    $target_owner_lookup = [];
+    $targets_by_group = [];
+    foreach ($matched_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        $compatibility_key = $category_group_lookup[$category_id] ?? '';
+        if ($category_id <= 0 || $compatibility_key === '' || !is_array($word_ids)) {
+            continue;
+        }
+        foreach ($word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($target_owner_lookup[$word_id])) {
+                continue;
+            }
+            $target_owner_lookup[$word_id] = $category_id;
+            if (!isset($targets_by_group[$compatibility_key])) {
+                $targets_by_group[$compatibility_key] = [];
+            }
+            if (!isset($targets_by_group[$compatibility_key][$category_id])) {
+                $targets_by_group[$compatibility_key][$category_id] = [];
+            }
+            $targets_by_group[$compatibility_key][$category_id][] = $word_id;
+        }
+    }
+    if (empty($target_owner_lookup)) {
+        return [];
+    }
+
+    $target_lookup = array_fill_keys(array_keys($target_owner_lookup), true);
+    $draft_chunks = [];
+    $filler_need_by_group = [];
+    $filler_category_lookups_by_group = [];
+    foreach ($targets_by_group as $compatibility_key => $group_targets_by_category) {
+        $target_chunks = ll_tools_build_user_study_selection_launch_chunks(
+            $group_targets_by_category,
+            $max_words,
+            $max_categories,
+            1
+        );
+        if (empty($target_chunks)) {
+            return $unlaunchable();
+        }
+
+        $compatible_category_ids = array_values(array_map(
+            'intval',
+            (array) ($group_category_ids[$compatibility_key] ?? [])
+        ));
+        $filler_category_lookups_by_group[$compatibility_key] = [];
+        foreach ($compatible_category_ids as $filler_category_id) {
+            $filler_category_id = (int) $filler_category_id;
+            if (
+                $filler_category_id <= 0
+                || ($category_group_lookup[$filler_category_id] ?? '') !== $compatibility_key
+            ) {
+                continue;
+            }
+            foreach ((array) ($word_ids_by_category[$filler_category_id] ?? []) as $filler_word_id) {
+                $filler_word_id = (int) $filler_word_id;
+                if ($filler_word_id <= 0 || isset($target_lookup[$filler_word_id])) {
+                    continue;
+                }
+                if (!isset($filler_category_lookups_by_group[$compatibility_key][$filler_word_id])) {
+                    $filler_category_lookups_by_group[$compatibility_key][$filler_word_id] = [];
+                }
+                $filler_category_lookups_by_group[$compatibility_key][$filler_word_id][$filler_category_id] = true;
+            }
+        }
+
+        foreach ($target_chunks as $target_chunk) {
+            $target_word_ids = array_values(array_unique(array_filter(array_map(
+                'intval',
+                (array) ($target_chunk['word_ids'] ?? [])
+            ), static function (int $word_id): bool {
+                return $word_id > 0;
+            })));
+            $chunk_category_ids = array_values(array_unique(array_filter(array_map(
+                'intval',
+                (array) ($target_chunk['category_ids'] ?? [])
+            ), static function (int $category_id): bool {
+                return $category_id > 0;
+            })));
+            if (
+                empty($target_word_ids)
+                || empty($chunk_category_ids)
+                || count($target_word_ids) > $max_words
+                || count($chunk_category_ids) > $max_categories
+            ) {
+                return $unlaunchable();
+            }
+
+            $filler_need = max(0, $minimum_words - count($target_word_ids));
+            $filler_need_by_group[$compatibility_key] = (int) ($filler_need_by_group[$compatibility_key] ?? 0)
+                + $filler_need;
+            $draft_chunks[] = [
+                'category_ids' => $chunk_category_ids,
+                'target_word_ids' => $target_word_ids,
+                'compatibility_key' => (string) $compatibility_key,
+                'filler_need' => $filler_need,
+            ];
+        }
+    }
+
+    /*
+     * Allocate fillers across all compatibility groups before building any
+     * chunk. A word can belong to categories with different presentation
+     * contracts, so sequential greedy allocation can strand a constrained
+     * later group. This capacity matching rehomes earlier assignments when a
+     * shared filler is the only option for another group.
+     */
+    $filler_group_keys = array_keys(array_filter(
+        $filler_need_by_group,
+        static function (int $needed): bool {
+            return $needed > 0;
+        }
+    ));
+    usort($filler_group_keys, static function (string $left, string $right) use (
+        $filler_need_by_group,
+        $filler_category_lookups_by_group
+    ): int {
+        $left_candidates = count((array) ($filler_category_lookups_by_group[$left] ?? []));
+        $right_candidates = count((array) ($filler_category_lookups_by_group[$right] ?? []));
+        $left_slack = $left_candidates - (int) ($filler_need_by_group[$left] ?? 0);
+        $right_slack = $right_candidates - (int) ($filler_need_by_group[$right] ?? 0);
+        if ($left_slack !== $right_slack) {
+            return $left_slack <=> $right_slack;
+        }
+        if ($left_candidates !== $right_candidates) {
+            return $left_candidates <=> $right_candidates;
+        }
+        return strcmp($left, $right);
+    });
+
+    $slot_group_keys = [];
+    foreach ($filler_group_keys as $compatibility_key) {
+        $filler_need = (int) ($filler_need_by_group[$compatibility_key] ?? 0);
+        if (count((array) ($filler_category_lookups_by_group[$compatibility_key] ?? [])) < $filler_need) {
+            return $unlaunchable();
+        }
+        for ($slot_index = 0; $slot_index < $filler_need; $slot_index++) {
+            $slot_group_keys[] = $compatibility_key;
+        }
+    }
+
+    $word_slot_lookup = [];
+    $slot_word_lookup = [];
+    $try_assign_slot = null;
+    $try_assign_slot = static function (int $slot_index, array &$visited_word_lookup) use (
+        &$try_assign_slot,
+        &$word_slot_lookup,
+        &$slot_word_lookup,
+        $slot_group_keys,
+        $filler_category_lookups_by_group
+    ): bool {
+        $compatibility_key = (string) ($slot_group_keys[$slot_index] ?? '');
+        foreach (array_keys((array) ($filler_category_lookups_by_group[$compatibility_key] ?? [])) as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($visited_word_lookup[$word_id])) {
+                continue;
+            }
+            $visited_word_lookup[$word_id] = true;
+            $assigned_slot_index = $word_slot_lookup[$word_id] ?? null;
+            if (
+                $assigned_slot_index === null
+                || $try_assign_slot((int) $assigned_slot_index, $visited_word_lookup)
+            ) {
+                $word_slot_lookup[$word_id] = $slot_index;
+                $slot_word_lookup[$slot_index] = $word_id;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    foreach (array_keys($slot_group_keys) as $slot_index) {
+        $visited_word_lookup = [];
+        if (!$try_assign_slot((int) $slot_index, $visited_word_lookup)) {
+            return $unlaunchable();
+        }
+    }
+
+    $assigned_fillers_by_group = [];
+    foreach ($slot_word_lookup as $slot_index => $word_id) {
+        $compatibility_key = (string) ($slot_group_keys[(int) $slot_index] ?? '');
+        if ($compatibility_key === '') {
+            return $unlaunchable();
+        }
+        if (!isset($assigned_fillers_by_group[$compatibility_key])) {
+            $assigned_fillers_by_group[$compatibility_key] = [];
+        }
+        $assigned_fillers_by_group[$compatibility_key][] = (int) $word_id;
+    }
+
+    $planned_word_lookup = [];
+    $planned_target_lookup = [];
+    $planned_word_owner_lookup = $target_owner_lookup;
+    $assigned_filler_offsets = [];
+    $chunks = [];
+    foreach ($draft_chunks as $draft_chunk) {
+        $compatibility_key = (string) ($draft_chunk['compatibility_key'] ?? '');
+        $target_word_ids = array_values(array_map('intval', (array) ($draft_chunk['target_word_ids'] ?? [])));
+        $launch_word_ids = $target_word_ids;
+        $chunk_word_lookup = array_fill_keys($launch_word_ids, true);
+        $chunk_category_ids = array_values(array_map('intval', (array) ($draft_chunk['category_ids'] ?? [])));
+        $chunk_category_lookup = array_fill_keys($chunk_category_ids, true);
+        $filler_need = (int) ($draft_chunk['filler_need'] ?? 0);
+        $filler_offset = (int) ($assigned_filler_offsets[$compatibility_key] ?? 0);
+
+        for ($filler_index = 0; $filler_index < $filler_need; $filler_index++) {
+            $filler_word_id = (int) ($assigned_fillers_by_group[$compatibility_key][$filler_offset] ?? 0);
+            $filler_offset++;
+            $filler_category_lookup = (array) (
+                $filler_category_lookups_by_group[$compatibility_key][$filler_word_id] ?? []
+            );
+            $filler_category_id = 0;
+            foreach (array_keys($filler_category_lookup) as $candidate_category_id) {
+                $candidate_category_id = (int) $candidate_category_id;
+                if (isset($chunk_category_lookup[$candidate_category_id])) {
+                    $filler_category_id = $candidate_category_id;
+                    break;
+                }
+            }
+            if ($filler_category_id <= 0) {
+                $filler_category_id = (int) (array_key_first($filler_category_lookup) ?? 0);
+            }
+            if (
+                $filler_word_id <= 0
+                || $filler_category_id <= 0
+                || isset($target_lookup[$filler_word_id])
+                || isset($planned_word_lookup[$filler_word_id])
+                || isset($chunk_word_lookup[$filler_word_id])
+                || ($category_group_lookup[$filler_category_id] ?? '') !== $compatibility_key
+                || (!isset($chunk_category_lookup[$filler_category_id]) && count($chunk_category_ids) >= $max_categories)
+            ) {
+                return $unlaunchable();
+            }
+            $launch_word_ids[] = $filler_word_id;
+            $chunk_word_lookup[$filler_word_id] = true;
+            $planned_word_owner_lookup[$filler_word_id] = $filler_category_id;
+            if (!isset($chunk_category_lookup[$filler_category_id])) {
+                $chunk_category_lookup[$filler_category_id] = true;
+                $chunk_category_ids[] = $filler_category_id;
+            }
+        }
+        $assigned_filler_offsets[$compatibility_key] = $filler_offset;
+
+        if (
+            count($launch_word_ids) < $minimum_words
+            || count($launch_word_ids) > $max_words
+            || count($chunk_category_ids) > $max_categories
+        ) {
+            return $unlaunchable();
+        }
+
+        $expected_category_lookup = [];
+        foreach ($launch_word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            $owner_category_id = (int) ($planned_word_owner_lookup[$word_id] ?? 0);
+            if (
+                $word_id <= 0
+                || $owner_category_id <= 0
+                || isset($planned_word_lookup[$word_id])
+                || ($category_group_lookup[$owner_category_id] ?? '') !== $compatibility_key
+            ) {
+                return $unlaunchable();
+            }
+            $expected_category_lookup[$owner_category_id] = true;
+            $planned_word_lookup[$word_id] = true;
+        }
+        foreach ($target_word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($planned_target_lookup[$word_id])) {
+                return $unlaunchable();
+            }
+            $planned_target_lookup[$word_id] = true;
+        }
+        $chunk_category_lookup = array_fill_keys($chunk_category_ids, true);
+        if (
+            count($chunk_category_lookup) !== count($expected_category_lookup)
+            || !empty(array_diff_key($chunk_category_lookup, $expected_category_lookup))
+            || !empty(array_diff_key($expected_category_lookup, $chunk_category_lookup))
+        ) {
+            return $unlaunchable();
+        }
+
+        $chunks[] = [
+            'category_ids' => $chunk_category_ids,
+            'word_ids' => $launch_word_ids,
+            'target_word_ids' => $target_word_ids,
+            'compatibility_key' => $compatibility_key,
+        ];
+    }
+
+    if (
+        count($planned_target_lookup) !== count($target_lookup)
+        || !empty(array_diff_key($target_lookup, $planned_target_lookup))
+        || !empty(array_diff_key($planned_target_lookup, $target_lookup))
+    ) {
+        return $unlaunchable();
+    }
+
+    return $chunks;
+}
+
+/**
  * Build a complete bounded chunk plan for a learner's multi-category launch.
  *
  * This deliberately resolves only IDs and progress state. Quiz media is fetched
@@ -9619,7 +10031,7 @@ function ll_tools_build_user_study_selection_launch_plan(
     }
     $all_word_ids = array_values($all_word_ids);
     if (empty($all_word_ids)) {
-        return [
+        $empty_plan = [
             'category_ids' => [],
             'word_ids' => [],
             'chunks' => [],
@@ -9630,6 +10042,14 @@ function ll_tools_build_user_study_selection_launch_plan(
             'chunk_count' => 0,
             'truncated' => false,
         ];
+        if ($mode === 'learning') {
+            $empty_plan['target_word_ids'] = [];
+            $empty_plan['compatibility_key'] = '';
+            $empty_plan['expanded_count'] = 0;
+            $empty_plan['minimum_words'] = 8;
+            $empty_plan['maximum_words'] = 15;
+        }
+        return $empty_plan;
     }
 
     $progress_rows = [];
@@ -9687,7 +10107,7 @@ function ll_tools_build_user_study_selection_launch_plan(
 
     $matched_count = count($matched_word_lookup);
     if ($matched_count === 0) {
-        return [
+        $empty_plan = [
             'category_ids' => [],
             'word_ids' => [],
             'chunks' => [],
@@ -9698,9 +10118,78 @@ function ll_tools_build_user_study_selection_launch_plan(
             'chunk_count' => 0,
             'truncated' => false,
         ];
+        if ($mode === 'learning') {
+            $empty_plan['target_word_ids'] = [];
+            $empty_plan['compatibility_key'] = '';
+            $empty_plan['expanded_count'] = 0;
+            $empty_plan['minimum_words'] = 8;
+            $empty_plan['maximum_words'] = 15;
+        }
+        return $empty_plan;
     }
 
     $limits = ll_tools_user_study_selection_launch_limits($wordset_id);
+    if ($mode === 'learning') {
+        $learning_chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
+            $matched_by_category,
+            $word_ids_by_category,
+            $category_payload_lookup,
+            (int) ($limits['max_words'] ?? 15),
+            (int) ($limits['hard_max_categories'] ?? 8)
+        );
+        if (is_wp_error($learning_chunks)) {
+            return $learning_chunks;
+        }
+
+        $first_learning_chunk = isset($learning_chunks[0]) && is_array($learning_chunks[0])
+            ? $learning_chunks[0]
+            : [
+                'category_ids' => [],
+                'word_ids' => [],
+                'target_word_ids' => [],
+                'compatibility_key' => '',
+            ];
+        $planned_learning_word_lookup = [];
+        $planned_learning_target_lookup = [];
+        foreach ($learning_chunks as $learning_chunk) {
+            foreach ((array) ($learning_chunk['word_ids'] ?? []) as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0) {
+                    $planned_learning_word_lookup[$word_id] = true;
+                }
+            }
+            foreach ((array) ($learning_chunk['target_word_ids'] ?? []) as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0) {
+                    $planned_learning_target_lookup[$word_id] = true;
+                }
+            }
+        }
+        $planned_count = count($planned_learning_word_lookup);
+        if (count($planned_learning_target_lookup) !== $matched_count || $planned_count < $matched_count) {
+            return new WP_Error(
+                'learning_selection_unlaunchable',
+                __('No quiz words are available for this selection.', 'll-tools-text-domain')
+            );
+        }
+
+        return [
+            'category_ids' => array_values(array_map('intval', (array) ($first_learning_chunk['category_ids'] ?? []))),
+            'word_ids' => array_values(array_map('intval', (array) ($first_learning_chunk['word_ids'] ?? []))),
+            'target_word_ids' => array_values(array_map('intval', (array) ($first_learning_chunk['target_word_ids'] ?? []))),
+            'compatibility_key' => (string) ($first_learning_chunk['compatibility_key'] ?? ''),
+            'chunks' => $learning_chunks,
+            'criteria' => $criteria,
+            'mode' => $mode,
+            'matched_count' => $matched_count,
+            'planned_count' => $planned_count,
+            'expanded_count' => max(0, $planned_count - $matched_count),
+            'chunk_count' => count($learning_chunks),
+            'minimum_words' => 8,
+            'maximum_words' => max(8, min(15, (int) ($limits['max_words'] ?? 15))),
+            'truncated' => false,
+        ];
+    }
     [$minimum_words] = ll_tools_recommendation_session_word_bounds();
     $chunks = ll_tools_build_launchable_user_study_selection_chunks(
         $matched_by_category,
