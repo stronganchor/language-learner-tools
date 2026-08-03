@@ -347,7 +347,7 @@ Representative E2E coverage areas:
     image-hash comparisons block similar options while preserving explicit
     similarity overrides and unconditional exact-image blocking.
 - `tests/e2e/specs/wordset-page-category-search.spec.js`
-  - Verifies main wordset category search uses the durable tokenized async word/translation lookup while preserving a loading state across preparation retries, exposing an explicit error/Retry state instead of a false empty result, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
+  - Verifies main wordset category search uses the durable tokenized async word/translation lookup while preserving a loading state across bounded preparation retries, exposing an explicit error/Retry state instead of a false empty result, stopping irrelevant warming when a visible result navigates, pausing it while a result quiz owns the popup loader, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/site-tools-frontend.spec.js`

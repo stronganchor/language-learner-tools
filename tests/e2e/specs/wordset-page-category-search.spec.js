@@ -60,6 +60,9 @@ function buildMarkup() {
               <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: 100%;"></span>
             </span>
           </div>
+          <div class="ll-wordset-card__quiz-actions">
+            <button type="button" data-ll-wordset-category-mode data-mode="practice" data-cat-id="11">Practice</button>
+          </div>
         </article>
 
         <article class="ll-wordset-card" role="listitem" data-cat-id="22" data-word-count="3">
@@ -304,6 +307,8 @@ async function mountWordsetPage(page, options = {}) {
     0,
     Number(options.warmFailures || (options.warmOnce ? 1 : 0)) || 0
   );
+  config.categorySearch.testWarmQuery = String(options.warmQuery || 'warm').toLowerCase();
+  config.categorySearch.testStallNonSearchAjax = !!options.stallNonSearchAjax;
   if (options.maxRetries) {
     config.categorySearch.maxRetries = Number(options.maxRetries);
   }
@@ -319,6 +324,9 @@ async function mountWordsetPage(page, options = {}) {
     const $ = window.jQuery;
     $.post = function () {
       const deferred = $.Deferred();
+      if (config.categorySearch.testStallNonSearchAjax) {
+        return deferred.promise();
+      }
       deferred.resolve({
         success: true,
         data: {
@@ -345,6 +353,9 @@ async function mountWordsetPage(page, options = {}) {
       };
 
       if (data.action !== 'll_tools_wordset_page_category_search') {
+        if (config.categorySearch.testStallNonSearchAjax) {
+          return request;
+        }
         window.setTimeout(function () {
           deferred.reject(null, 'error');
         }, 0);
@@ -361,7 +372,7 @@ async function mountWordsetPage(page, options = {}) {
       window.setTimeout(function () {
         if (
           config.categorySearch.testWarmFailures > 0
-          && query === 'warm'
+          && query === config.categorySearch.testWarmQuery
           && window.__categorySearchWarmAttempts < config.categorySearch.testWarmFailures
         ) {
           window.__categorySearchWarmAttempts += 1;
@@ -381,7 +392,11 @@ async function mountWordsetPage(page, options = {}) {
 
         let categoryIds = [];
         let wordMatches = {};
-        if (query.indexOf('app') !== -1 || query.indexOf('elma') !== -1 || query === 'warm') {
+        if (
+          query.indexOf('app') !== -1
+          || query.indexOf('elma') !== -1
+          || query === config.categorySearch.testWarmQuery
+        ) {
           categoryIds = [11];
           wordMatches = {
             11: [{
@@ -533,8 +548,7 @@ test('main wordset search keeps loading and retries while the durable index warm
 
 test('main wordset search shows a retry state instead of a false empty result after warming exhausts', async ({ page }) => {
   await mountWordsetPage(page, {
-    warmFailures: 3,
-    maxRetries: 2,
+    warmFailures: 7,
     retryBaseMs: 10
   });
 
@@ -546,7 +560,7 @@ test('main wordset search shows a retry state instead of a false empty result af
   await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
   await expect.poll(async () => page.evaluate(() => (
     (window.__categorySearchRequests || []).filter((request) => request.query === 'warm').length
-  ))).toBe(3);
+  ))).toBe(7);
 
   await errorState.locator('[data-ll-wordset-page-search-retry]').click();
   await expect.poll(async () => {
@@ -556,6 +570,87 @@ test('main wordset search shows a retry state instead of a false empty result af
   }).toEqual([11]);
   await expect(errorState).toBeHidden();
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search stops warming when a visible result link is activated', async ({ page }) => {
+  await mountWordsetPage(page, {
+    warmFailures: 100,
+    warmQuery: 'fruit',
+    retryBaseMs: 40
+  });
+
+  await setSearchValue(page, 'fruit');
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBeGreaterThan(0);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="11"]')).toBeVisible();
+
+  await page.locator('.ll-wordset-card[data-cat-id="11"] .ll-wordset-card__heading').click();
+  const requestCountAfterActivation = await page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ));
+
+  await page.waitForTimeout(750);
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBe(requestCountAfterActivation);
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
+});
+
+test('main wordset search pauses warming during a result quiz launch and resumes after close', async ({ page }) => {
+  await mountWordsetPage(page, {
+    warmFailures: 100,
+    warmQuery: 'fruit',
+    retryBaseMs: 40,
+    stallNonSearchAjax: true
+  });
+
+  await setSearchValue(page, 'fruit');
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBeGreaterThan(0);
+
+  await page.locator('[data-ll-wordset-category-mode][data-cat-id="11"]').click();
+  await expect(page.locator('#ll-tools-flashcard-popup')).toHaveCSS('display', 'block');
+  const requestCountDuringLaunch = await page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ));
+
+  await page.waitForTimeout(750);
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBe(requestCountDuringLaunch);
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBeGreaterThan(requestCountDuringLaunch);
+});
+
+test('main wordset search keeps a cached result render scheduled when a quiz opens', async ({ page }) => {
+  await mountWordsetPage(page, { stallNonSearchAjax: true });
+
+  await setSearchValue(page, 'fruit');
+  await expect.poll(async () => page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.getAttribute('data-cat-id'))))).toEqual([11]);
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
+
+  await setSearchValue(page, '');
+  await expect.poll(async () => page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.getAttribute('data-cat-id'))))).toEqual([11, 22, 33, 44]);
+
+  await setSearchValue(page, 'fruit');
+  await page.locator('[data-ll-wordset-category-mode][data-cat-id="11"]').click();
+  await expect(page.locator('#ll-tools-flashcard-popup')).toHaveCSS('display', 'block');
+  await expect.poll(async () => page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.getAttribute('data-cat-id'))))).toEqual([11]);
+  await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
 });
 
 test('main wordset search hides the add category card while filtering', async ({ page }) => {
