@@ -27,6 +27,11 @@ load_env_file_literal() {
         key="${key%"${key##*[![:space:]]}"}"
         [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
 
+        case "$key" in
+            LL_LIVE_SITES_FILE|LL_LIVE_SMOKE_TIMEOUT_MS|LL_LIVE_SMOKE_PAUSE_MS) ;;
+            *) continue ;;
+        esac
+
         if [[ ${#value} -ge 2 ]]; then
             local first_char="${value:0:1}"
             local last_char="${value: -1}"

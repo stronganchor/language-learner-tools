@@ -9,6 +9,31 @@ if (!defined('LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK')) {
     define('LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK', 'll_tools_user_progress_retention_cleanup');
 }
 
+if (!defined('LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK')) {
+    define(
+        'LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK',
+        'll_tools_user_progress_retention_cleanup_continue'
+    );
+}
+
+if (!defined('LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION')) {
+    define(
+        'LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION',
+        'll_tools_user_progress_retention_cursor'
+    );
+}
+
+if (!defined('LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION')) {
+    define(
+        'LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION',
+        'll_tools_user_progress_retention_ceiling'
+    );
+}
+
+if (!defined('LL_TOOLS_USER_PROGRESS_RETENTION_HARD_BATCH_LIMIT')) {
+    define('LL_TOOLS_USER_PROGRESS_RETENTION_HARD_BATCH_LIMIT', 2000);
+}
+
 if (!function_exists('ll_tools_user_progress_retention_default_days')) {
     function ll_tools_user_progress_retention_default_days(): int {
         return max(30, (int) apply_filters('ll_tools_user_progress_retention_default_days', 180));
@@ -97,20 +122,83 @@ add_action('init', 'll_tools_schedule_user_progress_retention_cleanup', 30);
 
 if (!function_exists('ll_tools_clear_user_progress_retention_schedule')) {
     function ll_tools_clear_user_progress_retention_schedule(): void {
-        if (!function_exists('wp_next_scheduled') || !function_exists('wp_unschedule_event')) {
+        if (function_exists('wp_clear_scheduled_hook')) {
+            wp_clear_scheduled_hook(LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK);
+            wp_clear_scheduled_hook(LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK);
+        }
+
+        delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
+        delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
+    }
+}
+
+if (!function_exists('ll_tools_user_progress_retention_batch_limit')) {
+    function ll_tools_user_progress_retention_batch_limit(): int {
+        $limit = (int) apply_filters('ll_tools_user_progress_retention_batch_limit', 500);
+        return max(1, min(LL_TOOLS_USER_PROGRESS_RETENTION_HARD_BATCH_LIMIT, $limit));
+    }
+}
+
+if (!function_exists('ll_tools_schedule_user_progress_retention_continuation')) {
+    function ll_tools_schedule_user_progress_retention_continuation(): void {
+        if (!function_exists('wp_next_scheduled') || !function_exists('wp_schedule_single_event')) {
             return;
         }
 
-        $next = wp_next_scheduled(LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK);
-        while ($next) {
-            wp_unschedule_event($next, LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK);
-            $next = wp_next_scheduled(LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK);
+        if (!wp_next_scheduled(LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK)) {
+            wp_schedule_single_event(
+                time() + (5 * MINUTE_IN_SECONDS),
+                LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK
+            );
         }
     }
 }
 
-if (!function_exists('ll_tools_run_user_progress_retention_cleanup')) {
-    function ll_tools_run_user_progress_retention_cleanup(): int {
+if (!function_exists('ll_tools_user_progress_retention_lock_name')) {
+    function ll_tools_user_progress_retention_lock_name(): string {
+        global $wpdb;
+
+        // MySQL advisory locks are server-wide. Include both the database and
+        // the exact site options table so ordinary wp_options tables in
+        // unrelated databases do not contend. Hash the scope to avoid putting
+        // database or table names into the server-visible lock name.
+        $database_name = defined('DB_NAME') ? (string) DB_NAME : '';
+        $scope = $database_name . '|' . (string) $wpdb->options;
+        return 'll_tools_retention_' . substr(hash('sha256', $scope), 0, 32);
+    }
+}
+
+if (!function_exists('ll_tools_acquire_user_progress_retention_lock')) {
+    function ll_tools_acquire_user_progress_retention_lock(): string {
+        global $wpdb;
+
+        $lock_name = ll_tools_user_progress_retention_lock_name();
+        $wpdb->last_error = '';
+        $acquired = $wpdb->get_var(
+            $wpdb->prepare('SELECT GET_LOCK(%s, %d)', $lock_name, 0)
+        );
+        if ($wpdb->last_error !== '' || (int) $acquired !== 1) {
+            return '';
+        }
+
+        return $lock_name;
+    }
+}
+
+if (!function_exists('ll_tools_release_user_progress_retention_lock')) {
+    function ll_tools_release_user_progress_retention_lock(string $lock_name): void {
+        global $wpdb;
+
+        if ($lock_name !== '') {
+            // Advisory locks belong to the acquiring DB connection. A delayed
+            // worker therefore cannot release a newer worker's lock.
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
+        }
+    }
+}
+
+if (!function_exists('ll_tools_run_user_progress_retention_cleanup_locked')) {
+    function ll_tools_run_user_progress_retention_cleanup_locked(): int {
         global $wpdb;
 
         if (!function_exists('ll_tools_user_progress_table_names')) {
@@ -120,18 +208,115 @@ if (!function_exists('ll_tools_run_user_progress_retention_cleanup')) {
         $retention_days = ll_tools_get_user_progress_retention_days();
         $cutoff = gmdate('Y-m-d H:i:s', time() - ($retention_days * DAY_IN_SECONDS));
         $events_table = ll_tools_user_progress_table_names()['events'];
+        $batch_limit = ll_tools_user_progress_retention_batch_limit();
+        $cursor = max(0, (int) get_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION, 0));
+        $ceiling = max(0, (int) get_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION, 0));
 
+        // Capture one immutable high-water ID per pass. Without a fixed
+        // ceiling, a stream that appends faster than continuations drain it can
+        // keep the cursor moving forever and prevent already-scanned rows from
+        // being revisited after they age past the retention cutoff.
+        if ($ceiling <= 0) {
+            $wpdb->last_error = '';
+            $raw_ceiling = $wpdb->get_var("SELECT MAX(id) FROM {$events_table}");
+            if ($wpdb->last_error !== '') {
+                return 0;
+            }
+
+            $proposed_ceiling = max(0, (int) $raw_ceiling);
+            if ($proposed_ceiling <= 0) {
+                delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
+                delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
+                return 0;
+            }
+
+            if (add_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION, $proposed_ceiling, '', false)) {
+                $ceiling = $proposed_ceiling;
+            } else {
+                // Another runner may have started the same pass. Join its
+                // durable generation instead of replacing the ceiling.
+                $ceiling = max(0, (int) get_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION, 0));
+                if ($ceiling <= 0) {
+                    return 0;
+                }
+            }
+        }
+
+        if ($cursor >= $ceiling) {
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
+            return 0;
+        }
+
+        // Scan by the primary key instead of created_at: the event table's
+        // timestamp indexes are user-scoped, so a timestamp-only cleanup can
+        // otherwise scan and lock an arbitrarily large table in one cron run.
+        $wpdb->last_error = '';
+        $candidate_ids = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT id FROM {$events_table} WHERE id > %d AND id <= %d ORDER BY id ASC LIMIT %d",
+                $cursor,
+                $ceiling,
+                $batch_limit
+            )
+        );
+        if ($wpdb->last_error !== '' || !is_array($candidate_ids)) {
+            return 0;
+        }
+
+        $candidate_ids = array_values(array_filter(array_map('intval', $candidate_ids), static function (int $event_id): bool {
+            return $event_id > 0;
+        }));
+        if (empty($candidate_ids)) {
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
+            return 0;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($candidate_ids), '%d'));
+        $delete_args = array_merge($candidate_ids, [$cutoff]);
         $sql = $wpdb->prepare(
-            "DELETE FROM {$events_table} WHERE created_at < %s",
-            $cutoff
+            "DELETE FROM {$events_table} WHERE id IN ({$placeholders}) AND created_at < %s",
+            ...$delete_args
         );
 
+        $wpdb->last_error = '';
         $deleted = $wpdb->query($sql);
-        return is_numeric($deleted) ? max(0, (int) $deleted) : 0;
+        if ($deleted === false || $wpdb->last_error !== '') {
+            return 0;
+        }
+
+        $last_candidate_id = (int) end($candidate_ids);
+        $pass_complete = $last_candidate_id >= $ceiling || count($candidate_ids) < $batch_limit;
+        if (!$pass_complete) {
+            update_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION, $last_candidate_id, false);
+            ll_tools_schedule_user_progress_retention_continuation();
+        } else {
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
+            delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
+        }
+
+        return max(0, (int) $deleted);
+    }
+}
+
+if (!function_exists('ll_tools_run_user_progress_retention_cleanup')) {
+    function ll_tools_run_user_progress_retention_cleanup(): int {
+        $lock_name = ll_tools_acquire_user_progress_retention_lock();
+        if ($lock_name === '') {
+            return 0;
+        }
+
+        try {
+            return ll_tools_run_user_progress_retention_cleanup_locked();
+        } finally {
+            ll_tools_release_user_progress_retention_lock($lock_name);
+        }
     }
 }
 
 add_action(LL_TOOLS_USER_PROGRESS_RETENTION_CRON_HOOK, 'll_tools_run_user_progress_retention_cleanup');
+add_action(LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK, 'll_tools_run_user_progress_retention_cleanup');
 
 if (!function_exists('ll_tools_privacy_get_user_by_email')) {
     function ll_tools_privacy_get_user_by_email(string $email_address): ?WP_User {

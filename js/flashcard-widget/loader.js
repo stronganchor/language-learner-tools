@@ -443,6 +443,7 @@
             return {
                 categoryAjaxConcurrency: getClampedInt(tuning.categoryAjaxConcurrency, 1, 1, 4),
                 categoryAjaxSpacingMs: getClampedInt(tuning.categoryAjaxSpacingMs, 220, 0, 6000),
+                categoryAjaxTimeoutMs: getClampedInt(tuning.categoryAjaxTimeoutMs, 30000, 250, 120000),
                 categoryAjaxMaxRetriesOn429: getClampedInt(tuning.categoryAjaxMaxRetriesOn429, 2, 0, 6),
                 categoryPayloadWarmingMaxRetries: getClampedInt(tuning.categoryPayloadWarmingMaxRetries, 60, 1, 120),
                 categoryAjaxRetryBaseMs: getClampedInt(tuning.categoryAjaxRetryBaseMs, 900, 100, 30000),
@@ -1477,6 +1478,7 @@
                         url: llToolsFlashcardsData.ajaxurl,
                         method: 'POST',
                         dataType: 'json',
+                        timeout: getPreloadTuning().categoryAjaxTimeoutMs,
                         data: payload,
                         success: function (response) {
                             // Ignore stale responses from previous wordset/session requests.
@@ -1594,7 +1596,8 @@
                             resolve({
                                 success: false,
                                 category: categoryName,
-                                httpStatus: httpStatus
+                                httpStatus: httpStatus,
+                                timedOut: String(status || '').toLowerCase() === 'timeout'
                             });
                         }
                     });

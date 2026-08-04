@@ -5619,3 +5619,8 @@ msgstr "원격 이미지를 캐시하지 못했습니다."
 #: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "원격 이미지 새로 고침이 일시적으로 연기되었습니다."
+
+#. ll-tools-public-key: 568b3cb2b931e01ab43990cee18864e60e23735b
+#: includes/shortcodes/dictionary-shortcode.php:3038 includes/shortcodes/dictionary-shortcode.php:3720
+msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
+msgstr "사전 데이터를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요."

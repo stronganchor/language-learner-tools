@@ -2539,6 +2539,160 @@ test('detached word editor reuses cached markup until an internal review-note au
     wordsetId: 7
   }));
   expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(4);
+
+  await page.evaluate(() => {
+    window.__llModalMock.outOfOrderFirst = window.LLToolsWordEditModal.open({
+      wordId: 93,
+      wordsetId: 7
+    });
+    window.__llModalMock.outOfOrderLatest = window.LLToolsWordEditModal.open({
+      wordId: 94,
+      wordsetId: 7
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(6);
+
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[4].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="93">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true"></div>
+            </article>
+          </div>
+        `
+      }
+    });
+  });
+  await page.evaluate(() => window.__llModalMock.outOfOrderFirst);
+
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeVisible();
+  await expect(page.locator('[data-ll-word-edit-modal-grid] .word-item')).toHaveAttribute('data-word-id', '92');
+
+  await page.evaluate(() => {
+    window.__llModalMock.deferreds[5].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="94">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true"></div>
+            </article>
+          </div>
+        `
+      }
+    });
+  });
+  await page.evaluate(() => window.__llModalMock.outOfOrderLatest);
+
+  await expect(page.locator('[data-ll-word-edit-modal-grid] .word-item')).toHaveAttribute('data-word-id', '94');
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
+});
+
+test('detached word editor times out a stalled request and permits a clean retry', async ({ page }) => {
+  await page.route('**/*', route => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><html><head></head><body></body></html>'
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(`
+    <div class="ll-word-edit-modal-host" data-ll-word-edit-modal-host aria-live="polite">
+      <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-word-edit-modal-grid="1"></div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.llToolsWordEditModalData = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      nonce: 'modal-nonce',
+      requestTimeoutMs: 50,
+      i18n: {
+        loading: 'Loading word editor...',
+        openError: 'Unable to open the word editor.'
+      }
+    };
+    window.LLToolsWordGrid = {
+      applyConfig() {}
+    };
+    window.__llModalTimeoutMock = {
+      aborts: 0,
+      deferreds: [],
+      errors: []
+    };
+
+    const $ = window.jQuery;
+    $(document).on('lltools:word-edit-modal-error', (_event, detail) => {
+      window.__llModalTimeoutMock.errors.push(detail || {});
+    });
+    $.post = function () {
+      const deferred = $.Deferred();
+      const request = deferred.promise();
+      request.abort = function () {
+        window.__llModalTimeoutMock.aborts += 1;
+        deferred.reject({}, 'timeout');
+      };
+      window.__llModalTimeoutMock.deferreds.push(deferred);
+      return request;
+    };
+  });
+  await page.addScriptTag({ content: wordEditModalSource });
+
+  await page.evaluate(() => {
+    window.__llModalTimeoutMock.firstOpen = window.LLToolsWordEditModal.open({
+      wordId: 101,
+      wordsetId: 7
+    }).catch(error => {
+      window.__llModalTimeoutMock.firstError = error.message;
+    });
+  });
+
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__llModalTimeoutMock.aborts)).toBe(1);
+  await page.evaluate(() => window.__llModalTimeoutMock.firstOpen);
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
+  expect(await page.evaluate(() => ({
+    error: window.__llModalTimeoutMock.firstError,
+    eventErrors: window.__llModalTimeoutMock.errors.map(entry => entry.message),
+    loadingClass: document.body.classList.contains('ll-word-edit-modal-loading-open')
+  }))).toEqual({
+    error: 'Unable to open the word editor.',
+    eventErrors: ['Unable to open the word editor.'],
+    loadingClass: false
+  });
+
+  await page.evaluate(() => {
+    window.__llModalTimeoutMock.retryOpen = window.LLToolsWordEditModal.open({
+      wordId: 101,
+      wordsetId: 7
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.__llModalTimeoutMock.deferreds.length)).toBe(2);
+  await page.evaluate(() => {
+    window.__llModalTimeoutMock.deferreds[1].resolve({
+      success: true,
+      data: {
+        html: `
+          <div class="word-grid ll-word-grid" data-ll-word-grid>
+            <article class="word-item" data-word-id="101">
+              <button type="button" data-ll-word-edit-toggle aria-expanded="false">Edit</button>
+              <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true"></div>
+            </article>
+          </div>
+        `
+      }
+    });
+  });
+  await page.evaluate(() => window.__llModalTimeoutMock.retryOpen);
+
+  await expect(page.locator('[data-ll-word-edit-modal-grid] .word-item')).toHaveAttribute('data-word-id', '101');
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
 });
 
 test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {

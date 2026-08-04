@@ -5,12 +5,14 @@
     const ajaxUrl = (cfg.ajaxUrl || '').toString();
     const nonce = (cfg.nonce || '').toString();
     const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
+    const requestTimeoutMs = Math.max(250, Math.min(120000, parseInt(cfg.requestTimeoutMs, 10) || 30000));
     const hostSelector = '[data-ll-word-edit-modal-host]';
     const gridSelector = '[data-ll-word-edit-modal-grid]';
     const loadingSelector = '[data-ll-word-edit-modal-loading-shell]';
     const gridResponseCache = {};
     const gridRequestCache = {};
     let gridCacheGeneration = 0;
+    let activeOpenGeneration = 0;
 
     function t(key, fallback) {
         const value = i18n[key];
@@ -150,13 +152,33 @@
             promise: null
         };
         requestEntry.promise = new Promise(function (resolve, reject) {
-            $.post(ajaxUrl, {
+            let settled = false;
+            let request = null;
+            const timeoutId = window.setTimeout(function () {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                if (gridRequestCache[cacheKey] === requestEntry) {
+                    delete gridRequestCache[cacheKey];
+                }
+                if (request && typeof request.abort === 'function') {
+                    try { request.abort('timeout'); } catch (_) { /* no-op */ }
+                }
+                reject(new Error(t('openError', 'Unable to open the word editor.')));
+            }, requestTimeoutMs);
+
+            request = $.post(ajaxUrl, {
                 action: 'll_tools_get_word_edit_modal_grid',
                 nonce: nonce,
                 word_id: wordId,
                 wordset_id: wordsetId,
                 category_id: categoryId
             }).done(function (response) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
                 if (!response || response.success !== true || !response.data) {
                     reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
                     return;
@@ -171,9 +193,14 @@
                 gridResponseCache[cacheKey] = responseData;
                 resolve(responseData);
             }).fail(function (jqXHR) {
+                if (settled) {
+                    return;
+                }
+                settled = true;
                 const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
                 reject(new Error(readAjaxMessage(response, t('openError', 'Unable to open the word editor.'))));
             }).always(function () {
+                window.clearTimeout(timeoutId);
                 if (gridRequestCache[cacheKey] === requestEntry) {
                     delete gridRequestCache[cacheKey];
                 }
@@ -236,6 +263,7 @@
         }
 
         const cacheKey = buildGridCacheKey(wordId, wordsetId, categoryId);
+        const openGeneration = ++activeOpenGeneration;
         const hasCachedResponse = !!gridResponseCache[cacheKey];
         $host.attr('aria-busy', 'true').attr('data-ll-word-edit-modal-loading', '1');
         if (!hasCachedResponse) {
@@ -248,6 +276,14 @@
         }]);
 
         return requestGridData(wordId, wordsetId, categoryId).then(function (data) {
+            if (openGeneration !== activeOpenGeneration) {
+                return {
+                    wordId: wordId,
+                    wordsetId: wordsetId,
+                    recordingId: recordingId,
+                    stale: true
+                };
+            }
             applyWordGridConfig(data.config || null);
             const $item = renderGridMarkup(data.html || '');
             const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
@@ -270,6 +306,14 @@
                 item: $item.get(0)
             };
         }).catch(function (error) {
+            if (openGeneration !== activeOpenGeneration) {
+                return {
+                    wordId: wordId,
+                    wordsetId: wordsetId,
+                    recordingId: recordingId,
+                    stale: true
+                };
+            }
             $(document).trigger('lltools:word-edit-modal-error', [{
                 wordId: wordId,
                 wordsetId: wordsetId,
@@ -278,6 +322,9 @@
             }]);
             throw error;
         }).finally(function () {
+            if (openGeneration !== activeOpenGeneration) {
+                return;
+            }
             setLoadingShellVisible($host, false);
             $host.removeAttr('aria-busy').removeAttr('data-ll-word-edit-modal-loading');
         });

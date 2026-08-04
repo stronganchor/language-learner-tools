@@ -6681,9 +6681,10 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         if ($should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
             $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false);
         }
-        if (function_exists('ll_tools_user_study_categories_for_wordset')) {
-            $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
-        }
+        // This recovery path rebuilds the same deferred main-view cards after
+        // their token payload expires. Keep the full study catalog deferred as
+        // it is on the initial main view; building it here can scan every
+        // prompt card in each category just to recover lightweight card data.
     }
 
     if (function_exists('ll_tools_wordset_has_grammatical_gender')) {
@@ -6850,62 +6851,6 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
                 ? (string) $analytics_category_row['last_seen_at']
                 : '',
         ];
-    }
-
-    if ($is_study_user && function_exists('ll_tools_get_prompt_card_progress_summary_by_category')) {
-        $prompt_card_progress_lookup = ll_tools_get_prompt_card_progress_summary_by_category(
-            get_current_user_id(),
-            $wordset_id,
-            $visible_category_ids
-        );
-
-        foreach ((array) $prompt_card_progress_lookup as $cid => $prompt_progress) {
-            $category_id = (int) $cid;
-            if ($category_id <= 0 || !is_array($prompt_progress)) {
-                continue;
-            }
-
-            $prompt_total = max(0, (int) ($prompt_progress['total'] ?? 0));
-            if ($prompt_total <= 0) {
-                continue;
-            }
-
-            if (!isset($category_progress_lookup[$category_id]) || !is_array($category_progress_lookup[$category_id])) {
-                $category_progress_lookup[$category_id] = [
-                    'total' => 0,
-                    'mastered' => 0,
-                    'studied' => 0,
-                    'new' => 0,
-                ];
-            }
-
-            $category_progress_lookup[$category_id]['total'] += $prompt_total;
-            $category_progress_lookup[$category_id]['mastered'] += max(0, (int) ($prompt_progress['mastered'] ?? 0));
-            $category_progress_lookup[$category_id]['studied'] += max(0, (int) ($prompt_progress['studied'] ?? 0));
-            $category_progress_lookup[$category_id]['new'] += max(0, (int) ($prompt_progress['new'] ?? 0));
-
-            if (!isset($category_metrics_lookup[$category_id]) || !is_array($category_metrics_lookup[$category_id])) {
-                $category_metrics_lookup[$category_id] = [
-                    'mastered_words' => 0,
-                    'studied_words' => 0,
-                    'new_words' => 0,
-                    'last_seen_at' => '',
-                ];
-            }
-
-            $category_metrics_lookup[$category_id]['mastered_words'] += max(0, (int) ($prompt_progress['mastered'] ?? 0));
-            $category_metrics_lookup[$category_id]['studied_words'] += max(0, (int) ($prompt_progress['mastered'] ?? 0))
-                + max(0, (int) ($prompt_progress['studied'] ?? 0));
-            $category_metrics_lookup[$category_id]['new_words'] += max(0, (int) ($prompt_progress['new'] ?? 0));
-
-            $prompt_last_seen_at = isset($prompt_progress['last_seen_at']) ? (string) $prompt_progress['last_seen_at'] : '';
-            $existing_last_seen_at = isset($category_metrics_lookup[$category_id]['last_seen_at'])
-                ? (string) $category_metrics_lookup[$category_id]['last_seen_at']
-                : '';
-            if ($prompt_last_seen_at !== '' && ($existing_last_seen_at === '' || strcmp($prompt_last_seen_at, $existing_last_seen_at) > 0)) {
-                $category_metrics_lookup[$category_id]['last_seen_at'] = $prompt_last_seen_at;
-            }
-        }
     }
 
     if (
@@ -13162,6 +13107,16 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
     $image_game_card_count = function_exists('ll_tools_wordset_get_image_game_card_count')
         ? ll_tools_wordset_get_image_game_card_count($wordset_id)
         : 4;
+    $catalog_request_timeout_ms = max(5000, min(120000, (int) apply_filters(
+        'll_tools_wordset_games_catalog_request_timeout_ms',
+        30000,
+        $wordset_id
+    )));
+    $launch_request_timeout_ms = max(5000, min(120000, (int) apply_filters(
+        'll_tools_wordset_games_launch_request_timeout_ms',
+        30000,
+        $wordset_id
+    )));
 
     return [
         'bootstrapAction' => 'll_wordset_games_bootstrap',
@@ -13169,6 +13124,8 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
         'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
         'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
         'matchAttemptAction' => 'll_wordset_speaking_game_match_attempt',
+        'catalogRequestTimeoutMs' => $catalog_request_timeout_ms,
+        'launchRequestTimeoutMs' => $launch_request_timeout_ms,
         'roundOptions' => array_values($round_options),
         'defaultRoundOption' => $default_round_option,
         'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
@@ -25366,6 +25323,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'recorderQueueSummaries' => $localized_recorder_queue_summaries,
         'learningMinChunkSize' => 8,
         'progressWordPageSize' => (int) apply_filters('ll_tools_wordset_progress_word_page_size', 80, $wordset_id),
+        'selectionLaunchRequestTimeoutMs' => max(5000, min(120000, (int) apply_filters(
+            'll_tools_wordset_selection_launch_request_timeout_ms',
+            30000,
+            $wordset_id
+        ))),
         'hardWordDifficultyThreshold' => function_exists('ll_tools_user_progress_hard_difficulty_threshold')
             ? ll_tools_user_progress_hard_difficulty_threshold()
             : 4,

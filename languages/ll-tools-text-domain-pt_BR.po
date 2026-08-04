@@ -5643,3 +5643,8 @@ msgstr "Não foi possível armazenar a imagem remota em cache."
 #: includes/lib/media-proxy.php:1050
 msgid "Remote image refresh is temporarily backed off."
 msgstr "A atualização da imagem remota foi adiada temporariamente."
+
+#. ll-tools-public-key: 568b3cb2b931e01ab43990cee18864e60e23735b
+#: includes/shortcodes/dictionary-shortcode.php:3038 includes/shortcodes/dictionary-shortcode.php:3720
+msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
+msgstr "Os dados do dicionário estão temporariamente indisponíveis. Por favor, tente novamente daqui a pouco."

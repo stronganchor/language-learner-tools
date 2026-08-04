@@ -123,7 +123,9 @@ async function mountDictionaryHarness(page, options = {}) {
 
     window.__dictionaryFetchCalls = [];
     let toolbarWarmingRemaining = Math.max(0, Number(config && config.toolbarWarmingResponses) || 0);
+    let toolbarRetryableRemaining = Math.max(0, Number(config && config.toolbarRetryableResponses) || 0);
     let liveSearchWarmingRemaining = Math.max(0, Number(config && config.liveSearchWarmingResponses) || 0);
+    let liveSearchRetryableRemaining = Math.max(0, Number(config && config.liveSearchRetryableResponses) || 0);
     window.fetch = async (_url, init = {}) => {
       const requestData = {};
       const body = init && init.body;
@@ -136,6 +138,20 @@ async function mountDictionaryHarness(page, options = {}) {
       window.__dictionaryFetchCalls.push(requestData);
 
       if (requestData.action === 'll_tools_dictionary_toolbar_bootstrap') {
+        if (toolbarRetryableRemaining > 0) {
+          toolbarRetryableRemaining -= 1;
+          return {
+            ok: false,
+            json: async () => ({
+              success: false,
+              data: {
+                code: 'dictionary_source_incomplete',
+                retryable: true,
+                retry_after: 0
+              }
+            })
+          };
+        }
         if (toolbarWarmingRemaining > 0) {
           toolbarWarmingRemaining -= 1;
           return {
@@ -231,6 +247,20 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_live_search') {
+        if (liveSearchRetryableRemaining > 0) {
+          liveSearchRetryableRemaining -= 1;
+          return {
+            ok: false,
+            json: async () => ({
+              success: false,
+              data: {
+                code: 'dictionary_source_incomplete',
+                retryable: true,
+                retry_after: 0
+              }
+            })
+          };
+        }
         if (liveSearchWarmingRemaining > 0) {
           liveSearchWarmingRemaining -= 1;
           return {
@@ -407,6 +437,17 @@ test('retries a warming deferred toolbar until the shared cache is ready', async
   expect(bootstrapCalls).toHaveLength(3);
 });
 
+test('retries non-2xx retryable dictionary source responses for the deferred toolbar', async ({ page }) => {
+  await mountDictionaryHarness(page, { toolbarRetryableResponses: 2 });
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
+
+  const bootstrapCalls = await page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap'));
+  expect(bootstrapCalls).toHaveLength(3);
+});
+
 test('caps warming retries when another toolbar build does not finish', async ({ page }) => {
   await mountDictionaryHarness(page, { toolbarWarmingResponses: 10 });
 
@@ -438,6 +479,17 @@ test('keeps the loading state while a shared live-search build warms and retries
   await expect(page.locator('[data-ll-dictionary-results]')).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
   await expect(page.locator('[data-ll-dictionary-results]')).not.toHaveAttribute('aria-busy', 'true');
+
+  const searchCalls = await page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_live_search'));
+  expect(searchCalls).toHaveLength(3);
+});
+
+test('retries non-2xx retryable dictionary source responses for live search', async ({ page }) => {
+  await mountDictionaryHarness(page, { liveSearchRetryableResponses: 2 });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
 
   const searchCalls = await page.evaluate(() => window.__dictionaryFetchCalls
     .filter((call) => call.action === 'll_tools_dictionary_live_search'));

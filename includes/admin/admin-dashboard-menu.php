@@ -603,7 +603,7 @@ function ll_tools_get_tools_hub_card_sections(): array {
                 'menu_slug' => 'tools.php?page=ll-image-aspect-normalizer',
                 'url' => ll_tools_get_tools_page_url('ll-image-aspect-normalizer'),
                 'page_slug' => 'll-image-aspect-normalizer',
-                'cap' => 'view_ll_tools',
+                'cap' => 'manage_options',
                 'icon' => 'dashicons-format-gallery',
             ],
             [

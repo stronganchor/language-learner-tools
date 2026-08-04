@@ -41,6 +41,45 @@ final class ReleasePluginScriptTest extends LL_Tools_TestCase
         $this->assertLessThan($finalVerifyPosition, $renamePosition);
     }
 
+    public function test_dev_release_commits_only_a_clean_pre_staged_scope(): void
+    {
+        $script = $this->releaseScriptContents();
+        $bumpWorkflow = $this->extractPowerShellFunction($script, 'Invoke-BumpWorkflow');
+        $scopeGuard = $this->extractPowerShellFunction($script, 'Assert-BumpWorkingTreeIsScoped');
+        $confirmation = $this->extractPowerShellFunction($script, 'Confirm-Bump');
+
+        $this->assertStringNotContainsString("@('add', '-A')", $script);
+        $this->assertStringContainsString('Assert-BumpWorkingTreeIsScoped', $bumpWorkflow);
+        $this->assertStringContainsString("@('add', '--', \$pluginFileRelative)", $bumpWorkflow);
+        $this->assertStringContainsString('Assert-BumpHasStagedChanges', $bumpWorkflow);
+        $this->assertStringContainsString("@('diff', '--name-status', '--')", $scopeGuard);
+        $this->assertStringContainsString("@('ls-files', '--others', '--exclude-standard', '--')", $scopeGuard);
+        $this->assertStringContainsString("@('diff', '--name-only', '--diff-filter=U', '--')", $scopeGuard);
+        $this->assertStringContainsString('Get-GitStagedStatusLines', $confirmation);
+    }
+
+    public function test_release_archives_disable_checkout_line_ending_conversion(): void
+    {
+        $script = $this->releaseScriptContents();
+        $archiveCheck = $this->extractPowerShellFunction($script, 'Test-ReleaseArchiveFromRef');
+        $archiveBuild = $this->extractPowerShellFunction($script, 'Build-ReleaseZipFromRef');
+        $shellBuilder = (string) file_get_contents(dirname(__DIR__, 2) . '/scripts/build-release-package.sh');
+
+        $this->assertStringContainsString("'core.autocrlf=false'", $archiveCheck);
+        $this->assertStringContainsString("'core.autocrlf=false'", $archiveBuild);
+        $this->assertStringContainsString('git -C "${ROOT_DIR}" -c core.autocrlf=false archive', $shellBuilder);
+    }
+
+    public function test_codex_temp_is_ignored_and_export_ignored(): void
+    {
+        $repoRoot = dirname(__DIR__, 2);
+        $attributes = (string) file_get_contents($repoRoot . '/.gitattributes');
+        $ignore = (string) file_get_contents($repoRoot . '/.gitignore');
+
+        $this->assertStringContainsString('/_codex_temp export-ignore', $attributes);
+        $this->assertStringContainsString('/_codex_temp/', $ignore);
+    }
+
     private function releaseScriptContents(): string
     {
         $path = dirname(__DIR__, 2) . '/scripts/release-plugin.ps1';

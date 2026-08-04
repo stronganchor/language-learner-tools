@@ -303,7 +303,7 @@ async function mountRecorder(page, options = {}) {
     : (view === 'overview'
       ? []
       : [options.initialImage || buildQueueItem('baby-animals', 'Baby animals', 'calf')]);
-  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue, categoryOverview, catalogComplete, includeTypes, excludeTypes, view }) => {
+  await page.evaluate(({ initialImages, hideRecorderText, categoryQueue, categoryOverview, catalogComplete, includeTypes, excludeTypes, requestTimeoutMs, view }) => {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
@@ -334,6 +334,7 @@ async function mountRecorder(page, options = {}) {
       include_types: includeTypes,
       exclude_types: excludeTypes,
       auto_process_recordings: false,
+      request_timeout_ms: requestTimeoutMs,
       category_queue: categoryQueue || (view === 'overview' ? {
         category: '',
         page: 1,
@@ -377,6 +378,7 @@ async function mountRecorder(page, options = {}) {
     catalogComplete: options.catalogComplete !== false,
     includeTypes: String(options.includeTypes || ''),
     excludeTypes: String(options.excludeTypes || ''),
+    requestTimeoutMs: Number.isFinite(options.requestTimeoutMs) ? options.requestTimeoutMs : undefined,
     view
   });
 
@@ -474,6 +476,23 @@ test('a late incomplete catalog response pauses overview loading without resolvi
   await expect(page.locator('[data-ll-recorder-category-empty]')).toBeHidden();
   await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]')).toHaveCount(5);
   await page.waitForTimeout(500);
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+});
+
+test('a stalled overview request times out and restores an explicit retry state', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewDelay: 1000,
+    requestTimeoutMs: 50
+  });
+
+  const overview = page.locator('[data-ll-recorder-category-overview]');
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+  await expect(overview).toHaveClass(/has-error/);
+  await expect(overview).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
+  await expect(page.locator('[data-ll-recorder-queue-summary-loading="true"]')).toHaveCount(0);
+  await page.waitForTimeout(150);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
 });
 
@@ -657,6 +676,27 @@ test('focused category loads the next queue page before marking the category com
   await expect(page.locator('#ll-image-title')).toHaveText('foal');
   await expect(page.locator('.ll-recording-complete')).toBeHidden();
   await expect.poll(async () => page.evaluate(() => window.__requestedCategoryPages.join('|'))).toBe('baby-animals:2');
+});
+
+test('next-category label renders category markup as literal text', async ({ page }) => {
+  await mountRecorder(page);
+  const maliciousName = '<img src=x onerror="window.__categoryMarkupRan=true">';
+  await page.evaluate((name) => {
+    window.__categoryMarkupRan = false;
+    window.ll_recorder_data.available_categories = {
+      'baby-animals': 'Baby animals',
+      'next-category': name
+    };
+  }, maliciousName);
+
+  await page.locator('#ll-skip-btn').click();
+
+  const nextButton = page.locator('.ll-next-category-btn');
+  await expect(nextButton).toBeVisible();
+  await expect(nextButton.locator('span')).toHaveText(maliciousName);
+  await expect(nextButton.locator('img')).toHaveCount(0);
+  await expect(nextButton.locator('svg')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__categoryMarkupRan)).toBeFalsy();
 });
 
 test('sparse queue continuation reuses the same page with its opaque cursor', async ({ page }) => {

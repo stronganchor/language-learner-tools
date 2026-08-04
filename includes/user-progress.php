@@ -2,10 +2,22 @@
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION')) {
-    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.2');
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION', '1.3.3');
 }
 if (!defined('LL_TOOLS_USER_PROGRESS_VERSION_OPTION')) {
     define('LL_TOOLS_USER_PROGRESS_VERSION_OPTION', 'll_tools_user_progress_schema_version');
+}
+if (!defined('LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION')) {
+    define('LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION', 'll_tools_user_progress_schema_verified_version');
+}
+if (!defined('LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT')) {
+    define('LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT', 'll_tools_user_progress_schema_retry');
+}
+if (!defined('LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION')) {
+    define('LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION', 'll_tools_user_progress_core_engine_status');
+}
+if (!defined('LL_TOOLS_USER_PROGRESS_CORE_ENGINE_CHECK_VERSION')) {
+    define('LL_TOOLS_USER_PROGRESS_CORE_ENGINE_CHECK_VERSION', '2');
 }
 if (!defined('LL_TOOLS_USER_GOALS_META')) {
     define('LL_TOOLS_USER_GOALS_META', 'll_user_study_goals');
@@ -803,11 +815,611 @@ function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id 
     return $words;
 }
 
-function ll_tools_install_user_progress_schema(): void {
+/**
+ * Verify one SHOW COLUMNS row against a bounded schema contract.
+ *
+ * @param array<string,mixed>  $column
+ * @param array<string,string> $contract
+ */
+function ll_tools_user_progress_column_matches_contract(array $column, array $contract): bool {
+    $type_pattern = (string) ($contract['type'] ?? '');
+    if ($type_pattern !== '' && preg_match($type_pattern, strtolower(trim((string) ($column['Type'] ?? '')))) !== 1) {
+        return false;
+    }
+
+    $nullable = strtoupper(trim((string) ($column['Null'] ?? '')));
+    if (isset($contract['null']) && $nullable !== strtoupper((string) $contract['null'])) {
+        return false;
+    }
+
+    $required_extra = trim((string) ($contract['extra_contains'] ?? ''));
+    if ($required_extra !== '' && stripos((string) ($column['Extra'] ?? ''), $required_extra) === false) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Reset the event-local source-read failure before resolving one raw event.
+ */
+function ll_tools_user_progress_clear_source_error(): void {
+    unset($GLOBALS['ll_tools_user_progress_source_error']);
+}
+
+/**
+ * Preserve the first source-read failure so a later successful query cannot mask it.
+ */
+function ll_tools_user_progress_mark_source_error(string $operation, string $detail = ''): WP_Error {
+    $existing = $GLOBALS['ll_tools_user_progress_source_error'] ?? null;
+    if ($existing instanceof WP_Error) {
+        return $existing;
+    }
+
+    $error = new WP_Error(
+        'progress_source_incomplete',
+        __('Flashcard data is temporarily unavailable.', 'll-tools-text-domain'),
+        [
+            'retryable' => true,
+            'operation' => sanitize_key($operation),
+            'detail' => $detail,
+        ]
+    );
+    $GLOBALS['ll_tools_user_progress_source_error'] = $error;
+    do_action('ll_tools_user_progress_source_error', $error, $operation, $detail);
+
+    return $error;
+}
+
+function ll_tools_user_progress_get_source_error(): ?WP_Error {
+    $error = $GLOBALS['ll_tools_user_progress_source_error'] ?? null;
+    return $error instanceof WP_Error ? $error : null;
+}
+
+/**
+ * Clear stale wpdb state immediately before one source read.
+ */
+function ll_tools_user_progress_prepare_source_read(): void {
+    global $wpdb;
+    $wpdb->last_error = '';
+}
+
+/**
+ * Capture a source read immediately, including typed WordPress API failures.
+ *
+ * @param mixed $result Optional WordPress API result that may be a WP_Error.
+ */
+function ll_tools_user_progress_capture_source_error(string $operation, $result = null): ?WP_Error {
+    global $wpdb;
+
+    $detail = (string) $wpdb->last_error;
+    if (is_wp_error($result)) {
+        $result_detail = trim((string) $result->get_error_message());
+        if ($result_detail !== '') {
+            $detail = $detail !== '' ? $detail . '; ' . $result_detail : $result_detail;
+        }
+    }
+    $wpdb->last_error = '';
+
+    if ($detail !== '' || is_wp_error($result)) {
+        return ll_tools_user_progress_mark_source_error($operation, $detail);
+    }
+
+    return ll_tools_user_progress_get_source_error();
+}
+
+/**
+ * Resolve an isolated category only when the full source/target relationship is verified.
+ */
+function ll_tools_user_progress_resolve_effective_category_id(
+    int $category_id,
+    int $wordset_id,
+    bool $create_missing = true
+): int {
+    $category_id = max(0, $category_id);
+    $wordset_id = max(0, $wordset_id);
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return $category_id;
+    }
+
+    if (function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete')) {
+        ll_tools_user_progress_prepare_source_read();
+        $resolved = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
+            [$category_id],
+            $wordset_id,
+            $create_missing
+        );
+        $source_error = ll_tools_user_progress_capture_source_error('category_isolation', $resolved);
+        if ($resolved === null && !($source_error instanceof WP_Error)) {
+            $source_error = ll_tools_user_progress_mark_source_error(
+                'category_isolation',
+                'The isolated category relationship could not be verified.'
+            );
+        }
+        if ($source_error instanceof WP_Error || !is_array($resolved) || empty($resolved[0])) {
+            return 0;
+        }
+
+        return max(0, (int) $resolved[0]);
+    }
+
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        ll_tools_user_progress_prepare_source_read();
+        $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, $create_missing);
+        if (ll_tools_user_progress_capture_source_error('category_isolation') instanceof WP_Error) {
+            return 0;
+        }
+        return $resolved > 0 ? $resolved : $category_id;
+    }
+
+    return $category_id;
+}
+
+/**
+ * Verify both progress tables and the columns/indexes required by schema 1.3.3.
+ */
+function ll_tools_user_progress_schema_is_ready(): bool {
+    global $wpdb;
+
+    $tables = ll_tools_user_progress_table_names();
+    $contracts = [
+        'words' => [
+            'columns' => [
+                'user_id',
+                'word_id',
+                'category_id',
+                'wordset_id',
+                'first_seen_at',
+                'last_seen_at',
+                'last_mode',
+                'total_coverage',
+                'coverage_learning',
+                'coverage_practice',
+                'coverage_listening',
+                'coverage_gender',
+                'coverage_self_check',
+                'gender_level',
+                'gender_seen_total',
+                'gender_last_seen_at',
+                'gender_state_json',
+                'practice_required_recording_types',
+                'practice_correct_recording_types',
+                'correct_clean',
+                'correct_after_retry',
+                'current_correct_streak',
+                'mastery_unlocked',
+                'incorrect',
+                'lapse_count',
+                'stage',
+                'due_at',
+                'updated_at',
+            ],
+            'column_contracts' => [
+                'user_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'word_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'category_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'wordset_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'first_seen_at' => ['type' => '~^datetime$~', 'null' => 'NO'],
+                'last_seen_at' => ['type' => '~^datetime$~', 'null' => 'NO'],
+                'last_mode' => ['type' => '~^varchar\(32\)$~', 'null' => 'NO'],
+                'total_coverage' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'coverage_learning' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'coverage_practice' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'coverage_listening' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'coverage_gender' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'coverage_self_check' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'gender_level' => ['type' => '~^smallint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'gender_seen_total' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'gender_last_seen_at' => ['type' => '~^datetime$~', 'null' => 'YES'],
+                'gender_state_json' => ['type' => '~^longtext$~', 'null' => 'YES'],
+                'practice_required_recording_types' => ['type' => '~^longtext$~', 'null' => 'YES'],
+                'practice_correct_recording_types' => ['type' => '~^longtext$~', 'null' => 'YES'],
+                'correct_clean' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'correct_after_retry' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'current_correct_streak' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'mastery_unlocked' => ['type' => '~^tinyint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'incorrect' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'lapse_count' => ['type' => '~^int(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'stage' => ['type' => '~^smallint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'due_at' => ['type' => '~^datetime$~', 'null' => 'YES'],
+                'updated_at' => ['type' => '~^datetime$~', 'null' => 'NO'],
+            ],
+            'indexes' => [
+                'PRIMARY' => ['columns' => ['user_id', 'word_id'], 'non_unique' => 0],
+                'idx_user_due' => ['columns' => ['user_id', 'due_at'], 'non_unique' => 1],
+                'idx_user_category' => ['columns' => ['user_id', 'category_id'], 'non_unique' => 1],
+                'idx_user_wordset' => ['columns' => ['user_id', 'wordset_id'], 'non_unique' => 1],
+                'idx_wordset_user' => ['columns' => ['wordset_id', 'user_id'], 'non_unique' => 1],
+                'idx_word' => ['columns' => ['word_id'], 'non_unique' => 1],
+            ],
+        ],
+        'events' => [
+            'columns' => [
+                'id',
+                'user_id',
+                'event_uuid',
+                'event_type',
+                'mode',
+                'word_id',
+                'category_id',
+                'wordset_id',
+                'is_correct',
+                'had_wrong_before',
+                'payload_json',
+                'created_at',
+            ],
+            'column_contracts' => [
+                'id' => [
+                    'type' => '~^bigint(?:\(\d+\))? unsigned$~',
+                    'null' => 'NO',
+                    'extra_contains' => 'auto_increment',
+                ],
+                'user_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'event_uuid' => ['type' => '~^varchar\(64\)$~', 'null' => 'NO'],
+                'event_type' => ['type' => '~^varchar\(40\)$~', 'null' => 'NO'],
+                'mode' => ['type' => '~^varchar\(32\)$~', 'null' => 'NO'],
+                'word_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'category_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'wordset_id' => ['type' => '~^bigint(?:\(\d+\))? unsigned$~', 'null' => 'NO'],
+                'is_correct' => ['type' => '~^tinyint(?:\(\d+\))?$~', 'null' => 'YES'],
+                'had_wrong_before' => ['type' => '~^tinyint(?:\(\d+\))?$~', 'null' => 'NO'],
+                'payload_json' => ['type' => '~^longtext$~', 'null' => 'YES'],
+                'created_at' => ['type' => '~^datetime$~', 'null' => 'NO'],
+            ],
+            'indexes' => [
+                'PRIMARY' => ['columns' => ['id'], 'non_unique' => 0],
+                'uniq_event_uuid' => ['columns' => ['event_uuid'], 'non_unique' => 0],
+                'idx_user_created' => ['columns' => ['user_id', 'created_at'], 'non_unique' => 1],
+                'idx_user_word' => ['columns' => ['user_id', 'word_id'], 'non_unique' => 1],
+                'idx_user_category' => ['columns' => ['user_id', 'category_id'], 'non_unique' => 1],
+                'idx_user_wordset_created' => ['columns' => ['user_id', 'wordset_id', 'created_at'], 'non_unique' => 1],
+                'idx_wordset_user' => ['columns' => ['wordset_id', 'user_id'], 'non_unique' => 1],
+                'idx_user_category_created' => ['columns' => ['user_id', 'category_id', 'created_at'], 'non_unique' => 1],
+            ],
+        ],
+    ];
+
+    foreach ($contracts as $table_key => $contract) {
+        $table = (string) ($tables[$table_key] ?? '');
+        if ($table === '') {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $found_table = (string) $wpdb->get_var(
+            $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))
+        );
+        if ($found_table !== $table || (string) $wpdb->last_error !== '') {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $table_status = $wpdb->get_row(
+            $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)),
+            ARRAY_A
+        );
+        if (
+            !is_array($table_status)
+            || strcasecmp((string) ($table_status['Engine'] ?? ''), 'InnoDB') !== 0
+            || (string) $wpdb->last_error !== ''
+        ) {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $column_rows = $wpdb->get_results("SHOW COLUMNS FROM {$table}", ARRAY_A);
+        if (!is_array($column_rows) || (string) $wpdb->last_error !== '') {
+            return false;
+        }
+        $columns = [];
+        foreach ($column_rows as $column_row) {
+            $column_name = (string) ($column_row['Field'] ?? '');
+            if ($column_name !== '') {
+                $columns[$column_name] = $column_row;
+            }
+        }
+        foreach ($contract['columns'] as $column_name) {
+            if (!isset($columns[$column_name])) {
+                return false;
+            }
+        }
+        foreach ((array) ($contract['column_contracts'] ?? []) as $column_name => $column_contract) {
+            if (
+                !isset($columns[$column_name])
+                || !is_array($column_contract)
+                || !ll_tools_user_progress_column_matches_contract($columns[$column_name], $column_contract)
+            ) {
+                return false;
+            }
+        }
+
+        $wpdb->last_error = '';
+        $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+        if (!is_array($index_rows) || (string) $wpdb->last_error !== '') {
+            return false;
+        }
+        $indexes = [];
+        $index_uniqueness = [];
+        $index_sub_parts = [];
+        foreach ($index_rows as $index_row) {
+            $key_name = (string) ($index_row['Key_name'] ?? '');
+            $column_name = (string) ($index_row['Column_name'] ?? '');
+            if ($key_name === '' || $column_name === '') {
+                continue;
+            }
+            $sequence = max(1, (int) ($index_row['Seq_in_index'] ?? 1));
+            $indexes[$key_name][$sequence] = $column_name;
+            $index_uniqueness[$key_name] = (int) ($index_row['Non_unique'] ?? 1);
+            $index_sub_parts[$key_name][$sequence] = isset($index_row['Sub_part'])
+                ? (int) $index_row['Sub_part']
+                : null;
+        }
+        foreach ($indexes as &$index_columns) {
+            ksort($index_columns, SORT_NUMERIC);
+            $index_columns = array_values($index_columns);
+        }
+        unset($index_columns);
+        foreach ($index_sub_parts as &$sub_parts) {
+            ksort($sub_parts, SORT_NUMERIC);
+            $sub_parts = array_values($sub_parts);
+        }
+        unset($sub_parts);
+
+        foreach ($contract['indexes'] as $index_name => $index_contract) {
+            $expected_sub_parts = array_key_exists('sub_parts', $index_contract)
+                ? (array) $index_contract['sub_parts']
+                : array_fill(0, count($index_contract['columns']), null);
+            if (
+                ($indexes[$index_name] ?? []) !== $index_contract['columns']
+                || (int) ($index_uniqueness[$index_name] ?? -1) !== $index_contract['non_unique']
+                || ($index_sub_parts[$index_name] ?? []) !== $expected_sub_parts
+            ) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Tie the durable core-table engine marker to the database and schema contract.
+ */
+function ll_tools_user_progress_core_engine_signature(): string {
+    global $wpdb;
+    $progress_tables = ll_tools_user_progress_table_names();
+
+    return hash('sha256', implode('|', [
+        LL_TOOLS_USER_PROGRESS_CORE_ENGINE_CHECK_VERSION,
+        LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION,
+        defined('DB_NAME') ? (string) DB_NAME : '',
+        (string) $wpdb->users,
+        (string) $wpdb->usermeta,
+        (string) $progress_tables['words'],
+        (string) $progress_tables['events'],
+    ]));
+}
+
+/**
+ * Verify that every table mutated by progress ingestion is transactional.
+ *
+ * A healthy result is cached briefly so normal sync requests only read one
+ * non-autoloaded option while engine drift is discovered promptly. Failures
+ * are retried sooner, but never trigger an automatic conversion of WordPress
+ * core tables.
+ *
+ * @return array{signature:string,ready:bool,checked_at:int,engines:array<string,string>,failure_code:string,details:array<int,string>}
+ */
+function ll_tools_user_progress_core_engine_status(bool $force = false): array {
+    global $wpdb;
+
+    $signature = ll_tools_user_progress_core_engine_signature();
+    $cached = get_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION, null);
+    if (!$force && is_array($cached) && hash_equals((string) ($cached['signature'] ?? ''), $signature)) {
+        $cached_ready = !empty($cached['ready']);
+        $default_ttl = $cached_ready ? 15 * MINUTE_IN_SECONDS : 5 * MINUTE_IN_SECONDS;
+        $ttl = (int) apply_filters(
+            'll_tools_user_progress_core_engine_cache_ttl',
+            $default_ttl,
+            $cached_ready,
+            $cached
+        );
+        $checked_at = max(0, (int) ($cached['checked_at'] ?? 0));
+        if ($checked_at > 0 && $checked_at + max(60, $ttl) > time()) {
+            return $cached;
+        }
+    }
+
+    $progress_tables = ll_tools_user_progress_table_names();
+    $transaction_tables = [
+        'users' => (string) $wpdb->users,
+        'usermeta' => (string) $wpdb->usermeta,
+        'progress_words' => (string) $progress_tables['words'],
+        'progress_events' => (string) $progress_tables['events'],
+    ];
+    $engines = [];
+    $details = [];
+    foreach ($transaction_tables as $table_key => $table) {
+        $wpdb->last_error = '';
+        $table_status = $wpdb->get_row(
+            $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)),
+            ARRAY_A
+        );
+        $query_error = (string) $wpdb->last_error;
+        $engine = is_array($table_status) ? trim((string) ($table_status['Engine'] ?? '')) : '';
+        $engine = trim((string) apply_filters(
+            'll_tools_user_progress_core_table_engine',
+            $engine,
+            $table_key,
+            $table,
+            $table_status,
+            $query_error
+        ));
+        $engines[$table_key] = $engine;
+
+        if ($query_error !== '') {
+            $details[] = $table . ': ' . $query_error;
+        } elseif (!is_array($table_status) || $engine === '') {
+            $details[] = $table . ': engine metadata unavailable';
+        } elseif (strcasecmp($engine, 'InnoDB') !== 0) {
+            $details[] = $table . ': ' . $engine;
+        }
+    }
+
+    $status = [
+        'signature' => $signature,
+        'ready' => $details === [],
+        'checked_at' => time(),
+        'engines' => $engines,
+        'failure_code' => $details === [] ? '' : 'progress_transactional_engine_unavailable',
+        'details' => $details,
+    ];
+    update_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION, $status, false);
+
+    if (!$status['ready']) {
+        $message = 'Language Learner Tools paused progress sync because the WordPress user/progress '
+            . 'transactional-engine check failed. Core tables were not modified. Details: '
+            . implode('; ', $details);
+        do_action('ll_tools_user_progress_core_engine_diagnostic', $message, $status);
+        if ((bool) apply_filters('ll_tools_user_progress_log_core_engine_diagnostic', true, $message, $status)) {
+            error_log($message);
+        }
+    }
+
+    return $status;
+}
+
+/**
+ * Show the cached fail-closed reason to administrators without issuing SHOWs.
+ */
+function ll_tools_user_progress_core_engine_admin_notice(): void {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $status = get_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION, null);
+    if (
+        !is_array($status)
+        || !empty($status['ready'])
+        || !hash_equals((string) ($status['signature'] ?? ''), ll_tools_user_progress_core_engine_signature())
+    ) {
+        return;
+    }
+
+    $details = array_filter(array_map('strval', (array) ($status['details'] ?? [])));
+    $detail_text = $details === [] ? '' : ' ' . implode('; ', $details) . '.';
+    echo '<div class="notice notice-error"><p>'
+        . esc_html__(
+            'Language Learner Tools has paused learner progress sync because the WordPress user tables and plugin progress tables could not all be verified as InnoDB. Ask the database administrator to inspect the listed table engines; the plugin will not convert the core users or usermeta tables automatically.',
+            'll-tools-text-domain'
+        )
+        . esc_html($detail_text)
+        . '</p></div>';
+}
+add_action('admin_notices', 'll_tools_user_progress_core_engine_admin_notice');
+
+/**
+ * Repair column attributes that dbDelta does not reliably restore in place.
+ */
+function ll_tools_user_progress_repair_critical_event_columns(string $events_table): bool {
+    global $wpdb;
+
+    $wpdb->last_error = '';
+    $column_rows = $wpdb->get_results("SHOW COLUMNS FROM {$events_table}", ARRAY_A);
+    if (!is_array($column_rows) || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+
+    $columns = [];
+    foreach ($column_rows as $column_row) {
+        $column_name = (string) ($column_row['Field'] ?? '');
+        if ($column_name !== '') {
+            $columns[$column_name] = $column_row;
+        }
+    }
+
+    $repairs = [];
+    if (
+        !isset($columns['id'])
+        || !ll_tools_user_progress_column_matches_contract($columns['id'], [
+            'type' => '~^bigint(?:\(\d+\))? unsigned$~',
+            'null' => 'NO',
+            'extra_contains' => 'auto_increment',
+        ])
+    ) {
+        $repairs[] = 'MODIFY id bigint(20) unsigned NOT NULL AUTO_INCREMENT';
+    }
+    if (
+        !isset($columns['event_uuid'])
+        || !ll_tools_user_progress_column_matches_contract($columns['event_uuid'], [
+            'type' => '~^varchar\(64\)$~',
+            'null' => 'NO',
+        ])
+    ) {
+        $repairs[] = 'MODIFY event_uuid varchar(64) NOT NULL';
+    }
+
+    if ($repairs === []) {
+        return true;
+    }
+
+    $wpdb->last_error = '';
+    $repaired = $wpdb->query("ALTER TABLE {$events_table} " . implode(', ', $repairs));
+    return $repaired !== false && (string) $wpdb->last_error === '';
+}
+
+/**
+ * Restore the full-width idempotency key when dbDelta sees a same-name prefix index.
+ */
+function ll_tools_user_progress_repair_critical_event_indexes(string $events_table): bool {
+    global $wpdb;
+
+    $wpdb->last_error = '';
+    $index_rows = $wpdb->get_results("SHOW INDEX FROM {$events_table}", ARRAY_A);
+    if (!is_array($index_rows) || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+
+    $event_uuid_rows = [];
+    foreach ($index_rows as $index_row) {
+        if ((string) ($index_row['Key_name'] ?? '') === 'uniq_event_uuid') {
+            $event_uuid_rows[] = $index_row;
+        }
+    }
+    usort($event_uuid_rows, static function (array $left, array $right): int {
+        return (int) ($left['Seq_in_index'] ?? 0) <=> (int) ($right['Seq_in_index'] ?? 0);
+    });
+
+    $ready = count($event_uuid_rows) === 1
+        && (string) ($event_uuid_rows[0]['Column_name'] ?? '') === 'event_uuid'
+        && (int) ($event_uuid_rows[0]['Non_unique'] ?? 1) === 0
+        && !isset($event_uuid_rows[0]['Sub_part']);
+    if ($ready) {
+        return true;
+    }
+
+    $clauses = [];
+    if ($event_uuid_rows !== []) {
+        $clauses[] = 'DROP INDEX uniq_event_uuid';
+    }
+    $clauses[] = 'ADD UNIQUE KEY uniq_event_uuid (event_uuid)';
+
+    $wpdb->last_error = '';
+    $repaired = $wpdb->query("ALTER TABLE {$events_table} " . implode(', ', $clauses));
+    return $repaired !== false && (string) $wpdb->last_error === '';
+}
+
+function ll_tools_install_user_progress_schema(): bool {
     global $wpdb;
     $tables = ll_tools_user_progress_table_names();
     $words_table = $tables['words'];
     $events_table = $tables['events'];
+    $previous_schema_version = (string) get_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, '');
+
+    // Invalidate the runtime contract before any repair starts. Concurrent
+    // event writers must wait until the complete schema has been read back and
+    // the verified marker is published again below.
+    delete_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION);
 
     $charset_collate = $wpdb->get_charset_collate();
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -847,7 +1459,7 @@ function ll_tools_install_user_progress_schema(): void {
         KEY idx_user_wordset (user_id, wordset_id),
         KEY idx_wordset_user (wordset_id, user_id),
         KEY idx_word (word_id)
-    ) {$charset_collate};";
+    ) ENGINE=InnoDB {$charset_collate};";
 
     $sql_events = "CREATE TABLE {$events_table} (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -870,21 +1482,79 @@ function ll_tools_install_user_progress_schema(): void {
         KEY idx_user_wordset_created (user_id, wordset_id, created_at),
         KEY idx_wordset_user (wordset_id, user_id),
         KEY idx_user_category_created (user_id, category_id, created_at)
-    ) {$charset_collate};";
+    ) ENGINE=InnoDB {$charset_collate};";
 
     dbDelta($sql_words);
     dbDelta($sql_events);
+    ll_tools_user_progress_repair_critical_event_columns($events_table);
+    ll_tools_user_progress_repair_critical_event_indexes($events_table);
+    foreach ([$words_table, $events_table] as $table) {
+        $wpdb->last_error = '';
+        $table_status = $wpdb->get_row(
+            $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)),
+            ARRAY_A
+        );
+        if (
+            is_array($table_status)
+            && strcasecmp((string) ($table_status['Engine'] ?? ''), 'InnoDB') !== 0
+        ) {
+            $wpdb->query("ALTER TABLE {$table} ENGINE=InnoDB");
+        }
+    }
+    $ready = ll_tools_user_progress_schema_is_ready();
+    $ready = (bool) apply_filters('ll_tools_user_progress_schema_exists_after_install', $ready, $tables);
+    if (!$ready) {
+        delete_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION);
+        delete_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION);
+        set_transient(LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT, 1, 5 * MINUTE_IN_SECONDS);
+        return false;
+    }
+
     update_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION, false);
+    update_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION, LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION, false);
+    if ($previous_schema_version !== LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION) {
+        delete_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION);
+    }
+    delete_transient(LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT);
+
+    return true;
 }
 
 function ll_tools_maybe_upgrade_user_progress_schema(): void {
     $installed = (string) get_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, '');
-    if ($installed === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION) {
+    $verified = (string) get_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION, '');
+    if ($installed === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION && $verified === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION) {
+        return;
+    }
+    if (get_transient(LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT)) {
         return;
     }
     ll_tools_install_user_progress_schema();
 }
 add_action('init', 'll_tools_maybe_upgrade_user_progress_schema', 12);
+
+/**
+ * Read the durable runtime schema contract without issuing SHOW queries.
+ *
+ * Full column/index verification belongs to installation and repair. Event
+ * ingestion only trusts the current installed and verified markers so its
+ * healthy hot path remains a pair of cacheable option reads.
+ *
+ * @return array{ready:bool,failure_code:string,installed_version:string,verified_version:string}
+ */
+function ll_tools_user_progress_runtime_schema_status(): array {
+    $installed = (string) get_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, '');
+    $verified = (string) get_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION, '');
+    $ready = $installed === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION
+        && $verified === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION;
+
+    return [
+        'ready' => $ready,
+        'failure_code' => $ready ? '' : 'progress_schema_unavailable',
+        'installed_version' => $installed,
+        'verified_version' => $verified,
+    ];
+}
 
 function ll_tools_default_user_study_goals(): array {
     return [
@@ -1088,8 +1758,11 @@ function ll_tools_repair_user_category_progress_store_for_isolation(array $raw_p
 
         $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
         $target_category_id = $category_id;
-        if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($wordset_id > 0) {
+            $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+            if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+                return [];
+            }
             if ($effective_category_id > 0) {
                 $target_category_id = $effective_category_id;
             }
@@ -1135,13 +1808,28 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
     if ($uid <= 0) {
         return [];
     }
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return [];
+    }
+
+    ll_tools_user_progress_prepare_source_read();
     $raw = get_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
+    if (ll_tools_user_progress_capture_source_error('category_progress_meta') instanceof WP_Error) {
+        return [];
+    }
     if (!is_array($raw)) {
         return [];
     }
     $repaired_raw = ll_tools_repair_user_category_progress_store_for_isolation($raw);
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return [];
+    }
     if ($repaired_raw !== $raw) {
+        ll_tools_user_progress_prepare_source_read();
         update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $repaired_raw);
+        if (ll_tools_user_progress_capture_source_error('category_progress_repair') instanceof WP_Error) {
+            return [];
+        }
         $raw = $repaired_raw;
     }
 
@@ -1170,16 +1858,60 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
     return $out;
 }
 
-function ll_tools_record_category_exposure($user_id, int $category_id, string $mode, int $wordset_id = 0, int $delta = 1): void {
+/**
+ * Update progress metadata and distinguish an unchanged value from a failed write.
+ *
+ * WordPress returns false for both cases. The readback keeps progress ingestion
+ * fail-closed without turning a harmless no-op into a retry loop.
+ */
+function ll_tools_user_progress_update_meta_verified(int $user_id, string $meta_key, $value): bool {
+    global $wpdb;
+
+    if ($user_id <= 0 || $meta_key === '') {
+        return false;
+    }
+
+    $write_allowed = (bool) apply_filters(
+        'll_tools_user_progress_meta_write_allowed',
+        true,
+        $user_id,
+        $meta_key,
+        $value
+    );
+    if (!$write_allowed) {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $updated = update_user_meta($user_id, $meta_key, $value);
+    if ((string) $wpdb->last_error !== '') {
+        return false;
+    }
+    if ($updated !== false) {
+        return true;
+    }
+
+    $wpdb->last_error = '';
+    $stored = get_user_meta($user_id, $meta_key, true);
+    return (string) $wpdb->last_error === '' && $stored === $value;
+}
+
+function ll_tools_record_category_exposure($user_id, int $category_id, string $mode, int $wordset_id = 0, int $delta = 1): bool {
     $uid = (int) $user_id;
     $category_id = (int) $category_id;
     $wordset_id = (int) $wordset_id;
     $delta = max(1, (int) $delta);
     if ($uid <= 0 || $category_id <= 0) {
-        return;
+        return false;
     }
-    if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return false;
+    }
+    if ($wordset_id > 0) {
+        $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return false;
+        }
         if ($effective_category_id > 0) {
             $category_id = $effective_category_id;
         }
@@ -1187,6 +1919,9 @@ function ll_tools_record_category_exposure($user_id, int $category_id, string $m
 
     $mode = ll_tools_normalize_progress_mode($mode);
     $progress = ll_tools_get_user_category_progress($uid);
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return false;
+    }
     if (!isset($progress[$category_id])) {
         $progress[$category_id] = [
             'category_id'      => $category_id,
@@ -1208,7 +1943,99 @@ function ll_tools_record_category_exposure($user_id, int $category_id, string $m
     }
 
     $progress[$category_id] = $entry;
-    update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $progress);
+    return ll_tools_user_progress_update_meta_verified($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $progress);
+}
+
+/**
+ * Bound the category list accepted from one completed client session.
+ */
+function ll_tools_user_progress_session_category_limit(): int {
+    $limit = (int) apply_filters('ll_tools_user_progress_session_category_limit', 1000);
+    return max(1, min(1000, $limit));
+}
+
+/**
+ * Bound one category-study event so a corrupt client cannot create huge jumps.
+ */
+function ll_tools_user_progress_category_study_units_limit(): int {
+    $limit = (int) apply_filters('ll_tools_user_progress_category_study_units_limit', 1000);
+    return max(1, min(1000, $limit));
+}
+
+/**
+ * Apply a sanitized session category list with one read and one verified write.
+ *
+ * The caller resolves wordset-isolated category IDs before opening the event
+ * transaction. Keeping this helper purely in-memory avoids one full user-meta
+ * rewrite per category while preserving the transaction's all-or-nothing edge.
+ *
+ * @param array<int,mixed> $category_ids
+ */
+function ll_tools_record_category_exposures_batch(
+    int $user_id,
+    array $category_ids,
+    string $mode,
+    int $wordset_id = 0,
+    int $delta = 1
+): bool {
+    $user_id = max(0, $user_id);
+    $wordset_id = max(0, $wordset_id);
+    $delta = max(1, min(ll_tools_user_progress_category_study_units_limit(), $delta));
+    $category_ids = array_slice(
+        array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+            return $category_id > 0;
+        }))),
+        0,
+        ll_tools_user_progress_session_category_limit()
+    );
+    if ($user_id <= 0) {
+        return false;
+    }
+    if ($category_ids === []) {
+        return true;
+    }
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return false;
+    }
+
+    $mode = ll_tools_normalize_progress_mode($mode);
+    $progress = ll_tools_get_user_category_progress($user_id);
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return false;
+    }
+
+    $seen_at = gmdate('Y-m-d H:i:s');
+    foreach ($category_ids as $category_id) {
+        if (!isset($progress[$category_id])) {
+            $progress[$category_id] = [
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 0,
+                'exposure_by_mode' => array_fill_keys(ll_tools_progress_modes(), 0),
+                'last_mode' => $mode,
+                'last_seen_at' => '',
+            ];
+        }
+
+        $entry = $progress[$category_id];
+        $entry['exposure_total'] = max(0, (int) ($entry['exposure_total'] ?? 0)) + $delta;
+        $entry['exposure_by_mode'] = isset($entry['exposure_by_mode']) && is_array($entry['exposure_by_mode'])
+            ? $entry['exposure_by_mode']
+            : array_fill_keys(ll_tools_progress_modes(), 0);
+        $entry['exposure_by_mode'][$mode] = max(0, (int) ($entry['exposure_by_mode'][$mode] ?? 0)) + $delta;
+        $entry['last_mode'] = $mode;
+        $entry['last_seen_at'] = $seen_at;
+        if ($wordset_id > 0) {
+            $entry['wordset_id'] = $wordset_id;
+        }
+        $progress[$category_id] = $entry;
+    }
+
+    return ll_tools_user_progress_update_meta_verified(
+        $user_id,
+        LL_TOOLS_USER_CATEGORY_PROGRESS_META,
+        $progress
+    );
 }
 
 function ll_tools_prompt_card_progress_mastery_clean_threshold(): int {
@@ -1222,7 +2049,15 @@ function ll_tools_get_user_prompt_card_progress($user_id = 0): array {
         return [];
     }
 
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return [];
+    }
+
+    ll_tools_user_progress_prepare_source_read();
     $raw = get_user_meta($uid, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true);
+    if (ll_tools_user_progress_capture_source_error('prompt_card_progress_meta') instanceof WP_Error) {
+        return [];
+    }
     if (!is_array($raw)) {
         return [];
     }
@@ -1272,7 +2107,7 @@ function ll_tools_user_prompt_card_progress_status(array $row): string {
 }
 
 function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, string $now_mysql): bool {
-    if (!function_exists('ll_tools_get_prompt_card_data')) {
+    if (!defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')) {
         return false;
     }
 
@@ -1282,12 +2117,20 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
         return false;
     }
 
-    $card = ll_tools_get_prompt_card_data($prompt_card_id);
-    if (empty($card)) {
+    ll_tools_user_progress_prepare_source_read();
+    $card = get_post($prompt_card_id);
+    if (
+        ll_tools_user_progress_capture_source_error('prompt_card_post', $card) instanceof WP_Error
+        || !($card instanceof WP_Post)
+        || $card->post_type !== LL_TOOLS_PROMPT_CARD_POST_TYPE
+    ) {
         return false;
     }
 
     $progress = ll_tools_get_user_prompt_card_progress($user_id);
+    if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+        return false;
+    }
     $row = isset($progress[$prompt_card_id]) && is_array($progress[$prompt_card_id])
         ? $progress[$prompt_card_id]
         : [
@@ -1308,9 +2151,21 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
 
     $category_id = max(0, (int) ($event['category_id'] ?? 0));
     if ($category_id <= 0) {
+        $category_terms_complete = true;
+        ll_tools_user_progress_prepare_source_read();
         $card_categories = function_exists('ll_tools_get_object_term_ids_map')
-            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'word-category')
+            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'word-category', $category_terms_complete)
             : [];
+        $category_source_error = ll_tools_user_progress_capture_source_error('prompt_card_categories', $card_categories);
+        if (!$category_terms_complete && !($category_source_error instanceof WP_Error)) {
+            $category_source_error = ll_tools_user_progress_mark_source_error(
+                'prompt_card_categories',
+                'The prompt-card category relationship read was incomplete.'
+            );
+        }
+        if ($category_source_error instanceof WP_Error) {
+            return false;
+        }
         $card_category_ids = isset($card_categories[$prompt_card_id]) && is_array($card_categories[$prompt_card_id])
             ? array_values(array_filter(array_map('intval', $card_categories[$prompt_card_id]), static function (int $id): bool {
                 return $id > 0;
@@ -1321,9 +2176,21 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
 
     $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
     if ($wordset_id <= 0) {
+        $wordset_terms_complete = true;
+        ll_tools_user_progress_prepare_source_read();
         $card_wordsets = function_exists('ll_tools_get_object_term_ids_map')
-            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'wordset')
+            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'wordset', $wordset_terms_complete)
             : [];
+        $wordset_source_error = ll_tools_user_progress_capture_source_error('prompt_card_wordsets', $card_wordsets);
+        if (!$wordset_terms_complete && !($wordset_source_error instanceof WP_Error)) {
+            $wordset_source_error = ll_tools_user_progress_mark_source_error(
+                'prompt_card_wordsets',
+                'The prompt-card wordset relationship read was incomplete.'
+            );
+        }
+        if ($wordset_source_error instanceof WP_Error) {
+            return false;
+        }
         $card_wordset_ids = isset($card_wordsets[$prompt_card_id]) && is_array($card_wordsets[$prompt_card_id])
             ? array_values(array_filter(array_map('intval', $card_wordsets[$prompt_card_id]), static function (int $id): bool {
                 return $id > 0;
@@ -1331,7 +2198,6 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
             : [];
         $wordset_id = !empty($card_wordset_ids) ? (int) $card_wordset_ids[0] : 0;
     }
-
     $row['last_seen_at'] = $now_mysql;
     $row['updated_at'] = $now_mysql;
     $row['last_mode'] = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
@@ -1346,7 +2212,9 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
     if ($event_type === 'word_exposure') {
         $row['exposure_total'] = max(0, (int) $row['exposure_total']) + 1;
         if ((int) ($event['word_id'] ?? 0) <= 0 && $category_id > 0) {
-            ll_tools_record_category_exposure($user_id, $category_id, $row['last_mode'], $wordset_id, 1);
+            if (!ll_tools_record_category_exposure($user_id, $category_id, $row['last_mode'], $wordset_id, 1)) {
+                return false;
+            }
         }
     } elseif ($event_type === 'word_outcome') {
         $is_correct = $event['is_correct'] ?? null;
@@ -1369,8 +2237,7 @@ function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, s
     }
 
     $progress[$prompt_card_id] = $row;
-    update_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $progress);
-    return true;
+    return ll_tools_user_progress_update_meta_verified($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $progress);
 }
 
 function ll_tools_get_prompt_card_progress_summary_by_category($user_id = 0, int $wordset_id = 0, array $category_ids = []): array {
@@ -1580,8 +2447,9 @@ function ll_tools_resolve_wordset_id_for_word(int $word_id): int {
     if ($word_id <= 0) {
         return 0;
     }
+    ll_tools_user_progress_prepare_source_read();
     $terms = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
-    if (is_wp_error($terms) || empty($terms)) {
+    if (ll_tools_user_progress_capture_source_error('word_wordsets', $terms) instanceof WP_Error || empty($terms)) {
         return 0;
     }
     return max(0, (int) $terms[0]);
@@ -1591,8 +2459,9 @@ function ll_tools_resolve_category_id_for_word(int $word_id): int {
     if ($word_id <= 0) {
         return 0;
     }
+    ll_tools_user_progress_prepare_source_read();
     $terms = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-    if (is_wp_error($terms) || empty($terms)) {
+    if (ll_tools_user_progress_capture_source_error('word_categories', $terms) instanceof WP_Error || empty($terms)) {
         return 0;
     }
     return max(0, (int) $terms[0]);
@@ -1602,14 +2471,20 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
     $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
     if ($wordset_id <= 0 && !empty($event['word_id'])) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word((int) $event['word_id']);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return 0;
+        }
     }
 
     $resolve_effective_category_id = static function (int $category_id) use ($wordset_id): int {
         if ($category_id <= 0) {
             return 0;
         }
-        if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($wordset_id > 0) {
+            $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+            if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+                return 0;
+            }
             if ($effective_category_id > 0) {
                 return $effective_category_id;
             }
@@ -1622,18 +2497,28 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
     }
     $name = isset($event['category_name']) ? trim((string) $event['category_name']) : '';
     if ($name !== '') {
-        $term = function_exists('ll_tools_resolve_word_category_term_for_wordsets')
-            ? ll_tools_resolve_word_category_term_for_wordsets($name, $wordset_id > 0 ? [$wordset_id] : [])
-            : get_term_by('name', $name, 'word-category');
-        if ((!$term || is_wp_error($term)) && !function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
-            $term = get_term_by('slug', sanitize_title($name), 'word-category');
+        ll_tools_user_progress_prepare_source_read();
+        $term = get_term_by('slug', sanitize_title($name), 'word-category');
+        if (ll_tools_user_progress_capture_source_error('event_category_slug', $term) instanceof WP_Error) {
+            return 0;
+        }
+        if (!$term) {
+            ll_tools_user_progress_prepare_source_read();
+            $term = get_term_by('name', $name, 'word-category');
+            if (ll_tools_user_progress_capture_source_error('event_category_name', $term) instanceof WP_Error) {
+                return 0;
+            }
         }
         if ($term && !is_wp_error($term)) {
             return $resolve_effective_category_id((int) $term->term_id);
         }
     }
     if (!empty($event['word_id'])) {
-        return $resolve_effective_category_id(ll_tools_resolve_category_id_for_word((int) $event['word_id']));
+        $category_id = ll_tools_resolve_category_id_for_word((int) $event['word_id']);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return 0;
+        }
+        return $resolve_effective_category_id($category_id);
     }
     return 0;
 }
@@ -1664,6 +2549,27 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     $had_wrong_before = filter_var(($raw['had_wrong_before'] ?? false), FILTER_VALIDATE_BOOLEAN);
 
     $payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
+    if ($type === 'mode_session_complete') {
+        $payload['category_ids'] = array_slice(
+            array_values(array_unique(array_filter(
+                array_map('intval', isset($payload['category_ids']) && is_array($payload['category_ids']) ? $payload['category_ids'] : []),
+                static function (int $payload_category_id): bool {
+                    return $payload_category_id > 0;
+                }
+            ))),
+            0,
+            ll_tools_user_progress_session_category_limit()
+        );
+    }
+    if ($type === 'category_study') {
+        $payload['units'] = max(
+            1,
+            min(
+                ll_tools_user_progress_category_study_units_limit(),
+                (int) ($payload['units'] ?? 1)
+            )
+        );
+    }
     $category_name = isset($raw['category_name']) ? sanitize_text_field((string) $raw['category_name']) : '';
     $device_id = isset($raw['device_id']) ? strtolower(trim((string) $raw['device_id'])) : '';
     $device_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $device_id), 0, 80);
@@ -1702,21 +2608,53 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
     }
     if ($wordset_id <= 0 && $prompt_card_id > 0) {
+        ll_tools_user_progress_prepare_source_read();
         $prompt_card_wordsets = wp_get_post_terms($prompt_card_id, 'wordset', ['fields' => 'ids']);
+        ll_tools_user_progress_capture_source_error('prompt_card_wordsets', $prompt_card_wordsets);
         if (!is_wp_error($prompt_card_wordsets) && !empty($prompt_card_wordsets)) {
             $wordset_id = max(0, (int) $prompt_card_wordsets[0]);
         }
     }
-    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+    if ($wordset_id > 0 && $category_id > 0 && !(ll_tools_user_progress_get_source_error() instanceof WP_Error)) {
+        $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
         if ($effective_category_id > 0) {
             $category_id = $effective_category_id;
         }
     }
-    if ($wordset_id > 0 && !empty($payload['category_ids']) && is_array($payload['category_ids']) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
-        $repaired_payload_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset((array) $payload['category_ids'], $wordset_id, true);
-        if (!empty($repaired_payload_category_ids)) {
-            $payload['category_ids'] = $repaired_payload_category_ids;
+    if (
+        $wordset_id > 0
+        && !empty($payload['category_ids'])
+        && is_array($payload['category_ids'])
+        && !(ll_tools_user_progress_get_source_error() instanceof WP_Error)
+        && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete')
+    ) {
+        ll_tools_user_progress_prepare_source_read();
+        $repaired_payload_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
+            (array) $payload['category_ids'],
+            $wordset_id,
+            true
+        );
+        $payload_source_error = ll_tools_user_progress_capture_source_error(
+            'event_payload_categories',
+            $repaired_payload_category_ids
+        );
+        if ($repaired_payload_category_ids === null && !($payload_source_error instanceof WP_Error)) {
+            ll_tools_user_progress_mark_source_error(
+                'event_payload_categories',
+                'The event category relationship list could not be verified.'
+            );
+        }
+        if (is_array($repaired_payload_category_ids)) {
+            $payload['category_ids'] = array_slice(
+                array_values(array_unique(array_filter(
+                    array_map('intval', $repaired_payload_category_ids),
+                    static function (int $payload_category_id): bool {
+                        return $payload_category_id > 0;
+                    }
+                ))),
+                0,
+                ll_tools_user_progress_session_category_limit()
+            );
         }
     }
 
@@ -1798,10 +2736,14 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         return false;
     }
 
+    $wpdb->last_error = '';
     $row = $wpdb->get_row(
-        $wpdb->prepare("SELECT * FROM {$table} WHERE user_id = %d AND word_id = %d", $user_id, $word_id),
+        $wpdb->prepare("SELECT * FROM {$table} WHERE user_id = %d AND word_id = %d FOR UPDATE", $user_id, $word_id),
         ARRAY_A
     );
+    if ((string) $wpdb->last_error !== '') {
+        return false;
+    }
 
     $base_ts = time();
     $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
@@ -1810,12 +2752,21 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
 
     if ($category_id <= 0) {
         $category_id = ll_tools_resolve_category_id_for_word($word_id);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return false;
+        }
     }
     if ($wordset_id <= 0) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return false;
+        }
     }
-    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+    if ($wordset_id > 0 && $category_id > 0) {
+        $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            return false;
+        }
         if ($effective_category_id > 0) {
             $category_id = $effective_category_id;
         }
@@ -2026,20 +2977,265 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         '%s', // updated_at
     ];
 
-    $saved = $wpdb->replace($table, $data, $formats);
-    if ($saved === false) {
+    $wpdb->last_error = '';
+    if (is_array($row)) {
+        $update_data = $data;
+        unset($update_data['user_id'], $update_data['word_id']);
+        $saved = $wpdb->update(
+            $table,
+            $update_data,
+            ['user_id' => $user_id, 'word_id' => $word_id],
+            array_slice($formats, 2),
+            ['%d', '%d']
+        );
+    } else {
+        $saved = $wpdb->insert($table, $data, $formats);
+    }
+    if ($saved === false || (string) $wpdb->last_error !== '') {
         return false;
     }
 
     if ($category_id > 0 && $event_type === 'word_exposure') {
-        ll_tools_record_category_exposure($user_id, $category_id, $mode, $wordset_id, 1);
+        if (!ll_tools_record_category_exposure($user_id, $category_id, $mode, $wordset_id, 1)) {
+            return false;
+        }
     }
 
     return true;
 }
 
+/**
+ * Begin an event-local transaction without committing a transaction owned by
+ * the caller (the WordPress test framework is one such owner).
+ *
+ * @return array{type:string,name:string}|null
+ */
+function ll_tools_user_progress_begin_event_transaction(): ?array {
+    global $wpdb;
+
+    static $sequence = 0;
+    $sequence++;
+    $entropy = substr(hash(
+        'sha256',
+        $sequence . '|' . microtime(true) . '|' . wp_rand()
+    ), 0, 12);
+    $savepoint_name = 'll_progress_event_' . $sequence . '_' . $entropy;
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
+
+    $wpdb->last_error = '';
+    $savepoint_created = $wpdb->query("SAVEPOINT {$savepoint_name}");
+    $savepoint_error = (string) $wpdb->last_error;
+    if ($savepoint_created !== false && $savepoint_error === '') {
+        // Some older servers accept SAVEPOINT outside a useful transaction.
+        // A no-op rollback verifies that the savepoint is actually active.
+        $wpdb->last_error = '';
+        $savepoint_verified = $wpdb->query("ROLLBACK TO SAVEPOINT {$savepoint_name}");
+        $savepoint_error = (string) $wpdb->last_error;
+        if ($savepoint_verified !== false && $savepoint_error === '') {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            return ['type' => 'savepoint', 'name' => $savepoint_name];
+        }
+        $wpdb->query("RELEASE SAVEPOINT {$savepoint_name}");
+    }
+
+    $wpdb->last_error = '';
+    $started = $wpdb->query('START TRANSACTION');
+    $start_error = (string) $wpdb->last_error;
+    $wpdb->suppress_errors($previous_suppress_errors);
+    if ($started === false || $start_error !== '') {
+        return null;
+    }
+
+    return ['type' => 'transaction', 'name' => ''];
+}
+
+/**
+ * Serialize all progress mutations for one user, including serialized meta.
+ */
+function ll_tools_user_progress_lock_user_for_event(int $user_id): bool {
+    global $wpdb;
+
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $locked_user_id = $wpdb->get_var(
+        $wpdb->prepare("SELECT ID FROM {$wpdb->users} WHERE ID = %d FOR UPDATE", $user_id)
+    );
+    $locked = (int) $locked_user_id === $user_id && (string) $wpdb->last_error === '';
+    if ($locked) {
+        // This request may have populated user_meta before waiting on another
+        // transaction's user-row lock. Force every derived read after the lock
+        // to observe the newly committed database snapshot.
+        ll_tools_user_progress_clear_user_cache($user_id);
+    }
+
+    return $locked;
+}
+
+/**
+ * Publish an event-local transaction or release its caller-owned savepoint.
+ *
+ * @param array{type:string,name:string} $transaction
+ */
+function ll_tools_user_progress_commit_event_transaction(array $transaction): bool {
+    global $wpdb;
+
+    $wpdb->last_error = '';
+    if (($transaction['type'] ?? '') === 'savepoint') {
+        $name = (string) ($transaction['name'] ?? '');
+        $committed = $name !== '' ? $wpdb->query("RELEASE SAVEPOINT {$name}") : false;
+    } else {
+        $committed = $wpdb->query('COMMIT');
+    }
+
+    return $committed !== false && (string) $wpdb->last_error === '';
+}
+
+function ll_tools_user_progress_clear_user_cache(int $user_id): void {
+    if ($user_id <= 0) {
+        return;
+    }
+
+    wp_cache_delete($user_id, 'user_meta');
+    if (function_exists('clean_user_cache')) {
+        clean_user_cache($user_id);
+    }
+}
+
+/**
+ * Roll back a failed event and evict metadata snapshots populated before it.
+ *
+ * @param array{type:string,name:string} $transaction
+ */
+function ll_tools_user_progress_rollback_event_transaction(array $transaction, int $user_id): void {
+    global $wpdb;
+
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
+    if (($transaction['type'] ?? '') === 'savepoint') {
+        $name = (string) ($transaction['name'] ?? '');
+        if ($name !== '') {
+            $wpdb->query("ROLLBACK TO SAVEPOINT {$name}");
+            $wpdb->query("RELEASE SAVEPOINT {$name}");
+        }
+    } else {
+        $wpdb->query('ROLLBACK');
+    }
+    $wpdb->suppress_errors($previous_suppress_errors);
+    $wpdb->last_error = '';
+
+    ll_tools_user_progress_clear_user_cache($user_id);
+}
+
+/**
+ * Build a fail-closed result without resolving source posts or writing state.
+ *
+ * @param array<int,mixed> $events
+ * @param array<string,mixed> $engine_status
+ */
+function ll_tools_user_progress_core_engine_failure_stats(array $events, array $engine_status): array {
+    $failed_event_uuids = [];
+    $failed = 0;
+    $invalid = 0;
+    $allowed_types = ['word_outcome', 'word_exposure', 'category_study', 'mode_session_complete'];
+
+    foreach ($events as $raw) {
+        if (!is_array($raw)) {
+            $invalid++;
+            continue;
+        }
+
+        $event_type = strtolower(trim((string) ($raw['event_type'] ?? ($raw['type'] ?? ''))));
+        $prompt_card_id = isset($raw['payload']['prompt_card_id'])
+            ? max(0, (int) $raw['payload']['prompt_card_id'])
+            : 0;
+        if (
+            !in_array($event_type, $allowed_types, true)
+            || (
+                in_array($event_type, ['word_outcome', 'word_exposure'], true)
+                && (int) ($raw['word_id'] ?? 0) <= 0
+                && $prompt_card_id <= 0
+            )
+        ) {
+            $invalid++;
+            continue;
+        }
+
+        $event_uuid = sanitize_text_field(substr((string) ($raw['event_uuid'] ?? ($raw['uuid'] ?? '')), 0, 64));
+        if ($event_uuid === '') {
+            $event_uuid = wp_generate_uuid4();
+        }
+        $failed_event_uuids[$event_uuid] = true;
+        $failed++;
+    }
+
+    return [
+        'received' => count($events),
+        'processed' => 0,
+        'duplicates' => 0,
+        'invalid' => $invalid,
+        'failed' => $failed,
+        'failed_event_uuids' => array_keys($failed_event_uuids),
+        'retryable' => true,
+        'failure_code' => (string) ($engine_status['failure_code'] ?? 'progress_transactional_engine_unavailable'),
+        'failure_message' => __('Lesson progress could not be saved.', 'll-tools-text-domain'),
+    ];
+}
+
+function ll_tools_user_progress_stats_are_retryable_failure(array $stats): bool {
+    return !empty($stats['retryable'])
+        && in_array((string) ($stats['failure_code'] ?? ''), [
+            'progress_schema_unavailable',
+            'progress_transactional_engine_unavailable',
+        ], true);
+}
+
+/**
+ * Send the common retryable progress-sync response used by web and offline clients.
+ */
+function ll_tools_user_progress_send_retryable_failure(array $stats): void {
+    $retry_after = max(60, min(
+        HOUR_IN_SECONDS,
+        (int) apply_filters('ll_tools_user_progress_core_engine_retry_after', 5 * MINUTE_IN_SECONDS, $stats)
+    ));
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+
+    wp_send_json_error([
+        'code' => (string) ($stats['failure_code'] ?? 'progress_transactional_engine_unavailable'),
+        'message' => (string) ($stats['failure_message'] ?? __('Lesson progress could not be saved.', 'll-tools-text-domain')),
+        'retryable' => true,
+        'retry_after' => $retry_after,
+        'stats' => $stats,
+    ], 503);
+}
+
 function ll_tools_process_progress_events_batch(int $user_id, array $events): array {
     global $wpdb;
+
+    ll_tools_user_progress_clear_source_error();
+    if ($events === []) {
+        return [
+            'received' => 0,
+            'processed' => 0,
+            'duplicates' => 0,
+            'invalid' => 0,
+            'failed' => 0,
+            'failed_event_uuids' => [],
+        ];
+    }
+
+    $schema_status = ll_tools_user_progress_runtime_schema_status();
+    if (empty($schema_status['ready'])) {
+        return ll_tools_user_progress_core_engine_failure_stats($events, $schema_status);
+    }
+
+    $core_engine_status = ll_tools_user_progress_core_engine_status();
+    if (empty($core_engine_status['ready'])) {
+        return ll_tools_user_progress_core_engine_failure_stats($events, $core_engine_status);
+    }
 
     $tables = ll_tools_user_progress_table_names();
     $events_table = $tables['events'];
@@ -2050,7 +3246,10 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
         'duplicates' => 0,
         'invalid' => 0,
         'failed' => 0,
+        'failed_event_uuids' => [],
     ];
+    $failed_event_uuids = [];
+    $source_failure = false;
 
     $now = gmdate('Y-m-d H:i:s');
 
@@ -2060,20 +3259,59 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             continue;
         }
 
+        ll_tools_user_progress_clear_source_error();
+        $wpdb->last_error = '';
         $event = ll_tools_sanitize_progress_event($raw);
         if (!$event) {
             $stats['invalid']++;
             continue;
         }
+        if (
+            ll_tools_user_progress_get_source_error() instanceof WP_Error
+            || (string) $wpdb->last_error !== ''
+        ) {
+            $source_failure = true;
+            $stats['failed']++;
+            $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
+        }
 
+        $wpdb->last_error = '';
         $event['category_id'] = ll_tools_resolve_category_id_from_event($event);
-        if ($event['wordset_id'] <= 0 && !empty($event['word_id'])) {
+        if (
+            !(ll_tools_user_progress_get_source_error() instanceof WP_Error)
+            && $event['wordset_id'] <= 0
+            && !empty($event['word_id'])
+        ) {
             $event['wordset_id'] = ll_tools_resolve_wordset_id_for_word((int) $event['word_id']);
+        }
+        if (
+            ll_tools_user_progress_get_source_error() instanceof WP_Error
+            || (string) $wpdb->last_error !== ''
+        ) {
+            $source_failure = true;
+            $stats['failed']++;
+            $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
         }
 
         $event_created_at = !empty($event['client_created_at']) ? (string) $event['client_created_at'] : $now;
 
+        $transaction = ll_tools_user_progress_begin_event_transaction();
+        if (!$transaction) {
+            $stats['failed']++;
+            $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
+        }
+        if (!ll_tools_user_progress_lock_user_for_event($user_id)) {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+            $stats['failed']++;
+            $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
+        }
+
         $previous_suppress_errors = $wpdb->suppress_errors(true);
+        $wpdb->last_error = '';
         $inserted = $wpdb->insert(
             $events_table,
             [
@@ -2091,14 +3329,17 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             ],
             ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
         );
+        $insert_error = (string) $wpdb->last_error;
         $wpdb->suppress_errors($previous_suppress_errors);
 
         if ($inserted === false) {
-            $last_error = (string) $wpdb->last_error;
-            if (stripos($last_error, 'duplicate') !== false) {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+            if (stripos($insert_error, 'duplicate') !== false) {
                 $stats['duplicates']++;
+                unset($failed_event_uuids[$event['event_uuid']]);
             } else {
                 $stats['failed']++;
+                $failed_event_uuids[$event['event_uuid']] = true;
             }
             continue;
         }
@@ -2120,26 +3361,49 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             }
         } elseif ($event['event_type'] === 'category_study') {
             if (!empty($event['category_id'])) {
-                $delta = isset($event['payload']['units']) ? max(1, (int) $event['payload']['units']) : 1;
-                ll_tools_record_category_exposure($user_id, (int) $event['category_id'], $event['mode'], (int) $event['wordset_id'], $delta);
+                $delta = isset($event['payload']['units'])
+                    ? max(1, min(ll_tools_user_progress_category_study_units_limit(), (int) $event['payload']['units']))
+                    : 1;
+                $ok = ll_tools_record_category_exposure($user_id, (int) $event['category_id'], $event['mode'], (int) $event['wordset_id'], $delta);
             }
         } elseif ($event['event_type'] === 'mode_session_complete') {
             $payload_categories = isset($event['payload']['category_ids']) ? (array) $event['payload']['category_ids'] : [];
-            $payload_categories = array_values(array_filter(array_map('intval', $payload_categories), function ($id) {
-                return $id > 0;
-            }));
-            foreach ($payload_categories as $cid) {
-                ll_tools_record_category_exposure($user_id, $cid, $event['mode'], (int) $event['wordset_id'], 1);
-            }
+            $ok = ll_tools_record_category_exposures_batch(
+                $user_id,
+                $payload_categories,
+                $event['mode'],
+                (int) $event['wordset_id'],
+                1
+            );
         }
 
-        if ($ok) {
+        if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+            $source_failure = true;
+            $ok = false;
+        }
+
+        if ($ok && ll_tools_user_progress_commit_event_transaction($transaction)) {
+            // update_user_meta() invalidates before the SQL boundary completes,
+            // and metadata hooks can repopulate the cache in between. Clear
+            // after both COMMIT and savepoint release. An enclosing transaction
+            // still owns its final commit/rollback and final cache boundary.
+            ll_tools_user_progress_clear_user_cache($user_id);
             $stats['processed']++;
+            unset($failed_event_uuids[$event['event_uuid']]);
         } else {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
             $stats['failed']++;
+            $failed_event_uuids[$event['event_uuid']] = true;
         }
     }
 
+    $stats['failed_event_uuids'] = array_keys($failed_event_uuids);
+    if ($source_failure) {
+        $stats['retryable'] = true;
+        $stats['failure_code'] = 'progress_source_incomplete';
+        $stats['failure_message'] = __('Lesson progress could not be saved.', 'll-tools-text-domain');
+    }
+    ll_tools_user_progress_clear_source_error();
     return $stats;
 }
 
@@ -2157,63 +3421,81 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         return false;
     }
 
-    $word_id = max(0, (int) ($event['word_id'] ?? 0));
-    $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
-    if ($wordset_id <= 0 && $word_id > 0) {
-        $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
-    }
-
-    $category_id = max(0, (int) ($event['category_id'] ?? 0));
-    if ($category_id <= 0 && $word_id > 0) {
-        $category_id = ll_tools_resolve_category_id_for_word($word_id);
-    }
-    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
-        if ($effective_category_id > 0) {
-            $category_id = $effective_category_id;
-        }
-    }
-
-    $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
-    $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
-    $payload_json = !empty($payload) ? wp_json_encode($payload) : null;
-    $event_uuid = sanitize_text_field(substr((string) ($event['event_uuid'] ?? ''), 0, 64));
-    if ($event_uuid === '') {
-        $event_uuid = wp_generate_uuid4();
-    }
-
-    $tables = ll_tools_user_progress_table_names();
-    $events_table = $tables['events'];
-
-    $previous_suppress_errors = $wpdb->suppress_errors(true);
-    $inserted = $wpdb->insert(
-        $events_table,
-        [
-            'user_id' => $uid,
-            'event_uuid' => $event_uuid,
-            'event_type' => $event_type,
-            'mode' => $mode,
-            'word_id' => $word_id,
-            'category_id' => $category_id,
-            'wordset_id' => $wordset_id,
-            'is_correct' => null,
-            'had_wrong_before' => 0,
-            'payload_json' => $payload_json,
-            'created_at' => gmdate('Y-m-d H:i:s'),
-        ],
-        ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
-    );
-    $wpdb->suppress_errors($previous_suppress_errors);
-
-    if ($inserted === false) {
-        $last_error = (string) $wpdb->last_error;
-        if (stripos($last_error, 'duplicate') !== false) {
-            return true;
-        }
+    ll_tools_user_progress_clear_source_error();
+    if (empty(ll_tools_user_progress_runtime_schema_status()['ready'])) {
         return false;
     }
 
-    return true;
+    try {
+        $word_id = max(0, (int) ($event['word_id'] ?? 0));
+        $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
+        if ($wordset_id <= 0 && $word_id > 0) {
+            $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+            if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+                return false;
+            }
+        }
+
+        $category_id = max(0, (int) ($event['category_id'] ?? 0));
+        if ($category_id <= 0 && $word_id > 0) {
+            $category_id = ll_tools_resolve_category_id_for_word($word_id);
+            if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+                return false;
+            }
+        }
+        if ($wordset_id > 0 && $category_id > 0) {
+            $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+            if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
+                return false;
+            }
+            if ($effective_category_id > 0) {
+                $category_id = $effective_category_id;
+            }
+        }
+
+        $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
+        $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        $payload_json = !empty($payload) ? wp_json_encode($payload) : null;
+        $event_uuid = sanitize_text_field(substr((string) ($event['event_uuid'] ?? ''), 0, 64));
+        if ($event_uuid === '') {
+            $event_uuid = wp_generate_uuid4();
+        }
+
+        $tables = ll_tools_user_progress_table_names();
+        $events_table = $tables['events'];
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        $inserted = $wpdb->insert(
+            $events_table,
+            [
+                'user_id' => $uid,
+                'event_uuid' => $event_uuid,
+                'event_type' => $event_type,
+                'mode' => $mode,
+                'word_id' => $word_id,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => null,
+                'had_wrong_before' => 0,
+                'payload_json' => $payload_json,
+                'created_at' => gmdate('Y-m-d H:i:s'),
+            ],
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
+        );
+        $wpdb->suppress_errors($previous_suppress_errors);
+
+        if ($inserted === false) {
+            $last_error = (string) $wpdb->last_error;
+            if (stripos($last_error, 'duplicate') !== false) {
+                return true;
+            }
+            return false;
+        }
+
+        return true;
+    } finally {
+        ll_tools_user_progress_clear_source_error();
+    }
 }
 
 function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): array {
@@ -9328,6 +10610,9 @@ function ll_tools_user_progress_batch_ajax() {
 
     $events = array_slice($events, 0, 200);
     $stats = ll_tools_process_progress_events_batch(get_current_user_id(), $events);
+    if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
+        ll_tools_user_progress_send_retryable_failure($stats);
+    }
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];

@@ -300,7 +300,24 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
     {
         $fixture = $this->createWordsetFixture();
         $wordset_id = (int) $fixture['wordset_id'];
-        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+
+        $prompt_summary_query_count = 0;
+        $capture_prompt_summary_query = static function (WP_Query $query) use (&$prompt_summary_query_count): void {
+            $post_type = $query->get('post_type');
+            $post_types = is_array($post_type) ? $post_type : [$post_type];
+            $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE')
+                ? (string) LL_TOOLS_PROMPT_CARD_POST_TYPE
+                : 'll_prompt_card';
+            if (
+                in_array($prompt_card_post_type, array_map('strval', $post_types), true)
+                && (int) $query->get('posts_per_page') === -1
+                && (string) $query->get('fields') === 'ids'
+            ) {
+                $prompt_summary_query_count++;
+            }
+        };
 
         $original_post = $_POST;
         $original_request = $_REQUEST;
@@ -314,11 +331,13 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         ];
         $_REQUEST = $_POST;
 
+        add_action('pre_get_posts', $capture_prompt_summary_query);
         try {
             $response = $this->runJsonEndpoint(static function (): void {
                 ll_tools_wordset_page_handle_lazy_cards_ajax();
             });
         } finally {
+            remove_action('pre_get_posts', $capture_prompt_summary_query);
             $_POST = $original_post;
             $_REQUEST = $original_request;
         }
@@ -334,6 +353,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($data['hasMore'] ?? true));
         $this->assertStringContainsString('Lazy Ajax Category B', (string) ($data['html'] ?? ''));
         $this->assertStringContainsString('ll-wordset-preview-item--text', (string) ($data['html'] ?? ''));
+        $this->assertSame(0, $prompt_summary_query_count, 'Deferred token recovery must not scan every prompt card for progress totals.');
     }
 
     public function test_deferred_category_card_renders_preview_loading_slots(): void

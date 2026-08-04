@@ -718,11 +718,6 @@ if (loadSitesError) {
           sameOriginRequestFailures: summary.sameOriginRequestFailures.slice(),
           sameOriginServerErrors: summary.sameOriginServerErrors.slice()
         };
-        summary.sameOriginNonGetRequests = [];
-        summary.allowedSameOriginNonGetRequests = [];
-        summary.unexpectedSameOriginNonGetRequests = [];
-        summary.sameOriginRequestFailures = [];
-        summary.sameOriginServerErrors = [];
       }
       summary.finalUrl = page.url();
 
@@ -788,6 +783,7 @@ if (loadSitesError) {
 
       await attachJson(testInfo, 'summary', summary);
 
+      expect(summary.consoleErrors, 'Console errors were raised.').toEqual([]);
       expect(summary.pageErrors, 'Unhandled page errors were raised.').toEqual([]);
       expect(summary.sameOriginRequestFailures, 'Same-origin requests failed.').toEqual([]);
       expect(summary.sameOriginServerErrors, 'Same-origin responses returned 5xx.').toEqual([]);

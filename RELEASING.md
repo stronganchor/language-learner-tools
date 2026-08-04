@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
 
 The script is branch-aware in `auto` mode:
 
-- On `dev`, it can either bump the plugin `Version:` header or keep the current version, then stages current repo changes, commits with `x.y.z - Release`, validates the release archive, and pushes `dev`.
+- On `dev`, it can either bump the plugin `Version:` header or keep the current version, then commits the already staged release scope with `x.y.z - Release`, validates the release archive, and pushes `dev`. When it changes the version, it stages only `language-learner-tools.php` automatically. Unstaged, untracked, or unmerged paths stop the release.
 - On `main`, it does not bump again. It publishes the current version already in `main`: pushes `main`, tags `vX.Y.Z`, builds `dist/language-learner-tools-x.y.z.zip`, creates or updates the GitHub release, and uploads the zip asset.
 - On any other branch, `auto` mode stops before making a release. Check out `dev` for a dev-channel release or `main` for a stable release.
 
@@ -47,9 +47,10 @@ Close and reopen the terminal or VS Code after setting it so Windows picks up th
 ### Dev branch
 
 1. Check out `dev`.
-2. Run `release-plugin.bat`.
-3. Choose the bump type, or `none` to release without changing `Version:`.
-4. Confirm the commit and push.
+2. Stage only the files intended for the release and leave no unstaged, untracked, or unmerged paths.
+3. Run `release-plugin.bat`.
+4. Choose the bump type, or `none` to release without changing `Version:`.
+5. Confirm the exact pre-staged commit scope and push.
 
 That either updates the version header or keeps it unchanged, then pushes the release commit to `dev`.
 
@@ -73,7 +74,7 @@ If you need to rebuild a release zip manually from a specific git ref or tag, us
 
 ## What The Script Does
 
-- Builds the plugin zip with `git archive`.
+- Builds the plugin zip with `git -c core.autocrlf=false archive` so Windows checkout settings cannot change release bytes.
 - Uses `.gitattributes` `export-ignore` rules to exclude repository-only files and folders.
 - Forces the zip root directory to `language-learner-tools/`, which matches the installed plugin directory.
 

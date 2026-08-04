@@ -864,19 +864,22 @@
                 credentials: 'same-origin',
                 body: buildToolbarBootstrapPayload(),
             })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('request_failed');
-                    }
-                    return response.json();
-                })
-                .then((payload) => {
-                    if (payload && !payload.success && payload.data && payload.data.code === 'cache_warming') {
+                .then((response) => response.json()
+                    .then((payload) => ({ response, payload })))
+                .then(({ response, payload }) => {
+                    const retryData = payload && !payload.success && payload.data
+                        ? payload.data
+                        : null;
+                    const isRetryable = !!(
+                        retryData
+                        && (retryData.code === 'cache_warming' || retryData.retryable)
+                    );
+                    if (isRetryable) {
                         if (attempt >= toolbarBootstrapMaxRetries) {
-                            throw new Error('cache_warming');
+                            throw new Error(String(retryData.code || 'request_retryable'));
                         }
 
-                        const retryAfterSeconds = Number(payload.data.retry_after);
+                        const retryAfterSeconds = Number(retryData.retry_after);
                         const retryDelayMs = Math.max(
                             250,
                             Math.min(5000, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 1000)
@@ -884,6 +887,10 @@
                         return new Promise((resolve) => {
                             window.setTimeout(resolve, retryDelayMs);
                         }).then(() => requestToolbarBootstrap(attempt + 1));
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('request_failed');
                     }
 
                     return payload;
@@ -1327,12 +1334,15 @@
                 .then((response) => response.json()
                     .then((payload) => ({ response, payload })))
                 .then(({ response, payload }) => {
-                    const isWarming = payload
-                        && !payload.success
-                        && payload.data
-                        && payload.data.code === 'cache_warming';
-                    if (isWarming && attempt < liveSearchMaxWarmingRetries) {
-                        const retryAfterSeconds = Number(payload.data.retry_after);
+                    const retryData = payload && !payload.success && payload.data
+                        ? payload.data
+                        : null;
+                    const isRetryable = !!(
+                        retryData
+                        && (retryData.code === 'cache_warming' || retryData.retryable)
+                    );
+                    if (isRetryable && attempt < liveSearchMaxWarmingRetries) {
+                        const retryAfterSeconds = Number(retryData.retry_after);
                         const retryDelayMs = Math.max(
                             250,
                             Math.min(5000, Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 1000)
@@ -1350,8 +1360,8 @@
                         }).then(() => requestLiveSearchPayload(page, signal, attempt + 1));
                     }
 
-                    if (!response.ok || isWarming) {
-                        throw new Error(isWarming ? 'cache_warming' : 'request_failed');
+                    if (!response.ok || isRetryable) {
+                        throw new Error(isRetryable ? String(retryData.code || 'request_retryable') : 'request_failed');
                     }
 
                     return payload;

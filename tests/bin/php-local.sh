@@ -58,23 +58,25 @@ find_php_bin() {
 }
 
 has_windows_path_converter() {
-    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+    command -v cygpath >/dev/null 2>&1 || command -v wslpath >/dev/null 2>&1
 }
 
 to_windows_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -w "$1"
+    # Git Bash can see Windows' wslpath.exe even when WSL cannot start. Prefer
+    # its native converter there; WSL installations normally have no cygpath.
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
         return
     fi
-    cygpath -w "$1"
+    wslpath -w "$1"
 }
 
 to_posix_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -u "$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$1"
         return
     fi
-    cygpath -u "$1"
+    wslpath -u "$1"
 }
 
 convert_arg_for_windows_php() {

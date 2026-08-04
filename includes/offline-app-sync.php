@@ -1761,6 +1761,22 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
         $auth = ll_tools_offline_app_require_authenticated_user();
         $user_id = (int) ($auth['user_id'] ?? 0);
 
+        // Fail before parse_state_request() can persist user meta. The batch
+        // processor repeats this cached guard for non-AJAX callers.
+        if (!empty($events)) {
+            $schema_status = ll_tools_user_progress_runtime_schema_status();
+            if (empty($schema_status['ready'])) {
+                $stats = ll_tools_user_progress_core_engine_failure_stats($events, $schema_status);
+                ll_tools_user_progress_send_retryable_failure($stats);
+            }
+
+            $core_engine_status = ll_tools_user_progress_core_engine_status();
+            if (empty($core_engine_status['ready'])) {
+                $stats = ll_tools_user_progress_core_engine_failure_stats($events, $core_engine_status);
+                ll_tools_user_progress_send_retryable_failure($stats);
+            }
+        }
+
         $state = ll_tools_offline_app_parse_state_request($user_id);
         $stats = ll_tools_process_progress_events_batch($user_id, $events);
 

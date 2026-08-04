@@ -88,6 +88,158 @@ test('standalone category picker loads the next bounded catalog page on demand',
   expect(requestData.get('wordset')).toBe('demo');
 });
 
+test('closed or superseded category picker ignores a delayed catalog response', async ({ page }) => {
+  await page.route('https://example.test/wp-admin/admin-ajax.php', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          categories: [{ id: 2, slug: 'late', name: 'Late category' }],
+          catalog: { hasMore: false, nextOffset: 48, pageSize: 24 }
+        }
+      })
+    });
+  });
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-tools-flashcard-container" data-wordset="first">
+      <button id="ll-tools-start-flashcard" type="button">Start</button>
+      <div id="ll-tools-flashcard-popup" style="display:none">
+        <div id="ll-tools-category-selection-popup" style="display:none">
+          <div id="ll-tools-category-checkboxes"></div>
+          <button id="ll-tools-load-more-categories" type="button">Load more</button>
+          <span id="ll-tools-category-catalog-status"></span>
+          <button id="ll-tools-start-selected-quiz" type="button">Start selected</button>
+          <button id="ll-tools-close-category-selection" type="button">Close</button>
+        </div>
+        <div id="ll-tools-flashcard-quiz-popup" style="display:none"></div>
+        <button id="ll-tools-close-flashcard" type="button">Close widget</button>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      ajaxurl: 'https://example.test/wp-admin/admin-ajax.php',
+      categories: [
+        { id: 1, slug: 'first', name: 'First category' },
+        { id: 2, slug: 'first-extra', name: 'First extra category' }
+      ],
+      categoriesPreselected: false,
+      categoryCatalog: { hasMore: true, nextOffset: 24, pageSize: 24 },
+      quiz_mode: 'practice',
+      wordset: 'first',
+      wordsetFallback: false
+    };
+    window.llToolsFlashcardsMessages = {
+      categoryCatalogLoadMore: 'Load more',
+      categoryCatalogLoading: 'Loading...',
+      categoryCatalogError: 'Unable to load categories.'
+    };
+    window.LLFlashcards = {
+      Util: {
+        getCategorySelectionValue(category) {
+          return category.slug;
+        }
+      }
+    };
+  });
+  await page.addScriptTag({ content: categorySelectionSource });
+
+  await page.locator('#ll-tools-start-flashcard').click();
+  await page.locator('#ll-tools-load-more-categories').click();
+  await page.locator('#ll-tools-close-category-selection').click();
+  await expect(page.locator('#ll-tools-category-catalog-status')).toHaveText('');
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      categories: [{ id: 9, slug: 'second', name: 'Second category' }],
+      categoryCatalog: { hasMore: false, nextOffset: 0, pageSize: 24 },
+      wordset: 'second'
+    };
+  });
+  await page.waitForTimeout(300);
+
+  await expect(page.locator('#ll-tools-category-selection-popup')).toBeHidden();
+  const state = await page.evaluate(() => ({
+    wordset: window.llToolsFlashcardsData.wordset,
+    categories: window.llToolsFlashcardsData.categories.map((category) => category.slug)
+  }));
+  expect(state).toEqual({ wordset: 'second', categories: ['second'] });
+});
+
+test('standalone category catalog timeout restores retry controls', async ({ page }) => {
+  await page.route('https://example.test/wp-admin/admin-ajax.php', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    try {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: { categories: [], catalog: { hasMore: false } } })
+      });
+    } catch (_) {
+      // The browser is expected to cancel the request at its deadline.
+    }
+  });
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-tools-flashcard-container" data-wordset="demo">
+      <button id="ll-tools-start-flashcard" type="button">Start</button>
+      <div id="ll-tools-flashcard-popup" style="display:none">
+        <div id="ll-tools-category-selection-popup" style="display:none">
+          <div id="ll-tools-category-checkboxes"></div>
+          <button id="ll-tools-load-more-categories" type="button">Load more</button>
+          <span id="ll-tools-category-catalog-status"></span>
+          <button id="ll-tools-start-selected-quiz" type="button">Start selected</button>
+          <button id="ll-tools-close-category-selection" type="button">Close</button>
+        </div>
+        <div id="ll-tools-flashcard-quiz-popup" style="display:none"></div>
+        <button id="ll-tools-close-flashcard" type="button">Close widget</button>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      ajaxurl: 'https://example.test/wp-admin/admin-ajax.php',
+      categories: [
+        { id: 1, slug: 'alpha', name: 'Alpha' },
+        { id: 2, slug: 'beta', name: 'Beta' }
+      ],
+      categoryCatalog: { hasMore: true, nextOffset: 24, pageSize: 24 },
+      preloadTuning: { categoryAjaxTimeoutMs: 250 },
+      quiz_mode: 'practice',
+      wordset: 'demo',
+      wordsetFallback: false
+    };
+    window.llToolsFlashcardsMessages = {
+      categoryCatalogLoadMore: 'Load more',
+      categoryCatalogLoading: 'Loading...',
+      categoryCatalogError: 'Unable to load categories.'
+    };
+    window.LLFlashcards = {
+      Util: {
+        getCategorySelectionValue(category) {
+          return category.slug;
+        }
+      }
+    };
+  });
+  await page.addScriptTag({ content: categorySelectionSource });
+
+  await page.locator('#ll-tools-start-flashcard').click();
+  await page.locator('#ll-tools-load-more-categories').click();
+  await expect(page.locator('#ll-tools-load-more-categories')).toBeDisabled();
+  await expect(page.locator('#ll-tools-category-catalog-status'))
+    .toHaveText('Unable to load categories.', { timeout: 2000 });
+  await expect(page.locator('#ll-tools-load-more-categories')).toBeEnabled();
+  await expect(page.locator('#ll-tools-load-more-categories')).toHaveText('Load more');
+});
+
 test('standalone launch handles initializer rejection and closes the loading popup', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent(`

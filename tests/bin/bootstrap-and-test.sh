@@ -3,8 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BASH_RUNNER="${BASH:-bash}"
 
-eval "$("$SCRIPT_DIR/setup-local-env.sh")"
+eval "$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-env.sh")"
 
 if [[ ! -f "$TESTS_DIR/.env" ]]; then
     cp "$TESTS_DIR/.env.example" "$TESTS_DIR/.env"
@@ -21,10 +22,10 @@ if ! grep -q "^WP_TEST_DB_NAME=" "$TESTS_DIR/.env"; then
     } >> "$TESTS_DIR/.env"
 fi
 
-"$SCRIPT_DIR/install-wp-tests.sh" \
+"$BASH_RUNNER" "$SCRIPT_DIR/install-wp-tests.sh" \
     "$WP_TEST_DB_NAME" \
     "$WP_TEST_DB_USER" \
     "$WP_TEST_DB_PASS" \
     "$WP_TEST_DB_HOST"
 
-"$SCRIPT_DIR/run-tests.sh" "$@"
+"$BASH_RUNNER" "$SCRIPT_DIR/run-tests.sh" "$@"

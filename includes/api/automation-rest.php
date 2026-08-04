@@ -84,27 +84,89 @@ function ll_tools_rest_automation_with_status($result, int $status) {
     );
 }
 
-function ll_tools_rest_automation_has_local_host_context(): bool {
-    $environment_type = function_exists('wp_get_environment_type') ? wp_get_environment_type() : '';
-    if ($environment_type === 'local') {
-        return true;
+function ll_tools_rest_automation_normalize_host(string $raw_host): string {
+    $raw_host = strtolower(trim($raw_host));
+    if (
+        $raw_host === ''
+        || preg_match('/[\x00-\x20\x7f]/', $raw_host)
+        || strpos($raw_host, '/') !== false
+        || strpos($raw_host, '\\') !== false
+    ) {
+        return '';
     }
 
-    $host = isset($_SERVER['HTTP_HOST']) ? strtolower((string) $_SERVER['HTTP_HOST']) : '';
+    // wp_parse_url() expects an IPv6 URL host to be bracketed, while
+    // wp_parse_url(home_url(), PHP_URL_HOST) may already have removed them.
+    if (filter_var($raw_host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
+        return $raw_host;
+    }
+
+    $host = wp_parse_url('http://' . $raw_host, PHP_URL_HOST);
+    if (!is_string($host) || $host === '') {
+        return '';
+    }
+
+    if ($host[0] === '[' && substr($host, -1) === ']') {
+        $host = substr($host, 1, -1);
+    }
+
+    return rtrim(strtolower($host), '.');
+}
+
+function ll_tools_rest_automation_host_is_local(string $host): bool {
+    $host = ll_tools_rest_automation_normalize_host($host);
     if ($host === '') {
         return false;
     }
 
-    $host = preg_replace('/:\d+$/', '', $host);
-    if (!is_string($host) || $host === '') {
-        return false;
-    }
+    return in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+        || (bool) preg_match('/(?:^|\.)local$/', $host);
+}
 
-    if (in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+/**
+ * Decide whether a non-TLS request is in a trusted local fallback context.
+ *
+ * HTTP_HOST is client-controlled, so a `.local` request host alone must never
+ * waive transport security on a production-configured site. Outside an
+ * explicit local WordPress environment, require the configured home host,
+ * request host, and direct peer to all prove the request stayed local.
+ */
+function ll_tools_rest_automation_local_host_context_is_trusted(
+    string $environment_type,
+    string $configured_host,
+    string $request_host,
+    string $direct_peer
+): bool {
+    if (strtolower(trim($environment_type)) === 'local') {
         return true;
     }
 
-    return (bool) preg_match('/(?:^|\.)local$/', $host);
+    $configured_host = ll_tools_rest_automation_normalize_host($configured_host);
+    $request_host = ll_tools_rest_automation_normalize_host($request_host);
+    $direct_peer = ll_tools_rest_automation_normalize_password_auth_client_ip($direct_peer);
+
+    if (!in_array($direct_peer, ['127.0.0.1', '::1'], true)) {
+        return false;
+    }
+
+    return $configured_host !== ''
+        && $request_host !== ''
+        && hash_equals($configured_host, $request_host)
+        && ll_tools_rest_automation_host_is_local($configured_host);
+}
+
+function ll_tools_rest_automation_has_local_host_context(): bool {
+    $environment_type = function_exists('wp_get_environment_type') ? (string) wp_get_environment_type() : '';
+    $configured_host = (string) wp_parse_url(home_url('/'), PHP_URL_HOST);
+    $request_host = isset($_SERVER['HTTP_HOST']) ? (string) $_SERVER['HTTP_HOST'] : '';
+    $direct_peer = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '';
+
+    return ll_tools_rest_automation_local_host_context_is_trusted(
+        $environment_type,
+        $configured_host,
+        $request_host,
+        $direct_peer
+    );
 }
 
 function ll_tools_rest_automation_password_auth_is_allowed(): bool {

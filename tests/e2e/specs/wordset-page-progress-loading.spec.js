@@ -414,6 +414,7 @@ function buildPageConfig(overrides = {}) {
     },
     summaryCountsDeferred: true,
     progressWordPageSize: 80,
+    selectionLaunchRequestTimeoutMs: 30000,
     hardWordDifficultyThreshold: 4,
     i18n: {
       selectionLabel: 'Select categories to study together',
@@ -738,12 +739,14 @@ async function mountProgressPage(page, options = {}) {
     const $ = window.jQuery;
     const abortableDeferredPromise = function (deferred, entry) {
       const promise = deferred.promise();
-      promise.abort = function () {
+      promise.abort = function (statusText) {
         if (deferred.state() !== 'pending') {
           return;
         }
+        const normalizedStatus = String(statusText || 'abort');
         entry.aborted = true;
-        deferred.reject({ status: 0 }, 'abort', 'abort');
+        entry.abortStatus = normalizedStatus;
+        deferred.reject({ status: 0 }, normalizedStatus, normalizedStatus);
       };
       return promise;
     };
@@ -902,7 +905,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
   };
 
   await mountProgressPage(page, {
-    config: {
+    config: Object.assign({
       state: {
         wordset_id: 77,
         category_ids: [],
@@ -910,7 +913,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
         star_mode: 'normal',
         fast_transitions: false
       }
-    }
+    }, options.config || {})
   });
 
   await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
@@ -1816,6 +1819,157 @@ test('progress launch Retry repeats the same snapshot once and succeeds', async 
   expect(launch.sessionWordIds).toEqual(allMatchingIds.slice(0, 15));
   expect(launch.logicalSessionWordIds).toEqual(allMatchingIds);
   await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress word-ID timeout clears loading and Retry relaunches the same selection', async ({ page }) => {
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page, {
+    config: { selectionLaunchRequestTimeoutMs: 750 }
+  });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  const [firstRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expectFlashcardLaunchUiOpen(page);
+
+  const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
+  await expect(retry).toBeVisible();
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+  expect(await page.evaluate((index) => ({
+    aborted: window.__llAnalyticsRequests[index].aborted,
+    abortStatus: window.__llAnalyticsRequests[index].abortStatus,
+    state: window.__llAnalyticsRequests[index].deferred.state()
+  }), firstRequestIndex)).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+
+  const firstRequest = await page.evaluate((index) => (
+    Object.assign({}, window.__llAnalyticsRequests[index].request || {})
+  ), firstRequestIndex);
+
+  await retry.click();
+  const requestIndexes = await waitForAllFilteredLaunchRequestCount(page, 2);
+  const retryRequest = await page.evaluate((index) => (
+    Object.assign({}, window.__llAnalyticsRequests[index].request || {})
+  ), requestIndexes[1]);
+  expect(retryRequest).toEqual(firstRequest);
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: requestIndexes[1],
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await expect(retry).toBeHidden();
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress plan timeout clears loading and Retry can complete the bounded launch', async ({ page }) => {
+  await prepareAllFilteredProgressSelection(page, {
+    primeSnapshot: true,
+    config: { selectionLaunchRequestTimeoutMs: 750 }
+  });
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = true;
+  });
+
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
+  expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'plan');
+
+  const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
+  await expect(retry).toBeVisible();
+  await expectFlashcardLaunchUiClosed(page);
+  expect(await page.evaluate(() => ({
+    aborted: window.__llSelectionPlanRequests[0].aborted,
+    abortStatus: window.__llSelectionPlanRequests[0].abortStatus,
+    state: window.__llSelectionPlanRequests[0].deferred.state()
+  }))).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = false;
+  });
+  await retry.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress hydration timeout clears loading and Retry refetches before launch', async ({ page }) => {
+  const allMatchingIds = Array.from({ length: 10 }, (_unused, index) => 101 + index);
+  await prepareAllFilteredProgressSelection(page, {
+    allMatchingIds,
+    primeSnapshot: true,
+    config: { selectionLaunchRequestTimeoutMs: 750 }
+  });
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'hydrate');
+
+  const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
+  await expect(retry).toBeVisible();
+  await expectFlashcardLaunchUiClosed(page);
+  expect(await page.evaluate(() => ({
+    aborted: window.__llFetchWordsRequests[0].aborted,
+    abortStatus: window.__llFetchWordsRequests[0].abortStatus,
+    state: window.__llFetchWordsRequests[0].deferred.state()
+  }))).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = false;
+  });
+  await retry.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('bounded progress hydration timeout clears loading and Retry refetches before launch', async ({ page }) => {
+  await prepareAllFilteredProgressSelection(page, {
+    primeSnapshot: true,
+    config: { selectionLaunchRequestTimeoutMs: 750 }
+  });
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
+  expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'hydrate');
+
+  const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
+  await expect(retry).toBeVisible();
+  await expectFlashcardLaunchUiClosed(page);
+  expect(await page.evaluate(() => ({
+    aborted: window.__llFetchWordsRequests[0].aborted,
+    abortStatus: window.__llFetchWordsRequests[0].abortStatus,
+    state: window.__llFetchWordsRequests[0].deferred.state()
+  }))).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = false;
+  });
+  await retry.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await expect(retry).toBeHidden();
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 

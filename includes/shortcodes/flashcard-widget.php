@@ -1013,6 +1013,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $preload_tuning_defaults = [
         'categoryAjaxConcurrency'    => 1,
         'categoryAjaxSpacingMs'      => 300,
+        'categoryAjaxTimeoutMs'      => 30000,
         'categoryAjaxMaxRetriesOn429'=> 2,
         'categoryPayloadWarmingMaxRetries' => 60,
         'categoryAjaxRetryBaseMs'    => 900,
@@ -1029,6 +1030,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $preload_tuning = [
         'categoryAjaxConcurrency'       => max(1, min(4, (int) ($preload_tuning['categoryAjaxConcurrency'] ?? $preload_tuning_defaults['categoryAjaxConcurrency']))),
         'categoryAjaxSpacingMs'         => max(0, min(6000, (int) ($preload_tuning['categoryAjaxSpacingMs'] ?? $preload_tuning_defaults['categoryAjaxSpacingMs']))),
+        'categoryAjaxTimeoutMs'         => max(5000, min(120000, (int) ($preload_tuning['categoryAjaxTimeoutMs'] ?? $preload_tuning_defaults['categoryAjaxTimeoutMs']))),
         'categoryAjaxMaxRetriesOn429'   => max(0, min(6, (int) ($preload_tuning['categoryAjaxMaxRetriesOn429'] ?? $preload_tuning_defaults['categoryAjaxMaxRetriesOn429']))),
         'categoryPayloadWarmingMaxRetries' => max(1, min(120, (int) ($preload_tuning['categoryPayloadWarmingMaxRetries'] ?? $preload_tuning_defaults['categoryPayloadWarmingMaxRetries']))),
         'categoryAjaxRetryBaseMs'       => max(100, min(30000, (int) ($preload_tuning['categoryAjaxRetryBaseMs'] ?? $preload_tuning_defaults['categoryAjaxRetryBaseMs']))),
@@ -1083,6 +1085,10 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'listening_rapid_mode' => false,
         'userStudyState'       => $user_study_state,
         'userStudyNonce'       => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
+        'progressSyncTimeoutMs'=> max(5000, min(120000, (int) apply_filters(
+            'll_tools_progress_sync_request_timeout_ms',
+            60000
+        ))),
         'genderEnabled'        => $gender_enabled,
         'genderWordsetId'      => $gender_wordset_id,
         'genderOptions'        => $gender_options,

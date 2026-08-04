@@ -268,6 +268,97 @@ test('flashcard loader retries retryable category AJAX 429 responses', async ({ 
   expect(activeWordIds).toEqual([1001]);
 });
 
+test('flashcard loader times out a stalled category request and allows one clean relaunch', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Timeout Category'];
+    window.getCategoryDisplayMode = function () { return 'text_title'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      preloadTuning: {
+        categoryAjaxConcurrency: 1,
+        categoryAjaxSpacingMs: 0,
+        categoryAjaxTimeoutMs: 40
+      },
+      categories: [
+        { id: 11, name: 'Timeout Category', prompt_type: 'text_title', option_type: 'text_title' }
+      ]
+    };
+
+    window.__llTimeoutAttempts = 0;
+    window.__llTimeoutValues = [];
+    window.jQuery.ajax = function (opts) {
+      window.__llTimeoutAttempts += 1;
+      window.__llTimeoutValues.push(Number(opts.timeout) || 0);
+      const attempt = window.__llTimeoutAttempts;
+      if (attempt === 1) {
+        window.setTimeout(() => {
+          opts.error({ status: 0, responseText: '' }, 'timeout', 'timeout');
+        }, Number(opts.timeout) || 0);
+      } else {
+        window.setTimeout(() => {
+          opts.success({
+            success: true,
+            data: [{
+              id: 1001,
+              title: 'Recovered word',
+              label: 'Recovered word',
+              audio: '',
+              image: '',
+              audio_files: [],
+              wordset_ids: [101]
+            }]
+          });
+        }, 0);
+      }
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const state = await page.evaluate(async () => {
+    let callbackCount = 0;
+    const first = await window.FlashcardLoader.loadResourcesForCategory(
+      'Timeout Category',
+      function () { callbackCount += 1; },
+      { skipCategoryPreload: true }
+    );
+    const loadingAfterTimeout = window.FlashcardLoader.isCategoryLoading('Timeout Category');
+    const second = await window.FlashcardLoader.loadResourcesForCategory(
+      'Timeout Category',
+      null,
+      { skipCategoryPreload: true }
+    );
+    return {
+      first,
+      second,
+      callbackCount,
+      loadingAfterTimeout,
+      loadingAfterRelaunch: window.FlashcardLoader.isCategoryLoading('Timeout Category'),
+      attempts: window.__llTimeoutAttempts,
+      timeoutValues: window.__llTimeoutValues.slice(),
+      wordIds: (window.wordsByCategory['Timeout Category'] || []).map((row) => Number(row.id) || 0)
+    };
+  });
+
+  expect(state.first).toMatchObject({ success: false, timedOut: true, category: 'Timeout Category' });
+  expect(state.second).toMatchObject({ success: true, category: 'Timeout Category' });
+  expect(state.callbackCount).toBe(1);
+  expect(state.loadingAfterTimeout).toBe(false);
+  expect(state.loadingAfterRelaunch).toBe(false);
+  expect(state.attempts).toBe(2);
+  expect(state.timeoutValues).toEqual([250, 250]);
+  expect(state.wordIds).toEqual([1001]);
+});
+
 test('flashcard loader drains immutable payload pages and preserves the rendered locale', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

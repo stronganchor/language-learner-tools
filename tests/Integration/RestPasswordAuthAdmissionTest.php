@@ -334,6 +334,7 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
         $this->backupRequestState();
         $_GET['rest_route'] = '/ll-tools/v1/automation/status';
         $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['HTTPS'] = 'on';
         $_SERVER['HTTP_HOST'] = '127.0.0.1:10036';
         $_SERVER['REMOTE_ADDR'] = $clientIp;
         $_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode($username . ':' . $password);
@@ -372,6 +373,7 @@ final class RestPasswordAuthAdmissionTest extends LL_Tools_TestCase
         if (empty($this->serverBackup)) {
             foreach ([
                 'REQUEST_METHOD',
+                'HTTPS',
                 'HTTP_AUTHORIZATION',
                 'REDIRECT_HTTP_AUTHORIZATION',
                 'PHP_AUTH_USER',

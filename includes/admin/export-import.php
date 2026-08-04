@@ -5619,12 +5619,82 @@ function ll_tools_build_import_preview_data_from_payload(array $payload): array 
 }
 
 /**
+ * Decode one imported legacy meta value without instantiating PHP objects.
+ *
+ * Older bundles may contain serialized scalar or array values. Object and
+ * resource values are never valid LL Tools bundle metadata, including when
+ * nested inside an otherwise valid serialized array.
+ *
+ * @param mixed $value
+ * @return mixed|WP_Error
+ */
+function ll_tools_import_decode_legacy_meta_value($value) {
+    $contains_unsafe_value = null;
+    $contains_unsafe_value = static function ($candidate, int $depth = 0) use (&$contains_unsafe_value): bool {
+        if (is_object($candidate) || is_resource($candidate)) {
+            return true;
+        }
+        if (!is_array($candidate)) {
+            return false;
+        }
+        if ($depth >= 64) {
+            return true;
+        }
+
+        foreach ($candidate as $nested_value) {
+            if ($contains_unsafe_value($nested_value, $depth + 1)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    if ($contains_unsafe_value($value)) {
+        return new WP_Error(
+            'll_tools_import_unsafe_meta_value',
+            __('Imported metadata contains an unsupported object or resource value.', 'll-tools-text-domain')
+        );
+    }
+
+    if (!is_string($value) || !is_serialized($value)) {
+        return $value;
+    }
+
+    $serialized = trim($value);
+    try {
+        $decoded = @unserialize($serialized, ['allowed_classes' => false]);
+    } catch (Throwable $exception) {
+        return new WP_Error(
+            'll_tools_import_invalid_serialized_meta_value',
+            __('Imported metadata contains an invalid serialized value.', 'll-tools-text-domain')
+        );
+    }
+
+    if ($decoded === false && $serialized !== 'b:0;') {
+        return new WP_Error(
+            'll_tools_import_invalid_serialized_meta_value',
+            __('Imported metadata contains an invalid serialized value.', 'll-tools-text-domain')
+        );
+    }
+
+    if ($contains_unsafe_value($decoded)) {
+        return new WP_Error(
+            'll_tools_import_unsafe_meta_value',
+            __('Imported metadata contains an unsupported object or resource value.', 'll-tools-text-domain')
+        );
+    }
+
+    return $decoded;
+}
+
+/**
  * Normalize term meta structure for wordset identity comparison.
  *
  * @param array $meta
- * @return array
+ * @return array|WP_Error
  */
-function ll_tools_import_normalize_meta_for_compare(array $meta): array {
+function ll_tools_import_normalize_meta_for_compare(array $meta) {
     $normalized = [];
     foreach ($meta as $key => $values) {
         $key = (string) $key;
@@ -5634,7 +5704,11 @@ function ll_tools_import_normalize_meta_for_compare(array $meta): array {
 
         $bucket = [];
         foreach ((array) $values as $value) {
-            $bucket[] = maybe_serialize(maybe_unserialize($value));
+            $decoded_value = ll_tools_import_decode_legacy_meta_value($value);
+            if (is_wp_error($decoded_value)) {
+                return $decoded_value;
+            }
+            $bucket[] = maybe_serialize($decoded_value);
         }
         sort($bucket, SORT_STRING);
         $normalized[$key] = $bucket;
@@ -5723,6 +5797,10 @@ function ll_tools_import_wordset_payload_is_identical(array $source_wordset, int
     $existing_meta = ll_tools_prepare_meta_for_export(get_term_meta($existing_term_id), ['manager_user_id', 'manager_user_ids']);
     $normalized_source_meta = ll_tools_import_normalize_meta_for_compare($source_meta);
     $normalized_existing_meta = ll_tools_import_normalize_meta_for_compare($existing_meta);
+
+    if (is_wp_error($normalized_source_meta) || is_wp_error($normalized_existing_meta)) {
+        return false;
+    }
 
     if ($normalized_source_meta === $normalized_existing_meta) {
         return true;
@@ -10147,7 +10225,26 @@ function ll_tools_import_restore_updated_post_snapshots(array $snapshots, array 
                         continue;
                     }
 
-                    $expected_values = is_array($expected_values_raw) ? array_values($expected_values_raw) : [];
+                    $expected_values = [];
+                    $unsafe_value = false;
+                    foreach (is_array($expected_values_raw) ? array_values($expected_values_raw) : [] as $expected_value) {
+                        $decoded_value = ll_tools_import_decode_legacy_meta_value($expected_value);
+                        if (is_wp_error($decoded_value)) {
+                            $unsafe_value = true;
+                            break;
+                        }
+                        $expected_values[] = $decoded_value;
+                    }
+                    if ($unsafe_value) {
+                        $result['errors'][] = sprintf(
+                            /* translators: 1: metadata key, 2: post ID */
+                            __('Skipped restoring metadata key "%1$s" on post %2$d during undo because its stored value was unsafe.', 'll-tools-text-domain'),
+                            $meta_key,
+                            $post_id
+                        );
+                        continue;
+                    }
+
                     $current_values = get_post_meta($post_id, $meta_key, false);
                     if (ll_tools_import_snapshot_values_equal($current_values, $expected_values)) {
                         continue;
@@ -10155,7 +10252,7 @@ function ll_tools_import_restore_updated_post_snapshots(array $snapshots, array 
 
                     delete_post_meta($post_id, $meta_key);
                     foreach ($expected_values as $expected_value) {
-                        add_post_meta($post_id, $meta_key, maybe_unserialize($expected_value));
+                        add_post_meta($post_id, $meta_key, $expected_value);
                     }
 
                     $restored_this_post = true;
@@ -14866,23 +14963,44 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, str
     $sync_word_translation_aliases = ($post_type === 'words');
     $word_translation_alias_keys = ['word_translation', 'word_english_meaning'];
     $word_translation_alias_values = [];
+    $word_translation_aliases_are_safe = true;
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
         if (!ll_tools_import_should_replace_post_meta_key($key, $post_type)) {
             continue;
         }
+
+        $decoded_values = [];
+        $values_are_safe = true;
+        foreach ((array) $values as $val) {
+            $decoded_value = ll_tools_import_decode_legacy_meta_value($val);
+            if (is_wp_error($decoded_value)) {
+                $values_are_safe = false;
+                break;
+            }
+            $decoded_values[] = $decoded_value;
+        }
+
         if ($sync_word_translation_aliases && in_array($key, $word_translation_alias_keys, true)) {
-            $word_translation_alias_values[$key] = array_values((array) $values);
+            if (!$values_are_safe) {
+                $word_translation_aliases_are_safe = false;
+                continue;
+            }
+            $word_translation_alias_values[$key] = $decoded_values;
             continue;
         }
+        if (!$values_are_safe) {
+            continue;
+        }
+
         delete_post_meta($post_id, $key);
-        foreach ((array) $values as $val) {
-            add_post_meta($post_id, $key, maybe_unserialize($val));
+        foreach ($decoded_values as $decoded_value) {
+            add_post_meta($post_id, $key, $decoded_value);
         }
     }
 
-    if ($sync_word_translation_aliases && !empty($word_translation_alias_values)) {
+    if ($sync_word_translation_aliases && $word_translation_aliases_are_safe && !empty($word_translation_alias_values)) {
         foreach ($word_translation_alias_keys as $alias_key) {
             delete_post_meta($post_id, $alias_key);
         }
@@ -14891,8 +15009,8 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, str
             if (!array_key_exists($alias_key, $word_translation_alias_values)) {
                 continue;
             }
-            foreach ($word_translation_alias_values[$alias_key] as $val) {
-                add_post_meta($post_id, $alias_key, maybe_unserialize($val));
+            foreach ($word_translation_alias_values[$alias_key] as $decoded_value) {
+                add_post_meta($post_id, $alias_key, $decoded_value);
             }
         }
     }
@@ -14915,9 +15033,24 @@ function ll_tools_import_replace_term_meta_values(int $term_id, array $meta, str
         if (!ll_tools_import_should_replace_term_meta_key($key, $taxonomy)) {
             continue;
         }
-        delete_term_meta($term_id, $key);
+
+        $decoded_values = [];
+        $values_are_safe = true;
         foreach ((array) $values as $val) {
-            add_term_meta($term_id, $key, maybe_unserialize($val));
+            $decoded_value = ll_tools_import_decode_legacy_meta_value($val);
+            if (is_wp_error($decoded_value)) {
+                $values_are_safe = false;
+                break;
+            }
+            $decoded_values[] = $decoded_value;
+        }
+        if (!$values_are_safe) {
+            continue;
+        }
+
+        delete_term_meta($term_id, $key);
+        foreach ($decoded_values as $decoded_value) {
+            add_term_meta($term_id, $key, $decoded_value);
         }
     }
 }

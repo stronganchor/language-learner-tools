@@ -34,16 +34,25 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
             'user_pass' => 'TempPass!234',
         ]);
 
-        $response = $this->dispatch_ll_tools_rest_request(
-            'GET',
-            '/ll-tools/v1/automation/status',
-            [],
-            [
-                'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-rest-admin:TempPass!234'),
-                'HTTP_HOST' => '127.0.0.1:10036',
-            ],
-            true
-        );
+        $local_home_url = static function (): string {
+            return 'http://127.0.0.1:10036';
+        };
+        add_filter('home_url', $local_home_url);
+        try {
+            $response = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/automation/status',
+                [],
+                [
+                    'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-rest-admin:TempPass!234'),
+                    'HTTP_HOST' => '127.0.0.1:10036',
+                    'REMOTE_ADDR' => '127.0.0.1',
+                ],
+                true
+            );
+        } finally {
+            remove_filter('home_url', $local_home_url);
+        }
 
         $this->assertSame(200, $response->get_status());
         $data = $response->get_data();
@@ -89,6 +98,46 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertContains('word_translation', $supported_metadata_fields);
         $this->assertContains('word_translations', $supported_metadata_fields);
         $this->assertNotContains('word_english_meaning', $supported_metadata_fields);
+    }
+
+    public function test_password_auth_local_fallback_does_not_trust_a_client_supplied_local_host(): void
+    {
+        $this->assertFalse(ll_tools_rest_automation_local_host_context_is_trusted(
+            'production',
+            'zazacaogren.com',
+            'attacker.local',
+            '203.0.113.10'
+        ));
+        $this->assertFalse(ll_tools_rest_automation_local_host_context_is_trusted(
+            'production',
+            'starter-english-local.local',
+            'starter-english-local.local',
+            '203.0.113.10'
+        ));
+        $this->assertTrue(ll_tools_rest_automation_local_host_context_is_trusted(
+            'production',
+            'starter-english-local.local',
+            'starter-english-local.local:10036',
+            '127.0.0.1'
+        ));
+        $this->assertFalse(ll_tools_rest_automation_local_host_context_is_trusted(
+            'production',
+            'example.org',
+            '127.0.0.1:10036',
+            '127.0.0.1'
+        ));
+        $this->assertTrue(ll_tools_rest_automation_local_host_context_is_trusted(
+            'production',
+            '::1',
+            '[::1]:10036',
+            '::1'
+        ));
+        $this->assertTrue(ll_tools_rest_automation_local_host_context_is_trusted(
+            'local',
+            'example.test',
+            'external.example',
+            '203.0.113.10'
+        ));
     }
 
     public function test_plugin_update_route_is_admin_only_and_defaults_to_dry_run(): void
@@ -2903,6 +2952,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $server = [
             'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-image-rest:TempPass!789'),
+            'HTTPS' => 'on',
             'HTTP_HOST' => '127.0.0.1:10036',
         ];
 
@@ -4426,6 +4476,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $auth_server = [
             'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-import-rest-admin:TempPass!456'),
+            'HTTPS' => 'on',
             'HTTP_HOST' => '127.0.0.1:10036',
         ];
         $guard_delay = static function (): float {
@@ -4550,6 +4601,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $auth_server = [
             'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-import-lock-rest-admin:TempPass!789'),
+            'HTTPS' => 'on',
             'HTTP_HOST' => '127.0.0.1:10036',
         ];
         $guard_delay = static function (): float {
@@ -4657,7 +4709,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
                 'REDIRECT_HTTP_AUTHORIZATION',
                 'PHP_AUTH_USER',
                 'PHP_AUTH_PW',
+                'HTTPS',
                 'HTTP_HOST',
+                'REMOTE_ADDR',
             ];
             foreach ($keys as $key) {
                 $this->server_backup[$key] = $_SERVER[$key] ?? null;

@@ -6,7 +6,13 @@ test.describe.configure({ timeout: 240000 });
 async function installFakeRecorderRuntime(page) {
   await page.addInitScript(() => {
     let resolveMicStart = null;
-    const fakeTrack = { stop() {} };
+    window.__llTrackStopCount = 0;
+    window.__llGetUserMediaCalls = 0;
+    const fakeTrack = {
+      stop() {
+        window.__llTrackStopCount += 1;
+      }
+    };
     const fakeStream = {
       getTracks() {
         return [fakeTrack];
@@ -45,6 +51,7 @@ async function installFakeRecorderRuntime(page) {
 
     const mediaDevices = {
       getUserMedia() {
+        window.__llGetUserMediaCalls += 1;
         return new Promise((resolve) => {
           resolveMicStart = resolve;
         });
@@ -206,6 +213,332 @@ test('new-word recorder shows startup state immediately and defers preparation u
     });
   }).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__llStartupTestState.prepareRequests)).toBe(0);
+});
+
+test('new-word recording waits for the current category type and ignores an aborted stale lookup', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page, {
+    recordingTypeOrder: ['introduction', 'isolation']
+  });
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.__llCategoryTypeRequests = [];
+    window.fetch = (url, options = {}) => {
+      const body = options.body;
+      const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      if (action !== 'll_get_recording_types_for_category') {
+        return originalFetch(url, options);
+      }
+
+      const request = {
+        category: String(body.get('category') || ''),
+        aborted: false,
+        resolve: null
+      };
+      const promise = new Promise((resolve) => {
+        request.resolve = (types) => resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            get(name) {
+              return String(name || '').toLowerCase() === 'content-type' ? 'application/json' : null;
+            }
+          },
+          async json() {
+            return { success: true, data: { recording_types: types } };
+          }
+        });
+      });
+      if (options.signal) {
+        request.aborted = options.signal.aborted;
+        options.signal.addEventListener('abort', () => {
+          request.aborted = true;
+        }, { once: true });
+      }
+      window.__llCategoryTypeRequests.push(request);
+      return promise;
+    };
+  });
+
+  await openNewWordPanel(page);
+  await expect.poll(() => page.evaluate(() => window.__llCategoryTypeRequests.length)).toBe(1);
+  await page.evaluate(() => {
+    const select = document.getElementById('ll-new-word-category');
+    const option = document.createElement('option');
+    option.value = 'second-category';
+    option.textContent = 'Second category';
+    select.appendChild(option);
+    select.value = option.value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(() => page.evaluate(() => window.__llCategoryTypeRequests.length)).toBe(2);
+  expect(await page.evaluate(() => ({
+    firstCategory: window.__llCategoryTypeRequests[0].category,
+    firstAborted: window.__llCategoryTypeRequests[0].aborted,
+    secondCategory: window.__llCategoryTypeRequests[1].category
+  }))).toEqual({
+    firstCategory: 'uncategorized',
+    firstAborted: true,
+    secondCategory: 'second-category'
+  });
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/starting/);
+  expect(await page.evaluate(() => ({
+    typeRequests: window.__llCategoryTypeRequests.length,
+    micRequests: window.__llGetUserMediaCalls
+  }))).toEqual({ typeRequests: 2, micRequests: 0 });
+
+  await page.evaluate(() => {
+    window.__llCategoryTypeRequests[0].resolve([
+      { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }
+    ]);
+  });
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llGetUserMediaCalls)).toBe(0);
+
+  await page.evaluate(() => {
+    window.__llCategoryTypeRequests[1].resolve([
+      { slug: 'introduction', name: 'Introduction', label: 'Introduction', icon: '' }
+    ]);
+  });
+  await expect.poll(() => page.evaluate(() => window.__llGetUserMediaCalls)).toBe(1);
+  await expect(page.locator('#ll-new-word-recording-type-label')).toHaveText('Introduction');
+  await expect(recordButton).toHaveClass(/starting/);
+
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+});
+
+test('new-word category type timeout aborts the lookup and restores a usable recorder', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page);
+  await page.clock.install();
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.__llNeverResolvingCategoryTypeRequest = {
+      aborted: false,
+      requests: 0
+    };
+    window.fetch = (url, options = {}) => {
+      const body = options.body;
+      const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      if (action !== 'll_get_recording_types_for_category') {
+        return originalFetch(url, options);
+      }
+
+      window.__llNeverResolvingCategoryTypeRequest.requests += 1;
+      if (options.signal) {
+        window.__llNeverResolvingCategoryTypeRequest.aborted = options.signal.aborted;
+        options.signal.addEventListener('abort', () => {
+          window.__llNeverResolvingCategoryTypeRequest.aborted = true;
+        }, { once: true });
+      }
+      return new Promise(() => {});
+    };
+  });
+
+  await openNewWordPanel(page);
+  await expect.poll(() => page.evaluate(() => window.__llNeverResolvingCategoryTypeRequest.requests)).toBe(1);
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  const categorySelect = page.locator('#ll-new-word-category');
+  const status = page.locator('#ll-new-word-status');
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/starting/);
+  await expect(categorySelect).toBeDisabled();
+  expect(await page.evaluate(() => window.__llGetUserMediaCalls)).toBe(0);
+
+  await page.clock.runFor(20001);
+
+  await expect.poll(() => page.evaluate(() => window.__llNeverResolvingCategoryTypeRequest.aborted)).toBe(true);
+  await expect(recordButton).not.toHaveClass(/starting/);
+  await expect(recordButton).toBeEnabled();
+  await expect(categorySelect).toBeEnabled();
+  await expect(status).toBeVisible();
+  await expect(status).toHaveText('Request failed');
+  expect(await page.evaluate(() => window.__llGetUserMediaCalls)).toBe(0);
+
+  await page.evaluate(() => {
+    const originalFetch = window.fetch;
+    window.fetch = (url, options = {}) => {
+      const body = options.body;
+      const action = body && typeof body.get === 'function' ? String(body.get('action') || '') : '';
+      if (action !== 'll_get_recording_types_for_category') {
+        return originalFetch(url, options);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get(name) {
+            return String(name || '').toLowerCase() === 'content-type' ? 'application/json' : null;
+          }
+        },
+        async json() {
+          return {
+            success: true,
+            data: {
+              recording_types: [
+                { slug: 'isolation', name: 'Isolation', label: 'Isolation', icon: '' }
+              ]
+            }
+          };
+        }
+      });
+    };
+  });
+
+  await recordButton.click();
+  await expect.poll(() => page.evaluate(() => window.__llGetUserMediaCalls)).toBe(1);
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+});
+
+test('new-word recording locks its category and type context until capture is discarded', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page, {
+    recordingTypeOrder: ['introduction', 'isolation']
+  });
+
+  await openNewWordPanel(page);
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  const backButton = page.locator('#ll-new-word-back');
+  const categorySelect = page.locator('#ll-new-word-category');
+  const createCategory = page.locator('#ll-new-word-create-category');
+  const typeCheckbox = page.locator('.ll-new-word-types input[value="introduction"]');
+
+  const initialCategory = await categorySelect.inputValue();
+  const initialCreateState = await createCategory.isChecked();
+  const initialTypeState = await typeCheckbox.isChecked();
+
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/starting/);
+  await expect(backButton).toBeDisabled();
+  await expect(categorySelect).toBeDisabled();
+  await expect(createCategory).toBeDisabled();
+  await expect(typeCheckbox).toBeDisabled();
+
+  await page.evaluate(() => {
+    const category = document.getElementById('ll-new-word-category');
+    const create = document.getElementById('ll-new-word-create-category');
+    const type = document.querySelector('.ll-new-word-types input[value="introduction"]');
+    category.disabled = false;
+    category.value = '__different_category__';
+    category.dispatchEvent(new Event('change', { bubbles: true }));
+    create.disabled = false;
+    create.checked = !create.checked;
+    create.dispatchEvent(new Event('change', { bubbles: true }));
+    type.disabled = false;
+    type.checked = !type.checked;
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  await expect(categorySelect).toHaveValue(initialCategory);
+  await expect(createCategory).toHaveJSProperty('checked', initialCreateState);
+  await expect(typeCheckbox).toHaveJSProperty('checked', initialTypeState);
+  await expect(categorySelect).toBeDisabled();
+  await expect(createCategory).toBeDisabled();
+  await expect(typeCheckbox).toBeDisabled();
+
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+  await expect(backButton).toBeDisabled();
+  await recordButton.click();
+
+  await expect(page.locator('#ll-new-word-start')).toBeEnabled();
+  await expect(backButton).toBeDisabled();
+  await page.locator('#ll-new-word-redo-btn').click();
+  await expect(backButton).toBeEnabled();
+  await expect(categorySelect).toBeEnabled();
+  await expect(typeCheckbox).toBeEnabled();
+  await expect.poll(() => page.evaluate(() => window.__llTrackStopCount)).toBeGreaterThan(0);
+});
+
+test('redo revokes the retired recorder playback blob URL', async ({ page }) => {
+  await page.addInitScript(() => {
+    const createObjectUrl = URL.createObjectURL.bind(URL);
+    const revokeObjectUrl = URL.revokeObjectURL.bind(URL);
+    window.__llCreatedBlobUrls = [];
+    window.__llRevokedBlobUrls = [];
+    URL.createObjectURL = (blob) => {
+      const url = createObjectUrl(blob);
+      window.__llCreatedBlobUrls.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__llRevokedBlobUrls.push(String(url || ''));
+      return revokeObjectUrl(url);
+    };
+  });
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page);
+  await openNewWordPanel(page);
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  await recordButton.click();
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+  await recordButton.click();
+  await expect.poll(() => page.evaluate(() => window.__llCreatedBlobUrls.length)).toBe(1);
+
+  const activeUrl = await page.evaluate(() => window.__llCreatedBlobUrls[0]);
+  expect(await page.evaluate(() => window.__llRevokedBlobUrls.length)).toBe(0);
+  await page.locator('#ll-new-word-redo-btn').click();
+
+  await expect.poll(() => page.evaluate(() => window.__llRevokedBlobUrls)).toEqual([activeUrl]);
+  await expect(page.locator('#ll-new-word-playback-audio')).not.toHaveAttribute('src', /blob:/);
+});
+
+test('persisted pagehide preserves recorder playback until a real unload', async ({ page }) => {
+  await page.addInitScript(() => {
+    const createObjectUrl = URL.createObjectURL.bind(URL);
+    const revokeObjectUrl = URL.revokeObjectURL.bind(URL);
+    window.__llCreatedBlobUrls = [];
+    window.__llRevokedBlobUrls = [];
+    URL.createObjectURL = (blob) => {
+      const url = createObjectUrl(blob);
+      window.__llCreatedBlobUrls.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      window.__llRevokedBlobUrls.push(String(url || ''));
+      return revokeObjectUrl(url);
+    };
+  });
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page);
+  await openNewWordPanel(page);
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  const playbackAudio = page.locator('#ll-new-word-playback-audio');
+  await recordButton.click();
+  await page.evaluate(() => window.__llResolveRecorderMic?.());
+  await expect(recordButton).toHaveClass(/recording/);
+  await recordButton.click();
+  await expect.poll(() => page.evaluate(() => window.__llCreatedBlobUrls.length)).toBe(1);
+
+  const activeUrl = await page.evaluate(() => window.__llCreatedBlobUrls[0]);
+  await expect(playbackAudio).toHaveAttribute('src', activeUrl);
+  await page.evaluate(() => {
+    const event = new Event('pagehide');
+    Object.defineProperty(event, 'persisted', { value: true });
+    window.dispatchEvent(event);
+  });
+
+  expect(await page.evaluate(() => window.__llRevokedBlobUrls.slice())).toEqual([]);
+  await expect(playbackAudio).toHaveAttribute('src', activeUrl);
+
+  await page.evaluate(() => {
+    const event = new Event('pagehide');
+    Object.defineProperty(event, 'persisted', { value: false });
+    window.dispatchEvent(event);
+  });
+  await expect.poll(() => page.evaluate(() => window.__llRevokedBlobUrls)).toEqual([activeUrl]);
+  await expect(playbackAudio).not.toHaveAttribute('src', /blob:/);
 });
 
 test('overview new-word recording submits the selected type and keeps later types in the panel', async ({ page }) => {

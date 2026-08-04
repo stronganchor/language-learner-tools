@@ -219,6 +219,19 @@
         return sanitizeString(flash.userStudyNonce || study.nonce || '');
     }
 
+    function getSyncRequestTimeoutMs() {
+        const flash = getFlashData();
+        const study = getStudyData();
+        const parsed = parseInt(
+            flash.progressSyncTimeoutMs
+            || flash.progress_sync_timeout_ms
+            || study.progressSyncTimeoutMs
+            || study.progress_sync_timeout_ms,
+            10
+        );
+        return Math.max(250, Math.min(120000, parsed || 60000));
+    }
+
     function isUserLoggedIn() {
         const flash = getFlashData();
         if (typeof flash.isUserLoggedIn !== 'undefined') {
@@ -1129,20 +1142,53 @@
         emitSyncStateChanged();
     }
 
-    function handleSyncFailure(batch) {
+    function handleSyncFailure(batch, errorCode) {
         if (batch.length) {
             queue = batch.concat(queue);
             if (queue.length > MAX_QUEUE) {
-                queue = queue.slice(queue.length - MAX_QUEUE);
+                // Retried events are older and must stay ahead of events queued
+                // while the request was in flight. Drop only the newest tail.
+                queue = queue.slice(0, MAX_QUEUE);
             }
             saveLocalStore();
         }
         const store = getLocalStore();
         if (store) {
-            store.last_sync_error = 'request_failed';
+            store.last_sync_error = sanitizeString(errorCode || 'request_failed');
             saveLocalStore();
         }
         emitSyncStateChanged();
+    }
+
+    function getFailedBatchEvents(batch, data) {
+        const stats = data && typeof data === 'object' && data.stats && typeof data.stats === 'object'
+            ? data.stats
+            : {};
+        const failedIds = Array.isArray(stats.failed_event_uuids)
+            ? stats.failed_event_uuids
+            : [];
+        const failedCount = Math.max(0, parseInt(stats.failed, 10) || 0);
+        if (!failedIds.length) {
+            // Older/transitional servers may report a failed count without the
+            // per-event UUID list. Retrying the whole idempotent batch is safer
+            // than silently dropping the failed event; successful rows return
+            // as duplicates on the next pass.
+            return failedCount > 0 ? batch.slice() : [];
+        }
+
+        const failedSet = {};
+        failedIds.forEach(function (value) {
+            const eventId = sanitizeString(value);
+            if (eventId) {
+                failedSet[eventId] = true;
+            }
+        });
+
+        const failedBatch = batch.filter(function (event) {
+            const eventId = sanitizeString(event && event.event_uuid);
+            return !!eventId && !!failedSet[eventId];
+        });
+        return failedBatch.length || failedCount <= 0 ? failedBatch : batch.slice();
     }
 
     function postBatch(batch, options) {
@@ -1197,39 +1243,87 @@
         emitSyncStateChanged();
 
         return new Promise(function (resolve) {
-            const request = postBatch(batch, opts);
-            let failed = false;
-            request.done(function (res) {
-                if (res && res.success && res.data) {
-                    handleSyncSuccess(res.data);
-                    resolve({
-                        queued: queue.length,
-                        data: res.data
-                    });
+            let request = null;
+            let settled = false;
+
+            function settle(result, failed) {
+                if (settled) {
                     return;
                 }
-
-                handleSyncFailure(batch);
-                failed = true;
-                resolve({
-                    queued: queue.length,
-                    failed: true,
-                    error: sanitizeString((res && res.data && res.data.message) || 'request_failed')
-                });
-            }).fail(function (_jqXHR, _textStatus, errorThrown) {
-                handleSyncFailure(batch);
-                failed = true;
-                resolve({
-                    queued: queue.length,
-                    failed: true,
-                    error: sanitizeString(errorThrown || 'request_failed')
-                });
-            }).always(function () {
+                settled = true;
+                window.clearTimeout(deadlineTimer);
                 inFlight = false;
                 if (queue.length && canSyncNow() && !failed) {
                     scheduleFlush(50);
                 }
                 emitSyncStateChanged();
+                resolve(result);
+            }
+
+            const deadlineTimer = window.setTimeout(function () {
+                if (settled) {
+                    return;
+                }
+                handleSyncFailure(batch, 'request_timeout');
+                settle({
+                    queued: queue.length,
+                    failed: true,
+                    timed_out: true,
+                    error: 'request_timeout'
+                }, true);
+                if (request && typeof request.abort === 'function') {
+                    try { request.abort('timeout'); } catch (_) { /* no-op */ }
+                }
+            }, getSyncRequestTimeoutMs());
+
+            try {
+                request = postBatch(batch, opts);
+            } catch (_) {
+                handleSyncFailure(batch);
+                settle({
+                    queued: queue.length,
+                    failed: true,
+                    error: 'request_failed'
+                }, true);
+                return;
+            }
+            request.done(function (res) {
+                if (settled) {
+                    return;
+                }
+                if (res && res.success && res.data) {
+                    handleSyncSuccess(res.data);
+                    const failedBatch = getFailedBatchEvents(batch, res.data);
+                    if (failedBatch.length) {
+                        handleSyncFailure(failedBatch, 'request_failed');
+                    }
+                    settle({
+                        queued: queue.length,
+                        data: res.data,
+                        partial_failure: failedBatch.length > 0,
+                        failed_event_uuids: failedBatch.map(function (event) {
+                            return sanitizeString(event && event.event_uuid);
+                        })
+                    }, failedBatch.length > 0);
+                    return;
+                }
+
+                handleSyncFailure(batch);
+                settle({
+                    queued: queue.length,
+                    failed: true,
+                    error: sanitizeString((res && res.data && res.data.message) || 'request_failed')
+                }, true);
+            }).fail(function (_jqXHR, _textStatus, errorThrown) {
+                if (settled) {
+                    return;
+                }
+                handleSyncFailure(batch);
+                settle({
+                    queued: queue.length,
+                    failed: true,
+                    error: sanitizeString(errorThrown || 'request_failed')
+                }, true);
             });
         });
     }

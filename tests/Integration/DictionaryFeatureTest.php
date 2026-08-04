@@ -97,10 +97,16 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+        if (defined('LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION')) {
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+        }
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_SENSE_POS_META_CURSOR_OPTION);
         delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
+        if (defined('LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT')) {
+            delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+        }
         wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
         foreach (get_posts([
             'post_type' => ['ll_dictionary_entry', 'words'],
@@ -1137,7 +1143,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'title_language' => function_exists('ll_tools_dictionary_get_effective_title_language_code')
                 ? ll_tools_dictionary_get_effective_title_language_code(0)
                 : '',
-            'browse_letter_schema' => 7,
+            'browse_letter_schema' => 8,
         ];
         $lock_key = ll_tools_dictionary_ajax_cache_build_lock_key('toolbar_bootstrap', $cache_args);
         $this->assertTrue(ll_tools_dictionary_ajax_cache_acquire_build_lock($lock_key));
@@ -1219,7 +1225,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
-            'browse_letter_schema' => 7,
+            'browse_letter_schema' => 8,
             'has_active_query' => true,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
@@ -1402,7 +1408,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
-            'browse_letter_schema' => 7,
+            'browse_letter_schema' => 8,
             'has_active_query' => true,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),
@@ -1594,6 +1600,136 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_dictionary_q=pising', $back_url);
         $this->assertStringContainsString('ll_dictionary_page=2', $back_url);
         $this->assertStringNotContainsString('ll_dictionary_entry=', $back_url);
+    }
+
+    public function test_dictionary_entry_detail_source_fault_is_retryable_and_not_cached(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $entry_id = (int) self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Retryable Ajax Detail',
+            'post_content' => 'retryable detail',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [[
+            'definition' => 'retryable detail definition',
+            'entry_type' => 'noun',
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_entry_detail',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'entry_id' => (string) $entry_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $fault_count = 0;
+        $fail_linked_word_detail = static function (string $query) use ($wpdb, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, "{$wpdb->posts}.ID") !== false
+                && stripos($query, "post_type = 'words'") !== false
+                && stripos($query, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY) !== false
+            ) {
+                $fault_count++;
+                return "SELECT ID FROM {$wpdb->prefix}missing_dictionary_detail_words";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_linked_word_detail);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_entry_detail();
+            });
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_linked_word_detail);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertFalse((bool) ($failed['success'] ?? true));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['data']['code'] ?? ''));
+        $this->assertTrue((bool) ($failed['data']['retryable'] ?? false));
+        $this->assertSame(
+            'Dictionary data is temporarily unavailable. Please try again in a moment.',
+            (string) ($failed['data']['message'] ?? '')
+        );
+
+        try {
+            $retried = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_entry_detail();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($retried['success'] ?? false));
+        $retried_html = (string) ($retried['data']['html'] ?? '');
+        $this->assertStringContainsString('Retryable Ajax Detail', $retried_html);
+        $this->assertStringNotContainsString('temporarily unavailable', $retried_html);
+    }
+
+    public function test_dictionary_shortcode_requested_entry_source_fault_is_retryable(): void
+    {
+        global $wpdb;
+
+        $entry_id = (int) self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Retryable Shortcode Entry',
+            'post_content' => 'retryable shortcode detail',
+        ]);
+        clean_post_cache($entry_id);
+
+        $original_get = $_GET;
+        $_GET = ['ll_dictionary_entry' => (string) $entry_id];
+        $fault_count = 0;
+        $fail_entry_read = static function (string $query) use ($wpdb, $entry_id, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, "FROM {$wpdb->posts}") !== false
+                && stripos($query, "ID = {$entry_id}") !== false
+                && stripos($query, 'LIMIT 1') !== false
+            ) {
+                $fault_count++;
+                return "SELECT * FROM {$wpdb->prefix}missing_dictionary_shortcode_entry";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_entry_read);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed_html = do_shortcode('[ll_dictionary]');
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_entry_read);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertStringContainsString('temporarily unavailable', $failed_html);
+        $this->assertStringNotContainsString('Retryable Shortcode Entry', $failed_html);
+
+        clean_post_cache($entry_id);
+        try {
+            $retried_html = do_shortcode('[ll_dictionary]');
+        } finally {
+            $_GET = $original_get;
+        }
+
+        $this->assertStringContainsString('Retryable Shortcode Entry', $retried_html);
+        $this->assertStringNotContainsString('temporarily unavailable', $retried_html);
     }
 
     public function test_dictionary_public_linked_word_helper_uses_bounded_published_query(): void
@@ -1941,6 +2077,1266 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertContains('translation:sun', $pairs);
         $this->assertContains('translation:gunes', $pairs);
         $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+    }
+
+    public function test_dictionary_lookup_sync_accepts_collation_equivalent_candidates(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Cafe, Café',
+            'post_content' => 'coffee',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+
+        $built_rows = ll_tools_dictionary_build_lookup_rows_for_entry($entry_id);
+        $headword_values = array_values(array_map(
+            static function (array $row): string {
+                return (string) $row['lookup_value'];
+            },
+            array_filter($built_rows, static function (array $row): bool {
+                return (string) $row['lookup_kind'] === 'headword';
+            })
+        ));
+        $this->assertContains('cafe', $headword_values);
+        $this->assertContains('café', $headword_values);
+
+        // These are byte-distinct in PHP but equivalent under the normal
+        // accent-insensitive WordPress table collation. The unique index may
+        // keep either row; that must not fail or wedge the rebuild cursor.
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+
+        $stored_count = (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_dictionary_lookup_table_name() . ' WHERE entry_id = %d',
+            $entry_id
+        ));
+        $this->assertGreaterThan(0, $stored_count);
+        $this->assertLessThanOrEqual(count($built_rows), $stored_count);
+    }
+
+    public function test_dictionary_lookup_save_failure_marks_index_unavailable_and_queues_rebuild(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = (int) self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Save Hook Retry Entry',
+            'post_content' => 'save hook retry',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'completed',
+            'last_id' => $entry_id,
+            'processed' => 1,
+            'started_at' => gmdate('c'),
+            'completed_at' => gmdate('c'),
+            'truncate_pending' => 0,
+        ]);
+        update_option(
+            LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION,
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            false
+        );
+        wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+
+        $failed_writes = 0;
+        $fail_lookup_insert = static function (string $query) use ($wpdb, &$failed_writes): string {
+            if ($failed_writes === 0 && strpos($query, 'll_tools_dictionary_lookup_sync') !== false) {
+                $failed_writes++;
+                return "INSERT INTO {$wpdb->prefix}missing_dictionary_save_lookup (entry_id) VALUES (1)";
+            }
+            return $query;
+        };
+
+        $post = get_post($entry_id);
+        $this->assertInstanceOf(WP_Post::class, $post);
+        add_filter('query', $fail_lookup_insert);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            ll_tools_dictionary_sync_lookup_rows_on_save($entry_id, $post, true);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_lookup_insert);
+        }
+
+        $this->assertSame(1, $failed_writes);
+        $this->assertSame('', (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, ''));
+        $state = ll_tools_get_dictionary_lookup_rebuild_state();
+        $this->assertSame('pending', $state['status']);
+        $this->assertSame(0, (int) $state['last_id']);
+        $this->assertSame(0, (int) $state['processed']);
+        $this->assertSame(1, (int) $state['truncate_pending']);
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK));
+    }
+
+    public function test_dictionary_lookup_schema_version_is_not_published_when_verification_fails(): void
+    {
+        $force_missing = static function (): bool {
+            return false;
+        };
+
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+        add_filter('ll_tools_dictionary_lookup_schema_exists_after_install', $force_missing);
+        try {
+            $this->assertFalse(ll_tools_install_dictionary_lookup_schema());
+            $this->assertSame('', (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, ''));
+            $this->assertSame('', (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, ''));
+            $this->assertSame('0', (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, ''));
+            $this->assertNotFalse(get_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT));
+        } finally {
+            remove_filter('ll_tools_dictionary_lookup_schema_exists_after_install', $force_missing);
+            delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+            $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        }
+    }
+
+    public function test_dictionary_lookup_upgrade_fast_path_skips_schema_queries_for_verified_version(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $fail_schema_probe = static function (string $query): string {
+            if (stripos($query, 'SHOW TABLES LIKE') !== false) {
+                return "SHOW TABLES LIKE 'll_tools_missing_dictionary_lookup'";
+            }
+            return $query;
+        };
+        add_filter('query', $fail_schema_probe);
+        try {
+            // Prime the in-request schema cache with a false value. The old
+            // init path then fell through to dbDelta despite both durable
+            // version markers being current.
+            $this->assertFalse(ll_tools_dictionary_lookup_schema_is_ready(true));
+        } finally {
+            remove_filter('query', $fail_schema_probe);
+        }
+
+        update_option(
+            LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION,
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            false
+        );
+        update_option(
+            LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION,
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            false
+        );
+        update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '1', false);
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+
+        $schema_queries = [];
+        $observe_schema_queries = static function (string $query) use (&$schema_queries): string {
+            if (preg_match(
+                '/\b(?:SHOW\s+(?:TABLES|TABLE\s+STATUS|COLUMNS|INDEX)|CREATE\s+TABLE|ALTER\s+TABLE)\b/i',
+                $query
+            ) === 1) {
+                $schema_queries[] = $query;
+            }
+            return $query;
+        };
+        add_filter('query', $observe_schema_queries);
+        try {
+            ll_tools_maybe_upgrade_dictionary_lookup_schema();
+        } finally {
+            remove_filter('query', $observe_schema_queries);
+        }
+
+        $this->assertSame([], $schema_queries);
+        $this->assertTrue(ll_tools_dictionary_lookup_schema_is_ready(true));
+    }
+
+    public function test_dictionary_lookup_v3_upgrade_queues_bounded_rebuild_without_insert_select(): void
+    {
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        update_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '3', false);
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'completed',
+            'last_id' => 999,
+            'processed' => 999,
+            'started_at' => gmdate('c'),
+            'completed_at' => gmdate('c'),
+            'truncate_pending' => 0,
+        ]);
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+        wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+
+        $unbounded_backfills = [];
+        $observe_queries = static function (string $query) use (&$unbounded_backfills): string {
+            if (
+                stripos($query, 'INSERT IGNORE INTO') !== false
+                && stripos($query, 'SELECT src.entry_id') !== false
+            ) {
+                $unbounded_backfills[] = $query;
+            }
+            return $query;
+        };
+        add_filter('query', $observe_queries);
+        try {
+            ll_tools_maybe_upgrade_dictionary_lookup_schema();
+        } finally {
+            remove_filter('query', $observe_queries);
+        }
+
+        $this->assertSame([], $unbounded_backfills);
+        $this->assertSame(
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '')
+        );
+        $state = ll_tools_get_dictionary_lookup_rebuild_state();
+        $this->assertSame('pending', $state['status']);
+        $this->assertSame(0, (int) $state['last_id']);
+        $this->assertSame(0, (int) $state['processed']);
+        $this->assertSame(1, (int) $state['truncate_pending']);
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK));
+    }
+
+    public function test_dictionary_lookup_schema_requires_and_repairs_expected_contract(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $table = ll_tools_dictionary_lookup_table_name();
+        $wpdb->query("ALTER TABLE {$table} DROP INDEX idx_value_kind");
+        $wpdb->query("ALTER TABLE {$table} MODIFY lookup_value varchar(32) NOT NULL");
+
+        try {
+            $this->assertFalse(ll_tools_dictionary_lookup_schema_is_ready(true));
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+            delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+
+            $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+            $this->assertTrue(ll_tools_dictionary_lookup_schema_is_ready(true));
+        } finally {
+            if (!ll_tools_dictionary_lookup_schema_is_ready(true)) {
+                delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+                ll_tools_install_dictionary_lookup_schema();
+            }
+        }
+    }
+
+    public function test_dictionary_lookup_schema_rejects_and_repairs_prefix_indexes(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $table = ll_tools_dictionary_lookup_table_name();
+        $altered = $wpdb->query(
+            "ALTER TABLE {$table}
+             DROP INDEX uniq_entry_lookup,
+             DROP INDEX idx_kind_value,
+             ADD UNIQUE KEY uniq_entry_lookup (entry_id, lookup_kind, lookup_value(24)),
+             ADD KEY idx_kind_value (lookup_kind, lookup_value(24))"
+        );
+        $this->assertNotFalse($altered);
+
+        try {
+            $prefixed_rows = array_values(array_filter(
+                (array) $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A),
+                static function (array $row): bool {
+                    return in_array(
+                        (string) ($row['Key_name'] ?? ''),
+                        ['uniq_entry_lookup', 'idx_kind_value'],
+                        true
+                    ) && isset($row['Sub_part']) && (int) $row['Sub_part'] > 0;
+                }
+            ));
+            $this->assertNotEmpty($prefixed_rows);
+            $this->assertFalse(ll_tools_dictionary_lookup_schema_is_ready(true));
+
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+            delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+            $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+            $this->assertTrue(ll_tools_dictionary_lookup_schema_is_ready(true));
+
+            $remaining_prefixes = array_values(array_filter(
+                (array) $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A),
+                static function (array $row): bool {
+                    return in_array(
+                        (string) ($row['Key_name'] ?? ''),
+                        ['uniq_entry_lookup', 'idx_kind_value'],
+                        true
+                    ) && isset($row['Sub_part']) && (int) $row['Sub_part'] > 0;
+                }
+            ));
+            $this->assertSame([], $remaining_prefixes);
+        } finally {
+            if (!ll_tools_dictionary_lookup_schema_is_ready(true)) {
+                if (ll_tools_dictionary_lookup_table_exists(true)) {
+                    $previous_suppress_errors = $wpdb->suppress_errors(true);
+                    $wpdb->query("ALTER TABLE {$table} DROP INDEX uniq_entry_lookup");
+                    $wpdb->query("ALTER TABLE {$table} DROP INDEX idx_kind_value");
+                    $wpdb->suppress_errors($previous_suppress_errors);
+                    $wpdb->query(
+                        "ALTER TABLE {$table}
+                         ADD UNIQUE KEY uniq_entry_lookup (entry_id, lookup_kind, lookup_value),
+                         ADD KEY idx_kind_value (lookup_kind, lookup_value)"
+                    );
+                }
+                delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+                ll_tools_install_dictionary_lookup_schema();
+            }
+        }
+    }
+
+    public function test_dictionary_lookup_missing_table_read_queues_lightweight_bounded_repair(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        ll_tools_dictionary_lookup_reset_request_schema_cache();
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'completed',
+            'last_id' => 123,
+            'processed' => 123,
+            'started_at' => gmdate('c'),
+            'completed_at' => gmdate('c'),
+            'truncate_pending' => 0,
+        ]);
+        update_option(
+            LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION,
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            false
+        );
+        update_option(
+            LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION,
+            LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+            false
+        );
+        update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '1', false);
+        wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+
+        ll_tools_dictionary_lookup_reset_request_schema_cache();
+
+        $schema_queries = [];
+        $observe_schema_queries = static function (string $query) use ($wpdb, &$schema_queries): string {
+            if (preg_match(
+                '/\b(?:SHOW\s+(?:TABLES|TABLE\s+STATUS|COLUMNS|INDEX)|CREATE\s+TABLE|ALTER\s+TABLE)\b/i',
+                $query
+            ) === 1) {
+                $schema_queries[] = $query;
+            }
+            if (stripos($query, 'SHOW TABLES LIKE') !== false) {
+                return "SHOW TABLES LIKE '" . $wpdb->prefix . "missing_dictionary_lookup'";
+            }
+            return $query;
+        };
+
+        try {
+            add_filter('query', $observe_schema_queries);
+            try {
+                $ids = ll_tools_dictionary_query_entry_ids_from_lookup_table(
+                    'missing-table-probe',
+                    ['publish'],
+                    'all',
+                    10
+                );
+            } finally {
+                remove_filter('query', $observe_schema_queries);
+            }
+
+            $this->assertSame([], $ids);
+            $this->assertCount(1, $schema_queries);
+            $this->assertStringContainsString('SHOW TABLES LIKE', $schema_queries[0]);
+            $this->assertSame(
+                LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION,
+                (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '')
+            );
+            $this->assertSame(
+                '',
+                (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, '')
+            );
+            $this->assertSame('0', (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, ''));
+            $state = ll_tools_get_dictionary_lookup_rebuild_state();
+            $this->assertSame('pending', $state['status']);
+            $this->assertSame(0, (int) $state['last_id']);
+            $this->assertSame(0, (int) $state['processed']);
+            $this->assertSame(1, (int) $state['truncate_pending']);
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK));
+
+            ll_tools_maybe_upgrade_dictionary_lookup_schema();
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+            $this->assertTrue(ll_tools_dictionary_lookup_schema_is_ready(true));
+            $this->assertSame('completed', ll_tools_get_dictionary_lookup_rebuild_state()['status']);
+        } finally {
+            remove_filter('query', $observe_schema_queries);
+            delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
+            if (!ll_tools_dictionary_lookup_schema_is_ready(true)) {
+                ll_tools_install_dictionary_lookup_schema();
+            }
+            ll_tools_dictionary_lookup_reset_request_schema_cache();
+        }
+    }
+
+    public function test_dictionary_lookup_rebuild_does_not_complete_after_id_query_error(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Rebuild Query Failure',
+            'post_content' => 'retryable',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+
+        $fail_id_query = static function (string $query) use ($wpdb): string {
+            if (
+                stripos($query, 'SELECT ID') !== false
+                && stripos($query, "post_type = 'll_dictionary_entry'") !== false
+                && stripos($query, 'ORDER BY ID ASC') !== false
+            ) {
+                return "SELECT ll_tools_missing_rebuild_column FROM {$wpdb->posts}";
+            }
+            return $query;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_id_query);
+        try {
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+        } finally {
+            remove_filter('query', $fail_id_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+
+        $failed_state = ll_tools_get_dictionary_lookup_rebuild_state();
+        $this->assertNotSame('completed', $failed_state['status']);
+        $this->assertSame(0, (int) $failed_state['last_id']);
+        $this->assertSame(0, (int) $failed_state['processed']);
+        $this->assertFalse(ll_tools_dictionary_lookup_is_ready());
+
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+        $this->assertGreaterThan(
+            0,
+            (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_dictionary_lookup_table_name() . ' WHERE entry_id = %d',
+                $entry_id
+            ))
+        );
+    }
+
+    public function test_dictionary_lookup_sync_rolls_back_failed_replacement(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Atomic Lookup Row',
+            'post_content' => 'preserved',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id));
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $before = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE entry_id = %d",
+            $entry_id
+        ));
+        $this->assertGreaterThan(0, $before);
+
+        $fail_insert = static function (string $query) use ($table): string {
+            if (stripos($query, "INSERT IGNORE INTO {$table}") !== false) {
+                return "INSERT INTO {$table} (ll_tools_missing_column) VALUES (1)";
+            }
+            return $query;
+        };
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_insert);
+        try {
+            $this->assertFalse(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id));
+        } finally {
+            remove_filter('query', $fail_insert);
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+
+        $this->assertSame(
+            $before,
+            (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE entry_id = %d",
+                $entry_id
+            ))
+        );
+    }
+
+    public function test_dictionary_lookup_sync_rolls_back_ignored_truncation_warning(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Warning Original',
+            'post_content' => 'preserved',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $read_rows = static function () use ($wpdb, $table, $entry_id): array {
+            return (array) $wpdb->get_results($wpdb->prepare(
+                "SELECT lookup_kind, lookup_value, value_length
+                 FROM {$table}
+                 WHERE entry_id = %d
+                 ORDER BY lookup_kind ASC, lookup_value ASC",
+                $entry_id
+            ), ARRAY_A);
+        };
+        $before_rows = $read_rows();
+        $this->assertNotEmpty($before_rows);
+
+        $wpdb->update(
+            $wpdb->posts,
+            ['post_title' => 'Warning Replacement With Multiple Values'],
+            ['ID' => $entry_id],
+            ['%s'],
+            ['%d']
+        );
+        clean_post_cache($entry_id);
+
+        $force_truncation_warning = static function (string $query) use ($table, $entry_id): string {
+            if (strpos($query, 'll_tools_dictionary_lookup_sync') !== false) {
+                return "INSERT IGNORE INTO {$table} /* ll_tools_dictionary_lookup_sync */ (entry_id, lookup_kind, lookup_value, value_length)
+                    VALUES ({$entry_id}, 'headword', REPEAT('x', 250), 1)";
+            }
+            return $query;
+        };
+        add_filter('query', $force_truncation_warning);
+        try {
+            $this->assertFalse(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        } finally {
+            remove_filter('query', $force_truncation_warning);
+        }
+
+        $this->assertSame($before_rows, $read_rows());
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        $this->assertNotSame($before_rows, $read_rows());
+    }
+
+    public function test_dictionary_lookup_source_post_error_preserves_rows_and_rebuild_cursor(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Source Read Preserved',
+            'post_content' => 'source read failure',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $read_rows = static function () use ($wpdb, $table, $entry_id): array {
+            return (array) $wpdb->get_results($wpdb->prepare(
+                "SELECT lookup_kind, lookup_value, value_length FROM {$table} WHERE entry_id = %d ORDER BY lookup_kind, lookup_value",
+                $entry_id
+            ), ARRAY_A);
+        };
+        $before_rows = $read_rows();
+        $this->assertNotEmpty($before_rows);
+
+        $fault_count = 0;
+        $fail_post_read = static function (string $query) use ($wpdb, $entry_id, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, 'SELECT *') !== false
+                && stripos($query, "FROM {$wpdb->posts}") !== false
+                && preg_match('/WHERE\s+ID\s*=\s*' . $entry_id . '\s+LIMIT\s+1/i', $query) === 1
+            ) {
+                $fault_count++;
+                return "SELECT * FROM {$wpdb->prefix}missing_dictionary_source_post WHERE ID = {$entry_id}";
+            }
+            return $query;
+        };
+
+        clean_post_cache($entry_id);
+        add_filter('query', $fail_post_read);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $this->assertFalse(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_post_read);
+        }
+        $this->assertSame(1, $fault_count);
+        $this->assertSame($before_rows, $read_rows());
+
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'pending',
+            'last_id' => $entry_id - 1,
+            'processed' => 0,
+            'started_at' => '',
+            'completed_at' => '',
+            'truncate_pending' => 0,
+        ]);
+        wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+        clean_post_cache($entry_id);
+        $fault_count = 0;
+        add_filter('query', $fail_post_read);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_post_read);
+        }
+
+        $failed_state = ll_tools_get_dictionary_lookup_rebuild_state();
+        $this->assertSame(1, $fault_count);
+        $this->assertSame($entry_id - 1, (int) $failed_state['last_id']);
+        $this->assertSame(0, (int) $failed_state['processed']);
+        $this->assertNotSame('completed', (string) $failed_state['status']);
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK));
+        $this->assertSame($before_rows, $read_rows());
+    }
+
+    public function test_dictionary_lookup_source_meta_error_preserves_existing_rows(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Meta Source Preserved',
+            'post_content' => 'meta read failure',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, 'preserved translation');
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $before_rows = (array) $wpdb->get_results($wpdb->prepare(
+            "SELECT lookup_kind, lookup_value, value_length FROM {$table} WHERE entry_id = %d ORDER BY lookup_kind, lookup_value",
+            $entry_id
+        ), ARRAY_A);
+        $this->assertNotEmpty($before_rows);
+
+        $fault_count = 0;
+        $fail_meta_read = static function (string $query) use ($wpdb, $entry_id, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, "FROM {$wpdb->postmeta}") !== false
+                && preg_match('/post_id\s+IN\s*\(\s*' . $entry_id . '\s*\)/i', $query) === 1
+            ) {
+                $fault_count++;
+                return "SELECT post_id, meta_key, meta_value FROM {$wpdb->prefix}missing_dictionary_source_meta";
+            }
+            return $query;
+        };
+
+        wp_cache_delete($entry_id, 'post_meta');
+        add_filter('query', $fail_meta_read);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $this->assertFalse(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_meta_read);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertSame($before_rows, (array) $wpdb->get_results($wpdb->prepare(
+            "SELECT lookup_kind, lookup_value, value_length FROM {$table} WHERE entry_id = %d ORDER BY lookup_kind, lookup_value",
+            $entry_id
+        ), ARRAY_A));
+    }
+
+    public function test_dictionary_browse_constraint_faults_do_not_cache_first_or_later_partial_batches(): void
+    {
+        global $wpdb;
+
+        $letter = "\xC3\x87";
+        $this->seedDictionaryEntriesDirectly(501, $letter . ' Browse Source');
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $chunk_query_count = 0;
+        $fail_on_chunk = 1;
+        $fail_chunk = static function (string $query) use ($wpdb, &$chunk_query_count, &$fail_on_chunk): string {
+            if (
+                stripos($query, 'p.ID, p.post_title') !== false
+                && stripos($query, 'ORDER BY p.ID ASC') !== false
+                && stripos($query, 'LIMIT 500') !== false
+            ) {
+                $chunk_query_count++;
+                if ($chunk_query_count === $fail_on_chunk) {
+                    return "SELECT ID, post_title FROM {$wpdb->prefix}missing_dictionary_browse_chunk";
+                }
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_chunk);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $first_failed = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+                ['publish'],
+                0,
+                $letter,
+                '',
+                '',
+                '',
+                0,
+                'tr'
+            );
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_chunk);
+        }
+        $this->assertSame([], $first_failed);
+        $this->assertSame(1, $chunk_query_count);
+        $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
+
+        $first_retry = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+            ['publish'],
+            0,
+            $letter,
+            '',
+            '',
+            '',
+            0,
+            'tr'
+        );
+        $this->assertCount(501, $first_retry, 'A failed first chunk must not publish an empty request/persistent cache entry.');
+
+        ll_tools_bump_dictionary_browser_cache_version();
+        $chunk_query_count = 0;
+        $fail_on_chunk = 2;
+        add_filter('query', $fail_chunk);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $later_failed = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+                ['publish'],
+                0,
+                $letter,
+                '',
+                '',
+                '',
+                0,
+                'tr'
+            );
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_chunk);
+        }
+        $this->assertSame([], $later_failed, 'A later chunk failure must not return an authoritative partial candidate list.');
+        $this->assertSame(2, $chunk_query_count);
+        $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
+
+        $later_retry = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+            ['publish'],
+            0,
+            $letter,
+            '',
+            '',
+            '',
+            0,
+            'tr'
+        );
+        $this->assertCount(501, $later_retry, 'A failed later chunk must not cache the first 500 IDs.');
+    }
+
+    public function test_dictionary_final_browse_query_fault_returns_uncached_retryable_result(): void
+    {
+        global $wpdb;
+
+        self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Alpha final source',
+        ]);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $fault_count = 0;
+        $fail_final = static function (string $query) use ($wpdb, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, 'SELECT p.ID') !== false
+                && stripos($query, 'p.ID, p.post_title') === false
+                && stripos($query, 'ORDER BY p.post_title ASC') !== false
+            ) {
+                $fault_count++;
+                return "SELECT ID FROM {$wpdb->prefix}missing_dictionary_browse_final";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_final);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = ll_tools_dictionary_query_entries([
+                'letter' => 'A',
+                'page' => 1,
+                'per_page' => 20,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_final);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertTrue((bool) ($failed['retryable'] ?? false));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['error_code'] ?? ''));
+        $this->assertSame([], (array) ($failed['items'] ?? []));
+
+        $retried = ll_tools_dictionary_query_entries([
+            'letter' => 'A',
+            'page' => 1,
+            'per_page' => 20,
+            'post_status' => ['publish'],
+        ]);
+        $this->assertFalse((bool) ($retried['retryable'] ?? false));
+        $this->assertSame(1, (int) ($retried['total'] ?? 0));
+    }
+
+    public function test_dictionary_candidate_meta_prime_fault_returns_uncached_retryable_result(): void
+    {
+        global $wpdb;
+
+        $entry_id = (int) self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Candidate Meta Source',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'noun');
+        clean_post_cache($entry_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $fault_count = 0;
+        $fail_meta_prime = static function (string $query) use ($wpdb, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, "FROM {$wpdb->postmeta}") !== false
+                && stripos($query, 'post_id IN (') !== false
+            ) {
+                $fault_count++;
+                return "SELECT post_id, meta_key, meta_value FROM {$wpdb->prefix}missing_dictionary_candidate_meta";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_meta_prime);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = ll_tools_dictionary_query_entries([
+                'pos_slug' => 'noun',
+                'page' => 1,
+                'per_page' => 20,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_meta_prime);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertTrue((bool) ($failed['retryable'] ?? false));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['error_code'] ?? ''));
+        $this->assertSame([], (array) ($failed['items'] ?? []));
+
+        $retried = ll_tools_dictionary_query_entries([
+            'pos_slug' => 'noun',
+            'page' => 1,
+            'per_page' => 20,
+            'post_status' => ['publish'],
+        ]);
+        $this->assertFalse((bool) ($retried['retryable'] ?? false));
+        $this->assertContains($entry_id, array_column((array) ($retried['items'] ?? []), 'id'));
+    }
+
+    public function test_dictionary_final_hydration_fault_returns_uncached_retryable_result(): void
+    {
+        global $wpdb;
+
+        $entry_id = (int) self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Final Hydration Source',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [[
+            'definition' => 'final hydration definition',
+            'entry_type' => 'noun',
+        ]]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $fault_count = 0;
+        $fail_linked_count = static function (string $query) use ($wpdb, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, 'COUNT(DISTINCT p.ID)') !== false
+                && stripos($query, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY) !== false
+            ) {
+                $fault_count++;
+                return "SELECT entry_id, linked_word_count FROM {$wpdb->prefix}missing_dictionary_linked_counts";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_linked_count);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = ll_tools_dictionary_query_entries([
+                'search' => 'Final Hydration Source',
+                'page' => 1,
+                'per_page' => 20,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_linked_count);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertTrue((bool) ($failed['retryable'] ?? false));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['error_code'] ?? ''));
+        $this->assertSame([], (array) ($failed['items'] ?? []));
+
+        $retried = ll_tools_dictionary_query_entries([
+            'search' => 'Final Hydration Source',
+            'page' => 1,
+            'per_page' => 20,
+            'post_status' => ['publish'],
+        ]);
+        $this->assertFalse((bool) ($retried['retryable'] ?? false));
+        $this->assertContains($entry_id, array_column((array) ($retried['items'] ?? []), 'id'));
+    }
+
+    public function test_dictionary_filter_source_query_faults_do_not_publish_empty_caches(): void
+    {
+        global $wpdb;
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Cache Filter Source',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'noun');
+
+        $operations = [
+            [
+                'match' => "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry'",
+                'missing' => "SELECT ID FROM {$wpdb->prefix}missing_dictionary_published_ids",
+                'call' => static function (): array {
+                    return ll_tools_dictionary_get_published_entry_ids_for_scope(0);
+                },
+                'assert_retry' => function (array $value) use ($entry_id): void {
+                    $this->assertContains($entry_id, $value);
+                },
+            ],
+            [
+                'match' => 'SELECT LEFT(TRIM(p.post_title), 1)',
+                'missing' => "SELECT first_letter FROM {$wpdb->prefix}missing_dictionary_letters",
+                'call' => static function (): array {
+                    return ll_tools_dictionary_get_available_letters(0);
+                },
+                'assert_retry' => function (array $value): void {
+                    $this->assertContains('C', $value);
+                },
+            ],
+            [
+                'match' => 'SELECT DISTINCT pos_meta.meta_value',
+                'missing' => "SELECT meta_value FROM {$wpdb->prefix}missing_dictionary_pos",
+                'call' => static function (): array {
+                    return ll_tools_dictionary_get_pos_filter_options(0);
+                },
+                'assert_retry' => function (array $value): void {
+                    $this->assertContains('noun', array_column($value, 'slug'));
+                },
+            ],
+        ];
+
+        foreach ($operations as $operation) {
+            ll_tools_bump_dictionary_browser_cache_version();
+            $fault_count = 0;
+            $query_fault = static function (string $query) use (&$fault_count, $operation): string {
+                if ($fault_count === 0 && stripos($query, (string) $operation['match']) !== false) {
+                    $fault_count++;
+                    return (string) $operation['missing'];
+                }
+                return $query;
+            };
+
+            add_filter('query', $query_fault);
+            $previous_suppress_errors = $wpdb->suppress_errors(true);
+            try {
+                $failed = $operation['call']();
+            } finally {
+                $wpdb->suppress_errors($previous_suppress_errors);
+                remove_filter('query', $query_fault);
+            }
+            $this->assertSame(1, $fault_count);
+            $this->assertSame([], $failed);
+            $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
+
+            $retried = $operation['call']();
+            $operation['assert_retry']($retried);
+        }
+    }
+
+    public function test_dictionary_pos_source_fault_propagates_to_ajax_and_shortcode_responses(): void
+    {
+        global $wpdb;
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Retryable POS Source',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, 'noun');
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $fault_count = 0;
+        $fail_pos_source = static function (string $query) use ($wpdb, &$fault_count): string {
+            if ($fault_count === 0 && stripos($query, 'SELECT DISTINCT pos_meta.meta_value') !== false) {
+                $fault_count++;
+                return "SELECT meta_value FROM {$wpdb->prefix}missing_dictionary_pos_public";
+            }
+            return $query;
+        };
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'll_dictionary_pos' => 'noun',
+            'll_dictionary_page' => '1',
+        ];
+        $_REQUEST = $_POST;
+
+        add_filter('query', $fail_pos_source);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $ajax_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_pos_source);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertFalse((bool) ($ajax_response['success'] ?? true));
+        $this->assertSame('dictionary_source_incomplete', (string) ($ajax_response['data']['code'] ?? ''));
+        $this->assertTrue((bool) ($ajax_response['data']['retryable'] ?? false));
+
+        ll_tools_bump_dictionary_browser_cache_version();
+        ll_tools_dictionary_browser_clear_query_error();
+        $fault_count = 0;
+        $_GET = ['ll_dictionary_pos' => 'noun'];
+        add_filter('query', $fail_pos_source);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $shortcode_html = do_shortcode('[ll_dictionary]');
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_pos_source);
+            $_GET = [];
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertStringContainsString('temporarily unavailable', $shortcode_html);
+        $this->assertStringNotContainsString('No entries found.', $shortcode_html);
+    }
+
+    public function test_dictionary_lookup_sync_preserves_an_enclosing_transaction(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Outer Transaction Original',
+            'post_content' => 'transaction',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id));
+
+        $original_title = (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT post_title FROM {$wpdb->posts} WHERE ID = %d",
+            $entry_id
+        ));
+        $first_savepoint_name = ll_tools_dictionary_lookup_unique_savepoint_name('sync', $entry_id);
+        $second_savepoint_name = ll_tools_dictionary_lookup_unique_savepoint_name('sync', $entry_id);
+        $this->assertNotSame($first_savepoint_name, $second_savepoint_name);
+        $this->assertMatchesRegularExpression('/^[a-z0-9_]{1,64}$/', $first_savepoint_name);
+
+        $transaction_open = $wpdb->query('START TRANSACTION') !== false;
+        $this->assertTrue($transaction_open);
+        try {
+            $wpdb->update(
+                $wpdb->posts,
+                ['post_title' => 'Outer Transaction Pending'],
+                ['ID' => $entry_id],
+                ['%s'],
+                ['%d']
+            );
+            clean_post_cache($entry_id);
+
+            $legacy_probe = 'll_tools_dictionary_lookup_transaction_probe';
+            $this->assertNotFalse($wpdb->query("SAVEPOINT {$legacy_probe}"));
+            $this->assertTrue(ll_tools_dictionary_lookup_connection_in_transaction());
+            $this->assertNotFalse($wpdb->query("ROLLBACK TO SAVEPOINT {$legacy_probe}"));
+            $this->assertNotFalse($wpdb->query("RELEASE SAVEPOINT {$legacy_probe}"));
+
+            $legacy_sync = 'll_tools_dictionary_lookup_sync_' . $entry_id;
+            $this->assertNotFalse($wpdb->query("SAVEPOINT {$legacy_sync}"));
+            $this->assertTrue(ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id, false));
+            $this->assertNotFalse($wpdb->query("ROLLBACK TO SAVEPOINT {$legacy_sync}"));
+            $this->assertNotFalse($wpdb->query("RELEASE SAVEPOINT {$legacy_sync}"));
+
+            $wpdb->query('ROLLBACK');
+            $transaction_open = false;
+        } finally {
+            if ($transaction_open) {
+                $wpdb->query('ROLLBACK');
+            }
+            clean_post_cache($entry_id);
+        }
+
+        $this->assertSame(
+            $original_title,
+            (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT post_title FROM {$wpdb->posts} WHERE ID = %d",
+                $entry_id
+            ))
+        );
+    }
+
+    public function test_dictionary_lookup_query_error_falls_back_without_caching_empty_results(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Fallbackneedle',
+            'post_content' => 'lookup fallback',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $fail_lookup = static function (string $query) use ($wpdb, $table): string {
+            if (stripos($query, "FROM {$table} l") !== false) {
+                return "SELECT ll_tools_missing_lookup_column FROM {$wpdb->posts}";
+            }
+            return $query;
+        };
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_lookup);
+        try {
+            $ids = ll_tools_dictionary_query_entry_ids_from_lookup_table(
+                'Fallbackneedle',
+                ['publish'],
+                'all',
+                10
+            );
+        } finally {
+            remove_filter('query', $fail_lookup);
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+
+        $this->assertContains($entry_id, $ids);
+        $state = ll_tools_get_dictionary_lookup_rebuild_state();
+        $this->assertSame('pending', $state['status']);
+        $this->assertSame(1, (int) $state['truncate_pending']);
+        $this->assertFalse(ll_tools_dictionary_lookup_is_ready());
+    }
+
+    public function test_dictionary_lookup_and_search_meta_fault_returns_uncached_retryable_result(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Doublefallbackneedle',
+            'post_content' => 'lookup and fallback fault',
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $lookup_faults = 0;
+        $fallback_faults = 0;
+        $fail_both_sources = static function (string $query) use ($wpdb, $table, &$lookup_faults, &$fallback_faults): string {
+            if ($lookup_faults === 0 && stripos($query, "FROM {$table} l") !== false) {
+                $lookup_faults++;
+                return "SELECT lookup_value FROM {$wpdb->prefix}missing_dictionary_lookup_source";
+            }
+            if (
+                $fallback_faults === 0
+                && stripos($query, 'SELECT DISTINCT p.ID') !== false
+                && stripos($query, 'lookup_title.meta_value') !== false
+            ) {
+                $fallback_faults++;
+                return "SELECT ID FROM {$wpdb->prefix}missing_dictionary_search_meta_source";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_both_sources);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = ll_tools_dictionary_query_entries([
+                'search' => 'Doublefallbackneedle',
+                'page' => 1,
+                'per_page' => 20,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_both_sources);
+        }
+
+        $this->assertSame(1, $lookup_faults);
+        $this->assertSame(1, $fallback_faults);
+        $this->assertTrue((bool) ($failed['retryable'] ?? false));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['error_code'] ?? ''));
+        $this->assertSame([], (array) ($failed['items'] ?? []));
+
+        $retried = ll_tools_dictionary_query_entries([
+            'search' => 'Doublefallbackneedle',
+            'page' => 1,
+            'per_page' => 20,
+            'post_status' => ['publish'],
+        ]);
+        $this->assertFalse((bool) ($retried['retryable'] ?? false));
+        $this->assertContains($entry_id, array_column((array) ($retried['items'] ?? []), 'id'));
     }
 
     public function test_dictionary_search_uses_lookup_table_when_ready(): void
@@ -4431,6 +5827,76 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $hydrated = ll_tools_dictionary_query_entries_hydrate_cached_payload($cached, 2, 0, [], []);
         $this->assertSame($result, $hydrated);
         $this->assertSame($result, ll_tools_dictionary_query_entries($args));
+    }
+
+    public function test_dictionary_compact_query_cache_hydration_fault_is_retryable_and_not_published_as_partial(): void
+    {
+        global $wpdb;
+
+        $upserted = ll_tools_dictionary_upsert_entry_from_rows([[
+            'entry' => 'Compact Fault Source',
+            'definition' => 'compact fault definition',
+            'entry_type' => 'noun',
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($upserted);
+        $entry_id = (int) ($upserted['entry_id'] ?? 0);
+        $this->assertGreaterThan(0, $entry_id);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $args = [
+            'search' => 'Compact Fault Source',
+            'page' => 1,
+            'per_page' => 5,
+            'sense_limit' => 2,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ];
+        $first = ll_tools_dictionary_query_entries($args);
+        $this->assertContains($entry_id, array_column((array) ($first['items'] ?? []), 'id'));
+
+        $entry_cache_args = ll_tools_dictionary_entry_data_cache_args($entry_id, 2, 0, [], []);
+        $entry_cache_key = ll_tools_dictionary_browser_build_cache_key('entry_data', $entry_cache_args);
+        delete_transient($entry_cache_key);
+        wp_cache_delete($entry_cache_key, LL_TOOLS_DICTIONARY_BROWSER_CACHE_GROUP);
+        $entry_request_cache =& ll_tools_dictionary_entry_data_request_cache();
+        $entry_request_cache = [];
+        clean_post_cache($entry_id);
+
+        $fault_count = 0;
+        $fail_meta_hydration = static function (string $query) use ($wpdb, &$fault_count): string {
+            if (
+                $fault_count === 0
+                && stripos($query, "FROM {$wpdb->postmeta}") !== false
+                && stripos($query, 'post_id IN (') !== false
+            ) {
+                $fault_count++;
+                return "SELECT post_id, meta_key, meta_value FROM {$wpdb->prefix}missing_dictionary_compact_meta";
+            }
+            return $query;
+        };
+
+        add_filter('query', $fail_meta_hydration);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $failed = ll_tools_dictionary_query_entries($args);
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+            remove_filter('query', $fail_meta_hydration);
+        }
+
+        $this->assertSame(1, $fault_count);
+        $this->assertTrue((bool) ($failed['retryable'] ?? false));
+        $this->assertSame('dictionary_source_incomplete', (string) ($failed['error_code'] ?? ''));
+        $this->assertSame([], (array) ($failed['items'] ?? []));
+
+        $retried = ll_tools_dictionary_query_entries($args);
+        $this->assertFalse((bool) ($retried['retryable'] ?? false));
+        $this->assertContains($entry_id, array_column((array) ($retried['items'] ?? []), 'id'));
     }
 
     public function test_dictionary_query_cache_accepts_legacy_full_payloads(): void

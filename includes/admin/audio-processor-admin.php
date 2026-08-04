@@ -1886,7 +1886,11 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         ];
     }
 
-    if (function_exists('ll_tools_get_aspect_normalization_needs_lookup') && function_exists('ll_tools_get_aspect_normalizer_admin_url')) {
+    if (
+        current_user_can('manage_options')
+        && function_exists('ll_tools_get_aspect_normalization_needs_lookup')
+        && function_exists('ll_tools_get_aspect_normalizer_admin_url')
+    ) {
         $aspect_needs_lookup = ll_tools_get_aspect_normalization_needs_lookup();
         $aspect_category_count = count($aspect_needs_lookup);
         if ($aspect_category_count > 0) {

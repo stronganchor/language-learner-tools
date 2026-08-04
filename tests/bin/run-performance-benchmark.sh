@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROOT_DIR="$(cd "$TESTS_DIR/.." && pwd)"
+BASH_RUNNER="${BASH:-bash}"
+PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")
 WP_ROOT="$(cd "$ROOT_DIR/../../.." && pwd)"
 SEED_SCRIPT="$TESTS_DIR/performance/seed-performance-fixtures.php"
 DEFAULT_HISTORY="$TESTS_DIR/performance/history/performance-history.jsonl"
@@ -201,7 +203,7 @@ load_env_file_literal "$TESTS_DIR/.env"
 load_env_file_literal "$TESTS_DIR/.env.local"
 
 if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
-    eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
+    eval "$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh")"
 fi
 
 configure_perf_profile() {
@@ -303,7 +305,7 @@ canonical_perf_manifest_path() {
 
 describe_perf_manifest() {
     local description
-    description="$("$SCRIPT_DIR/php-local.sh" \
+    description="$("${PHP_LOCAL[@]}" \
         "$TESTS_DIR/performance/verify-performance-manifest.php" \
         --describe "$PERF_MANIFEST_PATH")"
     IFS=$'\t' read -r PERF_FIXTURE_VERSION PERF_MANIFEST_CHECKSUM PERF_MANIFEST_CHECKSUM_FORMAT <<< "$description"
@@ -338,7 +340,7 @@ verify_seeded_perf_fixture() {
     # Passing the small JSON payload as an explicit argument is intentional.
     # When WSL launches Windows php.exe, redirected/piped stdin can arrive empty
     # or be transcoded even though WP-CLI returned valid UTF-8 JSON.
-    if ! "$SCRIPT_DIR/php-local.sh" \
+    if ! "${PHP_LOCAL[@]}" \
         "$TESTS_DIR/performance/verify-performance-manifest.php" \
         --verify-stored "$PERF_MANIFEST_PATH" "$stored_fixture_json"; then
         echo "Stored LL Tools performance fixture does not match the selected profile; reseed before benchmarking." >&2

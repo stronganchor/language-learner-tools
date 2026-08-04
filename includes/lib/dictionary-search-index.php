@@ -19,6 +19,12 @@ if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY')) {
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION', 'll_tools_dictionary_lookup_table_exists');
 }
+if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION', 'll_tools_dictionary_lookup_verified_version');
+}
+if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT')) {
+    define('LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT', 'll_tools_dictionary_lookup_schema_retry');
+}
 
 /**
  * Return the dictionary lookup table name.
@@ -30,39 +36,261 @@ function ll_tools_dictionary_lookup_table_name(): string {
 }
 
 /**
+ * Reset request-local availability/schema memoization.
+ *
+ * Production requests naturally start with empty memoization. Keeping the
+ * reset explicit also lets maintenance code and tests model a later request
+ * after external table changes without performing schema DDL inline.
+ */
+function ll_tools_dictionary_lookup_reset_request_schema_cache(): void {
+    unset(
+        $GLOBALS['ll_tools_dictionary_lookup_table_exists_request_cache'],
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache']
+    );
+}
+
+/**
  * Determine whether the dictionary lookup table exists.
  */
 function ll_tools_dictionary_lookup_table_exists(bool $refresh = false): bool {
-    static $cached = null;
     global $wpdb;
 
+    $cached = $GLOBALS['ll_tools_dictionary_lookup_table_exists_request_cache'] ?? null;
     if (!$refresh && is_bool($cached)) {
         return $cached;
     }
 
-    if (!$refresh) {
-        $stored = get_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '');
-        if ($stored === '1') {
-            $cached = true;
-            return true;
-        }
-        if ($stored === '0') {
-            $cached = false;
-            return false;
-        }
+    $table = ll_tools_dictionary_lookup_table_name();
+    $wpdb->last_error = '';
+    $found_table = (string) $wpdb->get_var(
+        $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))
+    );
+    if ((string) $wpdb->last_error !== '') {
+        // A transient probe failure is not durable evidence that the table is
+        // absent. Fail this request closed without poisoning the option used
+        // by later repair/diagnostic paths.
+        $GLOBALS['ll_tools_dictionary_lookup_table_exists_request_cache'] = false;
+        return false;
     }
 
-    $table = ll_tools_dictionary_lookup_table_name();
-    $cached = ((string) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table))) === $table;
+    $cached = $found_table === $table;
+    $GLOBALS['ll_tools_dictionary_lookup_table_exists_request_cache'] = $cached;
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, $cached ? '1' : '0', false);
 
     return $cached;
 }
 
 /**
+ * Verify the lookup table contract before treating its version marker as durable.
+ */
+function ll_tools_dictionary_lookup_schema_is_ready(bool $refresh = false): bool {
+    global $wpdb;
+
+    $cached = $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] ?? null;
+    if (!$refresh && is_bool($cached)) {
+        return $cached;
+    }
+
+    if (
+        !$refresh
+        && (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '') === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+        && (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, '') === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+    ) {
+        $cached = ll_tools_dictionary_lookup_table_exists();
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = $cached;
+        return $cached;
+    }
+
+    $table = ll_tools_dictionary_lookup_table_name();
+    if (!ll_tools_dictionary_lookup_table_exists(true)) {
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $table_status = $wpdb->get_row(
+        $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table))
+    );
+    if (
+        !is_object($table_status)
+        || strtoupper((string) ($table_status->Engine ?? '')) !== 'INNODB'
+        || (string) $wpdb->last_error !== ''
+    ) {
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $column_rows = $wpdb->get_results("SHOW COLUMNS FROM {$table}", ARRAY_A);
+    if (!is_array($column_rows) || (string) $wpdb->last_error !== '') {
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+        return false;
+    }
+
+    $columns = [];
+    foreach ($column_rows as $column_row) {
+        $column_name = (string) ($column_row['Field'] ?? '');
+        if ($column_name !== '') {
+            $columns[$column_name] = $column_row;
+        }
+    }
+    $column_contracts = [
+        'id' => [
+            'type' => '/^bigint(?:\(\d+\))? unsigned$/',
+            'default' => null,
+        ],
+        'entry_id' => [
+            'type' => '/^bigint(?:\(\d+\))? unsigned$/',
+            'default' => null,
+        ],
+        'lookup_kind' => [
+            'type' => '/^varchar\(20\)$/',
+            'default' => null,
+        ],
+        'lookup_value' => [
+            'type' => '/^varchar\(191\)$/',
+            'default' => null,
+        ],
+        'value_length' => [
+            'type' => '/^smallint(?:\(\d+\))? unsigned$/',
+            'default' => '0',
+        ],
+    ];
+    foreach ($column_contracts as $column_name => $contract) {
+        $column = $columns[$column_name] ?? null;
+        $type = is_array($column)
+            ? strtolower(trim((string) ($column['Type'] ?? '')))
+            : '';
+        $default = is_array($column) && array_key_exists('Default', $column)
+            ? $column['Default']
+            : null;
+        if (
+            !is_array($column)
+            || strtoupper((string) ($column['Null'] ?? '')) !== 'NO'
+            || preg_match((string) $contract['type'], $type) !== 1
+            || ($contract['default'] !== null && (string) $default !== (string) $contract['default'])
+        ) {
+            $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+            return false;
+        }
+    }
+    if (stripos((string) ($columns['id']['Extra'] ?? ''), 'auto_increment') === false) {
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+    if (!is_array($index_rows) || (string) $wpdb->last_error !== '') {
+        $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+        return false;
+    }
+
+    $indexes = [];
+    $index_uniqueness = [];
+    $index_has_prefix = [];
+    foreach ($index_rows as $index_row) {
+        $key_name = (string) ($index_row['Key_name'] ?? '');
+        $column_name = (string) ($index_row['Column_name'] ?? '');
+        if ($key_name === '' || $column_name === '') {
+            continue;
+        }
+        $sequence = max(1, (int) ($index_row['Seq_in_index'] ?? 1));
+        $indexes[$key_name][$sequence] = $column_name;
+        $index_uniqueness[$key_name] = (int) ($index_row['Non_unique'] ?? 1);
+        if (isset($index_row['Sub_part']) && (int) $index_row['Sub_part'] > 0) {
+            $index_has_prefix[$key_name] = true;
+        }
+    }
+    foreach ($indexes as &$index_columns) {
+        ksort($index_columns, SORT_NUMERIC);
+        $index_columns = array_values($index_columns);
+    }
+    unset($index_columns);
+
+    $required_indexes = [
+        'PRIMARY' => ['columns' => ['id'], 'non_unique' => 0],
+        'uniq_entry_lookup' => ['columns' => ['entry_id', 'lookup_kind', 'lookup_value'], 'non_unique' => 0],
+        'idx_kind_value' => ['columns' => ['lookup_kind', 'lookup_value'], 'non_unique' => 1],
+        'idx_value_kind' => ['columns' => ['lookup_value', 'lookup_kind'], 'non_unique' => 1],
+        'idx_entry' => ['columns' => ['entry_id'], 'non_unique' => 1],
+    ];
+    foreach ($required_indexes as $index_name => $contract) {
+        if (
+            ($indexes[$index_name] ?? []) !== $contract['columns']
+            || (int) ($index_uniqueness[$index_name] ?? -1) !== $contract['non_unique']
+            || !empty($index_has_prefix[$index_name])
+        ) {
+            $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = false;
+            return false;
+        }
+    }
+
+    $GLOBALS['ll_tools_dictionary_lookup_schema_ready_request_cache'] = true;
+    return true;
+}
+
+/**
+ * Remove same-named prefix indexes that dbDelta intentionally treats as
+ * equivalent to full-length indexes. The next dbDelta pass recreates the
+ * canonical definitions.
+ *
+ * @return int Number of indexes removed, or -1 when metadata/DDL failed.
+ */
+function ll_tools_dictionary_lookup_remove_prefixed_indexes(): int {
+    global $wpdb;
+
+    $table = ll_tools_dictionary_lookup_table_name();
+    if (!ll_tools_dictionary_lookup_table_exists(true)) {
+        return -1;
+    }
+
+    $wpdb->last_error = '';
+    $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+    if (!is_array($index_rows) || (string) $wpdb->last_error !== '') {
+        return -1;
+    }
+
+    $repairable_names = [
+        'uniq_entry_lookup' => true,
+        'idx_kind_value' => true,
+        'idx_value_kind' => true,
+        'idx_entry' => true,
+    ];
+    $prefixed_names = [];
+    foreach ($index_rows as $index_row) {
+        $index_name = (string) ($index_row['Key_name'] ?? '');
+        if (
+            isset($repairable_names[$index_name])
+            && isset($index_row['Sub_part'])
+            && (int) $index_row['Sub_part'] > 0
+        ) {
+            $prefixed_names[$index_name] = true;
+        }
+    }
+    if ($prefixed_names === []) {
+        return 0;
+    }
+
+    $drop_clauses = array_map(
+        static function (string $index_name): string {
+            return 'DROP INDEX `' . $index_name . '`';
+        },
+        array_keys($prefixed_names)
+    );
+    $wpdb->last_error = '';
+    $dropped = $wpdb->query("ALTER TABLE {$table} " . implode(', ', $drop_clauses));
+    if ($dropped === false || (string) $wpdb->last_error !== '') {
+        return -1;
+    }
+
+    return count($prefixed_names);
+}
+
+/**
  * Install or upgrade the dictionary lookup table schema.
  */
-function ll_tools_install_dictionary_lookup_schema(): void {
+function ll_tools_install_dictionary_lookup_schema(): bool {
     global $wpdb;
 
     $table = ll_tools_dictionary_lookup_table_name();
@@ -81,53 +309,36 @@ function ll_tools_install_dictionary_lookup_schema(): void {
         KEY idx_kind_value (lookup_kind, lookup_value),
         KEY idx_value_kind (lookup_value, lookup_kind),
         KEY idx_entry (entry_id)
-    ) {$charset_collate};";
+    ) ENGINE=InnoDB {$charset_collate};";
 
     dbDelta($sql);
-    ll_tools_dictionary_lookup_table_exists(true);
-    update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '1', false);
+    if (ll_tools_dictionary_lookup_remove_prefixed_indexes() > 0) {
+        dbDelta($sql);
+    }
+    $table_status = $wpdb->get_row(
+        $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table))
+    );
+    if (
+        is_object($table_status)
+        && strtoupper((string) ($table_status->Engine ?? '')) !== 'INNODB'
+    ) {
+        $wpdb->query("ALTER TABLE {$table} ENGINE=InnoDB");
+    }
+    $ready = ll_tools_dictionary_lookup_schema_is_ready(true);
+    $ready = (bool) apply_filters('ll_tools_dictionary_lookup_schema_exists_after_install', $ready);
+    update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, $ready ? '1' : '0', false);
+    if (!$ready) {
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+        set_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT, 1, 5 * MINUTE_IN_SECONDS);
+        return false;
+    }
+
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION, false);
-}
+    update_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION, false);
+    delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT);
 
-/**
- * Backfill indexed optional-apostrophe rows from already-built lookup rows.
- */
-function ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index(): int {
-    global $wpdb;
-
-    if (!ll_tools_dictionary_lookup_table_exists()) {
-        return 0;
-    }
-
-    $table = ll_tools_dictionary_lookup_table_name();
-    $sql = "
-        INSERT IGNORE INTO {$table} (entry_id, lookup_kind, lookup_value, value_length)
-        SELECT src.entry_id,
-               CASE src.lookup_kind
-                   WHEN 'headword' THEN 'headword_apos'
-                   ELSE 'translation_apos'
-               END AS lookup_kind,
-               src.stripped_lookup,
-               CHAR_LENGTH(src.stripped_lookup)
-        FROM (
-            SELECT entry_id,
-                   lookup_kind,
-                   lookup_value,
-                   REPLACE(lookup_value, CHAR(39), '') AS stripped_lookup
-            FROM {$table}
-            WHERE lookup_kind IN ('headword', 'translation')
-              AND lookup_value LIKE CONCAT('%', CHAR(39), '%')
-        ) src
-        WHERE src.stripped_lookup <> ''
-          AND src.stripped_lookup <> src.lookup_value
-    ";
-
-    $inserted = $wpdb->query($sql);
-    if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
-        ll_tools_bump_dictionary_browser_cache_version();
-    }
-
-    return max(0, (int) $inserted);
+    return true;
 }
 
 /**
@@ -173,11 +384,68 @@ function ll_tools_update_dictionary_lookup_rebuild_state(array $state): array {
 }
 
 /**
+ * Queue one bounded lookup rebuild attempt.
+ */
+function ll_tools_schedule_dictionary_lookup_rebuild_event(int $delay = 5): void {
+    if (!wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK)) {
+        wp_schedule_single_event(time() + max(1, $delay), LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+    }
+}
+
+/**
+ * Fail lookup reads closed and queue standalone schema/generation repair.
+ *
+ * This function intentionally performs no DDL. It is safe from ordinary read
+ * and caller-owned transaction paths; the scheduled rebuild performs the
+ * expensive contract check and repair in bounded maintenance work.
+ */
+function ll_tools_dictionary_mark_lookup_unavailable_for_repair(int $delay = 30): void {
+    $had_verified_marker = (string) get_option(
+        LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION,
+        ''
+    ) !== '';
+    delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+
+    $state = ll_tools_get_dictionary_lookup_rebuild_state();
+    $needs_reset = $state['status'] !== 'pending'
+        || (int) $state['last_id'] !== 0
+        || (int) $state['processed'] !== 0
+        || (string) $state['started_at'] !== ''
+        || (string) $state['completed_at'] !== ''
+        || (int) $state['truncate_pending'] !== 1;
+    if ($needs_reset) {
+        ll_tools_update_dictionary_lookup_rebuild_state([
+            'status' => 'pending',
+            'last_id' => 0,
+            'processed' => 0,
+            'started_at' => '',
+            'completed_at' => '',
+            'truncate_pending' => 1,
+        ]);
+    }
+
+    ll_tools_schedule_dictionary_lookup_rebuild_event($delay);
+    if (
+        ($had_verified_marker || $needs_reset)
+        && function_exists('ll_tools_bump_dictionary_browser_cache_version')
+    ) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+}
+
+/**
  * Mark the lookup table for a full rebuild and queue the next batch.
  */
 function ll_tools_schedule_dictionary_lookup_rebuild(bool $reset = false): void {
-    if (!ll_tools_dictionary_lookup_table_exists()) {
-        ll_tools_install_dictionary_lookup_schema();
+    if (!ll_tools_dictionary_lookup_schema_is_ready()) {
+        if (get_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT)) {
+            ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
+            return;
+        }
+        if (!ll_tools_install_dictionary_lookup_schema()) {
+            ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
+            return;
+        }
     }
 
     $state = ll_tools_get_dictionary_lookup_rebuild_state();
@@ -197,16 +465,15 @@ function ll_tools_schedule_dictionary_lookup_rebuild(bool $reset = false): void 
 
     ll_tools_update_dictionary_lookup_rebuild_state($state);
 
-    if (!wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK)) {
-        wp_schedule_single_event(time() + 5, LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
-    }
+    ll_tools_schedule_dictionary_lookup_rebuild_event(5);
 }
 
 /**
  * Determine whether the lookup table is ready for fast searches.
  */
 function ll_tools_dictionary_lookup_is_ready(): bool {
-    if (!ll_tools_dictionary_lookup_table_exists()) {
+    if (!ll_tools_dictionary_lookup_schema_is_ready()) {
+        ll_tools_dictionary_mark_lookup_unavailable_for_repair(30);
         return false;
     }
 
@@ -219,20 +486,23 @@ function ll_tools_dictionary_lookup_is_ready(): bool {
  */
 function ll_tools_maybe_upgrade_dictionary_lookup_schema(): void {
     $installed = (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '');
-    if ($installed === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION && ll_tools_dictionary_lookup_table_exists()) {
+    if (
+        $installed === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+        && (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, '') === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+    ) {
+        // The verified marker is written only after the full table contract has
+        // passed. Do not issue SHOW queries on every unrelated WordPress init;
+        // mutation/rebuild paths still force a full contract check, while
+        // reads verify table availability and fail closed on query errors.
+        return;
+    }
+    if (get_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT)) {
         return;
     }
 
-    if ($installed === '3' && ll_tools_dictionary_lookup_table_exists()) {
-        ll_tools_install_dictionary_lookup_schema();
-        $state = ll_tools_get_dictionary_lookup_rebuild_state();
-        if ($state['status'] === 'completed' && $state['truncate_pending'] === 0) {
-            ll_tools_dictionary_backfill_optional_apostrophe_lookup_rows_from_index();
-            return;
-        }
+    if (!ll_tools_install_dictionary_lookup_schema()) {
+        return;
     }
-
-    ll_tools_install_dictionary_lookup_schema();
     ll_tools_schedule_dictionary_lookup_rebuild(true);
 }
 add_action('init', 'll_tools_maybe_upgrade_dictionary_lookup_schema', 13);
@@ -318,9 +588,9 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
             'entry_id' => $entry_id,
             'lookup_kind' => $kind,
             'lookup_value' => $lookup_value,
-            'value_length' => function_exists('mb_strlen')
+            'value_length' => min(65535, function_exists('mb_strlen')
                 ? (int) mb_strlen($candidate, 'UTF-8')
-                : strlen($candidate),
+                : strlen($candidate)),
         ];
 
     };
@@ -368,7 +638,7 @@ function ll_tools_dictionary_delete_lookup_rows_for_entry(int $entry_id, bool $b
     global $wpdb;
 
     $entry_id = (int) $entry_id;
-    if ($entry_id <= 0 || !ll_tools_dictionary_lookup_table_exists()) {
+    if ($entry_id <= 0 || !ll_tools_dictionary_lookup_schema_is_ready(true)) {
         return;
     }
 
@@ -380,28 +650,137 @@ function ll_tools_dictionary_delete_lookup_rows_for_entry(int $entry_id, bool $b
 }
 
 /**
- * Upsert lookup rows for one dictionary entry.
+ * Build a collision-resistant, identifier-safe savepoint name for one call.
  */
-function ll_tools_dictionary_sync_lookup_rows_for_entry(int $entry_id, bool $bump_cache = true): void {
+function ll_tools_dictionary_lookup_unique_savepoint_name(string $purpose, int $entry_id = 0): string {
+    static $sequence = 0;
+
+    $sequence++;
+    $purpose = strtolower((string) preg_replace('/[^a-z0-9_]/i', '_', $purpose));
+    $purpose = substr(trim($purpose, '_'), 0, 8);
+    if ($purpose === '') {
+        $purpose = 'scope';
+    }
+    $entropy = substr(hash(
+        'sha256',
+        $purpose . '|' . $entry_id . '|' . $sequence . '|' . microtime(true) . '|' . wp_rand()
+    ), 0, 12);
+
+    return substr('ll_dict_' . $purpose . '_' . max(0, $entry_id) . '_' . $sequence . '_' . $entropy, 0, 64);
+}
+
+/**
+ * Detect an enclosing database transaction without changing its ownership.
+ */
+function ll_tools_dictionary_lookup_connection_in_transaction(): bool {
+    global $wpdb;
+
+    $probe = ll_tools_dictionary_lookup_unique_savepoint_name('probe');
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
+    $wpdb->last_error = '';
+    $created = $wpdb->query("SAVEPOINT {$probe}");
+    $active = $created !== false && (string) $wpdb->last_error === '';
+    if ($active) {
+        // Some servers accept SAVEPOINT outside a useful transaction. A
+        // no-op rollback proves that the savepoint is actually active.
+        $wpdb->last_error = '';
+        $verified = $wpdb->query("ROLLBACK TO SAVEPOINT {$probe}");
+        $active = $verified !== false && (string) $wpdb->last_error === '';
+        $wpdb->query("RELEASE SAVEPOINT {$probe}");
+    }
+    $wpdb->last_error = '';
+    $wpdb->suppress_errors($previous_suppress_errors);
+
+    return $active;
+}
+
+/**
+ * Atomically replace lookup rows for one dictionary entry.
+ */
+function ll_tools_dictionary_sync_lookup_rows_for_entry(
+    int $entry_id,
+    bool $bump_cache = true,
+    bool $schema_prevalidated = false
+): bool {
     global $wpdb;
 
     $entry_id = (int) $entry_id;
-    if ($entry_id <= 0 || !ll_tools_dictionary_lookup_table_exists()) {
-        return;
+    if ($entry_id <= 0) {
+        return false;
+    }
+    if (!$schema_prevalidated && !ll_tools_dictionary_lookup_schema_is_ready(true)) {
+        // Never run schema DDL from a save-time mutation: it could implicitly
+        // commit a transaction owned by the caller. Mark reads unready and let
+        // the standalone rebuild repair the contract.
+        ll_tools_dictionary_mark_lookup_unavailable_for_repair(30);
+        return false;
     }
 
-    $wpdb->delete(ll_tools_dictionary_lookup_table_name(), ['entry_id' => $entry_id], ['%d']);
+    // A failed source read must not look like a confirmed deletion or type
+    // change. Prime the complete post/meta source before replacing any rows so
+    // a later successful cache read cannot mask an earlier database failure.
+    $wpdb->last_error = '';
+    $post = get_post($entry_id);
+    if ((string) $wpdb->last_error !== '') {
+        return false;
+    }
 
-    if (wp_is_post_revision($entry_id) || get_post_type($entry_id) !== 'll_dictionary_entry') {
-        if ($bump_cache && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
-            ll_tools_bump_dictionary_browser_cache_version();
+    $is_revision = false;
+    if ($post instanceof WP_Post) {
+        $wpdb->last_error = '';
+        $is_revision = (bool) wp_is_post_revision($entry_id);
+        if ((string) $wpdb->last_error !== '') {
+            return false;
         }
-        return;
+    }
+    $is_dictionary_entry = $post instanceof WP_Post
+        && !$is_revision
+        && $post->post_type === 'll_dictionary_entry';
+    $rows = [];
+    if ($is_dictionary_entry) {
+        wp_cache_delete($entry_id, 'post_meta');
+        $wpdb->last_error = '';
+        $all_meta = get_post_meta($entry_id);
+        if (!is_array($all_meta) || (string) $wpdb->last_error !== '') {
+            wp_cache_delete($entry_id, 'post_meta');
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $rows = ll_tools_dictionary_build_lookup_rows_for_entry($entry_id);
+        if ((string) $wpdb->last_error !== '') {
+            return false;
+        }
+    }
+    $table = ll_tools_dictionary_lookup_table_name();
+    $use_savepoint = ll_tools_dictionary_lookup_connection_in_transaction();
+    $savepoint = ll_tools_dictionary_lookup_unique_savepoint_name('sync', $entry_id);
+
+    $wpdb->last_error = '';
+    $transaction_started = $use_savepoint
+        ? $wpdb->query("SAVEPOINT {$savepoint}")
+        : $wpdb->query('START TRANSACTION');
+    if ($transaction_started === false || (string) $wpdb->last_error !== '') {
+        return false;
     }
 
-    $rows = ll_tools_dictionary_build_lookup_rows_for_entry($entry_id);
+    $rollback = static function () use ($wpdb, $use_savepoint, $savepoint): void {
+        if ($use_savepoint) {
+            $wpdb->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+            $wpdb->query("RELEASE SAVEPOINT {$savepoint}");
+            return;
+        }
+        $wpdb->query('ROLLBACK');
+    };
+
+    $wpdb->last_error = '';
+    $deleted = $wpdb->delete($table, ['entry_id' => $entry_id], ['%d']);
+    if ($deleted === false || (string) $wpdb->last_error !== '') {
+        $rollback();
+        return false;
+    }
+
     if (!empty($rows)) {
-        $table = ll_tools_dictionary_lookup_table_name();
         $placeholders = [];
         $params = [];
 
@@ -413,14 +792,68 @@ function ll_tools_dictionary_sync_lookup_rows_for_entry(int $entry_id, bool $bum
             $params[] = max(0, (int) $row['value_length']);
         }
 
-        $sql = "INSERT IGNORE INTO {$table} (entry_id, lookup_kind, lookup_value, value_length) VALUES "
+        // lookup_value follows the site's normal WordPress collation. Distinct
+        // normalized PHP strings can therefore collide legitimately (for
+        // example, accent-equivalent values), so IGNORE remains intentional.
+        // Validate every warning immediately below so truncation or coercion
+        // can never publish a partial replacement.
+        $sql = "INSERT IGNORE INTO {$table} /* ll_tools_dictionary_lookup_sync */ (entry_id, lookup_kind, lookup_value, value_length) VALUES "
             . implode(', ', $placeholders);
-        $wpdb->query($wpdb->prepare($sql, $params));
+        $wpdb->last_error = '';
+        $inserted = $wpdb->query($wpdb->prepare($sql, $params));
+        $insert_error = (string) $wpdb->last_error;
+        if ($inserted === false || $insert_error !== '') {
+            $rollback();
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $warning_rows = $wpdb->get_results('SHOW WARNINGS', ARRAY_A);
+        $warning_error = (string) $wpdb->last_error;
+        if (!is_array($warning_rows) || $warning_error !== '') {
+            $rollback();
+            return false;
+        }
+        foreach ($warning_rows as $warning_row) {
+            // 1062 is the expected unique-key collision for values that the
+            // table collation considers equivalent. Every other warning can
+            // indicate coercion or truncation and invalidates the replacement.
+            if ((int) ($warning_row['Code'] ?? 0) !== 1062) {
+                $rollback();
+                return false;
+            }
+        }
+
+        $wpdb->last_error = '';
+        $stored_row_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE entry_id = %d",
+            $entry_id
+        ));
+        if (
+            !is_numeric($stored_row_count)
+            || (string) $wpdb->last_error !== ''
+            || (int) $stored_row_count !== (int) $inserted
+            || (int) $stored_row_count <= 0
+        ) {
+            $rollback();
+            return false;
+        }
+    }
+
+    $wpdb->last_error = '';
+    $committed = $use_savepoint
+        ? $wpdb->query("RELEASE SAVEPOINT {$savepoint}")
+        : $wpdb->query('COMMIT');
+    if ($committed === false || (string) $wpdb->last_error !== '') {
+        $rollback();
+        return false;
     }
 
     if ($bump_cache && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
         ll_tools_bump_dictionary_browser_cache_version();
     }
+
+    return true;
 }
 
 /**
@@ -431,7 +864,9 @@ function ll_tools_dictionary_sync_lookup_rows_on_save($post_id, $post, $update):
         return;
     }
 
-    ll_tools_dictionary_sync_lookup_rows_for_entry((int) $post_id);
+    if (!ll_tools_dictionary_sync_lookup_rows_for_entry((int) $post_id)) {
+        ll_tools_dictionary_mark_lookup_unavailable_for_repair(30);
+    }
 }
 add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_sync_lookup_rows_on_save', 60, 3);
 
@@ -461,8 +896,11 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
     set_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY, 1, 60);
 
     try {
-        if (!ll_tools_dictionary_lookup_table_exists()) {
-            ll_tools_install_dictionary_lookup_schema();
+        if (!ll_tools_dictionary_lookup_schema_is_ready(true)) {
+            if (!ll_tools_install_dictionary_lookup_schema()) {
+                ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
+                return;
+            }
         }
 
         $table = ll_tools_dictionary_lookup_table_name();
@@ -472,13 +910,19 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
         }
 
         if ($state['truncate_pending'] === 1) {
-            $wpdb->query("TRUNCATE TABLE {$table}");
+            $wpdb->last_error = '';
+            $truncated = $wpdb->query("TRUNCATE TABLE {$table}");
+            if ($truncated === false || (string) $wpdb->last_error !== '') {
+                ll_tools_schedule_dictionary_lookup_rebuild_event(30);
+                return;
+            }
             $state['last_id'] = 0;
             $state['processed'] = 0;
             $state['truncate_pending'] = 0;
             $state['status'] = 'running';
             $state['started_at'] = current_time('mysql');
             $state['completed_at'] = '';
+            ll_tools_update_dictionary_lookup_rebuild_state($state);
         } elseif ($state['started_at'] === '') {
             $state['started_at'] = current_time('mysql');
             $state['status'] = 'running';
@@ -487,7 +931,8 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
         $batch_size = (int) apply_filters('ll_tools_dictionary_lookup_rebuild_batch_size', 250);
         $batch_size = max(25, min(1000, $batch_size));
 
-        $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+        $wpdb->last_error = '';
+        $raw_ids = $wpdb->get_col($wpdb->prepare(
             "SELECT ID
              FROM {$wpdb->posts}
              WHERE post_type = 'll_dictionary_entry'
@@ -496,7 +941,13 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
              LIMIT %d",
             (int) $state['last_id'],
             $batch_size
-        )))));
+        ));
+        if (!is_array($raw_ids) || (string) $wpdb->last_error !== '') {
+            ll_tools_update_dictionary_lookup_rebuild_state($state);
+            ll_tools_schedule_dictionary_lookup_rebuild_event(30);
+            return;
+        }
+        $ids = array_values(array_filter(array_map('intval', $raw_ids)));
 
         if (empty($ids)) {
             $state['status'] = 'completed';
@@ -509,7 +960,11 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
         }
 
         foreach ($ids as $entry_id) {
-            ll_tools_dictionary_sync_lookup_rows_for_entry((int) $entry_id, false);
+            if (!ll_tools_dictionary_sync_lookup_rows_for_entry((int) $entry_id, false, true)) {
+                ll_tools_update_dictionary_lookup_rebuild_state($state);
+                ll_tools_schedule_dictionary_lookup_rebuild_event(30);
+                return;
+            }
         }
 
         $state['last_id'] = (int) end($ids);
@@ -520,9 +975,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
             $state['completed_at'] = current_time('mysql');
         } else {
             $state['status'] = 'running';
-            if (!wp_next_scheduled(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK)) {
-                wp_schedule_single_event(time() + 1, LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
-            }
+            ll_tools_schedule_dictionary_lookup_rebuild_event(1);
         }
 
         ll_tools_update_dictionary_lookup_rebuild_state($state);
@@ -742,6 +1195,38 @@ function ll_tools_dictionary_short_lookup_uncapped_limit(): int {
 }
 
 /**
+ * Fail closed after a lookup-table query error and serve the bounded legacy path.
+ *
+ * @param string[] $statuses
+ * @return int[]
+ */
+function ll_tools_dictionary_lookup_handle_query_error(
+    string $search,
+    array $statuses,
+    string $search_scope,
+    int $limit,
+    int $wordset_id
+): array {
+    ll_tools_dictionary_mark_lookup_unavailable_for_repair(30);
+
+    if (function_exists('ll_tools_dictionary_query_entry_ids_from_search_meta')) {
+        $fallback_limit = $limit > 0
+            ? $limit
+            : ll_tools_dictionary_short_lookup_uncapped_limit();
+        return ll_tools_dictionary_query_entry_ids_from_search_meta(
+            $search,
+            $statuses,
+            $search_scope,
+            $wordset_id,
+            '',
+            $fallback_limit
+        );
+    }
+
+    return [];
+}
+
+/**
  * Query entry IDs from the indexed lookup table.
  *
  * @param string[] $statuses Allowed post statuses.
@@ -830,12 +1315,13 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $lookup,
         $normal_kinds,
         $limit
-    ): array {
+    ): ?array {
         $target_limit = $limit > 0 ? $limit : ll_tools_dictionary_short_lookup_uncapped_limit();
         $target_limit = max(1, $target_limit);
         $prefix_lookup = $wpdb->esc_like($lookup) . '%';
         $seen = [];
         $ids = [];
+        $query_failed = false;
 
         $append_results = static function (string $kind, string $operator, string $value) use (
             $wpdb,
@@ -844,9 +1330,10 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             $statuses,
             $target_limit,
             &$seen,
-            &$ids
+            &$ids,
+            &$query_failed
         ): void {
-            if (count($ids) >= $target_limit) {
+            if ($query_failed || count($ids) >= $target_limit) {
                 return;
             }
 
@@ -875,7 +1362,13 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 LIMIT %d
             ";
             $params = array_merge($statuses, [$kind, $value], $title_exact_params, [$remaining]);
-            $rows = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+            $wpdb->last_error = '';
+            $raw_rows = $wpdb->get_col($wpdb->prepare($sql, $params));
+            if (!is_array($raw_rows) || (string) $wpdb->last_error !== '') {
+                $query_failed = true;
+                return;
+            }
+            $rows = array_values(array_filter(array_map('intval', $raw_rows)));
             foreach ($rows as $entry_id) {
                 if ($entry_id <= 0 || isset($seen[$entry_id])) {
                     continue;
@@ -896,11 +1389,20 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             $append_results((string) $kind, 'LIKE', $prefix_lookup);
         }
 
-        return $ids;
+        return $query_failed ? null : $ids;
     };
 
     if ($is_short_query) {
         $ids = $run_short_lookup_query();
+        if ($ids === null) {
+            return ll_tools_dictionary_lookup_handle_query_error(
+                $search,
+                $statuses,
+                $search_scope,
+                $limit,
+                $wordset_id
+            );
+        }
         if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {
             return ll_tools_dictionary_browser_store_cached_payload(
                 'lookup_entry_ids',
@@ -924,7 +1426,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
         $apostrophe_variants,
         $normal_kinds,
         $limit
-    ): array {
+    ): ?array {
         $search_clauses = [];
         $where_params = [];
         $case_sql = [];
@@ -1024,12 +1526,36 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
             $params[] = $limit;
         }
 
-        return array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+        $wpdb->last_error = '';
+        $raw_ids = $wpdb->get_col($wpdb->prepare($sql, $params));
+        if (!is_array($raw_ids) || (string) $wpdb->last_error !== '') {
+            return null;
+        }
+
+        return array_values(array_filter(array_map('intval', $raw_ids)));
     };
 
     $ids = $run_lookup_query(false);
+    if ($ids === null) {
+        return ll_tools_dictionary_lookup_handle_query_error(
+            $search,
+            $statuses,
+            $search_scope,
+            $limit,
+            $wordset_id
+        );
+    }
     if (empty($ids) && $use_contains) {
         $ids = $run_lookup_query(true);
+        if ($ids === null) {
+            return ll_tools_dictionary_lookup_handle_query_error(
+                $search,
+                $statuses,
+                $search_scope,
+                $limit,
+                $wordset_id
+            );
+        }
     }
 
     if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {

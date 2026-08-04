@@ -45,9 +45,20 @@ final class LL_Tools_Test_Fake_Vcs_Api
 {
     public int $releaseAssetCalls = 0;
 
+    public int $disableReleaseAssetCalls = 0;
+
+    public bool $releaseAssetsEnabled = false;
+
     public function enableReleaseAssets($assetNameRegex, $strategy): void
     {
         $this->releaseAssetCalls++;
+        $this->releaseAssetsEnabled = true;
+    }
+
+    public function disableReleaseAssets(): void
+    {
+        $this->disableReleaseAssetCalls++;
+        $this->releaseAssetsEnabled = false;
     }
 }
 
@@ -100,7 +111,7 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
         $this->assertTrue($fakeChecker->checkCalled);
     }
 
-    public function test_dev_update_channel_does_not_require_release_assets(): void
+    public function test_dev_update_channel_disables_release_assets(): void
     {
         $fakeChecker = new LL_Tools_Test_Fake_Update_Checker_With_Api();
 
@@ -108,6 +119,8 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
 
         $this->assertSame(['dev'], $fakeChecker->branches);
         $this->assertSame(0, $fakeChecker->api->releaseAssetCalls);
+        $this->assertSame(1, $fakeChecker->api->disableReleaseAssetCalls);
+        $this->assertFalse($fakeChecker->api->releaseAssetsEnabled);
     }
 
     public function test_main_update_channel_requires_release_assets(): void
@@ -118,6 +131,21 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
 
         $this->assertSame(['main'], $fakeChecker->branches);
         $this->assertSame(1, $fakeChecker->api->releaseAssetCalls);
+        $this->assertSame(0, $fakeChecker->api->disableReleaseAssetCalls);
+        $this->assertTrue($fakeChecker->api->releaseAssetsEnabled);
+    }
+
+    public function test_switching_from_main_to_dev_clears_release_asset_requirements_on_the_same_checker(): void
+    {
+        $fakeChecker = new LL_Tools_Test_Fake_Update_Checker_With_Api();
+
+        ll_tools_configure_update_checker($fakeChecker, 'main');
+        ll_tools_configure_update_checker($fakeChecker, 'dev');
+
+        $this->assertSame(['main', 'dev'], $fakeChecker->branches);
+        $this->assertSame(1, $fakeChecker->api->releaseAssetCalls);
+        $this->assertSame(1, $fakeChecker->api->disableReleaseAssetCalls);
+        $this->assertFalse($fakeChecker->api->releaseAssetsEnabled);
     }
 
     public function test_update_management_urls_require_capability_and_include_expected_params(): void

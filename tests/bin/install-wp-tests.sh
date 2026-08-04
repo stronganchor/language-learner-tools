@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
+BASH_RUNNER="${BASH:-bash}"
 
 DB_NAME="${1:-${WP_TEST_DB_NAME:-wordpress_test}}"
 DB_USER="${2:-${WP_TEST_DB_USER:-root}}"
@@ -65,7 +66,7 @@ detect_php_runtime_family() {
 
     local php_local="${SCRIPT_DIR}/php-local.sh"
     if [[ -x "$php_local" ]]; then
-        "$php_local" -r "echo PHP_OS_FAMILY;" 2>/dev/null || true
+        "$BASH_RUNNER" "$php_local" -r "echo PHP_OS_FAMILY;" 2>/dev/null || true
         return 0
     fi
 
@@ -89,23 +90,25 @@ runtime_uses_windows_php() {
 }
 
 has_windows_path_converter() {
-    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+    command -v cygpath >/dev/null 2>&1 || command -v wslpath >/dev/null 2>&1
 }
 
 to_windows_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -w "$1"
+    # Git Bash can see Windows' wslpath.exe even when WSL cannot start. Prefer
+    # its native converter there; WSL installations normally have no cygpath.
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
         return
     fi
-    cygpath -w "$1"
+    wslpath -w "$1"
 }
 
 to_posix_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -u "$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$1"
         return
     fi
-    cygpath -u "$1"
+    wslpath -u "$1"
 }
 
 detect_mysql_bin() {
@@ -119,12 +122,18 @@ detect_mysql_bin() {
         return 0
     fi
 
-    local base candidate
-    for base in \
-        "$HOME/AppData/Roaming/Local/lightning-services" \
-        "/mnt/c/Users/${USER}/AppData/Roaming/Local/lightning-services" \
-        /mnt/c/Users/*/AppData/Roaming/Local/lightning-services
-    do
+    local base candidate windows_user
+    local search_roots=()
+    if [[ -n "${HOME:-}" ]]; then
+        search_roots+=("${HOME}/AppData/Roaming/Local/lightning-services")
+    fi
+    windows_user="${USER:-${USERNAME:-}}"
+    if [[ -n "$windows_user" ]]; then
+        search_roots+=("/mnt/c/Users/${windows_user}/AppData/Roaming/Local/lightning-services")
+    fi
+    search_roots+=(/mnt/c/Users/*/AppData/Roaming/Local/lightning-services)
+
+    for base in "${search_roots[@]}"; do
         if [[ -d "$base" ]]; then
             candidate="$(find "$base" -maxdepth 6 -type f -iname mysql.exe 2>/dev/null | sort -V | tail -n 1 || true)"
             if [[ -n "$candidate" ]]; then
@@ -142,20 +151,18 @@ detect_runtime_php_binary() {
     local runtime_binary=""
 
     if [[ -n "${PHP_BIN:-}" && -x "${PHP_BIN}" ]]; then
-        if [[ "${PHP_BIN}" == *.exe ]]; then
-            printf '%s\n' "${PHP_BIN}"
-            return 0
-        fi
-
         runtime_binary="$("${PHP_BIN}" -r "echo PHP_BINARY;" 2>/dev/null || true)"
         if [[ -n "$runtime_binary" ]]; then
             printf '%s\n' "$runtime_binary"
             return 0
         fi
+
+        printf '%s\n' "${PHP_BIN}"
+        return 0
     fi
 
     if [[ -x "$php_local" ]]; then
-        runtime_binary="$("$php_local" -r "echo PHP_BINARY;" 2>/dev/null || true)"
+        runtime_binary="$("$BASH_RUNNER" "$php_local" -r "echo PHP_BINARY;" 2>/dev/null || true)"
         if [[ -n "$runtime_binary" ]]; then
             printf '%s\n' "$runtime_binary"
             return 0
@@ -173,30 +180,50 @@ detect_runtime_php_binary() {
     return 1
 }
 
+build_windows_php_command() {
+    local runtime_binary="$1"
+    local runtime_binary_win="$runtime_binary"
+    local runtime_binary_unix php_dir_win
+
+    if [[ "$runtime_binary_win" == [A-Za-z]:/* ]]; then
+        runtime_binary_win="${runtime_binary_win//\//\\}"
+    elif [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]] && has_windows_path_converter; then
+        runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
+    fi
+
+    if [[ "$runtime_binary_win" != [A-Za-z]:\\* ]]; then
+        return 1
+    fi
+
+    if has_windows_path_converter; then
+        runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
+        if [[ -n "$runtime_binary_unix" ]]; then
+            php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
+        fi
+    fi
+    if [[ -z "${php_dir_win:-}" ]]; then
+        php_dir_win="${runtime_binary_win%\\*}"
+    fi
+
+    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
+        "$runtime_binary_win" \
+        "$php_dir_win"
+}
+
 build_wp_php_binary() {
     if [[ -n "${WP_PHP_BINARY:-}" ]]; then
         printf '%s\n' "${WP_PHP_BINARY}"
         return 0
     fi
 
-    if runtime_uses_windows_php && has_windows_path_converter; then
-        local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
+    if runtime_uses_windows_php; then
+        local runtime_binary windows_command
         runtime_binary="$(detect_runtime_php_binary || true)"
         if [[ -n "$runtime_binary" ]]; then
-            runtime_binary_win="$runtime_binary"
-            if [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]]; then
-                runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
-            fi
-
-            if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
-                runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
-                if [[ -n "$runtime_binary_unix" ]]; then
-                    php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
-                    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
-                        "$runtime_binary_win" \
-                        "$php_dir_win"
-                    return 0
-                fi
+            windows_command="$(build_windows_php_command "$runtime_binary" || true)"
+            if [[ -n "$windows_command" ]]; then
+                printf '%s\n' "$windows_command"
+                return 0
             fi
         fi
     fi
@@ -476,6 +503,10 @@ create_test_database() {
 
     "${mysql_cmd[@]}"
 }
+
+if [[ "${LL_TOOLS_INSTALL_WP_TESTS_LIBRARY_ONLY:-0}" == "1" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
 
 ensure_safe_database_target
 install_wp_core

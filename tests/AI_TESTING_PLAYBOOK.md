@@ -73,9 +73,13 @@ tests/bin/run-performance-benchmark.sh
   - `tests/bin/run-tests.sh` also patches the local `wordpress-tests-lib` bootstrap when PHPUnit 12 needs WordPress' removed annotation-parser calls shimmed.
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
-    - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
+    - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root. If sandbox policy hides that runtime directory, it next accepts a literal loopback `DB_HOST` from the matching site's `wp-config.php`, before falling back to the potentially stale `local-site.json` port.
     - It keeps the live Local DB host credentials but emits an isolated `WP_TEST_DB_NAME` by default so PHPUnit does not target the main site schema.
+    - It uses `tests/bin/php-local.sh` and `tests/bin/resolve-local-runtime.php`; no separate Python binary or fixed `/mnt/c` mount is required.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
+- `tests/bin/run-e2e.sh` refreshes an env-file base URL from that matching runtime. A caller-exported `LL_E2E_BASE_URL` wins; use `LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV=1` only when an env-file URL must remain authoritative.
+- The E2E wrapper probes `chromium.executablePath()` first and runs Playwright's browser installer only when that executable is absent. A network-restricted sandbox (or explicit `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1`) skips installation when policy also hides the global browser cache, avoiding a blocked network probe before every focused test.
+- Git Bash runs npm's JavaScript entry point and Playwright's installed CLI directly through Node; do not restore an extensionless npm/npx shim at the final `exec` boundary because PATHEXT can hand its shebang to WSL.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
 - If Local changed ports recently, `tests/bin/run-tests.sh` should refresh them automatically; use `eval "$(tests/bin/setup-local-env.sh)"` when you want to inspect the resolved values directly.
 - Set `LL_TOOLS_SKIP_AUTO_LOCAL_ENV=1` if you intentionally need `tests/.env` to stay authoritative.
@@ -181,7 +185,7 @@ When behavior changes intentionally:
 Local site returns `500`:
 - Check Local DB service and `DB_HOST` in site `wp-config.php`.
 - Confirm MySQL port matches active Local run config.
-- If `tests/bin/setup-local-env.sh` reports a DB port that refuses connections but `setup-local-http-env.sh` finds the active site, the site `local-site.json` is likely stale.
+- If `tests/bin/setup-local-env.sh` reports a DB port that refuses connections but `setup-local-http-env.sh` finds the active site, compare `LOCAL_DB_PORT_SOURCE`, the site's literal loopback `DB_HOST`, and the active runtime config; a dynamic/non-loopback `DB_HOST` cannot be used as the safe sandbox fallback.
 - Verify with:
 ```bash
 tests/bin/setup-local-env.sh

@@ -4,6 +4,19 @@
  * Handles category selection interactions for the flashcard widget.
  */
 (function ($) {
+    var categoryCatalogRequestGeneration = 0;
+    var activeCategoryCatalogRequest = null;
+
+    function cancelCategoryCatalogRequest() {
+        categoryCatalogRequestGeneration += 1;
+        if (activeCategoryCatalogRequest && typeof activeCategoryCatalogRequest.abort === 'function') {
+            try { activeCategoryCatalogRequest.abort(); } catch (_) { /* no-op */ }
+        }
+        activeCategoryCatalogRequest = null;
+        $('#ll-tools-load-more-categories').prop('disabled', false);
+        $('#ll-tools-category-catalog-status').text('');
+    }
+
     // Apply per-instance wordset settings from the nearest container
     function syncWordsetFromDataset(ctxEl) {
         var $container = ctxEl
@@ -17,6 +30,9 @@
             cfg = cfgJson ? JSON.parse(cfgJson) : {};
         } catch (e) { cfg = {}; }
 
+        var previousData = window.llToolsFlashcardsData || {};
+        var previousWordset = String(previousData.wordset || '');
+
         // Merge config into the global data object expected by scripts
         window.llToolsFlashcardsData = Object.assign({}, window.llToolsFlashcardsData || {}, cfg);
 
@@ -26,6 +42,9 @@
         window.llToolsFlashcardsData.wordset = dsWordset;
         if (typeof dsFallback !== 'undefined') {
             window.llToolsFlashcardsData.wordsetFallback = (dsFallback === '1' || dsFallback === 'true');
+        }
+        if (previousWordset !== String(window.llToolsFlashcardsData.wordset || '')) {
+            cancelCategoryCatalogRequest();
         }
     }
 
@@ -304,10 +323,20 @@
         $button.prop('disabled', true).text(messages.categoryCatalogLoading || $button.text());
         $status.text(messages.categoryCatalogLoading || '');
 
-        $.ajax({
+        var requestGeneration = ++categoryCatalogRequestGeneration;
+        var requestWordset = String(data.wordset || '');
+        var catalogTimeoutRaw = parseInt(
+            data.preloadTuning && data.preloadTuning.categoryAjaxTimeoutMs,
+            10
+        );
+        var catalogTimeoutMs = Number.isFinite(catalogTimeoutRaw)
+            ? Math.max(250, Math.min(120000, catalogTimeoutRaw))
+            : 30000;
+        activeCategoryCatalogRequest = $.ajax({
             url: data.ajaxurl || window.ajaxurl || '/wp-admin/admin-ajax.php',
             method: 'POST',
             dataType: 'json',
+            timeout: catalogTimeoutMs,
             data: {
                 action: 'll_get_flashcard_category_catalog',
                 offset: Math.max(0, parseInt(catalog.nextOffset, 10) || 0),
@@ -315,6 +344,14 @@
                 wordset_fallback: data.wordsetFallback ? '1' : '0'
             }
         }).done(function (response) {
+            if (
+                requestGeneration !== categoryCatalogRequestGeneration
+                || window.llToolsFlashcardsData !== data
+                || String((window.llToolsFlashcardsData || {}).wordset || '') !== requestWordset
+                || !$('#ll-tools-category-selection-popup').is(':visible')
+            ) {
+                return;
+            }
             var payload = response && response.success && response.data ? response.data : null;
             if (!payload || !Array.isArray(payload.categories)) {
                 $status.text(messages.categoryCatalogError || messages.somethingWentWrong || '');
@@ -340,8 +377,15 @@
             $status.text('');
             showCategorySelection();
         }).fail(function () {
+            if (requestGeneration !== categoryCatalogRequestGeneration) {
+                return;
+            }
             $status.text(messages.categoryCatalogError || messages.somethingWentWrong || '');
         }).always(function () {
+            if (requestGeneration !== categoryCatalogRequestGeneration) {
+                return;
+            }
+            activeCategoryCatalogRequest = null;
             $button.prop('disabled', false);
             updateCategoryCatalogControls();
         });
@@ -355,6 +399,7 @@
         }).get();
 
         if (selectedCategories.length > 0) {
+            cancelCategoryCatalogRequest();
             $('#ll-tools-category-selection-popup').hide();
             $('#ll-tools-flashcard-quiz-popup').show();
             activateQuizDialog('#ll-tools-flashcard-quiz-popup');
@@ -389,6 +434,7 @@
 
     $('#ll-tools-close-flashcard').on('click.llFallbackClose', function (e) {
         e.preventDefault();
+        cancelCategoryCatalogRequest();
         try {
             if (window.LLFlashcards && window.LLFlashcards.Main && typeof window.LLFlashcards.Main.closeFlashcard === 'function') {
                 window.LLFlashcards.Main.closeFlashcard();
@@ -413,6 +459,7 @@
 
     // Event handler for the close button on the category selection screen
     $('#ll-tools-close-category-selection').on('click', function () {
+        cancelCategoryCatalogRequest();
         $('#ll-tools-category-selection-popup').hide();
         $('#ll-tools-flashcard-popup').hide();
         try {

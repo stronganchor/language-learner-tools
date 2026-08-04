@@ -1547,6 +1547,170 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertLessThan($position_ten, $position_nine);
     }
 
+    public function test_order_materializer_preserves_state_when_a_descendant_term_read_is_incomplete(): void
+    {
+        $fixture = $this->createDeferredGridFixture('Incomplete Descendant Scope');
+        $child = wp_insert_term(
+            'Incomplete Descendant Child',
+            'word-category',
+            [
+                'slug' => 'incomplete-descendant-child',
+                'parent' => (int) $fixture['category_id'],
+            ]
+        );
+        $this->assertIsArray($child);
+        $child_id = (int) $child['term_id'];
+
+        $wordset = get_term((int) $fixture['wordset_id'], 'wordset');
+        $category = get_term((int) $fixture['category_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->assertInstanceOf(WP_Term::class, $category);
+
+        $cache_key = ll_tools_vocab_lesson_grid_order_cache_key(
+            (int) $fixture['lesson_id'],
+            (int) $fixture['wordset_id'],
+            (int) $fixture['category_id'],
+            'public'
+        );
+        $existing_state = [
+            'schema' => 2,
+            'cursor_id' => 123,
+            'scanned' => 1,
+            'rows' => [
+                [
+                    'id' => (int) $fixture['word_id'],
+                    't' => 'Preserved row',
+                ],
+            ],
+            'ordered_ids' => [],
+            'complete' => false,
+            'started_at' => time(),
+        ];
+        ll_tools_vocab_lesson_grid_order_state_set($cache_key, $existing_state);
+
+        $fail_child_term = static function ($term, string $taxonomy) use ($child_id) {
+            if ($taxonomy === 'word-category' && $term instanceof WP_Term && (int) $term->term_id === $child_id) {
+                return null;
+            }
+            return $term;
+        };
+
+        $word_category_taxonomy = get_taxonomy('word-category');
+        $this->assertInstanceOf(WP_Taxonomy::class, $word_category_taxonomy);
+        $was_hierarchical = (bool) $word_category_taxonomy->hierarchical;
+        // LL Tools treats categories as flat by default. Opt this fixture into
+        // hierarchy only long enough to exercise the defensive descendant path.
+        $word_category_taxonomy->hierarchical = true;
+        delete_option('word-category_children');
+        $this->assertTrue(is_taxonomy_hierarchical('word-category'));
+        $this->assertContains($child_id, get_term_children((int) $fixture['category_id'], 'word-category'));
+        add_filter('get_term', $fail_child_term, 10, 2);
+        try {
+            $result = ll_tools_vocab_lesson_grid_advance_order_state(
+                $cache_key,
+                (int) $fixture['lesson_id'],
+                $wordset,
+                $category
+            );
+        } finally {
+            remove_filter('get_term', $fail_child_term, 10);
+            $word_category_taxonomy->hierarchical = $was_hierarchical;
+            delete_option('word-category_children');
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('taxonomy_source_failed', $result->get_error_code());
+        $this->assertSame($existing_state, ll_tools_vocab_lesson_grid_order_state_get($cache_key));
+        $this->assertFalse(get_option(ll_tools_vocab_lesson_grid_order_lock_option($cache_key), false));
+    }
+
+    public function test_candidate_rows_discards_failed_hierarchy_cache_and_succeeds_on_retry(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createDeferredGridFixture('Hierarchy Source Retry');
+        $child = wp_insert_term(
+            'Hierarchy Source Retry Child',
+            'word-category',
+            [
+                'slug' => 'hierarchy-source-retry-child',
+                'parent' => (int) $fixture['category_id'],
+            ]
+        );
+        $this->assertIsArray($child);
+
+        $wordCategoryTaxonomy = get_taxonomy('word-category');
+        $this->assertInstanceOf(WP_Taxonomy::class, $wordCategoryTaxonomy);
+        $wasHierarchical = (bool) $wordCategoryTaxonomy->hierarchical;
+        // LL Tools categories are flat in production. Temporarily opt this
+        // fixture into Core's hierarchy source path, then restore the canonical
+        // taxonomy shape even if an assertion fails.
+        $wordCategoryTaxonomy->hierarchical = true;
+        delete_option('word-category_children');
+        try {
+            $this->assertTrue(is_taxonomy_hierarchical('word-category'));
+            // A non-array option forces Core to rebuild the hierarchy. The
+            // failed source query below would otherwise be replaced with a
+            // cached empty hierarchy, causing retries to omit descendants.
+            $this->assertTrue(update_option('word-category_children', 'poisoned-hierarchy', false));
+            wp_cache_flush();
+            $this->assertSame('poisoned-hierarchy', get_option('word-category_children'));
+
+            $failedHierarchyQuery = false;
+            $failHierarchySource = static function (string $query) use (&$failedHierarchyQuery, $wpdb): string {
+                if (
+                    stripos($query, "FROM {$wpdb->terms} AS t") !== false
+                    && stripos($query, "JOIN {$wpdb->term_taxonomy} AS tt") !== false
+                    && stripos($query, 'word-category') !== false
+                    && stripos($query, 'ORDER BY t.term_id ASC') !== false
+                ) {
+                    $failedHierarchyQuery = true;
+                    return 'SELECT term_id FROM ll_tools_missing_word_category_hierarchy';
+                }
+                return $query;
+            };
+
+            $previousSuppressErrors = $wpdb->suppress_errors(true);
+            add_filter('query', $failHierarchySource);
+            try {
+                $failed = ll_tools_vocab_lesson_grid_candidate_rows(
+                    (int) $fixture['wordset_id'],
+                    (int) $fixture['category_id'],
+                    0,
+                    20
+                );
+            } finally {
+                remove_filter('query', $failHierarchySource);
+                $wpdb->suppress_errors($previousSuppressErrors);
+            }
+
+            $this->assertTrue($failedHierarchyQuery, 'The fixture must fail Core\'s hierarchy source query.');
+            $this->assertWPError($failed);
+            $this->assertSame('taxonomy_source_failed', $failed->get_error_code());
+            $this->assertFalse(
+                get_option('word-category_children', false),
+                'The empty hierarchy produced by the failed source read must not remain cached.'
+            );
+
+            $retried = ll_tools_vocab_lesson_grid_candidate_rows(
+                (int) $fixture['wordset_id'],
+                (int) $fixture['category_id'],
+                0,
+                20
+            );
+
+            $this->assertIsArray($retried);
+            $retriedIds = array_values(array_map('intval', wp_list_pluck($retried, 'ID')));
+            $this->assertContains((int) $fixture['word_id'], $retriedIds);
+            $rebuiltHierarchy = get_option('word-category_children', false);
+            $this->assertIsArray($rebuiltHierarchy);
+            $this->assertContains((int) $child['term_id'], array_map('intval', (array) ($rebuiltHierarchy[$fixture['category_id']] ?? [])));
+        } finally {
+            $wordCategoryTaxonomy->hierarchical = $wasHierarchical;
+            delete_option('word-category_children');
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -15,4 +15,5 @@
 /tests/performance/reports/*.md
 !/tests/performance/reports/.gitkeep
 /dist/
+/_codex_temp/
 /.codex-remote-attachments/

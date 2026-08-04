@@ -47,6 +47,10 @@
     const LEARNING_MIN_CHUNK_SIZE = Math.max(8, parseInt(cfg.learningMinChunkSize, 10) || 8);
     const HARD_WORD_DIFFICULTY_THRESHOLD = Math.max(1, parseInt(cfg.hardWordDifficultyThreshold, 10) || 4);
     const PROGRESS_WORD_PAGE_SIZE = Math.max(20, Math.min(250, parseInt(cfg.progressWordPageSize, 10) || 80));
+    const SELECTION_LAUNCH_REQUEST_TIMEOUT_MS = Math.max(
+        250,
+        Math.min(120000, parseInt(cfg.selectionLaunchRequestTimeoutMs, 10) || 30000)
+    );
     const PROGRESS_WORD_AUTOLOAD_VIEWPORT_OFFSET_PX = 360;
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
@@ -621,6 +625,32 @@
     let recorderQueueSummaryInitialBatchComplete = false;
     let recorderQueueSummaryReloadPending = false;
     let recorderQueueSummaryReloadTimer = 0;
+
+    function applySelectionLaunchRequestDeadline(request, timeoutMs) {
+        if (!request || typeof request.always !== 'function') {
+            return request;
+        }
+
+        const parsed = parseInt(timeoutMs, 10);
+        const deadlineMs = Number.isFinite(parsed)
+            ? Math.max(250, Math.min(120000, parsed))
+            : SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        let settled = false;
+        const timer = window.setTimeout(function () {
+            if (settled) {
+                return;
+            }
+            if (typeof request.abort === 'function') {
+                try { request.abort('timeout'); } catch (_) { /* no-op */ }
+            }
+        }, deadlineMs);
+
+        request.always(function () {
+            settled = true;
+            window.clearTimeout(timer);
+        });
+        return request;
+    }
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -6355,7 +6385,10 @@
         appendProgressWordRequestFilter(requestData, launchSpec.filterPayload || {});
 
         const deferred = $.Deferred();
-        const request = $.post(ajaxUrl, requestData);
+        const request = applySelectionLaunchRequestDeadline(
+            $.post(ajaxUrl, requestData),
+            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
+        );
         if (onRequest) {
             onRequest(request);
         } else {
@@ -6451,7 +6484,8 @@
             notifyLaunchStage('plan');
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
                 candidateWordIds: initialSessionWordIds,
-                onRequest: notifyLaunchRequest
+                onRequest: notifyLaunchRequest,
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
             }).done(function (serverPlan) {
                 if (!isLaunchCurrent()) {
                     notifyLaunchFailure('');
@@ -6461,6 +6495,7 @@
                     categoryIds: initialLaunchPlan.categoryIds,
                     candidateWordIds: initialSessionWordIds,
                     minimumWordCount: needsBoundedLearningPlan ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
+                    requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                     source: 'wordset_progress_bounded_start',
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
@@ -6503,11 +6538,13 @@
         const ensureOptions = needsLearningExpansion ? {} : {
             sessionWordIds: initialSessionWordIds
         };
+        ensureOptions.rejectOnFailure = true;
+        ensureOptions.requestTimeoutMs = SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
         ensureOptions.onRequest = notifyLaunchRequest;
         ensureOptions.isRequestCurrent = isLaunchCurrent;
 
         notifyLaunchStage('hydrate');
-        ensureWordsForCategories(initialLaunchPlan.categoryIds, ensureOptions).always(function () {
+        ensureWordsForCategories(initialLaunchPlan.categoryIds, ensureOptions).done(function () {
             if (!isLaunchCurrent()) {
                 notifyLaunchFailure('');
                 return;
@@ -6540,6 +6577,12 @@
                     notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
                 }
             });
+        }).fail(function (_xhr, statusText) {
+            if (!isLaunchCurrent() || String(statusText || '').toLowerCase() === 'abort') {
+                notifyLaunchFailure('');
+                return;
+            }
+            notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
         });
     }
 
@@ -13655,6 +13698,10 @@
         const candidateWordIds = uniqueIntList(opts.sessionWordIds || opts.session_word_ids || opts.candidateWordIds || opts.candidate_word_ids || []);
         const rejectOnFailure = !!opts.rejectOnFailure;
         const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : 0;
         const isRequestCurrent = typeof opts.isRequestCurrent === 'function'
             ? opts.isRequestCurrent
             : function () { return true; };
@@ -13705,7 +13752,10 @@
                 const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
                 const rows = Array.isArray(accumulatedRows) ? accumulatedRows : [];
                 const restarts = Math.max(0, parseInt(restartCount, 10) || 0);
-                const request = $.post(ajaxUrl, payload);
+                const rawRequest = $.post(ajaxUrl, payload);
+                const request = requestTimeoutMs > 0
+                    ? applySelectionLaunchRequestDeadline(rawRequest, requestTimeoutMs)
+                    : rawRequest;
                 if (onRequest) {
                     onRequest(request);
                 }
@@ -13897,7 +13947,14 @@
             request.candidate_word_ids = candidateWordIds.join(',');
         }
 
-        const ajaxRequest = $.post(ajaxUrl, request);
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : 0;
+        const rawRequest = $.post(ajaxUrl, request);
+        const ajaxRequest = requestTimeoutMs > 0
+            ? applySelectionLaunchRequestDeadline(rawRequest, requestTimeoutMs)
+            : rawRequest;
         if (typeof opts.onRequest === 'function') {
             opts.onRequest(ajaxRequest);
         }
@@ -15259,6 +15316,7 @@
                 return new Promise(function (resolve, reject) {
                     launchFlashcards(session.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
                         source: 'wordset_chunk_continuation',
+                        requestTimeoutMs: session.request_timeout_ms,
                         chunked: true,
                         sessionStarMode: session.star_mode || 'normal',
                         randomizeSessionCategoryOrder: true,
@@ -15327,6 +15385,7 @@
 
         launchFlashcards(activeSession.mode, firstEntry.category_ids, firstEntry.session_word_ids, {
             source: String(opts.source || 'wordset_chunk_start'),
+            requestTimeoutMs: opts.requestTimeoutMs || activeSession.request_timeout_ms,
             chunked: true,
             sessionStarMode: activeSession.star_mode || 'normal',
             randomizeSessionCategoryOrder: true,
@@ -15558,12 +15617,14 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
+                request_timeout_ms: opts.requestTimeoutMs,
                 bounded_selection_plan: true,
                 continuous: true
             };
             const activeSession = chunkSession;
             launchContinuousChunkSession(activeSession, {
                 source: source,
+                requestTimeoutMs: opts.requestTimeoutMs,
                 launchUi: opts.launchUi,
                 launchUiCleanup: opts.launchUiCleanup,
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
@@ -15589,6 +15650,7 @@
         chunkSession = null;
         launchFlashcards('practice', firstEntry.category_ids, firstEntry.session_word_ids, {
             source: source,
+            requestTimeoutMs: opts.requestTimeoutMs,
             chunked: false,
             sessionStarMode: 'normal',
             randomizeSessionCategoryOrder: true,
@@ -15883,6 +15945,7 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
+                request_timeout_ms: opts.requestTimeoutMs,
                 bounded_selection_plan: true,
                 continuous: false
             };
@@ -15893,6 +15956,7 @@
         const activeSession = chunkSession;
         launchFlashcards('learning', firstEntry.category_ids, firstEntry.session_word_ids, {
             source: source,
+            requestTimeoutMs: opts.requestTimeoutMs,
             chunked: planChunks.length > 1,
             sessionStarMode: 'normal',
             randomizeSessionCategoryOrder: false,
@@ -15974,6 +16038,7 @@
                     $same.prop('disabled', true);
                     launchContinuousChunkSession(activeSession, {
                         source: 'wordset_logical_session_repeat',
+                        requestTimeoutMs: activeSession.request_timeout_ms,
                         onLaunchCommitted: function () {
                             if (chunkSession === activeSession) {
                                 delete activeSession.repeat_pending;
@@ -15993,6 +16058,7 @@
                 $same.prop('disabled', true);
                 launchFlashcards(activeSession.mode, currentEntry.category_ids, currentEntry.session_word_ids, {
                     source: 'wordset_chunk_repeat',
+                    requestTimeoutMs: activeSession.request_timeout_ms,
                     chunked: true,
                     sessionStarMode: activeSession.star_mode || 'normal',
                     categoryLabelOverride: currentEntry.category_label_override,
@@ -16033,6 +16099,7 @@
                 $next.prop('disabled', true);
                 launchFlashcards(chunkSession.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
                     source: 'wordset_chunk_continue',
+                    requestTimeoutMs: activeSession.request_timeout_ms,
                     chunked: true,
                     sessionStarMode: chunkSession.star_mode || 'normal',
                     categoryLabelOverride: nextEntry.category_label_override,
@@ -16619,6 +16686,7 @@
             sessionWordIds: sessionIds,
             rejectOnFailure: rejectOnLoadFailure
         };
+        launchEnsureOptions.requestTimeoutMs = opts.requestTimeoutMs;
         launchEnsureOptions.onRequest = onLaunchRequest;
         launchEnsureOptions.isRequestCurrent = launchIsCurrent;
 

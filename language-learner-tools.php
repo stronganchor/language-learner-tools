@@ -121,15 +121,18 @@ function ll_tools_configure_update_checker($update_checker, $branch) {
     $branch = ll_tools_normalize_update_branch($branch);
     $update_checker->setBranch($branch);
 
+    $vcs_api = null;
+    if (method_exists($update_checker, 'getVcsApi')) {
+        $vcs_api = $update_checker->getVcsApi();
+    }
+
     if ($branch !== 'main') {
+        if (is_object($vcs_api) && method_exists($vcs_api, 'disableReleaseAssets')) {
+            $vcs_api->disableReleaseAssets();
+        }
         return;
     }
 
-    if (!method_exists($update_checker, 'getVcsApi')) {
-        return;
-    }
-
-    $vcs_api = $update_checker->getVcsApi();
     if (!is_object($vcs_api) || !method_exists($vcs_api, 'enableReleaseAssets')) {
         return;
     }
@@ -790,6 +793,9 @@ register_deactivation_hook(__FILE__, function () {
 
     if (function_exists('ll_tools_clear_user_progress_retention_schedule')) {
         ll_tools_clear_user_progress_retention_schedule();
+    }
+    if (function_exists('ll_tools_clear_example_sentence_migration_schedule')) {
+        ll_tools_clear_example_sentence_migration_schedule();
     }
     if (defined('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK')) {
         wp_clear_scheduled_hook(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK);

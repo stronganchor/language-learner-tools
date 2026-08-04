@@ -16,6 +16,10 @@ function ll_tools_get_aspect_normalizer_page_slug(): string {
     return (string) LL_TOOLS_ASPECT_NORMALIZER_PAGE_SLUG;
 }
 
+function ll_tools_get_aspect_normalizer_capability(): string {
+    return 'manage_options';
+}
+
 function ll_tools_get_aspect_normalizer_admin_url(array $args = []): string {
     $base = add_query_arg(
         ['page' => ll_tools_get_aspect_normalizer_page_slug()],
@@ -32,7 +36,7 @@ function ll_tools_register_image_aspect_normalizer_admin_page(): void {
         'tools.php',
         __('LL Tools - Image Aspect Normalizer', 'll-tools-text-domain'),
         __('LL Normalize Images', 'll-tools-text-domain'),
-        'view_ll_tools',
+        ll_tools_get_aspect_normalizer_capability(),
         ll_tools_get_aspect_normalizer_page_slug(),
         'll_tools_render_image_aspect_normalizer_admin_page'
     );
@@ -40,7 +44,7 @@ function ll_tools_register_image_aspect_normalizer_admin_page(): void {
 add_action('admin_menu', 'll_tools_register_image_aspect_normalizer_admin_page');
 
 function ll_tools_enqueue_image_aspect_normalizer_admin_assets($hook): void {
-    if (!current_user_can('view_ll_tools')) {
+    if (!current_user_can(ll_tools_get_aspect_normalizer_capability())) {
         return;
     }
 
@@ -117,7 +121,7 @@ function ll_tools_enqueue_image_aspect_normalizer_admin_assets($hook): void {
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_image_aspect_normalizer_admin_assets');
 
 function ll_tools_render_image_aspect_normalizer_admin_page(): void {
-    if (!current_user_can('view_ll_tools')) {
+    if (!current_user_can(ll_tools_get_aspect_normalizer_capability())) {
         wp_die(__('You do not have permission to access this page.', 'll-tools-text-domain'));
     }
     ?>
@@ -738,7 +742,7 @@ function ll_tools_aspect_normalizer_create_padded_attachment($source_attachment_
 }
 
 function ll_tools_aspect_normalizer_verify_ajax_request(): void {
-    if (!current_user_can('view_ll_tools')) {
+    if (!current_user_can(ll_tools_get_aspect_normalizer_capability())) {
         wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
     }
     check_ajax_referer(LL_TOOLS_ASPECT_NORMALIZER_NONCE_ACTION, 'nonce');
@@ -1114,7 +1118,7 @@ function ll_tools_get_aspect_normalization_needs_lookup(): array {
 }
 
 function ll_tools_add_word_category_aspect_row_action($actions, $term) {
-    if (!is_admin() || !current_user_can('view_ll_tools')) {
+    if (!is_admin() || !current_user_can(ll_tools_get_aspect_normalizer_capability())) {
         return $actions;
     }
     if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {

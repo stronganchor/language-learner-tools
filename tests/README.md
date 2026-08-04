@@ -9,8 +9,9 @@ This directory contains the plugin test framework:
 - `bootstrap.php`: boots the WordPress test suite and loads the plugin.
 - `Integration/*Test.php`: PHPUnit integration tests.
 - `bin/setup-local-env.sh`: detects Local site DB settings and prints export commands.
-  - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports.
+  - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports. When sandbox policy hides that directory, it next uses a literal loopback `DB_HOST` from this site's `wp-config.php`; dynamic or remote hosts are deliberately ignored.
   - Keeps the detected Local DB host/user/password, but defaults `WP_TEST_DB_NAME` to an isolated test schema instead of the live site schema.
+  - Uses `bin/php-local.sh` plus `bin/resolve-local-runtime.php`, so Git Bash and WSL do not need a separate Python installation or hardcoded `/mnt/c` paths.
 - `bin/install-wp-tests.sh`: installs WordPress core + wordpress-tests-lib and writes `wp-tests-config.php`.
   - Refuses to target the live Local site database unless `ALLOW_LIVE_SITE_TEST_DB=1` is set explicitly.
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
@@ -19,8 +20,10 @@ This directory contains the plugin test framework:
   - On PHPUnit 12+, it also patches the local `wordpress-tests-lib` bootstrap to replace WordPress' removed legacy annotation-parser calls.
   - It also runs PHPUnit with a temporary cache directory outside the repo and cleans stale `tests/.phpunit.cache` leftovers so test runs do not dirty the plugin worktree.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
-- `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
-- `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
+- `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars through the same cross-platform PHP resolver.
+- `bin/run-e2e.sh`: refreshes a file-configured Local base URL from the matching active runtime, then installs Playwright deps/browsers only when the bundled Chromium executable is actually absent and runs browser E2E tests. An explicitly exported `LL_E2E_BASE_URL` remains authoritative; set `LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV=1` to keep an env-file URL unchanged.
+  - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
+  - Under Git Bash, the wrapper runs npm's JavaScript entry point and Playwright's installed CLI through the resolved Node executable. This avoids PATHEXT selecting npm's extensionless shell shim or handing its shebang to WSL.
 - `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture and runs the opt-in performance benchmark.
 - `e2e/*`: Playwright configuration + browser test specs.
 
@@ -119,7 +122,7 @@ tests/bin/setup-local-env.sh
 tests/bin/setup-local-http-env.sh
 ```
 
-Some Local installs keep stale ports in `local-site.json`; in that case inspect the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and temporarily override `WP_TEST_DB_HOST`.
+Some Local installs keep stale ports in `local-site.json`; inspect `LOCAL_DB_PORT_SOURCE`, this site's literal loopback `DB_HOST`, and the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) before temporarily overriding `WP_TEST_DB_HOST`.
 `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and (when runtime detection succeeds) `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` to show which Local runtime files were used.
 It also exports `LOCAL_LIVE_DB_NAME` / `LOCAL_LIVE_DB_HOST` so `install-wp-tests.sh` can block accidental writes to the live site database.
 If the WordPress test library itself is missing or incomplete, `run-tests.sh` now prints the broken paths and attempts a self-repair before it hands off to PHPUnit.
@@ -230,6 +233,9 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `RestPasswordAuthAdmissionTest` covers coarse direct-peer plus peer/login raw-password admission, rotating-login resistance, generic failures, successful reservation refunds, and cleanup namespace registration.
 - `DictionaryPublicFilterBoundsTest` covers byte/cardinality/shape admission for all public dictionary query arguments, early AJAX rejection, safe static-cache defaults, and normal bounded cache hits.
 - `MediaProxyFallbackCacheTest` covers bounded disk fallback storage, stale/contended service, failure backoff, exact-owner publishing, cache pruning, and attachment/scheduled cleanup.
+- `UserProgressRetentionTest` covers primary-key-bounded activity-retention batches, fixed high-water generations that cannot be starved by continuous inserts, advisory-lock overlap exclusion, cursor/continuation progress, preservation and later revisiting of fresh rows, ceiling/candidate read-error fail-closed behavior, deactivation cleanup, and the hard batch cap.
+- `UserProgressSchemaTest` and `UserProgressAtomicityTest` cover full progress-table column/index verification and repair, current installed/verified marker publication, marker-only runtime admission without repeated schema inspection, InnoDB preflight, and transactionally atomic ledger/derived writes. A failed full-width event-UUID index repair must leave the markers unpublished and block batch, server, and offline event mutations with retryable `progress_schema_unavailable` state while state-only offline sync remains available.
+- `ExampleSentenceMigrationBatchTest` covers durable word/recording keyset batches under one hard work budget, cursor advancement only after a word completes, continuation/completion publication, and source-read retry without cursor loss; `ExampleSentenceMigrationCapabilityTest` keeps automatic startup restricted to administrators.
 - `WordsetPageInactiveCategoryCardsTest` covers persisted preview cursors, same-item retry, bounded continuation, contention, and exact-owner lease renewal/release; `WordsetPageWarmLessonMapTest` covers single-owner rebuilds and immediate last-known-good service.
 - `FlashcardShellRendererTest` and `QuizPagePostTypeTest` cover shared/standalone dialog semantics and translated iframe recovery configuration.
 - `SecurityHardeningRegressionTest` covers the hosted-STT pre-read and bounded-read audio-size ceiling, and `AudioProcessorQueuePaginationTest` covers signed user/tab keyset cursors with the legacy direct deep-page fallback.
@@ -447,6 +453,8 @@ Live smoke runner config:
 - Create a local JSON file at `tests/e2e/live-smoke/sites.local.json` by copying `tests/e2e/live-smoke/sites.example.json`.
 - Or point `LL_LIVE_SITES_FILE` at another local JSON file.
 - `tests/bin/run-live-smoke.sh` is serial and intended for anonymous, low-impact public-page checks only.
+- The runner imports only `LL_LIVE_SITES_FILE`, `LL_LIVE_SMOKE_TIMEOUT_MS`, and `LL_LIVE_SMOKE_PAUSE_MS` from the local test env files; database, browser-login, and other credentials are not passed into the public smoke process.
+- Console errors and same-origin request failures, 5xx responses, and unexpected non-GET requests are enforced across both the entry page and any configured navigation target.
 - Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
 - If a homepage is only a wordset-button hub, add `"navigation": { "type": "wordsetButtonMostLessons" }` so the smoke run clicks the visible button with the highest lesson count before applying the normal wordset-page assertions.
 - The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category`, `POST /wp-admin/admin-ajax.php?action=ll_get_flashcard_payload_page`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_lazy_cards`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_category_search`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_buttons_status`, and `POST /wp-admin/admin-ajax.php?action=ll_tools_get_vocab_lesson_grid` as allowed read-style public-page requests. It also allows exact-path infrastructure telemetry at `/cdn-cgi/rum`. Other same-origin non-GET requests still fail unless you explicitly allow exact paths with `network.allowedSameOriginNonGetPaths` or actions with `network.allowedAdminAjaxActions` in the site config.

@@ -4136,6 +4136,11 @@ function ll_tools_word_edit_modal_enqueue_assets(
     wp_localize_script('ll-tools-word-edit-modal', 'llToolsWordEditModalData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_word_edit_modal'),
+        'requestTimeoutMs' => max(5000, min(120000, (int) apply_filters(
+            'll_tools_word_edit_modal_request_timeout_ms',
+            30000,
+            $wordset_id
+        ))),
         'i18n' => [
             'openError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
             'renderError' => __('Unable to open the word editor.', 'll-tools-text-domain'),

@@ -73,6 +73,8 @@ require_once(__DIR__ . '/user-study.php');
 require_once(__DIR__ . '/user-progress-report-data.php');
 require_once(__DIR__ . '/offline-app-sync.php');
 require_once(__DIR__ . '/privacy.php');
+// Its bounded continuation must also be registered during WP-Cron requests.
+require_once(__DIR__ . '/admin/example-sentence-migration.php');
 
 // Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
@@ -117,7 +119,6 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
-    require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
     require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');

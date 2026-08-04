@@ -397,6 +397,19 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Bulk Word Import', $output);
         $this->assertStringNotContainsString('Offline App Export', $output);
         $this->assertStringNotContainsString('Login Blocks', $output);
+        $this->assertStringNotContainsString('Normalize Image Ratios', $output);
+    }
+
+    public function test_tools_hub_shows_image_aspect_normalizer_to_administrator(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+
+        ob_start();
+        ll_tools_render_tools_hub_page();
+        $output = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Normalize Image Ratios', $output);
     }
 
     public function test_version_change_schedules_post_update_maintenance(): void

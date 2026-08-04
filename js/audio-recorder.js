@@ -22,6 +22,8 @@
     let suppressNextScroll = false;
     let newWordCategoryTypeCache = {};
     let newWordCategoryTypeAbort = null;
+    let newWordCategoryTypeRequest = null;
+    let newWordCategoryTypeRequestGeneration = 0;
     let newWordLastSaved = { target: '', translation: '' };
     let newWordDraftBeforeRecording = {
         target: '',
@@ -45,6 +47,10 @@
     let recordingStartToken = 0;
     let pendingRecordingStart = null;
     let pendingRecordingStop = null;
+    let activeRecordingSession = null;
+    let recordingContextLock = null;
+    let recordingContextMutationDepth = 0;
+    const discardedRecordingSessions = new WeakSet();
     let categoryQueuePagination = null;
     let pendingCategoryQueuePageRequest = null;
     let categoryQueueRequestGeneration = 0;
@@ -116,6 +122,19 @@
     const recordingStopDelayMs = Number.isFinite(recordingStopDelayMsRaw) && recordingStopDelayMsRaw >= 0
         ? recordingStopDelayMsRaw
         : 500;
+    const uploadRequestTimeoutMsRaw = parseInt(window.ll_recorder_data?.upload_timeout_ms, 10);
+    const uploadRequestTimeoutMs = Number.isFinite(uploadRequestTimeoutMsRaw) && uploadRequestTimeoutMsRaw >= 50
+        ? uploadRequestTimeoutMsRaw
+        : 120000;
+    const verifyRequestTimeoutMsRaw = parseInt(window.ll_recorder_data?.verify_timeout_ms, 10);
+    const verifyRequestTimeoutMs = Number.isFinite(verifyRequestTimeoutMsRaw) && verifyRequestTimeoutMsRaw >= 50
+        ? verifyRequestTimeoutMsRaw
+        : 20000;
+    const requestTimeoutMsRaw = parseInt(window.ll_recorder_data?.request_timeout_ms, 10);
+    const requestTimeoutMs = Number.isFinite(requestTimeoutMsRaw) && requestTimeoutMsRaw >= 50
+        ? Math.min(120000, requestTimeoutMsRaw)
+        : 30000;
+    const newWordCategoryTypeRequestTimeoutMs = Math.min(120000, Math.max(50, verifyRequestTimeoutMs));
     const processingDefaults = {
         enableTrim: true,
         enableNoise: true,
@@ -262,11 +281,59 @@
         }
     }
 
+    function fetchWithDeadline(url, options = {}, timeoutMs = requestTimeoutMs) {
+        const requestOptions = { ...options };
+        const upstreamSignal = requestOptions.signal || null;
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let upstreamAbort = null;
+        let timeoutId = null;
+
+        if (controller) {
+            requestOptions.signal = controller.signal;
+            if (upstreamSignal) {
+                upstreamAbort = () => controller.abort();
+                if (upstreamSignal.aborted) {
+                    controller.abort();
+                } else {
+                    upstreamSignal.addEventListener('abort', upstreamAbort, { once: true });
+                }
+            }
+        }
+
+        const timeoutPromise = new Promise((resolve, reject) => {
+            timeoutId = window.setTimeout(() => {
+                if (controller) controller.abort();
+                const error = new Error(i18n.request_failed || 'Request failed');
+                error.name = 'TimeoutError';
+                reject(error);
+            }, Math.max(50, Math.min(120000, Number(timeoutMs) || requestTimeoutMs)));
+        });
+
+        return Promise.race([
+            fetch(url, requestOptions),
+            timeoutPromise,
+        ]).finally(() => {
+            if (timeoutId !== null) window.clearTimeout(timeoutId);
+            if (upstreamSignal && upstreamAbort) {
+                upstreamSignal.removeEventListener('abort', upstreamAbort);
+            }
+        });
+    }
+
+    function fetchCommitSensitiveRequest(url, options = {}) {
+        // A browser timeout or abort cannot cancel PHP after it has started.
+        // These requests create a draft, start a billable external job, or
+        // persist editable text, so an automatic retry could duplicate work or
+        // let an older write land after a newer edit. Keep them unbounded until
+        // the server provides an atomic idempotency/sequence ledger.
+        return fetch(url, options);
+    }
+
     async function requestRecordingCategoryPage(category, page, cursorToken) {
         const formData = new FormData();
         appendRecordingCategoryRequest(formData, category, page, cursorToken);
 
-        const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+        const response = await fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -521,6 +588,10 @@
             uploadProgressBar: document.getElementById('ll-upload-progress-bar'),
             uploadProgressFill: document.getElementById('ll-upload-progress-fill'),
         };
+        if (window.llRecorder.interfaceRoot && !window.llRecorder.interfaceRoot.dataset.llRecordingContextGuard) {
+            window.llRecorder.interfaceRoot.dataset.llRecordingContextGuard = '1';
+            window.llRecorder.interfaceRoot.addEventListener('change', guardRecordingContextChange, true);
+        }
     }
 
     function isOverlayVisible(element) {
@@ -583,6 +654,142 @@
             skipBtn: el.skipBtn,
             hideBtn: el.hideBtn,
         };
+    }
+
+    function revokeAudioBlobUrl(audio) {
+        if (!audio) return;
+        const url = String(audio.dataset?.blobUrl || '');
+        if (url) {
+            try { URL.revokeObjectURL(url); } catch (_) { /* no-op */ }
+            delete audio.dataset.blobUrl;
+        }
+        audio.removeAttribute('src');
+    }
+
+    function setAudioBlob(audio, blob) {
+        if (!audio || !blob) return '';
+        revokeAudioBlobUrl(audio);
+        const url = URL.createObjectURL(blob);
+        audio.dataset.blobUrl = url;
+        audio.src = url;
+        return url;
+    }
+
+    function revokeRecorderBlobUrls() {
+        const el = window.llRecorder || {};
+        revokeAudioBlobUrl(el.playbackAudio);
+        revokeAudioBlobUrl(el.newWordPlaybackAudio);
+        if (el.reviewContainer) {
+            el.reviewContainer.querySelectorAll('audio').forEach(revokeAudioBlobUrl);
+        }
+    }
+
+    function getRecordingContextElements() {
+        const el = window.llRecorder || {};
+        const elements = [
+            el.categorySelect,
+            el.wordsetSelect,
+            el.recordingTypeSelect,
+            el.newWordToggle,
+            el.newWordBackBtn,
+            el.newWordCategory,
+            el.newWordCreateCategory,
+            el.newWordCategoryName,
+        ].filter(Boolean);
+
+        if (el.newWordTypesWrap) {
+            elements.push(...el.newWordTypesWrap.querySelectorAll('input, select, button'));
+        }
+
+        return Array.from(new Set(elements));
+    }
+
+    function lockRecordingContext() {
+        if (recordingContextLock) return;
+
+        const entries = new Map();
+        getRecordingContextElements().forEach(element => {
+            entries.set(element, {
+                disabled: !!element.disabled,
+                value: 'value' in element ? element.value : undefined,
+                checked: 'checked' in element ? !!element.checked : undefined,
+            });
+            element.disabled = true;
+        });
+        recordingContextLock = { entries };
+        renderRecordingTypeChoices();
+        syncCategorySelectorUi();
+    }
+
+    function restoreLockedRecordingContextValues() {
+        if (!recordingContextLock) return;
+
+        recordingContextLock.entries.forEach((state, element) => {
+            if (state.value !== undefined && 'value' in element) {
+                element.value = state.value;
+            }
+            if (state.checked !== undefined && 'checked' in element) {
+                element.checked = state.checked;
+            }
+            element.disabled = true;
+        });
+        renderRecordingTypeChoices();
+        syncCategorySelectorUi();
+    }
+
+    function mutateLockedRecordingContext(callback) {
+        recordingContextMutationDepth += 1;
+        try {
+            return callback();
+        } finally {
+            recordingContextMutationDepth = Math.max(0, recordingContextMutationDepth - 1);
+        }
+    }
+
+    function syncLockedRecordingContextValues() {
+        if (!recordingContextLock) return;
+
+        recordingContextLock.entries.forEach((state, element) => {
+            if (state.value !== undefined && 'value' in element) {
+                state.value = element.value;
+            }
+            if (state.checked !== undefined && 'checked' in element) {
+                state.checked = !!element.checked;
+            }
+            element.disabled = true;
+        });
+        renderRecordingTypeChoices();
+        syncCategorySelectorUi();
+    }
+
+    function unlockRecordingContext() {
+        if (!recordingContextLock) return;
+
+        const lock = recordingContextLock;
+        recordingContextLock = null;
+        lock.entries.forEach((state, element) => {
+            if (element && element.isConnected) {
+                element.disabled = state.disabled;
+            }
+        });
+        renderRecordingTypeChoices();
+        syncCategorySelectorUi();
+    }
+
+    function guardRecordingContextChange(event) {
+        if (
+            recordingContextMutationDepth > 0
+            || !recordingContextLock
+            || !recordingContextLock.entries.has(event.target)
+        ) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        restoreLockedRecordingContextValues();
+    }
+
+    function isRecordingContextLocked() {
+        return !!recordingContextLock;
     }
 
     function resetMicLevelIndicator(controls) {
@@ -741,6 +948,7 @@
 
         const token = ++recordingStartToken;
         pendingRecordingStart = { token, controls };
+        lockRecordingContext();
 
         if (controls.isNewWordPanel) {
             clearNewWordStatus();
@@ -1120,7 +1328,10 @@
         const hasError = state === 'error';
         el.categoryOverview.classList.toggle('is-loading', isLoading);
         el.categoryOverview.classList.toggle('has-error', hasError);
-        el.categoryOverview.setAttribute('aria-busy', isLoading || placeholders.length > 0 ? 'true' : 'false');
+        el.categoryOverview.setAttribute(
+            'aria-busy',
+            isLoading || (!hasError && placeholders.length > 0) ? 'true' : 'false'
+        );
         if (el.categoryOverviewStatus) {
             if (isLoading) {
                 el.categoryOverviewStatus.textContent = i18n.category_overview_loading || '';
@@ -1292,7 +1503,7 @@
 
         let retryAutomatically = false;
         let pauseAutomaticLoading = false;
-        categoryOverviewRequest = fetch(ajaxUrl, { method: 'POST', body: formData });
+        categoryOverviewRequest = fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
         try {
             const response = await categoryOverviewRequest;
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -2035,7 +2246,7 @@
             const trigger = event.target && event.target.closest
                 ? event.target.closest('.ll-recording-type-choice')
                 : null;
-            if (!trigger || trigger.disabled) return;
+            if (!trigger || trigger.disabled || isRecordingContextLocked()) return;
             const value = String(trigger.getAttribute('data-recording-type-value') || '');
             if (!value || value === el.recordingTypeSelect.value) return;
             el.recordingTypeSelect.value = value;
@@ -2063,7 +2274,7 @@
     }
 
     function enterNewWordMode(skipSave) {
-        if (!allowNewWords) return;
+        if (!allowNewWords || isRecordingContextLocked()) return;
         setHiddenWordsPanelOpen(false);
         if (!skipSave && !savedExistingState) {
             savedExistingState = captureExistingState();
@@ -2089,6 +2300,7 @@
     }
 
     function exitNewWordMode() {
+        if (isRecordingContextLocked()) return;
         const el = window.llRecorder;
         newWordMode = false;
         newWordStage = 'inactive';
@@ -2267,7 +2479,7 @@
             el.newWordPlaybackControls.style.display = 'none';
         }
         if (el.newWordPlaybackAudio) {
-            el.newWordPlaybackAudio.removeAttribute('src');
+            revokeAudioBlobUrl(el.newWordPlaybackAudio);
         }
         if (el.newWordStartBtn) el.newWordStartBtn.disabled = true;
         if (el.newWordBackBtn) el.newWordBackBtn.disabled = false;
@@ -2637,7 +2849,7 @@
         formData.append('word_text_translation', translationText);
 
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            const response = await fetchCommitSensitiveRequest(ajaxUrl, { method: 'POST', body: formData });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -2777,7 +2989,7 @@
             formData.append('wordset_ids', JSON.stringify(wordsetIds));
             formData.append('wordset', wordsetLegacy);
 
-            const response = await fetch(ajaxUrl, {
+            const response = await fetchWithDeadline(ajaxUrl, {
                 method: 'POST',
                 body: formData,
                 signal
@@ -2832,7 +3044,7 @@
         formData.append('wordset', wordsetLegacy);
 
         try {
-            const response = await fetch(ajaxUrl, {
+            const response = await fetchCommitSensitiveRequest(ajaxUrl, {
                 method: 'POST',
                 body: formData,
                 signal: translateController.signal
@@ -2910,7 +3122,7 @@
         formData.append('wordset', wordsetLegacy);
 
         try {
-            const response = await fetch(ajaxUrl, {
+            const response = await fetchCommitSensitiveRequest(ajaxUrl, {
                 method: 'POST',
                 body: formData,
                 signal: transcribeController.signal
@@ -3122,51 +3334,217 @@
         return `${wordsetIds.join(',')}|${legacyWordset}|${categorySlug}`;
     }
 
-    async function requestNewWordCategoryTypes(categorySlug) {
-        if (!ajaxUrl || !nonce || !categorySlug) return;
-        const cacheKey = getNewWordCategoryTypeCacheKey(categorySlug);
-        if (newWordCategoryTypeCache[cacheKey]) return;
+    function requestNewWordCategoryTypes(categorySlug) {
+        const normalizedCategory = String(categorySlug || '').trim();
+        const fallbackMessage = i18n.request_failed || 'Request failed';
+        if (!ajaxUrl || !nonce || !normalizedCategory) {
+            return Promise.resolve({ ready: false, invalid: true, message: fallbackMessage });
+        }
+
+        const cacheKey = getNewWordCategoryTypeCacheKey(normalizedCategory);
+        const cachedTypes = newWordCategoryTypeCache[cacheKey];
+        if (Array.isArray(cachedTypes) && cachedTypes.length > 0) {
+            return Promise.resolve({
+                ready: true,
+                category: normalizedCategory,
+                cacheKey,
+                types: cachedTypes.slice(),
+                cached: true,
+            });
+        }
+
+        if (
+            newWordCategoryTypeRequest
+            && newWordCategoryTypeRequest.cacheKey === cacheKey
+            && newWordCategoryTypeRequest.promise
+        ) {
+            return newWordCategoryTypeRequest.promise;
+        }
+
         if (newWordCategoryTypeAbort) {
             newWordCategoryTypeAbort.abort();
         }
+
         const controller = new AbortController();
+        const requestGeneration = ++newWordCategoryTypeRequestGeneration;
+        const requestState = {
+            cacheKey,
+            category: normalizedCategory,
+            controller,
+            generation: requestGeneration,
+            promise: null,
+        };
         newWordCategoryTypeAbort = controller;
 
         const formData = new FormData();
         formData.append('action', 'll_get_recording_types_for_category');
         formData.append('nonce', nonce);
         appendRequestLocale(formData);
-        formData.append('category', categorySlug);
+        formData.append('category', normalizedCategory);
         formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
         formData.append('wordset', window.ll_recorder_data?.wordset || '');
         formData.append('include_types', window.ll_recorder_data?.include_types || '');
         formData.append('exclude_types', window.ll_recorder_data?.exclude_types || '');
 
-        try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData, signal: controller.signal });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        requestState.promise = (async () => {
+            let timeoutId = null;
+            let timedOut = false;
+            try {
+                const timeoutPromise = new Promise((resolve, reject) => {
+                    timeoutId = setTimeout(() => {
+                        timedOut = true;
+                        controller.abort();
+                        reject(new Error(fallbackMessage));
+                    }, newWordCategoryTypeRequestTimeoutMs);
+                });
+                const response = await Promise.race([
+                    fetch(ajaxUrl, { method: 'POST', body: formData, signal: controller.signal }),
+                    timeoutPromise,
+                ]);
+                if (!response.ok) {
+                    throw new Error(fallbackMessage);
+                }
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    throw new Error(i18n.invalid_response || fallbackMessage);
+                }
+                const data = await response.json();
+                if (
+                    controller.signal.aborted
+                    || requestGeneration !== newWordCategoryTypeRequestGeneration
+                    || newWordCategoryTypeRequest !== requestState
+                ) {
+                    return {
+                        ready: false,
+                        stale: true,
+                        category: normalizedCategory,
+                        cacheKey,
+                    };
+                }
+                if (!data.success) {
+                    return {
+                        ready: false,
+                        category: normalizedCategory,
+                        cacheKey,
+                        message: getAjaxErrorMessage(data, fallbackMessage),
+                    };
+                }
+
+                const types = sortRecordingTypes(
+                    Array.isArray(data.data?.recording_types) ? data.data.recording_types : []
+                );
+                if (!types.length) {
+                    return {
+                        ready: false,
+                        category: normalizedCategory,
+                        cacheKey,
+                        message: fallbackMessage,
+                    };
+                }
+
+                newWordCategoryTypeCache[cacheKey] = types;
+                const currentCategory = String(window.llRecorder?.newWordCategory?.value || '').trim();
+                if (getNewWordCategoryTypeCacheKey(currentCategory) === cacheKey) {
+                    updateNewWordRecordingTypeLabel();
+                }
+                return {
+                    ready: true,
+                    category: normalizedCategory,
+                    cacheKey,
+                    types: types.slice(),
+                };
+            } catch (err) {
+                if (timedOut) {
+                    return {
+                        ready: false,
+                        timedOut: true,
+                        category: normalizedCategory,
+                        cacheKey,
+                        message: fallbackMessage,
+                    };
+                }
+                if (
+                    (err && err.name === 'AbortError')
+                    || controller.signal.aborted
+                    || requestGeneration !== newWordCategoryTypeRequestGeneration
+                ) {
+                    return {
+                        ready: false,
+                        stale: true,
+                        aborted: true,
+                        category: normalizedCategory,
+                        cacheKey,
+                    };
+                }
+                return {
+                    ready: false,
+                    category: normalizedCategory,
+                    cacheKey,
+                    message: fallbackMessage,
+                };
+            } finally {
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                }
+                if (newWordCategoryTypeRequest === requestState) {
+                    newWordCategoryTypeRequest = null;
+                }
+                if (newWordCategoryTypeAbort === controller) {
+                    newWordCategoryTypeAbort = null;
+                }
             }
-            const contentType = response.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) {
-                throw new Error(i18n.invalid_response || 'Server returned invalid response format');
-            }
-            const data = await response.json();
-            if (!data.success) {
-                return;
-            }
-            const types = Array.isArray(data.data?.recording_types) ? data.data.recording_types : [];
-            newWordCategoryTypeCache[cacheKey] = sortRecordingTypes(types);
-            updateNewWordRecordingTypeLabel();
-        } catch (err) {
-            if (err && err.name === 'AbortError') {
-                return;
-            }
-        } finally {
-            if (newWordCategoryTypeAbort === controller) {
-                newWordCategoryTypeAbort = null;
-            }
+        })();
+        newWordCategoryTypeRequest = requestState;
+
+        return requestState.promise;
+    }
+
+    async function waitForNewWordCategoryTypeBeforeCapture(startupToken, controls) {
+        if (!controls?.isNewWordPanel || !isNewWordPanelActive() || newWordPrepared) {
+            return { ready: true };
         }
+
+        const el = window.llRecorder;
+        if (el.newWordCreateCategory?.checked) {
+            return { ready: true };
+        }
+
+        const category = String(el.newWordCategory?.value || '').trim();
+        const cacheKey = getNewWordCategoryTypeCacheKey(category);
+        const result = await requestNewWordCategoryTypes(category);
+        if (!pendingRecordingStart || pendingRecordingStart.token !== startupToken) {
+            return { ready: false, cancelled: true };
+        }
+
+        const currentCategory = String(el.newWordCategory?.value || '').trim();
+        const contextIsCurrent = isNewWordPanelActive()
+            && !newWordPrepared
+            && !el.newWordCreateCategory?.checked
+            && currentCategory === category
+            && getNewWordCategoryTypeCacheKey(currentCategory) === cacheKey;
+        if (
+            !contextIsCurrent
+            || !result
+            || result.stale
+            || result.cacheKey !== cacheKey
+            || result.category !== category
+        ) {
+            return { ready: false, stale: true };
+        }
+        if (!result.ready || !Array.isArray(result.types) || !result.types.length) {
+            return {
+                ready: false,
+                message: result.message || i18n.request_failed || 'Request failed',
+            };
+        }
+
+        updateNewWordRecordingTypeLabel();
+        return {
+            ready: true,
+            category,
+            cacheKey,
+            recordingType: getRecordingTypeSlug(result.types[0]),
+        };
     }
 
     function updateNewWordRecordingTypeLabel() {
@@ -3276,7 +3654,7 @@
         }
 
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            const response = await fetchCommitSensitiveRequest(ajaxUrl, { method: 'POST', body: formData });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -3296,25 +3674,28 @@
             const recordingTypes = sortRecordingTypes(data.data?.recording_types || []);
             normalizeImageRecordingTypeState(word);
 
-            if (data.data?.category?.slug && el.newWordCategory) {
-                const slug = data.data.category.slug;
-                const name = data.data.category.name || slug;
-                const exists = Array.from(el.newWordCategory.options).some(opt => opt.value === slug);
-                if (!exists) {
-                    const opt = document.createElement('option');
-                    opt.value = slug;
-                    opt.textContent = name;
-                    el.newWordCategory.appendChild(opt);
+            mutateLockedRecordingContext(() => {
+                if (data.data?.category?.slug && el.newWordCategory) {
+                    const slug = data.data.category.slug;
+                    const name = data.data.category.name || slug;
+                    const exists = Array.from(el.newWordCategory.options).some(opt => opt.value === slug);
+                    if (!exists) {
+                        const opt = document.createElement('option');
+                        opt.value = slug;
+                        opt.textContent = name;
+                        el.newWordCategory.appendChild(opt);
+                    }
+                    el.newWordCategory.value = slug;
+                    lastNewWordCategory = slug;
                 }
-                el.newWordCategory.value = slug;
-                lastNewWordCategory = slug;
-            }
 
-            window.ll_recorder_data.images = [word];
-            images.length = 0;
-            images.push(word);
-            currentImageIndex = 0;
-            updateRecordingTypeOptions(recordingTypes);
+                window.ll_recorder_data.images = [word];
+                images.length = 0;
+                images.push(word);
+                currentImageIndex = 0;
+                updateRecordingTypeOptions(recordingTypes);
+            });
+            syncLockedRecordingContextValues();
 
             newWordPrepared = true;
             newWordStage = 'recording';
@@ -3607,6 +3988,7 @@
             const xhr = new XMLHttpRequest();
             xhr.open('POST', ajaxUrl, true);
             xhr.responseType = 'text';
+            xhr.timeout = uploadRequestTimeoutMs;
 
             xhr.upload.addEventListener('progress', event => {
                 if (typeof onProgress !== 'function') return;
@@ -3694,6 +4076,7 @@
 
     function handleSuccessfulUpload(recordingType, remaining, autoProcessed) {
         const el = window.llRecorder;
+        unlockRecordingContext();
         const currentImage = images[currentImageIndex];
         normalizeImageRecordingTypeState(currentImage);
         const remainingTypes = getRemainingTypesAfterSuccessfulUpload(recordingType, remaining, currentImage);
@@ -3785,6 +4168,11 @@
         document.addEventListener('keydown', event => {
             if (event.key === 'Escape' && hiddenWordsPanelOpen) {
                 setHiddenWordsPanelOpen(false);
+            }
+        });
+        window.addEventListener('pagehide', event => {
+            if (!event || event.persisted !== true) {
+                revokeRecorderBlobUrls();
             }
         });
     }
@@ -4157,8 +4545,7 @@
     function resetRecordingState() {
         const el = window.llRecorder;
         stopMicLevelVisualizer();
-        clearRecordingStartup();
-        clearPendingRecordingStop();
+        discardActiveRecordingCapture();
         if (timerInterval) {
             clearInterval(timerInterval);
             timerInterval = null;
@@ -4182,6 +4569,7 @@
         if (el.submitBtn) el.submitBtn.disabled = false;
         if (el.indicator) el.indicator.style.display = 'none';
         if (el.playbackControls) el.playbackControls.style.display = 'none';
+        revokeAudioBlobUrl(el.playbackAudio);
         if (el.status) {
             el.status.textContent = '';
             el.status.className = 'll-upload-status';
@@ -4201,7 +4589,7 @@
             el.indicator.classList.remove('is-starting');
         }
         if (el.newWordPlaybackControls) el.newWordPlaybackControls.style.display = 'none';
-        if (el.newWordPlaybackAudio) el.newWordPlaybackAudio.removeAttribute('src');
+        revokeAudioBlobUrl(el.newWordPlaybackAudio);
         if (el.newWordStartBtn && isNewWordPanelActive()) el.newWordStartBtn.disabled = true;
         if (el.processingReview) {
             el.processingReview.style.display = 'none';
@@ -4210,6 +4598,7 @@
             el.processingReviewOverlay.setAttribute('hidden', 'hidden');
         }
         if (el.reviewContainer) {
+            el.reviewContainer.querySelectorAll('audio').forEach(revokeAudioBlobUrl);
             el.reviewContainer.innerHTML = '';
         }
         if (el.reviewSubmitBtn) {
@@ -4237,6 +4626,7 @@
         audioChunks = [];
         processingState = null;
         activeRecordingControls = null;
+        unlockRecordingContext();
         syncNewWordProcessingReviewState();
         syncOverlayScrollLock();
     }
@@ -4259,10 +4649,39 @@
         const startupToken = beginRecordingStartup(controls);
         if (!startupToken) return;
 
+        let typeReadiness;
+        try {
+            typeReadiness = await waitForNewWordCategoryTypeBeforeCapture(startupToken, controls);
+        } catch (_) {
+            typeReadiness = { ready: false, message: i18n.request_failed || 'Request failed' };
+        }
+        if (!pendingRecordingStart || pendingRecordingStart.token !== startupToken) {
+            return;
+        }
+        if (!typeReadiness?.ready) {
+            discardActiveRecordingCapture();
+            unlockRecordingContext();
+            if (controls.isNewWordPanel && !typeReadiness?.cancelled) {
+                newWordStage = 'setup';
+                flashNewWordAutoStatus(
+                    'error',
+                    typeReadiness?.message || i18n.request_failed || 'Request failed'
+                );
+            }
+            return;
+        }
+
         let stream = null;
 
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            if (!pendingRecordingStart || pendingRecordingStart.token !== startupToken) {
+                if (stream && typeof stream.getTracks === 'function') {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                return;
+            }
 
             // Prioritize formats by audio processing quality
             // Avoid Opus (generic webm) - causes issues with noise reduction/processing
@@ -4298,13 +4717,25 @@
                 throw new Error(i18n.recording_format_unsupported || 'Browser does not support required audio formats for recording');
             }
 
-            mediaRecorder = new MediaRecorder(stream, options);
+            const recorder = new MediaRecorder(stream, options);
+            const sessionChunks = [];
+            const session = {
+                recorder,
+                stream,
+                chunks: sessionChunks,
+                controls,
+            };
+            activeRecordingSession = session;
+            mediaRecorder = recorder;
+            audioChunks = sessionChunks;
+            recorder.ondataavailable = (e) => {
+                if (!discardedRecordingSessions.has(session)) {
+                    sessionChunks.push(e.data);
+                }
+            };
+            recorder.onstop = () => handleRecordingStopped(session);
 
-            audioChunks = [];
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = handleRecordingStopped;
-
-            mediaRecorder.start();
+            recorder.start();
             recordingStartTime = Date.now();
 
             activeRecordingControls = controls;
@@ -4340,11 +4771,17 @@
             if (stream && typeof stream.getTracks === 'function') {
                 stream.getTracks().forEach(track => track.stop());
             }
+            const startupIsCurrent = !!pendingRecordingStart && pendingRecordingStart.token === startupToken;
+            if (!startupIsCurrent) {
+                return;
+            }
+
             console.error('Error accessing microphone:', err);
             console.error('Error name:', err?.name);
             console.error('Error message:', err?.message);
 
-            clearRecordingStartup({ token: startupToken });
+            discardActiveRecordingCapture();
+            unlockRecordingContext();
             const message = await buildMicErrorMessage(err);
             showStatus(message, 'error');
             activeRecordingControls = null;
@@ -4440,12 +4877,41 @@
             timerInterval = null;
         }
 
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            if (mediaRecorder.stream && typeof mediaRecorder.stream.getTracks === 'function') {
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        const recorder = mediaRecorder;
+        if (recorder && recorder.state === 'recording') {
+            recorder.stop();
+            if (recorder.stream && typeof recorder.stream.getTracks === 'function') {
+                recorder.stream.getTracks().forEach(track => track.stop());
             }
         }
+    }
+
+    function discardActiveRecordingCapture() {
+        recordingStartToken += 1;
+        clearRecordingStartup();
+        clearPendingRecordingStop({ keepDisabled: true });
+
+        const session = activeRecordingSession;
+        const recorder = session?.recorder || mediaRecorder;
+        if (session) {
+            discardedRecordingSessions.add(session);
+        }
+        if (recorder) {
+            try {
+                if (recorder.state === 'recording') {
+                    recorder.stop();
+                }
+            } catch (_) { /* recorder may already be stopping */ }
+            const stream = session?.stream || recorder.stream;
+            if (stream && typeof stream.getTracks === 'function') {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        }
+
+        activeRecordingSession = null;
+        mediaRecorder = null;
+        activeRecordingControls = null;
+        audioChunks = [];
     }
 
     function stopRecording() {
@@ -4473,13 +4939,17 @@
         }
     }
 
-    async function handleRecordingStopped() {
+    async function handleRecordingStopped(session) {
+        if (!session || discardedRecordingSessions.has(session) || activeRecordingSession !== session) {
+            return;
+        }
         const el = window.llRecorder;
-        const controls = activeRecordingControls || getActiveControls();
+        const controls = session.controls || activeRecordingControls || getActiveControls();
         stopMicLevelVisualizer(controls);
 
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        currentBlob = new Blob(audioChunks, { type: mimeType });
+        const mimeType = session.recorder.mimeType || 'audio/webm';
+        const recordedBlob = new Blob(session.chunks, { type: mimeType });
+        currentBlob = recordedBlob;
 
         if (controls.recordBtn) {
             controls.recordBtn.classList.remove('recording', 'stopping');
@@ -4498,16 +4968,16 @@
         if (isNewWordPanelActive() && el.newWordStartBtn) {
             el.newWordStartBtn.disabled = false;
         }
-        if (isNewWordPanelActive() && el.newWordBackBtn) {
+        if (isNewWordPanelActive() && el.newWordBackBtn && !isRecordingContextLocked()) {
             el.newWordBackBtn.disabled = false;
         }
 
         if (isNewWordPanelActive()) {
-            maybeTranscribeNewWordRecording(currentBlob);
+            maybeTranscribeNewWordRecording(recordedBlob);
         }
 
         if (!autoProcessEnabled) {
-            showRawPlayback(currentBlob, controls);
+            showRawPlayback(recordedBlob, controls);
             return;
         }
 
@@ -4516,7 +4986,10 @@
         if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = true;
 
         try {
-            const processed = await processRecordedBlob(currentBlob, { ...processingDefaults });
+            const processed = await processRecordedBlob(recordedBlob, { ...processingDefaults });
+            if (discardedRecordingSessions.has(session) || activeRecordingSession !== session) {
+                return;
+            }
             processingState = {
                 originalBuffer: processed.originalBuffer,
                 processedBuffer: processed.processedBuffer,
@@ -4529,13 +5002,18 @@
             showProcessingReview();
             showStatus(i18n.processing_ready || 'Review the processed audio below.', 'success');
         } catch (error) {
+            if (discardedRecordingSessions.has(session) || activeRecordingSession !== session) {
+                return;
+            }
             console.error('Audio processing failed:', error);
             processingState = null;
             showStatus(i18n.processing_failed || 'Audio processing failed. You can upload the raw recording instead.', 'error');
             showRawPlayback(currentBlob);
         } finally {
-            if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
-            if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+            if (!discardedRecordingSessions.has(session) && activeRecordingSession === session) {
+                if (el.reviewSubmitBtn) el.reviewSubmitBtn.disabled = false;
+                if (el.reviewRedoBtn) el.reviewRedoBtn.disabled = false;
+            }
         }
     }
 
@@ -4549,6 +5027,7 @@
             el.processingReviewOverlay.setAttribute('hidden', 'hidden');
         }
         if (el.reviewContainer) {
+            el.reviewContainer.querySelectorAll('audio').forEach(revokeAudioBlobUrl);
             el.reviewContainer.innerHTML = '';
         }
         if (!controls.isNewWordPanel && el.mainScreen) {
@@ -4560,8 +5039,7 @@
             return;
         }
 
-        const url = URL.createObjectURL(blob);
-        controls.playbackAudio.src = url;
+        setAudioBlob(controls.playbackAudio, blob);
         controls.playbackControls.style.display = 'block';
 
         if (controls.redoBtn) {
@@ -4585,6 +5063,7 @@
         }
 
         syncProcessingReviewSlot();
+        el.reviewContainer.querySelectorAll('audio').forEach(revokeAudioBlobUrl);
         el.reviewContainer.innerHTML = '';
         const reviewFile = createReviewFileElement(processingState);
         el.reviewContainer.appendChild(reviewFile);
@@ -4698,7 +5177,7 @@
         formData.append('hide_key', hideKey);
 
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            const response = await fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -4754,7 +5233,7 @@
         formData.append('category_slug', img.category_slug || '');
 
         try {
-            const response = await fetch(ajaxUrl, { method: 'POST', body: formData });
+            const response = await fetchWithDeadline(ajaxUrl, { method: 'POST', body: formData });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -4833,6 +5312,7 @@
                     keepPanel: true,
                     preserveCurrentRecording: true
                 });
+                restoreLockedRecordingContextValues();
                 if (!prepared) {
                     return;
                 }
@@ -4954,6 +5434,8 @@
         const activeCategory = isNewWordPanelActive()
             ? (img?.category_slug || el?.newWordCategory?.value || '')
             : (el?.categorySelect?.value || '');
+        const verifyController = typeof AbortController === 'function' ? new AbortController() : null;
+        let verifyTimeoutId = null;
         setUploadFeedback(i18n.checking_upload || 'Checking upload...', null, { indeterminate: true });
         try {
             const fd = new FormData();
@@ -4971,7 +5453,20 @@
             fd.append('word_title', img.word_title || img.title || '');
             fd.append('active_category', activeCategory);
 
-            const verifyResp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+            const verifyTimeout = new Promise((resolve, reject) => {
+                verifyTimeoutId = setTimeout(() => {
+                    if (verifyController) {
+                        verifyController.abort();
+                    }
+                    reject(new Error(i18n.request_failed || 'Request failed'));
+                }, verifyRequestTimeoutMs);
+            });
+            const verifyRequest = fetch(ajaxUrl, {
+                method: 'POST',
+                body: fd,
+                ...(verifyController ? { signal: verifyController.signal } : {}),
+            });
+            const verifyResp = await Promise.race([verifyRequest, verifyTimeout]);
             if (!verifyResp.ok) throw new Error(`HTTP ${verifyResp.status}: ${verifyResp.statusText}`);
             const verifyData = await verifyResp.json();
 
@@ -4987,6 +5482,9 @@
             console.error('Verify error:', e);
             showUploadError(uploadErrorMessage || e.message || (i18n.verify_failed || 'Verify failed'));
         } finally {
+            if (verifyTimeoutId !== null) {
+                clearTimeout(verifyTimeoutId);
+            }
             endUploadLock();
         }
     }
@@ -5161,12 +5659,7 @@
         if (!audio) return;
 
         const blob = audioBufferToWav(audioBuffer);
-        if (audio.dataset.blobUrl) {
-            URL.revokeObjectURL(audio.dataset.blobUrl);
-        }
-        const url = URL.createObjectURL(blob);
-        audio.dataset.blobUrl = url;
-        audio.src = url;
+        setAudioBlob(audio, blob);
     }
 
     function setupBoundaryDragging(container, audioBuffer) {
@@ -5595,10 +6088,38 @@
         return div.innerHTML;
     }
 
+    function renderNextCategoryButtonContents(button, categoryName) {
+        if (!button) return;
+
+        button.replaceChildren();
+        const label = document.createElement('span');
+        label.textContent = String(categoryName || '');
+
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const arrow = document.createElementNS(svgNamespace, 'svg');
+        arrow.setAttribute('viewBox', '0 0 24 24');
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.setAttribute('focusable', 'false');
+        arrow.style.width = '24px';
+        arrow.style.height = '24px';
+        arrow.style.marginLeft = '8px';
+
+        const path = document.createElementNS(svgNamespace, 'path');
+        path.setAttribute('d', 'M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z');
+        path.setAttribute('fill', 'currentColor');
+        arrow.appendChild(path);
+
+        button.append(label, arrow);
+    }
+
     async function switchCategory() {
         const el = window.llRecorder;
         if (!el.categorySelect) return;
         if (newWordMode) return;
+        if (isRecordingContextLocked()) {
+            restoreLockedRecordingContextValues();
+            return;
+        }
 
         const newCategory = el.categorySelect.value;
         if (!newCategory) return;
@@ -5736,22 +6257,9 @@
                     nextCategoryBtn = document.createElement('button');
                     nextCategoryBtn.className = 'll-btn ll-btn-primary ll-next-category-btn';
                     nextCategoryBtn.style.marginTop = '20px';
-                    nextCategoryBtn.innerHTML = `
-                <span>${nextCategory.name}</span>
-                <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
-                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
-                </svg>
-            `;
                     el.completeScreen.querySelector('p').insertAdjacentElement('afterend', nextCategoryBtn);
-                } else {
-                    // Update existing button with new category
-                    nextCategoryBtn.innerHTML = `
-                <span>${nextCategory.name}</span>
-                <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; margin-left: 8px;">
-                    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor"/>
-                </svg>
-            `;
                 }
+                renderNextCategoryButtonContents(nextCategoryBtn, nextCategory.name);
                 nextCategoryBtn.setAttribute('data-category-slug', nextCategory.slug);
                 nextCategoryBtn.onclick = () => {
                     const targetSlug = String(nextCategoryBtn.getAttribute('data-category-slug') || '');

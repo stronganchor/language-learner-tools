@@ -4057,6 +4057,7 @@
         const performGetProbe = function () {
             return root.fetch(url, $.extend({}, requestOptions, {
                 method: 'GET',
+                signal: controller ? controller.signal : undefined
             })).then(function (response) {
                 return !!(response && response.ok);
             }).catch(function () {
@@ -4163,6 +4164,84 @@
             || (normalizedSlug === getDefaultCatalogSlug(ctx) ? ctx.catalogEntry : null);
     }
 
+    function clampRequestTimeoutMs(value, fallbackMs) {
+        return Math.max(
+            250,
+            Math.min(120000, toInt(value) || toInt(fallbackMs) || 30000)
+        );
+    }
+
+    function postWithDeadline(url, data, timeoutMs) {
+        const deferred = $.Deferred();
+        let sourceRequest = null;
+        let timeoutId = 0;
+        let settled = false;
+
+        const clearDeadline = function () {
+            if (timeoutId) {
+                root.clearTimeout(timeoutId);
+                timeoutId = 0;
+            }
+        };
+        const resolveRequest = function (context, args) {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearDeadline();
+            deferred.resolveWith(context, args);
+        };
+        const rejectRequest = function (context, args) {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearDeadline();
+            deferred.rejectWith(context, args);
+        };
+        const wrappedRequest = deferred.promise({
+            abort: function (statusText) {
+                if (settled) {
+                    return wrappedRequest;
+                }
+                const reason = String(statusText || 'abort');
+                if (sourceRequest && typeof sourceRequest.abort === 'function') {
+                    try {
+                        sourceRequest.abort(reason);
+                    } catch (_) { /* no-op */ }
+                }
+                rejectRequest(sourceRequest || wrappedRequest, [sourceRequest, reason, reason]);
+                return wrappedRequest;
+            }
+        });
+
+        try {
+            sourceRequest = $.post(url, data);
+        } catch (error) {
+            rejectRequest(wrappedRequest, [null, 'error', error]);
+            return wrappedRequest;
+        }
+
+        if (!sourceRequest || typeof sourceRequest.done !== 'function' || typeof sourceRequest.fail !== 'function') {
+            rejectRequest(wrappedRequest, [sourceRequest, 'error', new Error('invalid_post_request')]);
+            return wrappedRequest;
+        }
+
+        sourceRequest.done(function () {
+            resolveRequest(this, Array.prototype.slice.call(arguments));
+        }).fail(function () {
+            rejectRequest(this, Array.prototype.slice.call(arguments));
+        });
+
+        if (!settled) {
+            timeoutId = root.setTimeout(function () {
+                wrappedRequest.abort('timeout');
+            }, clampRequestTimeoutMs(timeoutMs, 30000));
+        }
+
+        return wrappedRequest;
+    }
+
     function fetchLaunchEntry(ctx, slug) {
         const normalizedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(ctx));
         const localEntry = getPreparedCatalogEntry(ctx, normalizedSlug);
@@ -4181,12 +4260,12 @@
         ctx.launchEntryCache = ctx.launchEntryCache || {};
 
         ctx.launchEntryRequests[normalizedSlug] = new Promise(function (resolve, reject) {
-            $.post(ctx.ajaxUrl, {
+            postWithDeadline(ctx.ajaxUrl, {
                 action: ctx.launchAction,
                 nonce: ctx.nonce,
                 wordset_id: ctx.wordsetId,
                 game_slug: normalizedSlug
-            }).done(function (response) {
+            }, ctx.launchRequestTimeoutMs).done(function (response) {
                 const entry = response && response.success && response.data && response.data.game && typeof response.data.game === 'object'
                     ? buildPreparedEntry(ctx, normalizedSlug, response.data.game)
                     : null;
@@ -4214,17 +4293,33 @@
         if (!fallbackEntry || !fallbackEntry.launchable) {
             return Promise.resolve(null);
         }
+        if (ctx.launchPromise && typeof ctx.launchPromise.then === 'function') {
+            return ctx.launchPromise;
+        }
 
-        return fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
+        const launchPromise = fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
             return entryHasLaunchPayload(fallbackEntry) ? fallbackEntry : null;
         }).then(function (entry) {
-            if (!entry || !entry.launchable || !entryHasLaunchPayload(entry)) {
+            if (
+                api.__ctx !== ctx
+                || !entry
+                || !entry.launchable
+                || !entryHasLaunchPayload(entry)
+            ) {
                 return null;
             }
 
             startRun(ctx, entry);
             return entry;
         });
+        let trackedLaunchPromise = null;
+        trackedLaunchPromise = launchPromise.finally(function () {
+            if (ctx.launchPromise === trackedLaunchPromise) {
+                ctx.launchPromise = null;
+            }
+        });
+        ctx.launchPromise = trackedLaunchPromise;
+        return trackedLaunchPromise;
     }
 
     function updateAudioButtonUi($button, isPlaying) {
@@ -8430,11 +8525,11 @@
             ctx.bootstrapRequest.abort();
         }
 
-        ctx.bootstrapRequest = $.post(ctx.ajaxUrl, {
+        ctx.bootstrapRequest = postWithDeadline(ctx.ajaxUrl, {
             action: ctx.bootstrapAction,
             nonce: ctx.nonce,
             wordset_id: ctx.wordsetId
-        }).done(function (response) {
+        }, ctx.catalogRequestTimeoutMs).done(function (response) {
             const payload = response && response.success && response.data && typeof response.data === 'object'
                 ? response.data
                 : null;
@@ -12090,6 +12185,8 @@
             transcribeAttemptAction: String(gamesCfg.transcribeAttemptAction || ''),
             scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
             matchAttemptAction: String(gamesCfg.matchAttemptAction || ''),
+            catalogRequestTimeoutMs: clampRequestTimeoutMs(gamesCfg.catalogRequestTimeoutMs, 30000),
+            launchRequestTimeoutMs: clampRequestTimeoutMs(gamesCfg.launchRequestTimeoutMs, 30000),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
             roundOptions: configuredRoundOptions,
             defaultRoundOption: defaultRoundOption,
@@ -12120,6 +12217,7 @@
             bootstrapRequest: null,
             launchEntryCache: {},
             launchEntryRequests: {},
+            launchPromise: null,
             run: null,
             overlayMode: '',
             boundLifecycle: false,

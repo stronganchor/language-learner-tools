@@ -188,6 +188,7 @@ module list.
 - includes/user-progress-report-data.php
 - includes/offline-app-sync.php
 - includes/privacy.php
+- includes/admin/example-sentence-migration.php
 - includes/admin/api/deepl-api.php
 - includes/admin/api/assemblyai-api.php
 - includes/api/automation-rest.php
@@ -210,7 +211,6 @@ module list.
 - includes/admin/user-progress-report.php
 - includes/admin/teacher-classes-page.php
 - includes/admin/word-images-fixer.php
-- includes/admin/example-sentence-migration.php
 - includes/admin/ipa-keyboard-admin.php
 - includes/admin/image-aspect-normalizer-admin.php
 - includes/admin/image-webp-optimizer-admin.php
@@ -593,6 +593,17 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
 - `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
 - `ll_user_progress_events_retention_days` (retention for detailed learner activity events; summary progress stays until erasure/deletion).
+  The daily retention cron and its deduplicated continuation keyset-scan the
+  event primary key in hard-capped batches (500 rows by default, 2,000 max),
+  capture one durable high-water event ID for each complete pass, delete only
+  expired IDs from the selected batch, and persist the cursor only after a
+  successful delete. Each callback holds a site-scoped MySQL advisory lock for
+  the complete read/delete/state transition so overlapping cron workers cannot
+  overwrite or clear another pass. The fixed pass ceiling must let the cursor
+  reset even when new events arrive faster than continuations drain them, so
+  rows scanned while fresh can be revisited after they age. Do not restore a
+  timestamp-only unbounded DELETE, an open-ended primary-key pass, or unfenced
+  cursor/ceiling writes.
 
 Transcription and orthography behavior must be configurable at the site,
 wordset, recording type, or entry/word-bound setting layer. Do not hard-code
@@ -725,7 +736,9 @@ wordset can opt into it.
 - Recording Types admin: `includes/admin/recording-types-admin.php`.
 - Bulk Translations: `includes/admin/bulk-translation-admin.php` (DeepL + dictionary fallback).
 - Bulk Word Import: `includes/admin/bulk-word-import-admin.php` (Turkish casing support).
-- Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments).
+- Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments). Legacy serialized meta from a bundle, import comparison, or undo snapshot must pass through `ll_tools_import_decode_legacy_meta_value()`; it permits scalar/array compatibility only and rejects objects/resources before comparison or before existing meta is deleted.
+- Image Aspect Normalizer: `includes/admin/image-aspect-normalizer-admin.php` is sitewide media maintenance and requires `manage_options` for its menu/card/page, maintenance notice, taxonomy-row action, assets, and every AJAX route.
+- Legacy example-sentence migration: `includes/admin/example-sentence-migration.php` may be started automatically on `admin_init` only for `manage_options` users. The admin request and its deduplicated cron continuation share a durable word/audio keyset state and one hard-capped work budget (50 rows by default, 250 max); source-read failures retain the exact cursor for retry, and the one-time completion marker is published only after the last complete batch. Never restore whole-site word or per-word recording hydration to this request path.
 - Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
 - Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
@@ -808,6 +821,10 @@ wordset can opt into it.
 - Import confirmation always enters the durable import job, including direct admin-post submissions; do not restore the legacy synchronous full-zip fallback.
 - Recent Imports is a bounded summary surface: cap displayed categories and matching lesson links, and include wordset constraints in the lesson query rather than filtering an unbounded result in PHP.
 - Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime. Offline authentication sessions live in an InnoDB table as one indexed row per `(user_id, session_key)` in `wp_ll_tools_offline_sessions`, with hashed secrets, exact column/index/prefix validation, expiry/activity indexes, transactional eight-session eviction, and bounded cleanup. Authentication touch and revocation are fenced by the exact secret hash so a replacement token cannot be accepted or deleted; logout authenticates without extending expiry. Legacy serialized user-meta sessions are imported lazily and their exact raw snapshot is CAS-deleted only after exact row/hash readback succeeds; legacy exact-key revocation also uses bounded CAS retries and preserves concurrent or hash-replaced sessions. A concurrent old-code writer, failed import, or conflict must retain source data and fail closed. The eight-session allowance supports independent devices/browser profiles, not eight progress branches; progress events still merge through the existing sync protocol.
+- Learner progress ingestion treats each event ledger row and all of its derived word, prompt-card, and category progress mutations as one transaction. Invalidate the verified schema marker before repair, republish it only after full column/index readback succeeds, and require the current installed plus verified markers before batch, offline-event, or server-event source resolution and mutation; this runtime gate uses cacheable option reads rather than repeating full schema `SHOW` queries. Verify the plugin progress tables and the core `users`/`usermeta` tables are InnoDB before any event or offline state write, serialize mutations with the learner's `users` row, use a unique savepoint when the caller owns a transaction, and clear user-meta caches after the lock and after commit/rollback. State-only offline sync remains available while event ingestion is paused. Never publish a ledger row without its derived state, silently drop a failed UUID, auto-convert WordPress core tables, or turn a retryable engine/schema failure into partial success.
+- Dictionary lookup and image-match indexes are complete materializations, not disposable best-effort caches. Schema/engine/index checks and every source post, taxonomy, metadata, browse-filter, page, and final-result query must clear and inspect the database error state. A failed or incomplete source read preserves the last published rows/hash/cursor, does not cache an authoritative empty/partial result, and returns typed retryable state before public cache locks or cold-build admission are consumed. Per-entry row replacement is transactional and must preserve an enclosing caller transaction with a collision-resistant savepoint.
+- Deferred vocab-lesson taxonomy preparation advances only from complete parent/child term reads; a taxonomy error preserves the current materializer generation and cursor. Sparse wordset-page fallbacks must not recover deferred progress counts by hydrating every prompt card, and catalog/game/media requests must retain their abort-generation fence plus a bounded request deadline so page navigation or a stalled response cannot publish stale state or leave a permanent loader.
+- User-facing asynchronous mutations and bounded loaders must settle visibly on timeout: abort when the transport supports it, ignore late responses with the same generation/session token used for navigation, restore controls and `aria-busy`, and expose translated retry/error state. Timeouts must not cause a second ambiguous write, silently advance a queue, or replace a complete last-known-good payload with an empty result.
 - Offline bundle preparation must reject a compressed input larger than 2 GiB before constructing `AdmZip` or replacing the prepared workspace; code-level overrides remain hard-capped at 4 GiB. Keep the existing entry-count, per-entry, total-uncompressed, traversal, and symlink validation before extraction.
 - Deferred normal vocab lessons use a category-targeted cached count, render up to six bounded content-aware shell cards, and add lightweight image-sized shimmer cards up to a 60-card initial DOM ceiling. The cold count keeps specific wrong-answer candidate discovery scoped to the lesson category. If the exact expected category count is larger, one `+N` remainder card communicates the rest without creating unbounded nodes or hydrating additional words, recordings, or media. Large standard learner grids must continue through the serial order-materialization and signed page-cursor path; do not restore one full HTML response or an unbounded all-word/media probe. The text-answer media decision compares targeted all-word and image-backed aggregates so every page uses one category-wide presentation. Prompt-card lessons keep their separate bounded three-card shell.
 - Staff inactive-category preview preparation advances word-image conversion in bounded ID-keyset batches (10 by default, 25 hard maximum per continuation) behind an exact-owner renewable lease. The cursor advances only after complete success or an idempotently terminal disappearance; retryable failures stay on the same image. JavaScript continues one serial batch while exposing polite progress; no-JavaScript requests persist the cursor and can be resumed. Do not restore the former all-image query/mutation loop. The published lesson-category map remains a complete semantic map: cold rebuilds are single-owner, a complete seven-day last-known-good payload returns immediately under contention, and a truly cold contended build fails closed instead of starting a duplicate scan. The winning cold builder still enumerates all published lessons; replace that proportional pass with durable materialization only if production measurements justify the added state machinery.

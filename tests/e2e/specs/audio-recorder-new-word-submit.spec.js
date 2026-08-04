@@ -211,6 +211,7 @@ async function mountRecorder(page, options = {}) {
       updateTextRequests: 0,
       transcribeRequests: 0,
       uploadRequests: 0,
+      verifyRequests: 0,
       lastUploadPayload: null,
       lastCategoryTypePayload: null,
       uploadRemainingTypes,
@@ -266,7 +267,7 @@ async function mountRecorder(page, options = {}) {
         const selectedTypes = body.getAll('new_category_types[]');
         const recordingTypes = selectedTypes.length ? selectedTypes : ['isolation', 'introduction'];
 
-        return Promise.resolve(makeJsonResponse({
+        const response = makeJsonResponse({
           success: true,
           data: {
             word: {
@@ -297,7 +298,11 @@ async function mountRecorder(page, options = {}) {
               term_id: 91
             }
           }
-        }));
+        });
+        const delayMs = Number(mountOptions.prepareDelayMs || 0);
+        return delayMs > 0
+          ? new Promise((resolve) => setTimeout(() => resolve(response), delayMs))
+          : Promise.resolve(response);
       }
 
       if (action === 'll_update_new_word_text') {
@@ -341,6 +346,27 @@ async function mountRecorder(page, options = {}) {
             return;
           }
 
+          abortSignal.addEventListener('abort', handleAbort, { once: true });
+        });
+      }
+
+      if (action === 'll_verify_recording') {
+        window.__llTestState.verifyRequests += 1;
+        if (!mountOptions.hangVerify) {
+          return Promise.resolve(makeJsonResponse({ success: true, data: {} }));
+        }
+
+        return new Promise((resolve, reject) => {
+          const abortSignal = options.signal;
+          if (!abortSignal) {
+            return;
+          }
+
+          const handleAbort = () => reject(makeAbortError());
+          if (abortSignal.aborted) {
+            handleAbort();
+            return;
+          }
           abortSignal.addEventListener('abort', handleAbort, { once: true });
         });
       }
@@ -416,6 +442,10 @@ async function mountRecorder(page, options = {}) {
           }
         }
         window.__llTestState.lastUploadPayload = uploadPayload;
+        if (mountOptions.hangUpload) {
+          setTimeout(() => this.dispatch('timeout'), Number(this.timeout) || 0);
+          return;
+        }
         const uploadIndex = window.__llTestState.uploadRequests - 1;
         const sequencedRemainingTypes = Array.isArray(window.__llTestState.uploadRemainingTypesSequence)
           ? window.__llTestState.uploadRemainingTypesSequence[uploadIndex]
@@ -572,7 +602,10 @@ async function mountRecorder(page, options = {}) {
       include_types: '',
       exclude_types: '',
       auto_process_recordings: false,
-      stop_delay_ms: 500,
+      stop_delay_ms: Number.isFinite(mountOptions.stopDelayMs) ? mountOptions.stopDelayMs : 500,
+      upload_timeout_ms: Number.isFinite(mountOptions.uploadTimeoutMs) ? mountOptions.uploadTimeoutMs : undefined,
+      verify_timeout_ms: Number.isFinite(mountOptions.verifyTimeoutMs) ? mountOptions.verifyTimeoutMs : undefined,
+      request_timeout_ms: Number.isFinite(mountOptions.requestTimeoutMs) ? mountOptions.requestTimeoutMs : undefined,
       current_user_id: 10,
       hidden_words: [],
       hidden_count: 0,
@@ -784,6 +817,42 @@ test('prompt-card queue item uploads prompt audio by prompt card id and advances
   await expect(page.locator('#ll-recording-type')).toHaveValue('isolation');
 });
 
+test('hung upload and verification requests time out and restore recorder controls', async ({ page }) => {
+  await mountRecorder(page, {
+    images: [{
+      id: 101,
+      title: 'Existing word',
+      image_url: '',
+      category_name: 'Debug Category',
+      category_slug: 'debug-category',
+      word_id: 501,
+      word_title: 'Existing word',
+      word_translation: 'Existing translation',
+      use_word_display: true,
+      missing_types: ['isolation'],
+      existing_types: [],
+      prompt_types: ['isolation'],
+      my_existing_types: [],
+      is_text_only: true
+    }],
+    hangUpload: true,
+    hangVerify: true,
+    stopDelayMs: 100,
+    uploadTimeoutMs: 50,
+    verifyTimeoutMs: 50
+  });
+
+  await recordAndSubmitCurrentType(page);
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.verifyRequests)).toBe(1);
+  await expect(page.locator('#ll-upload-status')).toContainText('Request failed');
+  await expect(page.locator('#ll-submit-btn')).toBeEnabled();
+  await expect(page.locator('#ll-redo-btn')).toBeEnabled();
+  await page.waitForTimeout(100);
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+});
+
 test('pending new-word transcription does not block save and advances to the intro type', async ({ page }) => {
   await mountRecorder(page);
 
@@ -817,4 +886,38 @@ test('pending new-word transcription does not block save and advances to the int
   await expect(page.locator('#ll-recording-type')).toHaveValue('introduction');
   await expect(page.locator('.ll-recording-main')).toBeVisible();
   await expect(page.locator('#ll-new-word-overlay')).toHaveAttribute('hidden', 'hidden');
+});
+
+test('slow draft creation is not abandoned at the generic read deadline', async ({ page }) => {
+  await mountRecorder(page, {
+    prepareDelayMs: 150,
+    requestTimeoutMs: 50
+  });
+
+  await page.locator('#ll-new-word-toggle').click();
+  await page.locator('#ll-new-word-create-category').check({ force: true });
+  await page.fill('#ll-new-word-category-name', 'Slow Category');
+  await page.fill('#ll-new-word-text-target', 'Slow word');
+
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  await recordButton.click();
+  await expect(recordButton).toHaveClass(/recording/);
+  await recordButton.click();
+  await expect(page.locator('#ll-new-word-start')).toBeVisible();
+  await page.locator('#ll-new-word-start').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llTestState.prepareRequests)).toBe(1);
+
+  await expect.poll(async () => page.evaluate(() => window.__llTestState.uploadRequests)).toBe(1);
+  expect(await page.evaluate(() => ({
+    prepareRequests: window.__llTestState.prepareRequests,
+    updateTextRequests: window.__llTestState.updateTextRequests,
+    uploadRequests: window.__llTestState.uploadRequests
+  }))).toEqual({
+    prepareRequests: 1,
+    updateTextRequests: 1,
+    uploadRequests: 1
+  });
 });

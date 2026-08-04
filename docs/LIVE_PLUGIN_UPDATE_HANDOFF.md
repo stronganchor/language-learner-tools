@@ -8,7 +8,7 @@ What happened:
 - The Site Tools manual update URL (`admin-post.php?action=ll_tools_check_plugin_update`) only worked reliably with normal browser-like wp-admin headers/referrer. Without those headers, the hidden-login/admin routing returned a theme 404.
 - Once the manual check ran successfully, it still reported no update.
 - The likely root cause was the live 6.3.0 updater configuration: release-asset enforcement was applied even when the selected update branch was `dev`, which defeated the intended branch-based dev update path.
-- The 6.3.3 release changed `ll_tools_configure_update_checker()` so release assets are required only for `main`; `dev` now returns immediately after setting the branch.
+- The 6.3.3 release changed `ll_tools_configure_update_checker()` so release assets are required only for `main`; the `dev` path explicitly disables release-asset selection after setting the branch.
 - Because the broken code was already live, it could not bootstrap its own update. The update was completed through the normal WordPress upload flow: upload the packaged plugin zip, then confirm "Replace current with uploaded".
 
 Recommendation from that incident:

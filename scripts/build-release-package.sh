@@ -65,7 +65,7 @@ fi
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 rm -f "${OUTPUT_PATH}"
 
-git -C "${ROOT_DIR}" archive \
+git -C "${ROOT_DIR}" -c core.autocrlf=false archive \
     --format=zip \
     --prefix="${PLUGIN_SLUG}/" \
     --output="${OUTPUT_PATH}" \

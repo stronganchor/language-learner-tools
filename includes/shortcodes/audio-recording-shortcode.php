@@ -1519,6 +1519,12 @@ function ll_audio_recording_interface_shortcode($atts) {
         'include_types'    => $atts['include_recording_types'],
         'exclude_types'    => $atts['exclude_recording_types'],
         'auto_process_recordings' => $auto_process_recordings,
+        'request_timeout_ms' => max(5000, min(120000, (int) apply_filters(
+            'll_tools_recorder_request_timeout_ms',
+            30000,
+            $wordset_term_ids,
+            $recorder_view
+        ))),
         'category_queue' => array_merge($initial_queue_pagination, [
             'category' => $initial_category,
         ]),

@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 E2E_DIR="$TESTS_DIR/e2e"
+BASH_RUNNER="${BASH:-bash}"
+caller_base_url_set=0
+caller_base_url=""
+if [[ -n "${LL_E2E_BASE_URL:-}" ]]; then
+    caller_base_url_set=1
+    caller_base_url="$LL_E2E_BASE_URL"
+fi
 
 load_env_file_literal() {
     local file="$1"
@@ -74,6 +81,10 @@ fi
 load_env_file_literal "$TESTS_DIR/.env"
 load_env_file_literal "$TESTS_DIR/.env.local"
 
+if [[ "$caller_base_url_set" == "1" ]]; then
+    export LL_E2E_BASE_URL="$caller_base_url"
+fi
+
 if [[ "$perf_config_lock_requested" == "1" ]]; then
     export LL_E2E_PERF_CONFIG_LOCKED=1
     for locked_index in "${!locked_perf_vars[@]}"; do
@@ -91,8 +102,22 @@ if [[ "${LL_E2E_PERF_CONFIG_CONTRACT_ONLY:-0}" == "1" ]]; then
     exit 0
 fi
 
-if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
-    eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
+if [[ "$caller_base_url_set" != "1" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != "1" ]]; then
+    configured_learn_path="${LL_E2E_LEARN_PATH:-}"
+    if detected_http_env="$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh" 2>&1)"; then
+        eval "$detected_http_env"
+        if [[ -n "$configured_learn_path" ]]; then
+            export LL_E2E_LEARN_PATH="$configured_learn_path"
+        fi
+    elif [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
+        echo "$detected_http_env" >&2
+        exit 1
+    else
+        echo "Could not refresh Local HTTP settings; using the configured LL_E2E_BASE_URL." >&2
+    fi
+elif [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
+    echo "LL_E2E_BASE_URL is required when automatic Local HTTP detection is disabled." >&2
+    exit 1
 fi
 
 for env_var in \
@@ -242,14 +267,43 @@ if ! command -v npm >/dev/null 2>&1; then
     exit 1
 fi
 
+NPM_RUNNER=(npm)
+if [[ -n "${MSYSTEM:-}" ]]; then
+    # npm's extensionless shell shim can hand its shebang to Windows/WSL, and
+    # even a resolved .cmd path may be re-selected through PATHEXT. Invoke the
+    # npm JavaScript entry point with the already verified Node executable.
+    node_install_dir="$(node -p 'require("path").dirname(process.execPath)')"
+    if command -v cygpath >/dev/null 2>&1; then
+        node_install_dir="$(cygpath -u "$node_install_dir")"
+    fi
+    npm_cli_candidate="$node_install_dir/node_modules/npm/bin/npm-cli.js"
+    if [[ -f "$npm_cli_candidate" ]]; then
+        NPM_RUNNER=(node "$npm_cli_candidate")
+    fi
+fi
+
 cd "$E2E_DIR"
 
 if [[ ! -d "node_modules/@playwright/test" ]]; then
-    npm install --no-audit --no-fund
+    "${NPM_RUNNER[@]}" install --no-audit --no-fund
 fi
 
-# Safe to run repeatedly; Playwright skips already-installed browsers.
-npx playwright install chromium
+PLAYWRIGHT_CLI="node_modules/@playwright/test/cli.js"
+if [[ ! -f "$PLAYWRIGHT_CLI" ]]; then
+    echo "Playwright CLI was not found after dependency installation: $E2E_DIR/$PLAYWRIGHT_CLI" >&2
+    exit 1
+fi
+
+# Avoid invoking Playwright's installer (and its network/cache probes) when the
+# exact bundled Chromium executable is already present. This keeps focused and
+# full local gates deterministic in restricted/offline runners.
+if ! node -e "const fs=require('fs'); const {chromium}=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);"; then
+    if [[ "${LL_TOOLS_E2E_SKIP_BROWSER_INSTALL:-0}" == "1" || "${CODEX_SANDBOX_NETWORK_DISABLED:-0}" == "1" ]]; then
+        echo "Chromium could not be inspected; skipping browser installation in the network-restricted runner." >&2
+    else
+        node "$PLAYWRIGHT_CLI" install chromium
+    fi
+fi
 
 echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
 
@@ -275,4 +329,4 @@ for arg in "$@"; do
     normalized_args+=("$(normalize_playwright_arg "$arg")")
 done
 
-exec npx playwright test "${normalized_args[@]}"
+exec node "$PLAYWRIGHT_CLI" test "${normalized_args[@]}"

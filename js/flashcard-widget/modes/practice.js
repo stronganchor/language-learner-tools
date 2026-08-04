@@ -12,9 +12,10 @@
     const STATES = State.STATES || {};
     const PRACTICE_PROMPT_ORDER = ['question', 'isolation', 'introduction', 'sentence', 'in-sentence'];
     const PRACTICE_CATEGORY_PREFETCH_BATCH_SIZE = 2;
-    const PRACTICE_CATEGORY_PREFETCH_WAIT_MS = 2600;
     const PRACTICE_CATEGORY_PREFETCH_TRIGGER_ROUND = 2;
+    const PRACTICE_CATEGORY_RECOVERY_MAX_BATCHES = 3;
     const pendingCategoryLoads = {};
+    let practiceSessionGeneration = 0;
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -64,6 +65,21 @@
 
     function getCategoryCacheKey(categoryName) {
         return getWordsetCacheKey() + '::' + String(categoryName || '');
+    }
+
+    function getCategoryLoadDeadlineMs() {
+        const data = root.llToolsFlashcardsData || {};
+        const tuning = (data.preloadTuning && typeof data.preloadTuning === 'object')
+            ? data.preloadTuning
+            : {};
+        const parsed = parseInt(tuning.categoryAjaxTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsed)
+            ? Math.max(250, Math.min(120000, parsed))
+            : 30000;
+
+        // Let the loader's own AJAX timeout settle first, then release any
+        // compatibility poll/callback that did not observe that settlement.
+        return Math.min(120500, requestTimeoutMs + 250);
     }
 
     function isCategoryLoaded(categoryName, loader) {
@@ -142,32 +158,82 @@
             return Promise.resolve(cacheKey);
         }
         if (isCategoryLoading(name, api)) {
-            const waitForInFlight = new Promise(function (resolve) {
-                const poll = function () {
-                    if (isCategoryLoaded(name, api) || !isCategoryLoading(name, api)) {
-                        resolve(cacheKey);
+            let waitForInFlight;
+            waitForInFlight = new Promise(function (resolve) {
+                let settled = false;
+                let pollTimer = 0;
+                let deadlineTimer = 0;
+                const finish = function () {
+                    if (settled) {
                         return;
                     }
-                    setTimeout(poll, 80);
+                    settled = true;
+                    if (pollTimer) {
+                        root.clearTimeout(pollTimer);
+                    }
+                    root.clearTimeout(deadlineTimer);
+                    resolve(cacheKey);
+                };
+                deadlineTimer = root.setTimeout(function () {
+                    finish();
+                }, getCategoryLoadDeadlineMs());
+                const poll = function () {
+                    if (isCategoryLoaded(name, api) || !isCategoryLoading(name, api)) {
+                        finish();
+                        return;
+                    }
+                    pollTimer = root.setTimeout(poll, 80);
                 };
                 poll();
             }).finally(function () {
-                delete pendingCategoryLoads[cacheKey];
+                if (pendingCategoryLoads[cacheKey] === waitForInFlight) {
+                    delete pendingCategoryLoads[cacheKey];
+                }
             });
             pendingCategoryLoads[cacheKey] = waitForInFlight;
             return waitForInFlight;
         }
 
-        const promise = new Promise(function (resolve) {
-            try {
-                api.loadResourcesForCategory(name, function () {
-                    resolve(cacheKey);
-                }, { earlyCallback: true });
-            } catch (_) {
+        let promise;
+        promise = new Promise(function (resolve) {
+            let settled = false;
+            let deadlineTimer = 0;
+            const finish = function () {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                root.clearTimeout(deadlineTimer);
                 resolve(cacheKey);
+            };
+            deadlineTimer = root.setTimeout(function () {
+                finish();
+            }, getCategoryLoadDeadlineMs());
+            try {
+                const loadResult = api.loadResourcesForCategory(name, function () {
+                    finish();
+                }, { earlyCallback: true });
+                if (loadResult && typeof loadResult.then === 'function') {
+                    Promise.resolve(loadResult).then(function (result) {
+                        if (
+                            isCategoryLoaded(name, api)
+                            || (result && (
+                                result.success === false
+                                || result.cancelled === true
+                                || result.stale === true
+                            ))
+                        ) {
+                            finish();
+                        }
+                    }).catch(finish);
+                }
+            } catch (_) {
+                finish();
             }
         }).finally(function () {
-            delete pendingCategoryLoads[cacheKey];
+            if (pendingCategoryLoads[cacheKey] === promise) {
+                delete pendingCategoryLoads[cacheKey];
+            }
         });
 
         pendingCategoryLoads[cacheKey] = promise;
@@ -227,41 +293,66 @@
         });
     }
 
-    function waitForPendingCategories(loader, timeoutMs) {
-        maybeQueueCategoryPrefetch({
-            loader: loader,
-            force: true
-        });
+    function waitForPendingCategories(loader, isCurrent) {
+        const requestIsCurrent = typeof isCurrent === 'function'
+            ? isCurrent
+            : function () { return true; };
+        const attempted = {};
+        const batchSize = getPracticeCategoryPrefetchBatchSize();
 
-        const pending = Object.values(pendingCategoryLoads || {});
-        if (!pending.length) {
-            return Promise.resolve(false);
-        }
-
-        return new Promise(function (resolve) {
-            let settled = false;
-            const finish = function () {
-                if (settled) {
-                    return;
-                }
-                settled = true;
-                const hasLoadedWords = getRemainingCategoryOrder().some(function (categoryName) {
-                    const rows = State.wordsByCategory && State.wordsByCategory[categoryName];
-                    return Array.isArray(rows) && rows.length > 0;
-                });
-                resolve(!!hasLoadedWords);
-            };
-
-            pending.forEach(function (promise) {
-                Promise.resolve(promise).then(finish).catch(finish);
+        const hasLoadedWords = function () {
+            return Object.keys(attempted).some(function (categoryName) {
+                const rows = State.wordsByCategory && State.wordsByCategory[categoryName];
+                return Array.isArray(rows) && rows.length > 0;
             });
+        };
 
-            setTimeout(finish, Math.max(700, parseInt(timeoutMs, 10) || PRACTICE_CATEGORY_PREFETCH_WAIT_MS));
-        });
+        const runBatch = function (batchNumber) {
+            if (!requestIsCurrent()) {
+                return Promise.resolve(false);
+            }
+            if (hasLoadedWords()) {
+                return Promise.resolve(true);
+            }
+            if (batchNumber >= PRACTICE_CATEGORY_RECOVERY_MAX_BATCHES) {
+                return Promise.resolve(false);
+            }
+
+            const categoryNames = getPendingCategoryNames(loader).filter(function (categoryName) {
+                return !attempted[categoryName];
+            }).slice(0, batchSize);
+            if (!categoryNames.length) {
+                return Promise.resolve(false);
+            }
+
+            const pending = categoryNames.map(function (categoryName) {
+                attempted[categoryName] = true;
+                return queueCategoryLoad(categoryName, loader);
+            });
+            return Promise.all(pending).catch(function () {
+                return [];
+            }).then(function () {
+                if (hasLoadedWords()) {
+                    return true;
+                }
+                return runBatch(batchNumber + 1);
+            });
+        };
+
+        return runBatch(0);
     }
 
-    function canStartDeferredPracticeRound() {
-        if (!State.widgetActive) {
+    function canStartDeferredPracticeRound(expectedGeneration, expectedWordsetKey) {
+        if (
+            expectedGeneration !== practiceSessionGeneration
+            || expectedWordsetKey !== getWordsetCacheKey()
+            || !State.widgetActive
+            || State.abortAllOperations
+            || State.isLearningMode
+            || State.isListeningMode
+            || State.isGenderMode
+            || State.isSelfCheckMode
+        ) {
             return false;
         }
         if (typeof State.is === 'function' && (
@@ -594,6 +685,7 @@
     }
 
     function initialize() {
+        practiceSessionGeneration += 1;
         State.isLearningMode = false;
         State.isListeningMode = false;
         State.completedCategories = {};
@@ -689,18 +781,26 @@
         const context = (ctx && typeof ctx === 'object') ? ctx : {};
         const loader = context.FlashcardLoader || root.FlashcardLoader;
         const restartAfterPendingLoad = function () {
-            if (!canStartDeferredPracticeRound()) {
+            const sessionGeneration = practiceSessionGeneration;
+            const sessionWordsetKey = getWordsetCacheKey();
+            if (!canStartDeferredPracticeRound(sessionGeneration, sessionWordsetKey)) {
                 return false;
             }
             if (context.Dom && typeof context.Dom.showLoading === 'function') {
                 try { context.Dom.showLoading(); } catch (_) { /* no-op */ }
             }
-            waitForPendingCategories(loader, PRACTICE_CATEGORY_PREFETCH_WAIT_MS).then(function () {
-                if (!canStartDeferredPracticeRound()) {
+            waitForPendingCategories(loader, function () {
+                return canStartDeferredPracticeRound(sessionGeneration, sessionWordsetKey);
+            }).then(function (hasLoadedWords) {
+                if (!canStartDeferredPracticeRound(sessionGeneration, sessionWordsetKey)) {
                     return;
                 }
-                if (typeof context.startQuizRound === 'function') {
+                if (hasLoadedWords && typeof context.startQuizRound === 'function') {
                     context.startQuizRound();
+                    return;
+                }
+                if (!hasLoadedWords && typeof context.showLoadingError === 'function') {
+                    context.showLoadingError();
                 }
             });
             return true;
@@ -788,8 +888,10 @@
                 force: true
             });
             if (context && typeof context.startQuizRound === 'function') {
+                const sessionGeneration = practiceSessionGeneration;
+                const sessionWordsetKey = getWordsetCacheKey();
                 setTimeout(function () {
-                    if (canStartDeferredPracticeRound()) {
+                    if (canStartDeferredPracticeRound(sessionGeneration, sessionWordsetKey)) {
                         context.startQuizRound();
                     }
                 }, 0);

@@ -1070,6 +1070,150 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_state_only_sync_remains_available_while_event_sync_fails_before_state_write(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $session = ll_tools_offline_app_create_session($user_id, [
+            'device_id' => 'state-only-engine-test',
+            'profile_id' => 'state-only-engine-test',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $this->assertNotSame('', $token);
+
+        $engine_filter = static function (string $engine, string $table_key): string {
+            return $table_key === 'usermeta' ? 'MyISAM' : $engine;
+        };
+        $disable_error_log = static function (): bool {
+            return false;
+        };
+        delete_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION);
+        add_filter('ll_tools_user_progress_core_table_engine', $engine_filter, 10, 2);
+        add_filter('ll_tools_user_progress_log_core_engine_diagnostic', $disable_error_log);
+        try {
+            $this->assertFalse((bool) ll_tools_user_progress_core_engine_status(true)['ready']);
+
+            $state_only = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => '[]',
+                'word_ids' => '[]',
+                'state' => wp_json_encode([
+                    'wordset_id' => 0,
+                    'category_ids' => [],
+                    'starred_word_ids' => [],
+                    'fast_transitions' => true,
+                ]),
+            ]);
+            $this->assertTrue((bool) ($state_only['success'] ?? false));
+            $this->assertSame(0, (int) (($state_only['data']['stats'] ?? [])['received'] ?? -1));
+            $this->assertTrue((bool) ll_tools_get_user_study_state($user_id)['fast_transitions']);
+
+            $event_sync = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => wp_json_encode([[
+                    'event_uuid' => wp_generate_uuid4(),
+                    'event_type' => 'category_study',
+                    'mode' => 'practice',
+                    'category_id' => 987654,
+                    'payload' => ['units' => 1],
+                ]]),
+                'word_ids' => '[]',
+                'state' => wp_json_encode([
+                    'wordset_id' => 0,
+                    'category_ids' => [],
+                    'starred_word_ids' => [],
+                    'fast_transitions' => false,
+                ]),
+            ]);
+            $this->assertFalse((bool) ($event_sync['success'] ?? true));
+            $this->assertSame(
+                'progress_transactional_engine_unavailable',
+                (string) (($event_sync['data'] ?? [])['code'] ?? '')
+            );
+            $this->assertTrue(
+                (bool) ll_tools_get_user_study_state($user_id)['fast_transitions'],
+                'The event preflight must fail before the accompanying state payload is persisted.'
+            );
+        } finally {
+            remove_filter('ll_tools_user_progress_log_core_engine_diagnostic', $disable_error_log);
+            remove_filter('ll_tools_user_progress_core_table_engine', $engine_filter, 10);
+            delete_option(LL_TOOLS_USER_PROGRESS_CORE_ENGINE_OPTION);
+            $this->assertTrue((bool) ll_tools_user_progress_core_engine_status(true)['ready']);
+        }
+    }
+
+    public function test_offline_event_sync_schema_unavailable_fails_before_state_or_ledger_write(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $session = ll_tools_offline_app_create_session($user_id, [
+            'device_id' => 'state-only-schema-test',
+            'profile_id' => 'state-only-schema-test',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $event_uuid = 'offline-schema-' . wp_generate_uuid4();
+        $this->assertNotSame('', $token);
+
+        delete_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION);
+        try {
+            $this->assertFalse((bool) ll_tools_user_progress_runtime_schema_status()['ready']);
+
+            $state_only = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => '[]',
+                'word_ids' => '[]',
+                'state' => wp_json_encode([
+                    'wordset_id' => 0,
+                    'category_ids' => [],
+                    'starred_word_ids' => [],
+                    'fast_transitions' => true,
+                ]),
+            ]);
+            $this->assertTrue((bool) ($state_only['success'] ?? false));
+            $this->assertTrue((bool) ll_tools_get_user_study_state($user_id)['fast_transitions']);
+
+            $event_sync = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'events' => wp_json_encode([[
+                    'event_uuid' => $event_uuid,
+                    'event_type' => 'category_study',
+                    'mode' => 'practice',
+                    'category_id' => 987655,
+                    'payload' => ['units' => 1],
+                ]]),
+                'word_ids' => '[]',
+                'state' => wp_json_encode([
+                    'wordset_id' => 0,
+                    'category_ids' => [],
+                    'starred_word_ids' => [],
+                    'fast_transitions' => false,
+                ]),
+            ]);
+
+            $this->assertFalse((bool) ($event_sync['success'] ?? true));
+            $this->assertSame('progress_schema_unavailable', (string) (($event_sync['data'] ?? [])['code'] ?? ''));
+            $this->assertTrue((bool) (($event_sync['data'] ?? [])['retryable'] ?? false));
+            $this->assertSame(
+                [$event_uuid],
+                array_values((array) (($event_sync['data']['stats'] ?? [])['failed_event_uuids'] ?? []))
+            );
+            $this->assertTrue(
+                (bool) ll_tools_get_user_study_state($user_id)['fast_transitions'],
+                'The schema preflight must fail before the accompanying state payload is persisted.'
+            );
+
+            $events_table = ll_tools_user_progress_table_names()['events'];
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$events_table} WHERE event_uuid = %s",
+                $event_uuid
+            )));
+            $this->assertSame([], ll_tools_get_user_category_progress($user_id));
+        } finally {
+            delete_transient(LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT);
+            $this->assertTrue(ll_tools_install_user_progress_schema());
+        }
+    }
+
     private function createOfflineSyncFixture(): array
     {
         $wordset = wp_insert_term('Offline Sync Wordset ' . wp_generate_password(6, false), 'wordset');

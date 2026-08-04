@@ -6466,8 +6466,17 @@ function ll_tools_vocab_lesson_grid_candidate_rows(
 ) {
     global $wpdb;
 
+    $wpdb->last_error = '';
     $wordset = get_term($wordset_id, 'wordset');
+    if ($wpdb->last_error !== '') {
+        return new WP_Error('taxonomy_source_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
+    }
+
+    $wpdb->last_error = '';
     $category = get_term($category_id, 'word-category');
+    if ($wpdb->last_error !== '') {
+        return new WP_Error('taxonomy_source_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
+    }
     if (
         !($wordset instanceof WP_Term)
         || is_wp_error($wordset)
@@ -6478,21 +6487,63 @@ function ll_tools_vocab_lesson_grid_candidate_rows(
     }
 
     $category_ids = [$category_id];
-    $child_ids = get_term_children($category_id, 'word-category');
-    if (!is_wp_error($child_ids)) {
-        $category_ids = array_merge($category_ids, array_map('intval', (array) $child_ids));
+    $hierarchy_source_failed = false;
+    $capture_hierarchy_source_failure = static function ($terms, $taxonomies, $args) use (&$hierarchy_source_failed, $wpdb) {
+        $requested_taxonomies = array_values(array_map('strval', (array) $taxonomies));
+        if (
+            in_array('word-category', $requested_taxonomies, true)
+            && (string) ($args['fields'] ?? '') === 'id=>parent'
+            && $wpdb->last_error !== ''
+        ) {
+            // _get_term_hierarchy() writes its derived option after get_terms()
+            // returns. That successful write clears wpdb::last_error, so retain
+            // the source failure before Core can make it indistinguishable from
+            // a genuinely empty hierarchy.
+            $hierarchy_source_failed = true;
+        }
+        return $terms;
+    };
+    $wpdb->last_error = '';
+    add_filter('get_terms', $capture_hierarchy_source_failure, PHP_INT_MIN, 3);
+    try {
+        $child_ids = get_term_children($category_id, 'word-category');
+    } finally {
+        remove_filter('get_terms', $capture_hierarchy_source_failure, PHP_INT_MIN);
     }
+    if (is_wp_error($child_ids) || $hierarchy_source_failed || $wpdb->last_error !== '') {
+        // Core may cache an empty hierarchy after a failed source query. Drop
+        // that value so the retry performs a fresh taxonomy read.
+        if ($hierarchy_source_failed || $wpdb->last_error !== '') {
+            // WP_Term_Query can also cache the failed empty ID result. Advance
+            // the canonical term-query generation before removing the derived
+            // hierarchy option so the next request cannot reuse either layer.
+            if (function_exists('wp_cache_set_terms_last_changed')) {
+                wp_cache_set_terms_last_changed();
+            }
+            delete_option('word-category_children');
+        }
+        return new WP_Error('taxonomy_source_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
+    }
+    $category_ids = array_merge($category_ids, array_map('intval', (array) $child_ids));
+
     $category_tt_ids = [];
     foreach (array_values(array_unique($category_ids)) as $candidate_category_id) {
+        $wpdb->last_error = '';
         $term = get_term((int) $candidate_category_id, 'word-category');
-        if ($term instanceof WP_Term && !is_wp_error($term) && (int) $term->term_taxonomy_id > 0) {
-            $category_tt_ids[] = (int) $term->term_taxonomy_id;
+        if (
+            $wpdb->last_error !== ''
+            || !($term instanceof WP_Term)
+            || is_wp_error($term)
+            || (int) $term->term_taxonomy_id <= 0
+        ) {
+            return new WP_Error('taxonomy_source_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
         }
+        $category_tt_ids[] = (int) $term->term_taxonomy_id;
     }
     $category_tt_ids = array_values(array_unique($category_tt_ids));
     $wordset_tt_id = (int) $wordset->term_taxonomy_id;
     if (empty($category_tt_ids) || $wordset_tt_id <= 0) {
-        return [];
+        return new WP_Error('taxonomy_source_failed', __('Unable to load this lesson right now.', 'll-tools-text-domain'));
     }
 
     $category_placeholders = implode(',', array_fill(0, count($category_tt_ids), '%d'));

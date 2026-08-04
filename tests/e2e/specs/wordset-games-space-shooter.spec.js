@@ -738,6 +738,8 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
       transcribeAttemptAction: 'll_wordset_games_transcribe_speaking_attempt',
       scoreAttemptAction: 'll_wordset_games_score_speaking_attempt',
       matchAttemptAction: 'll_wordset_games_match_speaking_attempt',
+      catalogRequestTimeoutMs: 30000,
+      launchRequestTimeoutMs: 30000,
       roundOptions: [20, 50, 100, 'all'],
       defaultRoundOption: 50,
       minimumWordCount: 5,
@@ -1044,12 +1046,15 @@ async function mountGamesPage(page, {
   promptAutoReplayGapMs = null,
   spaceShooterOverrides = null,
   bubblePopOverrides = null,
-  configOverrides = null
+  configOverrides = null,
+  speakingProbeFallbackHangs = false,
+  bootstrapRequestHangs = false,
+  launchRequestHangs = false
 } = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords, lineupSequences, unscrambleWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
+    ({ config, gameWords, lineupSequences, unscrambleWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides, probeFallbackHangs, bootstrapHangs, launchHangs }) => {
       window.llWordsetPageData = config;
       if (
         window.llWordsetPageData
@@ -1083,12 +1088,17 @@ async function mountGamesPage(page, {
       window.__unscrambleWords = unscrambleWords;
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
+      window.__progressContextSetCalls = 0;
       window.__scrollCalls = [];
       window.__dialogScrollCalls = [];
       window.__gameAjaxCalls = [];
       window.__audioLoadDelay = Number(audioLoadDelay || 0);
       window.__promptAudioDurationSeconds = Number(promptAudioDuration || 4.2);
       window.__audioEventLog = [];
+      window.__speakingProbeFallbackHangs = !!probeFallbackHangs;
+      window.__speakingProbeGetHadSignal = false;
+      window.__gameBootstrapRequestHangs = !!bootstrapHangs;
+      window.__gameLaunchRequestHangs = !!launchHangs;
 
       window.scrollTo = function (leftOrOptions, top) {
         if (typeof leftOrOptions === 'object' && leftOrOptions !== null) {
@@ -1377,6 +1387,7 @@ async function mountGamesPage(page, {
 
       window.fetch = function (url, options = {}) {
         const method = String(options.method || 'GET').toUpperCase();
+        const requestUrl = String(url || '');
         const entries = [];
         if (options.body && typeof options.body.forEach === 'function') {
           options.body.forEach((value, key) => {
@@ -1387,10 +1398,33 @@ async function mountGamesPage(page, {
           });
         }
         window.__speakingFetchLog.push({
-          url: String(url || ''),
+          url: requestUrl,
           method,
           entries
         });
+
+        if (window.__speakingProbeFallbackHangs && /\/health\/?$/i.test(requestUrl) && method === 'HEAD') {
+          return Promise.resolve({
+            ok: false,
+            statusText: 'Method Not Allowed',
+            json: () => Promise.resolve({ ok: false })
+          });
+        }
+
+        if (window.__speakingProbeFallbackHangs && /\/health\/?$/i.test(requestUrl) && method === 'GET') {
+          const signal = options && options.signal;
+          window.__speakingProbeGetHadSignal = !!signal;
+          return new Promise((_resolve, reject) => {
+            const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+            if (signal && signal.aborted) {
+              rejectAbort();
+              return;
+            }
+            if (signal && typeof signal.addEventListener === 'function') {
+              signal.addEventListener('abort', rejectAbort, { once: true });
+            }
+          });
+        }
 
         if (method === 'HEAD' || method === 'GET') {
           return Promise.resolve({
@@ -1475,6 +1509,7 @@ async function mountGamesPage(page, {
       window.LLFlashcards = {
         ProgressTracker: {
           setContext(ctx) {
+            window.__progressContextSetCalls += 1;
             window.__progressContext = ctx;
             return ctx;
           },
@@ -1503,6 +1538,12 @@ async function mountGamesPage(page, {
           game_slug: String(data && data.game_slug || '')
         });
         const deferred = $.Deferred();
+        if (
+          (window.__gameBootstrapRequestHangs && data && data.action === 'll_wordset_games_bootstrap')
+          || (window.__gameLaunchRequestHangs && data && data.action === 'll_wordset_games_launch')
+        ) {
+          return deferred.promise();
+        }
         const normalizePositiveInt = (value) => {
           const parsed = Number.parseInt(value, 10);
           return parsed > 0 ? parsed : 0;
@@ -1722,7 +1763,8 @@ async function mountGamesPage(page, {
               ),
               {
                 provider: String(speakingPracticeSettings.provider || 'hosted_api'),
-                target_field: String(speakingPracticeSettings.targetField || 'title')
+                target_field: String(speakingPracticeSettings.targetField || 'title'),
+                local_endpoint: String(speakingPracticeSettings.localEndpoint || '')
               }
             );
           }
@@ -1849,7 +1891,10 @@ async function mountGamesPage(page, {
       promptAudioDuration: promptAudioDurationSeconds,
       replayGapMs: promptAutoReplayGapMs,
       shooterOverrides: spaceShooterOverrides,
-      bubbleOverrides: bubblePopOverrides
+      bubbleOverrides: bubblePopOverrides,
+      probeFallbackHangs: speakingProbeFallbackHangs,
+      bootstrapHangs: bootstrapRequestHangs,
+      launchHangs: launchRequestHangs
     }
   );
   await page.addStyleTag({ content: wordsetGamesStyles });
@@ -1972,6 +2017,29 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
 });
 
+test('catalog request deadline releases cards when the AJAX bootstrap never settles', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    bootstrapRequestHangs: true,
+    configOverrides: {
+      games: {
+        catalogRequestTimeoutMs: 250
+      }
+    }
+  });
+
+  const shooterCard = page.locator('[data-ll-wordset-game-card][data-game-slug="space-shooter"]');
+  await expect(gameStatus(page, 'space-shooter')).toHaveText('Unable to load games right now.', { timeout: 2000 });
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeDisabled();
+  await expect(shooterCard).not.toHaveClass(/is-loading/);
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls)).toEqual([
+    {
+      action: 'll_wordset_games_bootstrap',
+      game_slug: ''
+    }
+  ]);
+});
+
 test('games page shows a manager-only notice when speaking games stay hidden', async ({ page }) => {
   const settingsUrl = '/wordsets/test-wordset/settings/?ll_wordset_tool=transcription';
   await mountGamesPage(page, {
@@ -1995,6 +2063,42 @@ test('games page shows a manager-only notice when speaking games stay hidden', a
     'Speaking games are hidden because speaking practice is turned off for this word set.'
   );
   await expect(page.locator('[data-ll-wordset-games-speaking-notice-link]')).toHaveAttribute('href', settingsUrl);
+});
+
+test('speaking GET fallback shares the timeout signal and cannot hold the catalog open', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    speakingProbeFallbackHangs: true,
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-practice': {
+            slug: 'speaking-practice',
+            title: 'Speaking Practice',
+            description: 'Say each word and check the match.'
+          }
+        },
+        speakingPractice: {
+          slug: 'speaking-practice',
+          provider: 'local_browser',
+          localEndpoint: 'http://127.0.0.1:8765/transcribe',
+          apiCheckTimeoutMs: 500
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled({ timeout: 3000 });
+  await expect(page.locator('[data-ll-wordset-game-card][data-game-slug="speaking-practice"]')).toBeHidden();
+
+  const probe = await page.evaluate(() => ({
+    getHadSignal: window.__speakingProbeGetHadSignal,
+    methods: window.__speakingFetchLog
+      .filter((entry) => /\/health\/?$/i.test(String(entry && entry.url || '')))
+      .map((entry) => String(entry.method || ''))
+  }));
+  expect(probe.getHadSignal).toBe(true);
+  expect(probe.methods).toEqual(['HEAD', 'GET']);
 });
 
 test('speaking practice records an attempt and renders API scoring result', async ({ page }) => {
@@ -4047,6 +4151,76 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   const progressContext = await page.evaluate(() => window.__progressContext);
   expect(progressContext.wordsetId || progressContext.wordset_id).toBe(77);
+});
+
+test('deferred launch deadline clears a stalled request so a later click can retry', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    launchRequestHangs: true,
+    configOverrides: {
+      games: {
+        launchRequestTimeoutMs: 250,
+        catalog: {
+          'space-shooter': {
+            slug: 'space-shooter',
+            title: 'Space Shooter',
+            description: 'Hear the word. Blast the matching picture.',
+            minimum_word_count: 5,
+            available_word_count: 7,
+            launch_word_cap: 6,
+            launch_word_count: 6,
+            launchable: true,
+            reason_code: '',
+            category_ids: [11, 22],
+            payload_deferred: true,
+            words: []
+          }
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.length)).toBe(1);
+
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.length)).toBe(2);
+  expect(await page.evaluate(() => window.LLWordsetGames.__debug.getRunState())).toBeNull();
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+});
+
+test('rapid launch clicks share one launch continuation and start one run', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  const launchButton = gameLaunchButton(page, 'space-shooter');
+  await expect(launchButton).toBeEnabled();
+  await page.evaluate(() => {
+    window.__gameAjaxCalls = [];
+    window.__progressContextSetCalls = 0;
+  });
+
+  await launchButton.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__gameAjaxCalls.slice())).toEqual([
+    {
+      action: 'll_wordset_games_launch',
+      game_slug: 'space-shooter'
+    }
+  ]);
+  await expect.poll(async () => page.evaluate(() => (
+    window.LLWordsetGames.__debug.getRunState()
+  ))).not.toBeNull();
+  expect(await page.evaluate(() => window.__progressContextSetCalls)).toBe(1);
 });
 
 test('deferred catalog metadata launches with selected-game payload', async ({ page }) => {

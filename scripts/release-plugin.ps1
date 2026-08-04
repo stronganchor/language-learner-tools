@@ -11,7 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$pluginFile = Join-Path $repoRoot 'language-learner-tools.php'
+$pluginFileRelative = 'language-learner-tools.php'
+$pluginFile = Join-Path $repoRoot $pluginFileRelative
 $pluginSlug = 'language-learner-tools'
 $gitHubApiBase = 'https://api.github.com'
 $requiredRuntimeAssetsFile = Join-Path $PSScriptRoot 'required-runtime-assets.txt'
@@ -149,6 +150,8 @@ function Test-ReleaseArchiveFromRef {
 
     try {
         Invoke-Git -Arguments @(
+            '-c',
+            'core.autocrlf=false',
             'archive',
             '--format=zip',
             "--prefix=$pluginSlug/",
@@ -302,6 +305,34 @@ function Get-GitStatusLines {
     return @(Invoke-Git -Arguments @('status', '--short'))
 }
 
+function Get-GitStagedStatusLines {
+    return @(Invoke-Git -Arguments @('diff', '--cached', '--name-status', '--'))
+}
+
+function Assert-BumpWorkingTreeIsScoped {
+    $unmerged = @(Invoke-Git -Arguments @('diff', '--name-only', '--diff-filter=U', '--'))
+    if ($unmerged.Count -gt 0) {
+        throw "Release mode cannot continue with unmerged paths. Resolve them before releasing.`n$($unmerged -join [Environment]::NewLine)"
+    }
+
+    $unstaged = @(Invoke-Git -Arguments @('diff', '--name-status', '--'))
+    if ($unstaged.Count -gt 0) {
+        throw "Release mode commits only pre-staged changes. Stage the intended changes or restore the unstaged paths before releasing.`n$($unstaged -join [Environment]::NewLine)"
+    }
+
+    $untracked = @(Invoke-Git -Arguments @('ls-files', '--others', '--exclude-standard', '--'))
+    if ($untracked.Count -gt 0) {
+        throw "Release mode cannot continue with untracked paths. Stage intended new files or add local-only paths to .gitignore before releasing.`n$($untracked -join [Environment]::NewLine)"
+    }
+}
+
+function Assert-BumpHasStagedChanges {
+    $staged = Get-GitStagedStatusLines
+    if ($staged.Count -eq 0) {
+        throw 'Nothing is staged for release. Stage the intended changes first or choose a version bump.'
+    }
+}
+
 function Write-UpdatedVersion {
     param(
         [Parameter(Mandatory = $true)]
@@ -335,7 +366,7 @@ function Restore-OriginalVersion {
 
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($pluginFile, $OriginalContent, $utf8NoBom)
-    Invoke-Git -Arguments @('add', '--', $pluginFile) | Out-Null
+    Invoke-Git -Arguments @('add', '--', $pluginFileRelative) | Out-Null
 }
 
 function Confirm-Bump {
@@ -348,10 +379,10 @@ function Confirm-Bump {
         [bool]$VersionChanged
     )
 
-    $status = Get-GitStatusLines
+    $status = Get-GitStagedStatusLines
     if ($status.Count -gt 0) {
         Write-Host ''
-        Write-Host 'Files that will be staged and committed:'
+        Write-Host 'Pre-staged files that will be committed:'
         $status | ForEach-Object { Write-Host $_ }
     }
 
@@ -676,6 +707,8 @@ function Build-ReleaseZipFromRef {
     }
 
     Invoke-Git -Arguments @(
+        '-c',
+        'core.autocrlf=false',
         'archive',
         '--format=zip',
         "--prefix=$pluginSlug/",
@@ -704,20 +737,21 @@ function Invoke-BumpWorkflow {
     $needsVersionWrite = $versionChanged -or -not $versionData.VersionsMatch
 
     $commitCreated = $false
-    if ($needsVersionWrite) {
-        Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $releaseVersion
-    }
-
+    $versionWriteApplied = $false
     try {
-        if ((Get-GitStatusLines).Count -eq 0) {
-            throw 'Nothing to release. Make changes first or choose a version bump.'
+        Assert-BumpWorkingTreeIsScoped
+
+        if ($needsVersionWrite) {
+            Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $releaseVersion
+            $versionWriteApplied = $true
+            Invoke-Git -Arguments @('add', '--', $pluginFileRelative) | Out-Null
         }
+
+        Assert-BumpHasStagedChanges
 
         if (-not $Yes) {
             Confirm-Bump -BranchName $BranchName -ReleaseVersion $releaseVersion -VersionChanged $versionChanged
         }
-
-        Invoke-Git -Arguments @('add', '-A') | Out-Null
 
         $commitMessage = Get-ReleaseCommitMessage -ReleaseVersion $releaseVersion
 
@@ -736,7 +770,7 @@ function Invoke-BumpWorkflow {
         }
     }
     catch {
-        if (-not $commitCreated -and $versionChanged) {
+        if (-not $commitCreated -and $versionWriteApplied) {
             Restore-OriginalVersion -OriginalContent $currentContent
         }
 

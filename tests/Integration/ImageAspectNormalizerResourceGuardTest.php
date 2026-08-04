@@ -26,6 +26,14 @@ final class ImageAspectNormalizerResourceGuardTest extends LL_Tools_TestCase
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($user_id);
+        $this->assertSame('manage_options', ll_tools_get_aspect_normalizer_capability());
+        $this->assertTrue(current_user_can(ll_tools_get_aspect_normalizer_capability()));
+
+        ob_start();
+        ll_tools_render_image_aspect_normalizer_admin_page();
+        $page_output = (string) ob_get_clean();
+        $this->assertStringContainsString('Image Aspect Normalizer', $page_output);
+
         $category_ids = [];
         for ($index = 1; $index <= 7; $index++) {
             $created = wp_insert_term(sprintf('Aspect Resource Category %02d', $index), 'word-category');
@@ -108,6 +116,59 @@ final class ImageAspectNormalizerResourceGuardTest extends LL_Tools_TestCase
         remove_action('pre_get_posts', $post_query_watcher);
     }
 
+    public function test_view_ll_tools_editor_is_denied_page_ajax_row_action_and_maintenance_notice(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'editor']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $this->assertTrue(current_user_can('view_ll_tools'));
+        $this->assertFalse(current_user_can(ll_tools_get_aspect_normalizer_capability()));
+
+        $created = wp_insert_term('Aspect Capability Category', 'word-category');
+        $this->assertIsArray($created);
+        $category_id = (int) $created['term_id'];
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ASPECT_STATUS_META_KEY, [
+            'cache_version' => ll_tools_get_category_aspect_cache_version($category_id),
+            'needs_fix' => 1,
+            'offending_count' => 1,
+            'total_attachments' => 2,
+            'ratio_count' => 2,
+        ]);
+
+        set_current_screen('edit-word-category');
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+        $actions = ll_tools_add_word_category_aspect_row_action(['edit' => 'Edit'], $term);
+        $this->assertArrayNotHasKey('ll_tools_aspect_normalize', $actions);
+
+        $page_message = $this->runEndpointExpectWpDie(static function (): void {
+            ll_tools_render_image_aspect_normalizer_admin_page();
+        });
+        $this->assertStringContainsString('You do not have permission', $page_message);
+
+        foreach (['worklist', 'category', 'apply'] as $endpoint) {
+            $_POST = [
+                'nonce' => wp_create_nonce(LL_TOOLS_ASPECT_NORMALIZER_NONCE_ACTION),
+                'category_id' => (string) $category_id,
+                'canonical_ratio_key' => '4:3',
+            ];
+            $_REQUEST = $_POST;
+            $response = $this->runJsonEndpoint('ll_tools_aspect_normalizer_' . $endpoint . '_ajax');
+
+            $this->assertFalse((bool) ($response['success'] ?? true), $endpoint . ' should reject non-administrators.');
+            $this->assertSame('You do not have permission.', (string) ($response['data']['message'] ?? ''));
+        }
+
+        $task_keys = array_values(array_map(static function (array $task): string {
+            return (string) ($task['key'] ?? '');
+        }, ll_tools_get_admin_maintenance_tasks()));
+        $this->assertNotContains('image_aspect_normalization', $task_keys);
+    }
+
     /** @return array<string,mixed> */
     private function runJsonEndpoint(callable $callback): array
     {
@@ -140,5 +201,33 @@ final class ImageAspectNormalizerResourceGuardTest extends LL_Tools_TestCase
         $decoded = json_decode($output, true);
         $this->assertIsArray($decoded, 'Expected JSON, got: ' . $output);
         return $decoded;
+    }
+
+    private function runEndpointExpectWpDie(callable $callback): string
+    {
+        $captured = '';
+        $die_handler = static function ($message = '') use (&$captured): void {
+            if (is_scalar($message)) {
+                $captured = (string) $message;
+            }
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_filter);
+        try {
+            $callback();
+            $this->fail('Expected wp_die to be called.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('wp_die', $exception->getMessage());
+        } finally {
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_filter);
+        }
+
+        return $captured;
     }
 }

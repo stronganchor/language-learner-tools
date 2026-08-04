@@ -3,7 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PHP_LOCAL="$SCRIPT_DIR/php-local.sh"
+BASH_RUNNER="${BASH:-bash}"
+PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")
 
 preserve_env=(
     WP_TEST_DB_NAME
@@ -57,7 +58,7 @@ maybe_apply_auto_local_env() {
     fi
 
     # Keep the active Local runtime authoritative when .env ports drift.
-    eval "$("$setup_script")"
+    eval "$("$BASH_RUNNER" "$setup_script")"
 }
 
 maybe_apply_auto_local_env
@@ -87,23 +88,25 @@ if [[ -n "${LL_TOOLS_RESET_WP_TEST_DB:-}" ]]; then
 fi
 
 has_windows_path_converter() {
-    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+    command -v cygpath >/dev/null 2>&1 || command -v wslpath >/dev/null 2>&1
 }
 
 to_windows_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -w "$1"
+    # Git Bash can see Windows' wslpath.exe even when WSL cannot start. Prefer
+    # its native converter there; WSL installations normally have no cygpath.
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
         return
     fi
-    cygpath -w "$1"
+    wslpath -w "$1"
 }
 
 to_posix_path() {
-    if command -v wslpath >/dev/null 2>&1; then
-        wslpath -u "$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$1"
         return
     fi
-    cygpath -u "$1"
+    wslpath -u "$1"
 }
 
 get_windows_temp_dir_for_bootstrap() {
@@ -175,7 +178,7 @@ escape_php_single_quoted_value() {
 
 detect_runtime_php_binary() {
     local runtime_binary
-    runtime_binary="$("$PHP_LOCAL" -r "echo PHP_BINARY;" 2>/dev/null || true)"
+    runtime_binary="$("${PHP_LOCAL[@]}" -r "echo PHP_BINARY;" 2>/dev/null || true)"
     if [[ -n "$runtime_binary" ]]; then
         printf '%s\n' "$runtime_binary"
         return 0
@@ -189,25 +192,45 @@ detect_runtime_php_binary() {
     return 1
 }
 
+build_windows_php_command() {
+    local runtime_binary="$1"
+    local runtime_binary_win="$runtime_binary"
+    local runtime_binary_unix php_dir_win
+
+    if [[ "$runtime_binary_win" == [A-Za-z]:/* ]]; then
+        runtime_binary_win="${runtime_binary_win//\//\\}"
+    elif [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]] && has_windows_path_converter; then
+        runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
+    fi
+
+    if [[ "$runtime_binary_win" != [A-Za-z]:\\* ]]; then
+        return 1
+    fi
+
+    if has_windows_path_converter; then
+        runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
+        if [[ -n "$runtime_binary_unix" ]]; then
+            php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
+        fi
+    fi
+    if [[ -z "${php_dir_win:-}" ]]; then
+        php_dir_win="${runtime_binary_win%\\*}"
+    fi
+
+    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
+        "$runtime_binary_win" \
+        "$php_dir_win"
+}
+
 expected_wp_tests_php_binary() {
-    if [[ "$php_family" == "Windows" ]] && has_windows_path_converter; then
-        local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
+    if [[ "$php_family" == "Windows" ]]; then
+        local runtime_binary windows_command
         runtime_binary="$(detect_runtime_php_binary || true)"
         if [[ -n "$runtime_binary" ]]; then
-            runtime_binary_win="$runtime_binary"
-            if [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]]; then
-                runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
-            fi
-
-            if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
-                runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
-                if [[ -n "$runtime_binary_unix" ]]; then
-                    php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
-                    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
-                        "$runtime_binary_win" \
-                        "$php_dir_win"
-                    return 0
-                fi
+            windows_command="$(build_windows_php_command "$runtime_binary" || true)"
+            if [[ -n "$windows_command" ]]; then
+                printf '%s\n' "$windows_command"
+                return 0
             fi
         fi
     fi
@@ -280,7 +303,7 @@ ensure_wordpress_test_framework() {
             echo "Detected stale WordPress test config; regenerating bootstrap." >&2
         fi
         echo "Running tests/bin/install-wp-tests.sh to repair the local bootstrap..." >&2
-        if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" "$SCRIPT_DIR/install-wp-tests.sh" \
+        if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" "$BASH_RUNNER" "$SCRIPT_DIR/install-wp-tests.sh" \
             "${WP_TEST_DB_NAME:-wordpress_test}" \
             "${WP_TEST_DB_USER:-root}" \
             "${WP_TEST_DB_PASS:-root}" \
@@ -299,7 +322,7 @@ maybe_reset_wordpress_test_database() {
     fi
 
     echo "Resetting WordPress test database bootstrap..." >&2
-    if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" RESET_DB=1 "$SCRIPT_DIR/install-wp-tests.sh" \
+    if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" RESET_DB=1 "$BASH_RUNNER" "$SCRIPT_DIR/install-wp-tests.sh" \
         "${WP_TEST_DB_NAME:-wordpress_test}" \
         "${WP_TEST_DB_USER:-root}" \
         "${WP_TEST_DB_PASS:-root}" \
@@ -331,7 +354,7 @@ cleanup_ll_tools_test_state() {
 }
 trap cleanup_ll_tools_test_state EXIT
 
-php_family="$("$PHP_LOCAL" -r "echo PHP_OS_FAMILY;")"
+php_family="$("${PHP_LOCAL[@]}" -r "echo PHP_OS_FAMILY;")"
 normalize_windows_php_bootstrap_paths
 rm -f "$legacy_phpunit_cache_dir/test-results" >/dev/null 2>&1 || true
 rmdir "$legacy_phpunit_cache_dir" >/dev/null 2>&1 || true
@@ -425,7 +448,7 @@ fi
 
 ensure_wordpress_test_framework
 if [[ -f "$SCRIPT_DIR/patch-wordpress-tests-lib.php" ]]; then
-    "$PHP_LOCAL" "$SCRIPT_DIR/patch-wordpress-tests-lib.php" "$WP_TESTS_DIR"
+    "${PHP_LOCAL[@]}" "$SCRIPT_DIR/patch-wordpress-tests-lib.php" "$WP_TESTS_DIR"
 fi
 maybe_reset_wordpress_test_database
 
@@ -438,9 +461,9 @@ fi
 
 if [[ "$needs_install" == "1" ]]; then
     if [[ -n "${COMPOSER_PHAR:-}" && -f "${COMPOSER_PHAR}" ]]; then
-        "$PHP_LOCAL" "$COMPOSER_PHAR" install --no-interaction --prefer-dist --working-dir="$TESTS_DIR"
+        "${PHP_LOCAL[@]}" "$COMPOSER_PHAR" install --no-interaction --prefer-dist --working-dir="$TESTS_DIR"
     elif [[ -f "/mnt/c/ProgramData/ComposerSetup/bin/composer.phar" ]]; then
-        "$PHP_LOCAL" "/mnt/c/ProgramData/ComposerSetup/bin/composer.phar" install --no-interaction --prefer-dist --working-dir="$TESTS_DIR"
+        "${PHP_LOCAL[@]}" "/mnt/c/ProgramData/ComposerSetup/bin/composer.phar" install --no-interaction --prefer-dist --working-dir="$TESTS_DIR"
     elif command -v composer >/dev/null 2>&1; then
         composer install --no-interaction --prefer-dist
     else
@@ -453,7 +476,7 @@ run_phpunit_once() {
     local phpunit_bin="$1"
     local target="$2"
 
-    "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${phpunit_options[@]}" "$target"
+    "${PHP_LOCAL[@]}" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${phpunit_options[@]}" "$target"
 }
 
 phpunit_bin=""
@@ -482,7 +505,7 @@ if [[ "${#phpunit_targets[@]}" -gt 1 ]]; then
     exit 0
 fi
 
-if "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${normalized_args[@]}"; then
+if "${PHP_LOCAL[@]}" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${normalized_args[@]}"; then
     exit 0
 else
     status=$?
