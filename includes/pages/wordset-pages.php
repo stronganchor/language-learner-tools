@@ -24097,6 +24097,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         if (!$defer_main_recommendation_refresh && !$use_paged_category_manager && !empty($categories) && function_exists('ll_tools_user_study_categories_for_wordset')) {
             $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
+            if (
+                !empty($study_categories)
+                && function_exists('ll_tools_user_progress_prime_selection_category_payload_cache')
+            ) {
+                ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, $study_categories);
+            }
         }
     }
     if (function_exists('ll_tools_wordset_has_grammatical_gender')) {

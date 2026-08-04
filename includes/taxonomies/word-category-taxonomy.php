@@ -3665,7 +3665,11 @@ add_action('deleted_option', static function (string $option_name): void {
 
 function ll_tools_epoch_request_cache_reset_for_term_meta($meta_id, int $term_id, string $meta_key): void {
     unset($meta_id);
-    if (in_array($meta_key, ['_ll_wc_cache_version', '_ll_quiz_content_epoch'], true)) {
+    if (in_array($meta_key, [
+        '_ll_wc_cache_version',
+        '_ll_quiz_content_epoch',
+        'll_category_aspect_cache_version',
+    ], true)) {
         ll_tools_epoch_request_cache_reset(ll_tools_epoch_request_cache_key('term', $term_id, $meta_key));
     }
 }

@@ -110,6 +110,8 @@ function ll_flashcards_get_processed_categories_cached(
     array $wordset_ids = [],
     ?bool &$complete = null
 ): array {
+    global $wpdb;
+
     $complete = true;
     $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
         return $id > 0;
@@ -136,9 +138,22 @@ function ll_flashcards_get_processed_categories_cached(
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
 
+    $wpdb->last_error = '';
     $category_versions = function_exists('ll_tools_get_category_cache_versions')
         ? ll_tools_get_category_cache_versions($term_ids)
         : array_fill_keys($term_ids, 1);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    $wpdb->last_error = '';
+    $aspect_versions = function_exists('ll_tools_get_category_aspect_cache_versions')
+        ? ll_tools_get_category_aspect_cache_versions($term_ids)
+        : array_fill_keys($term_ids, 1);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
     $content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
         // An empty caller scope is genuinely site-wide; category-owner
         // metadata alone cannot prove every legacy/direct wordset consumer.
@@ -148,6 +163,7 @@ function ll_flashcards_get_processed_categories_cached(
     $cache_key = 'll_fc_proc_cats_' . md5(wp_json_encode([
         'term_ids' => $term_ids,
         'category_versions' => $category_versions,
+        'aspect_versions' => $aspect_versions,
         'use_translations' => $use_translations ? 1 : 0,
         'min_word_count' => $min_word_count,
         'wordset_ids' => $wordset_ids,
@@ -155,7 +171,7 @@ function ll_flashcards_get_processed_categories_cached(
         'wordset_epoch' => $wordset_epoch,
         'content_epoch' => $content_epoch,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
-        'schema' => 6,
+        'schema' => 7,
     ]));
     $cache_group = 'll_tools_flashcards';
     $cache_ttl = (int) apply_filters('ll_tools_flashcard_categories_cache_ttl', DAY_IN_SECONDS);

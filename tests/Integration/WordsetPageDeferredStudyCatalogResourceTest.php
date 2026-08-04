@@ -169,6 +169,100 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
         }
     }
 
+    public function test_progress_render_primes_selection_category_payload_for_a_later_request(): void
+    {
+        $quiz_min_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $quiz_min_filter);
+
+        try {
+            $fixture = $this->createWordsetFixture(3);
+            $wordset_id = (int) $fixture['wordset_id'];
+            $category_ids = array_values(array_map('intval', (array) $fixture['category_ids']));
+            $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+            wp_set_current_user($learner_id);
+
+            $render_cache_statuses = [];
+            $capture_render_cache_status = static function (string $status) use (&$render_cache_statuses): void {
+                $render_cache_statuses[] = $status;
+            };
+            add_action(
+                'll_tools_user_progress_selection_category_payload_cache_status',
+                $capture_render_cache_status,
+                10,
+                1
+            );
+            try {
+                $this->renderWordsetView($wordset_id, 'progress');
+            } finally {
+                remove_action(
+                    'll_tools_user_progress_selection_category_payload_cache_status',
+                    $capture_render_cache_status,
+                    10
+                );
+            }
+            $this->assertContains('store', $render_cache_statuses, 'The Progress render must prime the launch cache.');
+
+            $render_cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+            wp_cache_delete($render_cache_key, 'll_tools_user_progress');
+            $had_epoch_request_cache = array_key_exists('ll_tools_epoch_request_cache', $GLOBALS);
+            $original_epoch_request_cache = $GLOBALS['ll_tools_epoch_request_cache'] ?? null;
+            ll_tools_epoch_request_cache_reset();
+            $lookup_cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+            $this->assertSame($render_cache_key, $lookup_cache_key);
+            $this->assertFalse(
+                wp_cache_get($lookup_cache_key, 'll_tools_user_progress'),
+                'The launch lookup must cross the persistent-transient boundary, not reuse the request object cache.'
+            );
+
+            $lookup_cache_statuses = [];
+            $resolved_category_ids = [];
+            $capture_lookup_cache_status = static function (string $status) use (&$lookup_cache_statuses): void {
+                $lookup_cache_statuses[] = $status;
+            };
+            $capture_resolve = static function (int $category_id) use (&$resolved_category_ids): void {
+                $resolved_category_ids[] = $category_id;
+            };
+            add_action(
+                'll_tools_user_progress_selection_category_payload_cache_status',
+                $capture_lookup_cache_status,
+                10,
+                1
+            );
+            add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+            try {
+                $queries_before_lookup = get_num_queries();
+                $payload = ll_tools_user_progress_selection_category_payload_map(
+                    $category_ids,
+                    $wordset_id,
+                    $complete
+                );
+                $lookup_query_count = get_num_queries() - $queries_before_lookup;
+            } finally {
+                remove_action(
+                    'll_tools_user_progress_selection_category_payload_cache_status',
+                    $capture_lookup_cache_status,
+                    10
+                );
+                remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+                if ($had_epoch_request_cache) {
+                    $GLOBALS['ll_tools_epoch_request_cache'] = $original_epoch_request_cache;
+                } else {
+                    unset($GLOBALS['ll_tools_epoch_request_cache']);
+                }
+            }
+
+            $this->assertTrue($complete);
+            $this->assertCount(3, $payload);
+            $this->assertContains('hit', $lookup_cache_statuses);
+            $this->assertSame([], $resolved_category_ids, 'The later launch request must not resolve categories one by one.');
+            $this->assertLessThanOrEqual(3, $lookup_query_count, 'The transient-backed launch lookup must remain O(1).');
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $quiz_min_filter);
+        }
+    }
+
     /**
      * @return array{wordset_id:int,category_ids:int[]}
      */

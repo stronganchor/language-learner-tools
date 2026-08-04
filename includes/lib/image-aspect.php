@@ -26,6 +26,78 @@ function ll_tools_get_category_aspect_cache_version($category_id): int {
 }
 
 /**
+ * Read aspect cache versions for many categories in one query.
+ *
+ * Selection launches use this to validate cached aspect buckets without
+ * reintroducing one term-meta lookup per selected category.
+ *
+ * @param int[] $category_ids
+ * @return array<int,int>
+ */
+function ll_tools_get_category_aspect_cache_versions(array $category_ids): array {
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $request_cache_key = static function (int $category_id): string {
+        return function_exists('ll_tools_epoch_request_cache_key')
+            ? ll_tools_epoch_request_cache_key('term', $category_id, LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY)
+            : 'term:' . $category_id . ':' . LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY;
+    };
+    $missing_ids = [];
+    foreach ($category_ids as $category_id) {
+        if (!isset($GLOBALS['ll_tools_epoch_request_cache'][$request_cache_key($category_id)])) {
+            $missing_ids[] = $category_id;
+        }
+    }
+
+    if (!empty($missing_ids)) {
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($missing_ids), '%d'));
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT term_id, MAX(CAST(meta_value AS UNSIGNED)) AS version
+             FROM {$wpdb->termmeta}
+             WHERE meta_key = %s AND term_id IN ({$placeholders})
+             GROUP BY term_id",
+            array_merge([LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY], $missing_ids)
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') {
+            return [];
+        }
+
+        $by_id = [];
+        foreach ((array) $rows as $row) {
+            $by_id[(int) ($row['term_id'] ?? 0)] = max(1, (int) ($row['version'] ?? 0));
+        }
+        foreach ($missing_ids as $category_id) {
+            $cache_key = $request_cache_key($category_id);
+            $version = max(1, (int) ($by_id[$category_id] ?? 1));
+            if (function_exists('ll_tools_epoch_request_cache_set')) {
+                ll_tools_epoch_request_cache_set($cache_key, $version);
+            } else {
+                if (!isset($GLOBALS['ll_tools_epoch_request_cache']) || !is_array($GLOBALS['ll_tools_epoch_request_cache'])) {
+                    $GLOBALS['ll_tools_epoch_request_cache'] = [];
+                }
+                $GLOBALS['ll_tools_epoch_request_cache'][$cache_key] = $version;
+            }
+        }
+    }
+
+    $versions = [];
+    foreach ($category_ids as $category_id) {
+        $versions[$category_id] = max(1, (int) (
+            $GLOBALS['ll_tools_epoch_request_cache'][$request_cache_key($category_id)]
+            ?? 1
+        ));
+    }
+    return $versions;
+}
+
+/**
  * Greatest common divisor helper.
  */
 function ll_tools_aspect_gcd($left, $right): int {

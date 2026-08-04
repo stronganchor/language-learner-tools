@@ -2305,6 +2305,414 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame($chunks[0]['compatibility_key'], $plan['compatibility_key']);
     }
 
+    public function test_selection_category_payload_cache_serves_zazaca_scale_map_without_per_category_resolution(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Presentation Cache Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category_rows = [];
+        $category_ids = [];
+        $id_base = 1000000 + ($wordset_id * 1000);
+        for ($index = 1; $index <= 210; $index++) {
+            $category_id = $id_base + $index;
+            $category_ids[] = $category_id;
+            $category_rows[$category_id] = [
+                'id' => $category_id,
+                'mode' => 'text_translation',
+                'prompt_type' => 'audio',
+                'option_type' => 'text_translation',
+                'learning_prompt_type' => 'audio_text_title',
+                'learning_option_type' => 'text_translation',
+                'learning_supported' => true,
+                'self_check_supported' => true,
+                'sign_language_mode' => false,
+                'aspect_bucket' => 'no-image',
+            ];
+        }
+
+        $cache_statuses = [];
+        $resolved_category_ids = [];
+        $capture_cache_status = static function (string $status) use (&$cache_statuses): void {
+            $cache_statuses[] = $status;
+        };
+        $capture_resolve = static function (int $category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_cache_status', $capture_cache_status, 10, 1);
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, $category_rows);
+            $queries_before_lookup = get_num_queries();
+            $payload = ll_tools_user_progress_selection_category_payload_map($category_ids, $wordset_id);
+            $lookup_query_count = get_num_queries() - $queries_before_lookup;
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_cache_status', $capture_cache_status, 10);
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
+
+        $this->assertCount(210, $payload);
+        $this->assertContains('store', $cache_statuses);
+        $this->assertContains('hit', $cache_statuses);
+        $this->assertSame([], $resolved_category_ids, 'A primed aggregate must not resolve 210 categories again.');
+        $this->assertLessThanOrEqual(2, $lookup_query_count, 'The warm aggregate lookup must stay O(1) in SQL queries.');
+        $this->assertSame('audio_text_title', (string) ($payload[$category_ids[0]]['learning_prompt_type'] ?? ''));
+        $this->assertSame('no-image', (string) ($payload[$category_ids[209]]['aspect_bucket'] ?? ''));
+    }
+
+    public function test_selection_category_payload_partial_prime_does_not_relabel_an_untouched_stale_row(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Partial Presentation Cache Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_a = wp_insert_term(
+            'Analytics Partial Presentation A ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $category_b = wp_insert_term(
+            'Analytics Partial Presentation B ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($category_a));
+        $this->assertFalse(is_wp_error($category_b));
+        $category_a_id = (int) $category_a['term_id'];
+        $category_b_id = (int) $category_b['term_id'];
+
+        $row_for = static function (int $category_id, string $prompt_type): array {
+            return [
+                'id' => $category_id,
+                'mode' => 'text_translation',
+                'prompt_type' => $prompt_type,
+                'option_type' => 'text_translation',
+                'learning_supported' => true,
+                'self_check_supported' => true,
+                'aspect_bucket' => 'no-image',
+            ];
+        };
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, [
+            $row_for($category_a_id, 'audio'),
+            $row_for($category_b_id, 'audio'),
+        ]);
+        $cached_before = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+        $stored_a_version = (int) ($cached_before['category_versions'][$category_a_id] ?? 0);
+        $this->assertContains(
+            $category_a_id,
+            ll_tools_bump_category_cache_versions_only([$category_a_id])
+        );
+
+        ll_tools_user_progress_prime_selection_category_payload_cache(
+            $wordset_id,
+            [$row_for($category_b_id, 'text_title')]
+        );
+        $cached_after_partial_prime = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+        $this->assertSame(
+            $stored_a_version,
+            (int) ($cached_after_partial_prime['category_versions'][$category_a_id] ?? 0),
+            'Updating B must not stamp A\'s stale payload with A\'s new version.'
+        );
+
+        $resolved_category_ids = [];
+        $capture_resolve = static function (int $category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            $payload = ll_tools_user_progress_selection_category_payload_map(
+                [$category_a_id, $category_b_id],
+                $wordset_id
+            );
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
+
+        $this->assertSame([$category_a_id], $resolved_category_ids);
+        $this->assertArrayHasKey($category_a_id, $payload);
+        $this->assertSame('text_title', (string) ($payload[$category_b_id]['prompt_type'] ?? ''));
+    }
+
+    public function test_selection_category_payload_re_resolves_when_only_the_aspect_version_changes(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Aspect Presentation Cache Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Aspect Presentation Cache',
+            'text_title',
+            'text_translation',
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $category_id = (int) $category['category_id'];
+
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, [[
+            'id' => $category_id,
+            'mode' => 'text_translation',
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_translation',
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'aspect_bucket' => 'stale-aspect',
+        ]]);
+        $cached_before = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+        $stored_category_version = (int) ($cached_before['category_versions'][$category_id] ?? 0);
+        $stored_aspect_version = (int) ($cached_before['aspect_versions'][$category_id] ?? 0);
+        update_term_meta(
+            $category_id,
+            LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY,
+            $stored_aspect_version + 1
+        );
+
+        $resolved_category_ids = [];
+        $capture_resolve = static function (int $resolved_category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $resolved_category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            $payload = ll_tools_user_progress_selection_category_payload_map([$category_id], $wordset_id);
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
+
+        $cached_after = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+        $this->assertSame(
+            $stored_category_version,
+            (int) ($cached_after['category_versions'][$category_id] ?? 0),
+            'The dedicated aspect version must invalidate the aggregate even when the category version is unchanged.'
+        );
+        $this->assertSame([$category_id], $resolved_category_ids);
+        $this->assertArrayHasKey($category_id, $payload);
+        $this->assertSame('no-image', (string) ($payload[$category_id]['aspect_bucket'] ?? ''));
+        $this->assertSame(
+            $stored_aspect_version + 1,
+            (int) ($cached_after['aspect_versions'][$category_id] ?? 0)
+        );
+    }
+
+    public function test_processed_category_cache_cannot_reprime_a_stale_aspect_bucket(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Processed Aspect Cache Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Processed Aspect Cache',
+            'audio',
+            'image',
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $category_id = (int) $category['category_id'];
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_CANONICAL_ASPECT_META_KEY, '4:3');
+        ll_tools_clear_category_aspect_cache($category_id);
+        $first_complete = true;
+        $first_catalog = ll_flashcards_get_processed_categories_cached(
+            [$term],
+            false,
+            0,
+            [$wordset_id],
+            $first_complete
+        );
+        $this->assertTrue($first_complete);
+        $this->assertCount(1, $first_catalog);
+        $this->assertSame('ratio:4:3', (string) ($first_catalog[0]['aspect_bucket'] ?? ''));
+
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_CANONICAL_ASPECT_META_KEY, '16:9');
+        ll_tools_clear_category_aspect_cache($category_id);
+        $second_complete = true;
+        $second_catalog = ll_flashcards_get_processed_categories_cached(
+            [$term],
+            false,
+            0,
+            [$wordset_id],
+            $second_complete
+        );
+        $this->assertTrue($second_complete);
+        $this->assertCount(1, $second_catalog);
+        $this->assertSame('ratio:16:9', (string) ($second_catalog[0]['aspect_bucket'] ?? ''));
+
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, $second_catalog);
+        $resolved_category_ids = [];
+        $capture_resolve = static function (int $resolved_category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $resolved_category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            $payload = ll_tools_user_progress_selection_category_payload_map([$category_id], $wordset_id);
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
+
+        $this->assertSame([], $resolved_category_ids);
+        $this->assertSame('ratio:16:9', (string) ($payload[$category_id]['aspect_bucket'] ?? ''));
+    }
+
+    public function test_aspect_version_snapshot_cannot_stamp_a_concurrently_stale_row_as_current(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Concurrent Aspect Cache Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Concurrent Aspect Cache',
+            'text_title',
+            'text_translation',
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $category_id = (int) $category['category_id'];
+
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY, 3);
+        $captured_versions = ll_tools_get_category_aspect_cache_versions([$category_id]);
+        $this->assertSame(3, (int) ($captured_versions[$category_id] ?? 0));
+        $updated = $wpdb->update(
+            $wpdb->termmeta,
+            ['meta_value' => '4'],
+            [
+                'term_id' => $category_id,
+                'meta_key' => LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY,
+            ],
+            ['%s'],
+            ['%d', '%s']
+        );
+        $this->assertSame(1, $updated);
+
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, [[
+            'id' => $category_id,
+            'mode' => 'text_translation',
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_translation',
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'aspect_bucket' => 'stale-concurrent-aspect',
+        ]]);
+        $cached = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+        $this->assertSame(
+            3,
+            (int) ($cached['aspect_versions'][$category_id] ?? 0),
+            'The prime must retain the version captured with its authoritative source rows.'
+        );
+
+        ll_tools_epoch_request_cache_reset(
+            ll_tools_epoch_request_cache_key(
+                'term',
+                $category_id,
+                LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY
+            )
+        );
+        $resolved_category_ids = [];
+        $capture_resolve = static function (int $resolved_category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $resolved_category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            $payload = ll_tools_user_progress_selection_category_payload_map([$category_id], $wordset_id);
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
+
+        $this->assertSame([$category_id], $resolved_category_ids);
+        $this->assertArrayHasKey($category_id, $payload);
+        $this->assertSame('no-image', (string) ($payload[$category_id]['aspect_bucket'] ?? ''));
+    }
+
+    public function test_selection_category_payload_cache_write_failure_does_not_fail_the_current_resolution(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Analytics Presentation Write Failure Wordset ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Presentation Write Failure',
+            'text_title',
+            'text_translation',
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $category_id = (int) $category['category_id'];
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, [[
+            'id' => $category_id,
+            'mode' => 'text_translation',
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_translation',
+            'learning_supported' => true,
+            'self_check_supported' => true,
+            'aspect_bucket' => 'no-image',
+        ]]);
+        $this->assertContains(
+            $category_id,
+            ll_tools_bump_category_cache_versions_only([$category_id])
+        );
+
+        $cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+        $inject_write_error = static function ($value, $old_value) use ($wpdb) {
+            $wpdb->last_error = 'simulated selection payload cache write failure';
+            return $old_value;
+        };
+        $cache_statuses = [];
+        $capture_cache_status = static function (string $status) use (&$cache_statuses): void {
+            $cache_statuses[] = $status;
+        };
+        $transient_option_filter = 'pre_update_option__transient_' . $cache_key;
+        add_filter($transient_option_filter, $inject_write_error, 10, 2);
+        add_action('ll_tools_user_progress_selection_category_payload_cache_status', $capture_cache_status, 10, 1);
+        try {
+            $complete = true;
+            $payload = ll_tools_user_progress_selection_category_payload_map(
+                [$category_id],
+                $wordset_id,
+                $complete
+            );
+        } finally {
+            remove_filter($transient_option_filter, $inject_write_error, 10);
+            remove_action('ll_tools_user_progress_selection_category_payload_cache_status', $capture_cache_status, 10);
+        }
+
+        $this->assertTrue($complete);
+        $this->assertArrayHasKey($category_id, $payload);
+        $this->assertContains('store_failed', $cache_statuses);
+        $this->assertSame('', $wpdb->last_error);
+    }
+
     public function test_learning_selection_launch_plan_balances_large_exact_scope_into_eight_to_fifteen_word_chunks(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -2465,16 +2873,38 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertTrue($config_complete);
         $this->assertSame('text_translation', (string) ($effective_config['option_type'] ?? ''));
 
-        $plan = ll_tools_build_user_study_selection_launch_plan(
-            $user_id,
-            $wordset_id,
-            [$category_id],
-            '',
-            'learning',
-            $word_ids
-        );
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, [[
+            'id' => $category_id,
+            'mode' => 'text_translation',
+            'prompt_type' => (string) ($effective_config['prompt_type'] ?? 'text_title'),
+            'option_type' => (string) ($effective_config['option_type'] ?? 'text_translation'),
+            'learning_prompt_type' => (string) ($effective_config['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($effective_config['learning_option_type'] ?? ''),
+            'learning_supported' => !empty($effective_config['learning_supported']),
+            'self_check_supported' => !empty($effective_config['self_check_supported']),
+            'sign_language_mode' => !empty($effective_config['sign_language_mode']),
+            'aspect_bucket' => 'no-image',
+        ]]);
+        $resolved_category_ids = [];
+        $capture_resolve = static function (int $resolved_category_id) use (&$resolved_category_ids): void {
+            $resolved_category_ids[] = $resolved_category_id;
+        };
+        add_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10, 1);
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                [$category_id],
+                '',
+                'learning',
+                $word_ids
+            );
+        } finally {
+            remove_action('ll_tools_user_progress_selection_category_payload_resolve', $capture_resolve, 10);
+        }
 
         $this->assertIsArray($plan);
+        $this->assertSame([], $resolved_category_ids, 'The effective fallback metadata should come from the primed aggregate.');
         $this->assertSame('no-image|text->text', (string) ($plan['compatibility_key'] ?? ''));
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertCount(1, $chunks);

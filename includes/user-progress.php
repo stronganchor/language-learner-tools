@@ -3192,6 +3192,192 @@ function ll_tools_user_progress_category_quiz_config_map(array $category_ids, in
 }
 
 /**
+ * Cache key for the lightweight presentation map used by selection launches.
+ *
+ * The Progress page already builds the authoritative effective category
+ * catalog. Persisting only the planner fields here lets a later Learning click
+ * reuse that work with one cache read instead of repeating count/aspect work
+ * for every category in a large wordset.
+ */
+function ll_tools_user_progress_selection_category_payload_cache_key(int $wordset_id): string {
+    $wordset_id = max(0, $wordset_id);
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
+        ? (string) ll_tools_get_quiz_content_cache_epoch($wordset_id > 0 ? [$wordset_id] : [])
+        : 'qce-unavailable';
+    $min_word_count = defined('LL_TOOLS_MIN_WORDS_PER_QUIZ')
+        ? (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
+        : 0;
+
+    return 'll_up_sel_cat_' . md5(wp_json_encode([
+        'schema' => 2,
+        'wordset_id' => $wordset_id,
+        'user_id' => function_exists('get_current_user_id') ? max(0, (int) get_current_user_id()) : 0,
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+        'quiz_content_epoch' => $quiz_content_epoch,
+        'min_word_count' => max(0, $min_word_count),
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+    ]));
+}
+
+/**
+ * Keep only fields consumed by the bounded Learning compatibility planner.
+ *
+ * @param array<int,array<string,mixed>> $category_rows
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_user_progress_normalize_selection_category_payload_rows(array $category_rows): array {
+    $payload = [];
+    foreach ($category_rows as $category_key => $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+        $category_id = (int) ($category_row['id'] ?? $category_key);
+        if ($category_id <= 0) {
+            continue;
+        }
+        $aspect_bucket = trim((string) ($category_row['aspect_bucket'] ?? ''));
+        $payload[$category_id] = [
+            'id' => $category_id,
+            'mode' => (string) ($category_row['mode'] ?? ($category_row['option_type'] ?? 'image')),
+            'prompt_type' => (string) ($category_row['prompt_type'] ?? 'audio'),
+            'option_type' => (string) ($category_row['option_type'] ?? ($category_row['mode'] ?? 'image')),
+            'learning_prompt_type' => (string) ($category_row['learning_prompt_type'] ?? ''),
+            'learning_option_type' => (string) ($category_row['learning_option_type'] ?? ''),
+            'learning_supported' => !array_key_exists('learning_supported', $category_row)
+                || !empty($category_row['learning_supported']),
+            'self_check_supported' => !array_key_exists('self_check_supported', $category_row)
+                || !empty($category_row['self_check_supported']),
+            'sign_language_mode' => !empty($category_row['sign_language_mode']),
+            'aspect_bucket' => $aspect_bucket !== '' ? $aspect_bucket : 'no-image',
+        ];
+    }
+
+    return $payload;
+}
+
+/**
+ * Read the aggregate presentation cache without triggering per-category work.
+ *
+ * @return array{payload:array<int,array<string,mixed>>,category_versions:array<int,int>,aspect_versions:array<int,int>}|null
+ */
+function ll_tools_user_progress_get_cached_selection_category_payload(int $wordset_id): ?array {
+    $cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+    $cache_group = 'll_tools_user_progress';
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (
+        !is_array($cached)
+        || (int) ($cached['__ll_selection_category_payload_cache_format'] ?? 0) !== 2
+        || !isset($cached['payload'])
+        || !is_array($cached['payload'])
+        || !isset($cached['category_versions'])
+        || !is_array($cached['category_versions'])
+        || !isset($cached['aspect_versions'])
+        || !is_array($cached['aspect_versions'])
+    ) {
+        return null;
+    }
+
+    $payload = ll_tools_user_progress_normalize_selection_category_payload_rows($cached['payload']);
+    $category_versions = [];
+    foreach ($cached['category_versions'] as $category_id => $version) {
+        $category_id = (int) $category_id;
+        if ($category_id > 0) {
+            $category_versions[$category_id] = max(1, (int) $version);
+        }
+    }
+    $aspect_versions = [];
+    foreach ($cached['aspect_versions'] as $category_id => $version) {
+        $category_id = (int) $category_id;
+        if ($category_id > 0) {
+            $aspect_versions[$category_id] = max(1, (int) $version);
+        }
+    }
+
+    return [
+        'payload' => $payload,
+        'category_versions' => $category_versions,
+        'aspect_versions' => $aspect_versions,
+    ];
+}
+
+/**
+ * Merge authoritative effective category rows into the aggregate planner cache.
+ *
+ * @param array<int,array<string,mixed>> $category_rows
+ */
+function ll_tools_user_progress_prime_selection_category_payload_cache(int $wordset_id, array $category_rows): void {
+    global $wpdb;
+
+    $normalized = ll_tools_user_progress_normalize_selection_category_payload_rows($category_rows);
+    if ($wordset_id <= 0 || empty($normalized)) {
+        return;
+    }
+
+    $wpdb->last_error = '';
+    $cached = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+    if ($wpdb->last_error !== '') {
+        return;
+    }
+    $cached_payload = is_array($cached) ? (array) ($cached['payload'] ?? []) : [];
+    $category_versions = is_array($cached) ? (array) ($cached['category_versions'] ?? []) : [];
+    $aspect_versions = is_array($cached) ? (array) ($cached['aspect_versions'] ?? []) : [];
+    $normalized_category_ids = array_values(array_map('intval', array_keys($normalized)));
+    $wpdb->last_error = '';
+    $normalized_category_versions = function_exists('ll_tools_get_category_cache_versions')
+        ? ll_tools_get_category_cache_versions($normalized_category_ids)
+        : array_fill_keys($normalized_category_ids, 1);
+    if ($wpdb->last_error !== '') {
+        return;
+    }
+    $wpdb->last_error = '';
+    $normalized_aspect_versions = function_exists('ll_tools_get_category_aspect_cache_versions')
+        ? ll_tools_get_category_aspect_cache_versions($normalized_category_ids)
+        : array_fill_keys($normalized_category_ids, 1);
+    if ($wpdb->last_error !== '') {
+        return;
+    }
+
+    $payload = array_replace($cached_payload, $normalized);
+    foreach ($normalized_category_ids as $category_id) {
+        $category_versions[$category_id] = max(1, (int) ($normalized_category_versions[$category_id] ?? 1));
+        $aspect_versions[$category_id] = max(1, (int) ($normalized_aspect_versions[$category_id] ?? 1));
+    }
+    $cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+    $cache_group = 'll_tools_user_progress';
+    $cache_ttl = HOUR_IN_SECONDS;
+    $cache_value = [
+        '__ll_selection_category_payload_cache_format' => 2,
+        'payload' => $payload,
+        'category_versions' => $category_versions,
+        'aspect_versions' => $aspect_versions,
+    ];
+    // Persistence is an optimization for the next launch. A write failure must
+    // not poison the authoritative rows already resolved for this request.
+    $wpdb->last_error = '';
+    wp_cache_set($cache_key, $cache_value, $cache_group, $cache_ttl);
+    set_transient($cache_key, $cache_value, $cache_ttl);
+    $cache_write_failed = ($wpdb->last_error !== '');
+    $wpdb->last_error = '';
+    do_action(
+        'll_tools_user_progress_selection_category_payload_cache_status',
+        $cache_write_failed ? 'store_failed' : 'store',
+        $cache_key,
+        $wordset_id,
+        count($normalized)
+    );
+}
+
+/**
  * Build only the presentation metadata needed by the bounded launch planner.
  * Unlike the learner category catalog, this does not hydrate previews, media,
  * labels, URLs, or per-category content counts.
@@ -3213,10 +3399,72 @@ function ll_tools_user_progress_selection_category_payload_map(
     }
 
     $wpdb->last_error = '';
+    $cached = ll_tools_user_progress_get_cached_selection_category_payload($wordset_id);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    $cached_payload = is_array($cached) ? (array) ($cached['payload'] ?? []) : [];
+    $cached_versions = is_array($cached) ? (array) ($cached['category_versions'] ?? []) : [];
+    $cached_aspect_versions = is_array($cached) ? (array) ($cached['aspect_versions'] ?? []) : [];
+    $wpdb->last_error = '';
+    $current_versions = function_exists('ll_tools_get_category_cache_versions')
+        ? ll_tools_get_category_cache_versions($category_ids)
+        : array_fill_keys($category_ids, 1);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    $wpdb->last_error = '';
+    $current_aspect_versions = function_exists('ll_tools_get_category_aspect_cache_versions')
+        ? ll_tools_get_category_aspect_cache_versions($category_ids)
+        : array_fill_keys($category_ids, 1);
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+    $payload = [];
+    $missing_category_ids = [];
+    foreach ($category_ids as $category_id) {
+        $current_version = max(1, (int) ($current_versions[$category_id] ?? 1));
+        $cached_version = max(0, (int) ($cached_versions[$category_id] ?? 0));
+        $current_aspect_version = max(1, (int) ($current_aspect_versions[$category_id] ?? 1));
+        $cached_aspect_version = max(0, (int) ($cached_aspect_versions[$category_id] ?? 0));
+        if (
+            isset($cached_payload[$category_id])
+            && $cached_version === $current_version
+            && $cached_aspect_version === $current_aspect_version
+        ) {
+            $payload[$category_id] = $cached_payload[$category_id];
+        } else {
+            $missing_category_ids[] = $category_id;
+        }
+    }
+
+    $cache_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+    if (empty($missing_category_ids)) {
+        do_action(
+            'll_tools_user_progress_selection_category_payload_cache_status',
+            'hit',
+            $cache_key,
+            $wordset_id,
+            count($category_ids)
+        );
+        return $payload;
+    }
+    do_action(
+        'll_tools_user_progress_selection_category_payload_cache_status',
+        empty($payload) ? 'miss' : 'partial_hit',
+        $cache_key,
+        $wordset_id,
+        count($missing_category_ids)
+    );
+
+    $wpdb->last_error = '';
     $terms = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
-        'include' => $category_ids,
+        'include' => $missing_category_ids,
     ]);
     if (is_wp_error($terms) || $wpdb->last_error !== '') {
         $complete = false;
@@ -3232,11 +3480,12 @@ function ll_tools_user_progress_selection_category_payload_map(
 
     $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    $payload = [];
-    foreach ($category_ids as $category_id) {
+    $resolved_payload = [];
+    foreach ($missing_category_ids as $category_id) {
         if (!isset($terms_by_id[$category_id])) {
             continue;
         }
+        do_action('ll_tools_user_progress_selection_category_payload_resolve', $category_id, $wordset_id);
         $term = $terms_by_id[$category_id];
         $config_complete = true;
         $wpdb->last_error = '';
@@ -3286,7 +3535,7 @@ function ll_tools_user_progress_selection_category_payload_map(
             $aspect_bucket = 'no-image';
         }
 
-        $payload[$category_id] = [
+        $resolved_payload[$category_id] = [
             'id' => $category_id,
             'mode' => (string) ($config['option_type'] ?? 'image'),
             'prompt_type' => (string) ($config['prompt_type'] ?? 'audio'),
@@ -3300,7 +3549,19 @@ function ll_tools_user_progress_selection_category_payload_map(
         ];
     }
 
-    return $payload;
+    if (!empty($resolved_payload)) {
+        ll_tools_user_progress_prime_selection_category_payload_cache($wordset_id, $resolved_payload);
+        $payload = array_replace($payload, $resolved_payload);
+    }
+
+    $ordered_payload = [];
+    foreach ($category_ids as $category_id) {
+        if (isset($payload[$category_id]) && is_array($payload[$category_id])) {
+            $ordered_payload[$category_id] = $payload[$category_id];
+        }
+    }
+
+    return $ordered_payload;
 }
 
 function ll_tools_user_progress_get_word_gender_meta_map(array $word_ids): array {
@@ -4676,6 +4937,15 @@ function ll_tools_build_user_study_analytics_payload(
         $categories_payload = function_exists('ll_tools_user_study_categories_for_wordset')
             ? ll_tools_user_study_categories_for_wordset($scope_wordset_id)
             : [];
+        if (
+            !empty($categories_payload)
+            && function_exists('ll_tools_user_progress_prime_selection_category_payload_cache')
+        ) {
+            ll_tools_user_progress_prime_selection_category_payload_cache(
+                $scope_wordset_id,
+                (array) $categories_payload
+            );
+        }
     }
 
     $category_lookup = [];
