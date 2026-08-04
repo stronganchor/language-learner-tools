@@ -313,8 +313,27 @@ function buildProgressPageMarkup() {
     <div id="ll-gender-results-actions" style="display:none;"></div>
     <button id="restart-quiz" type="button" style="display:none;">Restart</button>
     <div id="quiz-mode-buttons" style="display:none;"></div>
-    <div id="ll-tools-flashcard-popup" style="display:none;"></div>
-    <div id="ll-tools-flashcard-quiz-popup" style="display:none;"></div>
+    <div id="ll-tools-flashcard-popup" style="display:none; position:fixed; inset:0; width:100vw; height:100vh;">
+      <div
+        id="ll-tools-flashcard-quiz-popup"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ll-tools-flashcard-dialog-title"
+        aria-hidden="true"
+        tabindex="-1"
+        style="display:none; position:fixed; inset:0; width:100vw; height:100vh;"
+      >
+        <h2 id="ll-tools-flashcard-dialog-title">Quiz</h2>
+        <button id="ll-tools-close-flashcard" type="button">Close</button>
+        <div
+          id="ll-tools-loading-animation"
+          class="ll-tools-loading-animation"
+          aria-hidden="true"
+          style="display:none; width:40px; height:40px;"
+        ></div>
+        <div id="ll-tools-loading-status" role="status" aria-live="polite" hidden>Loading quiz...</div>
+      </div>
+    </div>
   `;
 }
 
@@ -560,12 +579,16 @@ async function mountProgressPage(page, options = {}) {
     window.__llSelectionPlanRequests = [];
     window.__llFetchWordsRequests = [];
     window.__llFlashcardLaunches = [];
+    window.__llFlashcardInitRequests = [];
+    window.__llHoldSelectionPlanRequests = false;
+    window.__llHoldFetchWordsRequests = false;
+    window.__llHoldFlashcardInitRequests = false;
     window.__confettiCalls = 0;
     window.confetti = function () {
       window.__confettiCalls += 1;
     };
     window.initFlashcardWidget = function (categoryNames, mode) {
-      window.__llFlashcardLaunches.push({
+      const launch = {
         categoryNames: Array.isArray(categoryNames) ? categoryNames.slice() : [],
         mode,
         sessionWordIds: window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.sessionWordIds)
@@ -577,8 +600,24 @@ async function mountProgressPage(page, options = {}) {
         lastLaunchPlan: window.llToolsFlashcardsData && window.llToolsFlashcardsData.lastLaunchPlan
           ? Object.assign({}, window.llToolsFlashcardsData.lastLaunchPlan)
           : null
+      };
+      window.__llFlashcardLaunches.push(launch);
+      let resolveRequest;
+      let rejectRequest;
+      const promise = new Promise((resolve, reject) => {
+        resolveRequest = resolve;
+        rejectRequest = reject;
       });
-      return Promise.resolve();
+      window.__llFlashcardInitRequests.push({
+        launch,
+        resolve: resolveRequest,
+        reject: rejectRequest,
+        promise
+      });
+      if (!window.__llHoldFlashcardInitRequests) {
+        resolveRequest();
+      }
+      return promise;
     };
 
     window.__llAlerts = [];
@@ -613,7 +652,96 @@ async function mountProgressPage(page, options = {}) {
       return true;
     };
 
+    window.__resolveFetchWordsRequest = function (index) {
+      const entry = Array.isArray(window.__llFetchWordsRequests)
+        ? window.__llFetchWordsRequests[index]
+        : null;
+      if (!entry || !entry.deferred) {
+        return false;
+      }
+      entry.deferred.resolve(entry.response);
+      return true;
+    };
+
+    window.__rejectFetchWordsRequest = function (index) {
+      const entry = Array.isArray(window.__llFetchWordsRequests)
+        ? window.__llFetchWordsRequests[index]
+        : null;
+      if (!entry || !entry.deferred) {
+        return false;
+      }
+      entry.deferred.reject({ status: 503 }, 'error', 'Unavailable');
+      return true;
+    };
+
+    window.__resolveSelectionPlanRequest = function (index) {
+      const entry = Array.isArray(window.__llSelectionPlanRequests)
+        ? window.__llSelectionPlanRequests[index]
+        : null;
+      if (!entry || !entry.deferred) {
+        return false;
+      }
+      entry.deferred.resolve(entry.response);
+      return true;
+    };
+
+    window.__resolveFlashcardInitRequest = function (index) {
+      const entry = Array.isArray(window.__llFlashcardInitRequests)
+        ? window.__llFlashcardInitRequests[index]
+        : null;
+      if (!entry || typeof entry.resolve !== 'function') {
+        return false;
+      }
+      entry.resolve();
+      return true;
+    };
+
+    window.__rejectFlashcardInitRequest = function (index) {
+      const entry = Array.isArray(window.__llFlashcardInitRequests)
+        ? window.__llFlashcardInitRequests[index]
+        : null;
+      if (!entry || typeof entry.reject !== 'function') {
+        return false;
+      }
+      entry.reject(new Error('Initialization failed'));
+      return true;
+    };
+
+    window.__llReadFlashcardLaunchUi = function () {
+      const popup = document.getElementById('ll-tools-flashcard-popup');
+      const quizPopup = document.getElementById('ll-tools-flashcard-quiz-popup');
+      const loader = document.getElementById('ll-tools-loading-animation');
+      const loadingStatus = document.getElementById('ll-tools-loading-status');
+      const isVisible = function (element) {
+        if (!element || element.hidden) {
+          return false;
+        }
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && style.opacity !== '0'
+          && element.getClientRects().length > 0;
+      };
+      return {
+        bodyOpen: document.body.classList.contains('ll-tools-flashcard-open'),
+        popupVisible: isVisible(popup),
+        quizPopupVisible: isVisible(quizPopup),
+        quizPopupBusy: !!quizPopup && quizPopup.getAttribute('aria-busy') === 'true',
+        quizPopupAriaHidden: quizPopup ? quizPopup.getAttribute('aria-hidden') : null,
+        loaderVisible: isVisible(loader),
+        loadingStatusHidden: !loadingStatus || loadingStatus.hidden
+      };
+    };
+
     const $ = window.jQuery;
+    window.__llFlashcardPopupHideCalls = 0;
+    const originalHide = $.fn.hide;
+    $.fn.hide = function () {
+      if (this.filter('#ll-tools-flashcard-popup').length) {
+        window.__llFlashcardPopupHideCalls += 1;
+      }
+      return originalHide.apply(this, arguments);
+    };
     $.post = function (_url, request) {
       const deferred = $.Deferred();
       const action = request && request.action ? String(request.action) : '';
@@ -664,17 +792,22 @@ async function mountProgressPage(page, options = {}) {
           chunk_count: chunks.length,
           truncated: false
         };
-        window.__llSelectionPlanRequests.push({
-          action,
-          request: Object.assign({}, request),
-          plan
-        });
-        deferred.resolve({
+        const response = {
           success: true,
           data: {
             plan
           }
+        };
+        window.__llSelectionPlanRequests.push({
+          action,
+          request: Object.assign({}, request),
+          plan,
+          deferred,
+          response
         });
+        if (!window.__llHoldSelectionPlanRequests) {
+          deferred.resolve(response);
+        }
         return deferred.promise();
       }
 
@@ -684,10 +817,6 @@ async function mountProgressPage(page, options = {}) {
           .map((value) => Number(value) || 0)
           .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
         const categoryId = Number(request.category_id) || 11;
-        window.__llFetchWordsRequests.push({
-          action,
-          request: Object.assign({}, request)
-        });
         const words = candidateIds.map((id) => ({
           id,
           title: `Launch Word ${id}`,
@@ -698,7 +827,7 @@ async function mountProgressPage(page, options = {}) {
           category_id: categoryId,
           category_ids: [categoryId]
         }));
-        deferred.resolve({
+        const response = {
           success: true,
           data: action === 'll_get_flashcard_payload_page'
             ? {
@@ -708,7 +837,16 @@ async function mountProgressPage(page, options = {}) {
                 complete: true
               }
             : words
+        };
+        window.__llFetchWordsRequests.push({
+          action,
+          request: Object.assign({}, request),
+          deferred,
+          response
         });
+        if (!window.__llHoldFetchWordsRequests) {
+          deferred.resolve(response);
+        }
         return deferred.promise();
       }
 
@@ -805,8 +943,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
     .toHaveText(`${allMatchingIds.length} selected words`);
 
   return {
-    allMatchingIds,
-    launchRequestIndex: 2
+    allMatchingIds
   };
 }
 
@@ -832,6 +969,61 @@ function buildAllFilteredWordIdAnalytics(wordIds) {
   });
   payload.word_ids = ids;
   return payload;
+}
+
+async function getAllFilteredLaunchRequestIndexes(page) {
+  return page.evaluate(() => window.__llAnalyticsRequests.reduce((indexes, entry, index) => {
+    const request = entry && entry.request ? entry.request : {};
+    if (
+      String(request.action || '') === 'll_user_study_analytics'
+      && String(request.include_words ?? '') === '0'
+      && String(request.include_word_ids ?? '') === '1'
+    ) {
+      indexes.push(index);
+    }
+    return indexes;
+  }, []));
+}
+
+async function waitForAllFilteredLaunchRequestCount(page, expectedCount) {
+  await expect.poll(async () => (await getAllFilteredLaunchRequestIndexes(page)).length).toBe(expectedCount);
+  return getAllFilteredLaunchRequestIndexes(page);
+}
+
+function expectFlashcardLaunchUiState(state, expectedOpen) {
+  expect(state).toEqual({
+    bodyOpen: expectedOpen,
+    popupVisible: expectedOpen,
+    quizPopupVisible: expectedOpen,
+    quizPopupBusy: expectedOpen,
+    quizPopupAriaHidden: expectedOpen ? 'false' : 'true',
+    loaderVisible: expectedOpen,
+    loadingStatusHidden: !expectedOpen
+  });
+}
+
+async function expectFlashcardLaunchUiOpen(page) {
+  await expect.poll(async () => page.evaluate(() => window.__llReadFlashcardLaunchUi())).toEqual({
+    bodyOpen: true,
+    popupVisible: true,
+    quizPopupVisible: true,
+    quizPopupBusy: true,
+    quizPopupAriaHidden: 'false',
+    loaderVisible: true,
+    loadingStatusHidden: false
+  });
+}
+
+async function expectFlashcardLaunchUiClosed(page) {
+  await expect.poll(async () => page.evaluate(() => window.__llReadFlashcardLaunchUi())).toEqual({
+    bodyOpen: false,
+    popupVisible: false,
+    quizPopupVisible: false,
+    quizPopupBusy: false,
+    quizPopupAriaHidden: 'true',
+    loaderVisible: false,
+    loadingStatusHidden: true
+  });
 }
 
 test('progress summary counts stay blank while initial analytics loads', async ({ page }) => {
@@ -1287,14 +1479,12 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
 
   await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
 
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
-  }).toBe(3);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
 
   await expect.poll(async () => {
-    return page.evaluate(() => {
-      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[2]
-        ? window.__llAnalyticsRequests[2].request
+    return page.evaluate((index) => {
+      const request = Array.isArray(window.__llAnalyticsRequests) && window.__llAnalyticsRequests[index]
+        ? window.__llAnalyticsRequests[index].request
         : {};
       const parsedFilter = request.word_filter ? JSON.parse(request.word_filter) : {};
       return {
@@ -1302,11 +1492,11 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
         includeWordIds: String(request.include_word_ids ?? ''),
         summary: String(parsedFilter.summary || '')
       };
-    });
+    }, launchRequestIndex);
   }).toEqual({ includeWords: '0', includeWordIds: '1', summary: filterKey });
 
-  await page.evaluate(({ ids, summaryPayload }) => {
-    const entry = window.__llAnalyticsRequests[2];
+  await page.evaluate(({ index, ids, summaryPayload }) => {
+    const entry = window.__llAnalyticsRequests[index];
     entry.deferred.resolve({
       success: true,
       data: {
@@ -1333,6 +1523,7 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
       }
     });
   }, {
+    index: launchRequestIndex,
     ids: allMatchingIds,
     summaryPayload: {
       total_words: summary.totalWords,
@@ -1435,19 +1626,32 @@ test('progress select all new words launches practice with the remaining new wor
 });
 
 test('progress all-filtered launch is single-flight and disables every mode while word IDs load', async ({ page }) => {
-  const { launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await prepareAllFilteredProgressSelection(page);
 
-  await page.evaluate(() => {
+  const clickState = await page.evaluate(() => {
     const button = document.querySelector('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
     button.click();
+    const launchUi = window.__llReadFlashcardLaunchUi();
     button.click();
+    return {
+      launchUi,
+      launchRequestCount: window.__llAnalyticsRequests.filter((entry) => {
+        const request = entry && entry.request ? entry.request : {};
+        return String(request.action || '') === 'll_user_study_analytics'
+          && String(request.include_words ?? '') === '0'
+          && String(request.include_word_ids ?? '') === '1';
+      }).length,
+      flashcardLaunchCount: window.__llFlashcardLaunches.length
+    };
   });
+  expectFlashcardLaunchUiState(clickState.launchUi, true);
+  expect(clickState.launchRequestCount).toBeLessThanOrEqual(1);
+  expect(clickState.flashcardLaunchCount).toBe(0);
 
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
-  const launchRequestCount = await page.evaluate(() => window.__llAnalyticsRequests.filter((entry) => (
-    String(entry.request && entry.request.include_word_ids || '') === '1'
-  )).length);
-  expect(launchRequestCount).toBe(1);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  expect(await page.evaluate((index) => window.__llAnalyticsRequests[index].deferred.state(), launchRequestIndex))
+    .toBe('pending');
+  await expectFlashcardLaunchUiOpen(page);
 
   const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
   const modeButtons = page.locator('[data-ll-wordset-progress-selection-mode]');
@@ -1464,12 +1668,14 @@ test('progress all-filtered launch is single-flight and disables every mode whil
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 
   await page.evaluate((index) => window.__rejectAnalyticsRequest(index), launchRequestIndex);
+  await expectFlashcardLaunchUiClosed(page);
 });
 
 test('progress all-filtered launch failure shows inline Retry without a native alert', async ({ page }) => {
-  const { launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  await prepareAllFilteredProgressSelection(page);
   await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expectFlashcardLaunchUiOpen(page);
 
   await page.evaluate((index) => window.__rejectAnalyticsRequest(index), launchRequestIndex);
 
@@ -1483,13 +1689,65 @@ test('progress all-filtered launch failure shows inline Retry without a native a
   await expect(page.locator('[data-ll-wordset-progress-launch-message]'))
     .toHaveText('Something went wrong. Please try again.');
   await expect(page.locator('[data-ll-wordset-progress-launch-retry]')).toBeVisible();
+  await expectFlashcardLaunchUiClosed(page);
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 
-test('progress launch Retry repeats the same snapshot once and succeeds', async ({ page }) => {
-  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+test('closing the prelaunch modal cancels pending word IDs and ignores the late response', async ({ page }) => {
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
   await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expectFlashcardLaunchUiOpen(page);
+
+  await page.locator('#ll-tools-close-flashcard').click();
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+  await page.waitForTimeout(100);
+
+  expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  await expectFlashcardLaunchUiClosed(page);
+});
+
+test('Escape cancels a pending bounded plan and prevents a late quiz launch', async ({ page }) => {
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = true;
+  });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+
+  await page.keyboard.press('Escape');
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+
+  await page.evaluate(() => window.__resolveSelectionPlanRequest(0));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  await expectFlashcardLaunchUiClosed(page);
+});
+
+test('progress launch Retry repeats the same snapshot once and succeeds', async ({ page }) => {
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
 
   const firstRequest = await page.evaluate((index) => (
     Object.assign({}, window.__llAnalyticsRequests[index].request || {})
@@ -1499,10 +1757,11 @@ test('progress launch Retry repeats the same snapshot once and succeeds', async 
   await expect(retry).toBeVisible();
   await retry.click();
 
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(4);
-  const retryRequest = await page.evaluate(() => (
-    Object.assign({}, window.__llAnalyticsRequests[3].request || {})
-  ));
+  const launchRequestIndexes = await waitForAllFilteredLaunchRequestCount(page, 2);
+  const retryRequestIndex = launchRequestIndexes[1];
+  const retryRequest = await page.evaluate((index) => (
+    Object.assign({}, window.__llAnalyticsRequests[index].request || {})
+  ), retryRequestIndex);
   expect(retryRequest).toEqual(firstRequest);
   await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'true');
   await expect(retry).toBeHidden();
@@ -1510,7 +1769,7 @@ test('progress launch Retry repeats the same snapshot once and succeeds', async 
   await page.evaluate(({ index, payload }) => {
     window.__resolveAnalyticsRequest(index, payload);
   }, {
-    index: 3,
+    index: retryRequestIndex,
     payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
   });
 
@@ -1525,9 +1784,15 @@ test('progress launch Retry repeats the same snapshot once and succeeds', async 
 });
 
 test('progress all-filtered Learning hydrates and launches only its bounded first chunk', async ({ page }) => {
-  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = true;
+    window.__llHoldFetchWordsRequests = true;
+    window.__llHoldFlashcardInitRequests = true;
+  });
   await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expectFlashcardLaunchUiOpen(page);
 
   await page.evaluate(({ index, payload }) => {
     window.__resolveAnalyticsRequest(index, payload);
@@ -1537,8 +1802,22 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
   });
 
   await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
+
+  await page.evaluate(() => window.__resolveSelectionPlanRequest(0));
   await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(0));
   await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'true');
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
 
   const state = await page.evaluate(() => {
     const planEntry = window.__llSelectionPlanRequests[0] || {};
@@ -1588,20 +1867,95 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
     launchSource: 'wordset_progress_bounded_start',
     chunked: true
   });
+  await page.evaluate(() => window.__resolveFlashcardInitRequest(0));
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('bounded launch initialization failure closes the shared modal exactly once', async ({ page }) => {
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
+  await page.evaluate(() => {
+    window.__llHoldFlashcardInitRequests = true;
+  });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="learning"]').click();
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardInitRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  await page.evaluate(() => window.__rejectFlashcardInitRequest(0));
+
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toHaveClass(/is-error/);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(1);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress all-filtered small Practice keeps the same modal visible through hydration', async ({ page }) => {
+  const allMatchingIds = Array.from({ length: 10 }, (_unused, index) => 101 + index);
+  await prepareAllFilteredProgressSelection(page, { allMatchingIds });
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  const clickState = await page.evaluate(() => {
+    document.querySelector('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+    return window.__llReadFlashcardLaunchUi();
+  });
+  expectFlashcardLaunchUiState(clickState, true);
+
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  await page.evaluate(() => new Promise((resolve) => window.requestAnimationFrame(() => resolve())));
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
+
+  const hydrationCandidateIds = await page.evaluate(() => {
+    const request = window.__llFetchWordsRequests[0].request || {};
+    return String(request.candidate_word_ids || '')
+      .split(',')
+      .map((value) => Number(value) || 0)
+      .filter(Boolean);
+  });
+  expect(hydrationCandidateIds).toEqual(allMatchingIds);
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(0));
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
   await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 
 test('changing filters invalidates an in-flight progress launch', async ({ page }) => {
-  const { allMatchingIds, launchRequestIndex } = await prepareAllFilteredProgressSelection(page);
+  const { allMatchingIds } = await prepareAllFilteredProgressSelection(page);
   await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
-  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expectFlashcardLaunchUiOpen(page);
 
   await page.locator('[data-ll-wordset-progress-search]').fill('changed scope');
   await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  await expectFlashcardLaunchUiClosed(page);
 
   await page.evaluate(({ index, payload }) => {
     window.__resolveAnalyticsRequest(index, payload);
@@ -1613,6 +1967,7 @@ test('changing filters invalidates an in-flight progress launch', async ({ page 
 
   expect(await page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(0);
   expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  await expectFlashcardLaunchUiClosed(page);
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 

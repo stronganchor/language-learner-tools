@@ -134,6 +134,8 @@
     let progressSelectionLaunchToken = 0;
     let progressSelectionLaunchRetrySpec = null;
     let progressSelectionLaunchCleanup = null;
+    let progressSelectionLaunchDismissClickHandler = null;
+    let progressSelectionLaunchDismissKeyHandler = null;
     let analyticsWordRenderTimer = null;
     let analyticsWordLoadingTimer = null;
     let analyticsWordRenderToken = 0;
@@ -3625,6 +3627,7 @@
     function cancelProgressSelectionLaunch() {
         const request = progressSelectionLaunchRequest;
         const cleanup = progressSelectionLaunchCleanup;
+        unbindProgressSelectionLaunchDismissHandlers();
         progressSelectionLaunchToken += 1;
         progressSelectionLaunchRequest = null;
         progressSelectionLaunchBusy = false;
@@ -3638,6 +3641,47 @@
             try { cleanup(); } catch (_) { /* no-op */ }
         }
         renderProgressSelectionLaunchState();
+    }
+
+    function unbindProgressSelectionLaunchDismissHandlers() {
+        const closeButton = document.getElementById('ll-tools-close-flashcard');
+        if (closeButton && progressSelectionLaunchDismissClickHandler) {
+            closeButton.removeEventListener('click', progressSelectionLaunchDismissClickHandler, true);
+        }
+        if (progressSelectionLaunchDismissKeyHandler) {
+            document.removeEventListener('keydown', progressSelectionLaunchDismissKeyHandler, true);
+        }
+        progressSelectionLaunchDismissClickHandler = null;
+        progressSelectionLaunchDismissKeyHandler = null;
+    }
+
+    function bindProgressSelectionLaunchDismissHandlers(token) {
+        unbindProgressSelectionLaunchDismissHandlers();
+        const closeButton = document.getElementById('ll-tools-close-flashcard');
+        progressSelectionLaunchDismissClickHandler = function (evt) {
+            if (token !== progressSelectionLaunchToken || !progressSelectionLaunchBusy) {
+                return;
+            }
+            evt.preventDefault();
+            evt.stopImmediatePropagation();
+            cancelProgressSelectionLaunch();
+        };
+        progressSelectionLaunchDismissKeyHandler = function (evt) {
+            if (
+                token !== progressSelectionLaunchToken
+                || !progressSelectionLaunchBusy
+                || String(evt.key || '') !== 'Escape'
+            ) {
+                return;
+            }
+            evt.preventDefault();
+            evt.stopImmediatePropagation();
+            cancelProgressSelectionLaunch();
+        };
+        if (closeButton) {
+            closeButton.addEventListener('click', progressSelectionLaunchDismissClickHandler, true);
+        }
+        document.addEventListener('keydown', progressSelectionLaunchDismissKeyHandler, true);
     }
 
     function getProgressAllFilteredSelectionCount() {
@@ -6240,6 +6284,7 @@
             days: 14,
             include_words: 0,
             include_word_ids: 1,
+            selection_ids_only: 1,
             word_limit: 0,
             word_offset: 0
         };
@@ -6277,6 +6322,9 @@
     function launchProgressSelectionModeWithIds(mode, selectedWordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const normalizedMode = normalizeMode(mode) || 'practice';
+        const providedLaunchUi = (opts.launchUi && typeof opts.launchUi === 'object') ? opts.launchUi : null;
+        let launchUi = providedLaunchUi;
+        let launchUiCleanup = typeof opts.launchUiCleanup === 'function' ? opts.launchUiCleanup : null;
         const isLaunchCurrent = typeof opts.isLaunchCurrent === 'function'
             ? opts.isLaunchCurrent
             : function () { return true; };
@@ -6284,6 +6332,9 @@
             ? opts.onLaunchCommitted
             : function () {};
         const notifyLaunchFailure = function (message) {
+            if (typeof launchUiCleanup === 'function') {
+                launchUiCleanup();
+            }
             if (typeof opts.onLaunchFailure === 'function') {
                 opts.onLaunchFailure(message || '');
                 return;
@@ -6305,6 +6356,16 @@
             return;
         }
 
+        if (!launchUi) {
+            launchUi = openFlashcardLaunchLoadingState();
+        }
+        if (!launchUiCleanup) {
+            launchUiCleanup = createFlashcardLaunchLoadingCleanup(launchUi);
+        }
+        if (typeof opts.onLaunchCleanupReady === 'function') {
+            opts.onLaunchCleanupReady(launchUiCleanup);
+        }
+
         const needsBoundedPracticePlan = normalizedMode === 'practice' && (
             initialSessionWordIds.length > CHUNK_SIZE
             || initialLaunchPlan.categoryIds.length > 8
@@ -6316,14 +6377,7 @@
             && ajaxUrl
             && nonce
         ) {
-            const launchUi = openFlashcardLaunchLoadingState();
-            if (typeof opts.onLaunchCleanupReady === 'function') {
-                opts.onLaunchCleanupReady(function () {
-                    closeFlashcardLaunchLoadingState(launchUi);
-                });
-            }
             const abortBoundedProgressLaunch = function (message) {
-                closeFlashcardLaunchLoadingState(launchUi);
                 notifyLaunchFailure(message);
             };
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
@@ -6339,6 +6393,7 @@
                     minimumWordCount: needsBoundedLearningPlan ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
                     source: 'wordset_progress_bounded_start',
                     launchUi: launchUi,
+                    launchUiCleanup: launchUiCleanup,
                     details: {
                         preserve_mixed_presentation: true,
                         allow_session_category_display: true,
@@ -6399,6 +6454,8 @@
                 skipCompatibilityFilter: true,
                 preserveCategoryOrder: true,
                 details: launchPlan.details,
+                launchUi: launchUi,
+                launchUiCleanup: launchUiCleanup,
                 isLaunchCurrent: isLaunchCurrent,
                 suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
                 onLaunchCommitted: notifyLaunchCommitted,
@@ -6409,13 +6466,30 @@
         });
     }
 
-    function finishProgressSelectionLaunch(token, state, spec) {
+    function finishProgressSelectionLaunch(token, state, spec, options) {
         if (token !== progressSelectionLaunchToken) {
             return;
         }
+        const opts = (options && typeof options === 'object') ? options : {};
+        const cleanup = progressSelectionLaunchCleanup;
+        unbindProgressSelectionLaunchDismissHandlers();
         progressSelectionLaunchRequest = null;
         progressSelectionLaunchCleanup = null;
+        if (!opts.preserveLaunchUi && typeof cleanup === 'function') {
+            cleanup();
+        }
         setProgressSelectionLaunchState(state, spec);
+    }
+
+    function scheduleProgressSelectionLaunchWork(callback) {
+        const run = typeof callback === 'function' ? callback : function () {};
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                window.setTimeout(run, 0);
+            });
+            return;
+        }
+        window.setTimeout(run, 0);
     }
 
     function startProgressAllFilteredSelectionLaunch(spec) {
@@ -6425,44 +6499,56 @@
         }
 
         const token = ++progressSelectionLaunchToken;
+        const launchUi = openFlashcardLaunchLoadingState();
+        const launchUiCleanup = createFlashcardLaunchLoadingCleanup(launchUi);
+        progressSelectionLaunchCleanup = launchUiCleanup;
         setProgressSelectionLaunchState('loading', launchSpec);
-        fetchProgressAllFilteredSelectionWordIds(launchSpec).done(function (wordIds) {
+        bindProgressSelectionLaunchDismissHandlers(token);
+        scheduleProgressSelectionLaunchWork(function () {
             if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
                 finishProgressSelectionLaunch(token, '', null);
                 return;
             }
-            launchProgressSelectionModeWithIds(launchSpec.mode, wordIds, {
-                categoryIds: launchSpec.launchCategoryIds,
-                launchSpec: launchSpec,
-                isLaunchCurrent: function () {
-                    return token === progressSelectionLaunchToken
-                        && progressSelectionLaunchSpecIsCurrent(launchSpec);
-                },
-                onLaunchCleanupReady: function (cleanup) {
-                    if (token !== progressSelectionLaunchToken) {
-                        if (typeof cleanup === 'function') {
-                            cleanup();
-                        }
-                        return;
-                    }
-                    progressSelectionLaunchCleanup = typeof cleanup === 'function' ? cleanup : null;
-                },
-                onLaunchCommitted: function () {
+            fetchProgressAllFilteredSelectionWordIds(launchSpec).done(function (wordIds) {
+                if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
                     finishProgressSelectionLaunch(token, '', null);
-                },
-                onLaunchFailure: function (message) {
-                    finishProgressSelectionLaunch(token, message ? 'error' : '', message ? launchSpec : null);
+                    return;
                 }
+                launchProgressSelectionModeWithIds(launchSpec.mode, wordIds, {
+                    categoryIds: launchSpec.launchCategoryIds,
+                    launchSpec: launchSpec,
+                    launchUi: launchUi,
+                    launchUiCleanup: launchUiCleanup,
+                    isLaunchCurrent: function () {
+                        return token === progressSelectionLaunchToken
+                            && progressSelectionLaunchSpecIsCurrent(launchSpec);
+                    },
+                    onLaunchCleanupReady: function (cleanup) {
+                        if (token !== progressSelectionLaunchToken) {
+                            if (typeof cleanup === 'function') {
+                                cleanup();
+                            }
+                            return;
+                        }
+                        progressSelectionLaunchCleanup = typeof cleanup === 'function' ? cleanup : null;
+                    },
+                    onLaunchCommitted: function () {
+                        finishProgressSelectionLaunch(token, '', null, { preserveLaunchUi: true });
+                    },
+                    onLaunchFailure: function (message) {
+                        finishProgressSelectionLaunch(token, message ? 'error' : '', message ? launchSpec : null);
+                    }
+                });
+            }).fail(function (_xhr, statusText) {
+                if (token !== progressSelectionLaunchToken) {
+                    return;
+                }
+                if (String(statusText || '').toLowerCase() === 'abort') {
+                    finishProgressSelectionLaunch(token, '', null);
+                    return;
+                }
+                finishProgressSelectionLaunch(token, 'error', launchSpec);
             });
-        }).fail(function (_xhr, statusText) {
-            if (token !== progressSelectionLaunchToken) {
-                return;
-            }
-            if (String(statusText || '').toLowerCase() === 'abort') {
-                finishProgressSelectionLaunch(token, '', null);
-                return;
-            }
-            finishProgressSelectionLaunch(token, 'error', launchSpec);
         });
     }
 
@@ -15090,6 +15176,7 @@
             categoryLabelOverride: firstEntry.category_label_override || activeSession.category_label_override,
             details: firstEntry.details,
             launchUi: opts.launchUi,
+            launchUiCleanup: opts.launchUiCleanup,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15317,6 +15404,7 @@
             launchContinuousChunkSession(activeSession, {
                 source: source,
                 launchUi: opts.launchUi,
+                launchUiCleanup: opts.launchUiCleanup,
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
                 onLaunchCommitted: function () {
                     if (typeof opts.onLaunchCommitted === 'function') {
@@ -15346,6 +15434,7 @@
             categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
             details: firstEntry.details,
             launchUi: opts.launchUi,
+            launchUiCleanup: opts.launchUiCleanup,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15648,6 +15737,7 @@
             categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
             details: firstEntry.details,
             launchUi: opts.launchUi,
+            launchUiCleanup: opts.launchUiCleanup,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15810,13 +15900,22 @@
         const $quizPopup = $('#ll-tools-flashcard-quiz-popup');
         const wasVisible = $popup.is(':visible') || $quizPopup.is(':visible');
         const $loading = $('#ll-tools-loading-animation');
+        const $loadingStatus = $('#ll-tools-loading-status');
+        const quizPopupHadAriaHidden = $quizPopup.is('[aria-hidden]');
+        const quizPopupAriaHidden = $quizPopup.attr('aria-hidden');
+        const loadingStatusWasHidden = $loadingStatus.length ? $loadingStatus.prop('hidden') : true;
 
         $('body').addClass('ll-tools-flashcard-open');
         $popup.show();
         $quizPopup
             .show()
             .addClass('ll-round-loading-active ll-round-loading-instant')
+            .attr('aria-hidden', 'false')
             .attr('aria-busy', 'true');
+
+        if ($loadingStatus.length) {
+            $loadingStatus.prop('hidden', false);
+        }
 
         if ($loading.length) {
             const $body = $('body');
@@ -15833,7 +15932,11 @@
         return {
             $popup: $popup,
             $quizPopup: $quizPopup,
-            wasVisible: wasVisible
+            $loadingStatus: $loadingStatus,
+            wasVisible: wasVisible,
+            quizPopupHadAriaHidden: quizPopupHadAriaHidden,
+            quizPopupAriaHidden: quizPopupAriaHidden,
+            loadingStatusWasHidden: loadingStatusWasHidden
         };
     }
 
@@ -15841,6 +15944,9 @@
         const ui = (launchUi && typeof launchUi === 'object') ? launchUi : {};
         const $popup = (ui.$popup && ui.$popup.length) ? ui.$popup : $('#ll-tools-flashcard-popup');
         const $quizPopup = (ui.$quizPopup && ui.$quizPopup.length) ? ui.$quizPopup : $('#ll-tools-flashcard-quiz-popup');
+        const $loadingStatus = (ui.$loadingStatus && ui.$loadingStatus.length)
+            ? ui.$loadingStatus
+            : $('#ll-tools-loading-status');
 
         if (window.LLFlashcards && window.LLFlashcards.Dom && typeof window.LLFlashcards.Dom.hideLoading === 'function') {
             try { window.LLFlashcards.Dom.hideLoading(); } catch (_) { /* no-op */ }
@@ -15850,6 +15956,14 @@
         $quizPopup
             .removeClass('ll-round-loading-active ll-round-loading-instant')
             .removeAttr('aria-busy');
+        if (ui.quizPopupHadAriaHidden) {
+            $quizPopup.attr('aria-hidden', String(ui.quizPopupAriaHidden || ''));
+        } else {
+            $quizPopup.removeAttr('aria-hidden');
+        }
+        if ($loadingStatus.length) {
+            $loadingStatus.prop('hidden', ui.loadingStatusWasHidden !== false);
+        }
 
         if (!ui.wasVisible) {
             $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
@@ -15858,6 +15972,17 @@
             $popup.hide();
             resumeMainCategorySearchAfterFlashcardClose();
         }
+    }
+
+    function createFlashcardLaunchLoadingCleanup(launchUi) {
+        let cleaned = false;
+        return function () {
+            if (cleaned) {
+                return;
+            }
+            cleaned = true;
+            closeFlashcardLaunchLoadingState(launchUi);
+        };
     }
 
     function launchFlashcards(mode, categoryIds, sessionWordIds, options) {
@@ -15944,8 +16069,11 @@
             providedLaunchUi.$popup && providedLaunchUi.$popup.length &&
             providedLaunchUi.$quizPopup && providedLaunchUi.$quizPopup.length);
         const launchUi = hasProvidedLaunchUi ? providedLaunchUi : openFlashcardLaunchLoadingState();
+        const launchUiCleanup = typeof opts.launchUiCleanup === 'function'
+            ? opts.launchUiCleanup
+            : createFlashcardLaunchLoadingCleanup(launchUi);
         const abortLaunch = function (message) {
-            closeFlashcardLaunchLoadingState(launchUi);
+            launchUiCleanup();
             notifyLaunchFailure();
             if (message && !opts.suppressFailureAlert) {
                 alert(message);

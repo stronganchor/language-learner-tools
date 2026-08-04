@@ -803,7 +803,10 @@ function ll_tools_user_study_renderable_word_ids_by_category(
         return [];
     }
     $cache_group = 'll_tools_user_study';
-    $cache_ttl = 30 * MINUTE_IN_SECONDS;
+    // Keep the renderable membership warm for at least as long as the outer
+    // analytics ID map. Both keys already include category/content epochs, so
+    // correctness does not depend on the shorter TTL.
+    $cache_ttl = HOUR_IN_SECONDS;
 
     static $request_cache = [];
     if ($cache_key !== '' && array_key_exists($cache_key, $request_cache)) {

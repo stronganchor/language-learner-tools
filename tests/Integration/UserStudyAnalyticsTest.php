@@ -1507,6 +1507,17 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             'fast_transitions' => false,
         ], $user_id);
 
+        $catalog_build_count = 0;
+        $capture_catalog_build = static function (int $wordset_id) use (&$catalog_build_count): void {
+            $catalog_build_count++;
+        };
+        add_action(
+            'll_tools_user_study_categories_for_wordset_before_build',
+            $capture_catalog_build,
+            10,
+            1
+        );
+
         $_POST = [
             'nonce' => wp_create_nonce('ll_user_study'),
             'wordset_id' => $fixture['wordset_id'],
@@ -1514,6 +1525,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             'days' => 14,
             'include_words' => '0',
             'include_word_ids' => '1',
+            'selection_ids_only' => '1',
+            'word_limit' => '0',
+            'word_offset' => '0',
             'word_filter' => wp_json_encode([
                 'summary' => 'starred',
                 'category_ids' => [],
@@ -1529,6 +1543,11 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         } finally {
             $_POST = [];
             $_REQUEST = [];
+            remove_action(
+                'll_tools_user_study_categories_for_wordset_before_build',
+                $capture_catalog_build,
+                10
+            );
         }
 
         $this->assertTrue((bool) ($response['success'] ?? false));
@@ -1538,13 +1557,153 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         sort($returned_ids);
         sort($starred_word_ids);
 
+        $this->assertSame(0, $catalog_build_count, 'ID-only analytics must not build the full learner category catalog.');
         $this->assertSame($starred_word_ids, $returned_ids);
         $this->assertSame([], (array) ($analytics['words'] ?? []));
         $this->assertTrue((bool) ($analytics['words_omitted'] ?? false));
         $pagination = (array) ($analytics['words_pagination'] ?? []);
+        $this->assertFalse((bool) ($pagination['enabled'] ?? true));
         $this->assertTrue((bool) ($pagination['filtered'] ?? false));
         $this->assertSame(4, (int) ($pagination['total'] ?? 0));
         $this->assertSame(10, (int) ($pagination['unfiltered_total'] ?? 0));
+        $this->assertSame(0, (int) ($pagination['offset'] ?? -1));
+        $this->assertSame(0, (int) ($pagination['limit'] ?? -1));
+        $this->assertSame(0, (int) ($pagination['loaded'] ?? -1));
+        $this->assertArrayHasKey('next_offset', $pagination);
+        $this->assertNull($pagination['next_offset'] ?? null);
+        $this->assertFalse((bool) ($pagination['has_more'] ?? true));
+    }
+
+    public function test_word_id_analytics_without_selection_fast_path_preserves_the_existing_contract(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        $catalog_build_count = 0;
+        $capture_catalog_build = static function (int $wordset_id) use (&$catalog_build_count): void {
+            $catalog_build_count++;
+        };
+        add_action(
+            'll_tools_user_study_categories_for_wordset_before_build',
+            $capture_catalog_build,
+            10,
+            1
+        );
+        try {
+            $analytics = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                (int) $fixture['wordset_id'],
+                (array) $fixture['category_ids'],
+                14,
+                false,
+                [
+                    'include_words' => false,
+                    'include_word_ids' => true,
+                ]
+            );
+        } finally {
+            remove_action(
+                'll_tools_user_study_categories_for_wordset_before_build',
+                $capture_catalog_build,
+                10
+            );
+        }
+
+        $this->assertGreaterThanOrEqual(1, $catalog_build_count);
+        $this->assertCount(10, (array) ($analytics['word_ids'] ?? []));
+        $this->assertSame([], (array) ($analytics['words'] ?? []));
+        $this->assertCount(2, (array) ($analytics['categories'] ?? []));
+        $this->assertCount(14, (array) ($analytics['daily_activity']['days'] ?? []));
+    }
+
+    public function test_selection_id_analytics_ajax_propagates_membership_query_failure(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $membership_queries = 0;
+        $break_membership_query = static function (string $query) use (&$membership_queries, $wpdb): string {
+            if (stripos($query, "SELECT ID, post_type FROM {$wpdb->posts}") === false) {
+                return $query;
+            }
+            $membership_queries++;
+            return "SELECT ID, post_type FROM {$wpdb->prefix}ll_tools_missing_selection_membership_table";
+        };
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'include_words' => '0',
+            'include_word_ids' => '1',
+            'selection_ids_only' => '1',
+        ];
+        $_REQUEST = $_POST;
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_membership_query);
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_analytics_ajax();
+            });
+        } finally {
+            remove_filter('query', $break_membership_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertGreaterThanOrEqual(1, $membership_queries);
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('selection_query_failed', (string) ($response['data']['code'] ?? ''));
+    }
+
+    public function test_selection_id_analytics_ajax_propagates_progress_query_failure(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $progress_table = ll_tools_user_progress_table_names()['words'];
+        $progress_queries = 0;
+        $break_progress_query = static function (string $query) use (&$progress_queries, $progress_table, $wpdb): string {
+            if (stripos($query, "FROM {$progress_table}") === false || stripos($query, 'word_id IN') === false) {
+                return $query;
+            }
+            $progress_queries++;
+            return "SELECT word_id FROM {$wpdb->prefix}ll_tools_missing_selection_progress_table";
+        };
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $fixture['wordset_id'],
+            'category_ids' => $fixture['category_ids'],
+            'include_words' => '0',
+            'include_word_ids' => '1',
+            'selection_ids_only' => '1',
+        ];
+        $_REQUEST = $_POST;
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $break_progress_query);
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_analytics_ajax();
+            });
+        } finally {
+            remove_filter('query', $break_progress_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertGreaterThanOrEqual(1, $progress_queries);
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('selection_query_failed', (string) ($response['data']['code'] ?? ''));
     }
 
     public function test_selection_launch_plan_ajax_returns_complete_in_progress_plan_with_first_chunk_aliases(): void
@@ -1630,13 +1789,47 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => 'Outside exact selection ' . wp_generate_password(4, false),
         ]);
-        $requested_word_ids = array_merge(array_reverse($word_ids), [$outside_word_id]);
 
         $five_words = static function (): int {
             return 5;
         };
+        $catalog_build_count = 0;
+        $capture_catalog_build = static function (int $wordset_id) use (&$catalog_build_count): void {
+            $catalog_build_count++;
+        };
         add_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+        add_action(
+            'll_tools_user_study_categories_for_wordset_before_build',
+            $capture_catalog_build,
+            10,
+            1
+        );
         try {
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_user_study'),
+                'wordset_id' => $fixture['wordset_id'],
+                'category_ids' => $category_ids,
+                'days' => 14,
+                'include_words' => '0',
+                'include_word_ids' => '1',
+                'selection_ids_only' => '1',
+                'word_limit' => '0',
+                'word_offset' => '0',
+            ];
+            $_REQUEST = $_POST;
+            $analytics_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_user_study_analytics_ajax();
+            });
+            $this->assertTrue((bool) ($analytics_response['success'] ?? false));
+            $analytics = (array) ($analytics_response['data']['analytics'] ?? []);
+            $primed_word_ids = array_values(array_map('intval', (array) ($analytics['word_ids'] ?? [])));
+            $expected_primed_word_ids = $word_ids;
+            sort($primed_word_ids);
+            sort($expected_primed_word_ids);
+            $this->assertSame($expected_primed_word_ids, $primed_word_ids);
+            $this->assertSame(0, $catalog_build_count, 'Priming exact IDs must not build the full learner category catalog.');
+
+            $requested_word_ids = array_merge(array_reverse($primed_word_ids), [$outside_word_id]);
             $_POST = [
                 'nonce' => wp_create_nonce('ll_user_study'),
                 'wordset_id' => $fixture['wordset_id'],
@@ -1655,9 +1848,15 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             $_POST = [];
             $_REQUEST = [];
             remove_filter('ll_tools_user_study_selection_launch_max_words', $five_words);
+            remove_action(
+                'll_tools_user_study_categories_for_wordset_before_build',
+                $capture_catalog_build,
+                10
+            );
         }
 
         $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame(0, $catalog_build_count, 'Exact-candidate Practice planning must reuse lightweight membership data.');
         $plan = (array) ($response['data']['plan'] ?? []);
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertCount(2, $chunks);
@@ -2123,16 +2322,35 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             24
         );
 
-        $plan = ll_tools_build_user_study_selection_launch_plan(
-            $user_id,
-            $wordset_id,
-            [$category['category_id']],
-            '',
-            'learning',
-            $category['word_ids']
+        $catalog_build_count = 0;
+        $capture_catalog_build = static function (int $requested_wordset_id) use (&$catalog_build_count): void {
+            $catalog_build_count++;
+        };
+        add_action(
+            'll_tools_user_study_categories_for_wordset_before_build',
+            $capture_catalog_build,
+            10,
+            1
         );
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                [$category['category_id']],
+                '',
+                'learning',
+                $category['word_ids']
+            );
+        } finally {
+            remove_action(
+                'll_tools_user_study_categories_for_wordset_before_build',
+                $capture_catalog_build,
+                10
+            );
+        }
 
         $this->assertIsArray($plan);
+        $this->assertSame(0, $catalog_build_count, 'Exact Learning planning must use lightweight presentation metadata.');
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertCount(2, $chunks);
         $planned_word_ids = [];
@@ -2141,6 +2359,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             $chunk_target_word_ids = array_values(array_map('intval', (array) ($chunk['target_word_ids'] ?? [])));
             $this->assertCount(12, $chunk_word_ids);
             $this->assertSame($chunk_word_ids, $chunk_target_word_ids);
+            $this->assertSame('no-image|audio->text', (string) ($chunk['compatibility_key'] ?? ''));
             $this->assertLessThanOrEqual(15, count($chunk_word_ids));
             $this->assertGreaterThanOrEqual(8, count($chunk_word_ids));
             $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
@@ -2153,6 +2372,114 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(24, (int) ($plan['matched_count'] ?? 0));
         $this->assertSame(24, (int) ($plan['planned_count'] ?? 0));
         $this->assertSame(0, (int) ($plan['expanded_count'] ?? -1));
+        $this->assertSame('no-image|audio->text', (string) ($plan['compatibility_key'] ?? ''));
+    }
+
+    public function test_learning_selection_launch_plan_uses_effective_audio_to_text_fallback_metadata(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Fallback Learning Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = wp_insert_term(
+            'Analytics Fallback Learning Category ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $source_category_id = (int) $category['term_id'];
+        ll_tools_set_category_wordset_owner($source_category_id, $wordset_id, $source_category_id);
+        update_term_meta($source_category_id, 'll_quiz_prompt_type', 'text_title');
+        // Keep publication permissive while creating the six no-audio words;
+        // switch to audio afterward so the effective resolver must fall back.
+        update_term_meta($source_category_id, 'll_quiz_option_type', 'text_title');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 4; $index++) {
+            $word_ids[] = $this->createWordWithAudio(
+                'Analytics Fallback Audio Word ' . $index,
+                'Analytics Fallback Translation ' . $index,
+                $source_category_id,
+                $wordset_id,
+                'analytics-fallback-' . $index . '.mp3'
+            );
+        }
+        for ($index = 5; $index <= 10; $index++) {
+            $word_id = $this->createWordWithoutAudio(
+                'Analytics Fallback Text Word ' . $index,
+                $source_category_id,
+                $wordset_id
+            );
+            update_post_meta($word_id, 'word_translation', 'Analytics Fallback Translation ' . $index);
+            $word_ids[] = $word_id;
+        }
+
+        $category_id = $this->resolveEffectiveCategoryId($source_category_id, $wordset_id);
+        foreach (array_values(array_unique([$source_category_id, $category_id])) as $configured_category_id) {
+            update_term_meta($configured_category_id, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($configured_category_id, 'll_quiz_option_type', 'audio');
+        }
+        $effective_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $effective_term);
+        $audio_count_complete = true;
+        $audio_count = ll_get_words_by_category_count(
+            $effective_term,
+            'audio',
+            [$wordset_id],
+            [
+                'prompt_type' => 'text_title',
+                'option_type' => 'audio',
+            ],
+            $audio_count_complete,
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $text_count_complete = true;
+        $text_count = ll_get_words_by_category_count(
+            $effective_term,
+            'text',
+            [$wordset_id],
+            [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_translation',
+            ],
+            $text_count_complete,
+            LL_TOOLS_MIN_WORDS_PER_QUIZ
+        );
+        $this->assertTrue($audio_count_complete);
+        $this->assertTrue($text_count_complete);
+        $this->assertSame(
+            [4, LL_TOOLS_MIN_WORDS_PER_QUIZ],
+            [$audio_count, $text_count],
+            'The fixture must leave audio below threshold while text reaches it.'
+        );
+        $config_complete = true;
+        $effective_config = ll_tools_resolve_effective_category_quiz_config(
+            $effective_term,
+            LL_TOOLS_MIN_WORDS_PER_QUIZ,
+            [$wordset_id],
+            $config_complete
+        );
+        $this->assertTrue($config_complete);
+        $this->assertSame('text_translation', (string) ($effective_config['option_type'] ?? ''));
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            '',
+            'learning',
+            $word_ids
+        );
+
+        $this->assertIsArray($plan);
+        $this->assertSame('no-image|text->text', (string) ($plan['compatibility_key'] ?? ''));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(1, $chunks);
+        $this->assertSame('no-image|text->text', (string) ($chunks[0]['compatibility_key'] ?? ''));
+        $this->assertCount(10, (array) ($chunks[0]['target_word_ids'] ?? []));
     }
 
     public function test_learning_selection_launch_plan_fails_closed_when_a_compatibility_group_cannot_reach_eight_words(): void
