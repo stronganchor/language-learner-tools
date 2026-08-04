@@ -910,11 +910,15 @@ function ll_tools_user_progress_capture_source_error(string $operation, $result 
 
 /**
  * Resolve an isolated category only when the full source/target relationship is verified.
+ *
+ * Historical repair may preserve a category ID only after a separate lookup
+ * confirms that its term was deleted; query failures remain retryable errors.
  */
 function ll_tools_user_progress_resolve_effective_category_id(
     int $category_id,
     int $wordset_id,
-    bool $create_missing = true
+    bool $create_missing = true,
+    bool $preserve_confirmed_missing = false
 ): int {
     $category_id = max(0, $category_id);
     $wordset_id = max(0, $wordset_id);
@@ -931,10 +935,23 @@ function ll_tools_user_progress_resolve_effective_category_id(
         );
         $source_error = ll_tools_user_progress_capture_source_error('category_isolation', $resolved);
         if ($resolved === null && !($source_error instanceof WP_Error)) {
-            $source_error = ll_tools_user_progress_mark_source_error(
-                'category_isolation',
-                'The isolated category relationship could not be verified.'
-            );
+            if ($preserve_confirmed_missing) {
+                ll_tools_user_progress_prepare_source_read();
+                $source_term = get_term($category_id, 'word-category');
+                $source_error = ll_tools_user_progress_capture_source_error(
+                    'category_isolation_source',
+                    $source_term
+                );
+                if (!($source_error instanceof WP_Error) && !($source_term instanceof WP_Term)) {
+                    return $category_id;
+                }
+            }
+            if (!($source_error instanceof WP_Error)) {
+                $source_error = ll_tools_user_progress_mark_source_error(
+                    'category_isolation',
+                    'The isolated category relationship could not be verified.'
+                );
+            }
         }
         if ($source_error instanceof WP_Error || !is_array($resolved) || empty($resolved[0])) {
             return 0;
@@ -1759,7 +1776,12 @@ function ll_tools_repair_user_category_progress_store_for_isolation(array $raw_p
         $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
         $target_category_id = $category_id;
         if ($wordset_id > 0) {
-            $effective_category_id = ll_tools_user_progress_resolve_effective_category_id($category_id, $wordset_id, true);
+            $effective_category_id = ll_tools_user_progress_resolve_effective_category_id(
+                $category_id,
+                $wordset_id,
+                true,
+                true
+            );
             if (ll_tools_user_progress_get_source_error() instanceof WP_Error) {
                 return [];
             }

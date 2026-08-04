@@ -5967,11 +5967,11 @@ msgstr "Gespeichert."
 #: includes/pages/wordset-pages.php:25388
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:11846
-#: includes/user-progress.php:11872
-#: includes/user-progress.php:11930
-#: includes/user-progress.php:12088
-#: includes/user-progress.php:12265
+#: includes/user-progress.php:11868
+#: includes/user-progress.php:11894
+#: includes/user-progress.php:11952
+#: includes/user-progress.php:12110
+#: includes/user-progress.php:12287
 msgid "Something went wrong. Please try again."
 msgstr "Etwas ist schief gelaufen. Bitte versuche es noch einmal."
 
@@ -13007,12 +13007,12 @@ msgstr "Fehlende Lektion."
 #: includes/shortcodes/dictionary-shortcode.php:3820
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
-#: includes/user-progress.php:11797
-#: includes/user-progress.php:12115
-#: includes/user-progress.php:12125
+#: includes/user-progress.php:11819
+#: includes/user-progress.php:12137
 #: includes/user-progress.php:12147
-#: includes/user-progress.php:12156
-#: includes/user-progress.php:12159
+#: includes/user-progress.php:12169
+#: includes/user-progress.php:12178
+#: includes/user-progress.php:12181
 msgid "Invalid request."
 msgstr "Ungültige Anfrage."
 
@@ -14034,13 +14034,13 @@ msgstr "Zu viele Sprechversuche in kurzer Zeit. Bitte warte ein paar Minuten und
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:10599
-#: includes/user-progress.php:10645
+#: includes/user-progress.php:10621
 #: includes/user-progress.php:10667
-#: includes/user-progress.php:10805
-#: includes/user-progress.php:10826
-#: includes/user-progress.php:12106
-#: includes/user-progress.php:12192
+#: includes/user-progress.php:10689
+#: includes/user-progress.php:10827
+#: includes/user-progress.php:10848
+#: includes/user-progress.php:12128
+#: includes/user-progress.php:12214
 #: includes/user-study.php:1369
 #: includes/user-study.php:1407
 #: includes/user-study.php:1471
@@ -17085,17 +17085,17 @@ msgid "Unable to save right now."
 msgstr "Kann im Moment nicht speichern."
 
 #: includes/pages/wordset-pages.php:25380
-#: includes/user-progress.php:11817
+#: includes/user-progress.php:11839
 msgid "Select at least one category."
 msgstr "Wähle mindestens eine Kategorie aus."
 
 #: includes/pages/wordset-pages.php:25381
-#: includes/user-progress.php:11358
-#: includes/user-progress.php:11447
-#: includes/user-progress.php:11832
-#: includes/user-progress.php:11859
-#: includes/user-progress.php:11882
-#: includes/user-progress.php:12041
+#: includes/user-progress.php:11380
+#: includes/user-progress.php:11469
+#: includes/user-progress.php:11854
+#: includes/user-progress.php:11881
+#: includes/user-progress.php:11904
+#: includes/user-progress.php:12063
 msgid "No quiz words are available for this selection."
 msgstr "Für diese Auswahl sind keine Vokabeln für Quiz verfügbar."
 
@@ -27619,9 +27619,9 @@ msgstr "Der Fortschritt für diese Lektion kann nicht aktualisiert werden."
 #: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1296
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
-#: includes/user-progress.php:3182
-#: includes/user-progress.php:3208
-#: includes/user-progress.php:3404
+#: includes/user-progress.php:3204
+#: includes/user-progress.php:3230
+#: includes/user-progress.php:3426
 msgid "Lesson progress could not be saved."
 msgstr "Der Lernfortschritt konnte nicht gespeichert werden."
 
@@ -28388,6 +28388,6 @@ msgstr "Der Metadatenschlüssel \"%1$s\" von Beitrag %2$d wurde beim Rückgängi
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Die Wörterbuchdaten sind vorübergehend nicht verfügbar. Bitte versuche es gleich noch einmal."
 
-#: includes/user-progress.php:1312
+#: includes/user-progress.php:1329
 msgid "Language Learner Tools has paused learner progress sync because the WordPress user tables and plugin progress tables could not all be verified as InnoDB. Ask the database administrator to inspect the listed table engines; the plugin will not convert the core users or usermeta tables automatically."
 msgstr "Language Learner Tools hat die Synchronisierung des Lernfortschritts angehalten, weil nicht für alle WordPress-Benutzertabellen und Fortschrittstabellen des Plugins bestätigt werden konnte, dass sie InnoDB verwenden. Bitte den Datenbankadministrator, die aufgeführten Tabellen-Engines zu prüfen; das Plugin konvertiert die WordPress-Kerntabellen users und usermeta nicht automatisch."

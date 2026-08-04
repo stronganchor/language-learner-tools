@@ -198,7 +198,7 @@ final class DictionaryPublicFilterBoundsTest extends LL_Tools_TestCase
             'dialect' => '',
             'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($searchScopes, 0, ''),
             'title_language' => ll_tools_dictionary_get_effective_title_language_code(0),
-            'browse_letter_schema' => 7,
+            'browse_letter_schema' => 8,
             'has_active_query' => true,
             'query_limits' => [
                 'result_depth_limit' => ll_tools_dictionary_anonymous_live_search_result_depth_cap(),

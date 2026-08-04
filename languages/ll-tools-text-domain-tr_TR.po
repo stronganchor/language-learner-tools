@@ -3785,12 +3785,12 @@ msgstr "Geçersiz gönderi kimliği"
 #: includes/shortcodes/dictionary-shortcode.php:3820
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
-#: includes/user-progress.php:11797
-#: includes/user-progress.php:12115
-#: includes/user-progress.php:12125
+#: includes/user-progress.php:11819
+#: includes/user-progress.php:12137
 #: includes/user-progress.php:12147
-#: includes/user-progress.php:12156
-#: includes/user-progress.php:12159
+#: includes/user-progress.php:12169
+#: includes/user-progress.php:12178
+#: includes/user-progress.php:12181
 msgid "Invalid request."
 msgstr "Geçersiz istek."
 
@@ -4457,13 +4457,13 @@ msgstr "Oturumu kapat"
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:10599
-#: includes/user-progress.php:10645
+#: includes/user-progress.php:10621
 #: includes/user-progress.php:10667
-#: includes/user-progress.php:10805
-#: includes/user-progress.php:10826
-#: includes/user-progress.php:12106
-#: includes/user-progress.php:12192
+#: includes/user-progress.php:10689
+#: includes/user-progress.php:10827
+#: includes/user-progress.php:10848
+#: includes/user-progress.php:12128
+#: includes/user-progress.php:12214
 #: includes/user-study.php:1369
 #: includes/user-study.php:1407
 #: includes/user-study.php:1471
@@ -5173,12 +5173,12 @@ msgid "No quiz pages are available yet."
 msgstr "Henüz quiz sayfası bulunmamaktadır."
 
 #: includes/pages/wordset-pages.php:25381
-#: includes/user-progress.php:11358
-#: includes/user-progress.php:11447
-#: includes/user-progress.php:11832
-#: includes/user-progress.php:11859
-#: includes/user-progress.php:11882
-#: includes/user-progress.php:12041
+#: includes/user-progress.php:11380
+#: includes/user-progress.php:11469
+#: includes/user-progress.php:11854
+#: includes/user-progress.php:11881
+#: includes/user-progress.php:11904
+#: includes/user-progress.php:12063
 msgid "No quiz words are available for this selection."
 msgstr "Bu seçim için hiçbir quiz kelimesi mevcut değildir."
 
@@ -7076,7 +7076,7 @@ msgid "Select at least one category to export."
 msgstr "Dışa aktarmak için en az bir kategori seç."
 
 #: includes/pages/wordset-pages.php:25380
-#: includes/user-progress.php:11817
+#: includes/user-progress.php:11839
 msgid "Select at least one category."
 msgstr "En az bir kategori seç."
 
@@ -7486,11 +7486,11 @@ msgstr "Bir şeyler ters gitti"
 #: includes/pages/wordset-pages.php:25388
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:11846
-#: includes/user-progress.php:11872
-#: includes/user-progress.php:11930
-#: includes/user-progress.php:12088
-#: includes/user-progress.php:12265
+#: includes/user-progress.php:11868
+#: includes/user-progress.php:11894
+#: includes/user-progress.php:11952
+#: includes/user-progress.php:12110
+#: includes/user-progress.php:12287
 msgid "Something went wrong. Please try again."
 msgstr "Bir şeyler yanlış gitti. Lütfen tekrar dene."
 
@@ -27628,9 +27628,9 @@ msgstr "Bu dersin ilerlemesini güncelleyemezsin."
 #: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1296
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
-#: includes/user-progress.php:3182
-#: includes/user-progress.php:3208
-#: includes/user-progress.php:3404
+#: includes/user-progress.php:3204
+#: includes/user-progress.php:3230
+#: includes/user-progress.php:3426
 msgid "Lesson progress could not be saved."
 msgstr "Ders ilerlemesi kaydedilemedi."
 
@@ -28389,6 +28389,6 @@ msgstr "Saklanan değeri güvenli olmadığından, %2$d numaralı gönderideki \
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Sözlük verileri geçici olarak kullanılamıyor. Lütfen birazdan tekrar dene."
 
-#: includes/user-progress.php:1312
+#: includes/user-progress.php:1329
 msgid "Language Learner Tools has paused learner progress sync because the WordPress user tables and plugin progress tables could not all be verified as InnoDB. Ask the database administrator to inspect the listed table engines; the plugin will not convert the core users or usermeta tables automatically."
 msgstr "WordPress kullanıcı tabloları ile eklenti ilerleme tablolarının tamamının InnoDB olduğu doğrulanamadığı için Language Learner Tools öğrenci ilerleme eşitlemesini duraklattı. Veritabanı yöneticisinden listelenen tablo motorlarını incelemesini iste; eklenti, WordPress'in çekirdek users veya usermeta tablolarını otomatik olarak dönüştürmez."
