@@ -57,19 +57,39 @@ find_php_bin() {
     return 1
 }
 
+has_windows_path_converter() {
+    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+}
+
+to_windows_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -w "$1"
+        return
+    fi
+    cygpath -w "$1"
+}
+
+to_posix_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -u "$1"
+        return
+    fi
+    cygpath -u "$1"
+}
+
 convert_arg_for_windows_php() {
     local arg="$1"
-    if [[ "$arg" == /mnt/* ]]; then
-        if command -v wslpath >/dev/null 2>&1; then
-            wslpath -w "$arg"
+    if [[ "$arg" == /* && "$arg" != //* ]]; then
+        if has_windows_path_converter; then
+            to_windows_path "$arg"
             return 0
         fi
     fi
-    if [[ "$arg" == *=/mnt/* ]]; then
+    if [[ "$arg" == *=/* && "$arg" != *=//* ]]; then
         local key="${arg%%=*}"
         local value="${arg#*=}"
-        if command -v wslpath >/dev/null 2>&1; then
-            printf '%s=%s\n' "$key" "$(wslpath -w "$value")"
+        if has_windows_path_converter; then
+            printf '%s=%s\n' "$key" "$(to_windows_path "$value")"
             return 0
         fi
     fi
@@ -89,8 +109,8 @@ if [[ "$PHP_BIN_DETECTED" == *.exe || "$runtime_os_family" == "Windows" ]]; then
 fi
 
 if [[ "$is_windows_runtime" == "1" ]]; then
-    if ! command -v wslpath >/dev/null 2>&1; then
-        echo "wslpath is required to run Windows php.exe from this script." >&2
+    if ! has_windows_path_converter; then
+        echo "wslpath or cygpath is required to run Windows php.exe from this script." >&2
         exit 1
     fi
 
@@ -104,7 +124,7 @@ if [[ "$is_windows_runtime" == "1" ]]; then
         runtime_php_binary="$("$PHP_BIN_DETECTED" -r "echo PHP_BINARY;" 2>/dev/null || true)"
         if [[ -n "$runtime_php_binary" ]]; then
             if [[ "$runtime_php_binary" == [A-Za-z]:\\* ]]; then
-                runtime_php_binary_unix="$(wslpath -u "$runtime_php_binary" 2>/dev/null || true)"
+                runtime_php_binary_unix="$(to_posix_path "$runtime_php_binary" 2>/dev/null || true)"
                 if [[ -n "$runtime_php_binary_unix" && -x "$runtime_php_binary_unix" ]]; then
                     php_exec_bin="$runtime_php_binary_unix"
                 fi
@@ -119,7 +139,7 @@ if [[ "$is_windows_runtime" == "1" ]]; then
     # converted Windows-style paths.
     if [[ "$php_exec_bin" == *.exe ]]; then
         php_dir="$(dirname "$php_exec_bin")"
-        php_dir_win="$(wslpath -w "$php_dir")"
+        php_dir_win="$(to_windows_path "$php_dir")"
         ext_dir_win="${php_dir_win}\\ext"
         exec "$php_exec_bin" \
             -n \

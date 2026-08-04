@@ -88,6 +88,26 @@ runtime_uses_windows_php() {
     [[ "$family" == "Windows" ]]
 }
 
+has_windows_path_converter() {
+    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+}
+
+to_windows_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -w "$1"
+        return
+    fi
+    cygpath -w "$1"
+}
+
+to_posix_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -u "$1"
+        return
+    fi
+    cygpath -u "$1"
+}
+
 detect_mysql_bin() {
     if [[ -n "${MYSQL_BIN:-}" && -x "${MYSQL_BIN}" ]]; then
         printf '%s\n' "${MYSQL_BIN}"
@@ -159,19 +179,19 @@ build_wp_php_binary() {
         return 0
     fi
 
-    if runtime_uses_windows_php && command -v wslpath >/dev/null 2>&1; then
+    if runtime_uses_windows_php && has_windows_path_converter; then
         local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
         runtime_binary="$(detect_runtime_php_binary || true)"
         if [[ -n "$runtime_binary" ]]; then
             runtime_binary_win="$runtime_binary"
-            if [[ "$runtime_binary_win" == /mnt/* ]]; then
-                runtime_binary_win="$(wslpath -w "$runtime_binary_win")"
+            if [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]]; then
+                runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
             fi
 
             if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
-                runtime_binary_unix="$(wslpath -u "$runtime_binary_win" 2>/dev/null || true)"
+                runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
                 if [[ -n "$runtime_binary_unix" ]]; then
-                    php_dir_win="$(wslpath -w "$(dirname "$runtime_binary_unix")")"
+                    php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
                     printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
                         "$runtime_binary_win" \
                         "$php_dir_win"
@@ -395,8 +415,8 @@ write_wp_tests_config() {
     esc_db_pass="${DB_PASS//\'/\'\\\'\'}"
     esc_db_host="${DB_HOST_RAW//\'/\'\\\'\'}"
     esc_core="${WP_CORE_DIR%/}/"
-    if runtime_uses_windows_php && [[ "$esc_core" == /mnt/* ]] && command -v wslpath >/dev/null 2>&1; then
-        esc_core="$(wslpath -w "${WP_CORE_DIR%/}")\\"
+    if runtime_uses_windows_php && [[ "$esc_core" == /* && "$esc_core" != //* ]] && has_windows_path_converter; then
+        esc_core="$(to_windows_path "${WP_CORE_DIR%/}")\\"
     fi
     esc_core="${esc_core//\\/\\\\}"
     esc_core="${esc_core//\'/\'\\\'\'}"

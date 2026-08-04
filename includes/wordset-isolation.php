@@ -477,6 +477,26 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
         return $identity_map;
     }
 
+    // A saved learner state can legitimately contain hundreds of categories.
+    // Prime those terms and their ownership metadata in bulk before the repair
+    // loop; otherwise a fresh PHP request can issue multiple SQL reads per ID.
+    $source_terms_by_id = [];
+    $source_terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'include' => $source_category_ids,
+    ]);
+    if (!is_wp_error($source_terms)) {
+        foreach ((array) $source_terms as $source_term) {
+            if ($source_term instanceof WP_Term && (int) $source_term->term_id > 0) {
+                $source_terms_by_id[(int) $source_term->term_id] = $source_term;
+            }
+        }
+        if (!empty($source_terms_by_id)) {
+            update_meta_cache('term', array_keys($source_terms_by_id));
+        }
+    }
+
     $category_id_map = [];
     foreach ($source_category_ids as $source_category_id) {
         $source_category_id = (int) $source_category_id;
@@ -484,7 +504,10 @@ function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
             continue;
         }
 
-        $source_term = get_term($source_category_id, 'word-category');
+        $source_term = $source_terms_by_id[$source_category_id] ?? null;
+        if (!($source_term instanceof WP_Term)) {
+            $source_term = get_term($source_category_id, 'word-category');
+        }
         if (!($source_term instanceof WP_Term) || is_wp_error($source_term)) {
             continue;
         }

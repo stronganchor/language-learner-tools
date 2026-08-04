@@ -86,8 +86,28 @@ if [[ -n "${LL_TOOLS_RESET_WP_TEST_DB:-}" ]]; then
     export RESET_DB="${LL_TOOLS_RESET_WP_TEST_DB}"
 fi
 
+has_windows_path_converter() {
+    command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+}
+
+to_windows_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -w "$1"
+        return
+    fi
+    cygpath -w "$1"
+}
+
+to_posix_path() {
+    if command -v wslpath >/dev/null 2>&1; then
+        wslpath -u "$1"
+        return
+    fi
+    cygpath -u "$1"
+}
+
 get_windows_temp_dir_for_bootstrap() {
-    if ! command -v cmd.exe >/dev/null 2>&1 || ! command -v wslpath >/dev/null 2>&1; then
+    if ! command -v cmd.exe >/dev/null 2>&1 || ! has_windows_path_converter; then
         return 1
     fi
 
@@ -97,7 +117,7 @@ get_windows_temp_dir_for_bootstrap() {
         return 1
     fi
 
-    wslpath -u "$win_temp"
+    to_posix_path "$win_temp"
 }
 
 get_phpunit_runtime_cache_root() {
@@ -170,19 +190,19 @@ detect_runtime_php_binary() {
 }
 
 expected_wp_tests_php_binary() {
-    if [[ "$php_family" == "Windows" ]] && command -v wslpath >/dev/null 2>&1; then
+    if [[ "$php_family" == "Windows" ]] && has_windows_path_converter; then
         local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
         runtime_binary="$(detect_runtime_php_binary || true)"
         if [[ -n "$runtime_binary" ]]; then
             runtime_binary_win="$runtime_binary"
-            if [[ "$runtime_binary_win" == /mnt/* ]]; then
-                runtime_binary_win="$(wslpath -w "$runtime_binary_win")"
+            if [[ "$runtime_binary_win" == /* && "$runtime_binary_win" != //* ]]; then
+                runtime_binary_win="$(to_windows_path "$runtime_binary_win")"
             fi
 
             if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
-                runtime_binary_unix="$(wslpath -u "$runtime_binary_win" 2>/dev/null || true)"
+                runtime_binary_unix="$(to_posix_path "$runtime_binary_win" 2>/dev/null || true)"
                 if [[ -n "$runtime_binary_unix" ]]; then
-                    php_dir_win="$(wslpath -w "$(dirname "$runtime_binary_unix")")"
+                    php_dir_win="$(to_windows_path "$(dirname "$runtime_binary_unix")")"
                     printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
                         "$runtime_binary_win" \
                         "$php_dir_win"
@@ -212,8 +232,8 @@ wp_tests_config_matches_env() {
     expected_php_binary="$(escape_php_single_quoted_value "$(expected_wp_tests_php_binary)")"
 
     expected_core_raw="${WP_CORE_DIR%/}/"
-    if [[ "$php_family" == "Windows" && "$expected_core_raw" == /mnt/* ]] && command -v wslpath >/dev/null 2>&1; then
-        expected_core_raw="$(wslpath -w "${WP_CORE_DIR%/}")\\"
+    if [[ "$php_family" == "Windows" && "$expected_core_raw" == /* && "$expected_core_raw" != //* ]] && has_windows_path_converter; then
+        expected_core_raw="$(to_windows_path "${WP_CORE_DIR%/}")\\"
     fi
     expected_core="$(escape_php_single_quoted_value "$expected_core_raw")"
 

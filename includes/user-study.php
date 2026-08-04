@@ -94,6 +94,30 @@ if (!function_exists('ll_tools_parse_request_id_list')) {
     }
 }
 
+if (!function_exists('ll_tools_get_user_study_starred_word_ids')) {
+    /**
+     * Read only the saved starred-word IDs for lightweight launch/filter paths.
+     *
+     * Calling ll_tools_get_user_study_state() also repairs every saved category
+     * against wordset isolation. That repair is appropriate for settings and
+     * category-selection reads, but it turns an otherwise bounded filtered-ID
+     * request into hundreds of term/meta lookups for large saved selections.
+     *
+     * @return int[]
+     */
+    function ll_tools_get_user_study_starred_word_ids($user_id = 0): array {
+        $uid = (int) ($user_id ?: get_current_user_id());
+        if ($uid <= 0) {
+            return [];
+        }
+
+        return ll_tools_user_study_sanitize_state_id_array(
+            (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true),
+            'starred_word_ids'
+        );
+    }
+}
+
 /**
  * Read the saved study state for a user.
  */
@@ -109,8 +133,7 @@ function ll_tools_get_user_study_state($user_id = 0): array {
             update_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, $category_ids);
         }
     }
-    $starred_word_ids = (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true);
-    $starred_word_ids = ll_tools_user_study_sanitize_state_id_array($starred_word_ids, 'starred_word_ids');
+    $starred_word_ids = ll_tools_get_user_study_starred_word_ids($uid);
     if ($uid > 0 && metadata_exists('user', $uid, 'll_user_star_mode')) {
         // Star mode is no longer a remembered cross-session preference.
         delete_user_meta($uid, 'll_user_star_mode');

@@ -277,11 +277,15 @@ Full Playwright run times out under an automation cap:
 - If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
 
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
-- This is usually a PHP shim path-conversion issue in WSL.
-- `tests/bin/php-local.sh` auto-converts args for Windows-runtime PHP.
-- If your environment still fails, run:
+- This is usually a Windows PHP path-conversion issue in WSL or Git Bash.
+- `tests/bin/php-local.sh` auto-converts args with `wslpath` (WSL) or `cygpath` (Git Bash).
+- In WSL, run:
 ```bash
 PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh
+```
+- In Git Bash, run:
+```bash
+PHP_BIN=/c/php/8.4/php.exe tests/bin/run-tests.sh
 ```
 
 ## 8) Minimum Validation Before Finishing

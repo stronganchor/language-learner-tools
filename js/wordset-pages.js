@@ -130,6 +130,7 @@
     let progressSelectedAllWordCount = 0;
     let progressSelectionLaunchBusy = false;
     let progressSelectionLaunchMode = '';
+    let progressSelectionLaunchStage = '';
     let progressSelectionLaunchRequest = null;
     let progressSelectionLaunchToken = 0;
     let progressSelectionLaunchRetrySpec = null;
@@ -145,6 +146,8 @@
     let progressWordPageRequestToken = 0;
     let progressWordRequestFilterKey = '';
     let progressWordPendingFilterKey = null;
+    let progressWordIdsSnapshotSignature = '';
+    let progressWordIdsSnapshotGeneration = 0;
     let progressWordAutoLoadTimer = 0;
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
@@ -2554,6 +2557,7 @@
     function applyProgressWordStarVisualUpdate(wordId, starred, delta) {
         const wid = parseInt(wordId, 10) || 0;
         if (!$progressRoot.length || !wid) { return; }
+        invalidateProgressWordIdsSnapshot();
         setAnalyticsWordStarred(wid, starred);
         adjustAnalyticsStarredSummary(delta);
         syncProgressWordStarButtons(wid);
@@ -3558,6 +3562,23 @@
         ]);
     }
 
+    function progressSelectionWordIdsSnapshotSignature(filterKey, includeHidden, requestCategoryIds) {
+        return JSON.stringify([
+            String(filterKey || ''),
+            includeHidden ? 1 : 0,
+            uniqueIntList(requestCategoryIds || [])
+        ]);
+    }
+
+    function progressSelectionWordIdsSnapshotSignatureForSpec(spec) {
+        const value = (spec && typeof spec === 'object') ? spec : {};
+        return progressSelectionWordIdsSnapshotSignature(
+            value.filterKey,
+            !!value.includeHidden,
+            value.requestCategoryIds || []
+        );
+    }
+
     function progressSelectionLaunchSpecIsCurrent(spec) {
         if (!spec || typeof spec !== 'object' || !progressAllFilteredSelectionIsActive()) {
             return false;
@@ -3573,7 +3594,9 @@
             : (progressSelectionLaunchRetrySpec ? 'error' : '');
 
         if ($progressSelectionBar.length) {
-            $progressSelectionBar.attr('aria-busy', state === 'loading' ? 'true' : 'false');
+            $progressSelectionBar
+                .attr('aria-busy', state === 'loading' ? 'true' : 'false')
+                .attr('data-ll-wordset-progress-launch-stage', state === 'loading' ? progressSelectionLaunchStage : '');
         }
         if ($progressSelectionModeButtons.length) {
             $progressSelectionModeButtons.each(function () {
@@ -3614,6 +3637,9 @@
         progressSelectionLaunchMode = progressSelectionLaunchBusy
             ? (normalizeMode(spec && spec.mode || '') || 'practice')
             : '';
+        if (!progressSelectionLaunchBusy) {
+            progressSelectionLaunchStage = '';
+        }
         progressSelectionLaunchRetrySpec = normalizedState === 'error' && spec
             ? Object.assign({}, spec, {
                 filterPayload: Object.assign({}, spec.filterPayload || {}),
@@ -3624,6 +3650,22 @@
         refreshProgressSelectionLaunchControls();
     }
 
+    function setProgressSelectionLaunchStage(stage) {
+        if (!progressSelectionLaunchBusy) {
+            return;
+        }
+        const normalizedStage = String(stage || '').trim().toLowerCase();
+        progressSelectionLaunchStage = ['ids', 'plan', 'hydrate', 'commit'].indexOf(normalizedStage) !== -1
+            ? normalizedStage
+            : '';
+        renderProgressSelectionLaunchState();
+    }
+
+    function invalidateProgressWordIdsSnapshot() {
+        progressWordIdsSnapshotSignature = '';
+        progressWordIdsSnapshotGeneration += 1;
+    }
+
     function cancelProgressSelectionLaunch() {
         const request = progressSelectionLaunchRequest;
         const cleanup = progressSelectionLaunchCleanup;
@@ -3632,6 +3674,7 @@
         progressSelectionLaunchRequest = null;
         progressSelectionLaunchBusy = false;
         progressSelectionLaunchMode = '';
+        progressSelectionLaunchStage = '';
         progressSelectionLaunchRetrySpec = null;
         progressSelectionLaunchCleanup = null;
         if (request && typeof request.abort === 'function') {
@@ -3640,7 +3683,7 @@
         if (typeof cleanup === 'function') {
             try { cleanup(); } catch (_) { /* no-op */ }
         }
-        renderProgressSelectionLaunchState();
+        refreshProgressSelectionLaunchControls();
     }
 
     function unbindProgressSelectionLaunchDismissHandlers() {
@@ -6271,10 +6314,25 @@
         };
     }
 
-    function fetchProgressAllFilteredSelectionWordIds(spec) {
+    function fetchProgressAllFilteredSelectionWordIds(spec, options) {
         const launchSpec = (spec && typeof spec === 'object') ? spec : null;
+        const opts = (options && typeof options === 'object') ? options : {};
+        const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
         if (!launchSpec || !ajaxUrl || !nonce) {
             return $.Deferred().reject().promise();
+        }
+
+        const cachedWordIds = uniqueIntList(analytics && analytics.wordIds || []);
+        const cachedPagination = getProgressWordPagination();
+        const cachedTotal = Math.max(0, parseInt(cachedPagination.total, 10) || 0);
+        if (
+            progressWordIdsSnapshotSignature !== ''
+            && progressWordIdsSnapshotSignature === progressSelectionWordIdsSnapshotSignatureForSpec(launchSpec)
+            && cachedWordIds.length > 0
+            && cachedWordIds.length === cachedTotal
+        ) {
+            progressSelectedAllWordCount = cachedWordIds.length;
+            return $.Deferred().resolve(cachedWordIds).promise();
         }
 
         const requestData = {
@@ -6298,7 +6356,11 @@
 
         const deferred = $.Deferred();
         const request = $.post(ajaxUrl, requestData);
-        progressSelectionLaunchRequest = request;
+        if (onRequest) {
+            onRequest(request);
+        } else {
+            progressSelectionLaunchRequest = request;
+        }
         request.done(function (res) {
             if (!res || !res.success || !res.data || !res.data.analytics) {
                 deferred.reject(res);
@@ -6330,6 +6392,12 @@
             : function () { return true; };
         const notifyLaunchCommitted = typeof opts.onLaunchCommitted === 'function'
             ? opts.onLaunchCommitted
+            : function () {};
+        const notifyLaunchStage = typeof opts.onLaunchStage === 'function'
+            ? opts.onLaunchStage
+            : function () {};
+        const notifyLaunchRequest = typeof opts.onLaunchRequest === 'function'
+            ? opts.onLaunchRequest
             : function () {};
         const notifyLaunchFailure = function (message) {
             if (typeof launchUiCleanup === 'function') {
@@ -6380,8 +6448,10 @@
             const abortBoundedProgressLaunch = function (message) {
                 notifyLaunchFailure(message);
             };
+            notifyLaunchStage('plan');
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
-                candidateWordIds: initialSessionWordIds
+                candidateWordIds: initialSessionWordIds,
+                onRequest: notifyLaunchRequest
             }).done(function (serverPlan) {
                 if (!isLaunchCurrent()) {
                     notifyLaunchFailure('');
@@ -6407,7 +6477,9 @@
                             : (i18n.noWordsInSelection || ''));
                     },
                     isLaunchCurrent: isLaunchCurrent,
+                    onLaunchRequest: notifyLaunchRequest,
                     onLaunchCommitted: notifyLaunchCommitted,
+                    onLaunchStage: notifyLaunchStage,
                     onLaunchFailure: function () {
                         notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
                     }
@@ -6431,7 +6503,10 @@
         const ensureOptions = needsLearningExpansion ? {} : {
             sessionWordIds: initialSessionWordIds
         };
+        ensureOptions.onRequest = notifyLaunchRequest;
+        ensureOptions.isRequestCurrent = isLaunchCurrent;
 
+        notifyLaunchStage('hydrate');
         ensureWordsForCategories(initialLaunchPlan.categoryIds, ensureOptions).always(function () {
             if (!isLaunchCurrent()) {
                 notifyLaunchFailure('');
@@ -6457,8 +6532,10 @@
                 launchUi: launchUi,
                 launchUiCleanup: launchUiCleanup,
                 isLaunchCurrent: isLaunchCurrent,
+                onLaunchRequest: notifyLaunchRequest,
                 suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
                 onLaunchCommitted: notifyLaunchCommitted,
+                onLaunchStage: notifyLaunchStage,
                 onLaunchFailure: function () {
                     notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
                 }
@@ -6499,17 +6576,37 @@
         }
 
         const token = ++progressSelectionLaunchToken;
+        const trackLaunchRequest = function (request) {
+            if (!request || typeof request.abort !== 'function') {
+                return;
+            }
+            if (token !== progressSelectionLaunchToken || !progressSelectionLaunchBusy) {
+                try { request.abort(); } catch (_) { /* no-op */ }
+                return;
+            }
+            progressSelectionLaunchRequest = request;
+            if (typeof request.always === 'function') {
+                request.always(function () {
+                    if (progressSelectionLaunchRequest === request) {
+                        progressSelectionLaunchRequest = null;
+                    }
+                });
+            }
+        };
         const launchUi = openFlashcardLaunchLoadingState();
         const launchUiCleanup = createFlashcardLaunchLoadingCleanup(launchUi);
         progressSelectionLaunchCleanup = launchUiCleanup;
         setProgressSelectionLaunchState('loading', launchSpec);
+        setProgressSelectionLaunchStage('ids');
         bindProgressSelectionLaunchDismissHandlers(token);
         scheduleProgressSelectionLaunchWork(function () {
             if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
                 finishProgressSelectionLaunch(token, '', null);
                 return;
             }
-            fetchProgressAllFilteredSelectionWordIds(launchSpec).done(function (wordIds) {
+            fetchProgressAllFilteredSelectionWordIds(launchSpec, {
+                onRequest: trackLaunchRequest
+            }).done(function (wordIds) {
                 if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
                     finishProgressSelectionLaunch(token, '', null);
                     return;
@@ -6523,6 +6620,7 @@
                         return token === progressSelectionLaunchToken
                             && progressSelectionLaunchSpecIsCurrent(launchSpec);
                     },
+                    onLaunchRequest: trackLaunchRequest,
                     onLaunchCleanupReady: function (cleanup) {
                         if (token !== progressSelectionLaunchToken) {
                             if (typeof cleanup === 'function') {
@@ -6534,6 +6632,11 @@
                     },
                     onLaunchCommitted: function () {
                         finishProgressSelectionLaunch(token, '', null, { preserveLaunchUi: true });
+                    },
+                    onLaunchStage: function (stage) {
+                        if (token === progressSelectionLaunchToken) {
+                            setProgressSelectionLaunchStage(stage);
+                        }
                     },
                     onLaunchFailure: function (message) {
                         finishProgressSelectionLaunch(token, message ? 'error' : '', message ? launchSpec : null);
@@ -6963,6 +7066,8 @@
         pendingProgressAnalyticsRefreshOptions = null;
         const wordFilterPayload = buildProgressWordRequestFilter();
         const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
+        invalidateProgressWordIdsSnapshot();
+        const wordIdsSnapshotGeneration = progressWordIdsSnapshotGeneration;
         if (wordFilterKey !== progressWordRequestFilterKey) {
             progressWordPendingFilterKey = wordFilterKey;
             syncProgressSelectionControls([]);
@@ -6984,14 +7089,17 @@
             wordset_id: wordsetId,
             days: 14,
             include_words: 1,
+            include_word_ids: wordFilterKey ? 1 : 0,
             word_limit: PROGRESS_WORD_PAGE_SIZE,
             word_offset: 0
         };
-        if (progressIncludeHidden) {
+        const analyticsRequestIncludesHidden = !!progressIncludeHidden;
+        const analyticsRequestCategoryIds = analyticsRequestIncludesHidden ? [] : getVisibleCategoryIds();
+        if (analyticsRequestIncludesHidden) {
             analyticsRequestData.include_ignored = 1;
             analyticsRequestData.category_ids = [];
         } else {
-            analyticsRequestData.category_ids = getVisibleCategoryIds();
+            analyticsRequestData.category_ids = analyticsRequestCategoryIds;
         }
         appendProgressWordRequestFilter(analyticsRequestData, wordFilterPayload);
 
@@ -7006,6 +7114,18 @@
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
                 progressWordPendingFilterKey = null;
+                const filteredWordIds = uniqueIntList(analytics.wordIds || []);
+                const filteredWordTotal = Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0);
+                progressWordIdsSnapshotSignature = progressWordIdsSnapshotGeneration === wordIdsSnapshotGeneration
+                    && wordFilterKey
+                    && filteredWordIds.length > 0
+                    && filteredWordIds.length === filteredWordTotal
+                    ? progressSelectionWordIdsSnapshotSignature(
+                        wordFilterKey,
+                        analyticsRequestIncludesHidden,
+                        analyticsRequestCategoryIds
+                    )
+                    : '';
                 progressAnalyticsLoaded = true;
                 setSummaryMetricsLoadingState(false);
                 renderProgressAnalytics();
@@ -7013,6 +7133,7 @@
                 return;
             }
             progressWordPendingFilterKey = null;
+            invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
@@ -7023,6 +7144,7 @@
                 return;
             }
             progressWordPendingFilterKey = null;
+            invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
@@ -7114,7 +7236,12 @@
         });
 
         analytics = Object.assign({}, nextAnalytics, {
-            words: existingWords.concat(appendedWords)
+            words: existingWords.concat(appendedWords),
+            // Later pages do not need to resend the complete filtered ID set.
+            // Preserve the authoritative snapshot captured by page zero.
+            wordIds: nextAnalytics.wordIds.length
+                ? nextAnalytics.wordIds.slice()
+                : uniqueIntList(analytics.wordIds || [])
         });
         progressWordPagination = Object.assign({}, nextAnalytics.wordsPagination || {}, {
             loaded: Math.max(
@@ -13527,6 +13654,15 @@
         const ids = uniqueIntList(categoryIds || []);
         const candidateWordIds = uniqueIntList(opts.sessionWordIds || opts.session_word_ids || opts.candidateWordIds || opts.candidate_word_ids || []);
         const rejectOnFailure = !!opts.rejectOnFailure;
+        const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
+        const isRequestCurrent = typeof opts.isRequestCurrent === 'function'
+            ? opts.isRequestCurrent
+            : function () { return true; };
+        const rejectStaleRequest = function () {
+            const stale = $.Deferred();
+            stale.reject({ status: 0, llToolsLaunchCanceled: true }, 'abort', 'abort');
+            return stale.promise();
+        };
         if (!ids.length) {
             return $.Deferred().resolve(wordsByCategory).promise();
         }
@@ -13563,10 +13699,20 @@
                 return Math.max(250, Math.min(5000, retryAfter > 0 ? retryAfter * 1000 : 1000));
             };
             const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount) {
+                if (!isRequestCurrent()) {
+                    return rejectStaleRequest();
+                }
                 const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
                 const rows = Array.isArray(accumulatedRows) ? accumulatedRows : [];
                 const restarts = Math.max(0, parseInt(restartCount, 10) || 0);
-                return $.post(ajaxUrl, payload).then(function (res) {
+                const request = $.post(ajaxUrl, payload);
+                if (onRequest) {
+                    onRequest(request);
+                }
+                return request.then(function (res) {
+                    if (!isRequestCurrent()) {
+                        return rejectStaleRequest();
+                    }
                     if (
                         res
                         && res.success
@@ -13588,6 +13734,9 @@
                     }
                     return res;
                 }, function (xhr) {
+                    if (!isRequestCurrent()) {
+                        return rejectStaleRequest();
+                    }
                     const responseData = xhr
                         && xhr.responseJSON
                         && xhr.responseJSON.data
@@ -13680,6 +13829,9 @@
                             wordsByCategory[categoryId] = [];
                         }
                     }, function (xhr) {
+                        if (!isRequestCurrent() || (xhr && xhr.llToolsLaunchCanceled)) {
+                            return rejectStaleRequest();
+                        }
                         if (candidateWordIds.length) {
                             if (rejectOnFailure) {
                                 delete candidateScopedWordsByCategory[candidateScopedWordsKey(categoryId, candidateWordIds)];
@@ -13706,6 +13858,9 @@
             return publicRequestChain.then(function () {
                 return wordsByCategory;
             }, function (xhr) {
+                if (!isRequestCurrent() || (xhr && xhr.llToolsLaunchCanceled)) {
+                    return rejectStaleRequest();
+                }
                 if (rejectOnFailure) {
                     const rejected = $.Deferred();
                     rejected.reject(xhr);
@@ -13742,7 +13897,11 @@
             request.candidate_word_ids = candidateWordIds.join(',');
         }
 
-        return $.post(ajaxUrl, request).then(function (response) {
+        const ajaxRequest = $.post(ajaxUrl, request);
+        if (typeof opts.onRequest === 'function') {
+            opts.onRequest(ajaxRequest);
+        }
+        return ajaxRequest.then(function (response) {
             const plan = response
                 && response.success
                 && response.data
@@ -15189,11 +15348,13 @@
                 }
                 return !externalIsLaunchCurrent || externalIsLaunchCurrent() === true;
             },
+            onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
             onLaunchCommitted: function () {
                 if (typeof opts.onLaunchCommitted === 'function') {
                     opts.onLaunchCommitted();
                 }
             },
+            onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null,
             onLaunchFailure: function () {
                 clearBoundedSessionContinuation(activeSession);
                 if (typeof opts.onLaunchFailure === 'function') {
@@ -15406,11 +15567,13 @@
                 launchUi: opts.launchUi,
                 launchUiCleanup: opts.launchUiCleanup,
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
+                onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
                 onLaunchCommitted: function () {
                     if (typeof opts.onLaunchCommitted === 'function') {
                         opts.onLaunchCommitted();
                     }
                 },
+                onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null,
                 onLaunchFailure: function () {
                     if (chunkSession === activeSession) {
                         chunkSession = null;
@@ -15446,11 +15609,13 @@
                 }
             },
             isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
+            onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
             onLaunchCommitted: function () {
                 if (typeof opts.onLaunchCommitted === 'function') {
                     opts.onLaunchCommitted();
                 }
-            }
+            },
+            onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null
         });
         return true;
     }
@@ -15742,11 +15907,13 @@
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
             isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
+            onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
             onLaunchCommitted: function () {
                 if (typeof opts.onLaunchCommitted === 'function') {
                     opts.onLaunchCommitted();
                 }
             },
+            onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null,
             onLaunchFailure: function () {
                 if (activeSession && chunkSession === activeSession) {
                     chunkSession = null;
@@ -16028,6 +16195,13 @@
         let boundedSessionWordIdsByCategoryId = null;
         const onLaunchCommitted = typeof opts.onLaunchCommitted === 'function' ? opts.onLaunchCommitted : null;
         const onLaunchFailure = typeof opts.onLaunchFailure === 'function' ? opts.onLaunchFailure : null;
+        const onLaunchStage = typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null;
+        const onLaunchRequest = typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null;
+        const notifyLaunchStage = function (stage) {
+            if (onLaunchStage) {
+                try { onLaunchStage(stage); } catch (_) { /* no-op */ }
+            }
+        };
         let launchOutcomeNotified = false;
         const notifyLaunchCommitted = function () {
             if (launchOutcomeNotified) { return; }
@@ -16134,6 +16308,7 @@
         };
 
         const commitFlashcardLaunch = function (selectedCats, effectiveSessionIds, effectiveRequestedCategoryLabelOverride, effectiveLookup) {
+            notifyLaunchStage('commit');
             if (!launchIsCurrent()) {
                 rejectStaleLaunch();
                 return;
@@ -16444,7 +16619,10 @@
             sessionWordIds: sessionIds,
             rejectOnFailure: rejectOnLoadFailure
         };
+        launchEnsureOptions.onRequest = onLaunchRequest;
+        launchEnsureOptions.isRequestCurrent = launchIsCurrent;
 
+        notifyLaunchStage('hydrate');
         ensureWordsForCategories(ids, launchEnsureOptions).done(function () {
             if (!launchIsCurrent()) {
                 rejectStaleLaunch();
@@ -18982,6 +19160,7 @@
         });
 
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
+            invalidateProgressWordIdsSnapshot();
             if (isFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose({ silent: true });
                 return;

@@ -1574,6 +1574,75 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertFalse((bool) ($pagination['has_more'] ?? true));
     }
 
+    public function test_selection_id_analytics_stays_query_bounded_with_large_saved_category_state(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        $category_ids = array_values(array_map('intval', (array) $fixture['category_ids']));
+        $word_ids = range(9000001, 9002714);
+        $word_ids_by_category = [
+            $category_ids[0] => $word_ids,
+            $category_ids[1] => [],
+        ];
+        $membership_cache_key = ll_tools_user_progress_analytics_word_ids_cache_key(
+            $category_ids,
+            (int) $fixture['wordset_id']
+        );
+        set_transient($membership_cache_key, [
+            '__ll_user_progress_analytics_word_ids_cache_format' => 1,
+            'word_ids_by_category' => $word_ids_by_category,
+        ], HOUR_IN_SECONDS);
+        wp_cache_delete($membership_cache_key, 'll_tools_user_progress');
+
+        // Simulate the 200+ category saved state seen on Zazacaogren. These IDs
+        // are intentionally outside the requested analytics scope: an ID-only
+        // launch must not repair or hydrate them merely to read starred words.
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, (int) $fixture['wordset_id']);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, range(900001, 900210));
+        update_user_meta($user_id, LL_TOOLS_USER_STARRED_META, [$word_ids[0]]);
+
+        $cache_statuses = [];
+        $capture_cache_status = static function (string $status) use (&$cache_statuses): void {
+            $cache_statuses[] = $status;
+        };
+        add_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_status, 10, 1);
+        $queries_before = get_num_queries();
+        try {
+            $analytics = ll_tools_build_user_study_analytics_payload(
+                $user_id,
+                (int) $fixture['wordset_id'],
+                $category_ids,
+                14,
+                false,
+                [
+                    'include_words' => false,
+                    'include_word_ids' => true,
+                    'selection_ids_only' => true,
+                    'word_filter' => [
+                        'summary' => 'new',
+                        'category_ids' => [],
+                        'column_filters' => [],
+                    ],
+                ]
+            );
+        } finally {
+            remove_action('ll_tools_user_progress_analytics_word_ids_cache_status', $capture_cache_status, 10);
+        }
+        $query_count = get_num_queries() - $queries_before;
+
+        $this->assertContains('persistent_hit', $cache_statuses);
+        $this->assertLessThanOrEqual(
+            20,
+            $query_count,
+            'Selection-ID analytics must not issue term/meta queries per saved category.'
+        );
+        $this->assertSame(
+            $word_ids,
+            array_values(array_map('intval', (array) ($analytics['word_ids'] ?? [])))
+        );
+    }
+
     public function test_word_id_analytics_without_selection_fast_path_preserves_the_existing_contract(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1760,9 +1829,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         sort($expected_word_ids);
         $this->assertSame($expected_word_ids, $returned_word_ids);
         $this->assertSame(
-            [$category_ids[1], $category_ids[0]],
+            [$category_ids[0], $category_ids[1]],
             array_values(array_map('intval', (array) ($plan['category_ids'] ?? []))),
-            'The smaller owned queue should lead the balanced launch batch.'
+            'The largest owned queue should lead the launch batch to minimize startup hydration.'
         );
         $chunks = array_values((array) ($plan['chunks'] ?? []));
         $this->assertCount(1, $chunks);
@@ -1877,6 +1946,96 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame(10, (int) ($plan['planned_count'] ?? 0));
         $this->assertSame(2, (int) ($plan['chunk_count'] ?? 0));
         $this->assertSame('learned', (string) ($plan['criteria'] ?? ''));
+    }
+
+    public function test_exact_candidate_planner_stays_bounded_at_zazaca_scale(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term(
+            'Zazaca Scale Launch Plan ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category_ids = range(700001, 700207);
+        $candidate_word_ids = range(9100001, 9102714);
+        $word_ids_by_category = [
+            $category_ids[0] => array_slice($candidate_word_ids, 0, 2508),
+        ];
+        foreach (array_slice($category_ids, 1) as $offset => $category_id) {
+            $word_ids_by_category[$category_id] = [$candidate_word_ids[2508 + $offset]];
+        }
+
+        $membership_cache_key = ll_tools_user_progress_analytics_word_ids_cache_key(
+            $category_ids,
+            $wordset_id
+        );
+        set_transient($membership_cache_key, [
+            '__ll_user_progress_analytics_word_ids_cache_format' => 1,
+            'word_ids_by_category' => $word_ids_by_category,
+        ], HOUR_IN_SECONDS);
+        wp_cache_delete($membership_cache_key, 'll_tools_user_progress');
+
+        $catalog_build_count = 0;
+        $capture_catalog_build = static function () use (&$catalog_build_count): void {
+            $catalog_build_count++;
+        };
+        add_action(
+            'll_tools_user_study_categories_for_wordset_before_build',
+            $capture_catalog_build,
+            10,
+            0
+        );
+        $queries_before = get_num_queries();
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                $category_ids,
+                'new',
+                'practice',
+                $candidate_word_ids
+            );
+        } finally {
+            remove_action(
+                'll_tools_user_study_categories_for_wordset_before_build',
+                $capture_catalog_build,
+                10
+            );
+        }
+        $query_count = get_num_queries() - $queries_before;
+
+        $this->assertNotWPError($plan);
+        $this->assertIsArray($plan);
+        $this->assertSame(0, $catalog_build_count, 'Exact-candidate planning must not rebuild the full category catalog.');
+        $this->assertLessThanOrEqual(12, $query_count, 'A 207-category exact launch plan must stay O(1) in SQL queries.');
+        $this->assertSame(2714, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(2714, (int) ($plan['planned_count'] ?? 0));
+
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertNotEmpty($chunks);
+        $this->assertSame(
+            [$category_ids[0]],
+            array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))),
+            'The first Zazaca-scale chunk should need one category hydration request.'
+        );
+        $this->assertLessThanOrEqual(15, count((array) ($chunks[0]['word_ids'] ?? [])));
+
+        $planned_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $this->assertGreaterThanOrEqual(5, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(15, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+        }
+        $this->assertCount(2714, $planned_word_ids);
+        $this->assertCount(2714, array_unique($planned_word_ids));
+        sort($planned_word_ids);
+        $this->assertSame($candidate_word_ids, $planned_word_ids);
     }
 
     public function test_selection_launch_plan_ajax_rejects_an_empty_exact_candidate_scope(): void
@@ -2364,6 +2523,30 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertLessThanOrEqual(2, $lookup_query_count, 'The warm aggregate lookup must stay O(1) in SQL queries.');
         $this->assertSame('audio_text_title', (string) ($payload[$category_ids[0]]['learning_prompt_type'] ?? ''));
         $this->assertSame('no-image', (string) ($payload[$category_ids[209]]['aspect_bucket'] ?? ''));
+    }
+
+    public function test_selection_category_payload_cache_key_is_shared_across_users(): void
+    {
+        $wordset = wp_insert_term(
+            'Analytics Shared Presentation Cache ' . wp_generate_password(6, false),
+            'wordset'
+        );
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $first_user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $second_user_id = self::factory()->user->create(['role' => 'subscriber']);
+
+        wp_set_current_user($first_user_id);
+        $first_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+        wp_set_current_user($second_user_id);
+        $second_key = ll_tools_user_progress_selection_category_payload_cache_key($wordset_id);
+
+        $this->assertSame(
+            $first_key,
+            $second_key,
+            'Presentation metadata is wordset content, not learner-specific state.'
+        );
     }
 
     public function test_selection_category_payload_partial_prime_does_not_relabel_an_untouched_stale_row(): void
@@ -3076,7 +3259,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }, $chunks)));
     }
 
-    public function test_selection_launch_places_small_category_queues_before_a_dominant_batch_peer(): void
+    public function test_selection_launch_starts_with_one_dominant_category_for_fast_hydration(): void
     {
         $chunks = ll_tools_build_user_study_selection_launch_chunks([
             101 => range(1001, 1031),
@@ -3089,16 +3272,16 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             return count((array) ($chunk['word_ids'] ?? []));
         }, $chunks)));
         $this->assertSame(
-            [102, 103, 101],
+            [101],
             array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))),
-            'A large catch-all category must not hide the multi-category scope of the first chunk.'
+            'The first runnable chunk should require only one category payload request.'
         );
         $this->assertSame(41, count(array_unique(array_merge(...array_map(static function (array $chunk): array {
             return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
         }, $chunks)))));
         $this->assertSame(5, array_sum(array_map(static function (array $chunk): int {
             return count((array) ($chunk['category_ids'] ?? []));
-        }, $chunks)), 'Small-first ordering must not multiply category hydration across chunks.');
+        }, $chunks)), 'Startup-first ordering must move, not multiply, category hydration requests.');
     }
 
     public function test_selection_launch_keeps_equal_category_queues_contiguous_for_request_efficiency(): void
@@ -3120,7 +3303,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }, $chunks)))));
     }
 
-    public function test_selection_launch_places_diverse_light_batches_before_an_isolated_catch_all(): void
+    public function test_selection_launch_places_an_isolated_catch_all_before_diverse_light_batches(): void
     {
         $matched_by_category = [
             100 => range(10001, 10093),
@@ -3134,9 +3317,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $chunks = ll_tools_build_user_study_selection_launch_chunks($matched_by_category, 15, 3, 5);
 
         $this->assertCount(33, $chunks);
-        $this->assertCount(6, (array) ($chunks[0]['word_ids'] ?? []));
-        $this->assertCount(3, (array) ($chunks[0]['category_ids'] ?? []));
-        $this->assertNotContains(100, array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))));
+        $this->assertGreaterThanOrEqual(5, count((array) ($chunks[0]['word_ids'] ?? [])));
+        $this->assertCount(1, (array) ($chunks[0]['category_ids'] ?? []));
+        $this->assertSame([100], array_values(array_map('intval', (array) ($chunks[0]['category_ids'] ?? []))));
         $this->assertSame(249, count(array_unique(array_merge(...array_map(static function (array $chunk): array {
             return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
         }, $chunks)))));

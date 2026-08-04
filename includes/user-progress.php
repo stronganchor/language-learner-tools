@@ -3215,14 +3215,14 @@ function ll_tools_user_progress_selection_category_payload_cache_key(int $wordse
         : 0;
 
     return 'll_up_sel_cat_' . md5(wp_json_encode([
-        'schema' => 2,
+        // Bump this schema deliberately when the stored planner row contract
+        // changes. Routine releases must keep this user-invariant aggregate warm.
+        'schema' => 3,
         'wordset_id' => $wordset_id,
-        'user_id' => function_exists('get_current_user_id') ? max(0, (int) get_current_user_id()) : 0,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
         'quiz_content_epoch' => $quiz_content_epoch,
         'min_word_count' => max(0, $min_word_count),
-        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
     ]));
 }
 
@@ -4034,8 +4034,10 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     }
 
     $summary_starred = 0;
-    $study_state = function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [];
-    foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_id) {
+    $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
+        ? ll_tools_get_user_study_starred_word_ids($uid)
+        : (array) ((function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [])['starred_word_ids'] ?? []);
+    foreach ((array) $starred_word_ids as $starred_id) {
         $sid = (int) $starred_id;
         if ($sid > 0 && !empty($all_word_lookup[$sid])) {
             $summary_starred++;
@@ -5068,9 +5070,11 @@ function ll_tools_build_user_study_analytics_payload(
     } else {
         $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     }
-    $study_state = function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [];
+    $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
+        ? ll_tools_get_user_study_starred_word_ids($uid)
+        : (array) ((function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [])['starred_word_ids'] ?? []);
     $starred_lookup = [];
-    foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_id) {
+    foreach ((array) $starred_word_ids as $starred_id) {
         $sid = (int) $starred_id;
         if ($sid > 0) {
             $starred_lookup[$sid] = true;
@@ -9745,12 +9749,11 @@ function ll_tools_build_user_study_selection_launch_chunks(
         if (empty($batch_categories)) {
             continue;
         }
-        // Keep each category queue contiguous so candidate hydration remains
-        // request-efficient, but place smaller queues before a dominant broad
-        // category. This lets the opening chunk demonstrate the multi-category
-        // scope without repeating every category request in every chunk.
+        // Keep each category queue contiguous and put the largest queues first.
+        // The opening chunk can then usually hydrate from one category instead
+        // of serially waiting on several category payloads before the first card.
         usort($batch_categories, static function (array $left, array $right): int {
-            $count_comparison = ((int) ($left['word_count'] ?? 0)) <=> ((int) ($right['word_count'] ?? 0));
+            $count_comparison = ((int) ($right['word_count'] ?? 0)) <=> ((int) ($left['word_count'] ?? 0));
             if ($count_comparison !== 0) {
                 return $count_comparison;
             }
@@ -9883,9 +9886,37 @@ function ll_tools_build_user_study_selection_launch_chunks(
         }
     }
 
-    return array_values(array_filter($chunks, static function (array $chunk): bool {
+    $chunks = array_values(array_filter($chunks, static function (array $chunk): bool {
         return !empty($chunk['category_ids']) && !empty($chunk['word_ids']);
     }));
+
+    // Payload hydration costs one request per represented category. Keep the
+    // complete queue, but start with the narrowest, fullest runnable chunk so
+    // users see the first card before multi-category continuations are needed.
+    foreach ($chunks as $chunk_index => &$chunk) {
+        $chunk['__ll_original_index'] = (int) $chunk_index;
+    }
+    unset($chunk);
+    usort($chunks, static function (array $left, array $right): int {
+        $category_count_comparison = count((array) ($left['category_ids'] ?? []))
+            <=> count((array) ($right['category_ids'] ?? []));
+        if ($category_count_comparison !== 0) {
+            return $category_count_comparison;
+        }
+        $word_count_comparison = count((array) ($right['word_ids'] ?? []))
+            <=> count((array) ($left['word_ids'] ?? []));
+        if ($word_count_comparison !== 0) {
+            return $word_count_comparison;
+        }
+        return ((int) ($left['__ll_original_index'] ?? PHP_INT_MAX))
+            <=> ((int) ($right['__ll_original_index'] ?? PHP_INT_MAX));
+    });
+    foreach ($chunks as &$chunk) {
+        unset($chunk['__ll_original_index']);
+    }
+    unset($chunk);
+
+    return $chunks;
 }
 
 /**
@@ -10617,8 +10648,10 @@ function ll_tools_build_user_study_selection_launch_plan(
 
     $starred_lookup = [];
     if (!$has_exact_candidate_scope && $criteria === 'starred') {
-        $study_state = ll_tools_get_user_study_state($user_id);
-        foreach ((array) ($study_state['starred_word_ids'] ?? []) as $starred_word_id) {
+        $starred_word_ids = function_exists('ll_tools_get_user_study_starred_word_ids')
+            ? ll_tools_get_user_study_starred_word_ids($user_id)
+            : (array) ((ll_tools_get_user_study_state($user_id))['starred_word_ids'] ?? []);
+        foreach ($starred_word_ids as $starred_word_id) {
             $starred_word_id = (int) $starred_word_id;
             if ($starred_word_id > 0) {
                 $starred_lookup[$starred_word_id] = true;
