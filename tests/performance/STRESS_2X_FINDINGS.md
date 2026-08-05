@@ -66,6 +66,11 @@ Result: passed in 1.4 minutes against fixture `2026-06-13-stress-2x.2`.
   interaction cap, so treat cold search/AJAX warmup behavior as a harness or
   first-hit follow-up before raising production concerns from that timeout
   alone.
+- The current benchmark runner resolves that harness gap by completing and
+  verifying the target wordset's bounded durable category-search generation
+  before the timed browser run. Keep the normal 20 second interaction cap; a
+  measured Retry state now fails immediately and indicates the prepared index
+  was invalidated or the backend failed after preflight.
 
 ## Follow-Up: Progress Page Latency
 

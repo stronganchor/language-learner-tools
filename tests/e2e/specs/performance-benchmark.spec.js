@@ -66,6 +66,10 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
       if (loading && !loading.hidden) {
         return false;
       }
+      const error = document.querySelector('[data-ll-wordset-page-search-error]');
+      if (error && !error.hidden) {
+        return true;
+      }
       const cards = Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]')).filter((card) => {
         const style = window.getComputedStyle(card);
         return !card.hidden
@@ -75,6 +79,15 @@ async function runScenarioAction(page, scenario, actionContext = {}) {
       });
       return cards.length > 0 && cards.length < 4;
     }, null, { timeout: MAX_INTERACTION_MS });
+    const searchError = await page.locator('[data-ll-wordset-page-search-error]').evaluate((element) => ({
+      visible: !element.hidden,
+      message: String(element.textContent || '').replace(/\s+/g, ' ').trim()
+    }));
+    if (searchError.visible) {
+      throw new Error(
+        `Performance wordset search unexpectedly reached its Retry state after the category-index readiness preflight: ${searchError.message}`
+      );
+    }
     return page.evaluate((start) => Math.round(performance.now() - start), startedAt);
   }
 

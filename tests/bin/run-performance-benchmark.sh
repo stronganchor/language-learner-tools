@@ -8,6 +8,7 @@ BASH_RUNNER="${BASH:-bash}"
 PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")
 WP_ROOT="$(cd "$ROOT_DIR/../../.." && pwd)"
 SEED_SCRIPT="$TESTS_DIR/performance/seed-performance-fixtures.php"
+SEARCH_PREP_SCRIPT="$TESTS_DIR/performance/prepare-performance-category-search.php"
 DEFAULT_HISTORY="$TESTS_DIR/performance/history/performance-history.jsonl"
 DEFAULT_MANIFEST_REL="tests/performance/fixtures/performance-wordsets.json"
 DEFAULT_HISTORY_REL="tests/performance/history/performance-history.jsonl"
@@ -348,6 +349,22 @@ verify_seeded_perf_fixture() {
     fi
 }
 
+prepare_perf_category_search_index() {
+    local runtime_manifest
+    runtime_manifest="$(to_runtime_path "$PERF_MANIFEST_PATH")"
+    local prepare_command=(
+        "${WP_CLI_ARGS[@]}"
+        --path="$(to_runtime_path "$WP_ROOT")"
+        eval-file
+        "$(to_runtime_path "$SEARCH_PREP_SCRIPT")"
+        --
+        "manifest=$runtime_manifest"
+    )
+
+    echo "Preparing the selected performance fixture category-search index."
+    "$WP_CLI_BIN" "${prepare_command[@]}"
+}
+
 configure_perf_profile
 describe_perf_manifest
 
@@ -401,10 +418,11 @@ if [[ "${LL_PERF_SKIP_SEED:-0}" != "1" ]]; then
         "$WP_CLI_BIN" "${seed_command[@]}"
     fi
 else
-    echo "Skipping performance fixture seeding because LL_PERF_SKIP_SEED=1; verifying the existing fixture read-only."
+    echo "Skipping fixture content and user seeding because LL_PERF_SKIP_SEED=1; verifying stored fixture state before derived index preparation."
 fi
 
 verify_seeded_perf_fixture
+prepare_perf_category_search_index
 
 if [[ "${LL_PERF_SEED_ONLY:-0}" == "1" ]]; then
     exit 0

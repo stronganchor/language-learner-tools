@@ -15,6 +15,13 @@ const {
 } = require('../helpers/performance-benchmark');
 
 const pluginRoot = path.resolve(__dirname, '..', '..', '..');
+const defaultManifestPath = path.join(
+  pluginRoot,
+  'tests',
+  'performance',
+  'fixtures',
+  'performance-wordsets.json'
+);
 const gencManifestPath = path.join(
   pluginRoot,
   'tests',
@@ -27,6 +34,12 @@ const fixtureSeederPath = path.join(
   'tests',
   'performance',
   'seed-performance-fixtures.php'
+);
+const categorySearchPreparerPath = path.join(
+  pluginRoot,
+  'tests',
+  'performance',
+  'prepare-performance-category-search.php'
 );
 const benchmarkRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-performance-benchmark.sh');
 const benchmarkSpecPath = path.join(pluginRoot, 'tests', 'e2e', 'specs', 'performance-benchmark.spec.js');
@@ -338,6 +351,45 @@ test('recorder completion benchmark follows the viewport-driven serial loading c
   expect(benchmarkSpec).toContain("classList.contains('has-load-error')");
   expect(benchmarkSpec).toContain("page.on('requestfinished', recorderQueueRequestSettledListener)");
   expect(benchmarkSpec).toContain('getRecorderQueueMaxConcurrentBatchRequestCount');
+});
+
+test('performance runner prepares durable category search before timing it', async () => {
+  const runner = fs.readFileSync(benchmarkRunnerPath, 'utf8');
+  const preparer = fs.readFileSync(categorySearchPreparerPath, 'utf8');
+  const benchmarkSpec = fs.readFileSync(benchmarkSpecPath, 'utf8');
+  const defaultManifest = JSON.parse(fs.readFileSync(defaultManifestPath, 'utf8'));
+
+  const verifyIndex = runner.indexOf('verify_seeded_perf_fixture\n');
+  const prepareIndex = runner.indexOf('prepare_perf_category_search_index\n');
+  const seedOnlyIndex = runner.indexOf('if [[ "${LL_PERF_SEED_ONLY:-0}" == "1" ]]');
+  expect(verifyIndex).toBeGreaterThanOrEqual(0);
+  expect(prepareIndex).toBeGreaterThan(verifyIndex);
+  expect(seedOnlyIndex).toBeGreaterThan(prepareIndex);
+  expect(runner).toContain('prepare-performance-category-search.php');
+  expect(runner).toContain('"manifest=$runtime_manifest"');
+
+  expect(preparer).toContain("$manifest['benchmarkTargetSize']");
+  expect(defaultManifest.benchmarkTargetSize).toBeUndefined();
+  expect(defaultManifest.wordsets.some((wordset) => wordset.size === 'large')).toBe(true);
+  expect(preparer).toContain("$manifest['benchmarkTargetSize'] ?? 'large'");
+  expect(preparer).toContain("sanitize_key((string) ($wordset['size'] ?? '')) === 'large'");
+  expect(preparer).toContain('$target_wordset = $wordsets[count($wordsets) - 1]');
+  expect(preparer).toContain('ll_tools_wordset_category_search_process_rebuild_batch($wordset_id)');
+  expect(preparer).toContain('ll_tools_wordset_category_search_state_is_ready($wordset_id, $source_signature, $state)');
+  expect(preparer).toContain('$maximum_steps = min(10000, max(30');
+  expect(preparer).toContain('$no_progress_steps >= 20');
+  expect(preparer).toContain('$source_signature = ll_tools_wordset_category_search_dependency_signature($wordset_id)');
+  expect(preparer).toContain('if (!hash_equals($source_signature, $current_signature))');
+  expect(preparer).toContain("!empty($state['terminal'])");
+  expect(preparer).toContain('COUNT(DISTINCT word_id)');
+  expect(preparer).toContain('ll_tools_wordset_category_search_cleanup_old_generations($wordset_id, $generation)');
+  expect(preparer).toContain('AND generation <> %s');
+  expect(preparer).toContain('$maximum_cleanup_steps = min(10000');
+  expect(preparer).toContain('wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id])');
+  expect(preparer).toContain("!hash_equals($generation, (string) ($final_state['published_generation'] ?? ''))");
+
+  expect(benchmarkSpec).toContain("document.querySelector('[data-ll-wordset-page-search-error]')");
+  expect(benchmarkSpec).toContain('unexpectedly reached its Retry state after the category-index readiness preflight');
 });
 
 test('benchmark timeout budget scales with runnable scenarios, runs, warmups, and action limits', async () => {

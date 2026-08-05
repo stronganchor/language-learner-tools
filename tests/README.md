@@ -25,7 +25,7 @@ This directory contains the plugin test framework:
   - Before an executing run (but not `--list`/help), it performs one credential-free canonical `/wp-admin/` request with a bounded 180-second timeout so cold Local startup does not consume the first test's navigation budget. Set `LL_TOOLS_E2E_SKIP_READINESS=1` only for a runner that has an equivalent readiness gate; `LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS` may override the bound from 1 to 600 seconds.
   - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
   - Under Git Bash, the wrapper runs npm's JavaScript entry point and Playwright's installed CLI through the resolved Node executable. This avoids PATHEXT selecting npm's extensionless shell shim or handing its shebang to WSL.
-- `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture and runs the opt-in performance benchmark.
+- `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture, completes and verifies the target wordset's bounded durable category-search materialization outside timed scenarios, and runs the opt-in performance benchmark.
 - `e2e/*`: Playwright configuration + browser test specs.
 
 ## 1) Prerequisites
@@ -508,6 +508,7 @@ Seeded performance benchmark:
 - The seeder reuses the existing fixture when the manifest version, checksum, expected counts, fixture tags, and key pages still match.
 - The runner writes one JSONL record with plugin version, git commit, fixture version, throttle profile, medians, p95s, and comparison results.
 - Named profiles (`xl`, `genc`, and `stress-2x`) authoritatively select their matching manifest, history, and report paths. `LL_PERF_SKIP_SEED=1` only reads and verifies the stored fixture option; it fails before Playwright when the fixture version or canonical checksum differs. The parent passes that small stored JSON to the PHP verifier as an explicit argument because redirected stdin is unreliable across WSL/Windows-PHP boundaries, then locks every exported `LL_E2E_PERF_*` value so child `.env` loading cannot change paths, run counts, history flags, completion limits, or budgets.
+- After that read-only stored-option verification, every profile runs a bounded target-wordset category-search readiness preflight. It fails before Playwright on terminal/backoff/stalled/signature-drift state or mismatched row, distinct-word, and distinct-category counts; `LL_PERF_SEED_ONLY=1` includes this preparation. The measured search keeps the normal 20-second interaction budget and reports an unexpected Retry state immediately.
 - Progress, settings-hub, and recorder-queue scenarios are authenticated, so keep `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` set in `tests/.env.local`. A recorder-enabled manifest such as Genç fails instead of silently skipping those scenarios when credentials are absent.
 - Focused recorder queue regression coverage must exercise limits after eligibility for canonical word/image, legacy missing-audio, and prompt-card sources. Sparse raw scans resume through an expiring signed cursor without repeating earlier prefixes or exposing raw candidate IDs to the client. Overview summary regressions must separately exhaust and total every applicable source while retaining only bounded previews; incomplete work remains a neutral shell and completed cards expose exact counts without `+`. Wordset-isolation regressions must prove the site-wide legacy option is not hydrated or used even when a title maps locally, while isolation-disabled coverage retains the bounded legacy fallback. Wordless multi-category regressions must prove sibling privacy/scope changes invalidate a completed target card and rebuild it to focused-hydrator parity. Cover canonical Base64URL enforcement (including same-byte padding-bit aliases), empty-but-continuable batches, cumulative same-page legacy/prompt results for nonincremental views, explicit page-one queue resets for invalid/expired/tampered/context-mismatched or pre-disable isolated tokens, and fail-closed token encoding without blank-cursor loops.
 
@@ -545,9 +546,10 @@ tests/bin/run-performance-benchmark.sh
   `tests/performance/reports/performance-latest-stress-2x.*`.
 - For stress runs, seed separately first:
   `LL_PERF_PROFILE=stress-2x LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1 tests/bin/run-performance-benchmark.sh`.
-  Then benchmark with `LL_PERF_SKIP_SEED=1`. On this Local stack, the first
-  cold search run may need `LL_E2E_PERF_MAX_INTERACTION_MS=60000`; inspect
-  `tests/performance/STRESS_2X_FINDINGS.md` before changing budgets.
+  Then benchmark with `LL_PERF_SKIP_SEED=1`. The runner prepares the cold
+  durable search index before timing, so do not raise the normal interaction
+  budget to hide an incomplete materializer; inspect
+  `tests/performance/STRESS_2X_FINDINGS.md` for the historical context.
 - Set `LL_E2E_PERF_WRITE_HISTORY=0` for a dry verification run that does not modify the history log.
 - Set `LL_E2E_PERF_COMPARE_HISTORY=0` to record metrics without failing on a historical comparison.
 - Set `LL_PERF_FORCE_SEED=1` for a full fixture reset, or `LL_PERF_SEED_ONLY=1` when you only want to verify or refresh the fixture.

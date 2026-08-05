@@ -23,10 +23,16 @@ The runner:
    legacy, or mismatched version/checksum state. The runner passes this small
    JSON value as an explicit verifier argument because piped stdin is not a
    reliable UTF-8 transport when WSL launches Windows PHP.
-5. Locks every currently exported `LL_E2E_PERF_*` value before `run-e2e.sh`
+5. Completes and verifies the selected target wordset's durable category-search
+   index through bounded batches outside the timed browser scenario. Terminal,
+   retry-backoff, stalled, signature-drift, and indexed-count states fail before
+   Playwright; stale unpublished generations are drained in bounded cleanup
+   batches before the target's scheduled hook is cleared. This preparation also
+   runs with `LL_PERF_SKIP_SEED=1`.
+6. Locks every currently exported `LL_E2E_PERF_*` value before `run-e2e.sh`
    reloads environment files, requiring the manifest, history, report, and
    verified checksum values.
-6. Runs `tests/e2e/specs/performance-benchmark.spec.js` and writes history and
+7. Runs `tests/e2e/specs/performance-benchmark.spec.js` and writes history and
    reports for the selected profile, subject to `LL_E2E_PERF_WRITE_HISTORY`.
 
 Manifest checksums use recursively key-sorted canonical JSON, so Git/Windows
@@ -100,7 +106,7 @@ For full local stress coverage, use the opt-in stress profile:
 
 ```bash
 LL_PERF_PROFILE=stress-2x LL_PERF_FORCE_SEED=1 LL_PERF_SEED_ONLY=1 tests/bin/run-performance-benchmark.sh
-LL_PERF_PROFILE=stress-2x LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_COMPARE_HISTORY=0 LL_E2E_PERF_MAX_INTERACTION_MS=60000 tests/bin/run-performance-benchmark.sh
+LL_PERF_PROFILE=stress-2x LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_COMPARE_HISTORY=0 tests/bin/run-performance-benchmark.sh
 ```
 
 The stress profile uses
@@ -123,7 +129,9 @@ Stress history is written to
 `tests/performance/history/performance-history-stress-2x.jsonl`; latest stress
 reports are written to `tests/performance/reports/performance-latest-stress-2x.*`.
 See `tests/performance/STRESS_2X_FINDINGS.md` for the latest local baseline and
-known cold-search caveat.
+historical cold-search findings. The current runner completes that bounded
+materialization before browser timing instead of enlarging the interaction
+budget.
 
 Summarize existing history without reseeding or opening a browser:
 
