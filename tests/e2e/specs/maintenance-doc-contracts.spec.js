@@ -563,12 +563,17 @@ test('Windows PHP test wrappers prefer the Git Bash path converter', async () =>
   expect(e2eRunner).toContain('BASH_RUNNER="${BASH:-bash}"');
   expect(e2eRunner).toContain('"$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh"');
   expect(e2eRunner).toContain('caller_base_url_set=1');
+  expect(e2eRunner).toContain('if [[ -z "${LL_E2E_BASE_URL:-}" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != "1" ]]');
   expect(e2eRunner).toContain('LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV');
   expect(e2eRunner).toContain('eval "$detected_http_env"');
   expect(e2eRunner).toContain('chromium.executablePath()');
   expect(e2eRunner).toContain("fs.existsSync(chromium.executablePath())");
   expect(e2eRunner).toContain('CODEX_SANDBOX_NETWORK_DISABLED');
   expect(e2eRunner).toContain('LL_TOOLS_E2E_SKIP_BROWSER_INSTALL');
+  expect(e2eRunner).toContain('LL_TOOLS_E2E_SKIP_READINESS');
+  expect(e2eRunner).toContain('LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS');
+  expect(e2eRunner).toContain('readiness_url="${LL_E2E_BASE_URL%/}/wp-admin/"');
+  expect(e2eRunner).toContain('curl --fail --insecure --location --silent --show-error');
   expect(e2eRunner).toContain('NPM_RUNNER=(node "$npm_cli_candidate")');
   expect(e2eRunner).toContain('PLAYWRIGHT_CLI="node_modules/@playwright/test/cli.js"');
   expect(e2eRunner).toContain('exec node "$PLAYWRIGHT_CLI" test');
@@ -680,6 +685,7 @@ test('local test bootstrap resolves the matching active runtime without Python',
     fs.writeFileSync(
       localSiteJson,
       JSON.stringify({
+        domain: 'fixture.local',
         mysql: { database: 'fixture', user: 'fixture-user', password: 'fixture-secret' },
         services: { mysql: { ports: { MYSQL: [15151] } } }
       })
@@ -755,7 +761,7 @@ test('local test bootstrap resolves the matching active runtime without Python',
       status: 0,
       signal: null,
       stderr: '',
-      baseUrl: 'http://127.0.0.1:14141',
+      baseUrl: 'https://fixture.local',
       learnPath: '/learn/',
       nginxConfig: normalize(active.nginxConfig)
     });

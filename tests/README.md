@@ -20,8 +20,9 @@ This directory contains the plugin test framework:
   - On PHPUnit 12+, it also patches the local `wordpress-tests-lib` bootstrap to replace WordPress' removed legacy annotation-parser calls.
   - It also runs PHPUnit with a temporary cache directory outside the repo and cleans stale `tests/.phpunit.cache` leftovers so test runs do not dirty the plugin worktree.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
-- `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars through the same cross-platform PHP resolver.
-- `bin/run-e2e.sh`: refreshes a file-configured Local base URL from the matching active runtime, then installs Playwright deps/browsers only when the bundled Chromium executable is actually absent and runs browser E2E tests. An explicitly exported `LL_E2E_BASE_URL` remains authoritative; set `LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV=1` to keep an env-file URL unchanged.
+- `bin/setup-local-http-env.sh`: matches the current Local HTTP runtime for this site path, reads its canonical domain from `local-site.json`, and exports Playwright URL vars through the same cross-platform PHP resolver.
+- `bin/run-e2e.sh`: preserves a configured canonical `LL_E2E_BASE_URL` from the caller or local env files, falls back to matching Local runtime detection only when no URL is configured, then installs Playwright deps/browsers only when the bundled Chromium executable is actually absent and runs browser E2E tests.
+  - Before an executing run (but not `--list`/help), it performs one credential-free canonical `/wp-admin/` request with a bounded 180-second timeout so cold Local startup does not consume the first test's navigation budget. Set `LL_TOOLS_E2E_SKIP_READINESS=1` only for a runner that has an equivalent readiness gate; `LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS` may override the bound from 1 to 600 seconds.
   - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
   - Under Git Bash, the wrapper runs npm's JavaScript entry point and Playwright's installed CLI through the resolved Node executable. This avoids PATHEXT selecting npm's extensionless shell shim or handing its shebang to WSL.
 - `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture and runs the opt-in performance benchmark.
@@ -462,7 +463,7 @@ Live smoke runner config:
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 
-Tip: if Local changes ports, `run-e2e.sh` auto-detects the active port from Local's nginx config for this site.
+Tip: prefer the canonical Local HTTPS origin in `tests/.env`; WordPress redirects may not preserve an internal backend port. If no base URL is configured, `run-e2e.sh` derives that canonical origin from `local-site.json` after matching the active Local runtime for this site.
 
 Run one E2E spec with either path style:
 

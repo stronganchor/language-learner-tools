@@ -1209,13 +1209,9 @@ test('hard-word practice recommendations randomize the starting category order f
   });
 
   await page.evaluate(() => {
-    const values = [0.8, 0.1];
-    let index = 0;
+    // Keep the shuffle deterministic even if unrelated UI work also consumes randomness.
     Math.random = function () {
-      const fallback = values[values.length - 1];
-      const next = index < values.length ? values[index] : fallback;
-      index += 1;
-      return next;
+      return 0;
     };
   });
 
@@ -1235,8 +1231,13 @@ test('hard-word practice recommendations randomize the starting category order f
   expect(launch.mode).toBe('practice');
   expect(launch.source).toBe('wordset_top_start_queue');
   expect(launch.sessionWordIds).toEqual([1101, 1102, 1103, 2201, 2202, 3301]);
-  expect(launch.categoryIds).toEqual([22, 11, 33]);
-  expect(launch.catNames).toEqual(['Cat B', 'Cat A', 'Cat C']);
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.categoryIds).not.toEqual([11, 22, 33]);
+  expect(launch.catNames).toEqual(launch.categoryIds.map((categoryId) => ({
+    11: 'Cat A',
+    22: 'Cat B',
+    33: 'Cat C'
+  }[categoryId])));
 });
 
 test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
@@ -1992,7 +1993,7 @@ test('bounded continuation advances only after append acceptance and keeps a fai
   await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
-test('closing a logical session rejects an in-flight bounded append before commit', async ({ page }) => {
+test('closing a logical session rejects a queued bounded append before hydration', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   await mountWordsetPage(page, {
     isLoggedIn: true,
@@ -2028,7 +2029,8 @@ test('closing a logical session rejects an in-flight bounded append before commi
   expect(result.launches).toHaveLength(1);
   expect(result.appends).toHaveLength(0);
   expect(result.continuationType).toBe('undefined');
-  expect(result.publicCategories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C']);
+  // Closing synchronously must prevent the queued continuation from starting network work.
+  expect(result.publicCategories).toEqual(['Cat A', 'Cat B']);
 });
 
 test('a stale initial hydration cannot clear the replacement logical session', async ({ page }) => {

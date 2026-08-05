@@ -1471,7 +1471,7 @@ test('practice mode waits for pending category loads before showing results', as
 
   await page.evaluate(() => {
     window.FlashcardLoader = {
-      loadedCategories: [],
+      loadedCategories: ['Loaded category'],
       loadResourcesForCategory(name, callback) {
         if (String(name || '') !== 'Pending category') {
           return;
@@ -1488,8 +1488,9 @@ test('practice mode waits for pending category loads before showing results', as
         }, 40);
       },
       isCategoryLoaded(name) {
-        const rows = window.LLFlashcards.State.wordsByCategory[String(name || '')] || [];
-        return Array.isArray(rows) && rows.length > 0;
+        const categoryName = String(name || '');
+        const rows = window.LLFlashcards.State.wordsByCategory[categoryName] || [];
+        return this.loadedCategories.includes(categoryName) || (Array.isArray(rows) && rows.length > 0);
       },
       isCategoryLoading() {
         return false;

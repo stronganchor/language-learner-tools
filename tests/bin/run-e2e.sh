@@ -102,7 +102,10 @@ if [[ "${LL_E2E_PERF_CONFIG_CONTRACT_ONLY:-0}" == "1" ]]; then
     exit 0
 fi
 
-if [[ "$caller_base_url_set" != "1" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != "1" ]]; then
+# A configured browser origin (including one loaded from tests/.env) is
+# authoritative. Local's internal HTTP listener is not interchangeable with a
+# canonical HTTPS origin because WordPress redirects can change scheme/port.
+if [[ -z "${LL_E2E_BASE_URL:-}" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != "1" ]]; then
     configured_learn_path="${LL_E2E_LEARN_PATH:-}"
     if detected_http_env="$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh" 2>&1)"; then
         eval "$detected_http_env"
@@ -305,8 +308,6 @@ if ! node -e "const fs=require('fs'); const {chromium}=require('@playwright/test
     fi
 fi
 
-echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
-
 normalize_playwright_arg() {
     local arg="$1"
     if [[ "$arg" == "$E2E_DIR/"* ]]; then
@@ -328,5 +329,38 @@ normalized_args=()
 for arg in "$@"; do
     normalized_args+=("$(normalize_playwright_arg "$arg")")
 done
+
+readiness_required=1
+for arg in "${normalized_args[@]}"; do
+    if [[ "$arg" == "--list" || "$arg" == "--help" || "$arg" == "-h" ]]; then
+        readiness_required=0
+        break
+    fi
+done
+
+# Prime WordPress' admin bootstrap before Playwright starts its per-navigation
+# clocks. A cold Local runtime can legitimately spend more than a minute in its
+# first admin request even though the warmed application is healthy.
+if [[ "$readiness_required" == "1" && "${LL_TOOLS_E2E_SKIP_READINESS:-0}" != "1" ]]; then
+    readiness_timeout="${LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS:-180}"
+    if ! [[ "$readiness_timeout" =~ ^[1-9][0-9]*$ ]] || (( readiness_timeout > 600 )); then
+        echo "LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS must be an integer from 1 to 600." >&2
+        exit 1
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "curl is required for the Playwright WordPress readiness check." >&2
+        exit 1
+    fi
+
+    readiness_url="${LL_E2E_BASE_URL%/}/wp-admin/"
+    echo "Warming WordPress at ${readiness_url} (timeout ${readiness_timeout}s)"
+    if ! curl --fail --insecure --location --silent --show-error \
+        --output /dev/null --max-time "$readiness_timeout" "$readiness_url"; then
+        echo "WordPress did not become ready at ${readiness_url}." >&2
+        exit 1
+    fi
+fi
+
+echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
 
 exec node "$PLAYWRIGHT_CLI" test "${normalized_args[@]}"

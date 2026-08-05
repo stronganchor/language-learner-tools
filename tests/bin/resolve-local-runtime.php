@@ -296,21 +296,6 @@ if ($siteRoot === '') {
 
 $runtimeRoots = $options['runtime-root'] ?? ll_tools_local_env_default_runtime_roots();
 $runtime = ll_tools_local_env_runtime($runtimeRoots, $siteRoot);
-
-if ($mode === 'http') {
-    if ($runtime === null || $runtime['http_port'] === '') {
-        ll_tools_local_env_fail("Could not detect a Local nginx site.conf matching this plugin's site root.");
-    }
-
-    ll_tools_local_env_export('LL_E2E_BASE_URL', 'http://127.0.0.1:' . $runtime['http_port']);
-    ll_tools_local_env_export('LL_E2E_LEARN_PATH', '/learn/');
-    ll_tools_local_env_export(
-        'LL_E2E_NGINX_CONF',
-        ll_tools_local_env_shell_path($runtime['nginx_conf'], $shellPathStyle)
-    );
-    exit(0);
-}
-
 $localSiteJson = ll_tools_local_env_option($options, 'local-site-json');
 if ($localSiteJson === '' || !is_file($localSiteJson)) {
     ll_tools_local_env_fail('local-site.json was not found. Set LOCAL_SITE_JSON explicitly.');
@@ -320,6 +305,25 @@ $jsonText = @file_get_contents($localSiteJson);
 $siteData = is_string($jsonText) ? json_decode($jsonText, true) : null;
 if (!is_array($siteData)) {
     ll_tools_local_env_fail('local-site.json could not be parsed.');
+}
+
+if ($mode === 'http') {
+    if ($runtime === null || $runtime['http_port'] === '') {
+        ll_tools_local_env_fail("Could not detect a Local nginx site.conf matching this plugin's site root.");
+    }
+
+    $domain = is_scalar($siteData['domain'] ?? null) ? trim((string) $siteData['domain']) : '';
+    if ($domain === '' || filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+        ll_tools_local_env_fail('local-site.json does not contain a valid canonical domain.');
+    }
+
+    ll_tools_local_env_export('LL_E2E_BASE_URL', 'https://' . strtolower($domain));
+    ll_tools_local_env_export('LL_E2E_LEARN_PATH', '/learn/');
+    ll_tools_local_env_export(
+        'LL_E2E_NGINX_CONF',
+        ll_tools_local_env_shell_path($runtime['nginx_conf'], $shellPathStyle)
+    );
+    exit(0);
 }
 
 $dbData = is_array($siteData['mysql'] ?? null) ? $siteData['mysql'] : [];

@@ -29,6 +29,7 @@ test('audio-required quiz rounds pause behind the speaker gate when quiz audio i
   await quizTriggers.first().click({ force: true });
 
   await expect(page.locator('#ll-tools-flashcard-quiz-popup')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 60000 });
   await switchToListening(page);
 
   await page.waitForFunction(() => {

@@ -603,6 +603,7 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
     window.llWordsetPageData = cfg;
     window.__llAlerts = [];
     window.__llLaunches = [];
+    window.__llProgressAnalyticsSettled = 0;
     window.alert = function (message) {
       window.__llAlerts.push(String(message || ''));
     };
@@ -700,6 +701,9 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
             analytics
           }
         });
+        queueMicrotask(() => {
+          window.__llProgressAnalyticsSettled += 1;
+        });
         return deferred.promise();
       }
       if (action === 'll_get_words_by_category' || action === 'll_get_flashcard_payload_page') {
@@ -741,6 +745,7 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
     ? config.analytics.words.length
     : 0;
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(expectedWordCount);
+  await expect.poll(async () => page.evaluate(() => window.__llProgressAnalyticsSettled)).toBeGreaterThan(0);
 }
 
 test('progress word search matches words when only diacritics differ', async ({ page }) => {

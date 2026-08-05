@@ -251,7 +251,7 @@ test('profile runner locks one authoritative manifest history and report through
 test('Git Bash runner preserves browser URL path environment values for Windows Node', async () => {
   const runner = fs.readFileSync(e2eRunnerPath, 'utf8');
   const guardIndex = runner.indexOf('append_msys2_env_conv_excl_var()');
-  const playwrightIndex = runner.indexOf('exec npx playwright test');
+  const playwrightIndex = runner.indexOf('exec node "$PLAYWRIGHT_CLI" test');
 
   expect(guardIndex).toBeGreaterThanOrEqual(0);
   expect(playwrightIndex).toBeGreaterThan(guardIndex);
