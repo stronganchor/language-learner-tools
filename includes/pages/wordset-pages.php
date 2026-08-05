@@ -25286,6 +25286,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => $is_study_user ? wp_create_nonce('ll_user_study') : '',
         'isLoggedIn' => $is_study_user,
+        'progressStorageScope' => ($view === 'games' && $is_study_user && function_exists('ll_tools_user_progress_storage_scope'))
+            ? ll_tools_user_progress_storage_scope()
+            : '',
         'sortLocale' => get_locale(),
         'view' => $normalized_view,
         'wordsetId' => $wordset_id,

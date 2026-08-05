@@ -393,10 +393,21 @@
                 return id > 0;
             });
         }
-        tracker.trackModeSessionComplete({
+        const eventId = tracker.trackModeSessionComplete({
             mode: normalizeProgressMode(mode) || 'practice',
             categoryIds: categoryIds
         });
+        if (!eventId || typeof tracker.flush !== 'function') {
+            return;
+        }
+        try {
+            const flushResult = tracker.flush();
+            if (flushResult && typeof flushResult.catch === 'function') {
+                flushResult.catch(function () { /* progress remains journaled for retry */ });
+            }
+        } catch (_) {
+            // Results rendering must not be blocked by a progress transport error.
+        }
     }
 
     function summarizeCategoryLabel(categoryNames) {

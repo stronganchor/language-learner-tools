@@ -6,6 +6,20 @@ const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
 const genderScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/gender.js');
 const resultsScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/results.js');
 const BASE_URL = process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local';
+const TEST_PROGRESS_SCOPE_A = 'a'.repeat(32);
+const TEST_PROGRESS_SCOPE_B = 'b'.repeat(32);
+
+function genderStorageKey({ wordsetId, runtimeMode = 'wp', isUserLoggedIn = false, progressStorageScope = '' }) {
+  if (String(runtimeMode).toLowerCase() === 'offline') {
+    return `lltools_gender_progress_v1::wordset:${wordsetId}`;
+  }
+  if (!isUserLoggedIn) {
+    return `lltools_gender_progress_v2::guest::wordset:${wordsetId}`;
+  }
+  return progressStorageScope
+    ? `lltools_gender_progress_v2::user:${progressStorageScope}::wordset:${wordsetId}`
+    : '';
+}
 
 function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
   const base = {
@@ -19,6 +33,26 @@ function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
     all_categories: [categoryName]
   };
   return Object.assign(base, extras || {});
+}
+
+function makeGenderProgress(overrides = {}) {
+  return Object.assign({
+    level: 3,
+    confidence: 6,
+    intro_seen: true,
+    quick_correct_streak: 2,
+    level1_passes: 3,
+    level1_failures: 0,
+    level2_correct: 3,
+    level2_wrong: 0,
+    level3_correct: 2,
+    level3_wrong: 0,
+    dont_know_count: 0,
+    seen_total: 8,
+    category_name: 'CatA',
+    last_seen_at: '2026-03-20 10:00:00',
+    updated_at: Date.parse('2026-03-20T10:00:00Z')
+  }, overrides || {});
 }
 
 async function openHarnessPage(page) {
@@ -46,20 +80,35 @@ function bootstrapGenderHarness(page, options = {}) {
     : null;
   const trackIntroCalls = !!options.trackIntroCalls;
   const trackFeedbackOrdering = !!options.trackFeedbackOrdering;
+  const runtimeMode = String(options.runtimeMode || 'wp');
+  const isUserLoggedIn = options.isUserLoggedIn === true;
+  const progressStorageScope = String(options.progressStorageScope || '');
+  const storageKey = genderStorageKey({
+    wordsetId,
+    runtimeMode,
+    isUserLoggedIn,
+    progressStorageScope
+  });
+  const clearStorage = options.clearStorage !== false;
 
-  return page.evaluate(({ wordsetId: wsId, wordsByCategory, source, context, plan, seedStore, shouldTrackIntroCalls, shouldTrackFeedbackOrdering }) => {
-    window.localStorage.clear();
+  return page.evaluate(({ wordsetId: wsId, wordsByCategory, source, context, plan, seedStore, shouldTrackIntroCalls, shouldTrackFeedbackOrdering, runtime, loggedIn, storageScope, seedStorageKey, shouldClearStorage }) => {
+    if (shouldClearStorage) {
+      window.localStorage.clear();
+    }
     window.__llIntroPlayCount = 0;
     window.__llEventLog = [];
 
-    if (seedStore) {
+    if (seedStore && seedStorageKey) {
       window.localStorage.setItem(
-        `lltools_gender_progress_v1::wordset:${wsId}`,
+        seedStorageKey,
         JSON.stringify(seedStore)
       );
     }
 
     window.llToolsFlashcardsData = {
+      runtimeMode: runtime,
+      isUserLoggedIn: loggedIn,
+      progressStorageScope: storageScope,
       genderOptions: ['masculine', 'feminine'],
       userStudyState: { wordset_id: wsId },
       genderLaunchSource: source
@@ -195,7 +244,12 @@ function bootstrapGenderHarness(page, options = {}) {
     plan: sessionPlan,
     seedStore: preseedStore,
     shouldTrackIntroCalls: trackIntroCalls,
-    shouldTrackFeedbackOrdering: trackFeedbackOrdering
+    shouldTrackFeedbackOrdering: trackFeedbackOrdering,
+    runtime: runtimeMode,
+    loggedIn: isUserLoggedIn,
+    storageScope: progressStorageScope,
+    seedStorageKey: storageKey,
+    shouldClearStorage: clearStorage
   });
 }
 
@@ -242,7 +296,7 @@ test('gender mode treats "I do not know" as wrong and requires two consecutive c
     });
 
     const saved = JSON.parse(
-      window.localStorage.getItem('lltools_gender_progress_v1::wordset:77') || '{}'
+      window.localStorage.getItem('lltools_gender_progress_v2::guest::wordset:77') || '{}'
     );
     const entry = (saved.words && saved.words['101']) || {};
 
@@ -1193,6 +1247,262 @@ test('dashboard gender results always expose both actions and only return chunk 
   expect(result.categories).not.toContain('CatC');
 });
 
+test('gender WP storage isolates authenticated accounts and guests in one browser profile', async ({ page }) => {
+  await openHarnessPage(page);
+  const wordsetId = 93;
+  const categoryWords = {
+    CatA: [makeNounWord(931, 'CatA', 'masculine')]
+  };
+  const accountAStore = {
+    words: {
+      '931': makeGenderProgress()
+    },
+    updated_at: Date.parse('2026-03-20T10:00:00Z')
+  };
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'wp',
+    isUserLoggedIn: true,
+    progressStorageScope: TEST_PROGRESS_SCOPE_A,
+    preseedStore: accountAStore
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const accountAStartsWithIntro = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return Array.isArray(Gender.selectTargetWord());
+  });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'wp',
+    isUserLoggedIn: true,
+    progressStorageScope: TEST_PROGRESS_SCOPE_B,
+    clearStorage: false
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const accountBStartsWithIntro = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return Array.isArray(Gender.selectTargetWord());
+  });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'wp',
+    isUserLoggedIn: false,
+    clearStorage: false
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const result = await page.evaluate(({ accountAKey, accountBKey, guestKey }) => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return {
+      guestStartsWithIntro: Array.isArray(Gender.selectTargetWord()),
+      accountAStored: !!window.localStorage.getItem(accountAKey),
+      accountBStored: !!window.localStorage.getItem(accountBKey),
+      guestStored: !!window.localStorage.getItem(guestKey)
+    };
+  }, {
+    accountAKey: genderStorageKey({
+      wordsetId,
+      isUserLoggedIn: true,
+      progressStorageScope: TEST_PROGRESS_SCOPE_A
+    }),
+    accountBKey: genderStorageKey({
+      wordsetId,
+      isUserLoggedIn: true,
+      progressStorageScope: TEST_PROGRESS_SCOPE_B
+    }),
+    guestKey: genderStorageKey({ wordsetId })
+  });
+
+  expect(accountAStartsWithIntro).toBe(false);
+  expect(accountBStartsWithIntro).toBe(true);
+  expect(result.guestStartsWithIntro).toBe(true);
+  expect(result.accountAStored).toBe(true);
+  expect(result.accountBStored).toBe(false);
+  expect(result.guestStored).toBe(false);
+});
+
+test('gender WP quarantines v1 state, missing user scope stays memory-only, and offline retains v1 compatibility', async ({ page }) => {
+  await openHarnessPage(page);
+  const wordsetId = 94;
+  const legacyKey = genderStorageKey({ wordsetId, runtimeMode: 'offline' });
+  const scopedKey = genderStorageKey({
+    wordsetId,
+    isUserLoggedIn: true,
+    progressStorageScope: TEST_PROGRESS_SCOPE_A
+  });
+  const categoryWords = {
+    CatA: [makeNounWord(941, 'CatA', 'masculine')]
+  };
+  const legacyStore = {
+    words: {
+      '941': makeGenderProgress()
+    },
+    updated_at: Date.parse('2026-03-20T10:00:00Z')
+  };
+  const legacyRaw = JSON.stringify(legacyStore);
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'wp',
+    isUserLoggedIn: true,
+    progressStorageScope: TEST_PROGRESS_SCOPE_A
+  });
+  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
+    key: legacyKey,
+    value: legacyRaw
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const wpResult = await page.evaluate(({ oldKey, newKey }) => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return {
+      startsWithIntro: Array.isArray(Gender.selectTargetWord()),
+      legacyRaw: window.localStorage.getItem(oldKey),
+      scopedRaw: window.localStorage.getItem(newKey)
+    };
+  }, { oldKey: legacyKey, newKey: scopedKey });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'wp',
+    isUserLoggedIn: true,
+    clearStorage: false
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const missingScopeResult = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return {
+      startsWithIntro: Array.isArray(Gender.selectTargetWord()),
+      emptyKeyWritten: window.localStorage.getItem('') !== null
+    };
+  });
+
+  await bootstrapGenderHarness(page, {
+    wordsetId,
+    categoryWords,
+    runtimeMode: 'offline',
+    isUserLoggedIn: true,
+    preseedStore: legacyStore,
+    clearStorage: false
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  const offlineStartsWithIntro = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    return Array.isArray(Gender.selectTargetWord());
+  });
+
+  expect(wpResult.startsWithIntro).toBe(true);
+  expect(wpResult.legacyRaw).toBe(legacyRaw);
+  expect(wpResult.scopedRaw).toBeNull();
+  expect(missingScopeResult.startsWithIntro).toBe(true);
+  expect(missingScopeResult.emptyKeyWritten).toBe(false);
+  expect(offlineStartsWithIntro).toBe(false);
+});
+
+test('gender merge honors stored timestamps for answered local and server progress', async ({ page }) => {
+  await openHarnessPage(page);
+  const olderLocalTs = Date.parse('2026-03-20T10:00:00Z');
+  const newerServerTs = Date.parse('2026-03-22T10:00:00Z');
+  const olderServerTs = Date.parse('2026-03-21T10:00:00Z');
+  const newerLocalTs = Date.parse('2026-03-23T10:00:00Z');
+
+  await bootstrapGenderHarness(page, {
+    wordsetId: 95,
+    categoryWords: {
+      CatA: [
+        makeNounWord(951, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({
+            level: 3,
+            level3_correct: 5,
+            last_seen_at: '2026-03-22 10:00:00',
+            updated_at: newerServerTs
+          })
+        }),
+        makeNounWord(952, 'CatA', 'feminine', {
+          gender_progress: makeGenderProgress({
+            level: 2,
+            level2_correct: 2,
+            level3_correct: 0,
+            last_seen_at: '2026-03-21 10:00:00',
+            updated_at: olderServerTs
+          })
+        }),
+        makeNounWord(953, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({
+            level: 2,
+            level2_correct: 4,
+            level3_correct: 0,
+            last_seen_at: '2026-03-21 10:00:00',
+            updated_at: olderServerTs
+          })
+        })
+      ]
+    },
+    preseedStore: {
+      words: {
+        '951': makeGenderProgress({
+          level: 2,
+          level2_correct: 1,
+          level3_correct: 0,
+          last_seen_at: '2026-03-20 10:00:00',
+          updated_at: olderLocalTs
+        }),
+        '952': makeGenderProgress({
+          level: 3,
+          level3_correct: 7,
+          last_seen_at: '2026-03-23 10:00:00',
+          updated_at: newerLocalTs
+        }),
+        '953': makeGenderProgress({
+          level: 3,
+          level3_correct: 9,
+          last_seen_at: '',
+          updated_at: 0
+        })
+      },
+      updated_at: newerLocalTs
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const saved = await page.evaluate(() => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    Gender.initialize();
+    Gender.selectTargetWord();
+    return JSON.parse(
+      window.localStorage.getItem('lltools_gender_progress_v2::guest::wordset:95') || '{}'
+    );
+  });
+
+  expect(saved.words['951']).toMatchObject({
+    level: 3,
+    level3_correct: 5,
+    updated_at: newerServerTs
+  });
+  expect(saved.words['952']).toMatchObject({
+    level: 3,
+    level3_correct: 7,
+    updated_at: newerLocalTs
+  });
+  expect(saved.words['953']).toMatchObject({
+    level: 2,
+    level2_correct: 4,
+    updated_at: olderServerTs
+  });
+});
+
 test('gender mode merges newer local intro state with server-backed answered progress before planning', async ({ page }) => {
   await openHarnessPage(page);
   await bootstrapGenderHarness(page, {
@@ -1249,7 +1559,7 @@ test('gender mode merges newer local intro state with server-backed answered pro
     Gender.initialize();
     const selection = Gender.selectTargetWord();
     const saved = JSON.parse(
-      window.localStorage.getItem('lltools_gender_progress_v1::wordset:91') || '{}'
+      window.localStorage.getItem('lltools_gender_progress_v2::guest::wordset:91') || '{}'
     );
     const entry = (saved.words && saved.words['911']) || {};
     return {

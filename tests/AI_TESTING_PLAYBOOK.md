@@ -231,6 +231,7 @@ Full Playwright run times out under an automation cap:
 `page-speed-throttled-load.spec.js` fails:
 - Open the Playwright HTML report and inspect the attached `page-speed-metrics` JSON.
 - If the wrong page or ready signal is being tested, set `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_SELECTOR`.
+- If `responseStartMs` dominates while response-end-to-DOM readiness stays stable, check due WP-Cron maintenance and Local's single PHP-CGI worker before changing frontend code. The spec records warmup durations and uses `LL_E2E_PAGE_SPEED_WARMUP_SETTLE_MS` to separate a returned warmup from background work it spawned.
 - If the environment is slower but behavior is acceptable, tune the `LL_E2E_PAGE_SPEED_MAX_*` budgets in `tests/.env.local`.
 
 `wordset-page-speed-large-wordset.spec.js` fails:

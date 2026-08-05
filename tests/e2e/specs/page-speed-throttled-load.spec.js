@@ -16,7 +16,9 @@ const MAX_LOAD_MS = readEnvNumber('LL_E2E_PAGE_SPEED_MAX_LOAD_MS', 15000);
 const WARMUP_ATTEMPTS = readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_ATTEMPTS', 2);
 const WARMUP_RETRY_DELAY_MS = readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_RETRY_DELAY_MS', 1000);
 const WARMUP_TIMEOUT_MS = readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_TIMEOUT_MS', 180000);
+const WARMUP_SETTLE_MS = Math.max(0, Math.round(readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_SETTLE_MS', 10000)));
 const MEASURE_ATTEMPTS = Math.max(1, Math.round(readEnvNumber('LL_E2E_PAGE_SPEED_MEASURE_ATTEMPTS', 2)));
+const REQUIRED_WARMUP_SUCCESSES = 2;
 
 function metricsFitBudget(metrics) {
   return metrics.actionableCount > 0
@@ -57,11 +59,24 @@ test('learn page stays within the throttled load budget', async ({ page, request
   test.slow();
 
   const navigationTimeoutMs = Math.max(MAX_DOMCONTENTLOADED_MS, MAX_ACTIONABLE_MS, MAX_LOAD_MS) + 10000;
-  await warmPageSpeedRoute(request, PAGE_PATH, {
-    attempts: WARMUP_ATTEMPTS,
-    retryDelayMs: WARMUP_RETRY_DELAY_MS,
-    timeoutMs: Math.max(navigationTimeoutMs, WARMUP_TIMEOUT_MS)
-  });
+  const warmupDurationsMs = [];
+
+  // Local can start non-blocking WP-Cron work only after a successful request
+  // returns. With one PHP-CGI worker, even two fast warmups can therefore be
+  // followed by a queued document request. Let the final bounded cron batch
+  // release that worker before the cold-browser measurement begins.
+  for (let success = 0; success < REQUIRED_WARMUP_SUCCESSES; success += 1) {
+    const startedAt = Date.now();
+    await warmPageSpeedRoute(request, PAGE_PATH, {
+      attempts: WARMUP_ATTEMPTS,
+      retryDelayMs: WARMUP_RETRY_DELAY_MS,
+      timeoutMs: Math.max(navigationTimeoutMs, WARMUP_TIMEOUT_MS)
+    });
+    warmupDurationsMs.push(Date.now() - startedAt);
+  }
+  if (WARMUP_SETTLE_MS > 0) {
+    await new Promise((resolve) => setTimeout(resolve, WARMUP_SETTLE_MS));
+  }
 
   const attempts = [];
   let selected = null;
@@ -93,6 +108,11 @@ test('learn page stays within the throttled load budget', async ({ page, request
         domContentLoaded: MAX_DOMCONTENTLOADED_MS,
         actionable: MAX_ACTIONABLE_MS,
         load: MAX_LOAD_MS
+      },
+      warmup: {
+        requiredSuccesses: REQUIRED_WARMUP_SUCCESSES,
+        durationsMs: warmupDurationsMs,
+        settleMs: WARMUP_SETTLE_MS
       },
       selectedAttempt: selected ? selected.attempt : null,
       attempts: attempts.map((attempt) => ({

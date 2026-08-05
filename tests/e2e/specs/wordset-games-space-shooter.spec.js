@@ -645,6 +645,7 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: isLoggedIn ? 'nonce-77' : '',
     isLoggedIn: !!isLoggedIn,
+    progressStorageScope: isLoggedIn ? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' : '',
     sortLocale: 'en_US',
     view: 'games',
     wordsetId: 77,
@@ -1089,6 +1090,7 @@ async function mountGamesPage(page, {
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
       window.__progressContextSetCalls = 0;
+      window.__progressAuthContextCalls = [];
       window.__scrollCalls = [];
       window.__dialogScrollCalls = [];
       window.__gameAjaxCalls = [];
@@ -1508,6 +1510,10 @@ async function mountGamesPage(page, {
 
       window.LLFlashcards = {
         ProgressTracker: {
+          setAuthContext(auth) {
+            window.__progressAuthContextCalls.push(auth);
+            return auth;
+          },
           setContext(ctx) {
             window.__progressContextSetCalls += 1;
             window.__progressContext = ctx;
@@ -2015,6 +2021,39 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
     'Sign in to play with your in-progress words.'
   );
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
+});
+
+test('games page initializes progress tracker with pseudonymous scoped auth context', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+  await page.waitForFunction(() => window.__progressAuthContextCalls.length === 1);
+
+  const result = await page.evaluate(() => ({
+    localizedScope: window.llWordsetPageData.progressStorageScope,
+    authCalls: window.__progressAuthContextCalls.slice(),
+    flashData: window.llToolsFlashcardsData,
+    studyData: window.llToolsStudyData
+  }));
+
+  expect(result.localizedScope).toMatch(/^[a-f0-9]{32}$/);
+  expect(result.authCalls).toEqual([{
+    ajaxUrl: '/fake-admin-ajax.php',
+    nonce: 'nonce-77',
+    isUserLoggedIn: true,
+    progressStorageScope: result.localizedScope
+  }]);
+  expect(result.flashData).toMatchObject({
+    runtimeMode: 'wp',
+    ajaxurl: '/fake-admin-ajax.php',
+    userStudyNonce: 'nonce-77',
+    isUserLoggedIn: true,
+    progressStorageScope: result.localizedScope,
+    wordsetIds: [77]
+  });
+  expect(result.studyData).toMatchObject({
+    ajaxUrl: '/fake-admin-ajax.php',
+    nonce: 'nonce-77',
+    isLoggedIn: true
+  });
 });
 
 test('catalog request deadline releases cards when the AJAX bootstrap never settles', async ({ page }) => {
@@ -3407,20 +3446,19 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
     };
   });
   expect(forcedSideExit).toBeTruthy();
-  await page.waitForTimeout(100);
-  const sideExitState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
-  const sideExitCard = sideExitState.cardSnapshot.find((card) =>
-    card.wordId === forcedSideExit.wordId && card.promptId === forcedSideExit.promptId
-  );
-  expect(!sideExitCard || sideExitCard.x > forcedSideExit.stageWidth).toBeTruthy();
-  await page.waitForTimeout(180);
-  const removedAfterSideExit = await page.evaluate((releaseKey) => {
+  await expect.poll(async () => page.evaluate((releaseKey) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const card = run && run.cardSnapshot.find((candidate) =>
+      candidate.wordId === releaseKey.wordId && candidate.promptId === releaseKey.promptId
+    );
+    return !card || card.x > releaseKey.stageWidth;
+  }, forcedSideExit), { timeout: 2000 }).toBe(true);
+  await expect.poll(async () => page.evaluate((releaseKey) => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !run || !run.cardSnapshot.some((card) =>
       card.wordId === releaseKey.wordId && card.promptId === releaseKey.promptId
     );
-  }, forcedSideExit);
-  expect(removedAfterSideExit).toBe(true);
+  }, forcedSideExit), { timeout: 2000 }).toBe(true);
 
   await page.waitForFunction(() => {
     const queued = Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents : [];

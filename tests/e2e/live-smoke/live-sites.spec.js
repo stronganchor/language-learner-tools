@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const { isExpectedCloudflareRumAbort } = require('./network-policy');
 
 const DEFAULT_SITES_FILE = path.resolve(__dirname, 'sites.local.json');
 const EXAMPLE_SITES_FILE = path.resolve(__dirname, 'sites.example.json');
@@ -631,6 +632,7 @@ if (loadSitesError) {
         sameOriginNonGetRequests: [],
         allowedSameOriginNonGetRequests: [],
         unexpectedSameOriginNonGetRequests: [],
+        expectedSameOriginRequestAborts: [],
         sameOriginRequestFailures: [],
         sameOriginServerErrors: [],
         cloudflareCacheChecks: []
@@ -673,11 +675,20 @@ if (loadSitesError) {
         } catch (_) {
           return;
         }
-        summary.sameOriginRequestFailures.push({
-          method: request.method(),
-          url: request.url(),
-          error: request.failure() ? request.failure().errorText : 'request_failed'
-        });
+        const requestDetails = parseRequestDetails(request);
+        const errorText = request.failure() ? request.failure().errorText : 'request_failed';
+        const failureDetails = {
+          method: requestDetails.method,
+          url: requestDetails.url,
+          error: errorText
+        };
+
+        if (isExpectedCloudflareRumAbort(requestDetails, errorText)) {
+          summary.expectedSameOriginRequestAborts.push(failureDetails);
+          return;
+        }
+
+        summary.sameOriginRequestFailures.push(failureDetails);
       });
 
       page.on('response', (response) => {
@@ -715,6 +726,7 @@ if (loadSitesError) {
           sameOriginNonGetRequests: summary.sameOriginNonGetRequests.slice(),
           allowedSameOriginNonGetRequests: summary.allowedSameOriginNonGetRequests.slice(),
           unexpectedSameOriginNonGetRequests: summary.unexpectedSameOriginNonGetRequests.slice(),
+          expectedSameOriginRequestAborts: summary.expectedSameOriginRequestAborts.slice(),
           sameOriginRequestFailures: summary.sameOriginRequestFailures.slice(),
           sameOriginServerErrors: summary.sameOriginServerErrors.slice()
         };

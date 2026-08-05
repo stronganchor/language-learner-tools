@@ -1042,6 +1042,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ];
     $rapid_listening_gap_ms = max(250, min(2000, (int) apply_filters('ll_tools_rapid_listening_gap_ms', 750, $atts, $categories, $wordset_ids)));
     $localized_data = [
+        'runtimeMode'           => 'wp',
         'mode'                  => $mode,
         'quiz_mode'             => $quiz_mode,
         'isEmbed'               => $is_embed,
@@ -1056,6 +1057,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
             'pageSize' => max(0, (int) ($catalog_page['page_size'] ?? 0)),
         ],
         'isUserLoggedIn'        => is_user_logged_in(),
+        'progressStorageScope'  => is_user_logged_in() ? ll_tools_user_progress_storage_scope() : '',
         'categoriesPreselected' => $preselected,
         'firstCategoryData'     => $initial_words,
         'firstCategoryName'     => $firstCategoryName,

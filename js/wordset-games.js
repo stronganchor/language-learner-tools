@@ -1509,11 +1509,29 @@
     }
 
     function updateProgressGlobals(ctx) {
+        const runtimeMode = ctx.offlineMode ? 'offline' : (String(ctx.runtimeMode || '').trim().toLowerCase() || 'wp');
+        root.llToolsFlashcardsData = $.extend({}, root.llToolsFlashcardsData || {}, {
+            runtimeMode: runtimeMode,
+            ajaxurl: ctx.ajaxUrl,
+            userStudyNonce: ctx.nonce,
+            isUserLoggedIn: ctx.isLoggedIn,
+            progressStorageScope: ctx.progressStorageScope,
+            wordsetIds: ctx.wordsetId ? [ctx.wordsetId] : []
+        });
         root.llToolsStudyData = $.extend({}, root.llToolsStudyData || {}, {
             ajaxUrl: ctx.ajaxUrl,
             nonce: ctx.nonce,
             isLoggedIn: ctx.isLoggedIn
         });
+        const tracker = getTracker();
+        if (tracker && typeof tracker.setAuthContext === 'function') {
+            tracker.setAuthContext({
+                ajaxUrl: ctx.ajaxUrl,
+                nonce: ctx.nonce,
+                isUserLoggedIn: ctx.isLoggedIn,
+                progressStorageScope: ctx.progressStorageScope
+            });
+        }
     }
 
     function drawRoundedRect(context, x, y, width, height, radius) {
@@ -12177,6 +12195,7 @@
             ajaxUrl: String(cfg.ajaxUrl || ''),
             nonce: String(cfg.nonce || ''),
             isLoggedIn: !!cfg.isLoggedIn || offlineMode,
+            progressStorageScope: String(cfg.progressStorageScope || cfg.progress_storage_scope || ''),
             wordsetId: toInt(cfg.wordsetId),
             visibleCategoryIds: uniqueIntList(cfg.visibleCategoryIds || []),
             i18n: (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {},

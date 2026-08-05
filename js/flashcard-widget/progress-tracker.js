@@ -8,6 +8,7 @@
 
     const MAX_QUEUE = 2500;
     const MAX_BATCH_SIZE = 200;
+    const WP_PROGRESS_JOURNAL_PREFIX = 'lltools_wp_progress_journal_v1';
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
     const ALLOWED_TYPES = {
         word_outcome: true,
@@ -31,6 +32,8 @@
     let queue = [];
     let flushTimer = null;
     let inFlight = false;
+    let inFlightBatch = [];
+    let flushRequestedWhileInFlight = false;
     let context = {
         mode: 'practice',
         wordsetId: 0,
@@ -40,6 +43,8 @@
     let localStoreKey = '';
     let sessionStoreCache = null;
     let sessionStoreKey = '';
+    const restoredProgressJournalKeys = {};
+    let progressJournalGeneration = 0;
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -207,6 +212,12 @@
         return isOfflineRuntime() && !!root.localStorage;
     }
 
+    function getProgressStorageScope() {
+        const flash = getFlashData();
+        const scope = sanitizeString(flash.progressStorageScope || flash.progress_storage_scope).toLowerCase();
+        return /^[a-f0-9]{32}$/.test(scope) ? scope : '';
+    }
+
     function getAjaxUrl() {
         const flash = getFlashData();
         const study = getStudyData();
@@ -276,6 +287,158 @@
         return slug ? ('slug:' + slug) : 'default';
     }
 
+    function deduplicatePendingEvents(events) {
+        const seen = {};
+        const deduplicated = [];
+        (Array.isArray(events) ? events : []).some(function (event) {
+            const eventId = sanitizeString(event && event.event_uuid);
+            if (!eventId || seen[eventId]) {
+                return false;
+            }
+            seen[eventId] = true;
+            deduplicated.push(event);
+            return deduplicated.length >= MAX_QUEUE;
+        });
+        return deduplicated;
+    }
+
+    function getPendingEventsSnapshot(wordsetId) {
+        const targetWordsetId = toInt(wordsetId);
+        const pending = deduplicatePendingEvents(inFlightBatch.concat(queue));
+        if (!targetWordsetId) {
+            return pending;
+        }
+        return pending.filter(function (event) {
+            return toInt(event && event.wordset_id) === targetWordsetId;
+        });
+    }
+
+    function getWpProgressJournalDescriptor() {
+        if (isOfflineRuntime() || !isUserLoggedIn()) {
+            return null;
+        }
+        const scope = getProgressStorageScope();
+        const wordsetId = resolveWordsetId(0);
+        if (!scope || !wordsetId) {
+            return null;
+        }
+        return {
+            key: WP_PROGRESS_JOURNAL_PREFIX + '::user:' + scope + '::wordset:' + String(wordsetId),
+            wordsetId: wordsetId
+        };
+    }
+
+    function saveWpProgressJournal(journalDescriptor) {
+        const descriptor = journalDescriptor || getWpProgressJournalDescriptor();
+        if (!descriptor) {
+            return false;
+        }
+        try {
+            const storage = root.sessionStorage;
+            if (!storage) {
+                return false;
+            }
+            const events = getPendingEventsSnapshot(descriptor.wordsetId);
+            if (!events.length) {
+                storage.removeItem(descriptor.key);
+                return true;
+            }
+            storage.setItem(descriptor.key, JSON.stringify({
+                version: 1,
+                events: events
+            }));
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function restoreWpProgressJournal() {
+        const descriptor = getWpProgressJournalDescriptor();
+        if (!descriptor || restoredProgressJournalKeys[descriptor.key]) {
+            return 0;
+        }
+
+        let raw = '';
+        try {
+            const storage = root.sessionStorage;
+            if (!storage) {
+                return 0;
+            }
+            raw = storage.getItem(descriptor.key) || '';
+            restoredProgressJournalKeys[descriptor.key] = true;
+        } catch (_) {
+            return 0;
+        }
+        if (!raw) {
+            return 0;
+        }
+
+        let decoded = null;
+        try {
+            decoded = JSON.parse(raw);
+        } catch (_) {
+            // Preserve any current in-memory events if the old snapshot is
+            // malformed; an empty queue still removes the unusable journal.
+            saveWpProgressJournal(descriptor);
+            return 0;
+        }
+        const storedEvents = decoded && Array.isArray(decoded.events) ? decoded.events : [];
+        const restored = storedEvents.map(function (storedEvent) {
+            const originalEventId = sanitizeString(storedEvent && storedEvent.event_uuid);
+            if (!originalEventId) {
+                return null;
+            }
+            const normalized = normalizeEvent(storedEvent);
+            if (!normalized || normalized.event_uuid !== originalEventId) {
+                return null;
+            }
+            return normalized;
+        }).filter(function (event) {
+            return !!event && toInt(event.wordset_id) === descriptor.wordsetId;
+        });
+        if (!restored.length) {
+            saveWpProgressJournal();
+            return 0;
+        }
+        queue = deduplicatePendingEvents(restored.concat(queue));
+        if (canSyncNow()) {
+            scheduleFlush(80);
+        }
+        return restored.length;
+    }
+
+    function journalDescriptorKey(descriptor) {
+        return descriptor && descriptor.key ? descriptor.key : '';
+    }
+
+    function handleProgressJournalTransition(previousDescriptor) {
+        const nextDescriptor = getWpProgressJournalDescriptor();
+        const previousKey = journalDescriptorKey(previousDescriptor);
+        const nextKey = journalDescriptorKey(nextDescriptor);
+        if (previousKey === nextKey) {
+            restoreWpProgressJournal();
+            return;
+        }
+
+        if (previousDescriptor) {
+            saveWpProgressJournal(previousDescriptor);
+            delete restoredProgressJournalKeys[previousKey];
+        }
+        // Never carry one user's or wordset's in-memory events into another
+        // journal. An active old request may still finish, but its UUIDs remain
+        // recoverable only through the previous scoped journal.
+        progressJournalGeneration += 1;
+        queue = [];
+        inFlightBatch = [];
+        restoreWpProgressJournal();
+    }
+
+    function savePendingEvents() {
+        saveLocalStore();
+        saveWpProgressJournal();
+    }
+
     function getLocalStore() {
         if (!canPersistLocally()) {
             return null;
@@ -335,7 +498,7 @@
         if (!store) {
             return;
         }
-        store.queue = queue.slice(-MAX_QUEUE);
+        store.queue = getPendingEventsSnapshot();
         try {
             root.localStorage.setItem(localStoreKey, JSON.stringify(store));
         } catch (_) {
@@ -1050,10 +1213,11 @@
             return null;
         }
         queue.push(event);
-        if (queue.length > MAX_QUEUE) {
-            queue = queue.slice(queue.length - MAX_QUEUE);
+        const availableQueueSlots = Math.max(0, MAX_QUEUE - inFlightBatch.length);
+        if (queue.length > availableQueueSlots) {
+            queue = availableQueueSlots > 0 ? queue.slice(queue.length - availableQueueSlots) : [];
         }
-        saveLocalStore();
+        savePendingEvents();
         applyEventToLocalProgress(event);
         return event.event_uuid;
     }
@@ -1144,13 +1308,11 @@
 
     function handleSyncFailure(batch, errorCode) {
         if (batch.length) {
-            queue = batch.concat(queue);
-            if (queue.length > MAX_QUEUE) {
-                // Retried events are older and must stay ahead of events queued
-                // while the request was in flight. Drop only the newest tail.
-                queue = queue.slice(0, MAX_QUEUE);
-            }
-            saveLocalStore();
+            // Retried events are older and must stay ahead of events queued
+            // while the request was in flight. UUID de-duplication ensures an
+            // event restored from a journal cannot be replayed twice locally.
+            queue = deduplicatePendingEvents(batch.concat(queue));
+            savePendingEvents();
         }
         const store = getLocalStore();
         if (store) {
@@ -1216,6 +1378,14 @@
 
     function flush(options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        if (inFlight) {
+            // Record one unit of follow-up demand without polling an active
+            // request. settle() consumes this even when the request fails.
+            if (queue.length || opts.allowEmpty) {
+                flushRequestedWhileInFlight = true;
+            }
+            return Promise.resolve({ queued: queue.length, in_flight: true });
+        }
         if (flushTimer) {
             clearTimeout(flushTimer);
             flushTimer = null;
@@ -1223,23 +1393,24 @@
         if (!queue.length && !opts.allowEmpty) {
             return Promise.resolve({ queued: 0 });
         }
-        if (inFlight) {
-            return Promise.resolve({ queued: queue.length, in_flight: true });
-        }
         if (!canSyncNow()) {
-            if (!canPersistLocally()) {
+            if (!canPersistLocally() && (isOfflineRuntime() || !isUserLoggedIn())) {
                 queue = [];
                 return Promise.resolve({ queued: 0, skipped: true });
             }
-            saveLocalStore();
+            savePendingEvents();
             emitSyncStateChanged();
             return Promise.resolve({ queued: queue.length, deferred: true });
         }
 
         inFlight = true;
+        const batchJournalGeneration = progressJournalGeneration;
         const batch = opts.allowEmpty ? queue.slice(0, MAX_BATCH_SIZE) : queue.slice(0, MAX_BATCH_SIZE);
+        inFlightBatch = batch.slice();
         queue = queue.slice(batch.length);
-        saveLocalStore();
+        // sessionStorage/localStorage writes are synchronous, so a reload after
+        // the request starts can recover the exact UUIDs from this batch.
+        savePendingEvents();
         emitSyncStateChanged();
 
         return new Promise(function (resolve) {
@@ -1253,7 +1424,11 @@
                 settled = true;
                 window.clearTimeout(deadlineTimer);
                 inFlight = false;
-                if (queue.length && canSyncNow() && !failed) {
+                inFlightBatch = [];
+                savePendingEvents();
+                const requestedFollowUp = flushRequestedWhileInFlight;
+                flushRequestedWhileInFlight = false;
+                if (queue.length && canSyncNow() && (!failed || requestedFollowUp)) {
                     scheduleFlush(50);
                 }
                 emitSyncStateChanged();
@@ -1262,6 +1437,13 @@
 
             const deadlineTimer = window.setTimeout(function () {
                 if (settled) {
+                    return;
+                }
+                if (batchJournalGeneration !== progressJournalGeneration) {
+                    settle({ queued: queue.length, stale_context: true }, false);
+                    if (request && typeof request.abort === 'function') {
+                        try { request.abort('stale_context'); } catch (_) { /* no-op */ }
+                    }
                     return;
                 }
                 handleSyncFailure(batch, 'request_timeout');
@@ -1291,6 +1473,10 @@
                 if (settled) {
                     return;
                 }
+                if (batchJournalGeneration !== progressJournalGeneration) {
+                    settle({ queued: queue.length, stale_context: true }, false);
+                    return;
+                }
                 if (res && res.success && res.data) {
                     handleSyncSuccess(res.data);
                     const failedBatch = getFailedBatchEvents(batch, res.data);
@@ -1318,6 +1504,10 @@
                 if (settled) {
                     return;
                 }
+                if (batchJournalGeneration !== progressJournalGeneration) {
+                    settle({ queued: queue.length, stale_context: true }, false);
+                    return;
+                }
                 handleSyncFailure(batch);
                 settle({
                     queued: queue.length,
@@ -1334,6 +1524,7 @@
 
     function setContext(nextContext) {
         const next = (nextContext && typeof nextContext === 'object') ? nextContext : {};
+        const previousJournalDescriptor = getWpProgressJournalDescriptor();
         if (typeof next.mode !== 'undefined') {
             context.mode = normalizeMode(next.mode);
         }
@@ -1343,6 +1534,7 @@
         if (typeof next.categoryIds !== 'undefined' || typeof next.category_ids !== 'undefined') {
             context.categoryIds = resolveCategoryIds(next.categoryIds || next.category_ids);
         }
+        handleProgressJournalTransition(previousJournalDescriptor);
         return {
             mode: context.mode,
             wordset_id: context.wordsetId,
@@ -1354,14 +1546,27 @@
         const auth = (nextAuth && typeof nextAuth === 'object') ? nextAuth : {};
         const flash = getFlashData();
         const study = getStudyData();
-        flash.ajaxurl = sanitizeString(auth.ajaxUrl || auth.ajaxurl || flash.ajaxurl || '');
-        flash.userStudyNonce = sanitizeString(auth.nonce || auth.userStudyNonce || flash.userStudyNonce || '');
+        const previousJournalDescriptor = getWpProgressJournalDescriptor();
+        if (typeof auth.ajaxUrl !== 'undefined' || typeof auth.ajaxurl !== 'undefined') {
+            flash.ajaxurl = sanitizeString(auth.ajaxUrl || auth.ajaxurl || '');
+        }
+        if (typeof auth.nonce !== 'undefined' || typeof auth.userStudyNonce !== 'undefined') {
+            flash.userStudyNonce = sanitizeString(auth.nonce || auth.userStudyNonce || '');
+        }
         flash.isUserLoggedIn = typeof auth.isUserLoggedIn === 'undefined'
             ? flash.isUserLoggedIn
             : !!auth.isUserLoggedIn;
+        if (typeof auth.progressStorageScope !== 'undefined' || typeof auth.progress_storage_scope !== 'undefined') {
+            flash.progressStorageScope = sanitizeString(auth.progressStorageScope || auth.progress_storage_scope || '');
+        }
         if (study && typeof study === 'object') {
             study.ajaxUrl = flash.ajaxurl;
             study.nonce = flash.userStudyNonce;
+        }
+        handleProgressJournalTransition(previousJournalDescriptor);
+        savePendingEvents();
+        if (queue.length && canSyncNow()) {
+            scheduleFlush(80);
         }
         emitDocumentEvent('lltools:offline-auth-context-updated', getSyncState());
         emitSyncStateChanged();
@@ -1491,7 +1696,7 @@
             clearTimeout(flushTimer);
             flushTimer = null;
         }
-        saveLocalStore();
+        savePendingEvents();
     }
 
     function getSyncState() {
@@ -1532,7 +1737,18 @@
 
     if (canPersistLocally()) {
         const store = getLocalStore();
-        queue = store && Array.isArray(store.queue) ? store.queue.slice(-MAX_QUEUE) : [];
+        queue = store && Array.isArray(store.queue)
+            ? deduplicatePendingEvents(store.queue.map(function (storedEvent) {
+                const originalEventId = sanitizeString(storedEvent && storedEvent.event_uuid);
+                if (!originalEventId) {
+                    return null;
+                }
+                const normalized = normalizeEvent(storedEvent);
+                return normalized && normalized.event_uuid === originalEventId ? normalized : null;
+            }).filter(Boolean))
+            : [];
+    } else {
+        restoreWpProgressJournal();
     }
 
     if (typeof document !== 'undefined' && document.addEventListener) {

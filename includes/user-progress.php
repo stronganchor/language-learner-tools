@@ -60,6 +60,22 @@ if (!function_exists('ll_tools_user_study_can_access')) {
     }
 }
 
+/**
+ * Return a stable, non-sensitive browser-storage namespace for one user.
+ *
+ * This value is only a pseudonymous local-storage partition key. It must never
+ * be treated as authentication or authorization.
+ */
+function ll_tools_user_progress_storage_scope($user_id = 0): string {
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($uid <= 0) {
+        return '';
+    }
+
+    $message = 'll-tools-progress-storage-v1|' . get_current_blog_id() . '|' . $uid;
+    return substr(hash_hmac('sha256', $message, wp_salt('auth')), 0, 32);
+}
+
 function ll_tools_user_progress_table_names(): array {
     global $wpdb;
     return [

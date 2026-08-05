@@ -1568,6 +1568,7 @@ test('practice mode continues a bounded logical session before emitting final re
     window.__practiceContractEvents = [];
     window.__practiceModeSessionCompleteCalls = 0;
     window.__practiceModeSessionCompletePayloads = [];
+    window.__practiceProgressFlushCalls = 0;
     window.__practiceResultsShownCalls = 0;
     window.LLFlashcards.Dom = {
       hideLoading: function () {}
@@ -1583,6 +1584,12 @@ test('practice mode continues a bounded logical session before emitting final re
         window.__practiceModeSessionCompleteCalls += 1;
         window.__practiceModeSessionCompletePayloads.push(payload);
         window.__practiceContractEvents.push('mode_session_complete');
+        return 'mode-session-event-uuid';
+      },
+      flush: function () {
+        window.__practiceProgressFlushCalls += 1;
+        window.__practiceContractEvents.push('progress_flush');
+        return Promise.reject(new Error('simulated nonblocking transport failure'));
       }
     };
     window.jQuery(document).on('lltools:flashcard-results-shown', function () {
@@ -1658,6 +1665,7 @@ test('practice mode continues a bounded logical session before emitting final re
         resultsShownCalls: window.__practiceResultsShownCalls,
         modeSessionCompleteCalls: window.__practiceModeSessionCompleteCalls,
         modeSessionCompletePayloads: window.__practiceModeSessionCompletePayloads.slice(),
+        progressFlushCalls: window.__practiceProgressFlushCalls,
         modeSessionCompleteTracked: !!State.modeSessionCompleteTracked,
         events: window.__practiceContractEvents.slice(),
         transition: window.__practiceLastTransition
@@ -1689,11 +1697,13 @@ test('practice mode continues a bounded logical session before emitting final re
     categoryIds: [81, 82]
   }]);
   expect(outcome.final.modeSessionCompleteTracked).toBe(true);
+  expect(outcome.final.progressFlushCalls).toBe(1);
   expect(outcome.final.events).toEqual([
     'continuation_appended',
     'continuation_exhausted',
     'progress_updated',
     'mode_session_complete',
+    'progress_flush',
     'results_shown'
   ]);
   expect(outcome.final.transition).toEqual({

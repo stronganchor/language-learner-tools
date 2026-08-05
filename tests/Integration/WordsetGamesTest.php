@@ -188,6 +188,19 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
         $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
+
+        $localized = (string) wp_scripts()->get_data('ll-wordset-pages-js', 'data');
+        preg_match('/var llWordsetPageData = (\{.*\});/s', $localized, $matches);
+        $this->assertArrayHasKey(1, $matches);
+        $gamesData = json_decode((string) $matches[1], true);
+        $this->assertIsArray($gamesData);
+        $progressScope = (string) ($gamesData['progressStorageScope'] ?? '');
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $progressScope);
+        $this->assertSame(
+            ll_tools_user_progress_storage_scope((int) $fixture['user_id']),
+            $progressScope
+        );
+        $this->assertNotSame((string) $fixture['user_id'], $progressScope);
     }
 
     public function test_guest_games_launch_controls_link_to_frontend_login_window(): void

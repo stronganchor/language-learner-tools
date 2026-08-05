@@ -13,7 +13,8 @@
     const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
 
-    const STORAGE_PREFIX = 'lltools_gender_progress_v1';
+    const LEGACY_STORAGE_PREFIX = 'lltools_gender_progress_v1';
+    const STORAGE_PREFIX = 'lltools_gender_progress_v2';
     const CHUNK_SIZE = 12;
     const INTRO_GAP_MS = 650;
     const INTRO_WORD_GAP_MS = 550;
@@ -163,11 +164,39 @@
         return LEVEL_ONE;
     }
 
+    function getRuntimeMode() {
+        const data = root.llToolsFlashcardsData || {};
+        return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase();
+    }
+
+    function isOfflineRuntime() {
+        return getRuntimeMode() === 'offline';
+    }
+
+    function isUserLoggedIn() {
+        const data = root.llToolsFlashcardsData || {};
+        return data.isUserLoggedIn === true || data.is_user_logged_in === true;
+    }
+
+    function getProgressStorageScope() {
+        const data = root.llToolsFlashcardsData || {};
+        const scope = String(data.progressStorageScope || data.progress_storage_scope || '').trim().toLowerCase();
+        return /^[a-f0-9]{32}$/.test(scope) ? scope : '';
+    }
+
     function getStorageKey() {
         const data = root.llToolsFlashcardsData || {};
         const userState = data.userStudyState || {};
         const wordsetId = toInt(data.genderWordsetId || userState.wordset_id || (Array.isArray(data.wordsetIds) ? data.wordsetIds[0] : 0));
-        return STORAGE_PREFIX + '::wordset:' + String(wordsetId || 0);
+        const wordsetSuffix = '::wordset:' + String(wordsetId || 0);
+        if (isOfflineRuntime()) {
+            return LEGACY_STORAGE_PREFIX + wordsetSuffix;
+        }
+        if (!isUserLoggedIn()) {
+            return STORAGE_PREFIX + '::guest' + wordsetSuffix;
+        }
+        const scope = getProgressStorageScope();
+        return scope ? (STORAGE_PREFIX + '::user:' + scope + wordsetSuffix) : '';
     }
 
     function loadStore() {
@@ -175,6 +204,7 @@
         if (storeCache && storeCacheKey === key) return storeCache;
         storeCacheKey = key;
         storeCache = { words: {}, updated_at: nowTs() };
+        if (!key) return storeCache;
         const storage = root.localStorage;
         if (!storage) return storeCache;
         try {
@@ -198,6 +228,7 @@
         if (!storage) return;
         try {
             const key = getStorageKey();
+            if (!key) return;
             const snapshot = loadStore();
             snapshot.updated_at = nowTs();
             storage.setItem(key, JSON.stringify(snapshot));
@@ -208,11 +239,11 @@
 
     function normalizeWordProgress(raw) {
         const src = (raw && typeof raw === 'object') ? raw : {};
-        const updatedAt = Math.max(
+        const storedTimestamp = Math.max(
             parseProgressTimestamp(src.updated_at),
-            parseProgressTimestamp(src.last_seen_at),
-            nowTs()
+            parseProgressTimestamp(src.last_seen_at)
         );
+        const updatedAt = storedTimestamp > 0 ? storedTimestamp : 0;
         return {
             level: normalizeLevel(src.level),
             confidence: clamp(parseInt(src.confidence, 10) || 0, -8, 12),

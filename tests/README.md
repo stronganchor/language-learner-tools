@@ -445,6 +445,7 @@ LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE=1
 LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS=7000
 LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS=10000
 LL_E2E_PAGE_SPEED_MAX_LOAD_MS=15000
+LL_E2E_PAGE_SPEED_WARMUP_SETTLE_MS=10000
 LL_E2E_PERF_RUNS=3
 LL_E2E_PERF_HISTORY_FILE=tests/performance/history/performance-history.jsonl
 ```
@@ -455,7 +456,7 @@ Live smoke runner config:
 - Or point `LL_LIVE_SITES_FILE` at another local JSON file.
 - `tests/bin/run-live-smoke.sh` is serial and intended for anonymous, low-impact public-page checks only.
 - The runner imports only `LL_LIVE_SITES_FILE`, `LL_LIVE_SMOKE_TIMEOUT_MS`, and `LL_LIVE_SMOKE_PAUSE_MS` from the local test env files; database, browser-login, and other credentials are not passed into the public smoke process.
-- Console errors and same-origin request failures, 5xx responses, and unexpected non-GET requests are enforced across both the entry page and any configured navigation target.
+- Console errors and same-origin request failures, 5xx responses, and unexpected non-GET requests are enforced across both the entry page and any configured navigation target. The only default request-failure exception is an aborted `POST /cdn-cgi/rum` Cloudflare telemetry beacon (`net::ERR_ABORTED`), which is retained separately in the attached audit summary; other methods, paths, and failure reasons remain fatal.
 - Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
 - If a homepage is only a wordset-button hub, add `"navigation": { "type": "wordsetButtonMostLessons" }` so the smoke run clicks the visible button with the highest lesson count before applying the normal wordset-page assertions.
 - The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category`, `POST /wp-admin/admin-ajax.php?action=ll_get_flashcard_payload_page`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_lazy_cards`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_page_category_search`, `POST /wp-admin/admin-ajax.php?action=ll_tools_wordset_buttons_status`, and `POST /wp-admin/admin-ajax.php?action=ll_tools_get_vocab_lesson_grid` as allowed read-style public-page requests. It also allows exact-path infrastructure telemetry at `/cdn-cgi/rum`. Other same-origin non-GET requests still fail unless you explicitly allow exact paths with `network.allowedSameOriginNonGetPaths` or actions with `network.allowedAdminAjaxActions` in the site config.
@@ -487,7 +488,7 @@ Network-throttled page-speed regression:
   - DOMContentLoaded: 7000 ms
   - first actionable control visible: 10000 ms
   - full load event: 15000 ms
-- The spec warms the target page once through Playwright's request client before the measured browser navigation so Local cold-start noise does not dominate the result.
+- Before measurement, the spec requires two successful sequential unthrottled target-page warmups, then waits for a configurable settle window (`LL_E2E_PAGE_SPEED_WARMUP_SETTLE_MS`, default 10000 ms). Local can start non-blocking WP-Cron work after a warmup returns, so this window lets the final bounded background batch release Local's single PHP-CGI worker before the cold-browser, cache-disabled throttled navigation. The performance budgets remain unchanged.
 - Run it directly:
 
 ```bash

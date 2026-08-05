@@ -5,6 +5,7 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
 {
     public function test_flashcard_widget_renders_with_deferred_initial_word_data(): void
     {
+        wp_set_current_user(0);
         $min_words_filter = static function (): int {
             return 1;
         };
@@ -56,6 +57,8 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertStringNotContainsString('Flow Word', $localized_data);
             $this->assertStringNotContainsString('Flow Translation', $localized_data);
             $this->assertStringContainsString('"listeningCategoryLoadWindow":3', $localized_data);
+            $this->assertStringContainsString('"runtimeMode":"wp"', $localized_data);
+            $this->assertStringContainsString('"progressStorageScope":""', $localized_data);
 
             $localized_messages = wp_scripts()->get_data('ll-flc-util', 'data');
             $this->assertIsString($localized_messages);
@@ -93,6 +96,31 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertFalse($scripts->get_data('ll-flc-mode-config', 'data'));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_progress_storage_scope_is_stable_user_specific_and_localized(): void
+    {
+        $first_user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $second_user_id = self::factory()->user->create(['role' => 'subscriber']);
+
+        $first_scope = ll_tools_user_progress_storage_scope($first_user_id);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $first_scope);
+        $this->assertSame($first_scope, ll_tools_user_progress_storage_scope($first_user_id));
+        $this->assertNotSame($first_scope, ll_tools_user_progress_storage_scope($second_user_id));
+
+        wp_set_current_user(0);
+        $this->assertSame('', ll_tools_user_progress_storage_scope());
+
+        try {
+            wp_set_current_user($first_user_id);
+            $localized = ll_flashcards_enqueue_and_localize(['wordset' => ''], [], false, [], '');
+
+            $this->assertSame('wp', $localized['runtimeMode'] ?? null);
+            $this->assertTrue($localized['isUserLoggedIn'] ?? false);
+            $this->assertSame($first_scope, $localized['progressStorageScope'] ?? null);
+        } finally {
+            wp_set_current_user(0);
         }
     }
 }
