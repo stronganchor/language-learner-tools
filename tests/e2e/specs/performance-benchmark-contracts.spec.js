@@ -4,13 +4,17 @@ const { execFileSync } = require('child_process');
 const { test, expect } = require('@playwright/test');
 const {
   MANIFEST_CHECKSUM_FORMAT,
+  SCENARIO_COMPARISON_KEY_FORMAT,
   benchmarkRequiresAuthentication,
   buildBenchmarkScenarios,
   calculateBenchmarkTestTimeout,
   canonicalManifestJson,
+  compareWithPrevious,
   findPreviousComparableRun,
   loadPerformanceManifest,
   manifestChecksum,
+  scenarioComparisonKey,
+  summarizeScenarioSamples,
   validateRecorderQueueCompletion
 } = require('../helpers/performance-benchmark');
 
@@ -302,13 +306,19 @@ test('Genç profile matches production-scale dimensions and includes settings an
   expect(byName['wordset-genc-settings-hub-load']).toMatchObject({
     path: '/ll-perf-genc/settings/',
     requiresAuth: true,
-    primaryMetric: 'firstActionableMs'
+    primaryMetric: 'firstActionableMs',
+    comparisonVersion: 1
   });
+  expect(byName['wordset-genc-search-filter'].comparisonVersion).toBe(2);
+  expect(byName['learn-grid-genc-quiz-popup'].comparisonVersion).toBe(2);
   expect(byName['wordset-genc-recorder-queues-initial-load']).toMatchObject({
     path: '/ll-perf-genc/settings/?ll_wordset_tool=recorder-queues',
     requiresAuth: true,
     primaryMetric: 'firstActionableMs',
-    minActionableCount: 3
+    minActionableCount: 3,
+    initialCategoryCount: 3,
+    batchSize: 6,
+    comparisonVersion: 2
   });
   expect(byName['wordset-genc-recorder-queues-initial-load'].selector)
     .toContain(':not([data-ll-recorder-queue-summary-placeholder])');
@@ -318,8 +328,11 @@ test('Genç profile matches production-scale dimensions and includes settings an
     primaryMetric: 'interactionMs',
     action: 'recorder-queue-lazy-completion',
     expectedCategoryCount: 209,
+    initialCategoryCount: 3,
+    batchSize: 6,
     maxBatchRequestCount: 36,
-    maxConcurrentBatchRequestCount: 1
+    maxConcurrentBatchRequestCount: 1,
+    comparisonVersion: 2
   });
   expect(validateRecorderQueueCompletion(
     byName['wordset-genc-recorder-queues-lazy-completion'],
@@ -392,6 +405,8 @@ test('performance runner prepares durable category search before timing it', asy
 
   expect(benchmarkSpec).toContain("document.querySelector('[data-ll-wordset-page-search-error]')");
   expect(benchmarkSpec).toContain('unexpectedly reached its Retry state after the category-index readiness preflight');
+  expect(benchmarkSpec).toContain('schemaVersion: 2');
+  expect(benchmarkSpec).toContain('Skipping history write because the Git worktree is dirty.');
 });
 
 test('benchmark timeout budget scales with runnable scenarios, runs, warmups, and action limits', async () => {
@@ -497,7 +512,9 @@ test('history comparison migrates once from raw hashes then enforces canonical m
   const legacy = {
     fixtureVersion: 'fixture-1',
     fixtureManifest: { sha256: 'raw-platform-specific-hash' },
-    throttleProfile
+    throttleProfile,
+    runsPerScenario: 3,
+    git: { dirty: false }
   };
   const current = {
     fixtureVersion: 'fixture-1',
@@ -505,7 +522,9 @@ test('history comparison migrates once from raw hashes then enforces canonical m
       sha256: 'canonical-hash',
       checksumFormat: MANIFEST_CHECKSUM_FORMAT
     },
-    throttleProfile
+    throttleProfile,
+    runsPerScenario: 3,
+    git: { dirty: false }
   };
   expect(findPreviousComparableRun([legacy], current)).toBe(legacy);
 
@@ -515,10 +534,16 @@ test('history comparison migrates once from raw hashes then enforces canonical m
       sha256: 'different-canonical-hash',
       checksumFormat: MANIFEST_CHECKSUM_FORMAT
     },
-    throttleProfile
+    throttleProfile,
+    runsPerScenario: 3,
+    git: { dirty: false }
   };
   expect(findPreviousComparableRun([differentCanonical], current)).toBeNull();
   expect(findPreviousComparableRun([legacy, differentCanonical], current)).toBeNull();
+  expect(findPreviousComparableRun([
+    legacy,
+    { ...differentCanonical, runsPerScenario: 1 }
+  ], current)).toBeNull();
 
   const matchingLegacy = {
     ...legacy,
@@ -530,4 +555,74 @@ test('history comparison migrates once from raw hashes then enforces canonical m
   };
   expect(findPreviousComparableRun([matchingLegacy], legacy)).toBe(matchingLegacy);
   expect(findPreviousComparableRun([changedLegacy], legacy)).toBeNull();
+
+  expect(findPreviousComparableRun([{ ...current, git: { dirty: true } }], current)).toBeNull();
+  expect(findPreviousComparableRun([current, { ...current, git: { dirty: true } }], current)).toBe(current);
+  expect(findPreviousComparableRun([{ ...current, git: { dirty: false, statusLineCount: 1 } }], current)).toBeNull();
+  expect(findPreviousComparableRun([{ ...current, runsPerScenario: 1 }], current)).toBeNull();
+  expect(findPreviousComparableRun([current], { ...current, runsPerScenario: 1 })).toBeNull();
+});
+
+test('history comparison requires an exact scenario measurement contract', async () => {
+  const baseScenario = {
+    name: 'quiz-ready',
+    kind: 'interaction',
+    path: '/learn/',
+    selector: '.trigger',
+    minActionableCount: 2,
+    primaryMetric: 'interactionMs',
+    action: 'quiz-popup',
+    comparisonSemantics: 'quiz-popup-mode-ready-v1'
+  };
+  const sample = {
+    domContentLoadedMs: 100,
+    firstActionableMs: 120,
+    loadEventMs: 140,
+    responseStartMs: 20,
+    responseEndMs: 40,
+    interactionMs: 1200
+  };
+  const currentScenario = summarizeScenarioSamples(baseScenario, [sample]);
+  const matchingScenario = summarizeScenarioSamples(baseScenario, [{ ...sample, interactionMs: 500 }]);
+  const changedScenario = summarizeScenarioSamples(
+    { ...baseScenario, comparisonSemantics: 'quiz-popup-shell-visible-v1' },
+    [{ ...sample, interactionMs: 200 }]
+  );
+  const currentRecord = { scenarios: [currentScenario] };
+
+  expect(currentScenario.comparisonKeyFormat).toBe(SCENARIO_COMPARISON_KEY_FORMAT);
+  expect(currentScenario.comparisonKey).toBe(scenarioComparisonKey(baseScenario));
+  expect(scenarioComparisonKey({ ...baseScenario, selector: '.changed' })).not.toBe(currentScenario.comparisonKey);
+  expect(scenarioComparisonKey({ ...baseScenario, action: 'changed-action' })).not.toBe(currentScenario.comparisonKey);
+  expect(scenarioComparisonKey({ ...baseScenario, query: 'changed-query' })).not.toBe(currentScenario.comparisonKey);
+  expect(scenarioComparisonKey({ ...baseScenario, maxBatchRequestCount: 36 })).not.toBe(currentScenario.comparisonKey);
+  expect(compareWithPrevious(currentRecord, { scenarios: [matchingScenario] })[0]).toMatchObject({
+    previousMs: 500,
+    comparable: true,
+    failed: true
+  });
+  expect(compareWithPrevious(currentRecord, { scenarios: [changedScenario] })[0]).toMatchObject({
+    previousMs: 0,
+    comparable: false,
+    skipReason: 'scenario-contract-changed',
+    failed: false
+  });
+  expect(compareWithPrevious(currentRecord, {
+    scenarios: [{ ...matchingScenario, comparisonKey: undefined }]
+  })[0]).toMatchObject({
+    previousMs: 500,
+    comparable: true,
+    skipReason: '',
+    failed: true
+  });
+  expect(compareWithPrevious({
+    scenarios: [summarizeScenarioSamples({ ...baseScenario, comparisonVersion: 2 }, [sample])]
+  }, {
+    scenarios: [{ ...matchingScenario, comparisonKey: undefined }]
+  })[0]).toMatchObject({
+    previousMs: 0,
+    comparable: false,
+    skipReason: 'scenario-contract-changed',
+    failed: false
+  });
 });

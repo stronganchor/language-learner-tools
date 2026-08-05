@@ -278,7 +278,7 @@ Full Playwright run times out under an automation cap:
   from a steady-state search regression.
 - Confirm `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` are set because progress, settings-hub, and recorder-queue scenarios are authenticated. Recorder-enabled manifests fail rather than silently dropping those measurements.
 - Keep `LL_E2E_PERF_MAX_INTERACTION_MS` scoped to ordinary search/progress/quiz work. Use `LL_E2E_PERF_RECORDER_QUEUE_COMPLETION_MS` for the longer full recorder-summary stream.
-- If the fixture manifest changed intentionally, bump `fixtureVersion`; historical comparison only makes sense for the same fixture version, manifest checksum, and throttle profile.
+- If the fixture manifest changed intentionally, bump `fixtureVersion`. Historical regression comparison requires a clean three-or-more-run baseline with the same run count, fixture version, manifest checksum, throttle profile, and scenario fingerprint. Increment a scenario's `comparisonVersion` and update `comparisonSemantics` when its readiness point or workload changes.
 - If a slower machine produced acceptable timings, tune `LL_E2E_PERF_MAX_REGRESSION_RATIO` and `LL_E2E_PERF_MAX_REGRESSION_MS` rather than weakening scenario selectors.
 
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:

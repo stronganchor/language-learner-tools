@@ -11,6 +11,8 @@ const DEFAULT_WORDSET_INITIAL_CARD_COUNT = 18;
 const DEFAULT_RECORDER_QUEUE_INITIAL_CARD_COUNT = 3;
 const DEFAULT_RECORDER_QUEUE_BATCH_SIZE = 6;
 const MANIFEST_CHECKSUM_FORMAT = 'canonical-json-v1';
+const SCENARIO_COMPARISON_KEY_FORMAT = 'scenario-contract-v1';
+const MIN_COMPARABLE_RUNS = 3;
 const DEFAULT_BENCHMARK_TIMEOUT_FIXED_OVERHEAD_MS = 30000;
 const DEFAULT_BENCHMARK_TIMEOUT_PER_SCENARIO_OVERHEAD_MS = 5000;
 const DEFAULT_BENCHMARK_TIMEOUT_PER_RUN_OVERHEAD_MS = 5000;
@@ -134,6 +136,78 @@ function percentile(values, percentileValue) {
   return sorted[Math.max(0, index)];
 }
 
+function buildScenarioComparisonContract(scenario) {
+  const semantics = String(scenario && scenario.comparisonSemantics ? scenario.comparisonSemantics : '').trim();
+  if (semantics === '') {
+    throw new Error(`Performance scenario ${scenario && scenario.name ? scenario.name : '(unnamed)'} is missing comparisonSemantics.`);
+  }
+
+  return {
+    format: SCENARIO_COMPARISON_KEY_FORMAT,
+    comparisonVersion: Math.max(1, Number(scenario.comparisonVersion || 1)),
+    name: String(scenario.name || ''),
+    semantics,
+    kind: String(scenario.kind || ''),
+    requiresAuth: !!scenario.requiresAuth,
+    path: String(scenario.path || ''),
+    selector: String(scenario.selector || ''),
+    primaryMetric: String(scenario.primaryMetric || 'firstActionableMs'),
+    minActionableCount: Math.max(1, Number(scenario.minActionableCount || 1)),
+    action: String(scenario.action || ''),
+    query: String(scenario.query || ''),
+    expectedCategoryCount: Math.max(0, Number(scenario.expectedCategoryCount || 0)),
+    initialCategoryCount: Math.max(0, Number(scenario.initialCategoryCount || 0)),
+    batchSize: Math.max(0, Number(scenario.batchSize || 0)),
+    maxBatchRequestCount: Math.max(0, Number(scenario.maxBatchRequestCount || 0)),
+    maxConcurrentBatchRequestCount: Math.max(0, Number(scenario.maxConcurrentBatchRequestCount || 0))
+  };
+}
+
+function scenarioComparisonKey(scenario) {
+  const contract = buildScenarioComparisonContract(scenario);
+  return crypto.createHash('sha256').update(canonicalManifestJson(contract)).digest('hex');
+}
+
+function legacyScenarioComparisonCore(scenario) {
+  return {
+    name: String(scenario && scenario.name ? scenario.name : ''),
+    kind: String(scenario && scenario.kind ? scenario.kind : ''),
+    requiresAuth: !!(scenario && scenario.requiresAuth),
+    path: String(scenario && scenario.path ? scenario.path : ''),
+    selector: String(scenario && scenario.selector ? scenario.selector : ''),
+    primaryMetric: String(
+      scenario && scenario.primaryMetric ? scenario.primaryMetric : 'firstActionableMs'
+    ),
+    minActionableCount: Math.max(1, Number(
+      scenario && scenario.minActionableCount ? scenario.minActionableCount : 1
+    ))
+  };
+}
+
+function scenarioComparisonContractsMatch(currentScenario, previousScenario) {
+  if (!currentScenario || !previousScenario) {
+    return false;
+  }
+
+  const currentKey = String(currentScenario.comparisonKey || '');
+  const previousKey = String(previousScenario.comparisonKey || '');
+  if (
+    currentKey !== ''
+    && previousKey !== ''
+    && String(currentScenario.comparisonKeyFormat || '') === SCENARIO_COMPARISON_KEY_FORMAT
+    && String(previousScenario.comparisonKeyFormat || '') === SCENARIO_COMPARISON_KEY_FORMAT
+  ) {
+    return currentKey === previousKey;
+  }
+
+  // History written before scenario fingerprints is compatible only with an
+  // unchanged v1 contract whose persisted core fields still match exactly.
+  return previousKey === ''
+    && Math.max(1, Number(currentScenario.comparisonVersion || 1)) === 1
+    && canonicalManifestJson(legacyScenarioComparisonCore(currentScenario))
+      === canonicalManifestJson(legacyScenarioComparisonCore(previousScenario));
+}
+
 function summarizeScenarioSamples(scenario, samples) {
   const metricNames = ['domContentLoadedMs', 'firstActionableMs', 'loadEventMs', 'responseStartMs', 'responseEndMs'];
   if (scenario.primaryMetric === 'interactionMs') {
@@ -156,6 +230,9 @@ function summarizeScenarioSamples(scenario, samples) {
     selector: scenario.selector,
     primaryMetric: scenario.primaryMetric,
     minActionableCount: scenario.minActionableCount || 1,
+    comparisonVersion: Math.max(1, Number(scenario.comparisonVersion || 1)),
+    comparisonKeyFormat: SCENARIO_COMPARISON_KEY_FORMAT,
+    comparisonKey: scenarioComparisonKey(scenario),
     median: medians,
     p95,
     samples
@@ -192,7 +269,9 @@ function buildBenchmarkScenarios(manifest) {
       path: pathForSlug(learnSlug),
       selector: '.ll-quiz-page-trigger',
       minActionableCount: Number(targetWordset.categoryCount || 1),
-      primaryMetric: 'firstActionableMs'
+      primaryMetric: 'firstActionableMs',
+      comparisonVersion: 1,
+      comparisonSemantics: 'visible-actionable-navigation-v1'
     }
   ];
 
@@ -204,7 +283,9 @@ function buildBenchmarkScenarios(manifest) {
       path: pathForSlug(wordset.slug),
       selector: '.ll-wordset-card[data-cat-id]:not(.ll-wordset-card--lazy-placeholder):not([data-ll-wordset-inline-placeholder])',
       minActionableCount: Math.min(categoryCount, DEFAULT_WORDSET_INITIAL_CARD_COUNT),
-      primaryMetric: 'firstActionableMs'
+      primaryMetric: 'firstActionableMs',
+      comparisonVersion: 1,
+      comparisonSemantics: 'visible-actionable-navigation-v1'
     });
   });
 
@@ -219,7 +300,9 @@ function buildBenchmarkScenarios(manifest) {
         minActionableCount: 1,
         primaryMetric: 'interactionMs',
         action: 'wordset-search',
-        query: `LLPerf ${targetSize} 01 01`
+        query: `LLPerf ${targetSize} 01 01`,
+        comparisonVersion: 2,
+        comparisonSemantics: 'steady-category-search-results-v2'
       },
       {
         name: `wordset-${targetSize}-games-load`,
@@ -227,7 +310,9 @@ function buildBenchmarkScenarios(manifest) {
         path: pathForSlug(targetWordset.slug, 'games'),
         selector: '[data-ll-wordset-games-root]',
         minActionableCount: 1,
-        primaryMetric: 'firstActionableMs'
+        primaryMetric: 'firstActionableMs',
+        comparisonVersion: 1,
+        comparisonSemantics: 'visible-actionable-navigation-v1'
       },
       {
         name: `learn-grid-${targetSize}-quiz-popup`,
@@ -236,7 +321,9 @@ function buildBenchmarkScenarios(manifest) {
         selector: '.ll-quiz-page-trigger',
         minActionableCount: Number(targetWordset.categoryCount || 1),
         primaryMetric: 'interactionMs',
-        action: 'quiz-popup'
+        action: 'quiz-popup',
+        comparisonVersion: 2,
+        comparisonSemantics: 'quiz-popup-mode-ready-v2'
       },
       {
         name: `wordset-${targetSize}-progress-load`,
@@ -245,7 +332,9 @@ function buildBenchmarkScenarios(manifest) {
         selector: '[data-ll-wordset-progress-root]',
         minActionableCount: 1,
         primaryMetric: 'firstActionableMs',
-        requiresAuth: true
+        requiresAuth: true,
+        comparisonVersion: 1,
+        comparisonSemantics: 'visible-actionable-navigation-v1'
       },
       {
         name: `wordset-${targetSize}-progress-words-tab`,
@@ -255,7 +344,9 @@ function buildBenchmarkScenarios(manifest) {
         minActionableCount: 1,
         primaryMetric: 'interactionMs',
         action: 'progress-words-tab',
-        requiresAuth: true
+        requiresAuth: true,
+        comparisonVersion: 1,
+        comparisonSemantics: 'progress-words-table-ready-v1'
       },
       {
         name: `wordset-${targetSize}-settings-hub-load`,
@@ -264,7 +355,9 @@ function buildBenchmarkScenarios(manifest) {
         selector: '.ll-wordset-settings-page--hub[data-ll-wordset-settings-page]',
         minActionableCount: 1,
         primaryMetric: 'firstActionableMs',
-        requiresAuth: true
+        requiresAuth: true,
+        comparisonVersion: 1,
+        comparisonSemantics: 'visible-actionable-navigation-v1'
       }
     );
 
@@ -297,7 +390,14 @@ function buildBenchmarkScenarios(manifest) {
           selector: '[data-ll-recorder-queue-summary-root] .ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])',
           minActionableCount: initialCategoryCount,
           primaryMetric: 'firstActionableMs',
-          requiresAuth: true
+          requiresAuth: true,
+          expectedCategoryCount,
+          initialCategoryCount,
+          batchSize,
+          maxBatchRequestCount,
+          maxConcurrentBatchRequestCount,
+          comparisonVersion: 2,
+          comparisonSemantics: 'recorder-queue-initial-stream-v2'
         },
         {
           name: `wordset-${targetSize}-recorder-queues-lazy-completion`,
@@ -308,9 +408,13 @@ function buildBenchmarkScenarios(manifest) {
           primaryMetric: 'interactionMs',
           action: 'recorder-queue-lazy-completion',
           expectedCategoryCount,
+          initialCategoryCount,
+          batchSize,
           maxBatchRequestCount,
           maxConcurrentBatchRequestCount,
-          requiresAuth: true
+          requiresAuth: true,
+          comparisonVersion: 2,
+          comparisonSemantics: 'recorder-queue-auto-serial-completion-v2'
         }
       );
     }
@@ -473,6 +577,10 @@ function sameThrottleProfile(left, right) {
 }
 
 function findPreviousComparableRun(records, currentRecord) {
+  if (Number(currentRecord && currentRecord.runsPerScenario ? currentRecord.runsPerScenario : 0) < MIN_COMPARABLE_RUNS) {
+    return null;
+  }
+
   const currentManifestSha = currentRecord
     && currentRecord.fixtureManifest
     && currentRecord.fixtureManifest.sha256
@@ -483,6 +591,7 @@ function findPreviousComparableRun(records, currentRecord) {
     && currentRecord.fixtureManifest.checksumFormat
     ? String(currentRecord.fixtureManifest.checksumFormat)
     : '';
+  const manifestScopeCandidates = [];
   const candidates = [];
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const candidate = records[index];
@@ -492,17 +601,31 @@ function findPreviousComparableRun(records, currentRecord) {
     if (!sameThrottleProfile(candidate.throttleProfile, currentRecord.throttleProfile)) {
       continue;
     }
+    manifestScopeCandidates.push(candidate);
+    if (
+      !candidate.git
+      || candidate.git.dirty !== false
+      || Number(candidate.git.statusLineCount || 0) !== 0
+      || Number(candidate.runsPerScenario || 0) < MIN_COMPARABLE_RUNS
+    ) {
+      continue;
+    }
+    if (Number(candidate.runsPerScenario || 0) !== Number(currentRecord.runsPerScenario || 0)) {
+      continue;
+    }
     candidates.push(candidate);
   }
 
   if (currentManifestChecksumFormat === MANIFEST_CHECKSUM_FORMAT) {
-    const canonicalCandidates = candidates.filter((candidate) => (
+    const canonicalHistoryExists = manifestScopeCandidates.some((candidate) => (
       candidate.fixtureManifest
       && String(candidate.fixtureManifest.checksumFormat || '') === MANIFEST_CHECKSUM_FORMAT
     ));
-    if (canonicalCandidates.length > 0) {
-      return canonicalCandidates.find((candidate) => (
-        currentManifestSha !== ''
+    if (canonicalHistoryExists) {
+      return candidates.find((candidate) => (
+        candidate.fixtureManifest
+        && String(candidate.fixtureManifest.checksumFormat || '') === MANIFEST_CHECKSUM_FORMAT
+        && currentManifestSha !== ''
         && String(candidate.fixtureManifest.sha256 || '') === currentManifestSha
       )) || null;
     }
@@ -534,7 +657,14 @@ function compareWithPrevious(currentRecord, previousRecord, options = {}) {
     const previousScenario = previousByName[currentScenario.name] || null;
     const metricName = currentScenario.primaryMetric || 'firstActionableMs';
     const currentValue = Number(currentScenario.median && currentScenario.median[metricName] ? currentScenario.median[metricName] : 0);
-    const previousValue = Number(previousScenario && previousScenario.median && previousScenario.median[metricName] ? previousScenario.median[metricName] : 0);
+    const scenarioContractMatches = scenarioComparisonContractsMatch(currentScenario, previousScenario);
+    const previousValue = Number(
+      scenarioContractMatches
+      && previousScenario.median
+      && previousScenario.median[metricName]
+        ? previousScenario.median[metricName]
+        : 0
+    );
     const deltaMs = previousValue > 0 ? currentValue - previousValue : 0;
     const ratio = previousValue > 0 ? deltaMs / previousValue : 0;
     const failed = previousValue > 0 && deltaMs > maxRegressionMs && ratio > maxRegressionRatio;
@@ -544,6 +674,8 @@ function compareWithPrevious(currentRecord, previousRecord, options = {}) {
       metric: metricName,
       currentMs: currentValue,
       previousMs: previousValue,
+      comparable: scenarioContractMatches && previousValue > 0,
+      skipReason: scenarioContractMatches ? '' : 'scenario-contract-changed',
       deltaMs,
       regressionRatio: Number(ratio.toFixed(4)),
       failed
@@ -563,7 +695,7 @@ function buildBenchmarkReport(record, previousRecord, historyFile) {
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     historyFile,
     previousRecord: previousRecord
@@ -585,6 +717,8 @@ function buildBenchmarkReport(record, previousRecord, historyFile) {
         medianMs,
         p95Ms,
         previousMs: Number(comparison.previousMs || 0),
+        comparable: !!comparison.comparable,
+        skipReason: String(comparison.skipReason || ''),
         deltaMs: Number(comparison.deltaMs || 0),
         regressionRatio: Number(comparison.regressionRatio || 0),
         failed: !!comparison.failed
@@ -610,7 +744,8 @@ function formatBenchmarkReportMarkdown(report) {
   (report.summary || []).forEach((row) => {
     const previous = row.previousMs > 0 ? `${row.previousMs} ms` : '';
     const delta = row.previousMs > 0 ? `${row.deltaMs >= 0 ? '+' : ''}${row.deltaMs} ms` : '';
-    lines.push(`| ${row.name} | ${row.metric} | ${row.medianMs} ms | ${row.p95Ms} ms | ${previous} | ${delta} | ${row.failed ? 'FAIL' : 'pass'} |`);
+    const result = row.comparable ? (row.failed ? 'FAIL' : 'pass') : 'NEW BASELINE';
+    lines.push(`| ${row.name} | ${row.metric} | ${row.medianMs} ms | ${row.p95Ms} ms | ${previous} | ${delta} | ${result} |`);
   });
   lines.push('');
   return `${lines.join('\n')}\n`;
@@ -653,9 +788,12 @@ module.exports = {
   DEFAULT_HISTORY,
   DEFAULT_REPORT,
   MANIFEST_CHECKSUM_FORMAT,
+  MIN_COMPARABLE_RUNS,
+  SCENARIO_COMPARISON_KEY_FORMAT,
   benchmarkRequiresAuthentication,
   buildBenchmarkReport,
   buildBenchmarkScenarios,
+  buildScenarioComparisonContract,
   calculateBenchmarkTestTimeout,
   compareWithPrevious,
   canonicalManifestJson,
@@ -663,11 +801,14 @@ module.exports = {
   findPreviousComparableRun,
   getRunMetadata,
   loadPerformanceManifest,
+  legacyScenarioComparisonCore,
   readEnvFlag,
   readHistoryRecords,
   resolvePluginPath,
   resolveBenchmarkWordsets,
   resolveBenchmarkTargetWordset,
+  scenarioComparisonKey,
+  scenarioComparisonContractsMatch,
   summarizeScenarioSamples,
   validateRecorderQueueCompletion,
   appendHistoryRecord,

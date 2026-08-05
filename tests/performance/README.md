@@ -142,10 +142,16 @@ node scripts/summarize-performance-history.js --history tests/performance/histor
 node scripts/summarize-performance-history.js --limit 10 --format json
 ```
 
-Change `fixtureVersion` whenever fixture shape changes. History comparisons only
-use records with the same fixture version, matching manifest checksum when both
-records have one, and the same throttle profile so older results are not mixed
-with a different test dataset.
+Change `fixtureVersion` whenever fixture shape changes. Historical regression
+comparisons require at least three runs and select only clean Git records with
+the same run count, fixture version, throttle profile, and matching manifest
+checksum when both records have one. Each scenario also carries a fingerprint
+of its route, readiness contract, primary metric, and action-specific workload.
+A changed scenario contract is reported as `NEW BASELINE` instead of being
+compared with semantically different timing data. Increment `comparisonVersion`
+and update `comparisonSemantics` whenever a scenario's measured readiness point
+or workload changes. Dirty runs still produce reports but are not appended to
+history.
 When canonical checksum history is introduced for an existing fixture, the
 new run may compare once with the newest same-version/same-throttle legacy row
 whose raw file hash varied by line endings. After any canonical row exists,

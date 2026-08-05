@@ -433,7 +433,7 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
   const historyFile = resolvePluginPath(process.env.LL_E2E_PERF_HISTORY_FILE, DEFAULT_HISTORY);
   const runMetadata = getRunMetadata();
   const record = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     recordedAt: new Date().toISOString(),
     fixtureVersion: String(manifest.fixtureVersion || ''),
     fixtureManifest: {
@@ -476,6 +476,10 @@ test('seeded LL Tools benchmark scenarios stay within the historical performance
   expect(failures, JSON.stringify(failures, null, 2)).toEqual([]);
 
   if (readEnvFlag('LL_E2E_PERF_WRITE_HISTORY', false)) {
-    appendHistoryRecord(historyFile, record);
+    if (record.git && record.git.dirty) {
+      console.warn('[LL Tools performance] Skipping history write because the Git worktree is dirty.');
+    } else {
+      appendHistoryRecord(historyFile, record);
+    }
   }
 });
