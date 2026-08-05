@@ -367,6 +367,8 @@ test('performance runner prepares durable category search before timing it', asy
   expect(seedOnlyIndex).toBeGreaterThan(prepareIndex);
   expect(runner).toContain('prepare-performance-category-search.php');
   expect(runner).toContain('"manifest=$runtime_manifest"');
+  expect(preparer).toContain("isset($_SERVER['argv']) && is_array($_SERVER['argv'])");
+  expect(preparer).toContain("array_slice(array_values($_SERVER['argv']), 1)");
 
   expect(preparer).toContain("$manifest['benchmarkTargetSize']");
   expect(defaultManifest.benchmarkTargetSize).toBeUndefined();

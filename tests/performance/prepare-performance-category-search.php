@@ -35,9 +35,15 @@ function ll_tools_perf_category_search_log(string $message): void {
  */
 function ll_tools_perf_category_search_cli_options(): array {
     $options = [];
-    $raw_args = isset($GLOBALS['args']) && is_array($GLOBALS['args'])
-        ? $GLOBALS['args']
-        : [];
+    $raw_args = [];
+    if (isset($GLOBALS['args']) && is_array($GLOBALS['args']) && !empty($GLOBALS['args'])) {
+        $raw_args = array_values($GLOBALS['args']);
+    } elseif (isset($_SERVER['argv']) && is_array($_SERVER['argv'])) {
+        // Some WP-CLI launch paths (notably WSL invoking Windows wp-cli.bat)
+        // do not populate eval-file's $args global, but retain the arguments in
+        // argv. Keep the explicit manifest usable in both launch modes.
+        $raw_args = array_slice(array_values($_SERVER['argv']), 1);
+    }
     foreach ($raw_args as $raw_arg) {
         $raw_arg = (string) $raw_arg;
         if (strpos($raw_arg, '=') === false) {
