@@ -70,6 +70,78 @@ final class ReleasePluginScriptTest extends LL_Tools_TestCase
         $this->assertStringContainsString('git -C "${ROOT_DIR}" -c core.autocrlf=false archive', $shellBuilder);
     }
 
+    public function test_release_versions_are_validated_as_three_part_numeric_versions(): void
+    {
+        $script = $this->releaseScriptContents();
+        $validator = $this->extractPowerShellFunction($script, 'Get-ValidatedReleaseVersion');
+        $nextVersion = $this->extractPowerShellFunction($script, 'Get-NextVersion');
+
+        $this->assertStringContainsString("'^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$'", $validator);
+        $this->assertStringContainsString("-VersionToValidate \$RequestedVersion -Context 'Custom version'", $nextVersion);
+        $this->assertStringContainsString('-VersionToValidate $CurrentVersion', $nextVersion);
+        $this->assertStringContainsString("if (\$RequestedBump -eq 'custom')", $nextVersion);
+        $this->assertStringContainsString('A custom version is required', $nextVersion);
+    }
+
+    public function test_stable_publish_builds_and_validates_the_archive_before_pushing_main(): void
+    {
+        $publishWorkflow = $this->extractPowerShellFunction($this->releaseScriptContents(), 'Invoke-PublishWorkflow');
+        $buildPosition = strpos($publishWorkflow, "Build-ReleaseZipFromRef -RefName 'HEAD'");
+        $pushPosition = strpos($publishWorkflow, "@('push', '--atomic', 'origin', \$BranchName, \$tagName)");
+
+        $this->assertNotFalse($buildPosition, 'Stable publish should build the release archive.');
+        $this->assertNotFalse($pushPosition, 'Stable publish should push main.');
+        $this->assertLessThan($pushPosition, $buildPosition, 'Archive validation must finish before main is pushed.');
+        $this->assertStringContainsString('$tagCreated = $false', $publishWorkflow);
+        $this->assertMatchesRegularExpression('/catch\s*\{.*?if \(\$tagCreated\).*?@\(\x27tag\x27, \x27-d\x27, \$tagName\)/s', $publishWorkflow);
+    }
+
+    public function test_release_builders_reject_repository_only_paths_and_remove_unvalidated_output(): void
+    {
+        $script = $this->releaseScriptContents();
+        $archiveValidator = $this->extractPowerShellFunction($script, 'Assert-ReleaseZipContainsRequiredAssets');
+        $archiveBuild = $this->extractPowerShellFunction($script, 'Build-ReleaseZipFromRef');
+        $shellBuilder = (string) file_get_contents(dirname(__DIR__, 2) . '/scripts/build-release-package.sh');
+
+        $this->assertStringContainsString("'offline-app-builder/'", $archiveValidator);
+        $this->assertStringContainsString("'bin/'", $archiveValidator);
+        $this->assertStringContainsString("'docs/'", $archiveValidator);
+        $this->assertStringContainsString("'tests/'", $archiveValidator);
+        $this->assertStringContainsString("'build-offline-app-apk.bat'", $archiveValidator);
+        $this->assertStringContainsString('Release archive contains an invalid root or repository-only path', $archiveValidator);
+        $this->assertMatchesRegularExpression('/catch\s*\{.*?Remove-Item -LiteralPath \$zipPath -Force/s', $archiveBuild);
+
+        $validatorPosition = strpos($shellBuilder, 'if command -v unzip');
+        $archivePosition = strpos($shellBuilder, 'git -C "${ROOT_DIR}" -c core.autocrlf=false archive');
+        $this->assertNotFalse($validatorPosition);
+        $this->assertNotFalse($archivePosition);
+        $this->assertLessThan($archivePosition, $validatorPosition, 'A validator must be available before the shell builder writes a zip.');
+        $this->assertStringContainsString("python3 -c 'import zipfile'", $shellBuilder);
+        $this->assertStringContainsString("python -c 'import zipfile'", $shellBuilder);
+        $this->assertStringContainsString('Required runtime asset manifest is empty', $shellBuilder);
+        $this->assertStringContainsString('required_assets=()', $shellBuilder);
+        $this->assertStringContainsString('command -v cygpath', $shellBuilder);
+        $this->assertStringContainsString('A native Windows output path requires cygpath', $shellBuilder);
+        $this->assertStringContainsString('ARCHIVE_VALIDATED=0', $shellBuilder);
+        $this->assertStringContainsString('OUTPUT_OWNED == 1 && ARCHIVE_VALIDATED == 0', $shellBuilder);
+        $this->assertStringContainsString("'offline-app-builder/'", $shellBuilder);
+        $this->assertStringContainsString("'bin/'", $shellBuilder);
+        $this->assertStringContainsString("'docs/'", $shellBuilder);
+        $this->assertStringContainsString("'build-offline-app-apk.bat'", $shellBuilder);
+        $this->assertStringContainsString("VERSION_PATTERN='^(0|[1-9][0-9]*)", $shellBuilder);
+        $this->assertStringContainsString('INTERNAL_VERSION=', $shellBuilder);
+        $this->assertStringContainsString('if [[ "${INTERNAL_VERSION}" != "${VERSION}" ]]', $shellBuilder);
+    }
+
+    public function test_release_exports_exclude_development_only_tools_and_docs(): void
+    {
+        $attributes = (string) file_get_contents(dirname(__DIR__, 2) . '/.gitattributes');
+
+        $this->assertStringContainsString('/bin export-ignore', $attributes);
+        $this->assertStringContainsString('/build-offline-app-apk.bat export-ignore', $attributes);
+        $this->assertStringContainsString('/docs export-ignore', $attributes);
+    }
+
     public function test_codex_temp_is_ignored_and_export_ignored(): void
     {
         $repoRoot = dirname(__DIR__, 2);

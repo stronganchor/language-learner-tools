@@ -4,7 +4,10 @@
 /_codex_temp export-ignore
 /.vscode export-ignore
 /AGENTS.md export-ignore
+/bin export-ignore
+/build-offline-app-apk.bat export-ignore
 /CODEBASE_ARCHITECTURE.md export-ignore
+/docs export-ignore
 /MAINTENANCE_BACKLOG.md export-ignore
 /RELEASING.md export-ignore
 /release-plugin.bat export-ignore

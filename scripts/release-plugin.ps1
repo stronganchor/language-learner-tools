@@ -64,23 +64,41 @@ function Get-CurrentBranch {
     return (Invoke-Git -Arguments @('branch', '--show-current') | Select-Object -First 1).Trim()
 }
 
+function Get-ValidatedReleaseVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VersionToValidate,
+        [string]$Context = 'Release version'
+    )
+
+    $normalizedVersion = $VersionToValidate.Trim()
+    if ($normalizedVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+        throw "$Context must be a three-part numeric version like 6.7.0. Received: $VersionToValidate"
+    }
+
+    return $normalizedVersion
+}
+
 function Get-CurrentVersionData {
     $content = [System.IO.File]::ReadAllText($pluginFile)
-    $headerMatch = [regex]::Match($content, '(?m)^Version:\s*([0-9]+(?:\.[0-9]+){2,})\s*$')
+    $headerMatch = [regex]::Match($content, '(?m)^Version:\s*([0-9]+(?:\.[0-9]+){2})\s*$')
     if (-not $headerMatch.Success) {
         throw "Could not find a Version header in $pluginFile."
     }
 
-    $constantMatch = [regex]::Match($content, "(?m)^define\('LL_TOOLS_VERSION',\s*'([0-9]+(?:\.[0-9]+){2,})'\);\s*$")
+    $constantMatch = [regex]::Match($content, "(?m)^define\('LL_TOOLS_VERSION',\s*'([0-9]+(?:\.[0-9]+){2})'\);\s*$")
     if (-not $constantMatch.Success) {
         throw "Could not find an LL_TOOLS_VERSION constant in $pluginFile."
     }
 
+    $headerVersion = Get-ValidatedReleaseVersion -VersionToValidate $headerMatch.Groups[1].Value -Context 'Plugin Version header'
+    $internalVersion = Get-ValidatedReleaseVersion -VersionToValidate $constantMatch.Groups[1].Value -Context 'LL_TOOLS_VERSION'
+
     return @{
         Content        = $content
-        Version        = $headerMatch.Groups[1].Value
-        InternalVersion = $constantMatch.Groups[1].Value
-        VersionsMatch  = ($headerMatch.Groups[1].Value -eq $constantMatch.Groups[1].Value)
+        Version        = $headerVersion
+        InternalVersion = $internalVersion
+        VersionsMatch  = ($headerVersion -eq $internalVersion)
     }
 }
 
@@ -116,8 +134,74 @@ function Assert-ReleaseZipContainsRequiredAssets {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
         $entryNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        $forbiddenPrefixes = @(
+            '.git/',
+            '.github/',
+            '.agents/',
+            '.codex/',
+            '.codex-remote-attachments/',
+            '_codex_temp/',
+            '.vscode/',
+            'bin/',
+            'dist/',
+            'docs/',
+            'node_modules/',
+            'offline-app-builder/',
+            'scripts/',
+            'test-results/',
+            'tests/'
+        )
+        $forbiddenFiles = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        @(
+            '.gitattributes',
+            '.gitignore',
+            'AGENTS.md',
+            'build-offline-app-apk.bat',
+            'CODEBASE_ARCHITECTURE.md',
+            'MAINTENANCE_BACKLOG.md',
+            'RELEASING.md',
+            'release-plugin.bat',
+            'xampp-lltools.code-workspace'
+        ) | ForEach-Object { [void]$forbiddenFiles.Add($_) }
+        $invalidEntries = @()
+
         foreach ($entry in $zip.Entries) {
-            [void]$entryNames.Add($entry.FullName)
+            $entryName = $entry.FullName
+            [void]$entryNames.Add($entryName)
+
+            if ($entryName -ne "$pluginSlug/" -and -not $entryName.StartsWith("$pluginSlug/", [StringComparison]::Ordinal)) {
+                $invalidEntries += $entryName
+                continue
+            }
+
+            $relativeName = $entryName.Substring("$pluginSlug/".Length)
+            if ($relativeName -eq '') {
+                continue
+            }
+
+            $isForbidden = $relativeName.Contains('\') -or
+                $relativeName.StartsWith('/', [StringComparison]::Ordinal) -or
+                $relativeName -match '(^|/)\.\.(/|$)' -or
+                $forbiddenFiles.Contains($relativeName) -or
+                ($relativeName.StartsWith('languages/', [StringComparison]::Ordinal) -and $relativeName.EndsWith('.po~', [StringComparison]::Ordinal))
+
+            if (-not $isForbidden) {
+                foreach ($prefix in $forbiddenPrefixes) {
+                    if ($relativeName.StartsWith($prefix, [StringComparison]::Ordinal)) {
+                        $isForbidden = $true
+                        break
+                    }
+                }
+            }
+
+            if ($isForbidden) {
+                $invalidEntries += $entryName
+            }
+        }
+
+        if ($invalidEntries.Count -gt 0) {
+            $formattedInvalid = ($invalidEntries | Sort-Object -Unique | ForEach-Object { "  $_" }) -join [Environment]::NewLine
+            throw "Release archive contains an invalid root or repository-only path:$([Environment]::NewLine)$formattedInvalid"
         }
 
         $missing = @()
@@ -177,18 +261,21 @@ function Get-NextVersion {
         [string]$RequestedVersion = ''
     )
 
+    $validatedCurrentVersion = Get-ValidatedReleaseVersion -VersionToValidate $CurrentVersion -Context 'Current version'
+
     if ($RequestedVersion -ne '') {
-        return $RequestedVersion.Trim()
+        return (Get-ValidatedReleaseVersion -VersionToValidate $RequestedVersion -Context 'Custom version')
+    }
+
+    if ($RequestedBump -eq 'custom') {
+        throw 'A custom version is required when the custom bump type is selected.'
     }
 
     if ($RequestedBump -eq 'none') {
-        return $CurrentVersion
+        return $validatedCurrentVersion
     }
 
-    $parts = $CurrentVersion.Split('.')
-    if ($parts.Count -ne 3) {
-        throw "Automatic version bumps require a three-part version like 5.8.0. Current version: $CurrentVersion"
-    }
+    $parts = $validatedCurrentVersion.Split('.')
 
     $major = [int]$parts[0]
     $minor = [int]$parts[1]
@@ -706,17 +793,26 @@ function Build-ReleaseZipFromRef {
         Remove-Item -LiteralPath $zipPath -Force
     }
 
-    Invoke-Git -Arguments @(
-        '-c',
-        'core.autocrlf=false',
-        'archive',
-        '--format=zip',
-        "--prefix=$pluginSlug/",
-        "--output=$zipPath",
-        $RefName
-    ) | Out-Null
+    try {
+        Invoke-Git -Arguments @(
+            '-c',
+            'core.autocrlf=false',
+            'archive',
+            '--format=zip',
+            "--prefix=$pluginSlug/",
+            "--output=$zipPath",
+            $RefName
+        ) | Out-Null
 
-    Assert-ReleaseZipContainsRequiredAssets -ZipPath $zipPath
+        Assert-ReleaseZipContainsRequiredAssets -ZipPath $zipPath
+    }
+    catch {
+        if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
+        }
+
+        throw
+    }
 
     return $zipPath
 }
@@ -807,20 +903,38 @@ function Invoke-PublishWorkflow {
         Confirm-Publish -VersionToPublish $versionToPublish
     }
 
-    Invoke-Git -Arguments @('push', 'origin', $BranchName) | Out-Null
-
     $headCommit = Get-CommitForRef -RefName 'HEAD'
-    if (Test-LocalTagExists -TagName $tagName) {
+    $localTagExists = Test-LocalTagExists -TagName $tagName
+    if ($localTagExists) {
         $tagCommit = Get-CommitForRef -RefName $tagName
         if ($tagCommit -ne $headCommit) {
             throw "Local tag $tagName already exists but does not point at HEAD."
         }
-    } else {
-        Invoke-Git -Arguments @('tag', '-a', $tagName, '-m', $tagName) | Out-Null
     }
 
     $zipPath = Build-ReleaseZipFromRef -RefName 'HEAD' -VersionToPublish $versionToPublish
-    Invoke-Git -Arguments @('push', 'origin', $tagName) | Out-Null
+    $tagCreated = $false
+    if (-not $localTagExists) {
+        Invoke-Git -Arguments @('tag', '-a', $tagName, '-m', $tagName) | Out-Null
+        $tagCreated = $true
+    }
+
+    try {
+        Invoke-Git -Arguments @('push', '--atomic', 'origin', $BranchName, $tagName) | Out-Null
+    }
+    catch {
+        $pushError = $_
+        if ($tagCreated) {
+            try {
+                Invoke-Git -Arguments @('tag', '-d', $tagName) | Out-Null
+            }
+            catch {
+                Write-Warning "Atomic publish failed, and the newly created local tag $tagName could not be removed. Remove it before retrying."
+            }
+        }
+
+        throw $pushError
+    }
 
     $release = Get-OrCreateRelease -RepoSlug $repoSlug -TagName $tagName -VersionToPublish $versionToPublish -Headers $headers
     Publish-ReleaseAsset -Release $release -ZipPath $zipPath -RepoSlug $repoSlug -Headers $headers | Out-Null

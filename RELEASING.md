@@ -21,10 +21,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
 The script is branch-aware in `auto` mode:
 
 - On `dev`, it can either bump the plugin `Version:` header or keep the current version, then commits the already staged release scope with `x.y.z - Release`, validates the release archive, and pushes `dev`. When it changes the version, it stages only `language-learner-tools.php` automatically. Unstaged, untracked, or unmerged paths stop the release.
-- On `main`, it does not bump again. It publishes the current version already in `main`: pushes `main`, tags `vX.Y.Z`, builds `dist/language-learner-tools-x.y.z.zip`, creates or updates the GitHub release, and uploads the zip asset.
+- On `main`, it does not bump again. It validates and builds `dist/language-learner-tools-x.y.z.zip`, pushes `main` and `vX.Y.Z` atomically, creates or updates the GitHub release, and uploads the zip asset.
 - On any other branch, `auto` mode stops before making a release. Check out `dev` for a dev-channel release or `main` for a stable release.
 
-The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, use a custom version, or release with `none` to keep the current version.
+The script prompts before it does any destructive step. On `dev`, it asks whether to bump `patch`, `minor`, `major`, use a custom version, or release with `none` to keep the current version. Custom versions must use the three-part numeric `x.y.z` form.
 
 ## GitHub Token
 
@@ -72,11 +72,14 @@ If you need to rebuild a release zip manually from a specific git ref or tag, us
    ./scripts/build-release-package.sh v5.8.1
    ```
 
+An optional second argument selects an output zip or directory. Under Git Bash on Windows, both `/c/path/...` and quoted native drive-letter paths such as `C:\tmp\release.zip` are accepted.
+
 ## What The Script Does
 
 - Builds the plugin zip with `git -c core.autocrlf=false archive` so Windows checkout settings cannot change release bytes.
-- Uses `.gitattributes` `export-ignore` rules to exclude repository-only files and folders.
+- Uses `.gitattributes` `export-ignore` rules to exclude repository-only files and folders, including development helpers and internal documentation.
 - Forces the zip root directory to `language-learner-tools/`, which matches the installed plugin directory.
+- Validates required runtime assets, the single plugin root, and the absence of repository-only paths before retaining the zip or pushing `main`. The Bash builder can inspect the zip with either Python or `unzip` and removes unvalidated output on failure.
 
 ## Verification Checklist
 
