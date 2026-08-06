@@ -111,6 +111,52 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         $this->assertSame($fixture['word_ids'], $this->rowIds($allRows));
     }
 
+    public function test_materializer_recovers_from_a_legacy_empty_owner_map_without_waiting_for_cron(): void
+    {
+        $fixture = $this->createTextFixture('Legacy Empty Owner Map', 1);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, [], false);
+        delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION);
+        delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION);
+        delete_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_SOURCE_EPOCH_OPTION);
+        wp_clear_scheduled_hook('ll_tools_retry_specific_wrong_answer_owner_map_rebuild');
+
+        $this->assertFalse(ll_tools_flashcard_payload_ensure_ready($scope));
+
+        $state = ll_tools_get_flashcard_payload_state($scopeHash);
+        $this->assertSame('running', (string) ($state['status'] ?? ''));
+        $this->assertSame('prompt', (string) ($state['phase'] ?? ''));
+        $this->assertSame(1, (int) ($state['processed'] ?? 0));
+        $this->assertSame(0, (int) ($state['retry_count'] ?? 0));
+        $this->assertSame('', (string) ($state['last_error'] ?? ''));
+
+        $ownerPayload = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+        $this->assertIsArray($ownerPayload);
+        $this->assertSame([], ll_tools_specific_wrong_answer_owner_map_normalize($ownerPayload));
+        $this->assertSame(2, (int) ($ownerPayload['__ll_tools_schema'] ?? 0));
+        $this->assertNotSame(
+            '',
+            ll_tools_specific_wrong_answer_owner_map_payload_generation($ownerPayload)
+        );
+        $this->assertTrue(ll_tools_specific_wrong_answer_owner_map_is_complete($ownerPayload, true));
+        $this->assertFalse(
+            wp_next_scheduled('ll_tools_retry_specific_wrong_answer_owner_map_rebuild')
+        );
+
+        $published = $this->warmScope($scope);
+        $this->assertSame('completed', (string) ($published['status'] ?? ''));
+        $this->assertSame(1, (int) ($published['row_count'] ?? 0));
+        $this->assertSame(0, (int) ($published['retry_count'] ?? 0));
+        $this->assertSame('', (string) ($published['last_error'] ?? ''));
+
+        $page = ll_tools_flashcard_payload_read_page($scope, '', 10);
+        $this->assertIsArray($page);
+        $this->assertCount(1, (array) ($page['rows'] ?? []));
+        $this->assertSame($fixture['word_ids'], $this->rowIds((array) ($page['rows'] ?? [])));
+    }
+
     public function test_page_cursor_rejects_tampering_and_an_old_generation_after_signature_drift(): void
     {
         $fixture = $this->createTextFixture('Cursor Materializer', 12);

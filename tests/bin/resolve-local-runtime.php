@@ -99,7 +99,10 @@ function ll_tools_local_env_shell_quote(string $value): string
 
 function ll_tools_local_env_export(string $name, string $value): void
 {
-    echo 'export ' . $name . '=' . ll_tools_local_env_shell_quote($value) . PHP_EOL;
+    // This output is evaluated by Bash even when the resolver itself runs
+    // under Windows PHP. Keep the shell protocol LF-only so a CR from PHP_EOL
+    // cannot become part of the exported host, password, or path value.
+    fwrite(STDOUT, 'export ' . $name . '=' . ll_tools_local_env_shell_quote($value) . "\n");
 }
 
 /**

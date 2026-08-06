@@ -553,6 +553,14 @@ test('Windows PHP test wrappers prefer the Git Bash path converter', async () =>
     }
   }
 
+  const phpLocal = fs.readFileSync(path.join(repoRoot, 'tests', 'bin', 'php-local.sh'), 'utf8');
+  const pathPhpProbe = phpLocal.indexOf('command -v php.exe');
+  const localServiceScan = phpLocal.indexOf('AppData/Roaming/Local/lightning-services');
+  expect(pathPhpProbe).toBeGreaterThanOrEqual(0);
+  expect(pathPhpProbe).toBeLessThan(localServiceScan);
+  expect(phpLocal).toContain('PHP_VERSION_ID >= 80300');
+  expect(phpLocal).toContain("extension_loaded('mysqli')");
+
   const runner = fs.readFileSync(path.join(repoRoot, 'tests', 'bin', 'run-tests.sh'), 'utf8');
   expect(runner).toContain('BASH_RUNNER="${BASH:-bash}"');
   expect(runner).toContain('PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")');
@@ -719,6 +727,11 @@ test('local test bootstrap resolves the matching active runtime without Python',
       encoding: 'utf8',
       env: environment
     });
+
+    // These exports are consumed by `eval "$(...)"`. Windows PHP's PHP_EOL
+    // is CRLF, and the CR would otherwise become part of every Bash value.
+    expect(dbResult.stdout || '').not.toContain('\r');
+    expect(httpResult.stdout || '').not.toContain('\r');
 
     const dbExports = parseExports(dbResult.stdout || '');
     delete dbExports.WP_TEST_DB_PASS;

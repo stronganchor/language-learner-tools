@@ -781,13 +781,24 @@ function ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused(): 
     $raw = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
     if (is_array($raw)) {
         $complete = ll_tools_specific_wrong_answer_owner_map_is_complete($raw);
-        if (!$complete) {
+        if ($complete) {
+            return true;
+        }
+        $integrity = (string) get_option(
+            LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION,
+            ''
+        );
+        if ($raw !== [] || $integrity !== '') {
             // Legacy/unverified arrays must fail closed, but they must also
             // have a path to recovery from an anonymous quiz-catalog request.
             // The scheduled worker is bounded and publishes atomically.
             ll_tools_schedule_specific_wrong_answer_owner_map_rebuild(5);
+            return false;
         }
-        return $complete;
+        // An exact legacy empty array with no writer/integrity marker can use
+        // the same fenced empty-source proof as a missing option. This avoids
+        // making quiz payload hydration depend on a delayed WP-Cron repair on
+        // older sites that never configured specific wrong answers.
     }
     if ((string) get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, '') !== '') {
         return false;

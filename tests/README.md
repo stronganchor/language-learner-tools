@@ -8,13 +8,13 @@ This directory contains the plugin test framework:
 - `phpunit.xml.dist`: PHPUnit config.
 - `bootstrap.php`: boots the WordPress test suite and loads the plugin.
 - `Integration/*Test.php`: PHPUnit integration tests.
-- `bin/setup-local-env.sh`: detects Local site DB settings and prints export commands.
+- `bin/setup-local-env.sh`: detects Local site DB settings and prints LF-only export commands that are safe to `eval` from Bash even when the resolver runs under Windows PHP.
   - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports. When sandbox policy hides that directory, it next uses a literal loopback `DB_HOST` from this site's `wp-config.php`; dynamic or remote hosts are deliberately ignored.
   - Keeps the detected Local DB host/user/password, but defaults `WP_TEST_DB_NAME` to an isolated test schema instead of the live site schema.
   - Uses `bin/php-local.sh` plus `bin/resolve-local-runtime.php`, so Git Bash and WSL do not need a separate Python installation or hardcoded `/mnt/c` paths.
 - `bin/install-wp-tests.sh`: installs WordPress core + wordpress-tests-lib and writes `wp-tests-config.php`.
   - Refuses to target the live Local site database unless `ALLOW_LIVE_SITE_TEST_DB=1` is set explicitly.
-- `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
+- `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Windows `php.exe` with required extensions. Under WSL it prefers a PATH `php.exe` only when it meets PHPUnit 12's PHP floor and normally loads `mysqli`, so PHPUnit child-process tests can bootstrap; otherwise it falls back to the installed Local runtimes.
 - `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
   - When this repo is inside a Local site and `local-site.json` is available, it now auto-applies `bin/setup-local-env.sh` before bootstrap so stale `.env` DB ports do not keep pointing at an old Local runtime.
   - On PHPUnit 12+, it also patches the local `wordpress-tests-lib` bootstrap to replace WordPress' removed legacy annotation-parser calls.

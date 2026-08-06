@@ -187,6 +187,35 @@ final class SpecificWrongAnswerOwnerMapDurabilityTest extends LL_Tools_TestCase
         $this->assertNotFalse(wp_next_scheduled(self::RETRY_HOOK));
     }
 
+    public function test_public_initializer_promotes_legacy_empty_array_after_fenced_empty_source_proof(): void
+    {
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, [], false);
+        wp_clear_scheduled_hook(self::RETRY_HOOK);
+
+        $this->assertTrue(ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused());
+
+        $payload = get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, null);
+        $this->assertIsArray($payload);
+        $this->assertSame([], ll_tools_specific_wrong_answer_owner_map_normalize($payload));
+        $this->assertSame(2, (int) ($payload['__ll_tools_schema'] ?? 0));
+        $this->assertNotSame('', ll_tools_specific_wrong_answer_owner_map_payload_generation($payload));
+        $this->assertTrue(ll_tools_specific_wrong_answer_owner_map_is_complete($payload, true));
+        $this->assertFalse(get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_REBUILD_STATE_OPTION, false));
+        $this->assertFalse(wp_next_scheduled(self::RETRY_HOOK));
+    }
+
+    public function test_public_initializer_keeps_legacy_empty_array_unverified_when_source_rows_exist(): void
+    {
+        $this->createOwnerFixture(1);
+        update_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION, [], false);
+        wp_clear_scheduled_hook(self::RETRY_HOOK);
+
+        $this->assertFalse(ll_tools_specific_wrong_answer_owner_map_initialize_empty_if_unused());
+        $this->assertSame([], get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_OPTION));
+        $this->assertFalse(get_option(LL_TOOLS_SPECIFIC_WRONG_ANSWERS_OWNER_INTEGRITY_OPTION, false));
+        $this->assertNotFalse(wp_next_scheduled(self::RETRY_HOOK));
+    }
+
     public function test_source_meta_mutation_advances_epoch_marks_v2_generation_stale_and_schedules_worker(): void
     {
         $payload = ll_tools_specific_wrong_answer_owner_map_pack([701 => [601]], 'active-generation');

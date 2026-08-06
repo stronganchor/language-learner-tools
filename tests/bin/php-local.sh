@@ -40,6 +40,18 @@ find_php_bin() {
         command -v php
         return 0
     fi
+    # WSL exposes Windows executables with their .exe suffix. Prefer a PATH
+    # runtime only when it already meets PHPUnit 12's PHP floor and loads
+    # mysqli from its normal ini; PHPUnit's separate-process runner launches
+    # PHP_BINARY directly and cannot inherit this wrapper's -d extensions.
+    if command -v php.exe >/dev/null 2>&1; then
+        local windows_php
+        windows_php="$(command -v php.exe)"
+        if "$windows_php" -r "exit(PHP_VERSION_ID >= 80300 && extension_loaded('mysqli') ? 0 : 1);" >/dev/null 2>&1; then
+            echo "$windows_php"
+            return 0
+        fi
+    fi
     local base candidate
     for base in \
         "$HOME/AppData/Roaming/Local/lightning-services" \
