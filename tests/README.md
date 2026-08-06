@@ -363,7 +363,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/wordset-page-progress-loading.spec.js`
-  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on Close/Escape, and immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
+  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
@@ -423,7 +423,12 @@ Representative E2E coverage areas:
     chunk. Aggregate score/replay state survives each boundary and results plus
     mode-session completion occur once after the final chunk. A failed batch
     keeps the same index retryable; a simulated 429 must close every loading
-    surface, issue no category requests, and show one retryable error.
+    surface, issue no category requests, and show one retryable error. This is
+    also the canonical cross-surface launch-ownership guard: direct-category,
+    top-recommendation, next-activity, selection, results Repeat/Continue, and
+    bounded-continuation launches abort stale requests, stop warming retries,
+    settle pending guards, and prevent older launches from changing UI or
+    session state.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
   - Verifies the wordset games page bootstraps availability correctly, covers Line Up startup/retry/reorder/completion and Unscramble startup/keyboard tile reorder/completion, checks Word Stack layout/fall-speed regressions, verifies Speaking Practice's mocked mic record -> transcribe -> score path, microphone-denied retry state, and hosted transcribe/score failure retry states, and verifies Space Shooter/Bubble Pop runtime behavior and progress events.
 - Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.

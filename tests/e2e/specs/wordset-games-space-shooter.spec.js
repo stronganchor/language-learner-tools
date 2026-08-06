@@ -1974,10 +1974,14 @@ async function getUnscrambleUnitState(page) {
     const ctx = window.LLWordsetGames && window.LLWordsetGames.__ctx;
     const run = ctx && ctx.run;
     const toIds = (items) => (Array.isArray(items) ? items : []).map((item) => Number.parseInt(item && item.id, 10) || 0);
+    const toTexts = (items) => (Array.isArray(items) ? items : []).map((item) => String(item && item.text || ''));
 
     return {
       orderUnitIds: toIds(run && run.currentOrder),
       targetUnitIds: toIds(run && run.currentWord && run.currentWord.unscramble_units),
+      orderUnitTexts: toTexts(run && run.currentOrder),
+      targetUnitTexts: toTexts(run && run.currentWord && run.currentWord.unscramble_units),
+      sequenceLocked: !!(run && run.sequenceLocked),
       currentWordId: Number.parseInt(run && run.currentWord && run.currentWord.id, 10) || 0
     };
   });
@@ -1986,6 +1990,9 @@ async function getUnscrambleUnitState(page) {
 async function moveUnscrambleUnitToIndex(page, unitId, targetIndex) {
   for (;;) {
     const state = await getUnscrambleUnitState(page);
+    if (state.sequenceLocked) {
+      return;
+    }
     const currentIndex = state.orderUnitIds.indexOf(unitId);
 
     expect(currentIndex).toBeGreaterThanOrEqual(0);
@@ -2002,8 +2009,8 @@ async function moveUnscrambleUnitToIndex(page, unitId, targetIndex) {
 
     await expect.poll(async () => {
       const nextState = await getUnscrambleUnitState(page);
-      return nextState.orderUnitIds.indexOf(unitId);
-    }).toBeLessThan(currentIndex);
+      return nextState.sequenceLocked || nextState.orderUnitIds.indexOf(unitId) < currentIndex;
+    }).toBe(true);
   }
 }
 
@@ -2798,7 +2805,7 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
   const initialState = await getUnscrambleUnitState(page);
   expect(initialState.currentWordId).toBe(401);
   expect(initialState.targetUnitIds).toHaveLength(7);
-  expect(initialState.orderUnitIds).not.toEqual(initialState.targetUnitIds);
+  expect(initialState.orderUnitTexts).not.toEqual(initialState.targetUnitTexts);
 
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText(/\d of 7 letters are in the right place\./);
@@ -2806,8 +2813,8 @@ test('unscramble supports keyboard tile reordering, progress events, and complet
   await arrangeUnscrambleOrder(page, initialState.targetUnitIds);
   await expect.poll(async () => {
     const state = await getUnscrambleUnitState(page);
-    return state.orderUnitIds;
-  }).toEqual(initialState.targetUnitIds);
+    return state.orderUnitTexts;
+  }).toEqual(initialState.targetUnitTexts);
 
   await expect(page.locator('[data-ll-wordset-lineup-status]')).toHaveText('Solved.');
   await expect(page.locator('[data-ll-wordset-unscramble-skip]')).toBeHidden();

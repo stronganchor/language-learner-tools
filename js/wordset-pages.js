@@ -137,10 +137,14 @@
     let progressSelectionLaunchStage = '';
     let progressSelectionLaunchRequest = null;
     let progressSelectionLaunchToken = 0;
+    let progressSelectionFlashcardLaunchToken = 0;
     let progressSelectionLaunchRetrySpec = null;
     let progressSelectionLaunchCleanup = null;
     let progressSelectionLaunchDismissClickHandler = null;
     let progressSelectionLaunchDismissKeyHandler = null;
+    let flashcardLaunchRequest = null;
+    let flashcardLaunchToken = 0;
+    let flashcardLaunchOwner = '';
     let analyticsWordRenderTimer = null;
     let analyticsWordLoadingTimer = null;
     let analyticsWordRenderToken = 0;
@@ -3696,17 +3700,27 @@
         progressWordIdsSnapshotGeneration += 1;
     }
 
-    function cancelProgressSelectionLaunch() {
+    function cancelProgressSelectionLaunch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const request = progressSelectionLaunchRequest;
         const cleanup = progressSelectionLaunchCleanup;
+        const reservedFlashcardLaunchToken = progressSelectionFlashcardLaunchToken;
         unbindProgressSelectionLaunchDismissHandlers();
         progressSelectionLaunchToken += 1;
+        progressSelectionFlashcardLaunchToken = 0;
         progressSelectionLaunchRequest = null;
         progressSelectionLaunchBusy = false;
         progressSelectionLaunchMode = '';
         progressSelectionLaunchStage = '';
         progressSelectionLaunchRetrySpec = null;
         progressSelectionLaunchCleanup = null;
+        if (
+            !opts.skipFlashcardLaunchCancel
+            && reservedFlashcardLaunchToken
+            && flashcardLaunchIsCurrent(reservedFlashcardLaunchToken)
+        ) {
+            cancelFlashcardLaunch({ skipProgressCleanup: true });
+        }
         if (request && typeof request.abort === 'function') {
             try { request.abort(); } catch (_) { /* no-op */ }
         }
@@ -6416,21 +6430,42 @@
 
     function launchProgressSelectionModeWithIds(mode, selectedWordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const hasReservedLaunchToken = Object.prototype.hasOwnProperty.call(opts, 'launchToken');
+        const reservedLaunchToken = hasReservedLaunchToken
+            ? opts.launchToken
+            : beginFlashcardLaunch({ owner: 'progress' });
         const normalizedMode = normalizeMode(mode) || 'practice';
         const providedLaunchUi = (opts.launchUi && typeof opts.launchUi === 'object') ? opts.launchUi : null;
         let launchUi = providedLaunchUi;
         let launchUiCleanup = typeof opts.launchUiCleanup === 'function' ? opts.launchUiCleanup : null;
-        const isLaunchCurrent = typeof opts.isLaunchCurrent === 'function'
+        const externalIsLaunchCurrent = typeof opts.isLaunchCurrent === 'function'
             ? opts.isLaunchCurrent
             : function () { return true; };
+        const isLaunchCurrent = function () {
+            if (!flashcardLaunchIsCurrent(reservedLaunchToken)) {
+                return false;
+            }
+            try {
+                return externalIsLaunchCurrent() === true;
+            } catch (_) {
+                return false;
+            }
+        };
         const notifyLaunchCommitted = typeof opts.onLaunchCommitted === 'function'
             ? opts.onLaunchCommitted
             : function () {};
         const notifyLaunchStage = typeof opts.onLaunchStage === 'function'
             ? opts.onLaunchStage
             : function () {};
-        const notifyLaunchRequest = typeof opts.onLaunchRequest === 'function'
+        const externalNotifyLaunchRequest = typeof opts.onLaunchRequest === 'function'
             ? opts.onLaunchRequest
+            : function () {};
+        const notifyLaunchRequest = function (request) {
+            trackFlashcardLaunchRequest(reservedLaunchToken, request);
+            externalNotifyLaunchRequest(request);
+        };
+        const notifyLaunchCanceled = typeof opts.onLaunchCanceled === 'function'
+            ? opts.onLaunchCanceled
             : function () {};
         const notifyLaunchFailure = function (message) {
             if (typeof launchUiCleanup === 'function') {
@@ -6488,7 +6523,7 @@
                 requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
             }).done(function (serverPlan) {
                 if (!isLaunchCurrent()) {
-                    notifyLaunchFailure('');
+                    notifyLaunchCanceled();
                     return;
                 }
                 const launchOptions = {
@@ -6517,7 +6552,9 @@
                     onLaunchStage: notifyLaunchStage,
                     onLaunchFailure: function () {
                         notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
-                    }
+                    },
+                    onLaunchCanceled: notifyLaunchCanceled,
+                    launchToken: reservedLaunchToken
                 };
                 if (needsBoundedLearningPlan) {
                     launchBoundedLearningSelectionPlan(serverPlan, launchOptions);
@@ -6526,7 +6563,7 @@
                 }
             }).fail(function () {
                 if (!isLaunchCurrent()) {
-                    notifyLaunchFailure('');
+                    notifyLaunchCanceled();
                     return;
                 }
                 abortBoundedProgressLaunch(i18n.selectionLaunchError || i18n.saveError || '');
@@ -6546,7 +6583,7 @@
         notifyLaunchStage('hydrate');
         ensureWordsForCategories(initialLaunchPlan.categoryIds, ensureOptions).done(function () {
             if (!isLaunchCurrent()) {
-                notifyLaunchFailure('');
+                notifyLaunchCanceled();
                 return;
             }
             const launchPlan = buildProgressSelectionLaunchPlan(normalizedMode, selectedIds, opts);
@@ -6575,11 +6612,13 @@
                 onLaunchStage: notifyLaunchStage,
                 onLaunchFailure: function () {
                     notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
-                }
+                },
+                onLaunchCanceled: notifyLaunchCanceled,
+                launchToken: reservedLaunchToken
             });
         }).fail(function (_xhr, statusText) {
             if (!isLaunchCurrent() || String(statusText || '').toLowerCase() === 'abort') {
-                notifyLaunchFailure('');
+                notifyLaunchCanceled();
                 return;
             }
             notifyLaunchFailure(i18n.selectionLaunchError || i18n.saveError || '');
@@ -6592,11 +6631,16 @@
         }
         const opts = (options && typeof options === 'object') ? options : {};
         const cleanup = progressSelectionLaunchCleanup;
+        const reservedFlashcardLaunchToken = progressSelectionFlashcardLaunchToken;
         unbindProgressSelectionLaunchDismissHandlers();
+        progressSelectionFlashcardLaunchToken = 0;
         progressSelectionLaunchRequest = null;
         progressSelectionLaunchCleanup = null;
         if (!opts.preserveLaunchUi && typeof cleanup === 'function') {
             cleanup();
+        }
+        if (reservedFlashcardLaunchToken) {
+            finishFlashcardLaunch(reservedFlashcardLaunchToken);
         }
         setProgressSelectionLaunchState(state, spec);
     }
@@ -6618,15 +6662,23 @@
             return;
         }
 
+        const reservedFlashcardLaunchToken = beginFlashcardLaunch({ owner: 'progress' });
         const token = ++progressSelectionLaunchToken;
+        progressSelectionFlashcardLaunchToken = reservedFlashcardLaunchToken;
+        const progressLaunchIsCurrent = function () {
+            return token === progressSelectionLaunchToken
+                && flashcardLaunchIsCurrent(reservedFlashcardLaunchToken)
+                && progressSelectionLaunchSpecIsCurrent(launchSpec);
+        };
         const trackLaunchRequest = function (request) {
             if (!request || typeof request.abort !== 'function') {
                 return;
             }
-            if (token !== progressSelectionLaunchToken || !progressSelectionLaunchBusy) {
+            if (!progressLaunchIsCurrent() || !progressSelectionLaunchBusy) {
                 try { request.abort(); } catch (_) { /* no-op */ }
                 return;
             }
+            trackFlashcardLaunchRequest(reservedFlashcardLaunchToken, request);
             progressSelectionLaunchRequest = request;
             if (typeof request.always === 'function') {
                 request.always(function () {
@@ -6643,14 +6695,14 @@
         setProgressSelectionLaunchStage('ids');
         bindProgressSelectionLaunchDismissHandlers(token);
         scheduleProgressSelectionLaunchWork(function () {
-            if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
+            if (!progressLaunchIsCurrent()) {
                 finishProgressSelectionLaunch(token, '', null);
                 return;
             }
             fetchProgressAllFilteredSelectionWordIds(launchSpec, {
                 onRequest: trackLaunchRequest
             }).done(function (wordIds) {
-                if (token !== progressSelectionLaunchToken || !progressSelectionLaunchSpecIsCurrent(launchSpec)) {
+                if (!progressLaunchIsCurrent()) {
                     finishProgressSelectionLaunch(token, '', null);
                     return;
                 }
@@ -6659,13 +6711,11 @@
                     launchSpec: launchSpec,
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
-                    isLaunchCurrent: function () {
-                        return token === progressSelectionLaunchToken
-                            && progressSelectionLaunchSpecIsCurrent(launchSpec);
-                    },
+                    launchToken: reservedFlashcardLaunchToken,
+                    isLaunchCurrent: progressLaunchIsCurrent,
                     onLaunchRequest: trackLaunchRequest,
                     onLaunchCleanupReady: function (cleanup) {
-                        if (token !== progressSelectionLaunchToken) {
+                        if (!progressLaunchIsCurrent()) {
                             if (typeof cleanup === 'function') {
                                 cleanup();
                             }
@@ -6677,16 +6727,19 @@
                         finishProgressSelectionLaunch(token, '', null, { preserveLaunchUi: true });
                     },
                     onLaunchStage: function (stage) {
-                        if (token === progressSelectionLaunchToken) {
+                        if (progressLaunchIsCurrent()) {
                             setProgressSelectionLaunchStage(stage);
                         }
                     },
                     onLaunchFailure: function (message) {
                         finishProgressSelectionLaunch(token, message ? 'error' : '', message ? launchSpec : null);
+                    },
+                    onLaunchCanceled: function () {
+                        finishProgressSelectionLaunch(token, '', null);
                     }
                 });
             }).fail(function (_xhr, statusText) {
-                if (token !== progressSelectionLaunchToken) {
+                if (!progressLaunchIsCurrent()) {
                     return;
                 }
                 if (String(statusText || '').toLowerCase() === 'abort') {
@@ -6699,6 +6752,8 @@
     }
 
     function launchProgressSelectionMode(mode) {
+        clearBoundedSessionContinuation(chunkSession);
+        chunkSession = null;
         const normalizedMode = normalizeMode(mode) || 'practice';
         if (progressAllFilteredSelectionIsActive()) {
             const spec = buildProgressAllFilteredSelectionLaunchSpec(normalizedMode);
@@ -6710,7 +6765,38 @@
             return;
         }
 
-        launchProgressSelectionModeWithIds(normalizedMode, getProgressSelectedWordIds());
+        const reservedFlashcardLaunchToken = beginFlashcardLaunch({ owner: 'progress' });
+        progressSelectionFlashcardLaunchToken = reservedFlashcardLaunchToken;
+        const releaseProgressFlashcardLaunch = function () {
+            if (progressSelectionFlashcardLaunchToken === reservedFlashcardLaunchToken) {
+                progressSelectionFlashcardLaunchToken = 0;
+                progressSelectionLaunchCleanup = null;
+            }
+            finishFlashcardLaunch(reservedFlashcardLaunchToken);
+        };
+        launchProgressSelectionModeWithIds(normalizedMode, getProgressSelectedWordIds(), {
+            launchToken: reservedFlashcardLaunchToken,
+            isLaunchCurrent: function () {
+                return flashcardLaunchIsCurrent(reservedFlashcardLaunchToken);
+            },
+            onLaunchCleanupReady: function (cleanup) {
+                if (!flashcardLaunchIsCurrent(reservedFlashcardLaunchToken)) {
+                    if (typeof cleanup === 'function') {
+                        cleanup();
+                    }
+                    return;
+                }
+                progressSelectionLaunchCleanup = typeof cleanup === 'function' ? cleanup : null;
+            },
+            onLaunchCommitted: releaseProgressFlashcardLaunch,
+            onLaunchFailure: function (message) {
+                releaseProgressFlashcardLaunch();
+                if (message) {
+                    alert(message);
+                }
+            },
+            onLaunchCanceled: releaseProgressFlashcardLaunch
+        });
     }
 
     function buildProgressWordRowElement(row, options) {
@@ -13671,6 +13757,10 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const preferredMode = normalizeMode(opts.preferredMode || '');
         const forceRefresh = !!opts.forceRefresh;
+        const isRequestCurrent = typeof opts.isRequestCurrent === 'function'
+            ? opts.isRequestCurrent
+            : function () { return true; };
+        const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
         if (!isLoggedIn || !ajaxUrl || !nonce) {
             renderNextCard();
             return $.Deferred().resolve(null).promise();
@@ -13685,11 +13775,71 @@
         if (preferredMode) {
             payload.preferred_mode = preferredMode;
         }
-        return $.post(ajaxUrl, payload).done(function (res) {
-            if (res && res.success && res.data) {
+        const request = $.post(ajaxUrl, payload);
+        if (onRequest) {
+            onRequest(request);
+        }
+        return request.done(function (res) {
+            if (isRequestCurrent() && res && res.success && res.data) {
                 applyRecommendationPayload(res.data, { preferredMode: preferredMode });
             }
         });
+    }
+
+    function cancelFlashcardLaunch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const request = flashcardLaunchRequest;
+        const shouldCancelProgressLaunch = flashcardLaunchOwner === 'progress' && !opts.skipProgressCleanup;
+        flashcardLaunchToken += 1;
+        flashcardLaunchRequest = null;
+        flashcardLaunchOwner = '';
+        if (shouldCancelProgressLaunch) {
+            cancelProgressSelectionLaunch({ skipFlashcardLaunchCancel: true });
+        }
+        if (request && typeof request.abort === 'function') {
+            try { request.abort(); } catch (_) { /* no-op */ }
+        }
+    }
+
+    function beginFlashcardLaunch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        cancelFlashcardLaunch();
+        flashcardLaunchOwner = String(opts.owner || '');
+        return flashcardLaunchToken;
+    }
+
+    function flashcardLaunchIsCurrent(token) {
+        return token === flashcardLaunchToken;
+    }
+
+    function trackFlashcardLaunchRequest(token, request) {
+        if (!flashcardLaunchIsCurrent(token)) {
+            if (request && typeof request.abort === 'function') {
+                try { request.abort(); } catch (_) { /* no-op */ }
+            }
+            return;
+        }
+        flashcardLaunchRequest = request;
+        if (request && typeof request.always === 'function') {
+            request.always(function () {
+                clearFlashcardLaunchRequest(token, request);
+            });
+        }
+    }
+
+    function clearFlashcardLaunchRequest(token, request) {
+        if (
+            flashcardLaunchIsCurrent(token)
+            && (!request || flashcardLaunchRequest === request)
+        ) {
+            flashcardLaunchRequest = null;
+        }
+    }
+
+    function finishFlashcardLaunch(token) {
+        if (flashcardLaunchIsCurrent(token)) {
+            flashcardLaunchOwner = '';
+        }
     }
 
     function ensureWordsForCategories(categoryIds, options) {
@@ -13730,7 +13880,7 @@
 
         {
             const publicWarmingMaxRetries = 2;
-            const payloadWarmingMaxRetries = 4;
+            const payloadWarmingMaxRetries = 60;
             const publicRetryDelayMs = function (xhr) {
                 let retryAfter = 0;
                 const responseData = xhr
@@ -15311,8 +15461,19 @@
                 return Promise.reject(new Error('The next bounded practice batch is unavailable.'));
             }
 
+            const continuationLaunchToken = beginFlashcardLaunch();
             session.pending_index = nextIndex;
             session.pending_promise = Promise.resolve().then(function () {
+                if (
+                    !flashcardLaunchIsCurrent(continuationLaunchToken)
+                    || chunkSession !== session
+                    || session.continuous !== true
+                    || session.pending_index !== nextIndex
+                ) {
+                    delete session.pending_index;
+                    delete session.pending_promise;
+                    throw new Error('The bounded practice continuation was canceled.');
+                }
                 return new Promise(function (resolve, reject) {
                     launchFlashcards(session.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
                         source: 'wordset_chunk_continuation',
@@ -15330,6 +15491,7 @@
                         logicalSessionWordIds: session.session_word_ids,
                         logicalSessionCategoryIds: session.category_ids,
                         suppressFailureAlert: true,
+                        launchToken: continuationLaunchToken,
                         isLaunchCurrent: function () {
                             return chunkSession === session &&
                                 session.continuous === true &&
@@ -15358,6 +15520,13 @@
                                 delete session.pending_promise;
                             }
                             reject(new Error('The bounded practice continuation failed to load.'));
+                        },
+                        onLaunchCanceled: function () {
+                            if (session.pending_index === nextIndex) {
+                                delete session.pending_index;
+                                delete session.pending_promise;
+                            }
+                            reject(new Error('The bounded practice continuation was canceled.'));
                         }
                     });
                 });
@@ -15395,6 +15564,7 @@
             details: firstEntry.details,
             launchUi: opts.launchUi,
             launchUiCleanup: opts.launchUiCleanup,
+            launchToken: opts.launchToken,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15418,6 +15588,15 @@
                 clearBoundedSessionContinuation(activeSession);
                 if (typeof opts.onLaunchFailure === 'function') {
                     opts.onLaunchFailure();
+                }
+            },
+            onLaunchCanceled: function () {
+                clearBoundedSessionContinuation(activeSession);
+                delete activeSession.pending_index;
+                delete activeSession.pending_promise;
+                delete activeSession.repeat_pending;
+                if (typeof opts.onLaunchCanceled === 'function') {
+                    opts.onLaunchCanceled();
                 }
             }
         });
@@ -15627,6 +15806,7 @@
                 requestTimeoutMs: opts.requestTimeoutMs,
                 launchUi: opts.launchUi,
                 launchUiCleanup: opts.launchUiCleanup,
+                launchToken: opts.launchToken,
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
                 onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
                 onLaunchCommitted: function () {
@@ -15642,7 +15822,8 @@
                     if (typeof opts.onLaunchFailure === 'function') {
                         opts.onLaunchFailure();
                     }
-                }
+                },
+                onLaunchCanceled: typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null
             });
             return true;
         }
@@ -15660,6 +15841,7 @@
             details: firstEntry.details,
             launchUi: opts.launchUi,
             launchUiCleanup: opts.launchUiCleanup,
+            launchToken: opts.launchToken,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15670,6 +15852,7 @@
                     opts.onLaunchFailure();
                 }
             },
+            onLaunchCanceled: typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null,
             isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
             onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
             onLaunchCommitted: function () {
@@ -15967,6 +16150,7 @@
             details: firstEntry.details,
             launchUi: opts.launchUi,
             launchUiCleanup: opts.launchUiCleanup,
+            launchToken: opts.launchToken,
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
@@ -15985,7 +16169,8 @@
                 if (typeof opts.onLaunchFailure === 'function') {
                     opts.onLaunchFailure();
                 }
-            }
+            },
+            onLaunchCanceled: typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null
         });
         return true;
     }
@@ -16074,6 +16259,9 @@
                         if (chunkSession !== activeSession) { return; }
                         delete activeSession.repeat_pending;
                         renderChunkResultsActions();
+                    },
+                    onLaunchCanceled: function () {
+                        delete activeSession.repeat_pending;
                     }
                 });
             });
@@ -16117,6 +16305,11 @@
                         activeSession.index = previousIndex;
                         delete activeSession.pending_index;
                         renderChunkResultsActions();
+                    },
+                    onLaunchCanceled: function () {
+                        if (activeSession.pending_index === nextIndex) {
+                            delete activeSession.pending_index;
+                        }
                     }
                 });
             });
@@ -16220,11 +16413,15 @@
     }
 
     function launchFlashcards(mode, categoryIds, sessionWordIds, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const hasReservedLaunchToken = Number.isInteger(opts.launchToken) && opts.launchToken >= 0;
+        const reservedLaunchToken = hasReservedLaunchToken
+            ? opts.launchToken
+            : beginFlashcardLaunch();
         // Run inside the original user-gesture click stack when possible so
         // listening-mode visualizer can use analyser-driven bars instead of fallback waves.
         warmupFlashcardVisualizerContext();
 
-        const opts = (options && typeof options === 'object') ? options : {};
         const normalizedMode = normalizeMode(mode) || 'practice';
         const sessionStarModeOverride = normalizeStarMode(opts.sessionStarMode || 'normal');
         const randomizeSessionCategoryOrder = !!opts.randomizeSessionCategoryOrder;
@@ -16246,15 +16443,18 @@
         const boundedSessionContinuation = typeof opts.boundedSessionContinuation === 'function'
             ? opts.boundedSessionContinuation
             : null;
-        const isLaunchCurrent = typeof opts.isLaunchCurrent === 'function'
+        const externalIsLaunchCurrent = typeof opts.isLaunchCurrent === 'function'
             ? opts.isLaunchCurrent
             : null;
         const launchIsCurrent = function () {
-            if (!isLaunchCurrent) {
+            if (!flashcardLaunchIsCurrent(reservedLaunchToken)) {
+                return false;
+            }
+            if (!externalIsLaunchCurrent) {
                 return true;
             }
             try {
-                return isLaunchCurrent() === true;
+                return externalIsLaunchCurrent() === true;
             } catch (_) {
                 return false;
             }
@@ -16262,31 +16462,60 @@
         let boundedSessionWordIdsByCategoryId = null;
         const onLaunchCommitted = typeof opts.onLaunchCommitted === 'function' ? opts.onLaunchCommitted : null;
         const onLaunchFailure = typeof opts.onLaunchFailure === 'function' ? opts.onLaunchFailure : null;
+        const onLaunchCanceled = typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null;
         const onLaunchStage = typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null;
         const onLaunchRequest = typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null;
         const notifyLaunchStage = function (stage) {
-            if (onLaunchStage) {
+            if (launchIsCurrent() && onLaunchStage) {
                 try { onLaunchStage(stage); } catch (_) { /* no-op */ }
+            }
+        };
+        const noteLaunchRequest = function (request) {
+            trackFlashcardLaunchRequest(reservedLaunchToken, request);
+            if (launchIsCurrent() && onLaunchRequest) {
+                try { onLaunchRequest(request); } catch (_) { /* no-op */ }
             }
         };
         let launchOutcomeNotified = false;
         const notifyLaunchCommitted = function () {
             if (launchOutcomeNotified) { return; }
+            if (!launchIsCurrent()) {
+                notifyLaunchCanceled();
+                return;
+            }
             launchOutcomeNotified = true;
+            finishFlashcardLaunch(reservedLaunchToken);
             if (onLaunchCommitted) {
                 try { onLaunchCommitted(); } catch (_) { /* no-op */ }
             }
         };
         const notifyLaunchFailure = function () {
             if (launchOutcomeNotified) { return; }
+            if (!launchIsCurrent()) {
+                notifyLaunchCanceled();
+                return;
+            }
             launchOutcomeNotified = true;
+            finishFlashcardLaunch(reservedLaunchToken);
             if (onLaunchFailure) {
                 try { onLaunchFailure(); } catch (_) { /* no-op */ }
             }
         };
-        const rejectStaleLaunch = function () {
-            notifyLaunchFailure();
+        const notifyLaunchCanceled = function () {
+            if (launchOutcomeNotified) { return; }
+            launchOutcomeNotified = true;
+            finishFlashcardLaunch(reservedLaunchToken);
+            if (onLaunchCanceled) {
+                try { onLaunchCanceled(); } catch (_) { /* no-op */ }
+            }
         };
+        const rejectStaleLaunch = function () {
+            notifyLaunchCanceled();
+        };
+        if (!launchIsCurrent()) {
+            rejectStaleLaunch();
+            return;
+        }
         const requestedIds = uniqueIntList(categoryIds || []);
         const ids = resolveLaunchCategoryIds(requestedIds, {
             preferCategoryId: requestedIds[0] || 0,
@@ -16314,6 +16543,10 @@
             ? opts.launchUiCleanup
             : createFlashcardLaunchLoadingCleanup(launchUi);
         const abortLaunch = function (message) {
+            if (!launchIsCurrent()) {
+                rejectStaleLaunch();
+                return;
+            }
             launchUiCleanup();
             notifyLaunchFailure();
             if (message && !opts.suppressFailureAlert) {
@@ -16687,7 +16920,7 @@
             rejectOnFailure: rejectOnLoadFailure
         };
         launchEnsureOptions.requestTimeoutMs = opts.requestTimeoutMs;
-        launchEnsureOptions.onRequest = onLaunchRequest;
+        launchEnsureOptions.onRequest = noteLaunchRequest;
         launchEnsureOptions.isRequestCurrent = launchIsCurrent;
 
         notifyLaunchStage('hydrate');
@@ -16896,6 +17129,21 @@
     }
 
     function launchSelectionMode(mode) {
+        clearBoundedSessionContinuation(chunkSession);
+        chunkSession = null;
+        const launchToken = beginFlashcardLaunch();
+        const isSelectionLaunchCurrent = function () {
+            return flashcardLaunchIsCurrent(launchToken);
+        };
+        const noteSelectionLaunchRequest = function (request) {
+            trackFlashcardLaunchRequest(launchToken, request);
+        };
+        const withSelectionLaunchGuards = function (options) {
+            return Object.assign({}, (options && typeof options === 'object') ? options : {}, {
+                launchToken: launchToken,
+                isLaunchCurrent: isSelectionLaunchCurrent
+            });
+        };
         const normalizedMode = normalizeMode(mode) || 'practice';
         const minimumWordCount = getSelectionMinimumWordCount();
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
@@ -16941,16 +17189,19 @@
                 return;
             }
             chunkSession = null;
-            launchFlashcards(normalizedMode, ids, [], {
+            launchFlashcards(normalizedMode, ids, [], withSelectionLaunchGuards({
                 source: 'wordset_selection_start',
                 chunked: false,
                 sessionStarMode: 'normal'
-            });
+            }));
             return;
         }
 
         const launchUi = openFlashcardLaunchLoadingState();
         const abortSelectionLaunch = function (message) {
+            if (!isSelectionLaunchCurrent()) {
+                return;
+            }
             closeFlashcardLaunchLoadingState(launchUi);
             if (message) {
                 alert(message);
@@ -16963,7 +17214,12 @@
             && normalizedMode !== 'learning'
             && (criteriaKey !== '' || selectedIds.length > 8);
         if (shouldUseBoundedSelectionPlan) {
-            requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode).done(function (serverPlan) {
+            requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode, {
+                onRequest: noteSelectionLaunchRequest
+            }).done(function (serverPlan) {
+                if (!isSelectionLaunchCurrent()) {
+                    return;
+                }
                 const launchDetails = {
                     preserve_mixed_presentation: true,
                     allow_session_category_display: true,
@@ -17027,7 +17283,7 @@
                         continuous: true
                     };
                     const activeSession = chunkSession;
-                    launchContinuousChunkSession(activeSession, {
+                    launchContinuousChunkSession(activeSession, withSelectionLaunchGuards({
                         source: 'wordset_chunk_start',
                         launchUi: launchUi,
                         onLaunchFailure: function () {
@@ -17035,7 +17291,7 @@
                                 chunkSession = null;
                             }
                         }
-                    });
+                    }));
                     return;
                 }
 
@@ -17055,7 +17311,7 @@
                         continuous: false
                     };
                     const activeSession = chunkSession;
-                    launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
+                    launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, withSelectionLaunchGuards({
                         source: 'wordset_chunk_start',
                         chunked: true,
                         sessionStarMode: 'normal',
@@ -17072,12 +17328,12 @@
                                 chunkSession = null;
                             }
                         }
-                    });
+                    }));
                     return;
                 }
 
                 chunkSession = null;
-                launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
+                launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, withSelectionLaunchGuards({
                     source: 'wordset_selection_bounded_start',
                     chunked: false,
                     sessionStarMode: 'normal',
@@ -17089,14 +17345,28 @@
                     launchUi: launchUi,
                     boundedSelectionPlan: true,
                     rejectOnLoadFailure: true
-                });
-            }).fail(function () {
+                }));
+            }).fail(function (_xhr, statusText) {
+                if (!isSelectionLaunchCurrent()) {
+                    return;
+                }
+                if (String(statusText || '').toLowerCase() === 'abort') {
+                    return;
+                }
                 abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');
             });
             return;
         }
 
-        ensureWordsForCategories(selectedIds).always(function () {
+        ensureWordsForCategories(selectedIds, {
+            isRequestCurrent: function () {
+                return isSelectionLaunchCurrent();
+            },
+            onRequest: noteSelectionLaunchRequest
+        }).always(function () {
+            if (!isSelectionLaunchCurrent()) {
+                return;
+            }
             if (normalizedMode === 'learning') {
                 const learningPlan = buildLearningSelectionLaunchPlan(selectedIds, {
                     starOnly: starredOnlyActive,
@@ -17143,7 +17413,7 @@
                         category_label_override: categoryLabelOverride,
                         details: launchDetails
                     };
-                    launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], {
+                    launchFlashcards(chunkSession.mode, chunkSession.category_ids, chunkSession.chunks[0], withSelectionLaunchGuards({
                         source: 'wordset_chunk_start',
                         chunked: true,
                         sessionStarMode: chunkSession.star_mode,
@@ -17151,12 +17421,12 @@
                         details: launchDetails,
                         categoryLabelOverride: chunkSession.category_label_override,
                         launchUi: launchUi
-                    });
+                    }));
                     return;
                 }
 
                 chunkSession = null;
-                launchFlashcards(normalizedMode, learningCategoryIds, chunks[0], {
+                launchFlashcards(normalizedMode, learningCategoryIds, chunks[0], withSelectionLaunchGuards({
                     source: 'wordset_selection_start',
                     chunked: false,
                     sessionStarMode: starredOnlyActive ? 'only' : 'normal',
@@ -17164,7 +17434,7 @@
                     details: launchDetails,
                     categoryLabelOverride: categoryLabelOverride,
                     launchUi: launchUi
-                });
+                }));
                 return;
             }
 
@@ -17193,7 +17463,7 @@
             if (criteriaKey) {
                 launchDetails.priority_focus = criteriaKey;
             }
-            launchFlashcards(normalizedMode, practiceCategoryIds, practiceSessionWordIds, {
+            launchFlashcards(normalizedMode, practiceCategoryIds, practiceSessionWordIds, withSelectionLaunchGuards({
                 source: 'wordset_selection_start',
                 chunked: false,
                 sessionStarMode: starredOnlyActive ? 'only' : 'normal',
@@ -17202,11 +17472,17 @@
                 skipCompatibilityFilter: true,
                 details: launchDetails,
                 launchUi: launchUi
-            });
+            }));
         });
     }
 
     function launchRecommendedMode(mode) {
+        clearBoundedSessionContinuation(chunkSession);
+        chunkSession = null;
+        const launchToken = beginFlashcardLaunch();
+        const recommendationLaunchIsCurrent = function () {
+            return flashcardLaunchIsCurrent(launchToken);
+        };
         const preferredMode = normalizeMode(mode) || 'practice';
         const recommendationScopeIds = getRecommendationScopeIds();
         // Top mode buttons choose the mode explicitly; filter recommendation scopes to
@@ -17216,15 +17492,18 @@
             recommendationScopeIds.length ? recommendationScopeIds : getVisibleCategoryIds()
         );
         if (preferredMode === 'listening') {
+            if (!recommendationLaunchIsCurrent()) { return; }
             chunkSession = null;
             launchFlashcards(preferredMode, recommendationScopeIds, [], {
                 source: 'wordset_top_start_listening_full',
                 chunked: false,
-                fallbackCategoryIds: recommendationScopeIds
+                fallbackCategoryIds: recommendationScopeIds,
+                launchToken: launchToken
             });
             return;
         }
         const launchWithActivity = function (activity, source) {
+            if (!recommendationLaunchIsCurrent()) { return; }
             const item = normalizeNextActivity(activity);
             const rawCategoryIds = item && item.category_ids && item.category_ids.length
                 ? uniqueIntList(item.category_ids)
@@ -17247,7 +17526,8 @@
                 fallbackCategoryIds: preferredFallbackCategoryIds.length
                     ? preferredFallbackCategoryIds
                     : recommendationScopeIds,
-                details: details
+                details: details,
+                launchToken: launchToken
             });
         };
 
@@ -17257,7 +17537,15 @@
             return;
         }
 
-        refreshRecommendation({ preferredMode: preferredMode, forceRefresh: true }).always(function () {
+        refreshRecommendation({
+            preferredMode: preferredMode,
+            forceRefresh: true,
+            isRequestCurrent: recommendationLaunchIsCurrent,
+            onRequest: function (request) {
+                trackFlashcardLaunchRequest(launchToken, request);
+            }
+        }).always(function () {
+            if (!recommendationLaunchIsCurrent()) { return; }
             const refreshed = resolvePreferredNextActivity(preferredMode);
             if (refreshed) {
                 launchWithActivity(refreshed, 'wordset_top_start_refreshed');
@@ -17267,7 +17555,8 @@
             launchFlashcards(preferredMode, getVisibleCategoryIds(), [], {
                 source: 'wordset_top_start_fallback',
                 chunked: false,
-                fallbackCategoryIds: recommendationScopeIds
+                fallbackCategoryIds: recommendationScopeIds,
+                launchToken: launchToken
             });
         });
     }
@@ -19260,6 +19549,16 @@
     }
 
     bindCopyTargetInteractions();
+
+    $(document)
+        .off('click.llWordsetFlashcardLaunch', '#ll-tools-close-flashcard')
+        .on('click.llWordsetFlashcardLaunch', '#ll-tools-close-flashcard', function () {
+            cancelFlashcardLaunch();
+        })
+        .off('lltools:flashcard-closed.llWordsetFlashcardLaunch')
+        .on('lltools:flashcard-closed.llWordsetFlashcardLaunch', function () {
+            cancelFlashcardLaunch();
+        });
 
     if (view === 'main') {
         setWordsetCardProgressLoadingState(cardProgressInitialLoading);

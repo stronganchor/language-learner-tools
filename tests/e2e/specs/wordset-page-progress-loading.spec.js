@@ -891,6 +891,62 @@ async function mountProgressPage(page, options = {}) {
   await page.addScriptTag({ content: wordsetScriptSource });
 }
 
+async function prepareExplicitProgressSelection(page, options = {}) {
+  const selectedWordIds = Array.isArray(options.selectedWordIds)
+    ? options.selectedWordIds.slice()
+    : Array.from({ length: 8 }, (_unused, index) => 101 + index);
+
+  await mountProgressPage(page, {
+    config: Object.assign({
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: [],
+        star_mode: 'normal',
+        fast_transitions: false
+      }
+    }, options.config || {})
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: selectedWordIds.length,
+    studiedWords: selectedWordIds.length,
+    newWords: 0,
+    words: selectedWordIds.map((id) => buildProgressWords(id, 1)[0]),
+    wordsPagination: {
+      enabled: false,
+      total: selectedWordIds.length,
+      unfiltered_total: selectedWordIds.length,
+      filtered: false,
+      offset: 0,
+      limit: selectedWordIds.length,
+      loaded: selectedWordIds.length,
+      next_offset: null,
+      has_more: false
+    }
+  }));
+
+  await page.getByRole('button', { name: 'Words' }).click();
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(selectedWordIds.length);
+
+  const selectAll = page.locator('[data-ll-wordset-progress-select-all]');
+  await expect(selectAll).toHaveText('Select all');
+  await selectAll.click();
+  await expect(selectAll).toHaveText('Deselect all');
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr.is-selected'))
+    .toHaveCount(selectedWordIds.length);
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${selectedWordIds.length} selected words`);
+  expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+
+  return {
+    selectedWordIds
+  };
+}
+
 async function prepareAllFilteredProgressSelection(page, options = {}) {
   const allMatchingIds = Array.isArray(options.allMatchingIds)
     ? options.allMatchingIds.slice()
@@ -1603,6 +1659,105 @@ test('progress select all launches a Zazaca-scale new-word snapshot without a du
       starredWords: 0
     }
   });
+});
+
+test('explicit progress row hydration is aborted by Close without a stale launch', async ({ page }) => {
+  await prepareExplicitProgressSelection(page);
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  const practiceButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+  await practiceButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+  expect(await page.evaluate(() => ({
+    aborted: window.__llFetchWordsRequests[0].aborted,
+    state: window.__llFetchWordsRequests[0].deferred.state(),
+    planCount: window.__llSelectionPlanRequests.length,
+    launchCount: window.__llFlashcardLaunches.length
+  }))).toEqual({ aborted: false, state: 'pending', planCount: 0, launchCount: 0 });
+
+  await page.locator('#ll-tools-close-flashcard').click();
+  await expectFlashcardLaunchUiClosed(page);
+  expect(await page.evaluate(() => ({
+    aborted: window.__llFetchWordsRequests[0].aborted,
+    state: window.__llFetchWordsRequests[0].deferred.state()
+  }))).toEqual({ aborted: true, state: 'rejected' });
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(0));
+  await page.waitForTimeout(100);
+
+  expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(practiceButton).toBeEnabled();
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+});
+
+test('replacement explicit progress row launch aborts stale hydration and keeps the newer launch', async ({ page }) => {
+  const { selectedWordIds } = await prepareExplicitProgressSelection(page);
+  await page.evaluate(() => {
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  const practiceButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+  await practiceButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expectFlashcardLaunchUiOpen(page);
+
+  await page.evaluate(() => {
+    document.querySelector('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  });
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  expect(await page.evaluate(() => ({
+    first: {
+      aborted: window.__llFetchWordsRequests[0].aborted,
+      state: window.__llFetchWordsRequests[0].deferred.state()
+    },
+    second: {
+      aborted: window.__llFetchWordsRequests[1].aborted,
+      state: window.__llFetchWordsRequests[1].deferred.state()
+    },
+    launchCount: window.__llFlashcardLaunches.length
+  }))).toEqual({
+    first: { aborted: true, state: 'rejected' },
+    second: { aborted: false, state: 'pending' },
+    launchCount: 0
+  });
+  await expectFlashcardLaunchUiOpen(page);
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(0));
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => ({
+    secondState: window.__llFetchWordsRequests[1].deferred.state(),
+    launchCount: window.__llFlashcardLaunches.length,
+    alerts: window.__llAlerts.slice()
+  }))).toEqual({ secondState: 'pending', launchCount: 0, alerts: [] });
+  await expectFlashcardLaunchUiOpen(page);
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(1));
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+
+  expect(await page.evaluate(() => {
+    const launch = window.__llFlashcardLaunches[0] || {};
+    return {
+      firstState: window.__llFetchWordsRequests[0].deferred.state(),
+      secondAborted: window.__llFetchWordsRequests[1].aborted,
+      secondState: window.__llFetchWordsRequests[1].deferred.state(),
+      launchMode: String(launch.mode || ''),
+      sessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
+      alerts: window.__llAlerts.slice()
+    };
+  })).toEqual({
+    firstState: 'rejected',
+    secondAborted: false,
+    secondState: 'resolved',
+    launchMode: 'practice',
+    sessionWordIds: selectedWordIds,
+    alerts: []
+  });
+  await expectFlashcardLaunchUiOpen(page);
 });
 
 test('progress all-filtered launch is single-flight and disables every mode while word IDs load', async ({ page }) => {
