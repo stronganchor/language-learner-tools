@@ -99,99 +99,129 @@ async function installClipboardFallbackProbe(page) {
   ))).toBe(true);
 }
 
+async function throwAfterFixtureRollback(page, fixtures, setupError) {
+  try {
+    await deleteTeacherFixtures(page, fixtures);
+  } catch (cleanupError) {
+    throw new AggregateError(
+      [setupError, cleanupError],
+      'Teacher fixture setup and rollback both failed.',
+      { cause: setupError }
+    );
+  }
+  throw setupError;
+}
+
 async function createTeacherFixtures(page) {
   await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
-  const wordsetSlug = `e2e-teacher-classes-${suffix}`;
-  const wordset = await adminRest(page, '/wp-json/wp/v2/wordsets', {
-    method: 'POST',
-    body: {
-      name: `E2E Teacher Classes ${suffix}`,
-      slug: wordsetSlug
-    }
-  });
+  const fixtures = {
+    password: `TeacherPass!${suffix}`,
+    userId: 0,
+    username: `e2e_teacher_${suffix.replace(/-/g, '_')}`,
+    wordsetId: 0,
+    wordsetSlug: `e2e-teacher-classes-${suffix}`
+  };
 
-  const username = `e2e_teacher_${suffix.replace(/-/g, '_')}`;
-  const password = `TeacherPass!${suffix}`;
-  const user = await adminRest(page, '/wp-json/wp/v2/users', {
-    method: 'POST',
-    body: {
-      username,
-      email: `${username}@example.test`,
-      password,
-      roles: ['ll_tools_teacher']
-    }
-  });
+  try {
+    const wordset = await adminRest(page, '/wp-json/wp/v2/wordsets', {
+      method: 'POST',
+      body: {
+        name: `E2E Teacher Classes ${suffix}`,
+        slug: fixtures.wordsetSlug
+      }
+    });
+    fixtures.wordsetId = Number(wordset && wordset.id) || 0;
 
-  if (!wordset || !wordset.id || !user || !user.id) {
-    throw new Error('Failed to create teacher-class fixtures.');
+    const user = await adminRest(page, '/wp-json/wp/v2/users', {
+      method: 'POST',
+      body: {
+        username: fixtures.username,
+        email: `${fixtures.username}@example.test`,
+        password: fixtures.password,
+        roles: ['ll_tools_teacher']
+      }
+    });
+    fixtures.userId = Number(user && user.id) || 0;
+
+    if (fixtures.wordsetId <= 0 || fixtures.userId <= 0) {
+      throw new Error('Failed to create teacher-class fixtures.');
+    }
+  } catch (error) {
+    await throwAfterFixtureRollback(page, fixtures, error);
   }
 
-  return {
-    password,
-    userId: user.id,
-    username,
-    wordsetId: wordset.id,
-    wordsetSlug
-  };
+  return fixtures;
 }
 
 async function createAdminAssignmentFixtures(page) {
   await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
-  const wordsetSlug = `e2e-teacher-assignment-${suffix}`;
-  const wordset = await adminRest(page, '/wp-json/wp/v2/wordsets', {
-    method: 'POST',
-    body: {
-      name: `E2E Teacher Assignment ${suffix}`,
-      slug: wordsetSlug
-    }
-  });
-
   const teacherUsername = `e2e_assign_teacher_${suffix.replace(/-/g, '_')}`;
-  const teacher = await adminRest(page, '/wp-json/wp/v2/users', {
-    method: 'POST',
-    body: {
-      username: teacherUsername,
-      email: `${teacherUsername}@example.test`,
-      password: `TeacherPass!${suffix}`,
-      roles: ['ll_tools_teacher']
-    }
-  });
-
   const learnerUsername = `e2e_assign_learner_${suffix.replace(/-/g, '_')}`;
   const learnerEmail = `${learnerUsername}@example.test`;
-  const learner = await adminRest(page, '/wp-json/wp/v2/users', {
-    method: 'POST',
-    body: {
-      username: learnerUsername,
-      email: learnerEmail,
-      password: `LearnerPass!${suffix}`,
-      roles: ['ll_tools_learner']
-    }
-  });
+  const fixtures = {
+    learnerEmail,
+    learnerUserId: 0,
+    learnerUsername,
+    teacherUserId: 0,
+    teacherUsername,
+    wordsetId: 0,
+    wordsetSlug: `e2e-teacher-assignment-${suffix}`
+  };
 
-  if (!wordset || !wordset.id || !teacher || !teacher.id || !learner || !learner.id) {
-    throw new Error('Failed to create admin assignment fixtures.');
+  try {
+    const wordset = await adminRest(page, '/wp-json/wp/v2/wordsets', {
+      method: 'POST',
+      body: {
+        name: `E2E Teacher Assignment ${suffix}`,
+        slug: fixtures.wordsetSlug
+      }
+    });
+    fixtures.wordsetId = Number(wordset && wordset.id) || 0;
+
+    const teacher = await adminRest(page, '/wp-json/wp/v2/users', {
+      method: 'POST',
+      body: {
+        username: teacherUsername,
+        email: `${teacherUsername}@example.test`,
+        password: `TeacherPass!${suffix}`,
+        roles: ['ll_tools_teacher']
+      }
+    });
+    fixtures.teacherUserId = Number(teacher && teacher.id) || 0;
+
+    const learner = await adminRest(page, '/wp-json/wp/v2/users', {
+      method: 'POST',
+      body: {
+        username: learnerUsername,
+        email: learnerEmail,
+        password: `LearnerPass!${suffix}`,
+        roles: ['ll_tools_learner']
+      }
+    });
+    fixtures.learnerUserId = Number(learner && learner.id) || 0;
+
+    if (fixtures.wordsetId <= 0 || fixtures.teacherUserId <= 0 || fixtures.learnerUserId <= 0) {
+      throw new Error('Failed to create admin assignment fixtures.');
+    }
+  } catch (error) {
+    await throwAfterFixtureRollback(page, fixtures, error);
   }
 
-  return {
-    learnerEmail,
-    learnerUserId: learner.id,
-    teacherUserId: teacher.id,
-    wordsetId: wordset.id,
-    wordsetSlug
-  };
+  return fixtures;
 }
 
 async function createTeacherClassProgressFixtures(page) {
   await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
   const suffix = uniqueSuffix();
+  const categoryName = `E2E Progress Category ${suffix}`;
   const fixtures = {
     categoryId: 0,
+    categoryName,
     existingLearnerEmail: '',
     existingLearnerPassword: `LearnerPass!${suffix}`,
     existingLearnerUserId: 0,
@@ -203,6 +233,7 @@ async function createTeacherClassProgressFixtures(page) {
     teacherUserId: 0,
     teacherUsername: `e2e_progress_teacher_${suffix.replace(/-/g, '_')}`,
     wordIds: [],
+    wordTitles: Array.from({ length: 3 }, (_, index) => `E2E Progress Word ${index + 1} ${suffix}`),
     wordsetId: 0,
     wordsetSlug: `e2e-teacher-progress-${suffix}`
   };
@@ -222,7 +253,7 @@ async function createTeacherClassProgressFixtures(page) {
     const category = await adminRest(page, '/wp-json/wp/v2/word-category', {
       method: 'POST',
       body: {
-        name: `E2E Progress Category ${suffix}`,
+        name: categoryName,
         slug: `e2e-progress-category-${suffix}`
       }
     });
@@ -232,7 +263,7 @@ async function createTeacherClassProgressFixtures(page) {
       const word = await adminRest(page, '/wp-json/wp/v2/words', {
         method: 'POST',
         body: {
-          title: `E2E Progress Word ${index} ${suffix}`,
+          title: fixtures.wordTitles[index - 1],
           status: 'publish',
           wordsets: [fixtures.wordsetId],
           'word-category': [fixtures.categoryId]
@@ -274,8 +305,7 @@ async function createTeacherClassProgressFixtures(page) {
       throw new Error('Failed to create teacher-class progress fixtures.');
     }
   } catch (error) {
-    await deleteTeacherFixtures(page, fixtures).catch(() => {});
-    throw error;
+    await throwAfterFixtureRollback(page, fixtures, error);
   }
 
   return fixtures;
@@ -286,52 +316,138 @@ async function deleteTeacherFixtures(page, fixtures) {
     return;
   }
 
-  await page.context().clearCookies().catch(() => {});
+  const failures = [];
+  const attempt = async (label, operation) => {
+    try {
+      return await operation();
+    } catch (error) {
+      failures.push(new Error(label, { cause: error }));
+      return null;
+    }
+  };
+
+  await page.context().clearCookies();
   await ensureLoggedIntoAdmin(page, '/wp-admin/');
 
-  if (fixtures.registeredLearnerUsername && !fixtures.registeredLearnerUserId) {
-    const users = await adminRest(
+  if (!fixtures.wordsetId && fixtures.wordsetSlug) {
+    const wordsets = await attempt('wordset lookup', () => adminRest(
       page,
-      `/wp-json/wp/v2/users?context=edit&search=${encodeURIComponent(fixtures.registeredLearnerUsername)}`
-    ).catch(() => []);
-    const registeredLearner = Array.isArray(users)
-      ? users.find((user) => user && user.username === fixtures.registeredLearnerUsername)
+      `/wp-json/wp/v2/wordsets?context=edit&hide_empty=false&slug=${encodeURIComponent(fixtures.wordsetSlug)}`
+    ));
+    const wordset = Array.isArray(wordsets)
+      ? wordsets.find((item) => item && item.id && item.slug === fixtures.wordsetSlug)
       : null;
-    if (registeredLearner && registeredLearner.id) {
-      fixtures.registeredLearnerUserId = registeredLearner.id;
+    if (wordset) {
+      fixtures.wordsetId = Number(wordset.id) || 0;
     }
   }
 
-  const userIds = Array.from(new Set([
+  const userIds = new Set([
     fixtures.userId,
     fixtures.teacherUserId,
     fixtures.learnerUserId,
     fixtures.existingLearnerUserId,
     fixtures.registeredLearnerUserId
+  ].filter(Boolean).map(Number));
+  const usernames = Array.from(new Set([
+    fixtures.username,
+    fixtures.teacherUsername,
+    fixtures.learnerUsername,
+    fixtures.existingLearnerUsername,
+    fixtures.registeredLearnerUsername
   ].filter(Boolean)));
-
-  for (const userId of userIds) {
-    await adminRest(page, `/wp-json/wp/v2/users/${userId}?force=true&reassign=1`, {
-      method: 'DELETE'
-    }).catch(() => {});
+  for (const username of usernames) {
+    const users = await attempt(`user lookup ${username}`, () => adminRest(
+      page,
+      `/wp-json/wp/v2/users?context=edit&search=${encodeURIComponent(username)}`
+    ));
+    const user = Array.isArray(users)
+      ? users.find((item) => item && item.id && item.username === username)
+      : null;
+    if (user) {
+      userIds.add(Number(user.id));
+    }
   }
 
-  for (const wordId of Array.from(new Set((fixtures.wordIds || []).filter(Boolean)))) {
-    await adminRest(page, `/wp-json/wp/v2/words/${wordId}?force=true`, {
+  for (const userId of Array.from(userIds).filter(Boolean)) {
+    await attempt(`user ${userId}`, () => adminRest(page, `/wp-json/wp/v2/users/${userId}?force=true&reassign=1`, {
       method: 'DELETE'
-    }).catch(() => {});
+    }));
   }
 
-  if (fixtures.categoryId) {
-    await adminRest(page, `/wp-json/wp/v2/word-category/${fixtures.categoryId}?force=true`, {
+  const wordIds = new Set((fixtures.wordIds || []).filter(Boolean).map(Number));
+  for (const wordTitle of Array.from(new Set((fixtures.wordTitles || []).filter(Boolean)))) {
+    const words = await attempt(`word lookup ${wordTitle}`, () => adminRest(
+      page,
+      `/wp-json/wp/v2/words?context=edit&per_page=100&search=${encodeURIComponent(wordTitle)}&status[]=draft&status[]=publish&status[]=pending&status[]=private&status[]=future`
+    ));
+    for (const word of Array.isArray(words) ? words : []) {
+      const renderedTitle = word && word.title && typeof word.title.rendered === 'string'
+        ? word.title.rendered
+        : '';
+      if (word && word.id && renderedTitle === wordTitle) {
+        wordIds.add(Number(word.id));
+      }
+    }
+  }
+
+  for (const wordId of Array.from(wordIds).filter(Boolean)) {
+    await attempt(`word ${wordId}`, () => adminRest(page, `/wp-json/wp/v2/words/${wordId}?force=true`, {
       method: 'DELETE'
-    }).catch(() => {});
+    }));
+  }
+
+  const categoryIds = new Set([fixtures.categoryId].filter(Boolean));
+  if (fixtures.categoryName) {
+    const matchingCategories = await attempt('category family lookup', () => adminRest(
+      page,
+      `/wp-json/wp/v2/word-category?context=edit&hide_empty=false&per_page=100&search=${encodeURIComponent(fixtures.categoryName)}`
+    ));
+    for (const category of Array.isArray(matchingCategories) ? matchingCategories : []) {
+      if (category && category.id && category.name === fixtures.categoryName) {
+        categoryIds.add(category.id);
+      }
+    }
+  }
+
+  for (const categoryId of categoryIds) {
+    await attempt(`category ${categoryId}`, () => adminRest(page, `/wp-json/wp/v2/word-category/${categoryId}?force=true`, {
+      method: 'DELETE'
+    }));
   }
 
   if (fixtures.wordsetId) {
-    await adminRest(page, `/wp-json/wp/v2/wordsets/${fixtures.wordsetId}?force=true`, {
+    await attempt(`wordset ${fixtures.wordsetId}`, () => adminRest(page, `/wp-json/wp/v2/wordsets/${fixtures.wordsetId}?force=true`, {
       method: 'DELETE'
-    }).catch(() => {});
+    }));
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Teacher fixture cleanup failed.');
+  }
+}
+
+function loginTargetMatches(currentUrl, targetPath) {
+  try {
+    const current = new URL(currentUrl);
+    const target = new URL(targetPath, current.origin);
+    if (current.pathname === target.pathname && current.search === target.search) {
+      return true;
+    }
+
+    const wordsetSlug = target.searchParams.get('ll_wordset_page');
+    if (!wordsetSlug) {
+      return false;
+    }
+
+    const canonicalPath = `/${wordsetSlug}/${target.searchParams.get('ll_wordset_view') === 'classes' ? 'classes/' : ''}`;
+    if (decodeURIComponent(current.pathname) !== canonicalPath) {
+      return false;
+    }
+
+    return current.searchParams.get('class_id') === target.searchParams.get('class_id');
+  } catch (_) {
+    return false;
   }
 }
 
@@ -344,14 +460,14 @@ async function loginAsUser(page, username, password, targetPath) {
   await expect(page.locator('#loginform')).toBeVisible({ timeout: 30000 });
   await page.fill('#user_login', username);
   await page.fill('#user_pass', password);
-  await page.click('#wp-submit');
-  await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
-    timeout: 60000
-  }).catch(() => {});
-
-  if (!page.url().includes('ll_wordset_view=classes')) {
-    await page.goto(targetPath, { waitUntil: 'domcontentloaded' });
-  }
+  await Promise.all([
+    page.waitForURL((url) => loginTargetMatches(url.toString(), targetPath), {
+      timeout: 60000
+    }),
+    page.click('#wp-submit')
+  ]);
+  await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
+  await expect.poll(() => loginTargetMatches(page.url(), targetPath), { timeout: 60000 }).toBe(true);
 }
 
 async function deleteSelectedClass(page, className) {
@@ -362,9 +478,85 @@ async function deleteSelectedClass(page, className) {
   const deleteForm = selectedClass.locator('form:has(input[name="action"][value="ll_tools_teacher_delete_class"])');
   await expect(deleteForm).toHaveCount(1);
   await Promise.all([
-    page.waitForURL((url) => !url.searchParams.has('class_id'), { timeout: 60000 }),
+    page.waitForURL((url) => !url.searchParams.has('class_id') && url.searchParams.has('ll_tools_class_notice'), { timeout: 60000 }),
     deleteForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form))
   ]);
+  await expect(page.locator('.ll-wordset-progress-reset-notice--success')).toContainText(`Deleted class: ${className}`);
+}
+
+async function deleteClassFromAdmin(page, classId, className) {
+  let normalizedClassId = String(classId || '');
+  const normalizedClassName = String(className || '');
+  if (!normalizedClassId && !normalizedClassName) {
+    return;
+  }
+  if (normalizedClassId && !/^\d+$/.test(normalizedClassId)) {
+    throw new Error('Teacher fixture cleanup received an invalid class ID.');
+  }
+
+  await page.context().clearCookies();
+  const cleanupParams = new URLSearchParams({
+    page: 'll-tools-teacher-classes'
+  });
+  if (normalizedClassId) {
+    cleanupParams.set('class_id', normalizedClassId);
+  }
+  if (normalizedClassName) {
+    cleanupParams.set('ll_tools_class_search', normalizedClassName);
+  }
+  const cleanupPath = `/wp-admin/admin.php?${cleanupParams.toString()}`;
+  await ensureLoggedIntoAdmin(page, cleanupPath);
+
+  let deleteForm = normalizedClassId
+    ? page.locator(`form:has(input[name="action"][value="ll_tools_teacher_delete_class"]):has(input[name="class_id"][value="${normalizedClassId}"])`)
+    : page.locator('tr').filter({
+      has: page.getByText(normalizedClassName, { exact: true })
+    }).locator('form:has(input[name="action"][value="ll_tools_teacher_delete_class"])');
+
+  if ((await deleteForm.count()) === 0) {
+    if (normalizedClassId) {
+      const selectedClassIdMarkers = page.locator(`input[name="class_id"][value="${normalizedClassId}"]`);
+      if ((await selectedClassIdMarkers.count()) > 0) {
+        throw new Error('Teacher fixture class still exists outside the bounded class search results.');
+      }
+    }
+    await expect(page.getByText('No classes match your search.', { exact: true })).toBeVisible();
+    return;
+  }
+  await expect(deleteForm).toHaveCount(1);
+  if (!normalizedClassId) {
+    normalizedClassId = await deleteForm.locator('input[name="class_id"]').inputValue();
+    if (!/^\d+$/.test(normalizedClassId)) {
+      throw new Error('Teacher fixture cleanup could not recover a valid class ID.');
+    }
+    deleteForm = page.locator(`form:has(input[name="action"][value="ll_tools_teacher_delete_class"]):has(input[name="class_id"][value="${normalizedClassId}"])`);
+    await expect(deleteForm).toHaveCount(1);
+  }
+
+  await Promise.all([
+    page.waitForURL((url) => (
+      !url.searchParams.has('class_id')
+      && url.searchParams.get('ll_tools_teacher_notice_type') === 'success'
+    ), { timeout: 60000 }),
+    deleteForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form))
+  ]);
+  await expect(page.locator('.notice-success')).toContainText(`Deleted class: ${normalizedClassName}`);
+}
+
+async function cleanupTeacherTest(page, classId, className, fixtures, bodyError) {
+  try {
+    await deleteClassFromAdmin(page, classId, className);
+    await deleteTeacherFixtures(page, fixtures);
+  } catch (cleanupError) {
+    if (bodyError) {
+      throw new AggregateError(
+        [bodyError, cleanupError],
+        'Teacher class test and cleanup both failed.',
+        { cause: bodyError }
+      );
+    }
+    throw cleanupError;
+  }
 }
 
 async function registerLearnerFromSignupLink(page, signupUrl, learner) {
@@ -468,6 +660,8 @@ test('teacher can create a frontend class and stays on the new class', async ({ 
   test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for teacher class E2E tests.');
 
   let fixtures = null;
+  let classId = '';
+  let bodyError = null;
   const className = `E2E Teacher Frontend Class ${uniqueSuffix()}`;
 
   try {
@@ -490,6 +684,8 @@ test('teacher can create a frontend class and stays on the new class', async ({ 
       page.waitForURL((url) => url.searchParams.has('class_id'), { timeout: 60000 }),
       createForm.getByRole('button', { name: 'Create class' }).click()
     ]);
+    classId = new URL(page.url()).searchParams.get('class_id') || '';
+    expect(classId).not.toBe('');
 
     await expect(page.locator('.ll-wordset-progress-reset-notice--success')).toContainText(`Created class: ${className}`);
     await expect(root.locator('.ll-teacher-classes__list-card.is-selected').getByRole('heading', { name: className, exact: true })).toBeVisible();
@@ -508,8 +704,12 @@ test('teacher can create a frontend class and stays on the new class', async ({ 
 
     await deleteSelectedClass(page, className);
     await expect(root.getByText('Create a class to start inviting learners.')).toBeVisible({ timeout: 60000 });
+    classId = '';
+  } catch (error) {
+    bodyError = error;
+    throw error;
   } finally {
-    await deleteTeacherFixtures(page, fixtures);
+    await cleanupTeacherTest(page, classId, className, fixtures, bodyError);
   }
 });
 
@@ -518,6 +718,7 @@ test('legacy Classes admin preserves bounded search state across deletion', asyn
 
   let fixtures = null;
   let classId = '';
+  let bodyError = null;
   const className = `E2E Legacy Admin Class ${uniqueSuffix()}`;
 
   try {
@@ -567,23 +768,21 @@ test('legacy Classes admin preserves bounded search state across deletion', asyn
     expect(redirectUrl.searchParams.get('ll_tools_account_search')).toBe(fixtures.username);
 
     await Promise.all([
-      page.waitForURL((url) => !url.searchParams.has('class_id') && url.searchParams.has('ll_tools_teacher_notice_type'), { timeout: 60000 }),
+      page.waitForURL((url) => (
+        !url.searchParams.has('class_id')
+        && url.searchParams.get('ll_tools_teacher_notice_type') === 'success'
+      ), { timeout: 60000 }),
       deleteForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form))
     ]);
-    classId = '';
+    await expect(page.locator('.notice-success')).toContainText(`Deleted class: ${className}`);
     await expect(page.locator('table.widefat').filter({ hasText: className })).toHaveCount(0);
     await expect(page.getByText('No classes match your search.', { exact: true })).toBeVisible();
+    classId = '';
+  } catch (error) {
+    bodyError = error;
+    throw error;
   } finally {
-    if (fixtures && classId) {
-      await page.context().clearCookies().catch(() => {});
-      const cleanupPath = `/wp-admin/admin.php?page=ll-tools-teacher-classes&class_id=${encodeURIComponent(classId)}&ll_tools_class_search=${encodeURIComponent(className)}`;
-      await ensureLoggedIntoAdmin(page, cleanupPath).catch(() => {});
-      const cleanupForm = page.locator(`form:has(input[name="action"][value="ll_tools_teacher_delete_class"]):has(input[name="class_id"][value="${classId}"])`);
-      if ((await cleanupForm.count()) > 0) {
-        await cleanupForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form)).catch(() => {});
-      }
-    }
-    await deleteTeacherFixtures(page, fixtures);
+    await cleanupTeacherTest(page, classId, className, fixtures, bodyError);
   }
 });
 
@@ -592,6 +791,7 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
 
   let fixtures = null;
   let classId = '';
+  let bodyError = null;
   const className = `E2E Progress Signup Class ${uniqueSuffix()}`;
 
   try {
@@ -684,17 +884,13 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     await expect(table.locator('tbody tr')).toHaveCount(1);
 
     await deleteSelectedClass(page, className);
-    classId = '';
     await expect(root.getByText('Create a class to start inviting learners.')).toBeVisible({ timeout: 60000 });
+    classId = '';
+  } catch (error) {
+    bodyError = error;
+    throw error;
   } finally {
-    if (fixtures && classId) {
-      const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes&class_id=${encodeURIComponent(classId)}`;
-      await page.context().clearCookies().catch(() => {});
-      await ensureLoggedIntoAdmin(page, '/wp-admin/').catch(() => {});
-      await page.goto(classesPath, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await deleteSelectedClass(page, className).catch(() => {});
-    }
-    await deleteTeacherFixtures(page, fixtures);
+    await cleanupTeacherTest(page, classId, className, fixtures, bodyError);
   }
 });
 
@@ -703,6 +899,7 @@ test('admin can assign an existing learner from frontend classes', async ({ page
 
   let fixtures = null;
   let classId = '';
+  let bodyError = null;
   const className = `E2E Direct Assignment Class ${uniqueSuffix()}`;
 
   try {
@@ -760,16 +957,12 @@ test('admin can assign an existing learner from frontend classes', async ({ page
     }
 
     await deleteSelectedClass(page, className);
-    classId = '';
     await expect(root.getByText('Create a class to start inviting learners.')).toBeVisible({ timeout: 60000 });
+    classId = '';
+  } catch (error) {
+    bodyError = error;
+    throw error;
   } finally {
-    if (fixtures && classId) {
-      const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes&class_id=${encodeURIComponent(classId)}`;
-      await page.context().clearCookies().catch(() => {});
-      await ensureLoggedIntoAdmin(page, '/wp-admin/').catch(() => {});
-      await page.goto(classesPath, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await deleteSelectedClass(page, className).catch(() => {});
-    }
-    await deleteTeacherFixtures(page, fixtures);
+    await cleanupTeacherTest(page, classId, className, fixtures, bodyError);
   }
 });

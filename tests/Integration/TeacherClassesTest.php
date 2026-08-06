@@ -212,6 +212,29 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
     }
 
+    public function test_deleting_class_does_not_create_meta_for_missing_students(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-stale-student@example.org',
+        ]);
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Stale Student Class', $this->default_wordset_id);
+        $this->assertIsInt($class_id);
+
+        $missing_student_id = 999999999;
+        $this->assertFalse(get_userdata($missing_student_id));
+        $this->assertFalse(metadata_exists('user', $missing_student_id, LL_TOOLS_STUDENT_CLASS_IDS_META));
+        update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, [$missing_student_id]);
+
+        $result = ll_tools_teacher_class_delete((int) $class_id);
+
+        $this->assertIsArray($result);
+        $this->assertFalse(ll_tools_teacher_class_exists((int) $class_id));
+        $this->assertFalse(metadata_exists('user', $missing_student_id, LL_TOOLS_STUDENT_CLASS_IDS_META));
+    }
+
     public function test_class_creation_assigns_teacher_role_to_selected_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();

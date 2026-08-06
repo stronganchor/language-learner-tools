@@ -1886,7 +1886,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
     }
 
-    public function test_deleted_category_progress_rejects_a_noncanonical_entry_without_writing(): void
+    public function test_deleted_category_progress_preserves_a_legacy_entry_shape_without_writing(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1900,19 +1900,33 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
                 'exposure_by_mode' => ['practice' => 4],
                 'last_mode' => 'practice',
                 'last_seen_at' => '2026-05-25 19:47:28',
+                'legacy_counter' => 'kept-verbatim',
             ],
         ];
         update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
         $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
 
+        $writes = 0;
+        $watch_write = static function ($check, $object_id, $meta_key) use (&$writes, $user_id) {
+            if ((int) $object_id === $user_id && $meta_key === LL_TOOLS_USER_CATEGORY_PROGRESS_META) {
+                $writes++;
+            }
+            return $check;
+        };
+        add_filter('update_user_metadata', $watch_write, 10, 3);
         $state = ll_tools_wordset_isolation_migration_new_state();
         $state['status'] = 'running';
         $state['phase'] = 'users';
-        $state['cursor'] = 91;
-        $this->assertFalse(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
-        $this->assertSame('failed', $state['status']);
-        $this->assertSame(91, (int) $state['cursor']);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('update_user_metadata', $watch_write, 10);
+        }
+
+        $this->assertTrue($processed);
+        $this->assertSame('running', $state['status']);
+        $this->assertSame(0, $writes);
         $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
     }
 
@@ -2006,6 +2020,195 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         ]);
         $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertSame(0, ll_tools_get_existing_isolated_category_copy_id($live_category_id, $wordset_id));
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
+
+        $live_copy_id = ll_tools_get_existing_isolated_category_copy_id($live_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $live_copy_id);
+        $progress = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
+        $this->assertArrayHasKey($live_copy_id, $progress);
+        $this->assertArrayNotHasKey($live_category_id, $progress);
+        $this->assertSame(7, (int) ($progress[$live_copy_id]['exposure_total'] ?? 0));
+        $this->assertArrayHasKey($deleted_category_id, $progress);
+        $this->assertSame($deleted_entry, $progress[$deleted_category_id]);
+    }
+
+    public function test_category_progress_lookup_error_fails_without_writing_an_empty_store(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Progress Lookup Failure', 'progress-lookup-failure');
+        $category_id = $this->ensure_term('word-category', 'Progress Lookup Failure Category', 'progress-lookup-failure-category');
+        $stored_progress = [
+            $category_id => [
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 3,
+                'exposure_by_mode' => ['practice' => 3],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id));
+
+        $break_lookup = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll-tools-existing-category-preflight') === false) {
+                return $query;
+            }
+            return str_replace($wpdb->term_taxonomy, $wpdb->term_taxonomy . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 94;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_lookup);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(94, (int) $state['cursor']);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_deleted_category_progress_family_lookup_error_fails_closed(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Progress Family Lookup Failure', 'progress-family-lookup-failure');
+        $category_id = $this->ensure_term('word-category', 'Progress Family Lookup Failure Category', 'progress-family-lookup-failure-category');
+        $entry = [
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 5,
+            'exposure_by_mode' => ['practice' => 5],
+            'legacy_shape' => true,
+        ];
+        $stored_progress = [$category_id => $entry];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $break_family_lookup = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll-tools-category-family-preflight') === false) {
+                return $query;
+            }
+            return str_replace($wpdb->termmeta, $wpdb->termmeta . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 95;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_family_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_family_lookup);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(95, (int) $state['cursor']);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_category_progress_source_error_never_becomes_an_empty_user_meta_write(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Progress Source Failure', 'progress-source-failure');
+        $category_id = $this->ensure_term('word-category', 'Progress Source Failure Category', 'progress-source-failure-category');
+        $stored_progress = [
+            $category_id => [
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 6,
+                'exposure_by_mode' => ['practice' => 6],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $stored_progress);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $this->assertGreaterThan(0, ll_tools_get_or_create_isolated_category_copy($category_id, $wordset_id));
+
+        $writes = 0;
+        $watch_write = static function ($check, $object_id, $meta_key) use (&$writes, $user_id) {
+            if ((int) $object_id === $user_id && $meta_key === LL_TOOLS_USER_CATEGORY_PROGRESS_META) {
+                $writes++;
+            }
+            return $check;
+        };
+        $inject_source_error = static function ($terms) {
+            foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 20) as $frame) {
+                if (($frame['function'] ?? '') === 'll_tools_repair_user_category_progress_store_for_isolation') {
+                    ll_tools_user_progress_mark_source_error('migration_category_progress_test');
+                    break;
+                }
+            }
+            return $terms;
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 96;
+        add_filter('update_user_metadata', $watch_write, 10, 3);
+        add_filter('get_terms', $inject_source_error);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('get_terms', $inject_source_error);
+            remove_filter('update_user_metadata', $watch_write, 10);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(96, (int) $state['cursor']);
+        $this->assertSame(0, $writes);
+        $this->assertNull(ll_tools_user_progress_get_source_error());
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+    }
+
+    public function test_prompt_progress_remaps_live_rows_and_preserves_deleted_legacy_entries(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Mixed Prompt Progress Wordset', 'mixed-prompt-progress-wordset');
+        $live_category_id = $this->ensure_term('word-category', 'Mixed Prompt Live Category', 'mixed-prompt-live-category');
+        $deleted_category_id = $this->ensure_term('word-category', 'Mixed Prompt Deleted Category', 'mixed-prompt-deleted-category');
+        $live_entry = [
+            'prompt_card_id' => 98761,
+            'category_id' => $live_category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 2,
+            'updated_at' => '2026-07-14 10:00:00',
+        ];
+        $deleted_entry = [
+            'prompt_card_id' => 98762,
+            'category_id' => $deleted_category_id,
+            'wordset_id' => $wordset_id,
+            'exposure_total' => 11,
+            'legacy_prompt_shape' => ['kept' => true],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, [
+            98761 => $live_entry,
+            98762 => $deleted_entry,
+        ]);
+        $this->assertNotWPError(wp_delete_term($deleted_category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         $live_copy_id = ll_tools_get_or_create_isolated_category_copy($live_category_id, $wordset_id);
         $this->assertGreaterThan(0, $live_copy_id);
 
@@ -2014,12 +2217,66 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $state['phase'] = 'users';
         $this->assertTrue(ll_tools_wordset_isolation_migration_process_user($user_id, $state));
 
-        $progress = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
-        $this->assertArrayHasKey($live_copy_id, $progress);
-        $this->assertArrayNotHasKey($live_category_id, $progress);
-        $this->assertSame(7, (int) ($progress[$live_copy_id]['exposure_total'] ?? 0));
-        $this->assertArrayHasKey($deleted_category_id, $progress);
-        $this->assertSame($deleted_entry, $progress[$deleted_category_id]);
+        $progress = get_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true);
+        $live_entry['category_id'] = $live_copy_id;
+        $this->assertSame($live_entry, $progress[98761]);
+        $this->assertSame($deleted_entry, $progress[98762]);
+    }
+
+    public function test_deleted_prompt_progress_family_lookup_error_fails_closed_without_writing(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Prompt Family Lookup Failure', 'prompt-family-lookup-failure');
+        $category_id = $this->ensure_term('word-category', 'Prompt Family Lookup Failure Category', 'prompt-family-lookup-failure-category');
+        $stored_progress = [
+            98763 => [
+                'prompt_card_id' => 98763,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 4,
+                'legacy_prompt_shape' => ['kept' => true],
+            ],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $stored_progress);
+        $this->assertNotWPError(wp_delete_term($category_id, 'word-category'));
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $writes = 0;
+        $watch_write = static function ($check, $object_id, $meta_key) use (&$writes, $user_id) {
+            if ((int) $object_id === $user_id && $meta_key === LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META) {
+                $writes++;
+            }
+            return $check;
+        };
+        $break_family_lookup = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll-tools-category-family-preflight') === false) {
+                return $query;
+            }
+            return str_replace($wpdb->termmeta, $wpdb->termmeta . '_missing', $query);
+        };
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $state['status'] = 'running';
+        $state['phase'] = 'users';
+        $state['cursor'] = 97;
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('update_user_metadata', $watch_write, 10, 3);
+        add_filter('query', $break_family_lookup);
+        try {
+            $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
+        } finally {
+            remove_filter('query', $break_family_lookup);
+            remove_filter('update_user_metadata', $watch_write, 10);
+            $wpdb->suppress_errors($previous_suppress);
+        }
+
+        $this->assertFalse($processed);
+        $this->assertSame('failed', $state['status']);
+        $this->assertSame(97, (int) $state['cursor']);
+        $this->assertSame(0, $writes);
+        $this->assertSame($stored_progress, get_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true));
     }
 
     public function test_historical_progress_events_stay_visible_when_category_ids_were_saved_before_isolation(): void

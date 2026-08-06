@@ -694,6 +694,9 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
             if ($student_id <= 0) {
                 continue;
             }
+            if (!get_userdata($student_id)) {
+                continue;
+            }
 
             $class_ids = array_values(array_filter(
                 ll_tools_teacher_class_get_ids_for_student($student_id),

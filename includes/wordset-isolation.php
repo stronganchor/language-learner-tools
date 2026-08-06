@@ -2686,8 +2686,9 @@ function ll_tools_wordset_isolation_migration_has_source_category_family_row(int
     if ($source_category_id <= 0) {
         return null;
     }
+    $wpdb->last_error = '';
     $found = $wpdb->get_var($wpdb->prepare(
-        "SELECT term_id
+        "SELECT /* ll-tools-category-family-preflight */ term_id
          FROM {$wpdb->termmeta}
          WHERE meta_key = %s
            AND meta_value = %s
@@ -2698,6 +2699,36 @@ function ll_tools_wordset_isolation_migration_has_source_category_family_row(int
     if ($wpdb->last_error !== '') {
         return null;
     }
+    return $found !== null;
+}
+
+/**
+ * Confirm one taxonomy identity without allowing a cache miss or query error
+ * to masquerade as a deleted term.
+ */
+function ll_tools_wordset_isolation_migration_term_exists(int $term_id, string $taxonomy): ?bool {
+    global $wpdb;
+
+    $term_id = max(0, $term_id);
+    $taxonomy = sanitize_key($taxonomy);
+    if ($term_id <= 0 || $taxonomy === '') {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $found = $wpdb->get_var($wpdb->prepare(
+        "SELECT /* ll-tools-user-store-term-preflight */ term_id
+         FROM {$wpdb->term_taxonomy}
+         WHERE taxonomy = %s
+           AND term_id = %d
+         LIMIT 1",
+        $taxonomy,
+        $term_id
+    ));
+    if ($wpdb->last_error !== '') {
+        return null;
+    }
+
     return $found !== null;
 }
 
@@ -2769,6 +2800,250 @@ function ll_tools_wordset_isolation_migration_current_user_category_ids(
         : ll_tools_wordset_isolation_parse_category_id_list($raw_category_ids);
 
     return ll_tools_wordset_isolation_migration_existing_category_ids($category_ids, $user_id, $state);
+}
+
+/**
+ * Resolve one current category to exactly one fully verified wordset target.
+ *
+ * @return int|null Null when the source, target, or ownership relationship is
+ *                  incomplete.
+ */
+function ll_tools_wordset_isolation_migration_resolve_user_category_target(
+    int $category_id,
+    int $wordset_id,
+    int $user_id,
+    array &$state
+): ?int {
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    $wordset_exists = ll_tools_wordset_isolation_migration_term_exists($wordset_id, 'wordset');
+    if ($wordset_exists !== true) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    $mapped_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset_complete(
+        [$category_id],
+        $wordset_id,
+        true
+    );
+    if (!is_array($mapped_ids) || count($mapped_ids) !== 1 || (int) $mapped_ids[0] <= 0) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    return (int) $mapped_ids[0];
+}
+
+/**
+ * Prepare the exact category-progress value used by migration preflight/write.
+ *
+ * Current categories keep the production normalization/merge behavior after
+ * their isolated targets have been verified. A category that is confirmed
+ * deleted and has no surviving family row is historical data: preserve that
+ * complete entry verbatim, including legacy field shape. Query errors and
+ * ambiguous family rows remain hard failures.
+ *
+ * @return array<int,array<string,mixed>>|null Null when repair is incomplete.
+ */
+function ll_tools_wordset_isolation_migration_prepare_category_progress_store(
+    array $raw_progress,
+    int $user_id,
+    array &$state
+): ?array {
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    $category_ids = [];
+    foreach ($raw_progress as $raw_category_id => $entry) {
+        $category_id = (int) $raw_category_id;
+        if ($category_id <= 0 || !is_array($entry)) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+        $category_ids[] = $category_id;
+    }
+
+    $current_category_ids = ll_tools_wordset_isolation_migration_existing_category_ids(
+        $category_ids,
+        $user_id,
+        $state
+    );
+    if ($current_category_ids === null) {
+        return null;
+    }
+
+    $current_lookup = array_fill_keys($current_category_ids, true);
+    $live_progress = [];
+    $live_target_ids = [];
+    $preserved_history = [];
+    foreach ($raw_progress as $raw_category_id => $entry) {
+        $category_id = (int) $raw_category_id;
+        $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+        if (isset($current_lookup[$category_id])) {
+            $target_category_id = ll_tools_wordset_isolation_migration_resolve_user_category_target(
+                $category_id,
+                $wordset_id,
+                $user_id,
+                $state
+            );
+            if ($target_category_id === null) {
+                return null;
+            }
+            $live_progress[$category_id] = $entry;
+            $live_target_ids[$target_category_id] = true;
+            continue;
+        }
+
+        $wordset_exists = ll_tools_wordset_isolation_migration_term_exists($wordset_id, 'wordset');
+        $has_family_row = ll_tools_wordset_isolation_migration_has_source_category_family_row($category_id);
+        if (
+            (int) ($entry['category_id'] ?? 0) !== $category_id
+            || $wordset_exists !== true
+            || $has_family_row !== false
+        ) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+        $preserved_history[$category_id] = $entry;
+    }
+
+    if (
+        !function_exists('ll_tools_user_progress_clear_source_error')
+        || !function_exists('ll_tools_user_progress_get_source_error')
+        || !function_exists('ll_tools_repair_user_category_progress_store_for_isolation')
+    ) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+    ll_tools_user_progress_clear_source_error();
+    $repaired_live = null;
+    $source_error = null;
+    $repair_threw = false;
+    try {
+        $repaired_live = empty($live_progress)
+            ? []
+            : ll_tools_repair_user_category_progress_store_for_isolation($live_progress);
+        $source_error = ll_tools_user_progress_get_source_error();
+    } catch (Throwable $error) {
+        $repair_threw = true;
+    } finally {
+        ll_tools_user_progress_clear_source_error();
+    }
+    $repaired_target_ids = is_array($repaired_live)
+        ? array_fill_keys(array_map('intval', array_keys($repaired_live)), true)
+        : [];
+    $expected_target_ids = array_map('intval', array_keys($live_target_ids));
+    $actual_target_ids = array_map('intval', array_keys($repaired_target_ids));
+    sort($expected_target_ids, SORT_NUMERIC);
+    sort($actual_target_ids, SORT_NUMERIC);
+    if (
+        $repair_threw
+        || $source_error instanceof WP_Error
+        || !is_array($repaired_live)
+        || (!empty($live_progress) && empty($repaired_live))
+        || $actual_target_ids !== $expected_target_ids
+    ) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    foreach ($preserved_history as $category_id => $entry) {
+        if (array_key_exists($category_id, $repaired_live)) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+        $repaired_live[$category_id] = $entry;
+    }
+
+    return $repaired_live;
+}
+
+/**
+ * Prepare prompt-card progress without discarding deleted-category history.
+ *
+ * Live categories are remapped only through a complete owner/source readback.
+ * Confirmed-deleted categories with no surviving family metadata keep their
+ * full entry unchanged; every ambiguous or failed lookup stops the user phase.
+ *
+ * @return array<mixed>|null Null when repair is incomplete.
+ */
+function ll_tools_wordset_isolation_migration_prepare_prompt_card_progress_store(
+    array $raw_progress,
+    int $user_id,
+    array &$state
+): ?array {
+    $category_ids = [];
+    foreach ($raw_progress as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $category_id = max(0, (int) ($entry['category_id'] ?? 0));
+        $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+        if ($category_id > 0 && $wordset_id > 0) {
+            $category_ids[] = $category_id;
+        }
+    }
+
+    $current_category_ids = ll_tools_wordset_isolation_migration_existing_category_ids(
+        $category_ids,
+        $user_id,
+        $state
+    );
+    if ($current_category_ids === null) {
+        return null;
+    }
+
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    $current_lookup = array_fill_keys($current_category_ids, true);
+    $expected = $raw_progress;
+    foreach ($expected as $prompt_card_id => $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $category_id = max(0, (int) ($entry['category_id'] ?? 0));
+        $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+        if ($category_id <= 0 || $wordset_id <= 0) {
+            continue;
+        }
+
+        if (isset($current_lookup[$category_id])) {
+            $target_category_id = ll_tools_wordset_isolation_migration_resolve_user_category_target(
+                $category_id,
+                $wordset_id,
+                $user_id,
+                $state
+            );
+            if ($target_category_id === null) {
+                return null;
+            }
+            $expected[$prompt_card_id]['category_id'] = $target_category_id;
+            continue;
+        }
+
+        $wordset_exists = ll_tools_wordset_isolation_migration_term_exists($wordset_id, 'wordset');
+        $has_family_row = ll_tools_wordset_isolation_migration_has_source_category_family_row($category_id);
+        if ($wordset_exists !== true || $has_family_row !== false) {
+            ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+            return null;
+        }
+    }
+
+    return $expected;
 }
 
 /**
@@ -2976,58 +3251,15 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
 
     if (defined('LL_TOOLS_USER_CATEGORY_PROGRESS_META')) {
         $progress = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
-        if (is_array($progress)) {
-            $expected_progress = function_exists('ll_tools_repair_user_category_progress_store_for_isolation')
-                ? ll_tools_repair_user_category_progress_store_for_isolation($progress)
-                : null;
-            foreach ($progress as $raw_category_id => $entry) {
-                $category_id = (int) $raw_category_id;
-                if ($category_id <= 0 || !is_array($entry) || !is_array($expected_progress)) {
-                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
-                        /* translators: %d is a WordPress user ID. */
-                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
-                        $user_id
-                    ));
-                    return false;
-                }
-                $term = get_term($category_id, 'word-category');
-                if (is_wp_error($term)) {
-                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
-                        /* translators: %d is a WordPress user ID. */
-                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
-                        $user_id
-                    ));
-                    return false;
-                }
-                if (!($term instanceof WP_Term)) {
-                    $wordset_id = (int) ($entry['wordset_id'] ?? 0);
-                    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
-                    $has_family_row = ll_tools_wordset_isolation_migration_has_source_category_family_row($category_id);
-                    $preserved = ($entry['category_id'] ?? null) === $category_id
-                        && ($wordset instanceof WP_Term)
-                        && !is_wp_error($wordset)
-                        && $has_family_row === false
-                        && array_key_exists($category_id, $expected_progress)
-                        && $expected_progress[$category_id] === $entry;
-                    if ($preserved) {
-                        continue;
-                    }
-                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
-                        /* translators: %d is a WordPress user ID. */
-                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
-                        $user_id
-                    ));
-                    return false;
-                }
-                if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
-                    [$category_id],
-                    [(int) ($entry['wordset_id'] ?? 0)],
-                    $user_id,
-                    $state
-                )) {
-                    return false;
-                }
-            }
+        if (
+            is_array($progress)
+            && ll_tools_wordset_isolation_migration_prepare_category_progress_store(
+                $progress,
+                $user_id,
+                $state
+            ) === null
+        ) {
+            return false;
         }
     }
 
@@ -3069,20 +3301,15 @@ function ll_tools_wordset_isolation_migration_preflight_user_category_mappings(i
 
     if (defined('LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META')) {
         $prompt_progress = get_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true);
-        if (is_array($prompt_progress)) {
-            foreach ($prompt_progress as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                if (!ll_tools_wordset_isolation_migration_require_user_category_mapping(
-                    [(int) ($entry['category_id'] ?? 0)],
-                    [(int) ($entry['wordset_id'] ?? 0)],
-                    $user_id,
-                    $state
-                )) {
-                    return false;
-                }
-            }
+        if (
+            is_array($prompt_progress)
+            && ll_tools_wordset_isolation_migration_prepare_prompt_card_progress_store(
+                $prompt_progress,
+                $user_id,
+                $state
+            ) === null
+        ) {
+            return false;
         }
     }
 
@@ -3168,10 +3395,17 @@ function ll_tools_wordset_isolation_migration_process_user(int $user_id, array &
         }
     }
 
-    if (defined('LL_TOOLS_USER_CATEGORY_PROGRESS_META') && function_exists('ll_tools_repair_user_category_progress_store_for_isolation')) {
+    if (defined('LL_TOOLS_USER_CATEGORY_PROGRESS_META')) {
         $before = get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
         if (is_array($before)) {
-            $expected = ll_tools_repair_user_category_progress_store_for_isolation($before);
+            $expected = ll_tools_wordset_isolation_migration_prepare_category_progress_store(
+                $before,
+                $user_id,
+                $state
+            );
+            if ($expected === null) {
+                return false;
+            }
             if (!ll_tools_wordset_isolation_migration_write_user_meta(
                 $user_id,
                 LL_TOOLS_USER_CATEGORY_PROGRESS_META,
@@ -3325,26 +3559,13 @@ function ll_tools_wordset_isolation_migration_process_user(int $user_id, array &
     if (defined('LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META')) {
         $before = get_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true);
         if (is_array($before)) {
-            $expected = $before;
-            foreach ($expected as $prompt_card_id => $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $category_id = (int) ($entry['category_id'] ?? 0);
-                $wordset_id = (int) ($entry['wordset_id'] ?? 0);
-                if ($category_id <= 0 || $wordset_id <= 0) {
-                    continue;
-                }
-                $mapped_ids = ll_tools_get_isolated_category_ids_for_wordsets([$category_id], [$wordset_id]);
-                if (empty($mapped_ids)) {
-                    ll_tools_wordset_isolation_migration_fail($state, sprintf(
-                        /* translators: %d is a WordPress user ID. */
-                        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
-                        $user_id
-                    ));
-                    return false;
-                }
-                $expected[$prompt_card_id]['category_id'] = (int) reset($mapped_ids);
+            $expected = ll_tools_wordset_isolation_migration_prepare_prompt_card_progress_store(
+                $before,
+                $user_id,
+                $state
+            );
+            if ($expected === null) {
+                return false;
             }
             if (!ll_tools_wordset_isolation_migration_write_user_meta(
                 $user_id,
