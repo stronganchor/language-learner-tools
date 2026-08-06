@@ -125,6 +125,54 @@ function ll_tools_public_static_cache_query_keys(): array {
 }
 
 /**
+ * Return whether the request carries front-end authentication state.
+ *
+ * These arguments intentionally do not participate in public cache keys: the
+ * rendered form can contain one-time feedback, prefilled identifiers, nonces,
+ * and a registration challenge. Their presence therefore has to bypass both
+ * public-cache reads and captures instead of sharing the ordinary page key.
+ *
+ * @param array<string,mixed>|null $raw_args
+ */
+function ll_tools_public_static_cache_has_frontend_auth_args(?array $raw_args = null): bool {
+    if ($raw_args === null) {
+        $raw_args = $_GET;
+    }
+
+    foreach (['ll_tools_auth', 'll_tools_auth_feedback'] as $key) {
+        if (array_key_exists($key, $raw_args)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Return the downstream cache policy for an authentication-bearing response.
+ */
+function ll_tools_public_static_cache_auth_cache_control_value(): string {
+    return 'private, no-store, no-cache, must-revalidate, max-age=0';
+}
+
+/**
+ * Keep authentication and one-time feedback responses out of browser/CDN
+ * caches as well as the plugin's own public static cache.
+ */
+function ll_tools_public_static_cache_send_auth_bypass_headers(): void {
+    if (headers_sent()) {
+        return;
+    }
+
+    header('X-LL-Public-Static-Cache: BYPASS');
+    header('X-LL-Public-Static-Cache-Reason: frontend-auth');
+    header('Cache-Control: ' . ll_tools_public_static_cache_auth_cache_control_value());
+    header('Pragma: no-cache');
+    header('Expires: Wed, 11 Jan 1984 05:00:00 GMT');
+    header('Vary: Accept-Language, Cookie', false);
+}
+
+/**
  * Normalize public-page display query args for cache-key generation.
  *
  * @param array<string,mixed>|null $raw_args
@@ -266,6 +314,9 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
         return false;
     }
     if (is_user_logged_in()) {
+        return false;
+    }
+    if (ll_tools_public_static_cache_has_frontend_auth_args()) {
         return false;
     }
     $is_wordset_page_request = function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context();
@@ -822,6 +873,11 @@ function ll_tools_public_static_cache_send_headers(string $cache_status, string 
  * Serve or start capturing one anonymous public read-only page request.
  */
 function ll_tools_serve_public_static_cache(): void {
+    if (ll_tools_public_static_cache_has_frontend_auth_args()) {
+        ll_tools_public_static_cache_send_auth_bypass_headers();
+        return;
+    }
+
     if (!ll_tools_is_cacheable_public_static_request()) {
         return;
     }
@@ -933,6 +989,12 @@ function ll_tools_store_public_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if (ll_tools_public_static_cache_has_frontend_auth_args()) {
+            ll_tools_public_static_cache_debug_log('skip_frontend_auth');
+            ll_tools_public_static_cache_send_auth_bypass_headers();
+            return;
+        }
+
         $status = ll_tools_public_static_cache_current_status_code();
         if ($status < 200 || $status >= 300) {
             ll_tools_public_static_cache_debug_log('skip_status', [

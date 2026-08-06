@@ -116,6 +116,128 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         ]));
     }
 
+    public function test_public_static_cache_frontend_auth_args_bypass_every_public_cache_key(): void
+    {
+        $this->assertFalse(ll_tools_public_static_cache_has_frontend_auth_args([]));
+        $this->assertFalse(ll_tools_public_static_cache_has_frontend_auth_args([
+            'll_wordset_back' => home_url('/?ll_tools_auth=login'),
+        ]));
+
+        foreach ([
+            ['ll_tools_auth' => 'login'],
+            ['ll_tools_auth' => 'register'],
+            ['ll_tools_auth' => 'not-a-valid-mode'],
+            ['ll_tools_auth' => ''],
+            ['ll_tools_auth' => null],
+            ['ll_tools_auth_feedback' => 'one-time-token'],
+            ['ll_tools_auth_feedback' => ''],
+            ['ll_tools_auth_feedback' => null],
+        ] as $args) {
+            $this->assertTrue(ll_tools_public_static_cache_has_frontend_auth_args($args));
+        }
+
+        $this->assertSame(
+            'private, no-store, no-cache, must-revalidate, max-age=0',
+            ll_tools_public_static_cache_auth_cache_control_value()
+        );
+    }
+
+    public function test_public_static_cache_never_reads_or_captures_frontend_auth_requests(): void
+    {
+        $term = wp_insert_term('Public Static Cache Auth Bypass', 'wordset');
+        $this->assertIsArray($term);
+        $this->assertFalse(is_wp_error($term));
+
+        $term_id = (int) ($term['term_id'] ?? 0);
+        $wordset = get_term($term_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        wp_set_current_user(0);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/';
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', '');
+        $this->clear404Flag();
+
+        $identity = ll_tools_public_static_cache_request_identity();
+        $this->assertIsArray($identity);
+        $this->assertTrue(ll_tools_is_cacheable_public_static_request());
+
+        $key = ll_tools_public_static_cache_key($identity);
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertNotSame('', $file);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
+        $baseline = '<!doctype html><html><body>' . str_repeat('ordinary cached wordset ', 40) . '</body></html>';
+        $this->assertNotFalse(file_put_contents($file, $baseline));
+        touch($file, time());
+
+        foreach ([
+            ['ll_tools_auth' => 'login'],
+            ['ll_tools_auth' => 'register'],
+            ['ll_tools_auth' => 'malformed'],
+            ['ll_tools_auth_feedback' => 'one-time-token'],
+        ] as $args) {
+            $_GET = $args;
+            $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/?' . http_build_query($args);
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+
+            $this->assertFalse(ll_tools_public_static_cache_has_safe_request_shape());
+            $this->assertFalse(ll_tools_is_cacheable_public_static_request());
+            ll_tools_serve_public_static_cache();
+            $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+            $this->assertSame($baseline, file_get_contents($file));
+        }
+
+        $_GET = [];
+        $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/';
+        $this->assertTrue(ll_tools_public_static_cache_has_safe_request_shape());
+        $this->assertTrue(ll_tools_is_cacheable_public_static_request());
+    }
+
+    public function test_public_static_cache_shutdown_refuses_auth_content_even_with_an_active_capture(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-auth-capture-guard-test.html';
+        @unlink($file);
+        $key = md5('public-auth-capture-guard-test');
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET = ['ll_tools_auth_feedback' => 'one-time-token'];
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'identity' => [
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/cached-wordset',
+                'wordset_id' => 17,
+            ],
+            'lock_acquired' => true,
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('private auth response ', 40) . '</body></html>';
+            ll_tools_store_public_static_cache();
+            $this->assertFileDoesNotExist($file);
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            ll_tools_public_static_cache_release_rebuild_lock($key);
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+    }
+
     public function test_public_static_cache_identifies_only_public_wordset_main_view(): void
     {
         $term = wp_insert_term('Public Static Cache Wordset', 'wordset');
