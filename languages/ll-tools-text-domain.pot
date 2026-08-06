@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-05T11:01:16+00:00\n"
+"POT-Creation-Date: 2026-08-06T10:01:32+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -5711,7 +5711,8 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:717
-#: includes/shortcodes/wordset-buttons-shortcode.php:1647
+#: includes/shortcodes/wordset-buttons-shortcode.php:1651
+#: includes/shortcodes/wordset-buttons-shortcode.php:1701
 msgid "Loading categories..."
 msgstr ""
 
@@ -5894,10 +5895,10 @@ msgstr ""
 
 #: includes/admin/image-aspect-normalizer-admin.php:900
 #: includes/admin/image-aspect-normalizer-admin.php:961
-#: includes/pages/vocab-lesson-pages.php:4888
-#: includes/pages/vocab-lesson-pages.php:5123
-#: includes/pages/vocab-lesson-pages.php:5166
-#: includes/pages/vocab-lesson-pages.php:5284
+#: includes/pages/vocab-lesson-pages.php:4896
+#: includes/pages/vocab-lesson-pages.php:5131
+#: includes/pages/vocab-lesson-pages.php:5174
+#: includes/pages/vocab-lesson-pages.php:5292
 #: includes/taxonomies/word-category-taxonomy.php:2120
 #: includes/taxonomies/word-category-taxonomy.php:2174
 #: includes/taxonomies/word-category-taxonomy.php:2302
@@ -6553,7 +6554,7 @@ msgid "Blocked mappings"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:435
-#: includes/pages/vocab-lesson-pages.php:7416
+#: includes/pages/vocab-lesson-pages.php:7424
 #: includes/pages/wordset-editor.php:4935
 #: templates/vocab-lesson-template.php:668
 msgid "Undo"
@@ -13166,7 +13167,7 @@ msgstr ""
 #: includes/flashcard-shell.php:120
 #: includes/flashcard-shell.php:134
 #: includes/pages/quiz-pages.php:1837
-#: includes/pages/vocab-lesson-pages.php:4487
+#: includes/pages/vocab-lesson-pages.php:4495
 #: includes/pages/wordset-pages.php:13345
 #: includes/shortcodes/audio-recording-shortcode.php:1771
 #: includes/shortcodes/audio-recording-shortcode.php:1796
@@ -15031,8 +15032,8 @@ msgstr ""
 
 #: includes/lib/word-grid-bulk-operations.php:1120
 #: includes/pages/quiz-pages.php:913
-#: includes/pages/vocab-lesson-pages.php:2895
-#: includes/pages/vocab-lesson-pages.php:3046
+#: includes/pages/vocab-lesson-pages.php:2903
+#: includes/pages/vocab-lesson-pages.php:3054
 #: includes/shortcodes/flashcard-widget.php:2485
 #: includes/shortcodes/flashcard-widget.php:2538
 #: includes/shortcodes/flashcard-widget.php:2713
@@ -16098,7 +16099,7 @@ msgid "Creating page..."
 msgstr ""
 
 #: includes/pages/default-shortcode-page-helper.php:357
-#: includes/pages/vocab-lesson-pages.php:7672
+#: includes/pages/vocab-lesson-pages.php:7680
 #: includes/wordset-isolation.php:4045
 msgid "Unknown error."
 msgstr ""
@@ -16459,66 +16460,66 @@ msgstr ""
 msgid "Play audio"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:2898
-#: includes/pages/vocab-lesson-pages.php:3049
+#: includes/pages/vocab-lesson-pages.php:2906
+#: includes/pages/vocab-lesson-pages.php:3057
 #: includes/pages/wordset-games.php:6141
 #: includes/pages/wordset-games.php:6408
 msgid "Invalid word set."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3519
+#: includes/pages/vocab-lesson-pages.php:3527
 msgid "Vocab lesson cleanup will retry after a temporary database error."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3594
+#: includes/pages/vocab-lesson-pages.php:3602
 msgid "Vocab lesson cleanup paused because category eligibility or source data was incomplete."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3793
+#: includes/pages/vocab-lesson-pages.php:3801
 msgid "Vocab lesson synchronization will retry after a temporary wordset lookup error."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3813
+#: includes/pages/vocab-lesson-pages.php:3821
 msgid "Vocab lesson synchronization paused because category candidates or counts were incomplete."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:3858
+#: includes/pages/vocab-lesson-pages.php:3866
 msgid "Vocab lesson synchronization paused because category eligibility or a page write was incomplete."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4484
+#: includes/pages/vocab-lesson-pages.php:4492
 msgid "Options"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4485
+#: includes/pages/vocab-lesson-pages.php:4493
 msgid "Edit word option rules for this lesson"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4486
+#: includes/pages/vocab-lesson-pages.php:4494
 msgid "Word options"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4488
+#: includes/pages/vocab-lesson-pages.php:4496
 msgid "Opening word options..."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4489
+#: includes/pages/vocab-lesson-pages.php:4497
 msgid "Lesson word option rules"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4862
+#: includes/pages/vocab-lesson-pages.php:4870
 msgid "Category settings saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4879
-#: includes/pages/vocab-lesson-pages.php:5275
+#: includes/pages/vocab-lesson-pages.php:4887
+#: includes/pages/vocab-lesson-pages.php:5283
 #: includes/taxonomies/word-category-taxonomy.php:2394
 #: includes/taxonomies/word-category-taxonomy.php:2408
 msgid "You do not have permission to update this category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4882
-#: includes/pages/vocab-lesson-pages.php:5267
+#: includes/pages/vocab-lesson-pages.php:4890
+#: includes/pages/vocab-lesson-pages.php:5275
 #: includes/pages/wordset-pages.php:3042
 #: includes/pages/wordset-pages.php:8844
 #: includes/pages/wordset-pages.php:8895
@@ -16536,20 +16537,20 @@ msgstr ""
 msgid "Your session expired. Please try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4885
-#: includes/pages/vocab-lesson-pages.php:5259
-#: includes/pages/vocab-lesson-pages.php:5295
+#: includes/pages/vocab-lesson-pages.php:4893
+#: includes/pages/vocab-lesson-pages.php:5267
+#: includes/pages/vocab-lesson-pages.php:5303
 msgid "This lesson no longer matches that word set category."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4891
-#: includes/pages/vocab-lesson-pages.php:5103
-#: includes/pages/vocab-lesson-pages.php:5249
-#: includes/pages/vocab-lesson-pages.php:6833
-#: includes/pages/vocab-lesson-pages.php:7159
-#: includes/pages/vocab-lesson-pages.php:7168
-#: includes/pages/vocab-lesson-pages.php:7171
-#: includes/pages/vocab-lesson-pages.php:7174
+#: includes/pages/vocab-lesson-pages.php:4899
+#: includes/pages/vocab-lesson-pages.php:5111
+#: includes/pages/vocab-lesson-pages.php:5257
+#: includes/pages/vocab-lesson-pages.php:6841
+#: includes/pages/vocab-lesson-pages.php:7167
+#: includes/pages/vocab-lesson-pages.php:7176
+#: includes/pages/vocab-lesson-pages.php:7179
+#: includes/pages/vocab-lesson-pages.php:7182
 #: includes/taxonomies/word-category-taxonomy.php:2379
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
@@ -16558,79 +16559,79 @@ msgstr ""
 msgid "Lesson not found."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4896
-#: includes/pages/vocab-lesson-pages.php:5304
+#: includes/pages/vocab-lesson-pages.php:4904
+#: includes/pages/vocab-lesson-pages.php:5312
 msgid "Unable to delete this category right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4899
+#: includes/pages/vocab-lesson-pages.php:4907
 #: includes/pages/wordset-pages.php:16315
 msgid "Category deletion progress could not be saved. Please try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4902
+#: includes/pages/vocab-lesson-pages.php:4910
 #: includes/pages/wordset-pages.php:16322
 msgid "Another category deletion batch is already running for this word set. Please try again shortly."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4905
+#: includes/pages/vocab-lesson-pages.php:4913
 msgid "Unable to save this category right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:4984
+#: includes/pages/vocab-lesson-pages.php:4992
 msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5062
+#: includes/pages/vocab-lesson-pages.php:5070
 #: includes/pages/wordset-pages.php:13315
 #: includes/taxonomies/word-category-taxonomy.php:2065
 msgid "Move earlier"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5063
+#: includes/pages/vocab-lesson-pages.php:5071
 #: includes/pages/wordset-pages.php:13316
 #: includes/taxonomies/word-category-taxonomy.php:2066
 msgid "Move later"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5064
+#: includes/pages/vocab-lesson-pages.php:5072
 msgid "Remove from print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5065
+#: includes/pages/vocab-lesson-pages.php:5073
 msgid "Add back to print"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5066
+#: includes/pages/vocab-lesson-pages.php:5074
 #: templates/vocab-lesson-print-template.php:136
 msgid "Restore all"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5067
+#: includes/pages/vocab-lesson-pages.php:5075
 #: templates/vocab-lesson-print-template.php:145
 msgid "Removed"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5068
+#: includes/pages/vocab-lesson-pages.php:5076
 msgid "All words removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5069
+#: includes/pages/vocab-lesson-pages.php:5077
 msgid "Restore one or more words to print this lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5090
-#: includes/pages/vocab-lesson-pages.php:7151
+#: includes/pages/vocab-lesson-pages.php:5098
+#: includes/pages/vocab-lesson-pages.php:7159
 msgid "Missing lesson."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5096
-#: includes/pages/vocab-lesson-pages.php:5227
-#: includes/pages/vocab-lesson-pages.php:6974
-#: includes/pages/vocab-lesson-pages.php:6979
-#: includes/pages/vocab-lesson-pages.php:6985
-#: includes/pages/vocab-lesson-pages.php:7078
-#: includes/pages/vocab-lesson-pages.php:7154
+#: includes/pages/vocab-lesson-pages.php:5104
+#: includes/pages/vocab-lesson-pages.php:5235
+#: includes/pages/vocab-lesson-pages.php:6982
+#: includes/pages/vocab-lesson-pages.php:6987
+#: includes/pages/vocab-lesson-pages.php:6993
+#: includes/pages/vocab-lesson-pages.php:7086
+#: includes/pages/vocab-lesson-pages.php:7162
 #: includes/shortcodes/dictionary-shortcode.php:150
 #: includes/shortcodes/dictionary-shortcode.php:159
 #: includes/shortcodes/dictionary-shortcode.php:172
@@ -16649,160 +16650,160 @@ msgstr ""
 msgid "Invalid request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5110
+#: includes/pages/vocab-lesson-pages.php:5118
 msgid "Lesson category is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5116
+#: includes/pages/vocab-lesson-pages.php:5124
 msgid "You do not have permission to edit this category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5131
+#: includes/pages/vocab-lesson-pages.php:5139
 #: templates/vocab-lesson-template.php:402
 msgid "Enter a category title."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5158
+#: includes/pages/vocab-lesson-pages.php:5166
 #: templates/vocab-lesson-template.php:405
 msgid "Unable to save this category title right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5181
+#: includes/pages/vocab-lesson-pages.php:5189
 #: templates/vocab-lesson-template.php:404
 msgid "Category title saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5368
+#: includes/pages/vocab-lesson-pages.php:5376
 msgid "Unable to validate the Line-Up sequence."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:5487
-#: includes/pages/vocab-lesson-pages.php:5605
+#: includes/pages/vocab-lesson-pages.php:5495
+#: includes/pages/vocab-lesson-pages.php:5613
 #: templates/vocab-lesson-template.php:413
 msgid "Changes saved."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:6472
-#: includes/pages/vocab-lesson-pages.php:6478
-#: includes/pages/vocab-lesson-pages.php:6525
-#: includes/pages/vocab-lesson-pages.php:6539
-#: includes/pages/vocab-lesson-pages.php:6546
-#: includes/pages/vocab-lesson-pages.php:6577
-#: includes/pages/vocab-lesson-pages.php:6630
-#: includes/pages/vocab-lesson-pages.php:6663
-#: includes/pages/vocab-lesson-pages.php:6932
+#: includes/pages/vocab-lesson-pages.php:6480
+#: includes/pages/vocab-lesson-pages.php:6486
+#: includes/pages/vocab-lesson-pages.php:6533
+#: includes/pages/vocab-lesson-pages.php:6547
+#: includes/pages/vocab-lesson-pages.php:6554
+#: includes/pages/vocab-lesson-pages.php:6585
+#: includes/pages/vocab-lesson-pages.php:6638
+#: includes/pages/vocab-lesson-pages.php:6671
+#: includes/pages/vocab-lesson-pages.php:6940
 #: templates/vocab-lesson-template.php:395
 msgid "Unable to load this lesson right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:6486
-#: includes/pages/vocab-lesson-pages.php:7180
+#: includes/pages/vocab-lesson-pages.php:6494
+#: includes/pages/vocab-lesson-pages.php:7188
 #: includes/shortcodes/word-grid-shortcode.php:8183
 #: includes/shortcodes/word-grid-shortcode.php:8195
 msgid "Lesson terms are missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7165
+#: includes/pages/vocab-lesson-pages.php:7173
 msgid "Lesson metadata is missing."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7245
+#: includes/pages/vocab-lesson-pages.php:7253
 msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7266
+#: includes/pages/vocab-lesson-pages.php:7274
 #: includes/shortcodes/flashcard-widget.php:1971
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7369
+#: includes/pages/vocab-lesson-pages.php:7377
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:7380
+#: includes/pages/vocab-lesson-pages.php:7388
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7385
+#: includes/pages/vocab-lesson-pages.php:7393
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7387
+#: includes/pages/vocab-lesson-pages.php:7395
 msgid "Vocab lesson pages could not be restored right now."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7418
+#: includes/pages/vocab-lesson-pages.php:7426
 msgid "View Trash"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7423
+#: includes/pages/vocab-lesson-pages.php:7431
 msgid "Dismiss"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7433
+#: includes/pages/vocab-lesson-pages.php:7441
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7500
+#: includes/pages/vocab-lesson-pages.php:7508
 msgid "You do not have permission to dismiss vocab lesson page notices."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7592
+#: includes/pages/vocab-lesson-pages.php:7600
 msgid "You do not have permission to update vocab lesson settings."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7596
+#: includes/pages/vocab-lesson-pages.php:7604
 msgid "Invalid vocab lesson settings request."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7642
+#: includes/pages/vocab-lesson-pages.php:7650
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7654
+#: includes/pages/vocab-lesson-pages.php:7662
 msgid "checking existing pages"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7655
+#: includes/pages/vocab-lesson-pages.php:7663
 msgid "creating and refreshing lesson pages"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7661
+#: includes/pages/vocab-lesson-pages.php:7669
 msgid "Vocab lesson sync is running in bounded background batches. Phase: %1$s. %2$d items checked, %3$d created, %4$d updated, %5$d removed. Reload this screen to refresh progress."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7677
+#: includes/pages/vocab-lesson-pages.php:7685
 msgid "Vocab lesson sync failed: %s"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7690
+#: includes/pages/vocab-lesson-pages.php:7698
 msgid "Vocab Lesson Settings"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7691
+#: includes/pages/vocab-lesson-pages.php:7699
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7706
+#: includes/pages/vocab-lesson-pages.php:7714
 msgid "No word sets found yet."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7710
+#: includes/pages/vocab-lesson-pages.php:7718
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7714
+#: includes/pages/vocab-lesson-pages.php:7722
 msgid "Save Settings & Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7716
+#: includes/pages/vocab-lesson-pages.php:7724
 msgid "Retry Sync"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:7717
+#: includes/pages/vocab-lesson-pages.php:7725
 msgid "Sync Now"
 msgstr ""
 
@@ -19003,9 +19004,9 @@ msgid "Matching your audio..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:13346
-#: includes/shortcodes/wordset-buttons-shortcode.php:1912
-#: includes/shortcodes/wordset-buttons-shortcode.php:1949
-#: includes/shortcodes/wordset-buttons-shortcode.php:1963
+#: includes/shortcodes/wordset-buttons-shortcode.php:2015
+#: includes/shortcodes/wordset-buttons-shortcode.php:2052
+#: includes/shortcodes/wordset-buttons-shortcode.php:2066
 msgid "Try again"
 msgstr ""
 
@@ -24227,9 +24228,9 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:713
 #: includes/shortcodes/flashcard-widget.php:718
 #: includes/shortcodes/flashcard-widget.php:720
-#: includes/shortcodes/wordset-buttons-shortcode.php:1911
-#: includes/shortcodes/wordset-buttons-shortcode.php:1948
-#: includes/shortcodes/wordset-buttons-shortcode.php:1962
+#: includes/shortcodes/wordset-buttons-shortcode.php:2014
+#: includes/shortcodes/wordset-buttons-shortcode.php:2051
+#: includes/shortcodes/wordset-buttons-shortcode.php:2065
 msgid "Something went wrong"
 msgstr ""
 
@@ -25909,25 +25910,28 @@ msgstr ""
 msgid "Transcription session mismatch"
 msgstr ""
 
+#: includes/shortcodes/wordset-buttons-shortcode.php:1721
+#: includes/shortcodes/wordset-buttons-shortcode.php:2247
+msgid "Private word set"
+msgstr ""
+
+#. translators: 1: word set name, 2: word set privacy label.
+#. translators: 1: word set name, 2: lesson count label.
+#: includes/shortcodes/wordset-buttons-shortcode.php:1725
+#: includes/shortcodes/wordset-buttons-shortcode.php:2257
+msgid "%1$s, %2$s"
+msgstr ""
+
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2090
+#: includes/shortcodes/wordset-buttons-shortcode.php:2244
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:2093
-msgid "Private word set"
-msgstr ""
-
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2097
+#: includes/shortcodes/wordset-buttons-shortcode.php:2251
 msgid "%1$s, private word set, %2$s"
-msgstr ""
-
-#. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2103
-msgid "%1$s, %2$s"
 msgstr ""
 
 #: includes/taxonomies/language-taxonomy.php:11

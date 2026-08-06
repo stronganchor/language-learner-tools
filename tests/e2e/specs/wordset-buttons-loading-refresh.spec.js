@@ -50,6 +50,34 @@ function anonymousStatusMarkup(token = 'signed-public-status-token') {
   `;
 }
 
+function navigationMarkup() {
+  return `
+    <div
+      class="ll-wordset-buttons-refresh"
+      data-ll-wordset-buttons-refresh
+      data-shortcode-tag="ll_wordset_buttons"
+      data-shortcode-class="homepage-wordsets"
+      data-hide-empty="0"
+      data-ajax-url="https://example.test/wp-admin/admin-ajax.php"
+      data-ajax-action="ll_tools_wordset_buttons_refresh"
+      data-nonce="recorder-refresh-nonce"
+      data-error-message="Something went wrong"
+      data-retry-label="Try again"
+      aria-busy="true">
+      <div
+        class="ll-wordset-buttons-shortcode ll-wordset-buttons-shortcode--loading ll-wordset-buttons-shortcode--navigation"
+        data-ll-wordset-buttons-navigation
+        aria-busy="true">
+        <ul class="ll-wordset-buttons-shortcode__list">
+          <li class="ll-wordset-buttons-shortcode__item">
+            <a class="ll-wordset-buttons-shortcode__button" href="https://example.test/genc-palu/">Genç</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
 test('logged-in loading shell advances bounded batches and replaces itself with exact cards', async ({ page }) => {
   const requests = [];
   const responses = [
@@ -426,6 +454,102 @@ test('terminal request failures replace the infinite skeleton with a retry contr
   await expect(page.locator('[data-ll-wordset-buttons-refresh]')).toHaveAttribute('aria-busy', 'false');
   await retry.click();
   await expect(page.getByText('Manual retry recovered')).toBeVisible();
+  expect(requestCount).toBe(3);
+});
+
+test('navigation links stay usable before counts load and after count refresh fails', async ({ page }) => {
+  let requestCount = 0;
+  let releaseFirstRequest;
+  let releaseRecoveryRequest;
+  const firstRequestGate = new Promise((resolve) => {
+    releaseFirstRequest = resolve;
+  });
+  const recoveryRequestGate = new Promise((resolve) => {
+    releaseRecoveryRequest = resolve;
+  });
+
+  await page.route('**/wp-admin/admin-ajax.php', async (route) => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      await firstRequestGate;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            complete: false,
+            html: `
+              <div class="ll-wordset-buttons-shortcode ll-wordset-buttons-shortcode--navigation" data-ll-wordset-buttons-navigation aria-busy="true">
+                <a class="ll-wordset-buttons-shortcode__button" href="https://example.test/genc-palu/">Genç</a>
+                <a class="ll-wordset-buttons-shortcode__button" href="https://example.test/aksaray/">Aksaray</a>
+              </div>
+            `,
+            retryAfterMs: 10
+          }
+        })
+      });
+      return;
+    }
+    if (requestCount === 2) {
+      await route.fulfill({ status: 503, body: 'temporary failure' });
+      return;
+    }
+
+    await recoveryRequestGate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          complete: true,
+          html: '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button" href="https://example.test/genc-palu/">Genç</a><span class="ll-wordset-buttons-shortcode__count">209 lessons</span></div>',
+          retryAfterMs: 0
+        }
+      })
+    });
+  });
+
+  await page.setContent(navigationMarkup(), { waitUntil: 'domcontentloaded' });
+  const wordsetLink = page.getByRole('link', { name: 'Genç' });
+  await expect(wordsetLink).toBeVisible();
+  await expect(wordsetLink).toHaveAttribute('href', 'https://example.test/genc-palu/');
+
+  await page.evaluate(() => {
+    window.llToolsWordsetButtonsRefresh = {
+      retryMs: 10,
+      requestTimeoutMs: 500,
+      maxFailures: 1,
+      maxWaitMs: 1000,
+      errorMessage: 'Something went wrong',
+      retryLabel: 'Try again'
+    };
+  });
+  await page.addScriptTag({ content: refreshScriptSource });
+
+  await expect.poll(() => requestCount).toBe(1);
+  await expect(wordsetLink).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-buttons-navigation]')).toHaveAttribute('aria-busy', 'true');
+  releaseFirstRequest();
+
+  const incompleteReplacementLink = page.getByRole('link', { name: 'Aksaray' });
+  await expect(incompleteReplacementLink).toBeVisible();
+  await expect(incompleteReplacementLink).toHaveAttribute('href', 'https://example.test/aksaray/');
+
+  const retry = page.getByRole('button', { name: 'Try again' });
+  await expect(retry).toBeVisible();
+  await expect(wordsetLink).toBeVisible();
+  await expect(incompleteReplacementLink).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-buttons-navigation]')).toHaveAttribute('aria-busy', 'false');
+
+  await retry.click();
+  await expect.poll(() => requestCount).toBe(3);
+  await expect(wordsetLink).toBeVisible();
+  await expect(incompleteReplacementLink).toBeVisible();
+  releaseRecoveryRequest();
+  await expect(page.getByText('209 lessons')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-buttons-refresh]')).toHaveCount(0);
   expect(requestCount).toBe(3);
 });
 

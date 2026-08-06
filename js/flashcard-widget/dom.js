@@ -703,15 +703,13 @@
                 ? root.llToolsFlashcardsData
                 : {};
             const override = String(flashData.categoryDisplayOverride || flashData.category_display_override || '').trim();
-            if (override) {
-                $el.text(protectMaqafNoBreak(override));
-                return;
-            }
-            if (!name) return;
-
-            const displayName = (Util && typeof Util.getCategoryDisplayLabel === 'function')
-                ? Util.getCategoryDisplayLabel(name, name)
-                : name;
+            const concreteName = String(name || '').trim();
+            const displayName = concreteName
+                ? ((Util && typeof Util.getCategoryDisplayLabel === 'function')
+                    ? Util.getCategoryDisplayLabel(concreteName, concreteName)
+                    : concreteName)
+                : override;
+            if (!displayName) return;
 
             $el.text(protectMaqafNoBreak(String(displayName)));
         },

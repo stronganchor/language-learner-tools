@@ -101,7 +101,11 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
 
             $config = $this->extractLocalizedConfig();
             $this->assertSame('main', (string) ($config['view'] ?? ''));
-            $this->assertCount(209, (array) ($config['categories'] ?? []));
+            $localized_categories = (array) ($config['categories'] ?? []);
+            $diagnostic_message = count($localized_categories) === count($category_ids)
+                ? ''
+                : $this->buildDeferredCatalogFailureDiagnostic($wordset_id, $category_ids, $config);
+            $this->assertCount(count($category_ids), $localized_categories, $diagnostic_message);
             $this->assertTrue((bool) ($config['lazyCards']['enabled'] ?? false));
             $this->assertSame(18, (int) ($config['lazyCards']['initialCount'] ?? 0));
             $this->assertSame(18, (int) ($config['lazyCards']['loaded'] ?? 0));
@@ -323,6 +327,10 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
             ll_tools_end_deferred_category_maintenance(false);
         }
 
+        // Fixture writes represent an import request. Publish its final cache
+        // generation before the page-render request reads the completed catalog.
+        $this->completeLlToolsSimulatedRequest();
+
         return [
             'wordset_id' => $wordset_id,
             'category_ids' => $category_ids,
@@ -381,6 +389,230 @@ final class WordsetPageDeferredStudyCatalogResourceTest extends LL_Tools_TestCas
         }
 
         return $queries;
+    }
+
+    /**
+     * Build a compact, failure-only snapshot without changing the render path.
+     *
+     * @param int[] $category_ids
+     * @param array<string,mixed> $config
+     */
+    private function buildDeferredCatalogFailureDiagnostic(int $wordset_id, array $category_ids, array $config): string
+    {
+        global $wpdb;
+
+        $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
+        $raw_tt_id = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE term_id = %d AND taxonomy = %s LIMIT 1",
+            $wordset_id,
+            'wordset'
+        ));
+        $published_words = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT p.ID)
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->term_relationships} ws
+                ON ws.object_id = p.ID AND ws.term_taxonomy_id = %d
+             WHERE p.post_type = %s AND p.post_status = %s",
+            $raw_tt_id,
+            'words',
+            'publish'
+        ));
+        $related_categories = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT category_tt.term_id)
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->term_relationships} ws
+                ON ws.object_id = p.ID AND ws.term_taxonomy_id = %d
+             INNER JOIN {$wpdb->term_relationships} category_rel
+                ON category_rel.object_id = p.ID
+             INNER JOIN {$wpdb->term_taxonomy} category_tt
+                ON category_tt.term_taxonomy_id = category_rel.term_taxonomy_id
+                AND category_tt.taxonomy = %s
+             WHERE p.post_type = %s AND p.post_status = %s",
+            $raw_tt_id,
+            'word-category',
+            'words',
+            'publish'
+        ));
+        $lesson_counts = $wpdb->get_row($wpdb->prepare(
+            "SELECT COUNT(DISTINCT p.ID) AS lessons,
+                    COUNT(DISTINCT CAST(category_meta.meta_value AS UNSIGNED)) AS categories
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} wordset_meta
+                ON wordset_meta.post_id = p.ID
+                AND wordset_meta.meta_key = %s
+                AND wordset_meta.meta_value = %s
+             INNER JOIN {$wpdb->postmeta} category_meta
+                ON category_meta.post_id = p.ID
+                AND category_meta.meta_key = %s
+             WHERE p.post_type = %s AND p.post_status = %s",
+            LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+            (string) $wordset_id,
+            LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+            'll_vocab_lesson',
+            'publish'
+        ), ARRAY_A);
+
+        $tt_static_variables = (new ReflectionFunction('ll_tools_vocab_lesson_get_wordset_term_taxonomy_id'))->getStaticVariables();
+        $tt_static_cache = (array) ($tt_static_variables['request_cache'] ?? []);
+        $tt_static_entry = is_array($tt_static_cache[$wordset_id] ?? null)
+            ? $tt_static_cache[$wordset_id]
+            : [];
+        $tt_complete = true;
+        $helper_tt_id = ll_tools_vocab_lesson_get_wordset_term_taxonomy_id($wordset_id, $tt_complete);
+
+        $dependencies = ll_tools_wordset_page_published_lesson_map_dependencies();
+        $map_key = ll_tools_wordset_page_build_cache_key('published_lesson_map', [
+            'schema' => 3,
+            'wordset_id' => $wordset_id,
+            'category_epoch' => $dependencies['category_epoch'],
+            'wordset_epoch' => $dependencies['wordset_epoch'],
+            'content_fallback_epoch' => $dependencies['content_fallback_epoch'],
+        ]);
+        $map_static_variables = (new ReflectionFunction('ll_tools_wordset_page_get_published_vocab_lesson_category_map'))->getStaticVariables();
+        $map_static_cache = (array) ($map_static_variables['request_cache'] ?? []);
+        $map_static_present = array_key_exists($map_key, $map_static_cache);
+        $map_static_payload = $map_static_present ? $map_static_cache[$map_key] : null;
+        $map_payload = ll_tools_wordset_page_get_published_vocab_lesson_category_map($wordset_id);
+
+        $category_epoch = ll_tools_get_category_cache_epoch();
+        $wordset_epoch = ll_tools_get_wordset_cache_epoch();
+        $quiz_content_epoch = ll_tools_get_quiz_content_cache_epoch([$wordset_id]);
+        $deep_key = 'll_vocab_lesson_deep_counts_' . md5((string) wp_json_encode([
+            'schema' => 6,
+            'wordset_id' => $wordset_id,
+            'category_epoch' => $category_epoch,
+            'wordset_epoch' => $wordset_epoch,
+            'quiz_content_epoch' => $quiz_content_epoch,
+        ]));
+        $deep_static_variables = (new ReflectionFunction('ll_tools_get_vocab_lesson_deepest_counts_for_wordset'))->getStaticVariables();
+        $deep_static_cache = (array) ($deep_static_variables['request_cache'] ?? []);
+        $deep_static_present = array_key_exists($deep_key, $deep_static_cache);
+        $deep_static_payload = $deep_static_present ? $deep_static_cache[$deep_key] : null;
+        $deep_payload = ll_tools_get_vocab_lesson_deepest_counts_for_wordset($wordset_id);
+
+        $wordset_min = max(1, (int) apply_filters('ll_tools_wordset_page_min_words', 1, $wordset_id));
+        $lesson_min = ll_tools_get_vocab_lesson_min_word_count(null, $wordset_id);
+        $translation_enabled = ll_tools_is_category_translation_enabled([$wordset_id]) ? '1' : '0';
+        $translation_target = sanitize_key((string) ll_tools_get_wordset_translation_language([$wordset_id]));
+        $cache_context = substr(md5(sanitize_key((string) get_locale()) . '|' . $translation_enabled . '|' . $translation_target), 0, 8);
+        $ordering_signature = ll_tools_wordset_get_category_ordering_cache_signature($wordset_id);
+        $row_key = ll_tools_wordset_page_build_cache_key('category_rows', [
+            'wordset_id' => $wordset_id,
+            'min_words' => max($wordset_min, $lesson_min),
+            'preview_limit' => 2,
+            'ordering_sig' => $ordering_signature,
+            'cache_context' => $cache_context,
+            'category_epoch' => $category_epoch,
+            'wordset_epoch' => $wordset_epoch,
+            'quiz_content_epoch' => $quiz_content_epoch,
+            'lesson_sig' => $category_epoch . ':' . $wordset_epoch,
+            'preview_schema' => 5,
+            'inactive' => 0,
+            'inactive_user_id' => 0,
+        ]);
+        $row_static_variables = (new ReflectionFunction('ll_tools_get_wordset_page_category_rows'))->getStaticVariables();
+        $row_static_cache = (array) ($row_static_variables['request_cache'] ?? []);
+        $row_static_present = array_key_exists($row_key, $row_static_cache);
+        $row_static_payload = $row_static_present ? $row_static_cache[$row_key] : null;
+        $rows_complete = true;
+        $rows = ll_tools_get_wordset_page_category_rows($wordset_id, 2, false, $rows_complete);
+
+        $user_id = max(0, (int) get_current_user_id());
+        $category_key = ll_tools_wordset_page_build_cache_key('categories_user', [
+            'schema' => 9,
+            'wordset_id' => $wordset_id,
+            'preview_limit' => 2,
+            'preview_mode' => 'deferred',
+            'locale' => sanitize_key((string) get_locale()),
+            'translation_enabled' => $translation_enabled,
+            'translation_target' => $translation_target,
+            'category_epoch' => $category_epoch,
+            'wordset_epoch' => $wordset_epoch,
+            'quiz_content_epoch' => $quiz_content_epoch,
+            'user_id' => $user_id,
+            'include_inactive' => 0,
+        ]);
+        $category_static_variables = (new ReflectionFunction('ll_tools_get_wordset_page_categories'))->getStaticVariables();
+        $category_static_cache = (array) ($category_static_variables['category_request_cache'] ?? []);
+        $category_static_present = array_key_exists($category_key, $category_static_cache);
+        $category_static_payload = $category_static_present ? $category_static_cache[$category_key] : null;
+
+        $summarize_map = static function ($payload): array {
+            $payload = is_array($payload) ? $payload : [];
+            return [
+                'present' => !empty($payload),
+                'complete' => !empty($payload['complete']),
+                'map_count' => count((array) ($payload['map'] ?? [])),
+                'signature' => (string) ($payload['signature'] ?? ''),
+                'stale' => !empty($payload['stale']),
+            ];
+        };
+        $summarize_deep = static function ($payload) use ($category_ids): array {
+            $payload = is_array($payload) ? $payload : [];
+            $all = (array) ($payload['all'] ?? []);
+            return [
+                'present' => !empty($payload),
+                'complete' => !empty($payload['complete']),
+                'all_key_count' => count($all),
+                'all_sum' => array_sum(array_map('intval', $all)),
+                'expected_key_count' => count(array_intersect($category_ids, array_map('intval', array_keys($all)))),
+            ];
+        };
+
+        $script_data = (string) wp_scripts()->get_data('ll-wordset-pages-js', 'data');
+        preg_match_all('/var llWordsetPageData = (\{.*?\});/s', $script_data, $localized_matches);
+
+        return 'Deferred catalog mismatch: ' . (string) wp_json_encode([
+            'db' => [
+                'raw_tt_id' => $raw_tt_id,
+                'published_words' => $published_words,
+                'related_categories' => $related_categories,
+                'lessons' => (int) ($lesson_counts['lessons'] ?? 0),
+                'lesson_categories' => (int) ($lesson_counts['categories'] ?? 0),
+                'last_error' => (string) $wpdb->last_error,
+            ],
+            'tt' => [
+                'static_present' => !empty($tt_static_entry),
+                'static_id' => (int) ($tt_static_entry['term_taxonomy_id'] ?? 0),
+                'static_complete' => !empty($tt_static_entry['complete']),
+                'helper_id' => (int) $helper_tt_id,
+                'helper_complete' => $tt_complete,
+            ],
+            'epochs' => [
+                'category' => $category_epoch,
+                'wordset' => $wordset_epoch,
+                'quiz_content' => (string) $quiz_content_epoch,
+                'fallback' => (string) ($dependencies['content_fallback_epoch'] ?? ''),
+            ],
+            'map' => [
+                'static_key_present' => $map_static_present,
+                'static' => $summarize_map($map_static_payload),
+                'current' => $summarize_map($map_payload),
+                'lock_present' => get_option(ll_tools_wordset_page_cache_rebuild_lock_option($map_key), false) !== false,
+            ],
+            'deep' => [
+                'static_key_present' => $deep_static_present,
+                'static' => $summarize_deep($deep_static_payload),
+                'current' => $summarize_deep($deep_payload),
+            ],
+            'rows' => [
+                'static_key_present' => $row_static_present,
+                'static_count' => is_array($row_static_payload) ? count($row_static_payload) : null,
+                'current_count' => count($rows),
+                'current_complete' => $rows_complete,
+            ],
+            'categories' => [
+                'static_key_present' => $category_static_present,
+                'static_count' => is_array($category_static_payload) ? count($category_static_payload) : null,
+                'localized_count' => count((array) ($config['categories'] ?? [])),
+            ],
+            'scripts' => [
+                'registered' => wp_script_is('ll-wordset-pages-js', 'registered'),
+                'enqueued' => wp_script_is('ll-wordset-pages-js', 'enqueued'),
+                'localized_blocks' => count((array) ($localized_matches[1] ?? [])),
+                'data_bytes' => strlen($script_data),
+            ],
+        ], JSON_UNESCAPED_SLASHES);
     }
 
     /**

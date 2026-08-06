@@ -2017,8 +2017,16 @@ function ll_tools_vocab_lesson_get_wordset_term_taxonomy_id(int $wordset_id, ?bo
         return 0;
     }
     if (array_key_exists($wordset_id, $request_cache)) {
-        $complete = !empty($request_cache[$wordset_id]['complete']);
-        return (int) ($request_cache[$wordset_id]['term_taxonomy_id'] ?? 0);
+        $cached_term_taxonomy_id = (int) ($request_cache[$wordset_id]['term_taxonomy_id'] ?? 0);
+        if ($cached_term_taxonomy_id > 0) {
+            $complete = !empty($request_cache[$wordset_id]['complete']);
+            return $cached_term_taxonomy_id;
+        }
+
+        // A missing term can become valid later in the same PHP process (for
+        // example during an import or a long-running test/CLI loop). Never let
+        // a negative lookup mask that newly-created taxonomy row.
+        unset($request_cache[$wordset_id]);
     }
 
     global $wpdb;
@@ -2031,7 +2039,7 @@ function ll_tools_vocab_lesson_get_wordset_term_taxonomy_id(int $wordset_id, ?bo
     ));
     $complete = $wpdb->last_error === '';
 
-    if ($complete) {
+    if ($complete && $term_taxonomy_id > 0) {
         $request_cache[$wordset_id] = [
             'term_taxonomy_id' => $term_taxonomy_id,
             'complete' => true,

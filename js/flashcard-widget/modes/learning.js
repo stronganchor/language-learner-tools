@@ -249,6 +249,7 @@
                 return normalizeWordId(item && item.id) === normalizedId && isPromptEligibleWord(item);
             });
             if (word) {
+                try { word.__categoryName = name; } catch (_) { /* no-op */ }
                 State.currentCategoryName = name;
                 State.currentCategory = words;
                 return word;
@@ -1192,6 +1193,16 @@
         }
 
         const currentWord = words[wordIndex];
+        const currentCategoryName = String((currentWord && currentWord.__categoryName) || '').trim();
+        if (currentCategoryName) {
+            State.currentCategoryName = currentCategoryName;
+            State.currentCategory = (State.wordsByCategory && State.wordsByCategory[currentCategoryName]) || State.currentCategory;
+            try {
+                if (Dom && typeof Dom.updateCategoryNameDisplay === 'function') {
+                    Dom.updateCategoryNameDisplay(currentCategoryName);
+                }
+            } catch (_) { /* no-op */ }
+        }
         let $currentCard = null;
         let $introCards = null;
         if ($jq) {

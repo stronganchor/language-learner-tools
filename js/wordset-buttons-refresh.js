@@ -89,7 +89,15 @@
 
         panel.appendChild(message);
         panel.appendChild(retry);
-        root.textContent = '';
+        var usableNavigation = root.querySelector('.ll-wordset-buttons-shortcode__button[href]');
+        if (usableNavigation) {
+            var navigationShell = usableNavigation.closest('[data-ll-wordset-buttons-navigation]');
+            if (navigationShell) {
+                navigationShell.setAttribute('aria-busy', 'false');
+            }
+        } else {
+            root.textContent = '';
+        }
         root.appendChild(panel);
     }
 
@@ -241,6 +249,10 @@
 
             if (typeof data.html === 'string' && data.html.trim() !== '' && root.innerHTML !== data.html) {
                 root.innerHTML = data.html;
+                // A bounded refresh can return a newer navigation shell before
+                // exact counts are ready. Manual Retry must preserve that latest
+                // usable shell instead of reverting to initialization markup.
+                state.loadingHtml = root.innerHTML;
             }
             schedule(root, state, data.retryAfterMs);
         }).catch(function () {

@@ -828,6 +828,9 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
             'post_status' => 'draft',
             'post_title' => 'Draft Lesson Becoming Public',
         ]);
+        // The explicit transition below represents a later request. The draft
+        // creation already consumed this request's coalesced purge guard.
+        $this->completeLlToolsSimulatedRequest();
         $file = trailingslashit($dir) . 'public-status-purge.html';
         file_put_contents($file, '<!doctype html><html><body>status purge</body></html>');
         ll_tools_public_static_cache_write_meta($file, 'status-purge', [

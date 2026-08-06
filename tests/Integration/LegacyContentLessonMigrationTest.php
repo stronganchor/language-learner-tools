@@ -1228,7 +1228,8 @@ final class LegacyContentLessonMigrationTest extends LL_Tools_TestCase
 
         [$result, $failure_injected] = $this->runWithInjectedQueryFailure(
             static function (string $query) use ($wpdb, $source_id, $target_id): bool {
-                return stripos($query, "SELECT *\n         FROM {$wpdb->posts}") !== false
+                return stripos($query, 'SELECT *') !== false
+                    && stripos($query, "FROM {$wpdb->posts}") !== false
                     && stripos($query, 'WHERE ID IN') !== false
                     && preg_match(
                         '/\b' . preg_quote((string) $source_id, '/') . '\b/',

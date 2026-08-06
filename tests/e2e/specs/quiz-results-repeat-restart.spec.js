@@ -542,6 +542,163 @@ async function mountPracticeProgressHarness(page, options = {}) {
   await page.addScriptTag({ content: mainSource });
 }
 
+async function mountBoundedCategoryLabelHarness(page, options = {}) {
+  const categoryDisplayOverride = String(options.categoryDisplayOverride || '');
+  const pageErrors = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(String((error && error.message) || error || 'unknown page error'));
+  });
+
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-popup">
+      <div id="ll-tools-flashcard-quiz-popup">
+        <div id="ll-tools-flashcard-header"></div>
+        <div id="ll-tools-learning-progress"></div>
+        <div id="ll-tools-category-stack">
+          <div id="ll-tools-category-display">Travel</div>
+          <button id="ll-tools-repeat-flashcard" type="button"></button>
+        </div>
+        <div id="ll-tools-flashcard-content"></div>
+        <div id="ll-tools-flashcard"></div>
+      </div>
+    </div>
+    <div id="ll-tools-loading-animation" style="display:none;"></div>
+    <div id="ll-tools-loading-status" hidden></div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.addScriptTag({ content: stateSource });
+
+  await page.evaluate((bootstrap) => {
+    const noop = function () {};
+    const travelWords = [
+      { id: 1101, title: 'Ticket', __categoryName: 'Travel' },
+      { id: 1102, title: 'Passport', __categoryName: 'Travel' }
+    ];
+    const animalWords = [
+      { id: 2201, title: 'Cat', __categoryName: 'Animals' },
+      { id: 2202, title: 'Dog', __categoryName: 'Animals' }
+    ];
+
+    window.__LLFlashcardsMainLoaded = false;
+    window.llToolsFlashcardsData = {
+      categories: [
+        { id: 11, name: 'Travel', slug: 'travel', word_count: travelWords.length },
+        { id: 22, name: 'Animals', slug: 'animals', word_count: animalWords.length }
+      ],
+      categoryDisplayOverride: bootstrap.categoryDisplayOverride,
+      category_display_override: bootstrap.categoryDisplayOverride,
+      sessionWordIds: animalWords.map((word) => word.id),
+      session_word_ids: animalWords.map((word) => word.id),
+      logicalSessionWordIds: travelWords.concat(animalWords).map((word) => word.id),
+      logical_session_word_ids: travelWords.concat(animalWords).map((word) => word.id),
+      logicalSessionTotal: travelWords.length + animalWords.length,
+      logical_session_total: travelWords.length + animalWords.length,
+      isUserLoggedIn: true,
+      modeUi: {}
+    };
+    window.llToolsFlashcardsMessages = {};
+    window.llToolsStudyPrefs = {
+      starredWordIds: animalWords.map((word) => word.id),
+      starred_word_ids: animalWords.map((word) => word.id),
+      starMode: 'only',
+      star_mode: 'only',
+      fastTransitions: true
+    };
+
+    const state = window.LLFlashcards.State;
+    state.widgetActive = true;
+    state.currentFlowState = state.STATES.QUIZ_READY;
+    state.isFirstRound = false;
+    state.isLearningMode = false;
+    state.isListeningMode = false;
+    state.isGenderMode = false;
+    state.isSelfCheckMode = false;
+    state.wordsByCategory = { Travel: travelWords.slice() };
+    state.currentCategoryName = 'Travel';
+    state.currentCategory = state.wordsByCategory.Travel;
+    state.initialCategoryNames = ['Travel'];
+    state.categoryNames = ['Travel'];
+    state.completedCategories = { Travel: true };
+    state.categoryRoundCount = { Travel: 2 };
+    state.categoryRepetitionQueues = { Travel: [] };
+    state.currentCategoryRoundCount = 2;
+    state.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
+    state.usedWordIDs = [];
+
+    window.LLFlashcards.Util = {
+      randomlySort(items) { return Array.isArray(items) ? items.slice() : []; },
+      getCategoryDisplayLabel(name, fallback) { return String(name || fallback || ''); }
+    };
+    window.LLFlashcards.Effects = { startConfetti: noop };
+    window.__boundedLabelRoundTarget = null;
+    window.LLFlashcards.Selection = {
+      getTargetCategoryName(word) {
+        return String((word && word.__categoryName) || state.currentCategoryName || '');
+      },
+      selectTargetWordAndCategory() {
+        return window.__boundedLabelRoundTarget;
+      },
+      getCategoryConfig() {
+        return { option_type: 'text', prompt_type: 'image' };
+      },
+      getCurrentDisplayMode() { return 'text'; },
+      fillQuizOptions(targetWord) {
+        const container = window.jQuery('#ll-tools-flashcard').empty();
+        window.jQuery('<button type="button" class="flashcard-container wrong-card"></button>')
+          .attr('data-word-id', `${targetWord.id}-wrong`)
+          .appendTo(container);
+        window.jQuery('<button type="button" class="flashcard-container correct-card"></button>')
+          .attr('data-word-id', targetWord.id)
+          .appendTo(container);
+        return Promise.resolve({ ready: true });
+      }
+    };
+    window.LLFlashcards.Cards = {};
+    window.LLFlashcards.Results = { hideResults: noop, showResults: noop };
+    window.LLFlashcards.StateMachine = {};
+    window.LLFlashcards.ModeConfig = {};
+    window.LLFlashcards.Modes = {};
+
+    window.FlashcardLoader = {
+      loadedCategories: [],
+      loadAudio: noop,
+      loadResourcesForWord() {
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      },
+      consumeBoundedPreloadedCategoryData(names) {
+        state.wordsByCategory.Animals = animalWords.slice();
+        return Promise.resolve({
+          success: true,
+          categories: Array.isArray(names) ? names.slice() : [],
+          sessionWordIds: animalWords.map((word) => word.id)
+        });
+      }
+    };
+    window.FlashcardAudio = {
+      initializeAudio: noop,
+      getCorrectAudioURL() { return ''; },
+      getWrongAudioURL() { return ''; },
+      playFeedback(_isCorrect, _audioUrl, callback) {
+        if (typeof callback === 'function') { callback(); }
+      },
+      pauseAllAudio: noop,
+      setTargetAudioHasPlayed: noop,
+      setTargetWordAudio: noop,
+      getCurrentTargetAudio() { return null; }
+    };
+    window.FlashcardOptions = { initializeOptionsCount: noop };
+    window.wordsByCategory = state.wordsByCategory;
+    window.categoryNames = state.categoryNames;
+  }, { categoryDisplayOverride });
+
+  await page.addScriptTag({ content: domSource });
+  await page.addScriptTag({ content: mainSource });
+  if (!await page.evaluate(() => !!(window.LLFlashcards && window.LLFlashcards.Main))) {
+    throw new Error(`Flashcard main failed to initialize: ${pageErrors.join(' | ')}`);
+  }
+}
+
 test('switchMode keeps the popup session active after resetting state', async ({ page }) => {
   await mountRestartHarness(page);
 
@@ -633,6 +790,71 @@ test('practice round transitions preserve the visible progress bar', async ({ pa
 
   const restoreOptions = await page.evaluate(() => window.__restoreHeaderOptions.slice());
   expect(restoreOptions.at(-1)).toEqual({ preserveProgress: true });
+});
+
+test('bounded in-progress continuation replaces the generic session label with the actual next category', async ({ page }) => {
+  await mountBoundedCategoryLabelHarness(page, {
+    categoryDisplayOverride: 'In progress words'
+  });
+
+  const initialState = await page.evaluate(() => {
+    const label = document.getElementById('ll-tools-category-display');
+    label.textContent = 'Travel';
+    return {
+      category: window.LLFlashcards.State.currentCategoryName,
+      label: label.textContent
+    };
+  });
+  expect(initialState).toEqual({ category: 'Travel', label: 'Travel' });
+
+  const continuation = await page.evaluate(async () => {
+    const result = await window.LLFlashcards.Main.appendBoundedSelectionChunk(['Animals']);
+    return {
+      result,
+      category: window.LLFlashcards.State.currentCategoryName,
+      label: document.getElementById('ll-tools-category-display').textContent,
+      sessionLabel: String(window.llToolsFlashcardsData.categoryDisplayOverride || '')
+    };
+  });
+
+  expect(continuation.result).toEqual({
+    success: true,
+    categories: ['Animals'],
+    sessionWordIds: [2201, 2202]
+  });
+  expect(continuation.category).toBe('Animals');
+  expect(continuation.label).toBe('Animals');
+  expect(continuation.sessionLabel).toBe('In progress words');
+});
+
+test('bounded starred continuation refreshes the actual category instead of retaining the prior round label', async ({ page }) => {
+  await mountBoundedCategoryLabelHarness(page);
+
+  await page.locator('#ll-tools-category-display').evaluate((element) => {
+    element.textContent = 'Travel';
+  });
+  const continuation = await page.evaluate(async () => {
+    const result = await window.LLFlashcards.Main.appendBoundedSelectionChunk(['Animals']);
+    return {
+      result,
+      category: window.LLFlashcards.State.currentCategoryName,
+      label: document.getElementById('ll-tools-category-display').textContent
+    };
+  });
+
+  expect(continuation.result.success).toBeTruthy();
+  expect(continuation.category).toBe('Animals');
+  expect(continuation.label).toBe('Animals');
+
+  await page.evaluate(() => {
+    document.getElementById('ll-tools-category-display').textContent = 'Travel';
+    const state = window.LLFlashcards.State;
+    window.__boundedLabelRoundTarget = state.wordsByCategory.Animals[0];
+    state.forceTransitionTo(state.STATES.QUIZ_READY, 'Prepare category-label round guard');
+    window.LLFlashcards.Main.runQuizRound();
+  });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+  await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
 });
 
 test('header restoration leaves practice progress visible when requested', async ({ page }) => {

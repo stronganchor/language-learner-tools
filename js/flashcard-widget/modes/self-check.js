@@ -1163,9 +1163,11 @@
         const categoryNameForRound = targetCategoryName || State.currentCategoryName;
         const roundData = buildSelfCheckRound(targetWord, categoryNameForRound);
 
-        if (categoryNameForRound && categoryNameForRound !== State.currentCategoryName) {
-            State.currentCategoryName = categoryNameForRound;
-            State.currentCategory = (State.wordsByCategory && State.wordsByCategory[categoryNameForRound]) || State.currentCategory;
+        if (categoryNameForRound) {
+            if (categoryNameForRound !== State.currentCategoryName) {
+                State.currentCategoryName = categoryNameForRound;
+                State.currentCategory = (State.wordsByCategory && State.wordsByCategory[categoryNameForRound]) || State.currentCategory;
+            }
             if (ctx.Dom && typeof ctx.Dom.updateCategoryNameDisplay === 'function') {
                 try { ctx.Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
             }

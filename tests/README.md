@@ -193,7 +193,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `WordsetPageLazyCardsAjaxTest` verifies lazy category shells are ID-only ordered references into a sparse complete registry, explicit negative capability/progress state survives compaction, Genç-scale registry JSON stays bounded, and lazy payload persistence failures retain a complete non-AJAX fallback.
 - `WordsetSettingsCustomUiTest` verifies the settings hub uses a cheap Advanced summary without entering the flashcard category-ordering catalog or answer-option preview sampler, while the opened Advanced tool keeps its dedicated runtime.
 - `WordsetCategoryOrderingAtomicSaveTest` verifies the frontend Advanced and legacy taxonomy forms validate category registries, prerequisite payloads, and cycles before changing ordering meta; preserve all three category-ordering keys on rejection; roll back all earlier writes after a later meta failure; keep unrelated settings; and show a partial-success warning.
-- `WordsetButtonsShortcodeTest` verifies incomplete signed-in count generations render a nonce-protected bounded loader, while cold anonymous generations emit non-cacheable shells with expiring context-bound status tokens. The public status action is rate-limited, accepts no caller scope, performs no eligibility scan, schedules one deduplicated continuation, and publishes only complete public cards through epoch-fenced exact/LKG keys; authoritative complete-empty generations remain empty.
+- `WordsetButtonsShortcodeTest` verifies initial cold renders perform no inline eligibility scan and expose privacy-filtered wordset names plus canonical navigation links while exact counts warm. Incomplete signed-in count generations render a nonce-protected bounded loader, while cold anonymous generations emit non-cacheable navigation shells with expiring context-bound status tokens. The public status action is rate-limited, accepts no caller scope, performs no eligibility scan, schedules one deduplicated continuation, and publishes only complete public cards through epoch-fenced exact/LKG keys; authoritative complete-empty generations remain empty.
 - `RankedWordListShortcodeTest` verifies numeric rank ordering with an ID tie-breaker, exact-category filtering, one hard-capped page per query, independent list-scoped pagination, page-scoped bulk audio collection, public asset detection, and the bounded idempotent ID/title rank-row importer.
 - `ContentLessonIndexShortcodeTest` verifies exact wordset/category scoping, list-specific bounded pagination and hard caps, completion display, exact legacy source/category/default-wordset contract backfills, write-free idempotent reruns, safe cached-link/signup rendering, migrated prerequisite/dependent shims, and nonreplacement of shortcode tags still owned by the legacy plugin.
 - `ContentLessonProgressTest` verifies completion normalization and compare-and-swap writes, guarded request/readback behavior, privacy export/erasure, bounded prerequisite/dependent rows, article settings and template rendering, cycle rejection, and fail-closed identity/relationship reads.
@@ -254,10 +254,14 @@ For automation runs where a 20-minute cap is too tight for the whole serial
 suite, use Playwright shards:
 
 ```bash
-tests/bin/run-e2e.sh --shard=1/4
-tests/bin/run-e2e.sh --shard=2/4
-tests/bin/run-e2e.sh --shard=3/4
-tests/bin/run-e2e.sh --shard=4/4
+tests/bin/run-e2e.sh --shard=1/8
+tests/bin/run-e2e.sh --shard=2/8
+tests/bin/run-e2e.sh --shard=3/8
+tests/bin/run-e2e.sh --shard=4/8
+tests/bin/run-e2e.sh --shard=5/8
+tests/bin/run-e2e.sh --shard=6/8
+tests/bin/run-e2e.sh --shard=7/8
+tests/bin/run-e2e.sh --shard=8/8
 ```
 
 The June 10, 2026 local runner-health check listed 314 tests at that point, and
@@ -265,12 +269,22 @@ the four shards completed with 313 passed and 1 skipped. Later E2E follow-ups
 expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
 files, the July 17 discovery listed 436 tests in 95 files, the July 24
 discovery listed 453 tests in 95 files, and a July 31, 2026 no-install
-discovery lists 479 tests in 97 spec files.
+discovery lists 479 tests in 97 spec files. The August 6 release audit
+exercised 597 tests.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
 minutes after shards pass, investigate suite-level state leakage or Local-site
 slowness.
+
+The current Windows Local stack uses one `php-cgi` worker and was empirically
+observed recycling it after roughly 500 dynamic requests. The larger current
+suite therefore uses eight release-validation shards. If a large shard catches
+one Nginx `502`, confirm simultaneous `WSARecv()` failures in the site's Nginx
+error log and a changed worker PID/start time, then rerun the exact failed spec
+or request-heavy file on the fresh worker. Keep 5xx assertions strict: do not
+add a generic retry, and treat a route that fails again before the recycle
+boundary as an application failure.
 
 Read-only live-site smoke checks use a separate Playwright config and a local-only site list:
 
@@ -295,7 +309,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/audio-recorder-category-switch.spec.js`
   - Verifies the category-neutral recorder overview, three neutral loading shells plus overflow cue, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path.
 - `tests/e2e/specs/wordset-buttons-loading-refresh.spec.js`
-  - Verifies the logged-in wordset-button shell serially retries bounded authenticated refreshes, preserves shortcode attributes, honors durable server backoff without exhausting its failure budget, refreshes expired nonces, discovers late page-builder shells, exposes a translated and theme-resistant manual retry state after terminal failures, replaces itself after exact completion, and never overlaps requests.
+  - Verifies the logged-in wordset-button shell serially retries bounded authenticated refreshes, preserves shortcode attributes, honors durable server backoff without exhausting its failure budget, refreshes expired nonces, discovers late page-builder shells, keeps navigation links usable before counts resolve and through terminal refresh failure, exposes a translated and theme-resistant manual retry state, replaces itself after exact completion, and never overlaps requests.
 - `tests/e2e/specs/image-aspect-normalizer-worklist-pagination.spec.js`
   - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
@@ -352,7 +366,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-iframe-recovery.spec.js`
   - Verifies shared and standalone quiz dialogs trap focus, isolate background content, restore the opener, expose timeout/load-error recovery, wait for and accept late embed-ready signals, and honor reduced-motion preferences.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
-  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, and that bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review
     card while preserving per-word answer audio, and that client-side bounded

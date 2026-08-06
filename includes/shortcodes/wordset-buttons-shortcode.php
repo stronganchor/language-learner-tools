@@ -481,13 +481,17 @@ function ll_tools_wordset_buttons_shortcode_record_state_key(string $key): void 
 }
 
 function ll_tools_purge_wordset_buttons_shortcode_cache_once(): int {
-    static $did_purge = false;
-    if ($did_purge) {
+    if (!empty($GLOBALS['ll_tools_wordset_buttons_shortcode_cache_purged_this_request'])) {
         return 0;
     }
 
-    $did_purge = true;
+    $GLOBALS['ll_tools_wordset_buttons_shortcode_cache_purged_this_request'] = true;
     return ll_tools_purge_wordset_buttons_shortcode_cache();
+}
+
+/** Reset the request guard for tests and CLI loops that simulate HTTP boundaries. */
+function ll_tools_reset_wordset_buttons_shortcode_cache_purge_once_state(): void {
+    unset($GLOBALS['ll_tools_wordset_buttons_shortcode_cache_purged_this_request']);
 }
 
 function ll_tools_wordset_buttons_shortcode_purge_on_post_change($post_id = 0): void {
@@ -1661,6 +1665,105 @@ function ll_tools_wordset_buttons_shortcode_loading_html(array $atts): string {
     return trim((string) ob_get_clean());
 }
 
+/**
+ * Render the cheap, privacy-filtered wordset navigation while exact lesson
+ * counts are still materializing.
+ *
+ * This shell deliberately omits lesson counts and button media. Both depend on
+ * the completed render, while names and canonical page URLs come from the
+ * already-resolved visible term catalog and should never be blocked by that
+ * background work.
+ */
+function ll_tools_wordset_buttons_shortcode_navigation_html(
+    array $atts,
+    ?bool &$complete = null
+): string {
+    $terms_complete = true;
+    $terms = ll_tools_get_wordset_button_visible_terms(
+        ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
+        $terms_complete
+    );
+    $complete = $terms_complete;
+    if (!$terms_complete || empty($terms)) {
+        return '';
+    }
+
+    $classes = ll_tools_wordset_buttons_shortcode_classes($atts, true);
+    $classes[] = 'll-wordset-buttons-shortcode--navigation';
+
+    ob_start();
+    ?>
+    <div
+        class="<?php echo esc_attr(implode(' ', array_unique($classes))); ?>"
+        data-ll-wordset-buttons-navigation
+        aria-busy="true"
+    >
+        <span class="screen-reader-text"><?php echo esc_html__('Loading categories...', 'll-tools-text-domain'); ?></span>
+        <ul class="ll-wordset-buttons-shortcode__list">
+            <?php foreach ($terms as $term) : ?>
+                <?php
+                if (!$term instanceof WP_Term || (int) $term->term_id <= 0) {
+                    continue;
+                }
+
+                $term_name = function_exists('ll_tools_get_wordset_display_name')
+                    ? ll_tools_get_wordset_display_name($term)
+                    : (string) $term->name;
+                $url = function_exists('ll_tools_get_wordset_page_view_url')
+                    ? (string) ll_tools_get_wordset_page_view_url($term)
+                    : '';
+                if ($term_name === '' || $url === '') {
+                    continue;
+                }
+
+                $is_private = function_exists('ll_tools_is_wordset_private')
+                    && ll_tools_is_wordset_private($term);
+                $privacy_label = __('Private word set', 'll-tools-text-domain');
+                $link_aria_label = $is_private
+                    ? sprintf(
+                        /* translators: 1: word set name, 2: word set privacy label. */
+                        __('%1$s, %2$s', 'll-tools-text-domain'),
+                        $term_name,
+                        $privacy_label
+                    )
+                    : $term_name;
+                $button_classes = [
+                    'll-study-btn',
+                    'll-vocab-lesson-mode-button',
+                    'll-wordset-buttons-shortcode__button',
+                    'll-wordset-buttons-shortcode__button--navigation',
+                ];
+                if ($is_private) {
+                    $button_classes[] = 'll-wordset-buttons-shortcode__button--private';
+                }
+                ?>
+                <li class="ll-wordset-buttons-shortcode__item">
+                    <a
+                        class="<?php echo esc_attr(implode(' ', $button_classes)); ?>"
+                        href="<?php echo esc_url($url); ?>"
+                        aria-label="<?php echo esc_attr($link_aria_label); ?>"
+                    >
+                        <span class="ll-wordset-buttons-shortcode__label-wrap">
+                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term_name); ?></span>
+                            <?php if ($is_private) : ?>
+                                <span
+                                    class="ll-wordset-buttons-shortcode__privacy-badge"
+                                    aria-hidden="true"
+                                    title="<?php echo esc_attr($privacy_label); ?>"
+                                ></span>
+                            <?php endif; ?>
+                        </span>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php
+
+    $html = trim((string) ob_get_clean());
+    return strpos($html, 'll-wordset-buttons-shortcode__button') !== false ? $html : '';
+}
+
 function ll_tools_wordset_buttons_shortcode_refresh_retry_ms(): int {
     return min(10000, max(500, (int) apply_filters(
         'll_tools_wordset_buttons_shortcode_refresh_retry_ms',
@@ -1968,24 +2071,57 @@ function ll_tools_wordset_buttons_shortcode_refresh_html(
 function ll_tools_wordset_buttons_shortcode_incomplete_html(
     array $atts,
     string $tag,
-    bool $allow_refresh
+    bool $allow_refresh,
+    string $expected_cache_key = '',
+    string $expected_stale_key = ''
 ): string {
-    $stale_html = ll_tools_wordset_buttons_shortcode_stale_get(
-        ll_tools_wordset_buttons_shortcode_stale_key($atts, $tag)
+    if ($expected_cache_key === '') {
+        $expected_cache_key = ll_tools_wordset_buttons_shortcode_cache_key($atts, $tag);
+    }
+    if ($expected_stale_key === '') {
+        $expected_stale_key = ll_tools_wordset_buttons_shortcode_stale_key($atts, $tag);
+    }
+
+    $context_current = ll_tools_wordset_buttons_shortcode_context_matches(
+        $atts,
+        $tag,
+        $expected_cache_key,
+        $expected_stale_key
     );
-    if ($stale_html === '') {
+    $stale_html = $context_current
+        ? ll_tools_wordset_buttons_shortcode_stale_get($expected_stale_key)
+        : '';
+    if ($context_current && $stale_html === '') {
         $stale_html = ll_tools_wordset_buttons_shortcode_anonymous_cache_get($atts, $tag);
     }
-    if ($stale_html === '') {
+    if ($context_current && $stale_html === '') {
         $stale_html = ll_tools_wordset_buttons_shortcode_previous_version_cache_get($atts, $tag);
     }
-    if ($stale_html === '') {
+    if ($context_current && $stale_html === '') {
         $stale_html = ll_tools_wordset_buttons_shortcode_legacy_cache_get($atts, $tag);
     }
 
+    $navigation_complete = true;
+    $navigation_html = $context_current && $stale_html === ''
+        ? ll_tools_wordset_buttons_shortcode_navigation_html($atts, $navigation_complete)
+        : '';
+    if (
+        !ll_tools_wordset_buttons_shortcode_context_matches(
+            $atts,
+            $tag,
+            $expected_cache_key,
+            $expected_stale_key
+        )
+    ) {
+        $stale_html = '';
+        $navigation_html = '';
+        $navigation_complete = false;
+    }
     $inner_html = $stale_html !== ''
         ? $stale_html
-        : ll_tools_wordset_buttons_shortcode_loading_html($atts);
+        : ($navigation_complete && $navigation_html !== ''
+            ? $navigation_html
+            : ll_tools_wordset_buttons_shortcode_loading_html($atts));
     return $allow_refresh
         ? ll_tools_wordset_buttons_shortcode_refresh_html($atts, $tag, $inner_html)
         : $inner_html;
@@ -2019,7 +2155,13 @@ function ll_tools_wordset_buttons_shortcode_render(
                 $expected_stale_key
             )) {
                 $complete = false;
-                return ll_tools_wordset_buttons_shortcode_incomplete_html($atts, $tag, $allow_refresh);
+                return ll_tools_wordset_buttons_shortcode_incomplete_html(
+                    $atts,
+                    $tag,
+                    $allow_refresh,
+                    $expected_cache_key,
+                    $expected_stale_key
+                );
             }
             if (ll_tools_wordset_buttons_shortcode_stale_get($expected_stale_key) === '') {
                 ll_tools_wordset_buttons_shortcode_stale_set($expected_stale_key, $cached_html);
@@ -2039,7 +2181,13 @@ function ll_tools_wordset_buttons_shortcode_render(
     );
     if (!$items_complete) {
         $complete = false;
-        return ll_tools_wordset_buttons_shortcode_incomplete_html($atts, $tag, $allow_refresh);
+        return ll_tools_wordset_buttons_shortcode_incomplete_html(
+            $atts,
+            $tag,
+            $allow_refresh,
+            $expected_cache_key,
+            $expected_stale_key
+        );
     }
     if (!ll_tools_wordset_buttons_shortcode_context_matches(
         $atts,
@@ -2048,7 +2196,13 @@ function ll_tools_wordset_buttons_shortcode_render(
         $expected_stale_key
     )) {
         $complete = false;
-        return ll_tools_wordset_buttons_shortcode_incomplete_html($atts, $tag, $allow_refresh);
+        return ll_tools_wordset_buttons_shortcode_incomplete_html(
+            $atts,
+            $tag,
+            $allow_refresh,
+            $expected_cache_key,
+            $expected_stale_key
+        );
     }
     if (empty($items)) {
         return '';
@@ -2149,7 +2303,13 @@ function ll_tools_wordset_buttons_shortcode_render(
         $expected_stale_key
     )) {
         $complete = false;
-        return ll_tools_wordset_buttons_shortcode_incomplete_html($atts, $tag, $allow_refresh);
+        return ll_tools_wordset_buttons_shortcode_incomplete_html(
+            $atts,
+            $tag,
+            $allow_refresh,
+            $expected_cache_key,
+            $expected_stale_key
+        );
     }
 
     if (
@@ -2163,7 +2323,13 @@ function ll_tools_wordset_buttons_shortcode_render(
         )
     ) {
         $complete = false;
-        return ll_tools_wordset_buttons_shortcode_incomplete_html($atts, $tag, $allow_refresh);
+        return ll_tools_wordset_buttons_shortcode_incomplete_html(
+            $atts,
+            $tag,
+            $allow_refresh,
+            $expected_cache_key,
+            $expected_stale_key
+        );
     }
 
     return $html;
@@ -2333,7 +2499,19 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
         ll_tools_wordset_page_enqueue_styles();
     }
 
-    return ll_tools_wordset_buttons_shortcode_render($atts, $tag);
+    // Initial page rendering is navigation-first. Read a completed generation
+    // when one exists, but leave cold count work to the bounded continuation so
+    // the visible wordset names and links are not delayed by eligibility scans.
+    $complete = true;
+    $retry_after_ms = 0;
+    return ll_tools_wordset_buttons_shortcode_render(
+        $atts,
+        $tag,
+        true,
+        $complete,
+        $retry_after_ms,
+        false
+    );
 }
 add_shortcode('wordset_buttons', 'll_tools_wordset_buttons_shortcode');
 add_shortcode('ll_wordset_buttons', 'll_tools_wordset_buttons_shortcode');

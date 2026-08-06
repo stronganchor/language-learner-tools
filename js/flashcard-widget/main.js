@@ -4618,6 +4618,19 @@
             return;
         }
 
+        const categoryTarget = Array.isArray(target) ? target[0] : target;
+        const targetCategoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
+            ? Selection.getTargetCategoryName(categoryTarget)
+            : ((categoryTarget && categoryTarget.__categoryName) || State.currentCategoryName);
+        const categoryNameForRound = targetCategoryName || State.currentCategoryName;
+        if (categoryNameForRound) {
+            if (categoryNameForRound !== State.currentCategoryName) {
+                State.currentCategoryName = categoryNameForRound;
+                State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
+            }
+            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
+        }
+
         if (modeModule && typeof modeModule.handlePostSelection === 'function') {
             const handled = modeModule.handlePostSelection(target, {
                 setGuardedTimeout,
@@ -4632,16 +4645,6 @@
             if (handled) {
                 return;
             }
-        }
-
-        const targetCategoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
-            ? Selection.getTargetCategoryName(target)
-            : ((target && target.__categoryName) || State.currentCategoryName);
-        const categoryNameForRound = targetCategoryName || State.currentCategoryName;
-        if (categoryNameForRound && categoryNameForRound !== State.currentCategoryName) {
-            State.currentCategoryName = categoryNameForRound;
-            State.currentCategory = State.wordsByCategory[categoryNameForRound] || State.currentCategory;
-            try { Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
         }
         updatePracticeModeProgress();
         updateProgressTrackerContext(getCurrentModeKey());
@@ -5007,6 +5010,7 @@
             State.currentCategoryName = availableNames[0];
             State.currentCategory = State.wordsByCategory[State.currentCategoryName];
             State.currentCategoryRoundCount = 0;
+            try { Dom.updateCategoryNameDisplay(State.currentCategoryName); } catch (_) { /* no-op */ }
             State.isFirstRound = false;
             State.totalWordCount = Math.max(
                 State.totalWordCount || 0,
