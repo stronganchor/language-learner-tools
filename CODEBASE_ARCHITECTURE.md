@@ -696,15 +696,29 @@ wordset can opt into it.
   controls, and repeat-button startup behavior.
 
 ## JS module map (`js/flashcard-widget/`)
-- `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and session guards.
+- `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and
+  session guards. A round is revealed only after its rendered media is usable;
+  a failed target/prompt image retains the bounded target-skip behavior, while
+  failed distractor-image cards may be removed only when the healthy target and
+  at least one other ready option remain. Otherwise the round fails closed
+  without discarding the healthy target. After an image retry, recheck the
+  already-mounted prompt audio before considering a foreground remount.
 - `state.js` - shared state container and constants.
-- `selection.js` - category/word selection, prompt rendering, and star-weighted selection.
+- `selection.js` - category/word selection, prompt rendering, and star-weighted
+  selection. Option preloads request only media used by the option type; an
+  audio prompt must not make image/text distractors preload unused answer audio.
 - `modes/practice.js`, `modes/learning.js`, `modes/listening.js`, `modes/gender.js`, `modes/self-check.js` - mode-specific flows.
 - `audio.js` - playback + `selectBestAudio()` priority logic.
 - `loader.js` - wordset-aware preloading and cache management; no-candidate
   category loads drain signed immutable materializer pages, preserve the locale
   that rendered the page, retain loading across warming retries, and restart
-  once on a stale cursor without mixing generations.
+  once on a stale cursor without mixing generations. Media `stalled` events are
+  transient buffering signals rather than terminal preload failures, and an
+  optional/reduced-data preload result must not overrule or delay creation of a
+  playable mounted target-audio element when a quiz round decides whether its
+  prompt is ready; the foreground target resource pass skips only its redundant
+  audio probe and retains image preloading, and an audio retry remounts that
+  foreground element instead of blocking on another background probe.
 - `options.js` - option count calculation and layout constraints.
 - `cards.js` - card rendering and font sizing.
 - `dom.js` - DOM helpers and progress UI.

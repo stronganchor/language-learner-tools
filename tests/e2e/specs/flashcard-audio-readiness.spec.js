@@ -7,6 +7,10 @@ const audioSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/audio.js'),
   'utf8'
 );
+const loaderSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/loader.js'),
+  'utf8'
+);
 
 async function mountAudioHarness(page) {
   await page.goto('about:blank');
@@ -23,6 +27,89 @@ async function mountAudioHarness(page) {
   });
   await page.addScriptTag({ content: audioSource });
 }
+
+async function mountLoaderHarness(page) {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard"></div>');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = {
+      debug: false,
+      categories: []
+    };
+    window.LLFlashcards = {
+      Util: {}
+    };
+  });
+  await page.addScriptTag({ content: loaderSource });
+}
+
+test('audio preload keeps waiting when buffering stalls transiently', async ({ page }) => {
+  await mountLoaderHarness(page);
+
+  const result = await page.evaluate(async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    let audioElementCount = 0;
+
+    class FakeAudio extends EventTarget {
+      constructor() {
+        super();
+        this.readyState = 0;
+        this.error = null;
+        this.parentNode = null;
+        this.preload = '';
+        this.crossOrigin = '';
+        this.src = '';
+      }
+
+      load() {
+        window.setTimeout(() => {
+          this.dispatchEvent(new Event('stalled'));
+        }, 20);
+        window.setTimeout(() => {
+          this.readyState = 3;
+          this.dispatchEvent(new Event('canplay'));
+        }, 80);
+      }
+
+      pause() {}
+
+      removeAttribute(name) {
+        if (name === 'src') this.src = '';
+      }
+    }
+
+    document.createElement = function (tagName, options) {
+      if (String(tagName || '').toLowerCase() === 'audio') {
+        audioElementCount += 1;
+        return new FakeAudio();
+      }
+      return originalCreateElement(tagName, options);
+    };
+
+    try {
+      const startedAt = performance.now();
+      const preload = await window.FlashcardLoader.loadAudio(
+        'https://media.test/transient-stall.m4a',
+        { maxRetries: 0, timeoutMs: 500 }
+      );
+
+      return {
+        ready: preload.ready,
+        attempts: preload.attempts,
+        elapsedMs: performance.now() - startedAt,
+        audioElementCount
+      };
+    } finally {
+      document.createElement = originalCreateElement;
+    }
+  });
+
+  expect(result.ready).toBe(true);
+  expect(result.attempts).toBe(1);
+  expect(result.audioElementCount).toBe(1);
+  expect(result.elapsedMs).toBeGreaterThanOrEqual(60);
+});
 
 test('playAudio waits for target audio to become buffered-ready before invoking play', async ({ page }) => {
   await mountAudioHarness(page);

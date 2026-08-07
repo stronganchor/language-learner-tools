@@ -618,7 +618,6 @@
                     try { audio.removeEventListener('canplay', onPlayable); } catch (_) { /* no-op */ }
                     try { audio.removeEventListener('loadeddata', onPlayable); } catch (_) { /* no-op */ }
                     try { audio.removeEventListener('error', onFailure); } catch (_) { /* no-op */ }
-                    try { audio.removeEventListener('stalled', onFailure); } catch (_) { /* no-op */ }
                     try { audio.removeEventListener('abort', onFailure); } catch (_) { /* no-op */ }
                 };
 
@@ -642,7 +641,10 @@
                 audio.addEventListener('canplay', onPlayable, { once: true });
                 audio.addEventListener('loadeddata', onPlayable, { once: true });
                 audio.addEventListener('error', onFailure, { once: true });
-                audio.addEventListener('stalled', onFailure, { once: true });
+                // `stalled` is a transient buffering signal, not a terminal media error.
+                // Keep waiting for a playable/error/abort event or the bounded timeout;
+                // otherwise healthy audio can be rejected while the browser is still
+                // filling its buffer (especially for cached/range-backed media).
                 audio.addEventListener('abort', onFailure, { once: true });
 
                 timeoutId = setTimeout(function () {

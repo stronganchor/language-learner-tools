@@ -4259,6 +4259,110 @@
             .map(getRenderedImageDetails);
     }
 
+    function recoverRoundFromUnreadyDistractorImages(targetWord) {
+        const failedImages = getRenderedQuizImages().filter(function (imageElement) {
+            return !isImageElementReady(imageElement);
+        });
+        const failedDetails = failedImages.map(getRenderedImageDetails);
+        const targetWordId = normalizeRoundWordId(targetWord && targetWord.id);
+        const targetKey = targetWordId === null ? '' : String(targetWordId);
+        const failedCards = [];
+        const failedWordIds = [];
+        let distractorOnly = failedImages.length > 0 && !!targetKey;
+
+        failedImages.forEach(function (imageElement, index) {
+            const detail = failedDetails[index] || {};
+            const failedWordId = normalizeRoundWordId(detail.wordId);
+            const failedKey = failedWordId === null ? '' : String(failedWordId);
+            const card = imageElement && typeof imageElement.closest === 'function'
+                ? imageElement.closest('.flashcard-container')
+                : null;
+
+            if (detail.context !== 'option' || !failedKey || failedKey === targetKey || !card) {
+                distractorOnly = false;
+                return;
+            }
+            if (failedCards.indexOf(card) === -1) {
+                failedCards.push(card);
+            }
+            if (failedWordIds.indexOf(failedKey) === -1) {
+                failedWordIds.push(failedKey);
+            }
+        });
+
+        if (!distractorOnly || !failedCards.length) {
+            return {
+                distractorOnly: false,
+                recovered: false,
+                remainingCount: 0,
+                failedWordIds: failedWordIds,
+                failedImages: failedDetails
+            };
+        }
+
+        const doc = root.document;
+        const renderedCards = doc && doc.querySelectorAll
+            ? Array.from(doc.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+            : [];
+        const remainingCards = renderedCards.filter(function (card) {
+            return failedCards.indexOf(card) === -1;
+        });
+        const remainingWordKeys = remainingCards.map(function (card) {
+            if (!card || typeof card.getAttribute !== 'function') return '';
+            const cardWordId = normalizeRoundWordId(card.getAttribute('data-word-id'));
+            return cardWordId === null ? '' : String(cardWordId);
+        });
+        const distinctRemainingWordKeys = remainingWordKeys.filter(function (wordKey, index, values) {
+            return !!wordKey && values.indexOf(wordKey) === index;
+        });
+        const targetCardPresent = remainingCards.some(function (card) {
+            if (!card || typeof card.getAttribute !== 'function') return false;
+            const cardWordId = normalizeRoundWordId(card.getAttribute('data-word-id'));
+            return cardWordId !== null && String(cardWordId) === targetKey;
+        });
+        const remainingCardsReady = remainingCards.every(function (card) {
+            if (!card || typeof card.querySelectorAll !== 'function') return false;
+            const cardImages = Array.from(card.querySelectorAll('img'));
+            return cardImages.length > 0 && cardImages.every(isImageElementReady);
+        });
+        const remainingImagesReady = getRenderedQuizImages().every(function (imageElement) {
+            return failedCards.some(function (card) {
+                return card && typeof card.contains === 'function' && card.contains(imageElement);
+            }) || isImageElementReady(imageElement);
+        });
+        const recovered = targetCardPresent &&
+            remainingWordKeys.every(Boolean) &&
+            distinctRemainingWordKeys.length >= 2 &&
+            remainingCardsReady &&
+            remainingImagesReady;
+
+        if (recovered) {
+            failedCards.forEach(function (card) {
+                try { card.remove(); } catch (_) {
+                    try {
+                        if (card.parentNode) card.parentNode.removeChild(card);
+                    } catch (__) { /* no-op */ }
+                }
+            });
+            try {
+                if (Cards && typeof Cards.fitImageAnswerOptionCardsForViewport === 'function') {
+                    Cards.fitImageAnswerOptionCardsForViewport();
+                }
+            } catch (_) { /* no-op */ }
+        }
+
+        return {
+            distractorOnly: true,
+            recovered: recovered,
+            remainingCount: distinctRemainingWordKeys.length,
+            targetCardPresent: targetCardPresent,
+            remainingCardsReady: remainingCardsReady,
+            remainingImagesReady: remainingImagesReady,
+            failedWordIds: failedWordIds,
+            failedImages: failedDetails
+        };
+    }
+
     function resetRenderedImageSource(imageElement, url) {
         if (!imageElement || !url) {
             return;
@@ -4423,39 +4527,28 @@
         const promptAudioUrl = explicitPromptAudioUrl || ((Util && typeof Util.getPromptAudioUrl === 'function')
             ? Util.getPromptAudioUrl(targetWord)
             : String((targetWord && targetWord.audio) || '').trim());
-        if (!targetWord || !promptAudioUrl || !root.FlashcardLoader || typeof root.FlashcardLoader.loadAudio !== 'function') {
+        if (!targetWord || !promptAudioUrl || !root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
             return Promise.resolve(false);
         }
 
-        return Promise.resolve(
-            root.FlashcardLoader.loadAudio(promptAudioUrl, {
-                forceRetry: true,
-                maxRetries: 2,
-                timeoutMs: 7600
+        const audioOptions = { autoplay: false };
+        if (explicitPromptAudioUrl) {
+            audioOptions.audioUrl = explicitPromptAudioUrl;
+        }
+        // Retry the actual foreground element. A separate loader probe may use
+        // metadata-only preloading on constrained connections and cannot prove
+        // whether the element the round will play is ready.
+        return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord, audioOptions))
+            .then(function () {
+                try {
+                    const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
+                        ? root.FlashcardAudio.getCurrentTargetAudio()
+                        : null;
+                    if (Dom.bindRepeatButtonAudio) Dom.bindRepeatButtonAudio(targetAudioEl);
+                } catch (_) { /* no-op */ }
+                return waitForTargetAudioReady('audio', 5200);
             })
-        ).then(function (result) {
-            if (!result || !result.ready) return false;
-            if (!root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
-                return true;
-            }
-            const audioOptions = { autoplay: false };
-            if (explicitPromptAudioUrl) {
-                audioOptions.audioUrl = explicitPromptAudioUrl;
-            }
-            return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord, audioOptions))
-                .then(function () {
-                    try {
-                        const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
-                            ? root.FlashcardAudio.getCurrentTargetAudio()
-                            : null;
-                        if (Dom.bindRepeatButtonAudio) Dom.bindRepeatButtonAudio(targetAudioEl);
-                    } catch (_) { /* no-op */ }
-                    return waitForTargetAudioReady('audio', 5200);
-                })
-                .catch(function () { return false; });
-        }).catch(function () {
-            return false;
-        });
+            .catch(function () { return false; });
     }
 
     function skipWordAfterMediaFailure(targetWord, reason, details) {
@@ -4680,7 +4773,11 @@
         }
 
         root.FlashcardLoader.loadResourcesForWord(target, displayMode, categoryNameForRound, categoryConfig, {
-            audioSource: 'prompt'
+            audioSource: 'prompt',
+            // The mounted target element below is the authoritative prompt-audio
+            // loader. Avoid blocking its creation on a redundant background probe,
+            // while preserving this call's image preload.
+            skipAudioPreload: true
         }).then(function (targetMediaStatus) {
             if (isStaleRound()) { return; }
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
@@ -4797,9 +4894,27 @@
                 }
                 const continueAfterImagesReady = function (latestRenderedStatus) {
                     const readyRenderedStatus = latestRenderedStatus || renderedStatus;
-                    const targetPreloadedAudioReady = !!(targetMediaStatus && targetMediaStatus.audioReady);
-                    const targetElementAudioReady = !!readyRenderedStatus.targetAudioReady;
-                    const promptAudioReady = !needsPromptAudio || (targetPreloadedAudioReady && targetElementAudioReady);
+                    let mountedTargetAudioReady = false;
+                    let mountedTargetAudioAvailable = false;
+                    try {
+                        const mountedTargetAudio = root.FlashcardAudio && typeof root.FlashcardAudio.getCurrentTargetAudio === 'function'
+                            ? root.FlashcardAudio.getCurrentTargetAudio()
+                            : null;
+                        mountedTargetAudioAvailable = !!mountedTargetAudio;
+                        mountedTargetAudioReady = !!(
+                            mountedTargetAudio &&
+                            mountedTargetAudio.readyState >= 2 &&
+                            !mountedTargetAudio.error
+                        );
+                    } catch (_) { /* no-op */ }
+                    const targetElementAudioReady = mountedTargetAudioAvailable
+                        ? mountedTargetAudioReady
+                        : !!readyRenderedStatus.targetAudioReady;
+                    // The mounted target element is the audio the round will actually play.
+                    // Treat its readiness as authoritative: the independent preload probe is
+                    // only an optimization and can remain metadata-only on reduced-data
+                    // connections even after the mounted element is playable.
+                    const promptAudioReady = !needsPromptAudio || targetElementAudioReady;
 
                     if (needsPromptAudio && !promptAudioReady) {
                         retryPromptAudioForRound(target).then(function (retryReady) {
@@ -4820,6 +4935,22 @@
                     finalizeQuestionDisplay();
                 };
 
+                const continueAfterImageRetry = function (latestRenderedStatus) {
+                    const retryStatus = latestRenderedStatus || renderedStatus;
+                    waitForTargetAudioReady(promptType, 1200).then(function (audioReadyAfterImageRetry) {
+                        if (isStaleRound()) { return; }
+                        const refreshedStatus = Object.assign({}, retryStatus, {
+                            targetAudioReady: !!audioReadyAfterImageRetry
+                        });
+                        continueAfterImagesReady(refreshedStatus);
+                    }).catch(function () {
+                        if (isStaleRound()) { return; }
+                        continueAfterImagesReady(Object.assign({}, retryStatus, {
+                            targetAudioReady: false
+                        }));
+                    });
+                };
+
                 if (!renderedStatus.imagesReady) {
                     retryRenderedImagesForRound(6200).then(function (imagesReadyAfterRetry) {
                         if (isStaleRound()) { return; }
@@ -4827,6 +4958,25 @@
                             imagesReady: !!imagesReadyAfterRetry
                         });
                         if (!imagesReadyAfterRetry) {
+                            const distractorRecovery = recoverRoundFromUnreadyDistractorImages(target);
+                            if (distractorRecovery.recovered) {
+                                retryRenderedStatus.imagesReady = true;
+                                continueAfterImageRetry(retryRenderedStatus);
+                                return;
+                            }
+                            if (distractorRecovery.distractorOnly) {
+                                showLoadingError({
+                                    reason: 'minimum-options',
+                                    details: {
+                                        chosenCount: distractorRecovery.remainingCount,
+                                        minimumRequired: 2,
+                                        failedWordIds: distractorRecovery.failedWordIds,
+                                        targetCardPresent: distractorRecovery.targetCardPresent,
+                                        remainingImagesReady: distractorRecovery.remainingImagesReady
+                                    }
+                                });
+                                return;
+                            }
                             skipWordAfterMediaFailure(target, 'round-images-not-ready', {
                                 targetMediaStatus: targetMediaStatus,
                                 optionStatus: optionStatus,
@@ -4835,7 +4985,7 @@
                             });
                             return;
                         }
-                        continueAfterImagesReady(retryRenderedStatus);
+                        continueAfterImageRetry(retryRenderedStatus);
                     });
                     return;
                 }

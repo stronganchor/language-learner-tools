@@ -2288,7 +2288,14 @@
             }
             const promise = Promise.resolve(
                 root.FlashcardLoader.loadResourcesForWord(word, mode, targetCategoryName, config, {
-                    audioSource: 'answer'
+                    audioSource: 'answer',
+                    // Prompt-only audio is owned by the mounted target element. Image
+                    // and text options do not need a separate answer-audio preload for
+                    // every distractor, but audio option modes still do. Likewise,
+                    // prompt-only images must not make non-image options preload unused
+                    // answer images.
+                    skipAudioPreload: mode !== 'audio' && mode !== 'text_audio',
+                    skipImagePreload: !optionTypeHasImage(mode)
                 })
             ).catch(function () {
                 return {

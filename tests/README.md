@@ -302,7 +302,9 @@ tests/bin/run-e2e.sh --list
 Representative E2E coverage areas:
 
 - `tests/e2e/helpers/admin.js`
-  - Provides the shared admin login, bounded REST fixture calls, temporary page creation, and cleanup helpers used by admin-authenticated browser specs.
+  - Provides the shared admin login, bounded REST fixture calls, temporary page creation, and cleanup helpers used by admin-authenticated browser specs. Admin navigation retries only a bounded run of transient 502/503/504 responses so a Local PHP-CGI recycle does not turn into a misleading 60-second DOM timeout; persistent gateway failures remain hard failures.
+- `tests/e2e/specs/admin-helper-contracts.spec.js`
+  - Verifies the shared admin navigation helper recovers from one transient gateway response and fails clearly after its bounded retry budget.
 - `tests/e2e/specs/admin-maintenance-pages.spec.js`
   - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/audio-image-matcher-pagination.spec.js`
@@ -324,6 +326,10 @@ Representative E2E coverage areas:
     order with the rendered locale, one stale-cursor restart cannot mix
     generations, and an underfilled bounded category handoff rolls back
     atomically before quiz setup.
+- `tests/e2e/specs/flashcard-audio-readiness.spec.js`
+  - Verifies target playback waits for usable buffering, a transient media
+    `stalled` event does not fail an audio preload that subsequently becomes
+    playable, and prompt-audio selection uses helpers loaded after the module.
 - `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
   - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
@@ -353,7 +359,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/offline-app-sync-error-wp.spec.js`
   - Seeds a real WordPress offline-app bundle, signs in through `ll_tools_offline_app_login`, forces one WordPress `ll_tools_offline_app_sync` conflict response, and verifies local pending progress, sane connected state, and manual retry through the real sync handler. This closes the former WordPress-backed sync error-fixture gap; only genuinely new server conflict semantics need new cases.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
-  - Verifies Practice mode answer option counts/constraints across category setups.
+  - Verifies Practice mode answer option counts/constraints across category setups, and that option preloads skip prompt-only distractor media while retaining audio/image media required by the answer type.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
   - Verifies selected card category/mode/wordset are forwarded into widget state.
 - `tests/e2e/specs/quiz-popup-text-translation-options.spec.js`
@@ -369,7 +375,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-iframe-recovery.spec.js`
   - Verifies shared and standalone quiz dialogs trap focus, isolate background content, restore the opener, expose timeout/load-error recovery, wait for and accept late embed-ready signals, and honor reduced-motion preferences.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
-  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, and that bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata.
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled recovery fails closed without dropping the target, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review
     card while preserving per-word answer audio, and that client-side bounded

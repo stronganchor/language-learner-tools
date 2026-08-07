@@ -27,7 +27,21 @@ function targetMatchesCurrentUrl(page, targetPath) {
 }
 
 async function gotoAdminPath(page, targetPath) {
-  await page.goto(targetPath, { waitUntil: 'commit', timeout: 60000 });
+  const retryableGatewayStatuses = new Set([502, 503, 504]);
+  const maxAttempts = 3;
+  let response = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    response = await page.goto(targetPath, { waitUntil: 'commit', timeout: 60000 });
+
+    const status = response && typeof response.status === 'function' ? response.status() : 0;
+    if (!retryableGatewayStatuses.has(status)) break;
+    if (attempt >= maxAttempts) {
+      throw new Error(`Admin navigation failed with retryable HTTP ${status} after ${maxAttempts} attempts.`);
+    }
+    await page.waitForTimeout(750 * attempt);
+  }
+
   await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
   await page.waitForFunction(() => (
     /\/wp-login\.php/.test(window.location.href)
@@ -200,5 +214,6 @@ module.exports = {
   deleteWpPage,
   dismissAdminEmailVerification,
   ensureLoggedIntoAdmin,
+  gotoAdminPath,
   hasAdminCredentials
 };

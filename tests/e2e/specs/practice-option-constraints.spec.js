@@ -496,6 +496,72 @@ test('practice options stay within the target category pool', async ({ page }) =
   expect(pickedIds).toEqual([101, 102]);
 });
 
+test('option preloads skip unused answer audio without changing audio option modes', async ({ page }) => {
+  const observed = {};
+
+  for (const optionType of ['image', 'text_title', 'audio', 'text_audio']) {
+    const category = `Preload ${optionType}`;
+    const targetWord = {
+      id: 1101,
+      title: 'Horse',
+      label: 'Horse',
+      image: 'https://img.test/horse.jpg',
+      audio: 'https://audio.test/horse.mp3'
+    };
+    const distractorWord = {
+      id: 1102,
+      title: 'Donkey',
+      label: 'Donkey',
+      image: 'https://img.test/donkey.jpg',
+      audio: 'https://audio.test/donkey.mp3'
+    };
+
+    await mountSelectionHarness(page, {
+      categories: [{ name: category, prompt_type: 'audio', option_type: optionType }],
+      targetCategoryName: category,
+      desiredCount: 2,
+      wordsByCategory: {
+        [category]: [targetWord, distractorWord]
+      },
+      optionWordsByCategory: {
+        [category]: [targetWord, distractorWord]
+      }
+    });
+
+    observed[optionType] = await page.evaluate(async ({ categoryName, target }) => {
+      window.__llOptionPreloadCalls = [];
+      window.FlashcardLoader.loadResourcesForWord = (word, mode, category, config, options) => {
+        window.__llOptionPreloadCalls.push({
+          wordId: Number(word && word.id) || 0,
+          audioSource: String((options && options.audioSource) || ''),
+          skipAudioPreload: !!(options && options.skipAudioPreload),
+          skipImagePreload: !!(options && options.skipImagePreload)
+        });
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      };
+
+      await window.LLFlashcards.Selection.fillQuizOptions(
+        Object.assign({ __categoryName: categoryName }, target)
+      );
+      return window.__llOptionPreloadCalls.slice();
+    }, { categoryName: category, target: targetWord });
+  }
+
+  expect(observed.image).toEqual([
+    { wordId: 1101, audioSource: 'answer', skipAudioPreload: true, skipImagePreload: false },
+    { wordId: 1102, audioSource: 'answer', skipAudioPreload: true, skipImagePreload: false }
+  ]);
+  expect(observed.text_title).toEqual([
+    { wordId: 1101, audioSource: 'answer', skipAudioPreload: true, skipImagePreload: true },
+    { wordId: 1102, audioSource: 'answer', skipAudioPreload: true, skipImagePreload: true }
+  ]);
+  expect(observed.audio).toEqual([
+    { wordId: 1101, audioSource: 'answer', skipAudioPreload: false, skipImagePreload: true },
+    { wordId: 1102, audioSource: 'answer', skipAudioPreload: false, skipImagePreload: true }
+  ]);
+  expect(observed.text_audio).toEqual(observed.audio);
+});
+
 test('practice options exclude wrong answers with the same translation', async ({ page }) => {
   const targetCategory = 'Actions';
   const targetWord = {
