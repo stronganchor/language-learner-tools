@@ -330,6 +330,8 @@ Representative E2E coverage areas:
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards; white prompt images retain a visible shadow boundary on mobile and desktop.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
+- `tests/e2e/specs/prompt-card-progress-tracker.spec.js`
+  - Verifies prompt-card and normal learner events keep exact UUIDs across partial failure, timeout, overlapping activity, reload, and user/wordset journal transitions. Typed progress-sync 429/503 responses must honor the longer JSON/header `Retry-After` value as one persisted cooldown across authenticated and offline reloads: sustained new activity remains journaled without repeat POSTs or postponing the deadline, the exact ordered batch resumes automatically, partial success preserves newer-activity timers, and full success clears both the queue and cooldown.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
 - `tests/e2e/specs/page-speed-throttled-load.spec.js`

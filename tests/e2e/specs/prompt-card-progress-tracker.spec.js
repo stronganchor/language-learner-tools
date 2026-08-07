@@ -494,6 +494,647 @@ test('mode completion queued during an active request survives its failure and f
   expect(result.finalQueueSize).toBe(0);
 });
 
+test('partial success preserves the flush timer for failed UUIDs and newer activity', async ({ page }) => {
+  await openStorageBackedPage(page);
+  await page.evaluate(({ scope }) => {
+    window.sessionStorage.clear();
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'wp',
+      ajaxurl: '/wp-admin/admin-ajax.php',
+      userStudyNonce: 'progress-partial-nonce',
+      isUserLoggedIn: true,
+      progressStorageScope: scope,
+      wordsetIds: [77]
+    };
+    window.llToolsStudyData = {};
+    window.__progressPartialMock = { batches: [], requests: [] };
+    window.jQuery = {
+      post(_url, payload) {
+        const callbacks = { done: null, fail: null };
+        const request = {
+          done(callback) {
+            callbacks.done = callback;
+            return request;
+          },
+          fail(callback) {
+            callbacks.fail = callback;
+            return request;
+          },
+          resolve(response) {
+            if (callbacks.done) callbacks.done(response);
+          }
+        };
+        window.__progressPartialMock.batches.push(JSON.parse(payload.events));
+        window.__progressPartialMock.requests.push(request);
+        return request;
+      }
+    };
+  }, { scope: progressScopeA });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const result = await page.evaluate(async () => {
+    const tracker = window.LLFlashcards.ProgressTracker;
+    const waitFor = (predicate, timeoutMs = 1500) => new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const check = () => {
+        if (predicate()) {
+          resolve();
+          return;
+        }
+        if (Date.now() - startedAt >= timeoutMs) {
+          reject(new Error('Timed out waiting for the partial progress retry.'));
+          return;
+        }
+        window.setTimeout(check, 10);
+      };
+      check();
+    });
+
+    tracker.clearQueue();
+    const failedId = tracker.trackCategoryStudy({ categoryId: 71, units: 1 });
+    const firstFlush = tracker.flush();
+    const newerId = tracker.trackCategoryStudy({ categoryId: 72, units: 1, flushDelay: 120 });
+
+    window.__progressPartialMock.requests[0].resolve({
+      success: true,
+      data: {
+        stats: {
+          received: 1,
+          processed: 0,
+          duplicates: 0,
+          invalid: 0,
+          failed: 1,
+          failed_event_uuids: [failedId]
+        }
+      }
+    });
+    const firstResult = await firstFlush;
+    await waitFor(() => window.__progressPartialMock.batches.length === 2);
+
+    const retryIds = window.__progressPartialMock.batches[1].map(event => event.event_uuid);
+    window.__progressPartialMock.requests[1].resolve({
+      success: true,
+      data: {
+        stats: {
+          received: 2,
+          processed: 2,
+          duplicates: 0,
+          invalid: 0,
+          failed: 0,
+          failed_event_uuids: []
+        }
+      }
+    });
+    await waitFor(() => tracker.getQueueSize() === 0);
+
+    return {
+      failedId,
+      newerId,
+      firstResult,
+      retryIds,
+      finalQueueSize: tracker.getQueueSize()
+    };
+  });
+
+  expect(result.firstResult).toMatchObject({
+    partial_failure: true,
+    failed_event_uuids: [result.failedId]
+  });
+  expect(result.retryIds).toEqual([result.failedId, result.newerId]);
+  expect(result.finalQueueSize).toBe(0);
+});
+
+test('non-retryable conflict keeps a human error and generic persisted failure state', async ({ page }) => {
+  const progressStoreKey = 'lltools_offline_progress_v2::wordset:77';
+
+  await openStorageBackedPage(page);
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'offline',
+      wordsetIds: [77],
+      offlineSync: {
+        enabled: true,
+        ajaxUrl: '/wp-admin/admin-ajax.php',
+        syncAction: 'll_tools_offline_app_sync'
+      }
+    };
+    window.llToolsStudyData = {};
+    window.jQuery = {
+      post() {
+        const request = {
+          done() {
+            return request;
+          },
+          fail(callback) {
+            window.setTimeout(() => callback({
+              status: 409,
+              responseJSON: {
+                success: false,
+                data: {
+                  code: 'll_tools_e2e_offline_sync_conflict',
+                  message: 'Offline sync conflict from the E2E fixture. Retry is available.'
+                }
+              },
+              getResponseHeader() {
+                return null;
+              }
+            }, 'error', 'Conflict'), 0);
+            return request;
+          }
+        };
+        return request;
+      }
+    };
+  });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const result = await page.evaluate(async (key) => {
+    const tracker = window.LLFlashcards.ProgressTracker;
+    tracker.setOfflineSyncSession({ auth_token: 'offline-conflict-token', user: { id: 23 } });
+    const eventId = tracker.trackCategoryStudy({ categoryId: 73, units: 1 });
+    const failed = await tracker.flush();
+    return {
+      eventId,
+      failed,
+      state: tracker.getSyncState(),
+      snapshot: JSON.parse(window.localStorage.getItem(key))
+    };
+  }, progressStoreKey);
+
+  expect(result.failed).toMatchObject({
+    failed: true,
+    error: 'Conflict',
+    retryable: false,
+    retry_after_ms: 0
+  });
+  expect(result.state).toMatchObject({
+    queued: 1,
+    backing_off: false,
+    last_sync_error: 'request_failed'
+  });
+  expect(result.snapshot.last_sync_error).toBe('request_failed');
+  expect(result.snapshot.queue.map(event => event.event_uuid)).toEqual([result.eventId]);
+});
+
+test('typed progress Retry-After cooldown journals new activity and resumes one exact batch automatically', async ({ page }) => {
+  const journalKey = `lltools_wp_progress_journal_v1::user:${progressScopeA}::wordset:77`;
+
+  await openStorageBackedPage(page);
+  await page.evaluate(({ scope }) => {
+    window.sessionStorage.clear();
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'wp',
+      ajaxurl: '/wp-admin/admin-ajax.php',
+      userStudyNonce: 'progress-retry-nonce',
+      isUserLoggedIn: true,
+      progressStorageScope: scope,
+      wordsetIds: [77]
+    };
+    window.llToolsStudyData = {};
+    window.__progressCooldownMock = { batches: [], requestTimes: [], requests: [] };
+    window.jQuery = {
+      post(_url, payload) {
+        const callbacks = { done: null, fail: null };
+        const request = {
+          done(callback) {
+            callbacks.done = callback;
+            return request;
+          },
+          fail(callback) {
+            callbacks.fail = callback;
+            return request;
+          },
+          resolve(response) {
+            if (callbacks.done) callbacks.done(response);
+          },
+          rejectRetry() {
+            if (!callbacks.fail) return;
+            callbacks.fail({
+              status: 503,
+              responseJSON: {
+                success: false,
+                data: {
+                  code: 'progress_transactional_engine_unavailable',
+                  retryable: true,
+                  retry_after: 0.08
+                }
+              },
+              getResponseHeader(name) {
+                return String(name).toLowerCase() === 'retry-after' ? '0.18' : null;
+              }
+            }, 'error', 'Service Unavailable');
+          }
+        };
+        window.__progressCooldownMock.batches.push(JSON.parse(payload.events));
+        window.__progressCooldownMock.requestTimes.push(Date.now());
+        window.__progressCooldownMock.requests.push(request);
+        if (window.__progressCooldownMock.batches.length === 2) {
+          window.clearInterval(window.__progressRetryActivityInterval);
+          window.__progressRetryActivityInterval = null;
+          window.__progressCooldownMock.generatedIdsAtRetry = Array.isArray(window.__progressRetryGeneratedIds)
+            ? window.__progressRetryGeneratedIds.slice()
+            : [];
+        }
+        return request;
+      }
+    };
+  }, { scope: progressScopeA });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const result = await page.evaluate(async (key) => {
+    const tracker = window.LLFlashcards.ProgressTracker;
+    const waitFor = (predicate, timeoutMs = 2000) => new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const check = () => {
+        if (predicate()) {
+          resolve();
+          return;
+        }
+        if (Date.now() - startedAt >= timeoutMs) {
+          reject(new Error('Timed out waiting for the progress cooldown to resume.'));
+          return;
+        }
+        window.setTimeout(check, 10);
+      };
+      check();
+    });
+
+    tracker.clearQueue();
+    const firstId = tracker.trackCategoryStudy({ categoryId: 81, units: 1 });
+    const firstFlush = tracker.flush();
+    window.__progressCooldownMock.requests[0].rejectRetry();
+    const firstResult = await firstFlush;
+    const cooldownState = tracker.getSyncState();
+    const deferredFlush = await tracker.flush();
+
+    window.__progressRetryGeneratedIds = [firstId];
+    let nextCategoryId = 82;
+    window.__progressRetryActivityInterval = window.setInterval(() => {
+      const eventId = tracker.trackCategoryStudy({ categoryId: nextCategoryId, units: 1 });
+      nextCategoryId += 1;
+      if (eventId) window.__progressRetryGeneratedIds.push(eventId);
+    }, 40);
+    await new Promise(resolve => window.setTimeout(resolve, 60));
+    const postsDuringCooldown = window.__progressCooldownMock.batches.length;
+    const journalDuringCooldown = JSON.parse(window.sessionStorage.getItem(key));
+
+    await waitFor(() => window.__progressCooldownMock.batches.length === 2);
+    const retryBatchIds = window.__progressCooldownMock.batches[1].map(event => event.event_uuid);
+    const generatedIdsAtRetry = window.__progressCooldownMock.generatedIdsAtRetry.slice();
+    const journalDuringRetry = JSON.parse(window.sessionStorage.getItem(key));
+    const retryDelayMs = window.__progressCooldownMock.requestTimes[1]
+      - window.__progressCooldownMock.requestTimes[0];
+
+    window.__progressCooldownMock.requests[1].resolve({
+      success: true,
+      data: {
+        stats: {
+          received: generatedIdsAtRetry.length,
+          processed: generatedIdsAtRetry.length,
+          duplicates: 0,
+          invalid: 0,
+          failed: 0,
+          failed_event_uuids: []
+        }
+      }
+    });
+    await waitFor(() => tracker.getQueueSize() === 0 && window.sessionStorage.getItem(key) === null);
+
+    return {
+      firstId,
+      firstResult,
+      cooldownState,
+      postsDuringCooldown,
+      deferredFlush,
+      generatedIdsAtRetry,
+      journalDuringCooldownIds: journalDuringCooldown.events.map(event => event.event_uuid),
+      retryBatchIds,
+      journalDuringRetryIds: journalDuringRetry.events.map(event => event.event_uuid),
+      retryDelayMs,
+      finalState: tracker.getSyncState(),
+      finalJournal: window.sessionStorage.getItem(key),
+      finalQueueSize: tracker.getQueueSize()
+    };
+  }, journalKey);
+
+  const expectedIds = result.generatedIdsAtRetry;
+  expect(result.firstResult).toMatchObject({
+    failed: true,
+    error: 'progress_transactional_engine_unavailable',
+    retryable: true
+  });
+  expect(result.firstResult.retry_after_ms).toBeGreaterThanOrEqual(150);
+  expect(result.cooldownState).toMatchObject({
+    backing_off: true,
+    retry_error: 'progress_transactional_engine_unavailable'
+  });
+  expect(result.postsDuringCooldown).toBe(1);
+  expect(result.deferredFlush).toMatchObject({
+    queued: 1,
+    deferred: true,
+    retryable: true,
+    error: 'progress_transactional_engine_unavailable'
+  });
+  expect(result.journalDuringCooldownIds).toEqual(
+    expectedIds.slice(0, result.journalDuringCooldownIds.length)
+  );
+  expect(result.retryBatchIds).toEqual(expectedIds);
+  expect(result.journalDuringRetryIds).toEqual(expectedIds);
+  expect(result.retryDelayMs).toBeGreaterThanOrEqual(150);
+  expect(result.finalState.backing_off).toBe(false);
+  expect(result.finalState.retry_after_ms).toBe(0);
+  expect(result.finalJournal).toBeNull();
+  expect(result.finalQueueSize).toBe(0);
+});
+
+test('authenticated Retry-After cooldown survives reload before restoring the exact journal batch', async ({ page }) => {
+  const journalKey = `lltools_wp_progress_journal_v1::user:${progressScopeA}::wordset:77`;
+
+  await openStorageBackedPage(page);
+  await page.evaluate(({ scope }) => {
+    window.sessionStorage.clear();
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'wp',
+      ajaxurl: '/wp-admin/admin-ajax.php',
+      userStudyNonce: 'progress-reload-nonce',
+      isUserLoggedIn: true,
+      progressStorageScope: scope,
+      wordsetIds: [77]
+    };
+    window.llToolsStudyData = {};
+    window.__progressReloadRequests = [];
+    window.jQuery = {
+      post() {
+        const callbacks = { done: null, fail: null };
+        const request = {
+          done(callback) {
+            callbacks.done = callback;
+            return request;
+          },
+          fail(callback) {
+            callbacks.fail = callback;
+            return request;
+          },
+          rejectRetry() {
+            if (!callbacks.fail) return;
+            callbacks.fail({
+              status: 503,
+              responseJSON: {
+                success: false,
+                data: {
+                  code: 'progress_schema_unavailable',
+                  retryable: true,
+                  retry_after: 1.2
+                }
+              },
+              getResponseHeader(name) {
+                return String(name).toLowerCase() === 'retry-after' ? '1.2' : null;
+              }
+            }, 'error', 'Service Unavailable');
+          }
+        };
+        window.__progressReloadRequests.push(request);
+        return request;
+      }
+    };
+  }, { scope: progressScopeA });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const seeded = await page.evaluate(async (key) => {
+    const tracker = window.LLFlashcards.ProgressTracker;
+    tracker.clearQueue();
+    const eventId = tracker.trackCategoryStudy({ categoryId: 91, units: 1 });
+    const flushPromise = tracker.flush();
+    window.__progressReloadRequests[0].rejectRetry();
+    const failed = await flushPromise;
+    return {
+      eventId,
+      failed,
+      snapshot: JSON.parse(window.sessionStorage.getItem(key))
+    };
+  }, journalKey);
+
+  expect(seeded.failed).toMatchObject({
+    failed: true,
+    error: 'progress_schema_unavailable',
+    retryable: true
+  });
+  expect(seeded.failed.retry_after_ms).toBeGreaterThanOrEqual(1100);
+  expect(seeded.snapshot.events.map(event => event.event_uuid)).toEqual([seeded.eventId]);
+  expect(seeded.snapshot.sync_retry_not_before_ms).toBeGreaterThan(Date.now());
+  expect(seeded.snapshot.sync_retry_failure_code).toBe('progress_schema_unavailable');
+
+  await page.reload();
+  await page.evaluate(({ scope }) => {
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'wp',
+      ajaxurl: '/wp-admin/admin-ajax.php',
+      userStudyNonce: 'progress-reload-fresh-nonce',
+      isUserLoggedIn: true,
+      progressStorageScope: scope,
+      wordsetIds: [77]
+    };
+    window.llToolsStudyData = {};
+    window.__progressReloadMock = { batches: [], requestTimes: [], scriptStartedAt: Date.now() };
+    window.jQuery = {
+      post(_url, payload) {
+        const batch = JSON.parse(payload.events);
+        window.__progressReloadMock.batches.push(batch);
+        window.__progressReloadMock.requestTimes.push(Date.now());
+        const request = {
+          done(callback) {
+            window.setTimeout(() => callback({
+              success: true,
+              data: {
+                stats: {
+                  received: batch.length,
+                  processed: batch.length,
+                  duplicates: 0,
+                  invalid: 0,
+                  failed: 0,
+                  failed_event_uuids: []
+                }
+              }
+            }), 0);
+            return request;
+          },
+          fail() {
+            return request;
+          }
+        };
+        return request;
+      }
+    };
+  }, { scope: progressScopeA });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__progressReloadMock.batches.length)).toBe(0);
+  await page.waitForFunction((key) => (
+    window.__progressReloadMock.batches.length === 1
+    && window.sessionStorage.getItem(key) === null
+  ), journalKey, { timeout: 3000 });
+
+  const restored = await page.evaluate(() => ({
+    sentIds: window.__progressReloadMock.batches[0].map(event => event.event_uuid),
+    requestDelayMs: window.__progressReloadMock.requestTimes[0] - window.__progressReloadMock.scriptStartedAt,
+    state: window.LLFlashcards.ProgressTracker.getSyncState()
+  }));
+  expect(restored.sentIds).toEqual([seeded.eventId]);
+  expect(restored.requestDelayMs).toBeGreaterThanOrEqual(500);
+  expect(restored.state.backing_off).toBe(false);
+  expect(restored.state.queued).toBe(0);
+});
+
+test('offline Retry-After cooldown survives reload in the scoped local progress store', async ({ page }) => {
+  const progressStoreKey = 'lltools_offline_progress_v2::wordset:77';
+  const offlineConfig = {
+    runtimeMode: 'offline',
+    wordsetIds: [77],
+    offlineSync: {
+      enabled: true,
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      syncAction: 'll_tools_offline_app_sync'
+    }
+  };
+
+  await openStorageBackedPage(page);
+  await page.evaluate((config) => {
+    window.localStorage.clear();
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = config;
+    window.llToolsStudyData = {};
+    window.__offlineReloadRequests = [];
+    window.jQuery = {
+      post() {
+        const callbacks = { done: null, fail: null };
+        const request = {
+          done(callback) {
+            callbacks.done = callback;
+            return request;
+          },
+          fail(callback) {
+            callbacks.fail = callback;
+            return request;
+          },
+          rejectRetry() {
+            if (!callbacks.fail) return;
+            callbacks.fail({
+              status: 503,
+              responseJSON: {
+                success: false,
+                data: {
+                  code: 'progress_transactional_engine_unavailable',
+                  retryable: true,
+                  retry_after: 1.1
+                }
+              },
+              getResponseHeader(name) {
+                return String(name).toLowerCase() === 'retry-after' ? '1.1' : null;
+              }
+            }, 'error', 'Service Unavailable');
+          }
+        };
+        window.__offlineReloadRequests.push(request);
+        return request;
+      }
+    };
+  }, offlineConfig);
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const seeded = await page.evaluate(async (key) => {
+    const tracker = window.LLFlashcards.ProgressTracker;
+    tracker.setOfflineSyncSession({ auth_token: 'offline-reload-token', user: { id: 17 } });
+    const eventId = tracker.trackCategoryStudy({ categoryId: 101, units: 1 });
+    const flushPromise = tracker.flush();
+    window.__offlineReloadRequests[0].rejectRetry();
+    const failed = await flushPromise;
+    return {
+      eventId,
+      failed,
+      snapshot: JSON.parse(window.localStorage.getItem(key))
+    };
+  }, progressStoreKey);
+
+  expect(seeded.failed).toMatchObject({
+    failed: true,
+    error: 'progress_transactional_engine_unavailable',
+    retryable: true
+  });
+  expect(seeded.snapshot.queue.map(event => event.event_uuid)).toEqual([seeded.eventId]);
+  expect(seeded.snapshot.sync_retry_not_before_ms).toBeGreaterThan(Date.now());
+  expect(seeded.snapshot.sync_retry_failure_code).toBe('progress_transactional_engine_unavailable');
+
+  await page.reload();
+  await page.evaluate((config) => {
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = config;
+    window.llToolsStudyData = {};
+    window.__offlineReloadMock = { batches: [], requestTimes: [], scriptStartedAt: Date.now() };
+    window.jQuery = {
+      post(_url, payload) {
+        const batch = JSON.parse(payload.events);
+        window.__offlineReloadMock.batches.push(batch);
+        window.__offlineReloadMock.requestTimes.push(Date.now());
+        const request = {
+          done(callback) {
+            window.setTimeout(() => callback({
+              success: true,
+              data: {
+                state: {},
+                progress_words: {},
+                stats: {
+                  received: batch.length,
+                  processed: batch.length,
+                  duplicates: 0,
+                  invalid: 0,
+                  failed: 0,
+                  failed_event_uuids: []
+                }
+              }
+            }), 0);
+            return request;
+          },
+          fail() {
+            return request;
+          }
+        };
+        return request;
+      }
+    };
+  }, offlineConfig);
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  await page.waitForTimeout(150);
+  expect(await page.evaluate(() => window.__offlineReloadMock.batches.length)).toBe(0);
+  await page.waitForFunction((key) => {
+    const snapshot = JSON.parse(window.localStorage.getItem(key));
+    return window.__offlineReloadMock.batches.length === 1
+      && snapshot
+      && Array.isArray(snapshot.queue)
+      && snapshot.queue.length === 0;
+  }, progressStoreKey, { timeout: 3000 });
+
+  const restored = await page.evaluate((key) => ({
+    sentIds: window.__offlineReloadMock.batches[0].map(event => event.event_uuid),
+    requestDelayMs: window.__offlineReloadMock.requestTimes[0] - window.__offlineReloadMock.scriptStartedAt,
+    state: window.LLFlashcards.ProgressTracker.getSyncState(),
+    snapshot: JSON.parse(window.localStorage.getItem(key))
+  }), progressStoreKey);
+  expect(restored.sentIds).toEqual([seeded.eventId]);
+  expect(restored.requestDelayMs).toBeGreaterThanOrEqual(400);
+  expect(restored.state.backing_off).toBe(false);
+  expect(restored.state.queued).toBe(0);
+  expect(restored.snapshot.sync_retry_not_before_ms).toBe(0);
+  expect(restored.snapshot.sync_retry_failure_code).toBe('');
+});
+
 test('authenticated progress journal automatically flushes exact restored UUIDs and clears them after acknowledgement', async ({ page }) => {
   const journalKey = `lltools_wp_progress_journal_v1::user:${progressScopeA}::wordset:77`;
   const nonce = 'journal-secret-nonce';

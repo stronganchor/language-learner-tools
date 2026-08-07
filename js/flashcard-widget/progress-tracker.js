@@ -8,6 +8,8 @@
 
     const MAX_QUEUE = 2500;
     const MAX_BATCH_SIZE = 200;
+    const MIN_SYNC_RETRY_AFTER_MS = 50;
+    const MAX_SYNC_RETRY_AFTER_MS = 60 * 60 * 1000;
     const WP_PROGRESS_JOURNAL_PREFIX = 'lltools_wp_progress_journal_v1';
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
     const ALLOWED_TYPES = {
@@ -31,6 +33,8 @@
 
     let queue = [];
     let flushTimer = null;
+    let flushTimerDueAtMs = 0;
+    let flushTimerKind = '';
     let inFlight = false;
     let inFlightBatch = [];
     let flushRequestedWhileInFlight = false;
@@ -45,6 +49,8 @@
     let sessionStoreKey = '';
     const restoredProgressJournalKeys = {};
     let progressJournalGeneration = 0;
+    let syncRetryNotBeforeMs = 0;
+    let syncRetryFailureCode = '';
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -243,6 +249,157 @@
         return Math.max(250, Math.min(120000, parsed || 60000));
     }
 
+    function clampSyncRetryDelayMs(rawMilliseconds) {
+        const parsed = Number(rawMilliseconds);
+        if (!isFinite(parsed) || parsed <= 0) {
+            return 0;
+        }
+        return Math.max(
+            MIN_SYNC_RETRY_AFTER_MS,
+            Math.min(MAX_SYNC_RETRY_AFTER_MS, Math.ceil(parsed))
+        );
+    }
+
+    function retryAfterHeaderDelayMs(rawHeader) {
+        const value = sanitizeString(rawHeader);
+        if (!value) {
+            return 0;
+        }
+
+        const seconds = Number(value);
+        if (isFinite(seconds) && seconds > 0) {
+            return clampSyncRetryDelayMs(seconds * 1000);
+        }
+
+        const retryAt = Date.parse(value);
+        if (!isFinite(retryAt) || retryAt <= Date.now()) {
+            return 0;
+        }
+        return clampSyncRetryDelayMs(retryAt - Date.now());
+    }
+
+    function progressSyncFailureResponse(jqXHR, responseOverride) {
+        const request = jqXHR && typeof jqXHR === 'object' ? jqXHR : {};
+        let response = responseOverride && typeof responseOverride === 'object'
+            ? responseOverride
+            : request.responseJSON;
+        if ((!response || typeof response !== 'object') && sanitizeString(request.responseText)) {
+            try {
+                response = JSON.parse(request.responseText);
+            } catch (_) {
+                response = null;
+            }
+        }
+
+        const data = response && response.data && typeof response.data === 'object'
+            ? response.data
+            : {};
+        const code = sanitizeString(data.code || (response && response.code) || '');
+        const message = sanitizeString(data.message || (response && response.message) || '');
+        const status = Math.max(0, parseInt(request.status, 10) || 0);
+        const retryAfterMilliseconds = clampSyncRetryDelayMs(data.retry_after_ms);
+        const retryAfterSeconds = clampSyncRetryDelayMs(Number(data.retry_after) * 1000);
+        let retryAfterHeader = 0;
+        if (typeof request.getResponseHeader === 'function') {
+            try {
+                retryAfterHeader = retryAfterHeaderDelayMs(request.getResponseHeader('Retry-After'));
+            } catch (_) {
+                retryAfterHeader = 0;
+            }
+        }
+
+        const retryAfterMs = Math.max(retryAfterMilliseconds, retryAfterSeconds, retryAfterHeader);
+        const knownProgressFailure = [
+            'progress_schema_unavailable',
+            'progress_transactional_engine_unavailable',
+            'rate_limited'
+        ].indexOf(code) !== -1;
+        const typedRetry = parseBool(data.retryable, false)
+            || knownProgressFailure
+            || status === 429;
+        const headerBackoff = retryAfterHeader > 0 && (status === 429 || status === 503);
+
+        if (retryAfterMs <= 0 || (!typedRetry && !headerBackoff)) {
+            return { retryAfterMs: 0, code: code, message: message, retryable: false };
+        }
+
+        return {
+            retryAfterMs: retryAfterMs,
+            code: code || (status === 429 ? 'rate_limited' : 'request_retryable'),
+            message: message,
+            retryable: true
+        };
+    }
+
+    function getSyncRetryAfterMs() {
+        const remaining = Math.ceil(syncRetryNotBeforeMs - Date.now());
+        if (remaining > 0) {
+            return remaining;
+        }
+        syncRetryNotBeforeMs = 0;
+        syncRetryFailureCode = '';
+        return 0;
+    }
+
+    function restoreSyncRetryBackoff(rawNotBeforeMs, rawFailureCode) {
+        const now = Date.now();
+        const notBeforeMs = Number(rawNotBeforeMs);
+        if (!isFinite(notBeforeMs) || notBeforeMs <= now) {
+            syncRetryNotBeforeMs = 0;
+            syncRetryFailureCode = '';
+            return 0;
+        }
+
+        const remaining = clampSyncRetryDelayMs(notBeforeMs - now);
+        if (remaining <= 0) {
+            syncRetryNotBeforeMs = 0;
+            syncRetryFailureCode = '';
+            return 0;
+        }
+
+        syncRetryNotBeforeMs = now + remaining;
+        syncRetryFailureCode = sanitizeString(rawFailureCode).slice(0, 128) || 'request_retryable';
+        return remaining;
+    }
+
+    function clearScheduledFlushTimer() {
+        if (flushTimer) {
+            clearTimeout(flushTimer);
+        }
+        flushTimer = null;
+        flushTimerDueAtMs = 0;
+        flushTimerKind = '';
+    }
+
+    function resetSyncRetryBackoff(clearScheduledFlush) {
+        syncRetryNotBeforeMs = 0;
+        syncRetryFailureCode = '';
+        if (clearScheduledFlush) {
+            clearScheduledFlushTimer();
+        }
+    }
+
+    function applySyncRetryBackoff(retryFailure) {
+        const failure = retryFailure && typeof retryFailure === 'object' ? retryFailure : {};
+        const retryAfterMs = clampSyncRetryDelayMs(failure.retryAfterMs);
+        if (!failure.retryable || retryAfterMs <= 0) {
+            return 0;
+        }
+
+        syncRetryNotBeforeMs = Math.max(syncRetryNotBeforeMs, Date.now() + retryAfterMs);
+        syncRetryFailureCode = sanitizeString(failure.code || syncRetryFailureCode || 'request_retryable').slice(0, 128);
+        // A normal activity debounce may already be pending. Replace it with
+        // the server-owned retry deadline so it cannot post too early or push
+        // the retry later as more activity is journaled.
+        clearScheduledFlushTimer();
+        const remaining = getSyncRetryAfterMs();
+        savePendingEvents();
+        if (remaining > 0 && queue.length) {
+            scheduleFlush(remaining);
+        }
+        return remaining;
+    }
+
     function isUserLoggedIn() {
         const flash = getFlashData();
         if (typeof flash.isUserLoggedIn !== 'undefined') {
@@ -343,10 +500,16 @@
                 storage.removeItem(descriptor.key);
                 return true;
             }
-            storage.setItem(descriptor.key, JSON.stringify({
+            const retryAfterMs = getSyncRetryAfterMs();
+            const snapshot = {
                 version: 1,
                 events: events
-            }));
+            };
+            if (retryAfterMs > 0) {
+                snapshot.sync_retry_not_before_ms = syncRetryNotBeforeMs;
+                snapshot.sync_retry_failure_code = syncRetryFailureCode;
+            }
+            storage.setItem(descriptor.key, JSON.stringify(snapshot));
             return true;
         } catch (_) {
             return false;
@@ -401,9 +564,13 @@
             saveWpProgressJournal();
             return 0;
         }
+        const restoredRetryAfterMs = restoreSyncRetryBackoff(
+            decoded.sync_retry_not_before_ms,
+            decoded.sync_retry_failure_code
+        );
         queue = deduplicatePendingEvents(restored.concat(queue));
         if (canSyncNow()) {
-            scheduleFlush(80);
+            scheduleFlush(restoredRetryAfterMs || 80);
         }
         return restored.length;
     }
@@ -421,13 +588,14 @@
             return;
         }
 
+        // Never carry one user's or wordset's in-memory events into another
+        // journal. An active old request may still finish, but its UUIDs remain
+        // recoverable only through the previous scoped journal.
+        resetSyncRetryBackoff(true);
         if (previousDescriptor) {
             saveWpProgressJournal(previousDescriptor);
             delete restoredProgressJournalKeys[previousKey];
         }
-        // Never carry one user's or wordset's in-memory events into another
-        // journal. An active old request may still finish, but its UUIDs remain
-        // recoverable only through the previous scoped journal.
         progressJournalGeneration += 1;
         queue = [];
         inFlightBatch = [];
@@ -456,7 +624,9 @@
             prompt_cards: {},
             study_state: {},
             last_synced_at: '',
-            last_sync_error: ''
+            last_sync_error: '',
+            sync_retry_not_before_ms: 0,
+            sync_retry_failure_code: ''
         };
         try {
             const raw = root.localStorage.getItem(key);
@@ -475,6 +645,8 @@
             localStoreCache.study_state = (decoded.study_state && typeof decoded.study_state === 'object') ? decoded.study_state : {};
             localStoreCache.last_synced_at = sanitizeString(decoded.last_synced_at || '');
             localStoreCache.last_sync_error = sanitizeString(decoded.last_sync_error || '');
+            localStoreCache.sync_retry_not_before_ms = Number(decoded.sync_retry_not_before_ms) || 0;
+            localStoreCache.sync_retry_failure_code = sanitizeString(decoded.sync_retry_failure_code || '').slice(0, 128);
         } catch (_) {
             localStoreCache = {
                 device_id: buildId('ll-device'),
@@ -484,7 +656,9 @@
                 prompt_cards: {},
                 study_state: {},
                 last_synced_at: '',
-                last_sync_error: ''
+                last_sync_error: '',
+                sync_retry_not_before_ms: 0,
+                sync_retry_failure_code: ''
             };
         }
         return localStoreCache;
@@ -499,6 +673,9 @@
             return;
         }
         store.queue = getPendingEventsSnapshot();
+        const retryAfterMs = getSyncRetryAfterMs();
+        store.sync_retry_not_before_ms = retryAfterMs > 0 ? syncRetryNotBeforeMs : 0;
+        store.sync_retry_failure_code = retryAfterMs > 0 ? syncRetryFailureCode : '';
         try {
             root.localStorage.setItem(localStoreKey, JSON.stringify(store));
         } catch (_) {
@@ -609,9 +786,14 @@
         if (!store) {
             return {};
         }
+        const previousToken = sanitizeString(store.auth_token || '');
         store.auth_token = sanitizeString(session.auth_token || session.authToken || session.token || '');
         store.expires_at = sanitizeString(session.expires_at || session.expiresAt || '');
         store.user = (session.user && typeof session.user === 'object') ? cloneValue(session.user) : {};
+        if (store.auth_token !== previousToken) {
+            resetSyncRetryBackoff(true);
+            savePendingEvents();
+        }
         saveSessionStore();
         emitDocumentEvent('lltools:offline-auth-context-updated', getSyncState());
         emitSyncStateChanged();
@@ -623,9 +805,14 @@
         if (!store) {
             return;
         }
+        const hadToken = !!sanitizeString(store.auth_token || '');
         store.auth_token = '';
         store.expires_at = '';
         store.user = {};
+        if (hadToken) {
+            resetSyncRetryBackoff(true);
+            savePendingEvents();
+        }
         saveSessionStore();
         emitDocumentEvent('lltools:offline-auth-context-updated', getSyncState());
         emitSyncStateChanged();
@@ -1223,14 +1410,30 @@
     }
 
     function scheduleFlush(delay) {
-        const ms = Math.max(30, parseInt(delay, 10) || 1200);
-        if (flushTimer) {
-            clearTimeout(flushTimer);
+        const now = Date.now();
+        let ms = Math.max(30, parseInt(delay, 10) || 1200);
+        const retryAfterMs = getSyncRetryAfterMs();
+        if (retryAfterMs > 0) {
+            ms = retryAfterMs;
         }
+        const dueAtMs = retryAfterMs > 0 ? syncRetryNotBeforeMs : now + ms;
+        if (
+            flushTimer
+            && flushTimerKind === 'sync-retry'
+            && flushTimerDueAtMs > 0
+            && flushTimerDueAtMs <= dueAtMs
+        ) {
+            return;
+        }
+        clearScheduledFlushTimer();
+        flushTimerDueAtMs = dueAtMs;
+        flushTimerKind = retryAfterMs > 0 ? 'sync-retry' : 'debounce';
         flushTimer = setTimeout(function () {
             flushTimer = null;
+            flushTimerDueAtMs = 0;
+            flushTimerKind = '';
             flush();
-        }, ms);
+        }, Math.max(0, Math.ceil(dueAtMs - Date.now())));
     }
 
     function canSyncNow() {
@@ -1287,6 +1490,10 @@
     }
 
     function handleSyncSuccess(data) {
+        // The active request already consumed any retry timer. Preserve a
+        // separate debounce scheduled by newer activity so a partial success
+        // cannot strand its failed UUIDs and the newer events together.
+        resetSyncRetryBackoff(false);
         const store = getLocalStore();
         if (store) {
             store.last_synced_at = isoFromMs(Date.now());
@@ -1386,12 +1593,24 @@
             }
             return Promise.resolve({ queued: queue.length, in_flight: true });
         }
-        if (flushTimer) {
-            clearTimeout(flushTimer);
-            flushTimer = null;
-        }
+        clearScheduledFlushTimer();
         if (!queue.length && !opts.allowEmpty) {
             return Promise.resolve({ queued: 0 });
+        }
+        const retryAfterMs = getSyncRetryAfterMs();
+        if (retryAfterMs > 0) {
+            savePendingEvents();
+            if (queue.length) {
+                scheduleFlush(retryAfterMs);
+            }
+            emitSyncStateChanged();
+            return Promise.resolve({
+                queued: queue.length,
+                deferred: true,
+                retryable: true,
+                retry_after_ms: retryAfterMs,
+                error: syncRetryFailureCode || 'request_retryable'
+            });
         }
         if (!canSyncNow()) {
             if (!canPersistLocally() && (isOfflineRuntime() || !isUserLoggedIn())) {
@@ -1494,13 +1713,18 @@
                     return;
                 }
 
-                handleSyncFailure(batch);
+                const retryFailure = progressSyncFailureResponse(null, res);
+                const retryErrorCode = retryFailure.retryable ? retryFailure.code : '';
+                handleSyncFailure(batch, retryErrorCode || 'request_failed');
+                const retryAfterMs = applySyncRetryBackoff(retryFailure);
                 settle({
                     queued: queue.length,
                     failed: true,
-                    error: sanitizeString((res && res.data && res.data.message) || 'request_failed')
+                    error: retryErrorCode || retryFailure.message || 'request_failed',
+                    retryable: retryAfterMs > 0,
+                    retry_after_ms: retryAfterMs
                 }, true);
-            }).fail(function (_jqXHR, _textStatus, errorThrown) {
+            }).fail(function (jqXHR, _textStatus, errorThrown) {
                 if (settled) {
                     return;
                 }
@@ -1508,11 +1732,16 @@
                     settle({ queued: queue.length, stale_context: true }, false);
                     return;
                 }
-                handleSyncFailure(batch);
+                const retryFailure = progressSyncFailureResponse(jqXHR);
+                const retryErrorCode = retryFailure.retryable ? retryFailure.code : '';
+                handleSyncFailure(batch, retryErrorCode || 'request_failed');
+                const retryAfterMs = applySyncRetryBackoff(retryFailure);
                 settle({
                     queued: queue.length,
                     failed: true,
-                    error: sanitizeString(errorThrown || 'request_failed')
+                    error: retryErrorCode || sanitizeString(errorThrown || retryFailure.message || 'request_failed'),
+                    retryable: retryAfterMs > 0,
+                    retry_after_ms: retryAfterMs
                 }, true);
             });
         });
@@ -1525,6 +1754,7 @@
     function setContext(nextContext) {
         const next = (nextContext && typeof nextContext === 'object') ? nextContext : {};
         const previousJournalDescriptor = getWpProgressJournalDescriptor();
+        const previousWordsetId = resolveWordsetId(0);
         if (typeof next.mode !== 'undefined') {
             context.mode = normalizeMode(next.mode);
         }
@@ -1533,6 +1763,12 @@
         }
         if (typeof next.categoryIds !== 'undefined' || typeof next.category_ids !== 'undefined') {
             context.categoryIds = resolveCategoryIds(next.categoryIds || next.category_ids);
+        }
+        if (resolveWordsetId(0) !== previousWordsetId) {
+            resetSyncRetryBackoff(true);
+            if (isOfflineRuntime()) {
+                savePendingEvents();
+            }
         }
         handleProgressJournalTransition(previousJournalDescriptor);
         return {
@@ -1692,10 +1928,7 @@
 
     function clearQueue() {
         queue = [];
-        if (flushTimer) {
-            clearTimeout(flushTimer);
-            flushTimer = null;
-        }
+        resetSyncRetryBackoff(true);
         savePendingEvents();
     }
 
@@ -1703,10 +1936,14 @@
         const store = getLocalStore();
         const session = getOfflineSyncSession();
         const identity = getLocalIdentity();
+        const retryAfterMs = getSyncRetryAfterMs();
         return {
             queued: queue.length,
             pending: queue.length,
             can_sync: canSyncNow(),
+            backing_off: retryAfterMs > 0,
+            retry_after_ms: retryAfterMs,
+            retry_error: retryAfterMs > 0 ? syncRetryFailureCode : '',
             local_persistence: canPersistLocally(),
             last_synced_at: store ? sanitizeString(store.last_synced_at || '') : '',
             last_sync_error: store ? sanitizeString(store.last_sync_error || '') : '',
@@ -1737,6 +1974,7 @@
 
     if (canPersistLocally()) {
         const store = getLocalStore();
+        const storedRetryNotBeforeMs = store ? Number(store.sync_retry_not_before_ms) || 0 : 0;
         queue = store && Array.isArray(store.queue)
             ? deduplicatePendingEvents(store.queue.map(function (storedEvent) {
                 const originalEventId = sanitizeString(storedEvent && storedEvent.event_uuid);
@@ -1747,6 +1985,13 @@
                 return normalized && normalized.event_uuid === originalEventId ? normalized : null;
             }).filter(Boolean))
             : [];
+        const restoredRetryAfterMs = restoreSyncRetryBackoff(
+            storedRetryNotBeforeMs,
+            store ? store.sync_retry_failure_code : ''
+        );
+        if (storedRetryNotBeforeMs > 0 && queue.length && canSyncNow()) {
+            scheduleFlush(restoredRetryAfterMs || 80);
+        }
     } else {
         restoreWpProgressJournal();
     }
