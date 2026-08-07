@@ -2733,6 +2733,141 @@ function ll_tools_wordset_isolation_migration_term_exists(int $term_id, string $
 }
 
 /**
+ * Confirm whether one exact source/wordset category target still exists.
+ *
+ * This bounded migration read keeps a database failure distinct from a
+ * genuinely absent target. Runtime helpers may collapse both cases to zero,
+ * which is not safe when deciding how to repair durable learner progress.
+ */
+function ll_tools_wordset_isolation_migration_has_exact_category_target(
+    int $source_category_id,
+    int $wordset_id
+): ?bool {
+    global $wpdb;
+
+    $source_category_id = max(0, $source_category_id);
+    $wordset_id = max(0, $wordset_id);
+    if ($source_category_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $found = $wpdb->get_var($wpdb->prepare(
+        "SELECT /* ll-tools-progress-current-family-target-preflight */ taxonomy.term_id
+         FROM {$wpdb->term_taxonomy} AS taxonomy
+         INNER JOIN {$wpdb->termmeta} AS owner_meta
+            ON owner_meta.term_id = taxonomy.term_id
+           AND owner_meta.meta_key = %s
+           AND owner_meta.meta_value = %s
+         INNER JOIN {$wpdb->termmeta} AS source_meta
+            ON source_meta.term_id = taxonomy.term_id
+           AND source_meta.meta_key = %s
+           AND source_meta.meta_value = %s
+         WHERE taxonomy.taxonomy = %s
+         LIMIT 1",
+        LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+        (string) $wordset_id,
+        LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY,
+        (string) $source_category_id,
+        'word-category'
+    ));
+    if ($wpdb->last_error !== '') {
+        return null;
+    }
+
+    return $found !== null;
+}
+
+/**
+ * Rebind one otherwise-valid historical progress row to its surviving owner.
+ *
+ * Old global-category data can retain a stale wordset after its source term is
+ * deleted while one owned family copy survives. If there is no target for the
+ * stored wordset, a new copy cannot be reconstructed from the deleted source.
+ * The surviving category's verified owner is then the only authoritative
+ * scope. Change only the local snapshot; the caller still normalizes and
+ * compare-and-swap writes the complete store.
+ *
+ * @return array<string,mixed>|null Null when a required lookup is incomplete.
+ */
+function ll_tools_wordset_isolation_migration_prepare_current_category_progress_entry(
+    int $category_id,
+    array $entry,
+    int $user_id,
+    array &$state
+): ?array {
+    global $wpdb;
+
+    $failure_message = sprintf(
+        /* translators: %d is a WordPress user ID. */
+        __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),
+        $user_id
+    );
+    $stored_wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+    if (
+        $category_id <= 0
+        || (int) ($entry['category_id'] ?? 0) !== $category_id
+        || $stored_wordset_id <= 0
+    ) {
+        return $entry;
+    }
+
+    $owner_complete = true;
+    $source_complete = true;
+    $owner_wordset_id = ll_tools_get_category_wordset_owner_id($category_id, $owner_complete);
+    $source_category_id = ll_tools_get_category_isolation_source_id($category_id, $source_complete);
+    if (!$owner_complete || !$source_complete || $wpdb->last_error !== '') {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+    if (
+        $owner_wordset_id <= 0
+        || $owner_wordset_id === $stored_wordset_id
+        || $source_category_id <= 0
+        || $source_category_id === $category_id
+    ) {
+        return $entry;
+    }
+
+    $has_stored_target = ll_tools_wordset_isolation_migration_has_exact_category_target(
+        $source_category_id,
+        $stored_wordset_id
+    );
+    if ($has_stored_target === null) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+    if ($has_stored_target) {
+        return $entry;
+    }
+
+    $source_exists = ll_tools_wordset_isolation_migration_term_exists($source_category_id, 'word-category');
+    if ($source_exists === null) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+    if ($source_exists) {
+        return $entry;
+    }
+
+    $stored_wordset_exists = ll_tools_wordset_isolation_migration_term_exists(
+        $stored_wordset_id,
+        'wordset'
+    );
+    $owner_wordset_exists = ll_tools_wordset_isolation_migration_term_exists(
+        $owner_wordset_id,
+        'wordset'
+    );
+    if ($stored_wordset_exists !== true || $owner_wordset_exists !== true) {
+        ll_tools_wordset_isolation_migration_fail($state, $failure_message);
+        return null;
+    }
+
+    $entry['wordset_id'] = $owner_wordset_id;
+    return $entry;
+}
+
+/**
  * Resolve category IDs that still have word-category taxonomy rows.
  *
  * Chunked fail-closed reads distinguish confirmed deletions from lookup
@@ -2891,6 +3026,16 @@ function ll_tools_wordset_isolation_migration_prepare_category_progress_store(
         $category_id = (int) $raw_category_id;
         $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
         if (isset($current_lookup[$category_id])) {
+            $entry = ll_tools_wordset_isolation_migration_prepare_current_category_progress_entry(
+                $category_id,
+                $entry,
+                $user_id,
+                $state
+            );
+            if ($entry === null) {
+                return null;
+            }
+            $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
             $target_category_id = ll_tools_wordset_isolation_migration_resolve_user_category_target(
                 $category_id,
                 $wordset_id,
