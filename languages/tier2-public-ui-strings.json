@@ -833,7 +833,7 @@
                 "includes/post-types/dictionary-entry-post-type.php:1328",
                 "includes/post-types/dictionary-entry-post-type.php:1471",
                 "includes/post-types/dictionary-entry-post-type.php:1958",
-                "includes/post-types/words-post-type.php:1992",
+                "includes/post-types/words-post-type.php:2003",
                 "includes/shortcodes/editor-hub-shortcode.php:1053",
                 "includes/shortcodes/editor-hub-shortcode.php:1080",
                 "includes/shortcodes/editor-hub-shortcode.php:511",
@@ -1779,10 +1779,10 @@
             "msgid": "Clear LL cache",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1712"
+                "includes/lib/public-static-cache.php:1774"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1712"
+                "includes/lib/public-static-cache.php:1774"
             ]
         },
         {
@@ -1791,10 +1791,10 @@
             "msgid": "LL cache cleared (%d)",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1717"
+                "includes/lib/public-static-cache.php:1779"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1717"
+                "includes/lib/public-static-cache.php:1779"
             ]
         },
         {
@@ -1803,10 +1803,10 @@
             "msgid": "You are not allowed to clear LL Tools caches.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/public-static-cache.php:1736"
+                "includes/lib/public-static-cache.php:1798"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1736"
+                "includes/lib/public-static-cache.php:1798"
             ]
         },
         {
@@ -1815,10 +1815,10 @@
             "msgid": "Cleared LL Tools static caches. %d cache file was removed.",
             "msgid_plural": "Cleared LL Tools static caches. %d cache files were removed.",
             "references": [
-                "includes/lib/public-static-cache.php:1772"
+                "includes/lib/public-static-cache.php:1834"
             ],
             "public_references": [
-                "includes/lib/public-static-cache.php:1772"
+                "includes/lib/public-static-cache.php:1834"
             ]
         },
         {
@@ -3940,7 +3940,7 @@
             "references": [
                 "includes/pages/wordset-pages.php:118",
                 "includes/shortcodes/content-lesson-index-shortcode.php:587",
-                "includes/wordset-isolation.php:4035"
+                "includes/wordset-isolation.php:4401"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:118",
@@ -5629,7 +5629,7 @@
                 "includes/pages/wordset-pages.php:25646",
                 "includes/post-types/word-audio-post-type.php:114",
                 "includes/post-types/word-image-post-type.php:1220",
-                "includes/post-types/words-post-type.php:1993",
+                "includes/post-types/words-post-type.php:2004",
                 "includes/shortcodes/flashcard-widget.php:640",
                 "includes/shortcodes/word-grid-shortcode.php:5756"
             ],
@@ -6737,7 +6737,7 @@
                 "includes/pages/wordset-pages.php:25647",
                 "includes/post-types/words-post-type.php:21",
                 "includes/post-types/words-post-type.php:26",
-                "includes/wordset-isolation.php:4031"
+                "includes/wordset-isolation.php:4397"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:25416",
@@ -10769,8 +10769,8 @@
                 "includes/admin/split-word-admin.php:406",
                 "includes/admin/split-word-admin.php:413",
                 "includes/pages/wordset-editor.php:4524",
-                "includes/post-types/words-post-type.php:2051",
-                "includes/post-types/words-post-type.php:2054",
+                "includes/post-types/words-post-type.php:2062",
+                "includes/post-types/words-post-type.php:2065",
                 "includes/shortcodes/editor-hub-shortcode.php:653",
                 "includes/shortcodes/word-grid-shortcode.php:7722",
                 "templates/vocab-lesson-template.php:1224"

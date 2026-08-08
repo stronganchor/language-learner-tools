@@ -31,7 +31,7 @@ msgstr "%2$d izlenen görüntüden %1$d görüntünün düzeltilmesi gerekiyor."
 msgid "%1$d of %2$d images need fixes"
 msgstr "%2$d görüntüden %1$d'sinin düzeltilmesi gerekiyor"
 
-#: includes/pages/wordset-pages.php:25358
+#: includes/pages/wordset-pages.php:25361
 #, php-format
 msgid "%1$d selected · %2$d words"
 msgstr "%1$d seçili · %2$d kelime"
@@ -141,7 +141,7 @@ msgstr[0] "%1$s: %2$d dosya başarıyla işlendi."
 msgstr[1] "%1$s: %2$d dosya başarıyla işlendi."
 
 #: includes/pages/wordset-pages.php:7266
-#: includes/pages/wordset-pages.php:25372
+#: includes/pages/wordset-pages.php:25375
 #: includes/shortcodes/flashcard-widget.php:747
 #, php-format
 msgid "%1$s: %2$s"
@@ -291,15 +291,15 @@ msgstr[0] "%d kayıt taşındı."
 msgstr[1] "%d kayıt taşındı."
 
 #: includes/pages/wordset-editor.php:4453
-#: includes/pages/wordset-pages.php:25357
+#: includes/pages/wordset-pages.php:25360
 #: includes/shortcodes/dictionary-shortcode.php:3597
 #: includes/shortcodes/dictionary-shortcode.php:3611
 #, php-format
 msgid "%d selected"
 msgstr "%d seçildi"
 
-#: includes/pages/wordset-pages.php:25450
-#: includes/pages/wordset-pages.php:25939
+#: includes/pages/wordset-pages.php:25453
+#: includes/pages/wordset-pages.php:25942
 #, php-format
 msgid "%d selected words"
 msgstr "%d seçilen kelimeler"
@@ -311,21 +311,21 @@ msgid_plural "%d words duplicated."
 msgstr[0] "%d kelime çoğaltıldı."
 msgstr[1] "%d kelime çoğaltıldı."
 
-#: includes/post-types/words-post-type.php:2691
+#: includes/post-types/words-post-type.php:2702
 #, php-format
 msgid "%d word marked for audio reprocessing."
 msgid_plural "%d words marked for audio reprocessing."
 msgstr[0] "Ses yeniden işleme için %d kelime işaretlendi."
 msgstr[1] "Ses yeniden işleme için %d kelime işaretlendi."
 
-#: includes/post-types/words-post-type.php:2702
+#: includes/post-types/words-post-type.php:2713
 #, php-format
 msgid "%d word skipped (no audio file)."
 msgid_plural "%d words skipped (no audio file)."
 msgstr[0] "%d kelime atlandı (ses dosyası yok)."
 msgstr[1] "%d kelime atlandı (ses dosyası yok)."
 
-#: includes/post-types/words-post-type.php:2724
+#: includes/post-types/words-post-type.php:2735
 #, php-format
 msgid "%d word skipped (no audio recordings)."
 msgid_plural "%d words skipped (no audio recordings)."
@@ -353,8 +353,8 @@ msgid_plural "%d words were imported."
 msgstr[0] "%d kelime içe aktarıldı."
 msgstr[1] "%d kelime içe aktarıldı."
 
-#: includes/pages/wordset-pages.php:25359
-#: includes/pages/wordset-pages.php:25393
+#: includes/pages/wordset-pages.php:25362
+#: includes/pages/wordset-pages.php:25396
 #: includes/shortcodes/flashcard-widget.php:686
 #: includes/shortcodes/flashcard-widget.php:729
 #: includes/shortcodes/flashcard-widget.php:743
@@ -503,8 +503,8 @@ msgstr "Eylem"
 msgid "Actions"
 msgstr "Eylemler"
 
-#: includes/pages/wordset-pages.php:25403
-#: includes/pages/wordset-pages.php:25700
+#: includes/pages/wordset-pages.php:25406
+#: includes/pages/wordset-pages.php:25703
 msgid "Activity"
 msgstr "Etkinlik"
 
@@ -615,14 +615,14 @@ msgstr "Yaş"
 #: includes/pages/wordset-editor.php:4518
 #: includes/pages/wordset-editor.php:4526
 #: includes/pages/wordset-pages.php:13296
-#: includes/pages/wordset-pages.php:25415
-#: includes/pages/wordset-pages.php:27155
+#: includes/pages/wordset-pages.php:25418
+#: includes/pages/wordset-pages.php:27158
 msgid "All"
 msgstr "Tümü"
 
 #: includes/post-types/word-audio-post-type.php:208
 #: includes/post-types/word-image-post-type.php:1072
-#: includes/post-types/words-post-type.php:2222
+#: includes/post-types/words-post-type.php:2233
 msgid "All Categories"
 msgstr "Tüm Kategoriler"
 
@@ -632,7 +632,7 @@ msgstr "Tüm Kategoriler"
 msgid "All categories"
 msgstr "Tüm kategoriler"
 
-#: includes/pages/wordset-pages.php:25398
+#: includes/pages/wordset-pages.php:25401
 #, php-format
 msgid "All categories (%d)"
 msgstr "Tüm kategoriler (%d)"
@@ -663,7 +663,7 @@ msgid "All recordings completed for the selected set. Thank you!"
 msgstr "Seçilen set için tüm kayıtlar tamamlandı. Teşekkürler!"
 
 #: includes/post-types/dictionary-entry-post-type.php:2243
-#: includes/post-types/words-post-type.php:2253
+#: includes/post-types/words-post-type.php:2264
 #: includes/taxonomies/wordset-taxonomy.php:1423
 msgid "All Word Sets"
 msgstr "Tüm Kelime Setleri"
@@ -754,7 +754,7 @@ msgstr "Cevap seçeneği metin kalınlığı"
 msgid "Answer Options"
 msgstr "Cevap Seçenekleri"
 
-#: includes/pages/wordset-pages.php:25426
+#: includes/pages/wordset-pages.php:25429
 msgid "Any"
 msgstr "Herhangi bir"
 
@@ -1015,12 +1015,12 @@ msgstr "Ses Kaydı Detayları"
 msgid "Audio Recording Page Created!"
 msgstr "Ses Kayıt Sayfası Oluşturuldu!"
 
-#: includes/post-types/words-post-type.php:1996
+#: includes/post-types/words-post-type.php:2007
 msgid "Audio Recordings"
 msgstr "Ses Kayıtları"
 
 #: includes/pages/wordset-pages.php:14150
-#: includes/pages/wordset-pages.php:26140
+#: includes/pages/wordset-pages.php:26143
 msgid "Audio Upload"
 msgstr "Ses Yükleme"
 
@@ -1067,10 +1067,10 @@ msgid "Available"
 msgstr "Mevcut"
 
 #: includes/pages/wordset-pages.php:12658
-#: includes/pages/wordset-pages.php:25559
-#: includes/pages/wordset-pages.php:25986
-#: includes/pages/wordset-pages.php:26026
-#: includes/pages/wordset-pages.php:27131
+#: includes/pages/wordset-pages.php:25562
+#: includes/pages/wordset-pages.php:25989
+#: includes/pages/wordset-pages.php:26029
+#: includes/pages/wordset-pages.php:27134
 #: templates/content-lesson-template.php:122
 #: templates/content-lesson-template.php:131
 #: templates/vocab-lesson-template.php:531
@@ -1181,7 +1181,7 @@ msgstr "Toplu içe aktarma metinden metne çalışır (soru -> çeviri, cevap ->
 msgid "Bulk Translations"
 msgstr "Toplu Çeviriler"
 
-#: includes/pages/wordset-pages.php:26140
+#: includes/pages/wordset-pages.php:26143
 msgid "Bulk upload audio files and create or match draft words in this word set."
 msgstr "Ses dosyalarını toplu olarak yükle ve bu kelime setinde taslak kelimeler oluştur veya eşleştir."
 
@@ -1255,13 +1255,13 @@ msgstr "Standart oran"
 #: includes/pages/wordset-pages.php:16895
 #: includes/pages/wordset-pages.php:23216
 #: includes/pages/wordset-pages.php:23503
-#: includes/pages/wordset-pages.php:25339
-#: includes/pages/wordset-pages.php:25354
-#: includes/pages/wordset-pages.php:25412
-#: includes/pages/wordset-pages.php:25643
+#: includes/pages/wordset-pages.php:25342
+#: includes/pages/wordset-pages.php:25357
+#: includes/pages/wordset-pages.php:25415
+#: includes/pages/wordset-pages.php:25646
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/word-image-post-type.php:1220
-#: includes/post-types/words-post-type.php:1993
+#: includes/post-types/words-post-type.php:2004
 #: includes/shortcodes/flashcard-widget.php:640
 #: includes/shortcodes/word-grid-shortcode.php:5756
 msgid "Categories"
@@ -1311,10 +1311,10 @@ msgstr "Kategoriler: %d"
 #: includes/admin/word-option-rules-admin.php:1892
 #: includes/pages/wordset-editor.php:4502
 #: includes/pages/wordset-pages.php:17495
-#: includes/pages/wordset-pages.php:25400
-#: includes/pages/wordset-pages.php:25688
-#: includes/pages/wordset-pages.php:25769
-#: includes/pages/wordset-pages.php:25777
+#: includes/pages/wordset-pages.php:25403
+#: includes/pages/wordset-pages.php:25691
+#: includes/pages/wordset-pages.php:25772
+#: includes/pages/wordset-pages.php:25780
 #: includes/post-types/prompt-card-post-type.php:1352
 #: includes/privacy.php:642
 #: includes/privacy.php:731
@@ -1353,10 +1353,10 @@ msgstr "Kategori oluşturulamadı."
 
 #: includes/admin/image-aspect-normalizer-admin.php:900
 #: includes/admin/image-aspect-normalizer-admin.php:961
-#: includes/pages/vocab-lesson-pages.php:4888
-#: includes/pages/vocab-lesson-pages.php:5123
-#: includes/pages/vocab-lesson-pages.php:5166
-#: includes/pages/vocab-lesson-pages.php:5284
+#: includes/pages/vocab-lesson-pages.php:4896
+#: includes/pages/vocab-lesson-pages.php:5131
+#: includes/pages/vocab-lesson-pages.php:5174
+#: includes/pages/vocab-lesson-pages.php:5292
 #: includes/taxonomies/word-category-taxonomy.php:2120
 #: includes/taxonomies/word-category-taxonomy.php:2174
 #: includes/taxonomies/word-category-taxonomy.php:2302
@@ -1468,11 +1468,11 @@ msgstr "Sitenizde zaten yüklü olan yazı tiplerinden birini seç. Özel bir ya
 msgid "Choose which recording types to prompt for when a word has no category. Leave all unchecked to use the main defaults (Isolation, Question, Introduction)."
 msgstr "Bir kelimenin kategorisi olmadığında hangi kayıt türlerinin sorulacağını seç. Ana varsayılanları (İzolasyon, Soru, Giriş) kullanmak için tümünü işaretlemeden bırak."
 
-#: includes/pages/vocab-lesson-pages.php:7691
+#: includes/pages/vocab-lesson-pages.php:7699
 msgid "Choose which word sets should get vocab lesson pages at /{wordset}/{category} (and a wordset landing page at /{wordset}). Saving will sync pages automatically."
 msgstr "Hangi kelime setleri için /{wordset}/{category} adresinde kelime dersi sayfaları ve /{wordset} adresinde kelime seti açılış sayfası oluşturulacağını seç. Kaydettiğinde sayfalar otomatik olarak senkronize edilir."
 
-#: includes/post-types/words-post-type.php:1713
+#: includes/post-types/words-post-type.php:1724
 msgid "Choose words that should appear only as wrong answers for this word."
 msgstr "Bu kelime için sadece yanlış cevap olarak görünmesi gereken kelimeleri seç."
 
@@ -1491,27 +1491,27 @@ msgstr "Artık geçerli quizler oluşturamayan kategoriler için quiz sayfaları
 #: includes/admin/ipa-keyboard-admin.php:562
 #: includes/admin/word-option-rules-admin.php:1950
 #: includes/pages/wordset-pages.php:16988
-#: includes/pages/wordset-pages.php:25378
+#: includes/pages/wordset-pages.php:25381
 #: includes/post-types/prompt-card-post-type.php:1171
 #: includes/shortcodes/image-copyright-grid-shortcode.php:239
 #: templates/vocab-lesson-template.php:609
 msgid "Clear"
 msgstr "Temiz"
 
-#: includes/pages/wordset-pages.php:25437
-#: includes/pages/wordset-pages.php:25739
+#: includes/pages/wordset-pages.php:25440
+#: includes/pages/wordset-pages.php:25742
 msgid "Clear filters"
 msgstr "Filtreleri temizle"
 
-#: includes/pages/wordset-pages.php:26364
+#: includes/pages/wordset-pages.php:26367
 #: includes/taxonomies/word-category-taxonomy.php:2058
 #: templates/vocab-lesson-template.php:1157
 msgid "Clear search"
 msgstr "Temiz arama"
 
 #: includes/admin/ipa-keyboard-admin.php:591
-#: includes/pages/wordset-pages.php:25957
-#: includes/pages/wordset-pages.php:26487
+#: includes/pages/wordset-pages.php:25960
+#: includes/pages/wordset-pages.php:26490
 #: includes/shortcodes/flashcard-widget.php:726
 #: templates/offline-app-shell-template.php:832
 msgid "Clear selection"
@@ -1536,7 +1536,7 @@ msgstr "Kopyalanan kelimeler bu yeni kategoriye taşınır (kaynak kategoride tu
 #: includes/flashcard-shell.php:120
 #: includes/flashcard-shell.php:134
 #: includes/pages/quiz-pages.php:1837
-#: includes/pages/vocab-lesson-pages.php:4487
+#: includes/pages/vocab-lesson-pages.php:4495
 #: includes/pages/wordset-pages.php:13345
 #: includes/shortcodes/audio-recording-shortcode.php:1771
 #: includes/shortcodes/audio-recording-shortcode.php:1796
@@ -1632,9 +1632,9 @@ msgstr "İçerik Yöneticisi"
 #: includes/admin/word-images-fixer.php:164
 #: includes/admin/word-option-rules-admin.php:2632
 #: includes/pages/wordset-pages.php:22847
-#: includes/pages/wordset-pages.php:25353
-#: includes/pages/wordset-pages.php:25542
-#: includes/pages/wordset-pages.php:27243
+#: includes/pages/wordset-pages.php:25356
+#: includes/pages/wordset-pages.php:25545
+#: includes/pages/wordset-pages.php:27246
 #: includes/shortcodes/audio-recording-shortcode.php:1258
 #: includes/shortcodes/editor-hub-shortcode.php:1007
 #: includes/shortcodes/site-tools-shortcode.php:973
@@ -1885,9 +1885,9 @@ msgstr "Bir kelime görseli oluştur"
 #: includes/login-window.php:2242
 #: includes/login-window.php:2360
 #: includes/login-window.php:2550
-#: includes/pages/wordset-pages.php:25553
-#: includes/pages/wordset-pages.php:25579
-#: includes/pages/wordset-pages.php:27247
+#: includes/pages/wordset-pages.php:25556
+#: includes/pages/wordset-pages.php:25582
+#: includes/pages/wordset-pages.php:27250
 msgid "Create account"
 msgstr "Hesap oluştur"
 
@@ -1903,9 +1903,9 @@ msgstr "Quizler ve sayfalar oluşturmak için kullanılan kategorileri oluştur 
 msgid "Create Editor Hub Page"
 msgstr "Editör Hub Sayfası Oluşturma"
 
-#: includes/pages/wordset-pages.php:25547
-#: includes/pages/wordset-pages.php:25578
-#: includes/pages/wordset-pages.php:27246
+#: includes/pages/wordset-pages.php:25550
+#: includes/pages/wordset-pages.php:25581
+#: includes/pages/wordset-pages.php:27249
 msgid "Create learner account"
 msgstr "Öğrenci hesabı oluştur"
 
@@ -2036,7 +2036,7 @@ msgstr "İçerik, medya ve quiz davranışını işlemek için günlük operasyo
 
 #: includes/post-types/dictionary-entry-post-type.php:1970
 #: includes/post-types/word-audio-post-type.php:118
-#: includes/post-types/words-post-type.php:1997
+#: includes/post-types/words-post-type.php:2008
 msgid "Date"
 msgstr "Tarih"
 
@@ -2095,7 +2095,7 @@ msgstr "Kayıt ve dışa aktarma iş akışları tarafından kullanılan kayıt 
 #: includes/admin/teacher-classes-page.php:838
 #: includes/admin/teacher-classes-page.php:873
 #: includes/pages/wordset-pages.php:12826
-#: includes/pages/wordset-pages.php:25344
+#: includes/pages/wordset-pages.php:25347
 #: includes/shortcodes/site-tools-shortcode.php:1312
 msgid "Delete"
 msgstr "Sil"
@@ -2162,13 +2162,13 @@ msgid "Deselect All"
 msgstr "Tümünün Seçimini Kaldır"
 
 #: includes/flashcard-shell.php:109
-#: includes/pages/wordset-pages.php:25366
-#: includes/pages/wordset-pages.php:25446
+#: includes/pages/wordset-pages.php:25369
+#: includes/pages/wordset-pages.php:25449
 #: includes/shortcodes/flashcard-widget.php:728
 msgid "Deselect all"
 msgstr "Tümünün seçimini kaldır"
 
-#: includes/pages/wordset-pages.php:25448
+#: includes/pages/wordset-pages.php:25451
 #, php-format
 msgid "Deselect all: %1$s"
 msgstr "Tümünün seçimini kaldır: %1$s"
@@ -2257,13 +2257,13 @@ msgid "Dictionary entry translation"
 msgstr "Sözlük girdisi çevirisi"
 
 #: includes/admin/user-progress-report.php:1066
-#: includes/pages/wordset-pages.php:25826
-#: includes/pages/wordset-pages.php:25838
+#: includes/pages/wordset-pages.php:25829
+#: includes/pages/wordset-pages.php:25841
 msgid "Difficulty"
 msgstr "Zorluk"
 
-#: includes/pages/wordset-pages.php:25431
-#: includes/pages/wordset-pages.php:25837
+#: includes/pages/wordset-pages.php:25434
+#: includes/pages/wordset-pages.php:25840
 msgid "Difficulty Score"
 msgstr "Zorluk Puanı"
 
@@ -2402,7 +2402,7 @@ msgstr "Kelimeyi düzenle"
 msgid "Edit Word Images"
 msgstr "Kelime Görsellerini Düzenleme"
 
-#: includes/pages/vocab-lesson-pages.php:4485
+#: includes/pages/vocab-lesson-pages.php:4493
 msgid "Edit word option rules for this lesson"
 msgstr "Bu ders için kelime seçeneği kurallarını düzenle"
 
@@ -2846,7 +2846,7 @@ msgid "Faster"
 msgstr "Daha hızlı"
 
 #: includes/post-types/word-image-post-type.php:1222
-#: includes/post-types/words-post-type.php:1994
+#: includes/post-types/words-post-type.php:2005
 msgid "Featured Image"
 msgstr "Öne Çıkan Görsel"
 
@@ -2876,42 +2876,42 @@ msgstr "getiriyorum."
 msgid "Filter"
 msgstr "Filtre"
 
-#: includes/pages/wordset-pages.php:25771
-#: includes/pages/wordset-pages.php:25783
+#: includes/pages/wordset-pages.php:25774
+#: includes/pages/wordset-pages.php:25786
 msgid "Filter category"
 msgstr "Filtre kategorisi"
 
-#: includes/pages/wordset-pages.php:25831
-#: includes/pages/wordset-pages.php:25847
+#: includes/pages/wordset-pages.php:25834
+#: includes/pages/wordset-pages.php:25850
 msgid "Filter difficulty score"
 msgstr "Zorluk puanını filtrele"
 
-#: includes/pages/wordset-pages.php:25906
-#: includes/pages/wordset-pages.php:25918
+#: includes/pages/wordset-pages.php:25909
+#: includes/pages/wordset-pages.php:25921
 msgid "Filter last seen"
 msgstr "Son görülme filtresi"
 
-#: includes/pages/wordset-pages.php:25857
-#: includes/pages/wordset-pages.php:25873
+#: includes/pages/wordset-pages.php:25860
+#: includes/pages/wordset-pages.php:25876
 msgid "Filter seen count"
 msgstr "Filtre görülme sayısı"
 
-#: includes/pages/wordset-pages.php:25749
-#: includes/pages/wordset-pages.php:25758
+#: includes/pages/wordset-pages.php:25752
+#: includes/pages/wordset-pages.php:25761
 msgid "Filter star status"
 msgstr "Filtre yıldız durumu"
 
-#: includes/pages/wordset-pages.php:25809
-#: includes/pages/wordset-pages.php:25821
+#: includes/pages/wordset-pages.php:25812
+#: includes/pages/wordset-pages.php:25824
 msgid "Filter status"
 msgstr "Filtre durumu"
 
-#: includes/pages/wordset-pages.php:25883
-#: includes/pages/wordset-pages.php:25899
+#: includes/pages/wordset-pages.php:25886
+#: includes/pages/wordset-pages.php:25902
 msgid "Filter wrong count"
 msgstr "Yanlış sayımı filtrele"
 
-#: includes/pages/wordset-pages.php:25449
+#: includes/pages/wordset-pages.php:25452
 msgid "Filtered words"
 msgstr "Filtrelenmiş kelimeler"
 
@@ -3068,10 +3068,10 @@ msgstr "GD resim kitaplığı beyaz dolgu için kullanılamaz."
 #: includes/pages/wordset-editor.php:941
 #: includes/pages/wordset-pages.php:6623
 #: includes/pages/wordset-pages.php:23985
-#: includes/pages/wordset-pages.php:25460
-#: includes/pages/wordset-pages.php:25470
-#: includes/pages/wordset-pages.php:25479
-#: includes/pages/wordset-pages.php:25633
+#: includes/pages/wordset-pages.php:25463
+#: includes/pages/wordset-pages.php:25473
+#: includes/pages/wordset-pages.php:25482
+#: includes/pages/wordset-pages.php:25636
 #: includes/shortcodes/editor-hub-shortcode.php:515
 #: includes/shortcodes/editor-hub-shortcode.php:1059
 #: includes/shortcodes/flashcard-widget.php:664
@@ -3129,7 +3129,7 @@ msgstr "Git"
 msgid "Go back to the previous page"
 msgstr "Önceki sayfaya geri dön"
 
-#: includes/post-types/words-post-type.php:2716
+#: includes/post-types/words-post-type.php:2727
 msgid "Go to Audio Processor"
 msgstr "Ses İşlemcisine git"
 
@@ -3182,29 +3182,29 @@ msgstr "Misafir"
 #: includes/pages/wordset-pages.php:13024
 #: includes/pages/wordset-pages.php:13441
 #: includes/pages/wordset-pages.php:24323
-#: includes/pages/wordset-pages.php:25409
+#: includes/pages/wordset-pages.php:25412
 msgid "Hard"
 msgstr "Zor"
 
 #: includes/admin/teacher-classes-page.php:919
 #: includes/pages/wordset-pages.php:23424
 #: includes/pages/wordset-pages.php:23601
-#: includes/pages/wordset-pages.php:25377
-#: includes/pages/wordset-pages.php:25436
+#: includes/pages/wordset-pages.php:25380
+#: includes/pages/wordset-pages.php:25439
 msgid "Hard words"
 msgstr "Zor kelimeler"
 
-#: includes/pages/wordset-pages.php:25361
-#: includes/pages/wordset-pages.php:26471
+#: includes/pages/wordset-pages.php:25364
 #: includes/pages/wordset-pages.php:26474
+#: includes/pages/wordset-pages.php:26477
 msgid "Hard words only"
 msgstr "Sadece zor kelimeler"
 
-#: includes/pages/wordset-pages.php:25416
+#: includes/pages/wordset-pages.php:25419
 msgid "Hardest"
 msgstr "En zoru"
 
-#: includes/post-types/words-post-type.php:2261
+#: includes/post-types/words-post-type.php:2272
 msgid "Has Featured Image"
 msgstr "Öne Çıkan Görsele Sahip"
 
@@ -3214,9 +3214,9 @@ msgstr "Öne Çıkan Görsele Sahip"
 msgid "Hidden"
 msgstr "Gizlenmiş"
 
-#: includes/pages/wordset-pages.php:25390
-#: includes/pages/wordset-pages.php:25994
-#: includes/pages/wordset-pages.php:26166
+#: includes/pages/wordset-pages.php:25393
+#: includes/pages/wordset-pages.php:25997
+#: includes/pages/wordset-pages.php:26169
 msgid "Hidden Categories"
 msgstr "Gizlenmiş Kategoriler"
 
@@ -3229,7 +3229,7 @@ msgstr "Gizlenmiş kelimeler"
 #: includes/admin/ipa-keyboard-admin.php:542
 #: includes/pages/wordset-pages.php:7141
 #: includes/pages/wordset-pages.php:7150
-#: includes/pages/wordset-pages.php:25368
+#: includes/pages/wordset-pages.php:25371
 #, php-format
 msgid "Hide %s"
 msgstr "%s'yi gizle"
@@ -3359,7 +3359,7 @@ msgid "Image has no thumbnail"
 msgstr "Resmin küçük resmi yok"
 
 #: includes/pages/wordset-pages.php:14147
-#: includes/pages/wordset-pages.php:26138
+#: includes/pages/wordset-pages.php:26141
 msgid "Image Upload"
 msgstr "Resim Yükleme"
 
@@ -3640,14 +3640,14 @@ msgstr "İçe aktarılan uzak görüntü"
 
 #: includes/pages/wordset-pages.php:13431
 #: includes/pages/wordset-pages.php:24305
-#: includes/pages/wordset-pages.php:25406
-#: includes/pages/wordset-pages.php:25420
+#: includes/pages/wordset-pages.php:25409
+#: includes/pages/wordset-pages.php:25423
 msgid "In progress"
 msgstr "Devam ediyor"
 
 #: includes/pages/wordset-pages.php:23421
 #: includes/pages/wordset-pages.php:23589
-#: includes/pages/wordset-pages.php:25374
+#: includes/pages/wordset-pages.php:25377
 msgid "In progress words"
 msgstr "Devam eden kelimeler"
 
@@ -3731,11 +3731,11 @@ msgstr "Geçersiz kategori belirtildi."
 
 #: includes/lib/word-grid-bulk-operations.php:1120
 #: includes/pages/quiz-pages.php:913
-#: includes/pages/vocab-lesson-pages.php:2895
-#: includes/pages/vocab-lesson-pages.php:3046
-#: includes/shortcodes/flashcard-widget.php:2483
-#: includes/shortcodes/flashcard-widget.php:2536
-#: includes/shortcodes/flashcard-widget.php:2711
+#: includes/pages/vocab-lesson-pages.php:2903
+#: includes/pages/vocab-lesson-pages.php:3054
+#: includes/shortcodes/flashcard-widget.php:2485
+#: includes/shortcodes/flashcard-widget.php:2538
+#: includes/shortcodes/flashcard-widget.php:2713
 #: includes/shortcodes/word-grid-shortcode.php:10326
 msgid "Invalid category."
 msgstr "Geçersiz kategori."
@@ -3769,13 +3769,13 @@ msgstr "Geçersiz üst kelime gönderisi"
 msgid "Invalid post ID"
 msgstr "Geçersiz gönderi kimliği"
 
-#: includes/pages/vocab-lesson-pages.php:5096
-#: includes/pages/vocab-lesson-pages.php:5227
-#: includes/pages/vocab-lesson-pages.php:6974
-#: includes/pages/vocab-lesson-pages.php:6979
-#: includes/pages/vocab-lesson-pages.php:6985
-#: includes/pages/vocab-lesson-pages.php:7078
-#: includes/pages/vocab-lesson-pages.php:7154
+#: includes/pages/vocab-lesson-pages.php:5104
+#: includes/pages/vocab-lesson-pages.php:5235
+#: includes/pages/vocab-lesson-pages.php:6982
+#: includes/pages/vocab-lesson-pages.php:6987
+#: includes/pages/vocab-lesson-pages.php:6993
+#: includes/pages/vocab-lesson-pages.php:7086
+#: includes/pages/vocab-lesson-pages.php:7162
 #: includes/shortcodes/dictionary-shortcode.php:150
 #: includes/shortcodes/dictionary-shortcode.php:159
 #: includes/shortcodes/dictionary-shortcode.php:172
@@ -3785,12 +3785,12 @@ msgstr "Geçersiz gönderi kimliği"
 #: includes/shortcodes/dictionary-shortcode.php:3820
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
-#: includes/user-progress.php:11819
-#: includes/user-progress.php:12137
-#: includes/user-progress.php:12147
-#: includes/user-progress.php:12169
-#: includes/user-progress.php:12178
-#: includes/user-progress.php:12181
+#: includes/user-progress.php:11835
+#: includes/user-progress.php:12153
+#: includes/user-progress.php:12163
+#: includes/user-progress.php:12185
+#: includes/user-progress.php:12194
+#: includes/user-progress.php:12197
 msgid "Invalid request."
 msgstr "Geçersiz istek."
 
@@ -3798,7 +3798,7 @@ msgstr "Geçersiz istek."
 msgid "Invalid shortcode page configuration."
 msgstr "Geçersiz kısa kod sayfası yapılandırması."
 
-#: includes/pages/vocab-lesson-pages.php:7596
+#: includes/pages/vocab-lesson-pages.php:7604
 msgid "Invalid vocab lesson settings request."
 msgstr "Geçersiz kelime dersi ayarları isteği."
 
@@ -3849,7 +3849,7 @@ msgstr "Dışa aktarma için geçersiz kelime seti seçimi."
 #: includes/pages/wordset-games.php:5283
 #: includes/pages/wordset-pages.php:13350
 #: includes/pages/wordset-pages.php:24757
-#: includes/pages/wordset-pages.php:27456
+#: includes/pages/wordset-pages.php:27459
 #: includes/shortcodes/editor-hub-shortcode.php:644
 #: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/editor-hub-shortcode.php:1039
@@ -4016,28 +4016,28 @@ msgid "Large import warning thresholds: %1$s media files or %2$s of media."
 msgstr "Büyük içe aktarma uyarı eşikleri: %1$s medya dosyası veya %2$s medya."
 
 #: includes/pages/wordset-pages.php:13030
-#: includes/pages/wordset-pages.php:25430
-#: includes/pages/wordset-pages.php:25457
-#: includes/pages/wordset-pages.php:25706
-#: includes/pages/wordset-pages.php:25904
-#: includes/pages/wordset-pages.php:25912
+#: includes/pages/wordset-pages.php:25433
+#: includes/pages/wordset-pages.php:25460
+#: includes/pages/wordset-pages.php:25709
+#: includes/pages/wordset-pages.php:25907
+#: includes/pages/wordset-pages.php:25915
 msgid "Last"
 msgstr "En son"
 
-#: includes/pages/wordset-pages.php:25410
-#: includes/pages/wordset-pages.php:25597
+#: includes/pages/wordset-pages.php:25413
+#: includes/pages/wordset-pages.php:25600
 msgid "Last 14 days"
 msgstr "Son 14 gün"
 
-#: includes/pages/wordset-pages.php:25438
+#: includes/pages/wordset-pages.php:25441
 msgid "Last 24h"
 msgstr "Son 24 saat"
 
-#: includes/pages/wordset-pages.php:25440
+#: includes/pages/wordset-pages.php:25443
 msgid "Last 30d"
 msgstr "Son 30 gün"
 
-#: includes/pages/wordset-pages.php:25439
+#: includes/pages/wordset-pages.php:25442
 msgid "Last 7d"
 msgstr "Son 7d"
 
@@ -4045,7 +4045,7 @@ msgstr "Son 7d"
 #: includes/flashcard-shell.php:91
 #: includes/pages/wordset-pages.php:6620
 #: includes/pages/wordset-pages.php:23982
-#: includes/pages/wordset-pages.php:25477
+#: includes/pages/wordset-pages.php:25480
 #: includes/shortcodes/flashcard-widget.php:661
 #: includes/shortcodes/flashcard-widget.php:666
 #: includes/shortcodes/flashcard-widget.php:731
@@ -4059,14 +4059,14 @@ msgstr "Öğren"
 
 #: includes/pages/wordset-pages.php:13426
 #: includes/pages/wordset-pages.php:24299
-#: includes/pages/wordset-pages.php:25405
-#: includes/pages/wordset-pages.php:25419
+#: includes/pages/wordset-pages.php:25408
+#: includes/pages/wordset-pages.php:25422
 msgid "Learned"
 msgstr "Öğrenilmiş"
 
 #: includes/pages/wordset-pages.php:23422
 #: includes/pages/wordset-pages.php:23593
-#: includes/pages/wordset-pages.php:25375
+#: includes/pages/wordset-pages.php:25378
 msgid "Learned words"
 msgstr "Öğrenilen kelimeler"
 
@@ -4137,18 +4137,18 @@ msgstr "Yalnızca kategorileri + kelime görsellerini + görüntü dosyalarını
 msgid "Legacy rows found:"
 msgstr "Eski satırlar bulundu:"
 
-#: includes/pages/vocab-lesson-pages.php:7165
+#: includes/pages/vocab-lesson-pages.php:7173
 msgid "Lesson metadata is missing."
 msgstr "Ders meta verileri eksik."
 
-#: includes/pages/vocab-lesson-pages.php:4891
-#: includes/pages/vocab-lesson-pages.php:5103
-#: includes/pages/vocab-lesson-pages.php:5249
-#: includes/pages/vocab-lesson-pages.php:6833
-#: includes/pages/vocab-lesson-pages.php:7159
-#: includes/pages/vocab-lesson-pages.php:7168
-#: includes/pages/vocab-lesson-pages.php:7171
-#: includes/pages/vocab-lesson-pages.php:7174
+#: includes/pages/vocab-lesson-pages.php:4899
+#: includes/pages/vocab-lesson-pages.php:5111
+#: includes/pages/vocab-lesson-pages.php:5257
+#: includes/pages/vocab-lesson-pages.php:6841
+#: includes/pages/vocab-lesson-pages.php:7167
+#: includes/pages/vocab-lesson-pages.php:7176
+#: includes/pages/vocab-lesson-pages.php:7179
+#: includes/pages/vocab-lesson-pages.php:7182
 #: includes/taxonomies/word-category-taxonomy.php:2379
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
@@ -4157,7 +4157,7 @@ msgstr "Ders meta verileri eksik."
 msgid "Lesson not found."
 msgstr "Ders bulunamadı."
 
-#: includes/pages/wordset-pages.php:26321
+#: includes/pages/wordset-pages.php:26324
 msgid "Lesson pages are not enabled for this word set yet."
 msgstr "Ders sayfaları bu kelime seti için henüz etkinleştirilmemiştir."
 
@@ -4165,14 +4165,14 @@ msgstr "Ders sayfaları bu kelime seti için henüz etkinleştirilmemiştir."
 msgid "Lesson pages are now enabled for this word set."
 msgstr "Ders sayfaları artık bu kelime seti için etkinleştirilmiştir."
 
-#: includes/pages/vocab-lesson-pages.php:6486
-#: includes/pages/vocab-lesson-pages.php:7180
+#: includes/pages/vocab-lesson-pages.php:6494
+#: includes/pages/vocab-lesson-pages.php:7188
 #: includes/shortcodes/word-grid-shortcode.php:8183
 #: includes/shortcodes/word-grid-shortcode.php:8195
 msgid "Lesson terms are missing."
 msgstr "Ders terimleri eksik."
 
-#: includes/pages/vocab-lesson-pages.php:4489
+#: includes/pages/vocab-lesson-pages.php:4497
 msgid "Lesson word option rules"
 msgstr "Ders kelime seçeneği kuralları"
 
@@ -4213,7 +4213,7 @@ msgstr "Harfler"
 msgid "Letters (e.g. ll)"
 msgstr "Harfler (örn. ll)"
 
-#: includes/pages/wordset-pages.php:25471
+#: includes/pages/wordset-pages.php:25474
 #: includes/taxonomies/wordset-taxonomy.php:2948
 #: templates/vocab-lesson-template.php:1130
 msgid "Level"
@@ -4260,7 +4260,7 @@ msgstr "Bağlantılı Kelimeler"
 #: includes/flashcard-shell.php:54
 #: includes/pages/wordset-pages.php:6621
 #: includes/pages/wordset-pages.php:23983
-#: includes/pages/wordset-pages.php:25478
+#: includes/pages/wordset-pages.php:25481
 #: includes/shortcodes/flashcard-widget.php:668
 #: includes/shortcodes/flashcard-widget.php:732
 #: includes/shortcodes/flashcard-widget.php:815
@@ -4380,7 +4380,8 @@ msgstr "Kelimeleri yükle"
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:717
-#: includes/shortcodes/wordset-buttons-shortcode.php:1647
+#: includes/shortcodes/wordset-buttons-shortcode.php:1651
+#: includes/shortcodes/wordset-buttons-shortcode.php:1701
 msgid "Loading categories..."
 msgstr "Kategoriler yükleniyor..."
 
@@ -4406,16 +4407,16 @@ msgstr "Ders kelimeleri yükleniyor..."
 msgid "Loading next audio…"
 msgstr "Sonraki ses yükleniyor.."
 
-#: includes/pages/wordset-pages.php:25335
-#: includes/pages/wordset-pages.php:25336
-#: includes/pages/wordset-pages.php:26284
+#: includes/pages/wordset-pages.php:25338
+#: includes/pages/wordset-pages.php:25339
+#: includes/pages/wordset-pages.php:26287
 #: includes/shortcodes/flashcard-widget.php:739
 #: templates/offline-app-shell-template.php:733
 msgid "Loading next recommendation..."
 msgstr "Bir sonraki öneri yükleniyor..."
 
-#: includes/pages/wordset-pages.php:25395
-#: includes/pages/wordset-pages.php:25593
+#: includes/pages/wordset-pages.php:25398
+#: includes/pages/wordset-pages.php:25596
 msgid "Loading progress..."
 msgstr "İlerleme yükleniyor..."
 
@@ -4457,13 +4458,13 @@ msgstr "Oturumu kapat"
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:10621
-#: includes/user-progress.php:10667
-#: includes/user-progress.php:10689
-#: includes/user-progress.php:10827
-#: includes/user-progress.php:10848
-#: includes/user-progress.php:12128
-#: includes/user-progress.php:12214
+#: includes/user-progress.php:10637
+#: includes/user-progress.php:10683
+#: includes/user-progress.php:10705
+#: includes/user-progress.php:10843
+#: includes/user-progress.php:10864
+#: includes/user-progress.php:12144
+#: includes/user-progress.php:12230
 #: includes/user-study.php:1369
 #: includes/user-study.php:1407
 #: includes/user-study.php:1471
@@ -4559,7 +4560,7 @@ msgstr "Manuel sıralama alanı"
 msgid "Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes."
 msgstr "Transkripsiyonlardan çıkarılan eşlemeler. Öneri hatalarını düzeltmek için manuel geçersiz kılmalar ekle."
 
-#: includes/post-types/words-post-type.php:2633
+#: includes/post-types/words-post-type.php:2644
 msgid "Mark for Audio Reprocessing"
 msgstr "Ses Yeniden İşleme için İşaret"
 
@@ -4589,7 +4590,7 @@ msgstr "Yüklenen ses ve görüntüleri doğru kelime ve kategorilerle eşleşti
 msgid "Max Number of Options:"
 msgstr "Maksimum Seçenek Sayısı:"
 
-#: includes/post-types/words-post-type.php:1952
+#: includes/post-types/words-post-type.php:1963
 msgid "Meaning:"
 msgstr "Anlamı:"
 
@@ -4698,8 +4699,8 @@ msgstr "Eksik image_id veya word_id"
 msgid "Missing image_id or word_id."
 msgstr "Eksik image_id veya word_id."
 
-#: includes/pages/vocab-lesson-pages.php:5090
-#: includes/pages/vocab-lesson-pages.php:7151
+#: includes/pages/vocab-lesson-pages.php:5098
+#: includes/pages/vocab-lesson-pages.php:7159
 msgid "Missing lesson."
 msgstr "Kayıp ders."
 
@@ -4827,8 +4828,8 @@ msgstr "Optimizasyon ihtiyacı var"
 msgid "Needs recording"
 msgstr "Kayıt gerekiyor"
 
-#: includes/pages/wordset-pages.php:25442
-#: includes/pages/wordset-pages.php:25458
+#: includes/pages/wordset-pages.php:25445
+#: includes/pages/wordset-pages.php:25461
 msgid "Never"
 msgstr "Hiç görülmemiş"
 
@@ -4836,10 +4837,10 @@ msgstr "Hiç görülmemiş"
 #: includes/admin/user-progress-report.php:1005
 #: includes/pages/wordset-pages.php:13436
 #: includes/pages/wordset-pages.php:24311
-#: includes/pages/wordset-pages.php:25407
-#: includes/pages/wordset-pages.php:25417
-#: includes/pages/wordset-pages.php:25418
+#: includes/pages/wordset-pages.php:25410
+#: includes/pages/wordset-pages.php:25420
 #: includes/pages/wordset-pages.php:25421
+#: includes/pages/wordset-pages.php:25424
 msgid "New"
 msgstr "Yeni"
 
@@ -4907,7 +4908,7 @@ msgstr "Yeni kelime başlığı (isteğe bağlı)"
 
 #: includes/pages/wordset-pages.php:23420
 #: includes/pages/wordset-pages.php:23585
-#: includes/pages/wordset-pages.php:25373
+#: includes/pages/wordset-pages.php:25376
 msgid "New words"
 msgstr "Yeni kelimeler"
 
@@ -4933,8 +4934,8 @@ msgstr "Yeni kelimeler"
 #: includes/pages/wordset-pages.php:17188
 #: includes/pages/wordset-pages.php:22079
 #: includes/pages/wordset-pages.php:22355
-#: includes/pages/wordset-pages.php:27346
-#: includes/pages/wordset-pages.php:27475
+#: includes/pages/wordset-pages.php:27349
+#: includes/pages/wordset-pages.php:27478
 #: includes/shortcodes/audio-credit-grid-shortcode.php:408
 #: includes/shortcodes/content-lesson-index-shortcode.php:722
 #: includes/shortcodes/dictionary-shortcode.php:2953
@@ -4954,7 +4955,7 @@ msgid "Next Set"
 msgstr "Sonraki Set"
 
 #: includes/admin/site-sync-admin.php:1146
-#: includes/post-types/words-post-type.php:2263
+#: includes/post-types/words-post-type.php:2274
 #: includes/privacy.php:389
 msgid "No"
 msgstr "Hayır"
@@ -4964,7 +4965,7 @@ msgstr "Hayır"
 msgid "no"
 msgstr "hayır"
 
-#: includes/pages/wordset-pages.php:25411
+#: includes/pages/wordset-pages.php:25414
 msgid "No activity yet."
 msgstr "Henüz bir faaliyet yok."
 
@@ -5017,9 +5018,9 @@ msgstr "Kategori yok (isteğe bağlı)"
 msgid "No change"
 msgstr "Değişiklik yok"
 
-#: includes/pages/wordset-pages.php:25414
-#: includes/pages/wordset-pages.php:25714
-#: includes/pages/wordset-pages.php:25927
+#: includes/pages/wordset-pages.php:25417
+#: includes/pages/wordset-pages.php:25717
+#: includes/pages/wordset-pages.php:25930
 msgid "No data yet."
 msgstr "Henüz veri yok."
 
@@ -5055,7 +5056,7 @@ msgstr "Kaydedilecek dosya yok."
 msgid "No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin."
 msgstr "Yazı tipi bulunamadı. Lütfen fontların temanız veya Use Any Font eklentisi tarafından sıralandığından emin ol."
 
-#: includes/pages/wordset-pages.php:25383
+#: includes/pages/wordset-pages.php:25386
 msgid "No hard words are available for this selection."
 msgstr "Bu seçim için zor kelimeler mevcut değildir."
 
@@ -5065,8 +5066,8 @@ msgstr "Bu seçim için zor kelimeler mevcut değildir."
 msgid "No headers selected for matching."
 msgstr "Eşleştirme için seçilen başlık yok."
 
-#: includes/pages/wordset-pages.php:25389
-#: includes/pages/wordset-pages.php:26004
+#: includes/pages/wordset-pages.php:25392
+#: includes/pages/wordset-pages.php:26007
 msgid "No hidden categories in this word set."
 msgstr "Bu kelime setinde gizlenmiş kategori yoktur."
 
@@ -5107,7 +5108,7 @@ msgstr "Giriş aygıtı algılanmadı: Windows Ayarları → Gizlilik ve Güvenl
 msgid "No IPA symbols found for this word set."
 msgstr "Bu kelime seti için IPA sembolü bulunamadı."
 
-#: includes/pages/wordset-pages.php:26342
+#: includes/pages/wordset-pages.php:26345
 msgid "No lesson categories yet."
 msgstr "Henüz ders kategorisi yok."
 
@@ -5172,13 +5173,13 @@ msgstr "Bu ders için henüz yazdırılabilir görsel bulunamadı."
 msgid "No quiz pages are available yet."
 msgstr "Henüz quiz sayfası bulunmamaktadır."
 
-#: includes/pages/wordset-pages.php:25381
-#: includes/user-progress.php:11380
-#: includes/user-progress.php:11469
-#: includes/user-progress.php:11854
-#: includes/user-progress.php:11881
-#: includes/user-progress.php:11904
-#: includes/user-progress.php:12063
+#: includes/pages/wordset-pages.php:25384
+#: includes/user-progress.php:11396
+#: includes/user-progress.php:11485
+#: includes/user-progress.php:11870
+#: includes/user-progress.php:11897
+#: includes/user-progress.php:11920
+#: includes/user-progress.php:12079
 msgid "No quiz words are available for this selection."
 msgstr "Bu seçim için hiçbir quiz kelimesi mevcut değildir."
 
@@ -5247,11 +5248,11 @@ msgstr "Bu ekranda henüz hiçbir site yazı tipi algılanmadı. Tema/Herhangi B
 msgid "No source categories with words were found in this word set."
 msgstr "Bu kelime setinde kelime içeren hiçbir kaynak kategori bulunamadı."
 
-#: includes/pages/wordset-pages.php:25387
+#: includes/pages/wordset-pages.php:25390
 msgid "No starred hard words are available for this selection."
 msgstr "Bu seçim için yıldızlı zor kelimeler mevcut değildir."
 
-#: includes/pages/wordset-pages.php:25382
+#: includes/pages/wordset-pages.php:25385
 msgid "No starred words are available for this selection."
 msgstr "Bu seçim için yıldızlı kelime bulunmamaktadır."
 
@@ -5276,7 +5277,7 @@ msgid "No unique recordings in the queue. Check the duplicates tab for additiona
 msgstr "Kuyrukta benzersiz kayıt yok. Ek kayıtlar için yinelenenler sekmesini kontrol et."
 
 #: includes/pages/wordset-pages.php:23547
-#: includes/pages/wordset-pages.php:25391
+#: includes/pages/wordset-pages.php:25394
 msgid "No upcoming activities yet."
 msgstr "Henüz yaklaşan bir etkinlik yok."
 
@@ -5312,7 +5313,7 @@ msgstr "Editör Merkezi için kelime seti mevcut değildir."
 msgid "No word sets"
 msgstr "Kelime seti yok"
 
-#: includes/pages/vocab-lesson-pages.php:7710
+#: includes/pages/vocab-lesson-pages.php:7718
 msgid "No word sets are enabled yet, so no vocab lesson pages will be generated."
 msgstr "Henüz hiçbir kelime seti etkinleştirilmemiştir, bu nedenle hiçbir kelime dersi sayfası oluşturulmayacaktır."
 
@@ -5325,7 +5326,7 @@ msgstr "Henüz hiçbir kelime seti etkinleştirilmemiştir, bu nedenle hiçbir k
 msgid "No word sets found"
 msgstr "Kelime seti bulunamadı"
 
-#: includes/pages/vocab-lesson-pages.php:7706
+#: includes/pages/vocab-lesson-pages.php:7714
 msgid "No word sets found yet."
 msgstr "Henüz kelime seti bulunamadı."
 
@@ -5420,7 +5421,7 @@ msgstr "İsim çoğulluğu"
 msgid "Object cache flushed:"
 msgstr "Nesne önbelleği temizlendi:"
 
-#: includes/pages/wordset-pages.php:25441
+#: includes/pages/wordset-pages.php:25444
 msgid "Older"
 msgstr "Daha eski"
 
@@ -5463,8 +5464,8 @@ msgstr "Toplu Aracı Aç"
 msgid "Open current parent"
 msgstr "Geçerli ebeveyni aç"
 
-#: includes/pages/wordset-pages.php:25575
-#: includes/pages/wordset-pages.php:26221
+#: includes/pages/wordset-pages.php:25578
+#: includes/pages/wordset-pages.php:26224
 msgid "Open progress"
 msgstr "Açık ilerleme"
 
@@ -5472,7 +5473,7 @@ msgstr "Açık ilerleme"
 msgid "Opened from list view"
 msgstr "Liste görünümünden açıldı"
 
-#: includes/pages/vocab-lesson-pages.php:4488
+#: includes/pages/vocab-lesson-pages.php:4496
 msgid "Opening word options..."
 msgstr "Kelime seçeneklerini açma..."
 
@@ -5558,7 +5559,7 @@ msgstr "İsteğe bağlı. Boş bırakılırsa addan otomatik olarak oluşturulac
 msgid "Optional: Choose a published page to redirect this user to on login. Leave the default option selected to use the shared recording page."
 msgstr "İsteğe bağlı: Bu kullanıcıyı oturum açtığında yönlendirmek için yayınlanmış bir sayfa seç. Paylaşılan kayıt sayfasını kullanmak için varsayılan seçeneği seçili bırak."
 
-#: includes/pages/vocab-lesson-pages.php:4484
+#: includes/pages/vocab-lesson-pages.php:4492
 msgid "Options"
 msgstr "Seçenekler"
 
@@ -5566,7 +5567,7 @@ msgstr "Seçenekler"
 msgid "Or create a new category (new name takes priority):"
 msgstr "Ya da yeni bir kategori oluştur (yeni isim önceliklidir):"
 
-#: includes/post-types/words-post-type.php:1746
+#: includes/post-types/words-post-type.php:1757
 msgid "Or enter custom wrong-answer text (one per line):"
 msgstr "Veya özel yanlış cevap metni gir (her satır için bir tane):"
 
@@ -5654,8 +5655,8 @@ msgstr "Ebeveyn kelimesi:"
 msgid "Part of Speech"
 msgstr "Konuşma Parçası"
 
-#: includes/pages/wordset-pages.php:25401
-#: includes/pages/wordset-pages.php:25796
+#: includes/pages/wordset-pages.php:25404
+#: includes/pages/wordset-pages.php:25799
 #: includes/post-types/dictionary-entry-post-type.php:1487
 #: includes/shortcodes/editor-hub-shortcode.php:514
 #: includes/shortcodes/editor-hub-shortcode.php:1058
@@ -5741,7 +5742,7 @@ msgid "Play"
 msgstr "Oynat"
 
 #: includes/pages/wordset-pages.php:13278
-#: includes/pages/wordset-pages.php:27211
+#: includes/pages/wordset-pages.php:27214
 msgctxt "launch game action"
 msgid "Play"
 msgstr "Oyna"
@@ -5765,7 +5766,7 @@ msgstr "%s kaydını oynat"
 
 #: includes/pages/vocab-lesson-pages.php:1949
 #: includes/pages/vocab-lesson-pages.php:1970
-#: includes/pages/wordset-pages.php:25423
+#: includes/pages/wordset-pages.php:25426
 #: includes/shortcodes/flashcard-widget.php:650
 #: includes/shortcodes/flashcard-widget.php:655
 #: includes/shortcodes/ranked-word-list-shortcode.php:377
@@ -5798,17 +5799,17 @@ msgid "Hear the word. Blast the matching picture."
 msgstr "Kelimeyi dinle. Eşleşen görseli vur."
 
 #: includes/pages/wordset-pages.php:13268
-#: includes/pages/wordset-pages.php:27197
+#: includes/pages/wordset-pages.php:27200
 msgid "Checking game availability..."
 msgstr "Oyun hazır mı kontrol ediliyor..."
 
 #: includes/pages/wordset-pages.php:13269
-#: includes/pages/wordset-pages.php:27517
+#: includes/pages/wordset-pages.php:27520
 msgid "Preparing game..."
 msgstr "Oyun hazırlanıyor..."
 
 #: includes/pages/wordset-pages.php:13270
-#: includes/pages/wordset-pages.php:27198
+#: includes/pages/wordset-pages.php:27201
 msgid "Sign in to play with your in-progress words."
 msgstr "Çalıştığın kelimelerle oynamak için oturum aç."
 
@@ -5831,20 +5832,20 @@ msgid "This word set does not have a playable mix of picture cards yet."
 msgstr "Bu kelime setinde henüz oynanabilir bir görsel kart kombinasyonu yok."
 
 #: includes/pages/wordset-pages.php:13284
-#: includes/pages/wordset-pages.php:26181
-#: includes/pages/wordset-pages.php:27139
+#: includes/pages/wordset-pages.php:26184
+#: includes/pages/wordset-pages.php:27142
 #: templates/offline-app-shell-template.php:714
 #: templates/vocab-lesson-template.php:1205
 msgid "Games"
 msgstr "Oyunlar"
 
 #: includes/pages/wordset-pages.php:13285
-#: includes/pages/wordset-pages.php:27274
+#: includes/pages/wordset-pages.php:27277
 msgid "Replay prompt"
 msgstr "İpucunu tekrar oynat"
 
 #: includes/pages/wordset-pages.php:13286
-#: includes/pages/wordset-pages.php:27297
+#: includes/pages/wordset-pages.php:27300
 msgid "Pause run"
 msgstr "Turu duraklat"
 
@@ -5858,27 +5859,27 @@ msgid "Paused"
 msgstr "Duraklatıldı"
 
 #: includes/pages/wordset-pages.php:13290
-#: includes/pages/wordset-pages.php:27259
+#: includes/pages/wordset-pages.php:27262
 msgid "Coins"
 msgstr "Jetonlar"
 
 #: includes/pages/wordset-pages.php:13291
-#: includes/pages/wordset-pages.php:27264
+#: includes/pages/wordset-pages.php:27267
 msgid "Lives"
 msgstr "Canlar"
 
 #: includes/pages/wordset-pages.php:13292
-#: includes/pages/wordset-pages.php:27486
+#: includes/pages/wordset-pages.php:27489
 msgid "Move left"
 msgstr "Sola git"
 
 #: includes/pages/wordset-pages.php:13293
-#: includes/pages/wordset-pages.php:27504
+#: includes/pages/wordset-pages.php:27507
 msgid "Move right"
 msgstr "Sağa git"
 
 #: includes/pages/wordset-pages.php:13294
-#: includes/pages/wordset-pages.php:27494
+#: includes/pages/wordset-pages.php:27497
 msgid "Fire"
 msgstr "Ateş et"
 
@@ -5893,25 +5894,25 @@ msgstr "Jetonlar: %1$d · İpuçları: %2$d"
 
 #: includes/flashcard-shell.php:230
 #: includes/pages/wordset-pages.php:13302
-#: includes/pages/wordset-pages.php:27522
+#: includes/pages/wordset-pages.php:27525
 msgid "Replay"
 msgstr "Tekrar oyna"
 
 #: includes/pages/wordset-pages.php:13304
-#: includes/pages/wordset-pages.php:27523
+#: includes/pages/wordset-pages.php:27526
 msgid "Back to games"
 msgstr "Oyunlara dön"
 
 #: includes/pages/wordset-pages.php:13280
-#: includes/pages/wordset-pages.php:27204
+#: includes/pages/wordset-pages.php:27207
 msgid "Eligible words"
 msgstr "Uygun kelimeler"
 
-#: includes/pages/wordset-pages.php:27241
+#: includes/pages/wordset-pages.php:27244
 msgid "Sign in to play games"
 msgstr "Oyun oynamak için oturum aç"
 
-#: includes/pages/wordset-pages.php:27242
+#: includes/pages/wordset-pages.php:27245
 msgid "Games use your in-progress words and save results to your practice history."
 msgstr "Oyunlar, çalıştığın kelimeleri kullanır ve sonuçları pratik geçmişine kaydeder."
 
@@ -5999,7 +6000,7 @@ msgstr "Popüler Kelime Setleri"
 #: includes/flashcard-shell.php:90
 #: includes/pages/wordset-pages.php:6619
 #: includes/pages/wordset-pages.php:23981
-#: includes/pages/wordset-pages.php:25476
+#: includes/pages/wordset-pages.php:25479
 #: includes/shortcodes/flashcard-widget.php:660
 #: includes/shortcodes/flashcard-widget.php:665
 #: includes/shortcodes/flashcard-widget.php:670
@@ -6213,15 +6214,15 @@ msgstr "İçe aktarma paketi işleniyor..."
 msgid "Processing..."
 msgstr "İşlem..."
 
-#: includes/pages/wordset-pages.php:25394
-#: includes/pages/wordset-pages.php:25567
-#: includes/pages/wordset-pages.php:25642
-#: includes/pages/wordset-pages.php:25694
+#: includes/pages/wordset-pages.php:25397
+#: includes/pages/wordset-pages.php:25570
+#: includes/pages/wordset-pages.php:25645
+#: includes/pages/wordset-pages.php:25697
 #: includes/shortcodes/editor-hub-shortcode.php:1102
 msgid "Progress"
 msgstr "İlerleme"
 
-#: includes/pages/wordset-pages.php:25396
+#: includes/pages/wordset-pages.php:25399
 msgid "Progress is unavailable right now."
 msgstr "İlerleme bilgileri şu anda kullanılamıyor."
 
@@ -6303,13 +6304,13 @@ msgstr "Quiz İçeriği"
 msgid "Quiz Font (for text mode):"
 msgstr "Quiz Yazı Tipi (metin modu için):"
 
-#: includes/pages/wordset-pages.php:26266
+#: includes/pages/wordset-pages.php:26269
 #: templates/vocab-lesson-template.php:1422
 msgid "Quiz modes"
 msgstr "Quiz modları"
 
 #: includes/pages/wordset-pages.php:7261
-#: includes/pages/wordset-pages.php:25371
+#: includes/pages/wordset-pages.php:25374
 #, php-format
 msgid "Quiz modes for %s"
 msgstr "%s için quiz modları"
@@ -6374,20 +6375,20 @@ msgstr "Son İçe Aktarmalar"
 
 #: includes/flashcard-shell.php:227
 #: includes/lib/wordset-language-settings.php:133
-#: includes/pages/wordset-pages.php:25355
-#: includes/pages/wordset-pages.php:26278
+#: includes/pages/wordset-pages.php:25358
+#: includes/pages/wordset-pages.php:26281
 #: includes/shortcodes/flashcard-widget.php:738
 #: templates/offline-app-shell-template.php:727
 msgid "Recommended"
 msgstr "Tavsiye edilir"
 
-#: includes/pages/wordset-pages.php:25337
+#: includes/pages/wordset-pages.php:25340
 #: includes/shortcodes/flashcard-widget.php:741
 #, php-format
 msgid "Recommended: %1$s in %2$s (%3$d words)."
 msgstr "Önerilen: %2$s içinde %1$s (%3$d kelime)."
 
-#: includes/pages/wordset-pages.php:25338
+#: includes/pages/wordset-pages.php:25341
 #: includes/shortcodes/flashcard-widget.php:742
 #, php-format
 msgid "Recommended: %1$s in %2$s."
@@ -6459,8 +6460,8 @@ msgstr "Kaydediciler:"
 #: includes/admin/split-word-admin.php:406
 #: includes/admin/split-word-admin.php:413
 #: includes/pages/wordset-editor.php:4524
-#: includes/post-types/words-post-type.php:2051
-#: includes/post-types/words-post-type.php:2054
+#: includes/post-types/words-post-type.php:2062
+#: includes/post-types/words-post-type.php:2065
 #: includes/shortcodes/editor-hub-shortcode.php:653
 #: includes/shortcodes/word-grid-shortcode.php:7722
 #: templates/vocab-lesson-template.php:1224
@@ -6579,7 +6580,7 @@ msgid "Remove %s"
 msgstr "%s'yi kaldır"
 
 #: includes/pages/wordset-pages.php:23540
-#: includes/pages/wordset-pages.php:25392
+#: includes/pages/wordset-pages.php:25395
 msgid "Remove activity"
 msgstr "Etkinliği kaldır"
 
@@ -6592,7 +6593,7 @@ msgstr "Bu partiden çıkarın"
 msgid "Remove pair: %s"
 msgstr "Çifti kaldır: %s"
 
-#: includes/pages/wordset-pages.php:26289
+#: includes/pages/wordset-pages.php:26292
 msgid "Remove recommendation"
 msgstr "Öneriyi kaldır"
 
@@ -6609,7 +6610,7 @@ msgid "Repair legacy image links and recreate missing word image posts."
 msgstr "Eski resim bağlantılarını onar ve eksik kelime görseli gönderilerini yeniden oluştur."
 
 #: includes/flashcard-shell.php:221
-#: includes/pages/wordset-pages.php:25352
+#: includes/pages/wordset-pages.php:25355
 #: includes/shortcodes/flashcard-widget.php:690
 msgid "Repeat"
 msgstr "Tekrarla"
@@ -6651,7 +6652,7 @@ msgstr "İstek başarısız oldu."
 msgid "Required when full bundle mode is enabled. Full exports are scoped to one word set."
 msgstr "Tam paket modu etkinleştirildiğinde gereklidir. Tam dışa aktarmalar bir kelime setine kapsamlıdır."
 
-#: includes/pages/wordset-pages.php:25664
+#: includes/pages/wordset-pages.php:25667
 msgid "Reset all categories"
 msgstr "Tüm kategorileri sıfırla"
 
@@ -6678,10 +6679,10 @@ msgstr "Sonuç"
 #: includes/pages/wordset-pages.php:13352
 #: includes/pages/wordset-pages.php:22763
 #: includes/pages/wordset-pages.php:22826
-#: includes/pages/wordset-pages.php:25491
-#: includes/pages/wordset-pages.php:25943
-#: includes/pages/wordset-pages.php:26446
-#: includes/pages/wordset-pages.php:27472
+#: includes/pages/wordset-pages.php:25494
+#: includes/pages/wordset-pages.php:25946
+#: includes/pages/wordset-pages.php:26449
+#: includes/pages/wordset-pages.php:27475
 #: includes/shortcodes/audio-recording-shortcode.php:1585
 #: includes/shortcodes/audio-recording-shortcode.php:1752
 #: includes/shortcodes/flashcard-widget.php:715
@@ -6776,7 +6777,7 @@ msgstr "Kaydetme isteği başarısız oldu."
 msgid "Save selected translations"
 msgstr "Seçilen çevirileri kaydet"
 
-#: includes/pages/vocab-lesson-pages.php:7714
+#: includes/pages/vocab-lesson-pages.php:7722
 msgid "Save Settings & Sync"
 msgstr "Ayarları Kaydet ve Senkronize Et"
 
@@ -6842,7 +6843,7 @@ msgstr "İşlenmiş Sesi Kaydetme"
 #: includes/admin/audio-processor-admin.php:156
 #: includes/admin/ipa-keyboard-admin.php:394
 #: includes/pages/content-lesson-pages.php:1294
-#: includes/pages/wordset-pages.php:25486
+#: includes/pages/wordset-pages.php:25489
 #: includes/shortcodes/content-lesson-index-shortcode.php:388
 #: includes/shortcodes/dictionary-shortcode.php:330
 #: includes/shortcodes/word-grid-shortcode.php:3982
@@ -6898,8 +6899,8 @@ msgid "Search Audio Recordings"
 msgstr "Ses Kayıtlarında Ara"
 
 #: includes/pages/wordset-pages.php:16976
-#: includes/pages/wordset-pages.php:25670
-#: includes/pages/wordset-pages.php:25676
+#: includes/pages/wordset-pages.php:25673
+#: includes/pages/wordset-pages.php:25679
 #: includes/shortcodes/word-grid-shortcode.php:5757
 msgid "Search categories"
 msgstr "Arama kategorileri"
@@ -6927,15 +6928,15 @@ msgstr "Kelime Setlerinde Ara"
 #: includes/admin/word-option-rules-admin.php:1945
 #: includes/admin/word-option-rules-admin.php:2385
 #: includes/admin/word-option-rules-admin.php:2401
-#: includes/pages/wordset-pages.php:25724
+#: includes/pages/wordset-pages.php:25727
 #: includes/shortcodes/word-grid-shortcode.php:5799
 #: includes/taxonomies/word-category-taxonomy.php:2056
 msgid "Search words"
 msgstr "Arama kelimeleri"
 
-#: includes/pages/wordset-pages.php:25730
-#: includes/pages/wordset-pages.php:26351
-#: includes/pages/wordset-pages.php:26357
+#: includes/pages/wordset-pages.php:25733
+#: includes/pages/wordset-pages.php:26354
+#: includes/pages/wordset-pages.php:26360
 #: templates/offline-app-shell-template.php:744
 #: templates/offline-app-shell-template.php:750
 msgid "Search words or translations"
@@ -6952,16 +6953,16 @@ msgid "Security check failed. Please try again."
 msgstr "Güvenlik kontrolü başarısız oldu. Lütfen tekrar dene."
 
 #: includes/pages/wordset-pages.php:13446
-#: includes/pages/wordset-pages.php:25432
-#: includes/pages/wordset-pages.php:25852
-#: includes/pages/wordset-pages.php:25863
-#: includes/pages/wordset-pages.php:25864
+#: includes/pages/wordset-pages.php:25435
+#: includes/pages/wordset-pages.php:25855
+#: includes/pages/wordset-pages.php:25866
+#: includes/pages/wordset-pages.php:25867
 msgid "Seen"
 msgstr "Görüldü"
 
 #: includes/pages/wordset-editor.php:4698
 #: includes/pages/wordset-pages.php:7114
-#: includes/pages/wordset-pages.php:25367
+#: includes/pages/wordset-pages.php:25370
 #, php-format
 msgid "Select %s"
 msgstr "Seç %s"
@@ -7050,16 +7051,16 @@ msgstr "Tümünü Seç"
 
 #: includes/admin/ipa-keyboard-admin.php:590
 #: includes/flashcard-shell.php:110
-#: includes/pages/wordset-pages.php:25365
-#: includes/pages/wordset-pages.php:25445
-#: includes/pages/wordset-pages.php:25736
-#: includes/pages/wordset-pages.php:26427
+#: includes/pages/wordset-pages.php:25368
+#: includes/pages/wordset-pages.php:25448
+#: includes/pages/wordset-pages.php:25739
+#: includes/pages/wordset-pages.php:26430
 #: includes/shortcodes/flashcard-widget.php:727
 #: templates/offline-app-shell-template.php:809
 msgid "Select all"
 msgstr "Tümünü seç"
 
-#: includes/pages/wordset-pages.php:25447
+#: includes/pages/wordset-pages.php:25450
 #, php-format
 msgid "Select all: %1$s"
 msgstr "Tümünü seç: %1$s"
@@ -7075,8 +7076,8 @@ msgstr "Mevcut bir kelime seti seç"
 msgid "Select at least one category to export."
 msgstr "Dışa aktarmak için en az bir kategori seç."
 
-#: includes/pages/wordset-pages.php:25380
-#: includes/user-progress.php:11839
+#: includes/pages/wordset-pages.php:25383
+#: includes/user-progress.php:11855
 msgid "Select at least one category."
 msgstr "En az bir kategori seç."
 
@@ -7088,8 +7089,8 @@ msgstr "En az bir satır seç."
 msgid "Select at least one text source to export."
 msgstr "Dışa aktarmak için en az bir metin kaynağı seç."
 
-#: includes/pages/wordset-pages.php:25356
-#: includes/pages/wordset-pages.php:26460
+#: includes/pages/wordset-pages.php:25359
+#: includes/pages/wordset-pages.php:26463
 #: includes/shortcodes/flashcard-widget.php:724
 #: templates/offline-app-shell-template.php:814
 msgid "Select categories to study together"
@@ -7151,12 +7152,12 @@ msgstr "Kelime setini seç"
 msgid "Selected"
 msgstr "Seçilmiş"
 
-#: includes/pages/wordset-pages.php:25397
+#: includes/pages/wordset-pages.php:25400
 #, php-format
 msgid "Selected categories (%d)"
 msgstr "Seçilen kategoriler (%d)"
 
-#: includes/post-types/words-post-type.php:1745
+#: includes/post-types/words-post-type.php:1756
 msgid "Selected words are excluded from prompt rounds across quiz modes and only appear as wrong answers for this word."
 msgstr "Seçilen kelimeler, quiz modlarındaki soru turlarının dışında tutulur ve yalnızca bu kelime için yanlış cevap olarak görünür."
 
@@ -7164,7 +7165,7 @@ msgstr "Seçilen kelimeler, quiz modlarındaki soru turlarının dışında tutu
 #: includes/flashcard-shell.php:92
 #: includes/pages/wordset-pages.php:6622
 #: includes/pages/wordset-pages.php:23984
-#: includes/pages/wordset-pages.php:25480
+#: includes/pages/wordset-pages.php:25483
 #: includes/shortcodes/flashcard-widget.php:641
 #: includes/shortcodes/flashcard-widget.php:662
 #: includes/shortcodes/flashcard-widget.php:667
@@ -7288,7 +7289,7 @@ msgstr "Sözlük girdisi listelerinde ve sözlük görünümlerinde gösterilir.
 #: includes/login-window.php:2159
 #: includes/login-window.php:2161
 #: includes/login-window.php:2557
-#: includes/pages/wordset-pages.php:27218
+#: includes/pages/wordset-pages.php:27221
 #: templates/offline-app-shell-template.php:692
 msgid "Sign in"
 msgstr "Oturum aç"
@@ -7301,7 +7302,7 @@ msgstr "Editör Merkezi'ne erişmek için oturum aç"
 msgid "Sign in to continue."
 msgstr "Devam etmek için oturum aç."
 
-#: includes/pages/wordset-pages.php:25998
+#: includes/pages/wordset-pages.php:26001
 msgid "Sign in to manage hidden categories."
 msgstr "Gizlenmiş kategorileri yönetmek için oturum aç."
 
@@ -7309,7 +7310,7 @@ msgstr "Gizlenmiş kategorileri yönetmek için oturum aç."
 msgid "Sign in to record"
 msgstr "Kayıt için oturum aç"
 
-#: includes/pages/wordset-pages.php:25573
+#: includes/pages/wordset-pages.php:25576
 msgid "Sign in to view progress"
 msgstr "İlerlemeyi görüntülemek için oturum aç"
 
@@ -7338,7 +7339,7 @@ msgid "Similar Words"
 msgstr "Benzer Kelimeler"
 
 #: includes/pages/wordset-pages.php:13330
-#: includes/pages/wordset-pages.php:27344
+#: includes/pages/wordset-pages.php:27347
 #: includes/shortcodes/audio-recording-shortcode.php:1980
 #: includes/shortcodes/editor-hub-shortcode.php:1073
 #: includes/shortcodes/editor-hub-shortcode.php:1146
@@ -7476,29 +7477,29 @@ msgstr "Bazı kelimelerin tekrar bağlam desteğine ihtiyacı vardır."
 #: includes/shortcodes/flashcard-widget.php:713
 #: includes/shortcodes/flashcard-widget.php:718
 #: includes/shortcodes/flashcard-widget.php:720
-#: includes/shortcodes/wordset-buttons-shortcode.php:1911
-#: includes/shortcodes/wordset-buttons-shortcode.php:1948
-#: includes/shortcodes/wordset-buttons-shortcode.php:1962
+#: includes/shortcodes/wordset-buttons-shortcode.php:2014
+#: includes/shortcodes/wordset-buttons-shortcode.php:2051
+#: includes/shortcodes/wordset-buttons-shortcode.php:2065
 msgid "Something went wrong"
 msgstr "Bir şeyler ters gitti"
 
 #: includes/admin/ipa-keyboard-admin.php:396
-#: includes/pages/wordset-pages.php:25388
+#: includes/pages/wordset-pages.php:25391
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:11868
-#: includes/user-progress.php:11894
-#: includes/user-progress.php:11952
-#: includes/user-progress.php:12110
-#: includes/user-progress.php:12287
+#: includes/user-progress.php:11884
+#: includes/user-progress.php:11910
+#: includes/user-progress.php:11968
+#: includes/user-progress.php:12126
+#: includes/user-progress.php:12303
 msgid "Something went wrong. Please try again."
 msgstr "Bir şeyler yanlış gitti. Lütfen tekrar dene."
 
-#: includes/pages/wordset-pages.php:25443
+#: includes/pages/wordset-pages.php:25446
 msgid "Sort ascending"
 msgstr "Artan şekilde sırala"
 
-#: includes/pages/wordset-pages.php:25444
+#: includes/pages/wordset-pages.php:25447
 msgid "Sort descending"
 msgstr "Azalan sıralama"
 
@@ -7554,7 +7555,7 @@ msgstr "Konuşmacı"
 msgid "Speaker Assignment"
 msgstr "Konuşmacı Görevlendirmesi"
 
-#: includes/post-types/words-post-type.php:1643
+#: includes/post-types/words-post-type.php:1654
 msgid "Specific Wrong Answers"
 msgstr "Spesifik Yanlış Yanıtlar"
 
@@ -7605,7 +7606,7 @@ msgstr "Standart"
 msgid "Star all"
 msgstr "Tümünü işaretle"
 
-#: includes/pages/wordset-pages.php:25424
+#: includes/pages/wordset-pages.php:25427
 #: includes/shortcodes/flashcard-widget.php:659
 #: includes/shortcodes/word-grid-shortcode.php:3976
 #: includes/shortcodes/word-grid-shortcode.php:6236
@@ -7613,23 +7614,23 @@ msgid "Star word"
 msgstr "Kelimeyi yıldızla"
 
 #: includes/pages/wordset-pages.php:24317
-#: includes/pages/wordset-pages.php:25408
-#: includes/pages/wordset-pages.php:25427
-#: includes/pages/wordset-pages.php:25754
+#: includes/pages/wordset-pages.php:25411
+#: includes/pages/wordset-pages.php:25430
+#: includes/pages/wordset-pages.php:25757
 msgid "Starred"
 msgstr "Yıldızlı"
 
-#: includes/pages/wordset-pages.php:25360
-#: includes/pages/wordset-pages.php:25434
-#: includes/pages/wordset-pages.php:26466
+#: includes/pages/wordset-pages.php:25363
+#: includes/pages/wordset-pages.php:25437
 #: includes/pages/wordset-pages.php:26469
+#: includes/pages/wordset-pages.php:26472
 msgid "Starred only"
 msgstr "Sadece yıldızlı"
 
 #: includes/pages/wordset-pages.php:23423
 #: includes/pages/wordset-pages.php:23597
-#: includes/pages/wordset-pages.php:25351
-#: includes/pages/wordset-pages.php:25376
+#: includes/pages/wordset-pages.php:25354
+#: includes/pages/wordset-pages.php:25379
 msgid "Starred words"
 msgstr "Yıldızlı kelimeler"
 
@@ -7652,9 +7653,9 @@ msgstr "Görüntü için yükleme başlatılıyor:"
 #: includes/admin/split-word-admin.php:396
 #: includes/admin/user-progress-report.php:1065
 #: includes/pages/wordset-editor.php:4506
-#: includes/pages/wordset-pages.php:25428
-#: includes/pages/wordset-pages.php:25807
-#: includes/pages/wordset-pages.php:25815
+#: includes/pages/wordset-pages.php:25431
+#: includes/pages/wordset-pages.php:25810
+#: includes/pages/wordset-pages.php:25818
 #: includes/privacy.php:648
 #: includes/privacy.php:737
 msgid "Status"
@@ -7741,7 +7742,7 @@ msgstr "Kategori değiştiriliyor..."
 msgid "Symbols used in this word set. Update recordings or add new symbols to the keyboard."
 msgstr "Bu kelime setinde kullanılan semboller. Kayıtları güncelle veya klavyeye yeni semboller ekle."
 
-#: includes/pages/vocab-lesson-pages.php:7717
+#: includes/pages/vocab-lesson-pages.php:7725
 msgid "Sync Now"
 msgstr "Şimdi Senkronize Et"
 
@@ -7814,7 +7815,7 @@ msgstr "Metin (çeviri)"
 msgid "Text + audio pairs"
 msgstr "Metin + ses eşleşmeleri"
 
-#: includes/post-types/words-post-type.php:1750
+#: includes/post-types/words-post-type.php:1761
 msgid "Text entries are used directly for text-based quiz options and do not need separate word posts."
 msgstr "Metin girişleri doğrudan metin tabanlı quiz seçenekleri için kullanılır ve ayrı kelime gönderilerine ihtiyaç duymaz."
 
@@ -8127,7 +8128,7 @@ msgstr "Çeviri..."
 #: includes/post-types/dictionary-entry-post-type.php:1328
 #: includes/post-types/dictionary-entry-post-type.php:1471
 #: includes/post-types/dictionary-entry-post-type.php:1958
-#: includes/post-types/words-post-type.php:1992
+#: includes/post-types/words-post-type.php:2003
 #: includes/shortcodes/editor-hub-shortcode.php:511
 #: includes/shortcodes/editor-hub-shortcode.php:668
 #: includes/shortcodes/editor-hub-shortcode.php:1053
@@ -8269,15 +8270,15 @@ msgstr "Şu anda kelimeler içe aktarılamıyor."
 msgid "Unable to load missing items."
 msgstr "Eksik öğeler yüklenemiyor."
 
-#: includes/pages/vocab-lesson-pages.php:6472
-#: includes/pages/vocab-lesson-pages.php:6478
-#: includes/pages/vocab-lesson-pages.php:6525
-#: includes/pages/vocab-lesson-pages.php:6539
-#: includes/pages/vocab-lesson-pages.php:6546
-#: includes/pages/vocab-lesson-pages.php:6577
-#: includes/pages/vocab-lesson-pages.php:6630
-#: includes/pages/vocab-lesson-pages.php:6663
-#: includes/pages/vocab-lesson-pages.php:6932
+#: includes/pages/vocab-lesson-pages.php:6480
+#: includes/pages/vocab-lesson-pages.php:6486
+#: includes/pages/vocab-lesson-pages.php:6533
+#: includes/pages/vocab-lesson-pages.php:6547
+#: includes/pages/vocab-lesson-pages.php:6554
+#: includes/pages/vocab-lesson-pages.php:6585
+#: includes/pages/vocab-lesson-pages.php:6638
+#: includes/pages/vocab-lesson-pages.php:6671
+#: includes/pages/vocab-lesson-pages.php:6940
 #: templates/vocab-lesson-template.php:395
 msgid "Unable to load this lesson right now."
 msgstr "Bu ders şu anda yüklenemiyor."
@@ -8303,8 +8304,8 @@ msgstr "Değişiklikler kaydedilemiyor."
 msgid "Unable to save prerequisites."
 msgstr "Ön koşullar kaydedilemiyor."
 
-#: includes/pages/wordset-pages.php:25379
-#: includes/pages/wordset-pages.php:25488
+#: includes/pages/wordset-pages.php:25382
+#: includes/pages/wordset-pages.php:25491
 msgid "Unable to save right now."
 msgstr "Şu anda kaydedilemiyor."
 
@@ -8363,7 +8364,7 @@ msgstr "Kullanılamıyor"
 #: includes/pages/wordset-pages.php:21683
 #: includes/pages/wordset-pages.php:21974
 #: includes/pages/wordset-pages.php:22097
-#: includes/post-types/words-post-type.php:2228
+#: includes/post-types/words-post-type.php:2239
 #: includes/shortcodes/audio-recording-shortcode.php:1382
 #: includes/shortcodes/audio-recording-shortcode.php:1421
 #: includes/shortcodes/audio-recording-shortcode.php:1563
@@ -8403,7 +8404,7 @@ msgstr[0] "Kategorisiz kayıt: %d"
 msgstr[1] "Kategorisiz kayıtlar: %d"
 
 #: includes/admin/ipa-keyboard-admin.php:435
-#: includes/pages/vocab-lesson-pages.php:7416
+#: includes/pages/vocab-lesson-pages.php:7424
 #: includes/pages/wordset-editor.php:4935
 #: templates/vocab-lesson-template.php:668
 msgid "Undo"
@@ -8457,7 +8458,7 @@ msgstr "Kaydederken beklenmeyen hata. Lütfen tekrar dene."
 msgid "Unhide"
 msgstr "Göster"
 
-#: includes/pages/wordset-pages.php:26011
+#: includes/pages/wordset-pages.php:26014
 #, php-format
 msgid "Unhide %s"
 msgstr "Göster %s"
@@ -8477,8 +8478,8 @@ msgid "Unknown"
 msgstr "Bilinmiyor"
 
 #: includes/pages/default-shortcode-page-helper.php:357
-#: includes/pages/vocab-lesson-pages.php:7672
-#: includes/wordset-isolation.php:4045
+#: includes/pages/vocab-lesson-pages.php:7680
+#: includes/wordset-isolation.php:4411
 msgid "Unknown error."
 msgstr "Bilinmeyen hata."
 
@@ -8501,13 +8502,13 @@ msgstr "Bilinmeyen kullanıcı"
 msgid "Unstar all"
 msgstr "Hepsini kaldır"
 
-#: includes/pages/wordset-pages.php:25425
+#: includes/pages/wordset-pages.php:25428
 #: includes/shortcodes/word-grid-shortcode.php:3977
 #: includes/shortcodes/word-grid-shortcode.php:6235
 msgid "Unstar word"
 msgstr "Yıldızsız kelime"
 
-#: includes/pages/wordset-pages.php:25435
+#: includes/pages/wordset-pages.php:25438
 msgid "Unstarred only"
 msgstr "Sadece yıldızsız"
 
@@ -8529,7 +8530,7 @@ msgstr "Yaklaşan etkinlikler"
 msgid "Update Branch:"
 msgstr "Güncelleme Şubesi:"
 
-#: includes/pages/wordset-pages.php:26199
+#: includes/pages/wordset-pages.php:26202
 #, php-format
 msgid "Update Language Learner Tools to version %s"
 msgstr "Language Learner Tools’u %s sürümüne güncelle"
@@ -8544,7 +8545,7 @@ msgid "Update Recording Type"
 msgstr "Kayıt Türünü Güncelle"
 
 #. translators: %s: available plugin version
-#: includes/pages/wordset-pages.php:26202
+#: includes/pages/wordset-pages.php:26205
 #: language-learner-tools.php:656
 #, php-format
 msgid "Update to %s"
@@ -8596,7 +8597,7 @@ msgstr "Dışa aktarma zip'ini yükle (isteğe bağlı)"
 msgid "Upload failed:"
 msgstr "Yükleme başarısız oldu:"
 
-#: includes/pages/wordset-pages.php:26138
+#: includes/pages/wordset-pages.php:26141
 msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
 msgstr "Kategori resimden metne quizleri desteklediğinde, resimleri yükle ve isteğe bağlı olarak bu kelime setinde taslak kelimeleri otomatik oluştur."
 
@@ -8691,7 +8692,7 @@ msgstr "Eklentinin her bir ana alanına atlamak için bu panoyu kullan. Araçlar
 msgid "Use word set default"
 msgstr "Kelime seti varsayılanını kullan"
 
-#: includes/pages/wordset-pages.php:25574
+#: includes/pages/wordset-pages.php:25577
 msgid "Use your account to view wordset progress and keep your learning history."
 msgstr "Kelime seti ilerlemesini görüntülemek ve öğrenme geçmişinizi saklamak için hesabını kullan."
 
@@ -8825,11 +8826,11 @@ msgstr "Görünürlük"
 msgid "Vocab Lesson"
 msgstr "Kelime Dersi"
 
-#: includes/pages/vocab-lesson-pages.php:7690
+#: includes/pages/vocab-lesson-pages.php:7698
 msgid "Vocab Lesson Settings"
 msgstr "Kelime Dersi Ayarları"
 
-#: includes/pages/vocab-lesson-pages.php:7642
+#: includes/pages/vocab-lesson-pages.php:7650
 #, php-format
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr "Kelime dersi senkronizasyonu tamamlandı. %d oluşturuldu, %d güncellendi, %d kaldırıldı."
@@ -8903,10 +8904,10 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/pages/wordset-editor.php:4661
 #: includes/pages/wordset-editor.php:4700
 #: includes/pages/wordset-pages.php:13349
-#: includes/pages/wordset-pages.php:25399
-#: includes/pages/wordset-pages.php:25763
-#: includes/pages/wordset-pages.php:25765
-#: includes/pages/wordset-pages.php:27452
+#: includes/pages/wordset-pages.php:25402
+#: includes/pages/wordset-pages.php:25766
+#: includes/pages/wordset-pages.php:25768
+#: includes/pages/wordset-pages.php:27455
 #: includes/post-types/word-audio-post-type.php:113
 #: includes/post-types/words-post-type.php:22
 #: includes/privacy.php:640
@@ -8927,7 +8928,7 @@ msgstr "kelime"
 #. translators: %d word post ID
 #: includes/admin/export-import.php:8926
 #: includes/pages/wordset-pages.php:1744
-#: includes/post-types/words-post-type.php:1736
+#: includes/post-types/words-post-type.php:1747
 #: includes/shortcodes/word-grid-shortcode.php:7548
 #, php-format
 msgid "Word #%d"
@@ -8961,7 +8962,7 @@ msgstr "Kelime boş olamaz."
 msgid "Word Categories"
 msgstr "Kelime Kategorileri"
 
-#: includes/post-types/words-post-type.php:1918
+#: includes/post-types/words-post-type.php:1929
 msgid "Word categories:"
 msgstr "Kelime kategorileri:"
 
@@ -9036,12 +9037,12 @@ msgstr "Kelime seçeneği kuralları kaydedildi."
 msgid "Word option settings imported."
 msgstr "Kelime seçeneği ayarları içe aktarıldı."
 
-#: includes/pages/vocab-lesson-pages.php:4486
+#: includes/pages/vocab-lesson-pages.php:4494
 msgid "Word options"
 msgstr "Kelime seçenekleri"
 
-#: includes/pages/wordset-pages.php:25404
-#: includes/pages/wordset-pages.php:25694
+#: includes/pages/wordset-pages.php:25407
+#: includes/pages/wordset-pages.php:25697
 msgid "Word Progress"
 msgstr "Kelime İlerlemesi"
 
@@ -9055,7 +9056,7 @@ msgstr "Kelime İlerlemesi"
 #: includes/pages/wordset-pages.php:14590
 #: includes/pages/wordset-pages.php:23912
 #: includes/post-types/dictionary-entry-post-type.php:1961
-#: includes/post-types/words-post-type.php:1995
+#: includes/post-types/words-post-type.php:2006
 #: includes/taxonomies/wordset-taxonomy.php:1406
 #: includes/user-roles/audio-recorder-role.php:129
 #: includes/user-roles/audio-recorder-role.php:263
@@ -9165,11 +9166,11 @@ msgstr "Kelime yönetimi, ses/görüntü yüklemeleri, kullanıma hazır bilgi k
 #: includes/admin/image-aspect-normalizer-admin.php:111
 #: includes/admin/user-progress-report.php:1029
 #: includes/pages/wordset-editor.php:4458
-#: includes/pages/wordset-pages.php:25413
-#: includes/pages/wordset-pages.php:25644
+#: includes/pages/wordset-pages.php:25416
+#: includes/pages/wordset-pages.php:25647
 #: includes/post-types/words-post-type.php:21
 #: includes/post-types/words-post-type.php:26
-#: includes/wordset-isolation.php:4031
+#: includes/wordset-isolation.php:4397
 msgid "Words"
 msgstr "Kelimeler"
 
@@ -9212,10 +9213,10 @@ msgstr "Bir önkoşul döngüsü yaratacaktır."
 #: includes/pages/vocab-lesson-pages.php:1906
 #: includes/pages/vocab-lesson-pages.php:1979
 #: includes/pages/wordset-pages.php:13451
-#: includes/pages/wordset-pages.php:25433
-#: includes/pages/wordset-pages.php:25878
-#: includes/pages/wordset-pages.php:25889
-#: includes/pages/wordset-pages.php:25890
+#: includes/pages/wordset-pages.php:25436
+#: includes/pages/wordset-pages.php:25881
+#: includes/pages/wordset-pages.php:25892
+#: includes/pages/wordset-pages.php:25893
 msgid "Wrong"
 msgstr "Yanlış"
 
@@ -9225,7 +9226,7 @@ msgid "Wrong answer options (one per line)"
 msgstr "Yanlış cevap seçenekleri (her satır için bir tane)"
 
 #: includes/admin/site-sync-admin.php:1146
-#: includes/post-types/words-post-type.php:2262
+#: includes/post-types/words-post-type.php:2273
 #: includes/privacy.php:389
 msgid "Yes"
 msgstr "Evet"
@@ -9375,7 +9376,7 @@ msgstr "Bu kelime seti için toplu değişiklikleri geri alma iznin yok."
 msgid "You do not have permission to undo LL Tools imports."
 msgstr "LL Tools içe aktarmalarını geri alma iznin yok."
 
-#: includes/pages/vocab-lesson-pages.php:7592
+#: includes/pages/vocab-lesson-pages.php:7600
 msgid "You do not have permission to update vocab lesson settings."
 msgstr "Kelime dersi ayarlarını güncelleme iznin yok."
 
@@ -9471,8 +9472,8 @@ msgstr "Giriş yapmış olman gerekir."
 msgid "You're on the right track..."
 msgstr "Doğru yoldasın."
 
-#: includes/pages/vocab-lesson-pages.php:4882
-#: includes/pages/vocab-lesson-pages.php:5267
+#: includes/pages/vocab-lesson-pages.php:4890
+#: includes/pages/vocab-lesson-pages.php:5275
 #: includes/pages/wordset-pages.php:3042
 #: includes/pages/wordset-pages.php:8844
 #: includes/pages/wordset-pages.php:8895
@@ -9808,7 +9809,7 @@ msgstr "Öğrenci İlerlemesi"
 #: includes/pages/wordset-pages.php:12666
 #: includes/pages/wordset-pages.php:12771
 #: includes/pages/wordset-pages.php:13871
-#: includes/pages/wordset-pages.php:26192
+#: includes/pages/wordset-pages.php:26195
 #: includes/teacher-classes.php:26
 msgid "Classes"
 msgstr "Sınıflar"
@@ -14485,7 +14486,7 @@ msgid "Missing required --set=<field>=<value> argument."
 msgstr "Gerekli --set=<field>=<value> bağımsız değişkeni eksik."
 
 #: includes/cli/class-ll-tools-cli-command.php:453
-#: includes/wordset-isolation.php:4886
+#: includes/wordset-isolation.php:5252
 msgid "unknown"
 msgstr "bilinmiyor"
 
@@ -15296,7 +15297,7 @@ msgstr "Göster"
 #: includes/login-window.php:2480
 #: includes/login-window.php:2490
 #: includes/pages/wordset-pages.php:21499
-#: includes/pages/wordset-pages.php:25343
+#: includes/pages/wordset-pages.php:25346
 msgid "Hide"
 msgstr "Gizle"
 
@@ -15335,13 +15336,13 @@ msgid "Audio lesson"
 msgstr "Ses dersi"
 
 #: includes/pages/content-lesson-pages.php:815
-#: includes/pages/wordset-pages.php:26307
+#: includes/pages/wordset-pages.php:26310
 msgid "Main Lessons"
 msgstr "Ana Dersler"
 
 #: includes/pages/content-lesson-pages.php:818
 #: includes/pages/wordset-pages.php:5611
-#: includes/pages/wordset-pages.php:25482
+#: includes/pages/wordset-pages.php:25485
 #: includes/shortcodes/content-lesson-index-shortcode.php:615
 msgid "Open lesson"
 msgstr "Açık ders"
@@ -15450,100 +15451,100 @@ msgstr "Yeni bir site araçları sayfası oluşturulsun mu?"
 msgid "Answer options"
 msgstr "Cevap seçenekleri"
 
-#: includes/pages/vocab-lesson-pages.php:2898
-#: includes/pages/vocab-lesson-pages.php:3049
+#: includes/pages/vocab-lesson-pages.php:2906
+#: includes/pages/vocab-lesson-pages.php:3057
 #: includes/pages/wordset-games.php:6141
 #: includes/pages/wordset-games.php:6408
 msgid "Invalid word set."
 msgstr "Geçersiz kelime seti."
 
-#: includes/pages/vocab-lesson-pages.php:4862
+#: includes/pages/vocab-lesson-pages.php:4870
 msgid "Category settings saved."
 msgstr "Kategori ayarları kaydedildi."
 
-#: includes/pages/vocab-lesson-pages.php:4879
-#: includes/pages/vocab-lesson-pages.php:5275
+#: includes/pages/vocab-lesson-pages.php:4887
+#: includes/pages/vocab-lesson-pages.php:5283
 #: includes/taxonomies/word-category-taxonomy.php:2394
 #: includes/taxonomies/word-category-taxonomy.php:2408
 msgid "You do not have permission to update this category."
 msgstr "Bu kategoriyi güncelleme iznin yok."
 
-#: includes/pages/vocab-lesson-pages.php:4885
-#: includes/pages/vocab-lesson-pages.php:5259
-#: includes/pages/vocab-lesson-pages.php:5295
+#: includes/pages/vocab-lesson-pages.php:4893
+#: includes/pages/vocab-lesson-pages.php:5267
+#: includes/pages/vocab-lesson-pages.php:5303
 msgid "This lesson no longer matches that word set category."
 msgstr "Bu ders artık söz konusu kelime seti kategorisiyle eşleşmiyor."
 
-#: includes/pages/vocab-lesson-pages.php:4905
+#: includes/pages/vocab-lesson-pages.php:4913
 msgid "Unable to save this category right now."
 msgstr "Bu kategori şu anda kaydedilemiyor."
 
-#: includes/pages/vocab-lesson-pages.php:4984
+#: includes/pages/vocab-lesson-pages.php:4992
 msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
 msgstr "Kategori ayarları kaydedildi. Bu kategoride artık mevcut kurulum için bir kelime dersi sayfası yok."
 
-#: includes/pages/vocab-lesson-pages.php:5062
+#: includes/pages/vocab-lesson-pages.php:5070
 #: includes/pages/wordset-pages.php:13315
 #: includes/taxonomies/word-category-taxonomy.php:2065
 msgid "Move earlier"
 msgstr "Daha erken hareket et"
 
-#: includes/pages/vocab-lesson-pages.php:5063
+#: includes/pages/vocab-lesson-pages.php:5071
 #: includes/pages/wordset-pages.php:13316
 #: includes/taxonomies/word-category-taxonomy.php:2066
 msgid "Move later"
 msgstr "Daha sonra taşı"
 
-#: includes/pages/vocab-lesson-pages.php:5064
+#: includes/pages/vocab-lesson-pages.php:5072
 msgid "Remove from print"
 msgstr "Baskıdan kaldır"
 
-#: includes/pages/vocab-lesson-pages.php:5065
+#: includes/pages/vocab-lesson-pages.php:5073
 msgid "Add back to print"
 msgstr "Yazdırmaya geri ekle"
 
-#: includes/pages/vocab-lesson-pages.php:5066
+#: includes/pages/vocab-lesson-pages.php:5074
 #: templates/vocab-lesson-print-template.php:136
 msgid "Restore all"
 msgstr "Tümünü geri yükle"
 
-#: includes/pages/vocab-lesson-pages.php:5067
+#: includes/pages/vocab-lesson-pages.php:5075
 #: templates/vocab-lesson-print-template.php:145
 msgid "Removed"
 msgstr "Kaldırıldı"
 
-#: includes/pages/vocab-lesson-pages.php:5068
+#: includes/pages/vocab-lesson-pages.php:5076
 msgid "All words removed."
 msgstr "Tüm kelimeler kaldırıldı."
 
-#: includes/pages/vocab-lesson-pages.php:5069
+#: includes/pages/vocab-lesson-pages.php:5077
 msgid "Restore one or more words to print this lesson."
 msgstr "Bu dersi yazdırmak için bir veya daha fazla kelimeyi geri yükle."
 
-#: includes/pages/vocab-lesson-pages.php:5110
+#: includes/pages/vocab-lesson-pages.php:5118
 msgid "Lesson category is missing."
 msgstr "Ders kategorisi eksik."
 
-#: includes/pages/vocab-lesson-pages.php:5116
+#: includes/pages/vocab-lesson-pages.php:5124
 msgid "You do not have permission to edit this category title."
 msgstr "Bu kategori başlığını düzenleme iznin yok."
 
-#: includes/pages/vocab-lesson-pages.php:5131
+#: includes/pages/vocab-lesson-pages.php:5139
 #: templates/vocab-lesson-template.php:402
 msgid "Enter a category title."
 msgstr "Bir kategori başlığı gir."
 
-#: includes/pages/vocab-lesson-pages.php:5158
+#: includes/pages/vocab-lesson-pages.php:5166
 #: templates/vocab-lesson-template.php:405
 msgid "Unable to save this category title right now."
 msgstr "Bu kategori başlığı şu anda kaydedilemiyor."
 
-#: includes/pages/vocab-lesson-pages.php:5181
+#: includes/pages/vocab-lesson-pages.php:5189
 #: templates/vocab-lesson-template.php:404
 msgid "Category title saved."
 msgstr "Kategori başlığı kaydedildi."
 
-#: includes/pages/vocab-lesson-pages.php:7369
+#: includes/pages/vocab-lesson-pages.php:7377
 #, php-format
 msgid "%d vocab lesson page was restored."
 msgid_plural "%d vocab lesson pages were restored."
@@ -15551,24 +15552,24 @@ msgstr[0] "%d kelime bilgisi dersi sayfası geri yüklendi."
 msgstr[1] "%d kelime bilgisi dersi sayfası geri yüklendi."
 
 #. translators: 1: restored lesson page count, 2: failed lesson page count
-#: includes/pages/vocab-lesson-pages.php:7380
+#: includes/pages/vocab-lesson-pages.php:7388
 #, php-format
 msgid "Restored %1$d vocab lesson pages. %2$d could not be restored."
 msgstr "%1$d kelime bilgisi dersi sayfası geri yüklendi. %2$d geri yüklenemedi."
 
-#: includes/pages/vocab-lesson-pages.php:7385
+#: includes/pages/vocab-lesson-pages.php:7393
 msgid "No trashed vocab lesson pages were waiting to be restored."
 msgstr "Çöpe atılmış kelime dersi sayfaları geri yüklenmeyi beklemiyordu."
 
-#: includes/pages/vocab-lesson-pages.php:7387
+#: includes/pages/vocab-lesson-pages.php:7395
 msgid "Vocab lesson pages could not be restored right now."
 msgstr "Kelime bilgisi dersi sayfaları şu anda geri yüklenemiyor."
 
-#: includes/pages/vocab-lesson-pages.php:7418
+#: includes/pages/vocab-lesson-pages.php:7426
 msgid "View Trash"
 msgstr "Çöp Kutusunu Görüntüle"
 
-#: includes/pages/vocab-lesson-pages.php:7433
+#: includes/pages/vocab-lesson-pages.php:7441
 msgid "You do not have permission to restore vocab lesson pages."
 msgstr "Kelime dersi sayfalarını geri yükleme iznin yok."
 
@@ -15583,7 +15584,7 @@ msgstr "Sözü duy. Eşleşen balonu patlatın."
 
 #: includes/pages/wordset-games.php:276
 #: includes/pages/wordset-pages.php:13283
-#: includes/pages/wordset-pages.php:27117
+#: includes/pages/wordset-pages.php:27120
 msgid "Open speaking settings"
 msgstr "Konuşma ayarlarını aç"
 
@@ -15624,7 +15625,7 @@ msgstr "Sıraya Gir"
 #: includes/pages/wordset-games.php:4298
 #: includes/pages/wordset-games.php:6490
 #: includes/pages/wordset-pages.php:13313
-#: includes/pages/wordset-pages.php:27330
+#: includes/pages/wordset-pages.php:27333
 msgid "Put the cards in the correct order."
 msgstr "Kartları doğru sıraya koyun."
 
@@ -15766,7 +15767,7 @@ msgstr "Oyun şu anda kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:118
 #: includes/shortcodes/content-lesson-index-shortcode.php:587
-#: includes/wordset-isolation.php:4035
+#: includes/wordset-isolation.php:4401
 msgid "Lessons"
 msgstr "Dersler"
 
@@ -15808,8 +15809,8 @@ msgstr "Bu kategori bulunamadı."
 msgid "Unable to hide this category right now."
 msgstr "Bu kategori şu anda gizlenemiyor."
 
-#: includes/pages/vocab-lesson-pages.php:4896
-#: includes/pages/vocab-lesson-pages.php:5304
+#: includes/pages/vocab-lesson-pages.php:4904
+#: includes/pages/vocab-lesson-pages.php:5312
 msgid "Unable to delete this category right now."
 msgstr "Bu kategori şu anda silinemiyor."
 
@@ -15845,7 +15846,7 @@ msgstr "Kategori silindi."
 #: includes/pages/wordset-pages.php:3403
 #: includes/pages/wordset-pages.php:5525
 #: includes/pages/wordset-pages.php:7084
-#: includes/pages/wordset-pages.php:25341
+#: includes/pages/wordset-pages.php:25344
 msgid "Not public yet."
 msgstr "Henüz halka açık değil."
 
@@ -15895,7 +15896,7 @@ msgid "Open %s"
 msgstr "%s'yi aç"
 
 #: includes/pages/wordset-pages.php:5628
-#: includes/pages/wordset-pages.php:25481
+#: includes/pages/wordset-pages.php:25484
 msgid "Main lesson"
 msgstr "Ana ders"
 
@@ -15905,19 +15906,19 @@ msgid "Lesson actions for %s"
 msgstr "%s için ders eylemleri"
 
 #: includes/pages/wordset-pages.php:7145
-#: includes/pages/wordset-pages.php:25350
+#: includes/pages/wordset-pages.php:25353
 #, php-format
 msgid "Category management for %s"
 msgstr "%s için kategori yönetimi"
 
 #: includes/pages/wordset-pages.php:7160
-#: includes/pages/wordset-pages.php:25369
+#: includes/pages/wordset-pages.php:25372
 #, php-format
 msgid "Delete %s"
 msgstr "%s'yi sil"
 
 #: includes/pages/wordset-pages.php:7088
-#: includes/pages/wordset-pages.php:25340
+#: includes/pages/wordset-pages.php:25343
 msgid "Not public"
 msgstr "Herkese açık değil"
 
@@ -16142,7 +16143,7 @@ msgid "Use your teacher account to open classes, invite learners, and review cla
 msgstr "Sınıfları açmak, öğrencileri davet etmek ve sınıf ilerlemesini incelemek için öğretmen hesabını kullan."
 
 #: includes/pages/wordset-pages.php:12675
-#: includes/pages/wordset-pages.php:26188
+#: includes/pages/wordset-pages.php:26191
 msgid "Open classes"
 msgstr "Açık sınıflar"
 
@@ -16171,7 +16172,7 @@ msgstr "Davetleri ve öğrenci ilerlemesini görmek için bir sınıf seç."
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:12862
-#: includes/teacher-classes.php:1350
+#: includes/teacher-classes.php:1353
 #, php-format
 msgid "Teacher: %s"
 msgstr "Öğretmen: %s"
@@ -16230,14 +16231,14 @@ msgid "Paused after %d rounds without input."
 msgstr "Giriş yapılmadan %d turdan sonra duraklatıldı."
 
 #: includes/pages/wordset-pages.php:13295
-#: includes/pages/wordset-pages.php:27146
-#: includes/pages/wordset-pages.php:27147
-#: includes/pages/wordset-pages.php:27148
+#: includes/pages/wordset-pages.php:27149
+#: includes/pages/wordset-pages.php:27150
+#: includes/pages/wordset-pages.php:27151
 msgid "Words per game"
 msgstr "Oyun başına kelimeler"
 
 #: includes/pages/wordset-pages.php:13297
-#: includes/pages/wordset-pages.php:27158
+#: includes/pages/wordset-pages.php:27161
 msgid "All available words"
 msgstr "Mevcut tüm kelimeler"
 
@@ -16259,7 +16260,7 @@ msgid "Leave this game? Your current run will be lost."
 msgstr "Bu oyundan ayrılmak mı istiyorsun? Mevcut koşun kaybolacak."
 
 #: includes/pages/wordset-pages.php:13306
-#: includes/pages/wordset-pages.php:27309
+#: includes/pages/wordset-pages.php:27312
 msgid "Wordset game board"
 msgstr "Kelime seti oyun tahtası"
 
@@ -16284,18 +16285,18 @@ msgid "Word Stack game board"
 msgstr "Kelime Yığını oyun tahtası"
 
 #: includes/pages/wordset-pages.php:13314
-#: includes/pages/wordset-pages.php:27327
+#: includes/pages/wordset-pages.php:27330
 #, php-format
 msgid "Sequence %1$d of %2$d"
 msgstr "%1$d / %2$d dizisi"
 
 #: includes/pages/wordset-pages.php:13317
-#: includes/pages/wordset-pages.php:27343
+#: includes/pages/wordset-pages.php:27346
 msgid "Shuffle"
 msgstr "Karıştır"
 
 #: includes/pages/wordset-pages.php:13318
-#: includes/pages/wordset-pages.php:27345
+#: includes/pages/wordset-pages.php:27348
 msgid "Check"
 msgstr "Kontrol et"
 
@@ -16332,7 +16333,7 @@ msgid "Word %1$d of %2$d"
 msgstr "Kelime %1$d / %2$d"
 
 #: includes/pages/wordset-pages.php:13327
-#: includes/pages/wordset-pages.php:27336
+#: includes/pages/wordset-pages.php:27339
 msgid "Clue"
 msgstr "İpucu"
 
@@ -16375,7 +16376,7 @@ msgid "Say the word for this prompt."
 msgstr "Bu soru için kelimeyi söyleyin."
 
 #: includes/pages/wordset-pages.php:13339
-#: includes/pages/wordset-pages.php:27354
+#: includes/pages/wordset-pages.php:27357
 msgid "Get ready..."
 msgstr "Hazır ol..."
 
@@ -16396,19 +16397,19 @@ msgid "Correct"
 msgstr "Doğru"
 
 #: includes/pages/wordset-pages.php:13346
-#: includes/shortcodes/wordset-buttons-shortcode.php:1912
-#: includes/shortcodes/wordset-buttons-shortcode.php:1949
-#: includes/shortcodes/wordset-buttons-shortcode.php:1963
+#: includes/shortcodes/wordset-buttons-shortcode.php:2015
+#: includes/shortcodes/wordset-buttons-shortcode.php:2052
+#: includes/shortcodes/wordset-buttons-shortcode.php:2066
 msgid "Try again"
 msgstr "Tekrar dene"
 
 #: includes/pages/wordset-pages.php:13347
-#: includes/pages/wordset-pages.php:27392
+#: includes/pages/wordset-pages.php:27395
 msgid "You said"
 msgstr "dedin ki"
 
 #: includes/pages/wordset-pages.php:13348
-#: includes/pages/wordset-pages.php:27448
+#: includes/pages/wordset-pages.php:27451
 msgid "Target"
 msgstr "Hedef"
 
@@ -16443,13 +16444,13 @@ msgid "Right: %1$d · Close: %2$d · Wrong: %3$d"
 msgstr "Doğru: %1$d · Kapat: %2$d · Yanlış: %3$d"
 
 #: includes/pages/wordset-pages.php:13360
-#: includes/pages/wordset-pages.php:27312
+#: includes/pages/wordset-pages.php:27315
 #, php-format
 msgid "%1$d left"
 msgstr "%1$d kaldı"
 
 #: includes/pages/wordset-pages.php:13361
-#: includes/pages/wordset-pages.php:27313
+#: includes/pages/wordset-pages.php:27316
 msgid "Mic ready"
 msgstr "Mikrofon hazır"
 
@@ -16470,7 +16471,7 @@ msgid "No match yet."
 msgstr "Henüz maç yok."
 
 #: includes/pages/wordset-pages.php:13368
-#: includes/pages/wordset-pages.php:27316
+#: includes/pages/wordset-pages.php:27319
 msgid "Heard"
 msgstr "duydum"
 
@@ -16501,28 +16502,28 @@ msgstr "Anahtar"
 
 #: includes/pages/wordset-editor.php:912
 #: includes/pages/wordset-pages.php:13473
-#: includes/pages/wordset-pages.php:25402
-#: includes/pages/wordset-pages.php:25788
+#: includes/pages/wordset-pages.php:25405
+#: includes/pages/wordset-pages.php:25791
 msgid "POS"
 msgstr "POS"
 
 #: includes/pages/wordset-pages.php:13511
-#: includes/pages/wordset-pages.php:25362
+#: includes/pages/wordset-pages.php:25365
 msgid "New words only"
 msgstr "Yalnızca yeni kelimeler"
 
 #: includes/pages/wordset-pages.php:13514
-#: includes/pages/wordset-pages.php:25363
+#: includes/pages/wordset-pages.php:25366
 msgid "In progress only"
 msgstr "Yalnızca devam ediyor"
 
 #: includes/pages/wordset-pages.php:13517
-#: includes/pages/wordset-pages.php:25364
+#: includes/pages/wordset-pages.php:25367
 msgid "Learned only"
 msgstr "Yalnızca öğrenildi"
 
 #: includes/pages/wordset-pages.php:13519
-#: includes/pages/wordset-pages.php:26457
+#: includes/pages/wordset-pages.php:26460
 msgid "Priority words only"
 msgstr "Yalnızca öncelikli kelimeler"
 
@@ -16581,7 +16582,7 @@ msgstr "Transkripsiyon Ayarları"
 
 #: includes/pages/wordset-pages.php:14153
 #: includes/pages/wordset-pages.php:23906
-#: includes/pages/wordset-pages.php:26023
+#: includes/pages/wordset-pages.php:26026
 msgid "Word Set Tools"
 msgstr "Kelime Seti Araçları"
 
@@ -17486,88 +17487,88 @@ msgstr "Yönetici izni gerekli"
 msgid "Upload permission required"
 msgstr "Yükleme izni gerekli"
 
-#: includes/pages/wordset-pages.php:25370
+#: includes/pages/wordset-pages.php:25373
 #, php-format
 msgid "Starred words in %s"
 msgstr "%s'de yıldızlı kelimeler"
 
-#: includes/pages/wordset-pages.php:25384
+#: includes/pages/wordset-pages.php:25387
 msgid "No new words are available for this selection."
 msgstr "Bu seçim için yeni kelime yok."
 
-#: includes/pages/wordset-pages.php:25385
+#: includes/pages/wordset-pages.php:25388
 msgid "No in progress words are available for this selection."
 msgstr "Bu seçim için devam eden kelime yok."
 
-#: includes/pages/wordset-pages.php:25386
+#: includes/pages/wordset-pages.php:25389
 msgid "No learned words are available for this selection."
 msgstr "Bu seçim için öğrenilmiş kelime yok."
 
-#: includes/pages/wordset-pages.php:25459
+#: includes/pages/wordset-pages.php:25462
 #, php-format
 msgid "%1$d rounds, %2$d words"
 msgstr "%1$d tur, %2$d kelime"
 
-#: includes/pages/wordset-pages.php:25461
-#: includes/pages/wordset-pages.php:25634
+#: includes/pages/wordset-pages.php:25464
+#: includes/pages/wordset-pages.php:25637
 msgid "Only words with marked gender are counted."
 msgstr "Yalnızca cinsiyeti işaretlenen kelimeler sayılır."
 
-#: includes/pages/wordset-pages.php:25462
+#: includes/pages/wordset-pages.php:25465
 #, php-format
 msgid "%d tracked words"
 msgstr "%d izlenen kelime"
 
-#: includes/pages/wordset-pages.php:25463
+#: includes/pages/wordset-pages.php:25466
 msgid "Tracked"
 msgstr "Takip edilen"
 
-#: includes/pages/wordset-pages.php:25464
+#: includes/pages/wordset-pages.php:25467
 msgid "Not started"
 msgstr "Başlatılmadı"
 
-#: includes/pages/wordset-pages.php:25465
+#: includes/pages/wordset-pages.php:25468
 #: includes/shortcodes/flashcard-widget.php:687
 #: includes/shortcodes/flashcard-widget.php:693
 msgid "Level 1"
 msgstr "Seviye 1"
 
-#: includes/pages/wordset-pages.php:25466
+#: includes/pages/wordset-pages.php:25469
 #: includes/shortcodes/flashcard-widget.php:688
 #: includes/shortcodes/flashcard-widget.php:691
 #: includes/shortcodes/flashcard-widget.php:694
 msgid "Level 2"
 msgstr "Seviye 2"
 
-#: includes/pages/wordset-pages.php:25467
+#: includes/pages/wordset-pages.php:25470
 #: includes/shortcodes/flashcard-widget.php:689
 #: includes/shortcodes/flashcard-widget.php:692
 msgid "Level 3"
 msgstr "Seviye 3"
 
-#: includes/pages/wordset-pages.php:25468
+#: includes/pages/wordset-pages.php:25471
 msgid "Last practiced"
 msgstr "Son çalışılan"
 
-#: includes/pages/wordset-pages.php:25469
+#: includes/pages/wordset-pages.php:25472
 #: includes/privacy.php:664
 #: includes/shortcodes/flashcard-widget.php:684
 msgid "Gender progress"
 msgstr "Cinsiyet ilerlemesi"
 
-#: includes/pages/wordset-pages.php:25472
+#: includes/pages/wordset-pages.php:25475
 msgid "Show gender progress in the tables"
 msgstr "Tablolarda cinsiyet ilerlemesini göster"
 
-#: includes/pages/wordset-pages.php:25473
+#: includes/pages/wordset-pages.php:25476
 msgid "Show general progress in the tables"
 msgstr "Tablolarda genel ilerlemeyi göster"
 
-#: includes/pages/wordset-pages.php:25474
+#: includes/pages/wordset-pages.php:25477
 msgid "Filter gender"
 msgstr "Cinsiyeti filtrele"
 
-#: includes/pages/wordset-pages.php:25475
+#: includes/pages/wordset-pages.php:25478
 msgid "Filter level"
 msgstr "Filtre düzeyi"
 
@@ -17577,127 +17578,127 @@ msgstr "Filtre düzeyi"
 #: includes/admin/ipa-keyboard-admin.php:470
 #: includes/flashcard-shell.php:116
 #: includes/pages/wordset-pages.php:22079
-#: includes/pages/wordset-pages.php:25483
+#: includes/pages/wordset-pages.php:25486
 #: includes/post-types/content-lesson-post-type.php:1820
 #: includes/shortcodes/flashcard-widget.php:716
 #: templates/audio-image-matcher-template.php:72
 msgid "Load more"
 msgstr "Daha fazlasını yükle"
 
-#: includes/pages/wordset-pages.php:25484
+#: includes/pages/wordset-pages.php:25487
 msgid "Loading more cards..."
 msgstr "Daha fazla kart yükleniyor..."
 
-#: includes/pages/wordset-pages.php:25485
-#: includes/pages/wordset-pages.php:26707
-#: includes/pages/wordset-pages.php:26714
-#: includes/pages/wordset-pages.php:26721
-#: includes/pages/wordset-pages.php:26732
+#: includes/pages/wordset-pages.php:25488
+#: includes/pages/wordset-pages.php:26710
+#: includes/pages/wordset-pages.php:26717
+#: includes/pages/wordset-pages.php:26724
+#: includes/pages/wordset-pages.php:26735
 msgid "Could not load more cards right now."
 msgstr "Şu anda daha fazla kart yüklenemiyor."
 
-#: includes/pages/wordset-pages.php:25538
+#: includes/pages/wordset-pages.php:25541
 msgid "Sign in or create an account"
 msgstr "Oturum aç veya bir hesap oluştur"
 
-#: includes/pages/wordset-pages.php:25541
+#: includes/pages/wordset-pages.php:25544
 msgid "Use an account to save your progress and keep learning from this page."
 msgstr "İlerlemeni kaydetmek ve bu sayfadan öğrenmeye devam etmek için bir hesap kullan."
 
-#: includes/pages/wordset-pages.php:26025
+#: includes/pages/wordset-pages.php:26028
 msgid "Back to word set tools"
 msgstr "Kelime seti araçlarına geri dön"
 
-#: includes/pages/wordset-pages.php:26076
+#: includes/pages/wordset-pages.php:26079
 msgid "Sign in to open word set tools."
 msgstr "Kelime seti araçlarını açmak için oturum aç."
 
-#: includes/pages/wordset-pages.php:26145
+#: includes/pages/wordset-pages.php:26148
 msgid "No settings tools are available for this word set right now."
 msgstr "Şu anda bu kelime seti için hiçbir ayar aracı mevcut değil."
 
-#: includes/pages/wordset-pages.php:26177
+#: includes/pages/wordset-pages.php:26180
 msgid "Open games"
 msgstr "Oyunları aç"
 
-#: includes/pages/wordset-pages.php:26207
+#: includes/pages/wordset-pages.php:26210
 msgid "Word set tools"
 msgstr "Kelime seti araçları"
 
-#: includes/pages/wordset-pages.php:26380
-#: includes/pages/wordset-pages.php:26381
+#: includes/pages/wordset-pages.php:26383
+#: includes/pages/wordset-pages.php:26384
 #: includes/shortcodes/word-grid-shortcode.php:5758
 #: templates/offline-app-shell-template.php:762
 #: templates/offline-app-shell-template.php:763
 msgid "Sort categories"
 msgstr "Kategorileri sırala"
 
-#: includes/pages/wordset-pages.php:26391
+#: includes/pages/wordset-pages.php:26394
 #: templates/offline-app-shell-template.php:778
 msgid "Default"
 msgstr "Varsayılan"
 
-#: includes/pages/wordset-pages.php:26395
+#: includes/pages/wordset-pages.php:26398
 #: includes/shortcodes/word-grid-shortcode.php:5760
 #: templates/offline-app-shell-template.php:782
 msgid "A-Z"
 msgstr "A'dan Z'ye"
 
-#: includes/pages/wordset-pages.php:26399
+#: includes/pages/wordset-pages.php:26402
 #: templates/offline-app-shell-template.php:786
 msgid "Z-A"
 msgstr "Z'den A'ya"
 
-#: includes/pages/wordset-pages.php:26403
+#: includes/pages/wordset-pages.php:26406
 #: templates/offline-app-shell-template.php:790
 msgid "More learned"
 msgstr "En çok öğrenilenler"
 
-#: includes/pages/wordset-pages.php:26407
+#: includes/pages/wordset-pages.php:26410
 #: templates/offline-app-shell-template.php:794
 msgid "Less learned"
 msgstr "En az öğrenilenler"
 
-#: includes/pages/wordset-pages.php:26411
+#: includes/pages/wordset-pages.php:26414
 #: templates/offline-app-shell-template.php:798
 msgid "Recently studied"
 msgstr "Son çalışılanlar"
 
-#: includes/pages/wordset-pages.php:26415
+#: includes/pages/wordset-pages.php:26418
 #: templates/offline-app-shell-template.php:802
 msgid "Not recently studied"
 msgstr "Uzun süredir çalışılmayanlar"
 
 #: includes/pages/wordset-pages.php:17006
-#: includes/pages/wordset-pages.php:26440
+#: includes/pages/wordset-pages.php:26443
 #: includes/shortcodes/flashcard-widget.php:744
 msgid "No categories match this search."
 msgstr "Bu aramayla eşleşen kategori yok."
 
 #. translators: %s: number of words per game
-#: includes/pages/wordset-pages.php:27161
+#: includes/pages/wordset-pages.php:27164
 #, php-format
 msgid "%s words per game"
 msgstr "Oyun başına %s kelime"
 
-#: includes/pages/wordset-pages.php:27254
+#: includes/pages/wordset-pages.php:27257
 msgid "Wordset game"
 msgstr "Kelime seti oyunu"
 
-#: includes/pages/wordset-pages.php:27380
-#: includes/pages/wordset-pages.php:27384
+#: includes/pages/wordset-pages.php:27383
+#: includes/pages/wordset-pages.php:27387
 msgid "Start recording"
 msgstr "Kaydı başlat"
 
-#: includes/pages/wordset-pages.php:27397
+#: includes/pages/wordset-pages.php:27400
 msgid "Play your recording"
 msgstr "Kaydını oynat"
 
-#: includes/pages/wordset-pages.php:27422
+#: includes/pages/wordset-pages.php:27425
 msgid "Correct audio"
 msgstr "Doğru ses"
 
-#: includes/pages/wordset-pages.php:27427
+#: includes/pages/wordset-pages.php:27430
 msgid "Play correct audio"
 msgstr "Doğru sesi çal"
 
@@ -18162,29 +18163,29 @@ msgstr "Bu kelime için henüz bağlantılı görsel mevcut değil."
 msgid "Use the linked image record or the frontend word editor to change images. The standard Featured Image box is hidden during migration."
 msgstr "Görselleri değiştirmek için bağlantılı görsel kaydını veya ön yüz kelime düzenleyicisini kullanın. Standart Öne Çıkan Görsel kutusu geçiş sırasında gizlenir."
 
-#: includes/post-types/words-post-type.php:2235
+#: includes/post-types/words-post-type.php:2246
 msgid "All Quiz Category Statuses"
 msgstr "Tüm Quiz Kategorisi Durumları"
 
-#: includes/post-types/words-post-type.php:2240
+#: includes/post-types/words-post-type.php:2251
 msgid "No Quizzable Category"
 msgstr "Quiz için uygun kategori yok"
 
-#: includes/post-types/words-post-type.php:2896
+#: includes/post-types/words-post-type.php:2907
 msgid "Select a word set to edit categories."
 msgstr "Kategorileri düzenlemek için bir kelime seti seç."
 
-#: includes/post-types/words-post-type.php:2897
+#: includes/post-types/words-post-type.php:2908
 msgid "This category is currently assigned but does not belong to the selected word set."
 msgstr "Bu kategori şu anda atanmış ancak seçilen kelime setine ait değil."
 
 #. translators: 1: blocked word title, 2: edit post URL
-#: includes/post-types/words-post-type.php:3387
+#: includes/post-types/words-post-type.php:3398
 #, php-format
 msgid "\"%1$s\" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href=\"%2$s\">Edit post</a>"
 msgstr "\"%1$s\" en az bir onaylı ses kaydına sahip olana kadar yayınlanamaz. Gönderi taslak olarak kaydedildi. <a href=\"%2$s\">Yayını düzenle</a>"
 
-#: includes/post-types/words-post-type.php:3393
+#: includes/post-types/words-post-type.php:3404
 msgid "Publishing Blocked:"
 msgstr "Yayınlanması Engellendi:"
 
@@ -18731,9 +18732,9 @@ msgstr "Daha kısa bir sorgu ya da başka bir yazım dene veya harflere göz atm
 msgid "No entries matched this filter yet."
 msgstr "Henüz bu filtreyle eşleşen giriş yok."
 
-#: includes/pages/wordset-pages.php:25429
-#: includes/pages/wordset-pages.php:25790
-#: includes/pages/wordset-pages.php:25802
+#: includes/pages/wordset-pages.php:25432
+#: includes/pages/wordset-pages.php:25793
+#: includes/pages/wordset-pages.php:25805
 msgid "Filter by part of speech"
 msgstr "Konuşmanın bölümüne göre filtrele"
 
@@ -19550,15 +19551,17 @@ msgid "Local transcript missing"
 msgstr "Yerel transkript eksik"
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2090
+#: includes/shortcodes/wordset-buttons-shortcode.php:2244
 #, php-format
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] "%d ders"
 msgstr[1] "%d ders"
 
+#. translators: 1: word set name, 2: word set privacy label.
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2103
+#: includes/shortcodes/wordset-buttons-shortcode.php:1725
+#: includes/shortcodes/wordset-buttons-shortcode.php:2257
 #, php-format
 msgid "%1$s, %2$s"
 msgstr "%1$s, %2$s"
@@ -19723,7 +19726,7 @@ msgstr "Geçerli bir öğretmen hesabı seç."
 #: includes/teacher-classes.php:564
 #: includes/teacher-classes.php:594
 #: includes/teacher-classes.php:687
-#: includes/teacher-classes.php:1040
+#: includes/teacher-classes.php:1043
 msgid "This class no longer exists."
 msgstr "Bu sınıf artık mevcut değil."
 
@@ -19740,90 +19743,90 @@ msgstr "Bir sınıfa yalnızca öğrenci hesapları manuel olarak eklenebilir."
 msgid "The learner could not be added to the class."
 msgstr "Öğrenci sınıfa eklenemedi."
 
-#: includes/teacher-classes.php:711
+#: includes/teacher-classes.php:714
 msgid "The class could not be deleted."
 msgstr "Sınıf silinemedi."
 
-#: includes/teacher-classes.php:1015
-#: includes/teacher-classes.php:1021
-#: includes/teacher-classes.php:1026
-#: includes/teacher-classes.php:1031
-#: includes/teacher-classes.php:1043
+#: includes/teacher-classes.php:1018
+#: includes/teacher-classes.php:1024
+#: includes/teacher-classes.php:1029
+#: includes/teacher-classes.php:1034
 #: includes/teacher-classes.php:1046
+#: includes/teacher-classes.php:1049
 msgid "This class invitation link is invalid."
 msgstr "Bu sınıf daveti bağlantısı geçersiz."
 
-#: includes/teacher-classes.php:1049
+#: includes/teacher-classes.php:1052
 msgid "This class invitation link has expired."
 msgstr "Bu sınıf daveti bağlantısının süresi doldu."
 
-#: includes/teacher-classes.php:1166
+#: includes/teacher-classes.php:1169
 msgid "Please sign in with a valid learner account."
 msgstr "Lütfen geçerli bir öğrenci hesabıyla oturum aç."
 
-#: includes/teacher-classes.php:1171
+#: includes/teacher-classes.php:1174
 msgid "This invitation is only for learner accounts."
 msgstr "Bu davetiye yalnızca öğrenci hesapları içindir."
 
-#: includes/teacher-classes.php:1176
+#: includes/teacher-classes.php:1179
 msgid "Please sign in with the invited learner email address."
 msgstr "Lütfen davet edilen öğrencinin e-posta adresiyle oturum aç."
 
-#: includes/teacher-classes.php:1316
+#: includes/teacher-classes.php:1319
 msgid "Enter the email address of an existing learner account."
 msgstr "Mevcut bir öğrenci hesabının e-posta adresini gir."
 
-#: includes/teacher-classes.php:1321
+#: includes/teacher-classes.php:1324
 msgid "The class invitation link could not be generated."
 msgstr "Sınıf daveti bağlantısı oluşturulamadı."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1334
+#: includes/teacher-classes.php:1337
 #, php-format
 msgid "Invitation to join %s"
 msgstr "Katılım daveti: %s"
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:1341
+#: includes/teacher-classes.php:1344
 #, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr "%1$s tarihinde \"%2$s\" sınıfına katılmaya davet edildiniz."
 
-#: includes/teacher-classes.php:1356
+#: includes/teacher-classes.php:1359
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr "Bu bağlantıyı aç ve sınıfa katılmak için öğrenci hesabınla oturum aç:"
 
-#: includes/teacher-classes.php:1375
+#: includes/teacher-classes.php:1378
 msgid "The invitation email could not be sent."
 msgstr "Davet e-postası gönderilemedi."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1420
+#: includes/teacher-classes.php:1423
 #, php-format
 msgid "Create a learner account to join %s."
 msgstr "%s sınıfına katılmak için bir öğrenci hesabı oluştur."
 
-#: includes/teacher-classes.php:1421
-#: includes/teacher-classes.php:1426
-#: includes/teacher-classes.php:1446
-#: includes/teacher-classes.php:1451
+#: includes/teacher-classes.php:1424
+#: includes/teacher-classes.php:1429
+#: includes/teacher-classes.php:1449
+#: includes/teacher-classes.php:1454
 msgid "this class"
 msgstr "bu sınıf"
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1425
+#: includes/teacher-classes.php:1428
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
 msgstr "%s sınıfına katılmak için davet edilen öğrenci hesabıyla oturum aç."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1445
+#: includes/teacher-classes.php:1448
 #, php-format
 msgid "You are already a member of %s."
 msgstr "Zaten %s üyesisiniz."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1450
+#: includes/teacher-classes.php:1453
 #, php-format
 msgid "You joined %s."
 msgstr "Katıldınız: %s."
@@ -19842,144 +19845,144 @@ msgstr "Kategori adı eksik."
 msgid "Word %1$d could not be linked to an isolated word image: %2$s"
 msgstr "%1$d kelimesi izole edilmiş bir kelime resmine bağlanamadı: %2$s"
 
-#: includes/wordset-isolation.php:4077
+#: includes/wordset-isolation.php:4443
 #, php-format
 msgid "Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr "Kelime seti yalıtım geçişi tamamlandı. Taranan kelimeler: %1$d. Güncellenen kelimeler: %2$d. Oluşturulan kategoriler: %3$d. Oluşturulan kelime görselleri: %4$d. Güncellenen kelime-görsel bağlantıları: %5$d. Onarılan dersler: %6$d. Onarılan kelime setleri: %7$d. Onarılan kelime seçeneği kural kapsamları: %8$d. Onarılan kullanıcı çalışma kayıtları: %9$d."
 
-#: includes/wordset-isolation.php:4341
-#: includes/wordset-isolation.php:4358
-#: includes/wordset-isolation.php:4380
-#: includes/wordset-isolation.php:4401
+#: includes/wordset-isolation.php:4707
+#: includes/wordset-isolation.php:4724
+#: includes/wordset-isolation.php:4746
+#: includes/wordset-isolation.php:4767
 msgid "none"
 msgstr "hiçbiri"
 
-#: includes/wordset-isolation.php:4897
+#: includes/wordset-isolation.php:5263
 #, php-format
 msgid "Stored migration version is %1$d, expected %2$d."
 msgstr "Saklanan geçiş sürümü %1$d, beklenen sürüm %2$d."
 
-#: includes/wordset-isolation.php:4906
+#: includes/wordset-isolation.php:5272
 #, php-format
 msgid "%d word has suspicious category isolation state."
 msgid_plural "%d words have suspicious category isolation state."
 msgstr[0] "%d kelimenin şüpheli kategori izolasyon durumu var."
 msgstr[1] "%d kelimenin şüpheli kategori izolasyon durumu var."
 
-#: includes/wordset-isolation.php:4919
+#: includes/wordset-isolation.php:5285
 #, php-format
 msgid "%d word image has suspicious category isolation state."
 msgid_plural "%d word images have suspicious category isolation state."
 msgstr[0] "%d kelime resminde şüpheli kategori izolasyon durumu var."
 msgstr[1] "%d kelime görselinde şüpheli kategori izolasyon durumu var."
 
-#: includes/wordset-isolation.php:4932
+#: includes/wordset-isolation.php:5298
 #, php-format
 msgid "%d vocab lesson points at a non-owned category."
 msgid_plural "%d vocab lessons point at non-owned categories."
 msgstr[0] "Sahip olunmayan bir kategoride %d kelime dersi puanı."
 msgstr[1] "%d kelime bilgisi dersi sahip olunmayan kategorilere işaret ediyor."
 
-#: includes/wordset-isolation.php:4945
+#: includes/wordset-isolation.php:5311
 #, php-format
 msgid "%d wordset has category ordering or prerequisite metadata that still references non-owned categories."
 msgid_plural "%d wordsets have category ordering or prerequisite metadata that still reference non-owned categories."
 msgstr[0] "%d kelime setinde hâlâ sahip olunmayan kategorilere başvuran kategori sıralaması veya önkoşul meta verileri var."
 msgstr[1] "%d kelime setinde hâlâ sahip olunmayan kategorilere başvuran kategori sıralaması veya önkoşul meta verileri var."
 
-#: includes/wordset-isolation.php:4956
+#: includes/wordset-isolation.php:5322
 msgid "LL Tools Maintenance Alert"
 msgstr "LL Tools Bakım Uyarısı"
 
-#: includes/wordset-isolation.php:4957
+#: includes/wordset-isolation.php:5323
 msgid "Wordset isolation health checks found data that may need repair."
 msgstr "Kelime seti yalıtımı durum denetimleri, onarılması gerekebilecek veriler buldu."
 
-#: includes/wordset-isolation.php:4959
+#: includes/wordset-isolation.php:5325
 #, php-format
 msgid "Last checked: %1$s. Stored migration version: %2$d. Expected version: %3$d."
 msgstr "Son kontrol: %1$s. Saklanan taşıma sürümü: %2$d. Beklenen sürüm: %3$d."
 
-#: includes/wordset-isolation.php:4973
+#: includes/wordset-isolation.php:5339
 msgid "Debug details"
 msgstr "Hata ayıklama ayrıntıları"
 
-#: includes/wordset-isolation.php:4976
+#: includes/wordset-isolation.php:5342
 msgid "Word samples"
 msgstr "Kelime örnekleri"
 
-#: includes/wordset-isolation.php:4984
+#: includes/wordset-isolation.php:5350
 #, php-format
 msgid "Wordsets: %s."
 msgstr "Kelime setleri: %s."
 
-#: includes/wordset-isolation.php:4985
-#: includes/wordset-isolation.php:5019
+#: includes/wordset-isolation.php:5351
+#: includes/wordset-isolation.php:5385
 #, php-format
 msgid "Categories: %s."
 msgstr "Kategoriler: %s."
 
-#: includes/wordset-isolation.php:4988
-#: includes/wordset-isolation.php:5022
+#: includes/wordset-isolation.php:5354
+#: includes/wordset-isolation.php:5388
 #, php-format
 msgid "Shared categories: %s."
 msgstr "Paylaşılan kategoriler: %s."
 
-#: includes/wordset-isolation.php:4991
-#: includes/wordset-isolation.php:5025
+#: includes/wordset-isolation.php:5357
+#: includes/wordset-isolation.php:5391
 #, php-format
 msgid "Foreign-owner categories: %s."
 msgstr "Başka sahibe ait kategoriler: %s."
 
-#: includes/wordset-isolation.php:4994
-#: includes/wordset-isolation.php:5028
+#: includes/wordset-isolation.php:5360
+#: includes/wordset-isolation.php:5394
 #, php-format
 msgid "Missing owned copies: %s."
 msgstr "Sahip olunan kopyalar eksik: %s."
 
-#: includes/wordset-isolation.php:5010
+#: includes/wordset-isolation.php:5376
 msgid "Word image samples"
 msgstr "Kelime görseli örnekleri"
 
-#: includes/wordset-isolation.php:5018
+#: includes/wordset-isolation.php:5384
 #, php-format
 msgid "Owner wordset: %s."
 msgstr "Sahip kelime seti: %s."
 
-#: includes/wordset-isolation.php:5044
+#: includes/wordset-isolation.php:5410
 msgid "Vocab lesson samples"
 msgstr "Kelime dersi örnekleri"
 
-#: includes/wordset-isolation.php:5052
+#: includes/wordset-isolation.php:5418
 #, php-format
 msgid "Wordset: %s."
 msgstr "Kelime seti: %s."
 
-#: includes/wordset-isolation.php:5053
+#: includes/wordset-isolation.php:5419
 #, php-format
 msgid "Category: %s."
 msgstr "Kategori: %s."
 
-#: includes/wordset-isolation.php:5056
+#: includes/wordset-isolation.php:5422
 #, php-format
 msgid "Existing owned copy: %s."
 msgstr "Mevcut sahip olunan kopya: %s."
 
-#: includes/wordset-isolation.php:5072
+#: includes/wordset-isolation.php:5438
 msgid "Wordset metadata samples"
 msgstr "Kelime seti meta veri örnekleri"
 
-#: includes/wordset-isolation.php:5081
+#: includes/wordset-isolation.php:5447
 #, php-format
 msgid "Manual order refs: %s."
 msgstr "Elle sıralama referansları: %s."
 
-#: includes/wordset-isolation.php:5084
+#: includes/wordset-isolation.php:5450
 #, php-format
 msgid "Prerequisite keys: %s."
 msgstr "Önkoşul anahtarları: %s."
 
-#: includes/wordset-isolation.php:5087
+#: includes/wordset-isolation.php:5453
 #, php-format
 msgid "Prerequisite dependencies: %s."
 msgstr "Önkoşul bağımlılıkları: %s."
@@ -21185,7 +21188,7 @@ msgid "Word metadata"
 msgstr "Kelime meta verileri"
 
 #: includes/pages/wordset-pages.php:7165
-#: includes/pages/wordset-pages.php:25345
+#: includes/pages/wordset-pages.php:25348
 msgid "Delete this category and any linked vocab lesson? This cannot be undone."
 msgstr "Bu kategoriyi ve bağlı kelime dersini silmek istiyor musun? Bu işlem geri alınamaz."
 
@@ -21534,7 +21537,7 @@ msgstr "Satır arasını gizle"
 msgid "Staff"
 msgstr "Personel"
 
-#: includes/pages/wordset-pages.php:25422
+#: includes/pages/wordset-pages.php:25425
 #, php-format
 msgid "Play audio for %s"
 msgstr "%s için sesi çal"
@@ -21953,16 +21956,16 @@ msgstr "Bu, Kelime Seti Yöneticisi hesabı oluşturan veya bağlayan ve bu kiş
 msgid "Send Manager Invite"
 msgstr "Yönetici Daveti Gönder"
 
-#: includes/pages/wordset-pages.php:25540
+#: includes/pages/wordset-pages.php:25543
 msgid "Use the invited email address to manage this word set."
 msgstr "Bu kelime setini yönetmek için davet edilen e-posta adresini kullan."
 
-#: includes/pages/wordset-pages.php:25546
-#: includes/pages/wordset-pages.php:25552
+#: includes/pages/wordset-pages.php:25549
+#: includes/pages/wordset-pages.php:25555
 msgid "Create manager account"
 msgstr "Yönetici hesabı oluştur"
 
-#: includes/pages/wordset-pages.php:25549
+#: includes/pages/wordset-pages.php:25552
 msgid "This invite can create or connect a Word Set Manager account for this word set."
 msgstr "Bu davet, bu kelime seti için bir Kelime Seti Yöneticisi hesabı oluşturabilir veya bağlayabilir."
 
@@ -22641,8 +22644,8 @@ msgstr "Kategori bölmeleri"
 msgid "Change queue settings"
 msgstr "Kuyruk ayarlarını değiştir"
 
-#: includes/pages/vocab-lesson-pages.php:5487
-#: includes/pages/vocab-lesson-pages.php:5605
+#: includes/pages/vocab-lesson-pages.php:5495
+#: includes/pages/vocab-lesson-pages.php:5613
 #: templates/vocab-lesson-template.php:413
 msgid "Changes saved."
 msgstr "Değişiklikler kaydedildi."
@@ -22836,7 +22839,7 @@ msgstr "İstemleri kaydet"
 msgid "Save queue settings"
 msgstr "Kuyruk ayarlarını kaydet"
 
-#: includes/pages/wordset-pages.php:25487
+#: includes/pages/wordset-pages.php:25490
 msgid "Saved!"
 msgstr "Kaydedildi!"
 
@@ -23069,22 +23072,22 @@ msgstr "Eşleşen corpus text yazısı bulunamadı."
 msgid "The matching content lesson is not a corpus text."
 msgstr "Eşleşen içerik dersi bir corpus text değil."
 
-#: includes/lib/public-static-cache.php:1712
+#: includes/lib/public-static-cache.php:1774
 msgid "Clear LL cache"
 msgstr "LL önbelleğini temizle"
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1717
+#: includes/lib/public-static-cache.php:1779
 #, php-format
 msgid "LL cache cleared (%d)"
 msgstr "LL önbelleği temizlendi (%d)"
 
-#: includes/lib/public-static-cache.php:1736
+#: includes/lib/public-static-cache.php:1798
 msgid "You are not allowed to clear LL Tools caches."
 msgstr "LL Tools önbelleklerini temizleme iznin yok."
 
 #. translators: %d: number of deleted cache files
-#: includes/lib/public-static-cache.php:1772
+#: includes/lib/public-static-cache.php:1834
 #, php-format
 msgid "Cleared LL Tools static caches. %d cache file was removed."
 msgid_plural "Cleared LL Tools static caches. %d cache files were removed."
@@ -23135,12 +23138,13 @@ msgstr "Set"
 msgid "Hide word titles by default when no wordset recorder-text setting applies"
 msgstr "Kelime seti kaydedici metni ayarı yokken kelime başlıklarını varsayılan olarak gizle"
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:2093
+#: includes/shortcodes/wordset-buttons-shortcode.php:1721
+#: includes/shortcodes/wordset-buttons-shortcode.php:2247
 msgid "Private word set"
 msgstr "Özel kelime seti"
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:2097
+#: includes/shortcodes/wordset-buttons-shortcode.php:2251
 #, php-format
 msgid "%1$s, private word set, %2$s"
 msgstr "%1$s, özel kelime seti, %2$s"
@@ -23954,8 +23958,8 @@ msgstr "Diğer diller"
 msgid "Download audio"
 msgstr "Sesi indir"
 
-#: includes/shortcodes/flashcard-widget.php:1784
-#: includes/shortcodes/flashcard-widget.php:1982
+#: includes/shortcodes/flashcard-widget.php:1786
+#: includes/shortcodes/flashcard-widget.php:1984
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Çok fazla bilgi kartı kategorisi isteği var. Lütfen kısa süre sonra yeniden dene."
 
@@ -24169,11 +24173,11 @@ msgstr "Yazım istisnası kelime kimlikleri bir dizi olmalıdır."
 msgid "Orthography exception dictionary entry IDs must be an object keyed by word ID."
 msgstr "Yazım istisnası sözlük girişi kimlikleri, anahtarı kelime kimliği olan bir nesne olmalıdır."
 
-#: includes/pages/vocab-lesson-pages.php:7423
+#: includes/pages/vocab-lesson-pages.php:7431
 msgid "Dismiss"
 msgstr "Kapat"
 
-#: includes/pages/vocab-lesson-pages.php:7500
+#: includes/pages/vocab-lesson-pages.php:7508
 msgid "You do not have permission to dismiss vocab lesson page notices."
 msgstr "Kelime dersi sayfası bildirimlerini kapatma iznin yok."
 
@@ -24574,19 +24578,19 @@ msgid_plural "\"%1$s\", \"%2$s\", and %3$d additional vocab lessons were moved t
 msgstr[0] "\"%1$s\", \"%2$s\" ve %3$d ek kelime dersi çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
 msgstr[1] "\"%1$s\", \"%2$s\" ve %3$d ek kelime dersi çöpe taşındı. Bu yanlışlıkla olduysa geri yüklemek için Geri Al'ı kullan."
 
-#: includes/pages/wordset-pages.php:26444
-#: includes/pages/wordset-pages.php:26526
-#: includes/pages/wordset-pages.php:26533
-#: includes/pages/wordset-pages.php:26540
-#: includes/pages/wordset-pages.php:26561
+#: includes/pages/wordset-pages.php:26447
+#: includes/pages/wordset-pages.php:26529
+#: includes/pages/wordset-pages.php:26536
+#: includes/pages/wordset-pages.php:26543
+#: includes/pages/wordset-pages.php:26564
 msgid "Could not search this word set right now."
 msgstr "Bu kelime setinde şu anda arama yapılamıyor."
 
-#: includes/pages/wordset-pages.php:26601
+#: includes/pages/wordset-pages.php:26604
 msgid "Too many search requests. Please wait a few minutes and try again."
 msgstr "Çok fazla arama isteği var. Lütfen birkaç dakika bekleyip yeniden dene."
 
-#: includes/pages/wordset-pages.php:26770
+#: includes/pages/wordset-pages.php:26773
 msgid "Too many card loading requests. Please wait a few minutes and try again."
 msgstr "Çok fazla kart yükleme isteği var. Lütfen birkaç dakika bekleyip yeniden dene."
 
@@ -24685,21 +24689,21 @@ msgstr "Boş kategoriyi sil"
 msgid "PHP ZipArchive is required to create the offline app export zip."
 msgstr "Çevrimdışı uygulama dışa aktarım zip dosyasını oluşturmak için PHP ZipArchive gerekir."
 
-#: includes/pages/wordset-pages.php:25451
+#: includes/pages/wordset-pages.php:25454
 #, php-format
 msgid "Showing %1$d of %2$d words"
 msgstr "%2$d kelimeden %1$d tanesi gösteriliyor"
 
-#: includes/pages/wordset-pages.php:25453
-#: includes/pages/wordset-pages.php:25935
+#: includes/pages/wordset-pages.php:25456
+#: includes/pages/wordset-pages.php:25938
 msgid "Load more words"
 msgstr "Daha fazla kelime yükle"
 
-#: includes/pages/wordset-pages.php:25454
+#: includes/pages/wordset-pages.php:25457
 msgid "Loading words..."
 msgstr "Kelimeler yükleniyor..."
 
-#: includes/pages/wordset-pages.php:26789
+#: includes/pages/wordset-pages.php:26792
 msgid "Card previews are still being prepared. Please try again in a moment."
 msgstr "Kart önizlemeleri hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
 
@@ -24707,16 +24711,16 @@ msgstr "Kart önizlemeleri hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
 msgid "Saving changes before opening the word editor..."
 msgstr "Kelime düzenleyiciyi açmadan önce değişiklikler kaydediliyor..."
 
-#: includes/pages/wordset-pages.php:25452
+#: includes/pages/wordset-pages.php:25455
 #, php-format
 msgid "Showing %1$d of %2$d matching words"
 msgstr "%2$d eşleşen kelimeden %1$d tanesi gösteriliyor"
 
-#: includes/pages/wordset-pages.php:25455
+#: includes/pages/wordset-pages.php:25458
 msgid "Load more matching words"
 msgstr "Daha fazla eşleşen kelime yükle"
 
-#: includes/pages/wordset-pages.php:25456
+#: includes/pages/wordset-pages.php:25459
 msgid "Loading matching words..."
 msgstr "Eşleşen kelimeler yükleniyor..."
 
@@ -25268,25 +25272,25 @@ msgstr "Ses dosyası AssemblyAI transkripsiyonu için çok büyük."
 msgid "Text pages"
 msgstr "Metin sayfaları"
 
-#: includes/pages/vocab-lesson-pages.php:7654
+#: includes/pages/vocab-lesson-pages.php:7662
 msgid "checking existing pages"
 msgstr "mevcut sayfalar kontrol ediliyor"
 
-#: includes/pages/vocab-lesson-pages.php:7655
+#: includes/pages/vocab-lesson-pages.php:7663
 msgid "creating and refreshing lesson pages"
 msgstr "ders sayfaları oluşturuluyor ve yenileniyor"
 
-#: includes/pages/vocab-lesson-pages.php:7661
+#: includes/pages/vocab-lesson-pages.php:7669
 #, php-format
 msgid "Vocab lesson sync is running in bounded background batches. Phase: %1$s. %2$d items checked, %3$d created, %4$d updated, %5$d removed. Reload this screen to refresh progress."
 msgstr "Kelime dersi senkronizasyonu arka planda sınırlı gruplar halinde çalışıyor. Aşama: %1$s. %2$d öğe kontrol edildi, %3$d oluşturuldu, %4$d güncellendi, %5$d kaldırıldı. İlerlemeyi yenilemek için bu ekranı yeniden yükle."
 
-#: includes/pages/vocab-lesson-pages.php:7677
+#: includes/pages/vocab-lesson-pages.php:7685
 #, php-format
 msgid "Vocab lesson sync failed: %s"
 msgstr "Kelime dersi senkronizasyonu başarısız oldu: %s"
 
-#: includes/pages/vocab-lesson-pages.php:7716
+#: includes/pages/vocab-lesson-pages.php:7724
 msgid "Retry Sync"
 msgstr "Senkronizasyonu Yeniden Dene"
 
@@ -25391,12 +25395,12 @@ msgstr "Bazı kelimeler geri yüklenemedi. Geri almayı yeniden denemek için sa
 msgid "Interrupted bulk change"
 msgstr "Kesintiye uğrayan toplu değişiklik"
 
-#: includes/pages/vocab-lesson-pages.php:4899
+#: includes/pages/vocab-lesson-pages.php:4907
 #: includes/pages/wordset-pages.php:16315
 msgid "Category deletion progress could not be saved. Please try again."
 msgstr "Kategori silme ilerlemesi kaydedilemedi. Lütfen tekrar dene."
 
-#: includes/pages/vocab-lesson-pages.php:4902
+#: includes/pages/vocab-lesson-pages.php:4910
 #: includes/pages/wordset-pages.php:16322
 msgid "Another category deletion batch is already running for this word set. Please try again shortly."
 msgstr "Bu kelime seti için başka bir kategori silme işlemi zaten devam ediyor. Lütfen kısa süre sonra tekrar dene."
@@ -25423,11 +25427,11 @@ msgid "Dictionary TSV grouping is unavailable."
 msgstr "Sözlük TSV gruplaması kullanılamıyor."
 
 #: includes/pages/wordset-pages.php:22760
-#: includes/shortcodes/flashcard-widget.php:1552
+#: includes/shortcodes/flashcard-widget.php:1554
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr "Kategori kataloğu geçici olarak kullanılamıyor. Lütfen yeniden dene."
 
-#: includes/pages/wordset-pages.php:26658
+#: includes/pages/wordset-pages.php:26661
 msgid "Search is still preparing. Please try again."
 msgstr "Arama hâlâ hazırlanıyor. Lütfen yeniden dene."
 
@@ -26718,48 +26722,48 @@ msgstr "Quiz sayfası bakımı çalışıyor: %1$d sayfa ve %2$d kategori kontro
 msgid "Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far."
 msgstr "Quiz sayfası temizliği kuyruğa alındı. Şimdiye kadar %1$d sayfa kontrol edildi ve %2$d geçersiz veya sahipsiz sayfa kaldırıldı."
 
-#: includes/pages/vocab-lesson-pages.php:3519
+#: includes/pages/vocab-lesson-pages.php:3527
 msgid "Vocab lesson cleanup will retry after a temporary database error."
 msgstr "Kelime dersi temizliği geçici bir veritabanı hatasından sonra yeniden denenecek."
 
-#: includes/pages/vocab-lesson-pages.php:3594
+#: includes/pages/vocab-lesson-pages.php:3602
 msgid "Vocab lesson cleanup paused because category eligibility or source data was incomplete."
 msgstr "Kategori uygunluğu veya kaynak verileri eksik olduğu için kelime dersi temizliği duraklatıldı."
 
-#: includes/pages/vocab-lesson-pages.php:3793
+#: includes/pages/vocab-lesson-pages.php:3801
 msgid "Vocab lesson synchronization will retry after a temporary wordset lookup error."
 msgstr "Kelime dersi eşitlemesi geçici bir kelime seti arama hatasından sonra yeniden denenecek."
 
-#: includes/pages/vocab-lesson-pages.php:3813
+#: includes/pages/vocab-lesson-pages.php:3821
 msgid "Vocab lesson synchronization paused because category candidates or counts were incomplete."
 msgstr "Kategori adayları veya sayılar eksik olduğu için kelime dersi eşitlemesi duraklatıldı."
 
-#: includes/pages/vocab-lesson-pages.php:3858
+#: includes/pages/vocab-lesson-pages.php:3866
 msgid "Vocab lesson synchronization paused because category eligibility or a page write was incomplete."
 msgstr "Kategori uygunluğu veya sayfa yazma işlemi tamamlanmadığı için kelime dersi eşitlemesi duraklatıldı."
 
-#: includes/pages/vocab-lesson-pages.php:5368
+#: includes/pages/vocab-lesson-pages.php:5376
 msgid "Unable to validate the Line-Up sequence."
 msgstr "Sıralama dizisi doğrulanamadı."
 
-#: includes/pages/vocab-lesson-pages.php:7245
+#: includes/pages/vocab-lesson-pages.php:7253
 msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr "Çok fazla ders tablosu isteği gönderildi. Birkaç dakika bekleyip tekrar dene."
 
-#: includes/pages/vocab-lesson-pages.php:7266
-#: includes/shortcodes/flashcard-widget.php:1969
+#: includes/pages/vocab-lesson-pages.php:7274
+#: includes/shortcodes/flashcard-widget.php:1971
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr "Ders kelimeleri hâlâ hazırlanıyor. Biraz sonra tekrar dene."
 
 #: includes/pages/wordset-pages.php:7159
 #: includes/pages/wordset-pages.php:17027
-#: includes/pages/wordset-pages.php:25349
+#: includes/pages/wordset-pages.php:25352
 msgid "Retry Deletion"
 msgstr "Silme İşlemini Tekrar Dene"
 
 #: includes/pages/wordset-pages.php:7159
 #: includes/pages/wordset-pages.php:17026
-#: includes/pages/wordset-pages.php:25348
+#: includes/pages/wordset-pages.php:25351
 msgid "Continue Deletion"
 msgstr "Silme İşlemine Devam Et"
 
@@ -26909,12 +26913,12 @@ msgid "Recorder queue recorder pages"
 msgstr "Kaydedici kuyruğundaki kaydedici sayfaları"
 
 #: includes/pages/wordset-pages.php:22818
-#: includes/pages/wordset-pages.php:25489
+#: includes/pages/wordset-pages.php:25492
 msgid "Loading queue categories..."
 msgstr "Kuyruk kategorileri yükleniyor..."
 
 #: includes/pages/wordset-pages.php:22819
-#: includes/pages/wordset-pages.php:25490
+#: includes/pages/wordset-pages.php:25493
 msgid "All queue categories are loaded."
 msgstr "Tüm kuyruk kategorileri yüklendi."
 
@@ -26960,7 +26964,7 @@ msgstr "Çevrimdışı Uygulama Paketini İndir"
 msgid "Continue export"
 msgstr "Dışa aktarmaya devam et"
 
-#: includes/pages/wordset-pages.php:25492
+#: includes/pages/wordset-pages.php:25495
 msgid "Could not load more queue categories right now."
 msgstr "Şu anda daha fazla kuyruk kategorisi yüklenemiyor."
 
@@ -27263,113 +27267,113 @@ msgstr "%d numaralı kelime görseli için yalıtılmış kategoriler oluşturul
 #: includes/wordset-isolation.php:2630
 #: includes/wordset-isolation.php:2649
 #: includes/wordset-isolation.php:2672
-#: includes/wordset-isolation.php:2726
-#: includes/wordset-isolation.php:2792
-#: includes/wordset-isolation.php:2988
-#: includes/wordset-isolation.php:2997
-#: includes/wordset-isolation.php:3017
-#: includes/wordset-isolation.php:3125
-#: includes/wordset-isolation.php:3218
-#: includes/wordset-isolation.php:3262
-#: includes/wordset-isolation.php:3342
+#: includes/wordset-isolation.php:2803
+#: includes/wordset-isolation.php:2892
+#: includes/wordset-isolation.php:2954
+#: includes/wordset-isolation.php:2999
+#: includes/wordset-isolation.php:3154
+#: includes/wordset-isolation.php:3212
+#: includes/wordset-isolation.php:3497
+#: includes/wordset-isolation.php:3597
+#: includes/wordset-isolation.php:3641
 #, php-format
 msgid "Isolated category data could not be saved for user %d."
 msgstr "%d numaralı kullanıcı için yalıtılmış kategori verileri kaydedilemedi."
 
-#: includes/wordset-isolation.php:3827
+#: includes/wordset-isolation.php:4193
 msgid "Could not inspect word option rules for the isolation migration."
 msgstr "Yalıtım geçişi için kelime seçeneği kuralları incelenemedi."
 
-#: includes/wordset-isolation.php:3835
+#: includes/wordset-isolation.php:4201
 msgid "Word option rules are too large for the background migration. Run the WP-CLI migration with --allow-large-option-rules."
 msgstr "Kelime seçeneği kuralları arka plan geçişi için çok büyük. WP-CLI geçişini --allow-large-option-rules ile çalıştır."
 
-#: includes/wordset-isolation.php:3850
+#: includes/wordset-isolation.php:4216
 msgid "Isolated word option rules could not be saved."
 msgstr "Yalıtılmış kelime seçeneği kuralları kaydedilemedi."
 
-#: includes/wordset-isolation.php:3859
+#: includes/wordset-isolation.php:4225
 msgid "Wordset isolation migration has unresolved errors."
 msgstr "Kelime seti yalıtım geçişinde çözümlenmemiş hatalar var."
 
-#: includes/wordset-isolation.php:3893
+#: includes/wordset-isolation.php:4259
 msgid "Generated-page reconciliation could not be scheduled after the isolation migration."
 msgstr "Yalıtım geçişinden sonra oluşturulan sayfaları uzlaştırma işlemi planlanamadı."
 
-#: includes/wordset-isolation.php:3904
+#: includes/wordset-isolation.php:4270
 msgid "The wordset isolation migration version could not be saved."
 msgstr "Kelime seti yalıtım geçişi sürümü kaydedilemedi."
 
-#: includes/wordset-isolation.php:4010
+#: includes/wordset-isolation.php:4376
 msgid "You are not allowed to retry this migration."
 msgstr "Bu geçişi yeniden deneme iznin yok."
 
-#: includes/wordset-isolation.php:4032
+#: includes/wordset-isolation.php:4398
 msgid "Word images"
 msgstr "Kelime görselleri"
 
-#: includes/wordset-isolation.php:4033
+#: includes/wordset-isolation.php:4399
 msgid "Word sets"
 msgstr "Kelime setleri"
 
-#: includes/wordset-isolation.php:4034
+#: includes/wordset-isolation.php:4400
 msgid "Word option rules"
 msgstr "Kelime seçeneği kuralları"
 
-#: includes/wordset-isolation.php:4036
+#: includes/wordset-isolation.php:4402
 msgid "Users"
 msgstr "Kullanıcılar"
 
-#: includes/wordset-isolation.php:4037
+#: includes/wordset-isolation.php:4403
 msgid "Finalizing"
 msgstr "Sonlandırılıyor"
 
 #. translators: 1: migration phase, 2: error message.
-#: includes/wordset-isolation.php:4043
+#: includes/wordset-isolation.php:4409
 #, php-format
 msgid "Wordset isolation migration stopped in phase %1$s: %2$s"
 msgstr "Kelime seti yalıtım geçişi %1$s aşamasında durdu: %2$s"
 
 #. translators: 1: migration phase, 2: number of words scanned.
-#: includes/wordset-isolation.php:4049
+#: includes/wordset-isolation.php:4415
 #, php-format
 msgid "Wordset isolation migration is continuing in the background. Phase: %1$s. Words scanned: %2$d."
 msgstr "Kelime seti yalıtım geçişi arka planda devam ediyor. Aşama: %1$s. Taranan kelimeler: %2$d."
 
-#: includes/wordset-isolation.php:4058
+#: includes/wordset-isolation.php:4424
 msgid "Retry migration"
 msgstr "Geçişi yeniden dene"
 
-#: includes/wordset-isolation.php:4274
+#: includes/wordset-isolation.php:4640
 msgid "You are not allowed to run this maintenance check."
 msgstr "Bu bakım kontrolünü çalıştırma iznin yok."
 
-#: includes/wordset-isolation.php:4289
+#: includes/wordset-isolation.php:4655
 msgid "You are not allowed to run this maintenance repair."
 msgstr "Bu bakım onarımını çalıştırma iznin yok."
 
-#: includes/wordset-isolation.php:4309
+#: includes/wordset-isolation.php:4675
 msgid "Health check queued or running."
 msgstr "Durum denetimi kuyrukta veya çalışıyor."
 
-#: includes/wordset-isolation.php:4314
+#: includes/wordset-isolation.php:4680
 msgid "Check now"
 msgstr "Şimdi kontrol et"
 
-#: includes/wordset-isolation.php:4321
+#: includes/wordset-isolation.php:4687
 #, php-format
 msgid "Vocab lesson repair: %1$d processed, %2$d repaired."
 msgstr "Kelime dersi onarımı: %1$d işlendi, %2$d onarıldı."
 
-#: includes/wordset-isolation.php:4329
+#: includes/wordset-isolation.php:4695
 msgid "Repair vocab lessons"
 msgstr "Kelime derslerini onar"
 
-#: includes/wordset-isolation.php:4871
+#: includes/wordset-isolation.php:5237
 msgid "LL Tools Maintenance"
 msgstr "LL Tools Bakımı"
 
-#: includes/wordset-isolation.php:4872
+#: includes/wordset-isolation.php:5238
 msgid "Wordset isolation health has not been checked since the last data change or cache expiry."
 msgstr "Son veri değişikliğinden veya önbellek süresinin dolmasından bu yana kelime seti yalıtım durumu denetlenmedi."
 
@@ -27457,7 +27461,7 @@ msgstr "Diğer kullanıcıları ara"
 msgid "Type at least 2 characters"
 msgstr "En az 2 karakter gir"
 
-#: includes/pages/wordset-pages.php:26590
+#: includes/pages/wordset-pages.php:26593
 #: includes/shortcodes/dictionary-shortcode.php:3458
 msgid "Search results are still being prepared. Please try again in a moment."
 msgstr "Arama sonuçları hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
@@ -27537,7 +27541,7 @@ msgstr "Herkese açık bilgi kartı sayfaları aynı anda yalnızca bir kelime s
 
 #: includes/lib/flashcard-payload-materializer.php:791
 #: includes/lib/flashcard-payload-materializer.php:822
-#: includes/shortcodes/flashcard-widget.php:2546
+#: includes/shortcodes/flashcard-widget.php:2548
 msgid "You do not have permission to view this flashcard content."
 msgstr "Bu bilgi kartı içeriğini görüntüleme iznin yok."
 
@@ -27555,32 +27559,32 @@ msgstr "Bilgi kartı verileri hazırlanamadı."
 msgid "Flashcard data is still being prepared."
 msgstr "Bilgi kartı verileri hâlâ hazırlanıyor."
 
-#: includes/shortcodes/flashcard-widget.php:2386
+#: includes/shortcodes/flashcard-widget.php:2388
 msgid "Preparing flashcard data. Please wait a moment."
 msgstr "Bilgi kartı verileri hazırlanıyor. Lütfen biraz bekle."
 
-#: includes/shortcodes/flashcard-widget.php:2397
+#: includes/shortcodes/flashcard-widget.php:2399
 msgid "Flashcard data changed. Please restart the quiz."
 msgstr "Bilgi kartı verileri değişti. Lütfen quizi yeniden başlat."
 
-#: includes/shortcodes/flashcard-widget.php:2403
+#: includes/shortcodes/flashcard-widget.php:2405
 msgid "Invalid flashcard page cursor."
 msgstr "Geçersiz bilgi kartı sayfası imleci."
 
-#: includes/shortcodes/flashcard-widget.php:2412
-#: includes/user-progress.php:861
+#: includes/shortcodes/flashcard-widget.php:2414
+#: includes/user-progress.php:877
 msgid "Flashcard data is temporarily unavailable."
 msgstr "Bilgi kartı verileri geçici olarak kullanılamıyor."
 
-#: includes/shortcodes/flashcard-widget.php:2455
+#: includes/shortcodes/flashcard-widget.php:2457
 msgid "Invalid flashcard locale."
 msgstr "Bilgi kartı dil ayarı geçersiz."
 
-#: includes/shortcodes/flashcard-widget.php:2515
+#: includes/shortcodes/flashcard-widget.php:2517
 msgid "Invalid wordset."
 msgstr "Geçersiz kelime seti."
 
-#: includes/shortcodes/flashcard-widget.php:2900
+#: includes/shortcodes/flashcard-widget.php:2902
 msgid "This flashcard category must be loaded in pages. Please refresh the page."
 msgstr "Bu bilgi kartı kategorisi sayfalar hâlinde yüklenmelidir. Lütfen sayfayı yenile."
 
@@ -27628,9 +27632,9 @@ msgstr "Bu dersin ilerlemesini güncelleyemezsin."
 #: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1296
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
-#: includes/user-progress.php:3204
-#: includes/user-progress.php:3230
-#: includes/user-progress.php:3426
+#: includes/user-progress.php:3220
+#: includes/user-progress.php:3246
+#: includes/user-progress.php:3442
 msgid "Lesson progress could not be saved."
 msgstr "Ders ilerlemesi kaydedilemedi."
 
@@ -28175,7 +28179,7 @@ msgid "The existing lesson mapping uses a different retained-source mode and was
 msgstr "Mevcut ders eşlemesi farklı bir korunan kaynak modu kullandığından değiştirilmedi."
 
 #: includes/pages/wordset-pages.php:7068
-#: includes/pages/wordset-pages.php:25342
+#: includes/pages/wordset-pages.php:25345
 #: includes/taxonomies/word-category-taxonomy.php:129
 msgid "Reference"
 msgstr "Kaynak"
@@ -28309,11 +28313,11 @@ msgstr[1] "Ders önizlemesi hazırlanıyor: %d görsel işlendi."
 msgid "Lesson preview preparation is in progress. Open the preview again to continue."
 msgstr "Ders önizlemesi hazırlanıyor. Devam etmek için önizlemeyi yeniden aç."
 
-#: includes/pages/wordset-pages.php:25346
+#: includes/pages/wordset-pages.php:25349
 msgid "Preparing preview"
 msgstr "Önizleme hazırlanıyor"
 
-#: includes/pages/wordset-pages.php:25347
+#: includes/pages/wordset-pages.php:25350
 msgid "Preparing lesson preview..."
 msgstr "Ders önizlemesi hazırlanıyor..."
 
@@ -28389,6 +28393,6 @@ msgstr "Saklanan değeri güvenli olmadığından, %2$d numaralı gönderideki \
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Sözlük verileri geçici olarak kullanılamıyor. Lütfen birazdan tekrar dene."
 
-#: includes/user-progress.php:1329
+#: includes/user-progress.php:1345
 msgid "Language Learner Tools has paused learner progress sync because the WordPress user tables and plugin progress tables could not all be verified as InnoDB. Ask the database administrator to inspect the listed table engines; the plugin will not convert the core users or usermeta tables automatically."
 msgstr "WordPress kullanıcı tabloları ile eklenti ilerleme tablolarının tamamının InnoDB olduğu doğrulanamadığı için Language Learner Tools öğrenci ilerleme eşitlemesini duraklattı. Veritabanı yöneticisinden listelenen tablo motorlarını incelemesini iste; eklenti, WordPress'in çekirdek users veya usermeta tablolarını otomatik olarak dönüştürmez."
