@@ -18857,16 +18857,18 @@
         }
 
         const slug = String($placeholder.attr('data-recorder-queue-category') || '');
-        const categoryName = String($placeholder.attr('data-recorder-queue-category-name') || slug);
+        const loadingLabel = String(i18n.recorderQueueLoadingCategory || i18n.recorderQueueLoading || '');
         const retries = String($placeholder.attr('data-ll-recorder-queue-summary-retries') || '');
         const $card = $('<article>')
             .addClass('ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading')
             .attr({
                 'data-recorder-queue-category': slug,
-                'data-recorder-queue-category-name': categoryName,
                 'data-ll-recorder-queue-summary-placeholder': 'true',
                 'aria-busy': 'true'
             });
+        if (loadingLabel) {
+            $card.attr('aria-label', loadingLabel);
+        }
         if (retries) {
             $card.attr('data-ll-recorder-queue-summary-retries', retries);
         }
@@ -18874,8 +18876,8 @@
         const $top = $('<span>').addClass('ll-wordset-card__top ll-wordset-recorder-queue-category-card__top');
         $top.append(
             $('<span>')
-                .addClass('ll-wordset-card__title ll-wordset-recorder-queue-category__name')
-                .text(categoryName),
+                .addClass('ll-wordset-card__title ll-wordset-recorder-queue-category__name ll-wordset-recorder-queue-category-card__title-skeleton')
+                .attr('aria-hidden', 'true'),
             $('<span>')
                 .addClass('ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton')
                 .attr('aria-hidden', 'true')

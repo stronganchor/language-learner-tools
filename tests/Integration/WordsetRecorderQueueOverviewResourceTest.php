@@ -228,7 +228,19 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertSame(3, substr_count($html, 'll-wordset-recorder-queue-category-card--loading'));
         $this->assertSame(2, substr_count($html, 'll-wordset-recorder-queue-category-marker'));
         $this->assertStringContainsString('ll-wordset-card--lazy-placeholder', $html);
-        foreach ($fixture['categories'] as $category) {
+        $this->assertStringContainsString('aria-label="Loading recording category"', $html);
+        preg_match_all(
+            '/<article[^>]*ll-wordset-recorder-queue-category-card--loading[^>]*>.*?<\/article>/s',
+            $html,
+            $loading_cards
+        );
+        $this->assertCount(3, (array) ($loading_cards[0] ?? []));
+        $loading_card_html = implode('', (array) ($loading_cards[0] ?? []));
+        $this->assertStringNotContainsString('data-recorder-queue-category-name=', $loading_card_html);
+        foreach (array_slice($fixture['categories'], 0, 3) as $category) {
+            $this->assertStringNotContainsString(esc_html((string) $category['name']), $loading_card_html);
+        }
+        foreach (array_slice($fixture['categories'], 3) as $category) {
             $this->assertStringContainsString(esc_attr((string) $category['name']), $html);
         }
         $this->assertStringNotContainsString('ll_recorder_queue_recorders_page=', $html);
@@ -236,6 +248,300 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Recorder queue recorder pages', $html);
         $this->assertStringNotContainsString('Queue category pages for', $html);
         $this->assertStringNotContainsString('>Continue<', $html);
+    }
+
+    public function test_stream_manifest_reuses_all_complete_entries_and_invalidates_only_one_changed_category(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $recording_type_id = $this->ensureRecordingType('Isolation', 'isolation');
+
+        $fixture = $this->createWordsetWithCategories(4);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+        $recorder = get_userdata($recorder_id);
+        $this->assertInstanceOf(WP_User::class, $recorder);
+        $empty_category = $fixture['categories'][3];
+        $empty_word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => 1,
+            'no_found_rows' => true,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [(int) $empty_category['id']],
+            ]],
+        ]);
+        $this->assertCount(1, $empty_word_ids);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => (int) $empty_word_ids[0],
+        ]);
+        wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
+        $candidate_queries = 0;
+        $query_watcher = static function (WP_Query $query) use (&$candidate_queries): void {
+            if (
+                $query->get('post_type') === 'words'
+                && $query->get('fields') === 'ids'
+                && (int) $query->get('posts_per_page') === 120
+                && (bool) $query->get('no_found_rows')
+            ) {
+                $candidate_queries++;
+            }
+        };
+        add_action('pre_get_posts', $query_watcher);
+
+        try {
+            $warm_status = [];
+            $warm_states = [];
+            $warm_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                $fixture['categories'],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                count($fixture['categories']),
+                $warm_status,
+                $warm_states
+            );
+            $this->assertCount(3, $warm_groups);
+            $this->assertSame(4, (int) $warm_status['refreshed']);
+            $this->assertSame(4, $candidate_queries);
+            $this->assertTrue((bool) ($warm_states[(string) $empty_category['slug']]['complete'] ?? false));
+            $this->assertFalse((bool) ($warm_states[(string) $empty_category['slug']]['has_group'] ?? true));
+
+            $scope = ll_tools_wordset_page_get_recorder_queue_summary_manifest_scope(
+                $wordset_id,
+                $recorder_id,
+                $fixture['categories']
+            );
+            $this->assertTrue((bool) ($scope['complete'] ?? false));
+            $manifest = ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload(
+                (string) ($scope['cache_key'] ?? ''),
+                (string) ($scope['generation'] ?? '')
+            );
+            $this->assertCount(4, (array) ($manifest['entries'] ?? []));
+            $this->assertArrayHasKey((string) $empty_category['slug'], (array) ($manifest['entries'] ?? []));
+            $this->assertArrayHasKey('group', (array) $manifest['entries'][(string) $empty_category['slug']]);
+            $this->assertNull($manifest['entries'][(string) $empty_category['slug']]['group']);
+
+            $candidate_queries = 0;
+            $manifest_status = [];
+            $manifest_states = [];
+            $manifest_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                $fixture['categories'],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                0,
+                $manifest_status,
+                $manifest_states,
+                ['manifest_only' => true]
+            );
+            $this->assertCount(3, $manifest_groups);
+            $this->assertSame(0, $candidate_queries);
+            $this->assertSame(0, (int) $manifest_status['pending']);
+            $this->assertSame(4, (int) $manifest_status['fresh']);
+
+            $stream_rows = ll_tools_wordset_page_get_recorder_queue_rows(
+                $wordset_id,
+                $wordset_term,
+                [$recorder],
+                [
+                    'stream_view' => true,
+                    'focused_user_id' => $recorder_id,
+                    'summary_categories' => $fixture['categories'],
+                    'summary_categories_paged' => true,
+                    'summary_category_total' => count($fixture['categories']),
+                    'categories_per_page' => 3,
+                    'summary_manifest_only' => true,
+                ]
+            );
+            $this->assertCount(1, $stream_rows);
+            $this->assertCount(3, (array) ($stream_rows[0]['visible_groups'] ?? []));
+            $this->assertCount(4, (array) ($stream_rows[0]['summary_states'] ?? []));
+            $this->assertSame(0, (int) ($stream_rows[0]['summary_status']['pending'] ?? -1));
+            $this->assertSame(0, $candidate_queries);
+
+            $changed_category = $fixture['categories'][0];
+            $this->assertContains(
+                (int) $changed_category['id'],
+                ll_tools_bump_category_cache_versions_only([(int) $changed_category['id']])
+            );
+            $manifest_status = [];
+            $manifest_states = [];
+            $manifest_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                $fixture['categories'],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                0,
+                $manifest_status,
+                $manifest_states,
+                ['manifest_only' => true]
+            );
+            $this->assertCount(2, $manifest_groups);
+            $this->assertSame(1, (int) $manifest_status['pending']);
+            $this->assertFalse((bool) ($manifest_states[(string) $changed_category['slug']]['complete'] ?? true));
+            $this->assertSame(0, $candidate_queries);
+
+            $stream_rows = ll_tools_wordset_page_get_recorder_queue_rows(
+                $wordset_id,
+                $wordset_term,
+                [$recorder],
+                [
+                    'stream_view' => true,
+                    'focused_user_id' => $recorder_id,
+                    'summary_categories' => $fixture['categories'],
+                    'summary_categories_paged' => true,
+                    'summary_category_total' => count($fixture['categories']),
+                    'categories_per_page' => 3,
+                    'summary_manifest_only' => true,
+                ]
+            );
+            $this->assertCount(2, (array) ($stream_rows[0]['visible_groups'] ?? []));
+            $this->assertSame(1, (int) ($stream_rows[0]['summary_status']['pending'] ?? 0));
+            $this->assertSame(0, $candidate_queries);
+
+            $refresh_status = [];
+            $refresh_states = [];
+            $refreshed_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                [$changed_category],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                1,
+                $refresh_status,
+                $refresh_states
+            );
+            $this->assertCount(1, $refreshed_groups);
+            $this->assertSame(1, (int) $refresh_status['refreshed']);
+            $this->assertSame(1, $candidate_queries);
+
+            $final_status = [];
+            $final_states = [];
+            $final_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+                $fixture['categories'],
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                0,
+                $final_status,
+                $final_states,
+                ['manifest_only' => true]
+            );
+            $this->assertCount(3, $final_groups);
+            $this->assertSame(0, (int) $final_status['pending']);
+            $this->assertSame(1, $candidate_queries);
+            $this->assertTrue((bool) ($final_states[(string) $empty_category['slug']]['complete'] ?? false));
+            $this->assertFalse((bool) ($final_states[(string) $empty_category['slug']]['has_group'] ?? true));
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+    }
+
+    public function test_hidden_summary_signatures_are_category_local_with_global_legacy_fallback(): void
+    {
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_a = $fixture['categories'][0];
+        $category_b = $fixture['categories'][1];
+        $recorder_id = self::factory()->user->create(['role' => 'subscriber']);
+        $word_ids = get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => 1,
+            'no_found_rows' => true,
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [(int) $category_a['id']],
+            ]],
+        ]);
+        $word_id = (int) ($word_ids[0] ?? 0);
+        $this->assertGreaterThan(0, $word_id);
+
+        $baseline_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+            $recorder_id,
+            $wordset_id,
+            $category_a
+        );
+        $baseline_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+            $recorder_id,
+            $wordset_id,
+            $category_b
+        );
+        $relationship_queries = 0;
+        $query_watcher = static function (string $query) use (&$relationship_queries): string {
+            if (strpos($query, 'SELECT p.ID AS object_id, t.slug AS category_slug') !== false) {
+                $relationship_queries++;
+            }
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+
+        try {
+            $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, [[
+                'key' => 'word:' . $word_id,
+                'word_id' => $word_id,
+                'category_slug' => (string) $category_a['slug'],
+            ]]));
+            $local_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_a
+            );
+            $local_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_b
+            );
+            $this->assertNotSame($baseline_a, $local_a);
+            $this->assertSame($baseline_b, $local_b);
+            $this->assertSame(1, $relationship_queries, 'All category signatures in one request must reuse one hidden relationship query.');
+
+            $this->assertTrue(ll_tools_save_hidden_recording_words($recorder_id, [
+                [
+                    'key' => 'word:' . $word_id,
+                    'word_id' => $word_id,
+                    'category_slug' => (string) $category_a['slug'],
+                ],
+                [
+                    'key' => 'title:legacy-global-sentinel',
+                    'title' => 'Legacy global sentinel',
+                    'category_slug' => (string) $category_a['slug'],
+                ],
+            ]));
+            $global_a = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_a
+            );
+            $global_b = ll_tools_wordset_page_get_recorder_queue_summary_source_signature(
+                $recorder_id,
+                $wordset_id,
+                $category_b
+            );
+            $this->assertNotSame($local_a, $global_a);
+            $this->assertNotSame($local_b, $global_b);
+            $this->assertSame(2, $relationship_queries);
+        } finally {
+            remove_filter('query', $query_watcher);
+            ll_tools_save_hidden_recording_words($recorder_id, []);
+        }
     }
 
     public function test_incomplete_stream_catalog_renders_retry_instead_of_authoritative_empty_state(): void

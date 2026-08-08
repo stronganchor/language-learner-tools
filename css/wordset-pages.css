@@ -10801,6 +10801,14 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     pointer-events: none;
 }
 
+.ll-wordset-page .ll-wordset-recorder-queue-category-card__title-skeleton {
+    display: block;
+    width: min(62%, 132px);
+    height: 1rem;
+    border-radius: 999px;
+    background: #e5ebf1;
+}
+
 .ll-wordset-recorder-queue-category-card__count-skeleton {
     width: 72px;
     min-width: 72px;

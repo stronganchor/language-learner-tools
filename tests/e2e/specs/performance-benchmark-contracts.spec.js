@@ -48,6 +48,8 @@ const categorySearchPreparerPath = path.join(
 const benchmarkRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-performance-benchmark.sh');
 const benchmarkSpecPath = path.join(pluginRoot, 'tests', 'e2e', 'specs', 'performance-benchmark.spec.js');
 const e2eRunnerPath = path.join(pluginRoot, 'tests', 'bin', 'run-e2e.sh');
+const wordsetPagesPath = path.join(pluginRoot, 'includes', 'pages', 'wordset-pages.php');
+const wordsetPagesScriptPath = path.join(pluginRoot, 'js', 'wordset-pages.js');
 const manifestVerifierPath = path.join(
   pluginRoot,
   'tests',
@@ -355,6 +357,94 @@ test('Genç profile matches production-scale dimensions and includes settings an
     36,
     2
   )).toThrow(/reached 2 concurrent summary requests; expected at most 1/);
+});
+
+test('warm 209-category recorder manifest leaves zero summary AJAX work and isolates one stale category', async () => {
+  const manifest = JSON.parse(fs.readFileSync(gencManifestPath, 'utf8'));
+  const target = manifest.wordsets.find((wordset) => wordset.size === manifest.benchmarkTargetSize);
+  const scenarios = buildBenchmarkScenarios(manifest);
+  const completionScenario = scenarios.find((scenario) => scenario.action === 'recorder-queue-lazy-completion');
+  const source = fs.readFileSync(wordsetPagesPath, 'utf8');
+  const script = fs.readFileSync(wordsetPagesScriptPath, 'utf8');
+  const renderContent = phpFunctionBlock(source, 'll_tools_render_wordset_page_content');
+  const buildRows = phpFunctionBlock(source, 'll_tools_wordset_page_get_recorder_queue_rows');
+  const buildSummaries = phpFunctionBlock(source, 'll_tools_wordset_page_build_recorder_queue_summary_groups');
+  const renderQueues = phpFunctionBlock(source, 'll_tools_wordset_page_render_settings_recorder_queues_tool');
+
+  expect(target.categoryCount).toBe(209);
+  expect(completionScenario).toMatchObject({
+    expectedCategoryCount: 209,
+    initialCategoryCount: 3,
+    batchSize: 6
+  });
+
+  // The manager gives manifest-only summary construction the complete canonical
+  // catalog instead of the three-card presentation slice.
+  expect(renderContent).toMatch(
+    /'summary_categories'\s*=>\s*\$recorder_queue_stream_view\s*\?\s*\$recorder_queue_stream_categories/s
+  );
+  expect(renderContent).toMatch(
+    /'summary_manifest_only'\s*=>\s*\$recorder_queue_stream_view/
+  );
+  expect(buildRows).toMatch(
+    /\$summary_category_page\s*=\s*\$summary_manifest_only\s*\?\s*\$summary_categories/s
+  );
+  expect(buildRows).toMatch(
+    /\['manifest_only'\s*=>\s*\$summary_manifest_only\]/
+  );
+
+  // One scope-manifest lookup covers the full catalog. Manifest-only rendering
+  // cannot fall through to N per-category payload reads or bounded scans.
+  expect((buildSummaries.match(/ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload\(/g) || []))
+    .toHaveLength(1);
+  expect(buildSummaries).toMatch(
+    /\$loaded_from_manifest\s*=\s*is_array\(\$manifest_entry\).*?hash_equals\(\$source_signature,\s*\(string\)\s*\(\$manifest_entry\['source_signature'\]/s
+  );
+  expect(buildSummaries).toMatch(
+    /\$payload\s*=\s*\$loaded_from_manifest.*?:\s*\(\$manifest_only\s*\?\s*null\s*:\s*ll_tools_wordset_page_get_cached_payload/s
+  );
+  expect(buildSummaries).toMatch(
+    /if\s*\(\s*!\$manifest_only\s*&&\s*!\$is_fresh.*?ll_tools_wordset_page_build_recorder_queue_summary_group\(/s
+  );
+  expect(buildSummaries).toMatch(
+    /'ll_tools_wordset_recorder_queue_summary_cache_ttl',\s*30\s*\*\s*DAY_IN_SECONDS/s
+  );
+  expect(buildSummaries).toMatch(
+    /'ll_tools_wordset_recorder_queue_summary_manifest_cache_ttl',\s*30\s*\*\s*DAY_IN_SECONDS/s
+  );
+
+  // Current manifest entries render as cards (or disappear when exactly empty),
+  // while only stale identities leave placeholders for the AJAX client.
+  expect(renderQueues).toMatch(
+    /\$stream_scan_complete\s*=\s*\$stream_source_current\s*&&\s*!empty\(\$stream_category_state\['complete'\]\)/
+  );
+  expect(renderQueues).toMatch(
+    /if\s*\(\$stream_scan_complete\s*&&\s*isset\(\$stream_group_lookup\[\$stream_category_slug\]\)\).*?continue;/s
+  );
+  expect(renderQueues).toMatch(
+    /if\s*\(\$stream_scan_complete\)\s*{\s*continue;\s*}/s
+  );
+  expect(renderQueues).toContain(
+    "ll_tools_wordset_page_render_recorder_queue_category_placeholder($stream_category, ['neutral' => true])"
+  );
+  expect(script).toContain('const $pending = $(pendingNodes.slice(0, requestBatchSize));');
+  expect(script).toMatch(
+    /if\s*\(getRecorderQueueSummaryPlaceholders\(\)\.length\)\s*{\s*requestRecorderQueueSummaryBatch\(\);\s*}/s
+  );
+
+  const categorySlugs = Array.from(
+    { length: target.categoryCount },
+    (_, index) => `ll-perf-genc-category-${index + 1}`
+  );
+  const unresolvedFor = (currentSlugs) => categorySlugs.filter((slug) => !currentSlugs.has(slug));
+  expect(unresolvedFor(new Set(categorySlugs))).toHaveLength(0);
+
+  const currentExceptOne = new Set(categorySlugs);
+  const staleSlug = categorySlugs[137];
+  currentExceptOne.delete(staleSlug);
+  const staleBatch = unresolvedFor(currentExceptOne)
+    .slice(0, completionScenario.initialCategoryCount);
+  expect(staleBatch).toEqual([staleSlug]);
 });
 
 test('recorder completion benchmark follows the viewport-driven serial loading contract', async () => {
