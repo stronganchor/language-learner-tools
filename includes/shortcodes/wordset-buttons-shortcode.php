@@ -223,6 +223,233 @@ function ll_tools_wordset_buttons_shortcode_anonymous_cache_get(array $atts, str
         : '';
 }
 
+/**
+ * Durable key for the last exact anonymous membership/order snapshot.
+ *
+ * This key intentionally ignores plugin/content/structural epochs. The
+ * snapshot stores only positive public term IDs and their last exact ranking;
+ * every read resolves current terms, visibility, labels, URLs, and media
+ * again. That makes it safe to bridge a bounded rebuild without exposing new
+ * or zero-lesson terms through an optimistic raw-term shell.
+ */
+function ll_tools_wordset_buttons_navigation_manifest_key(array $atts, string $tag = ''): string {
+    $payload = [
+        'schema' => 1,
+        'site' => home_url('/'),
+        'locale' => function_exists('get_locale') ? (string) get_locale() : '',
+        'tag' => sanitize_key($tag !== '' ? $tag : 'll_wordset_buttons'),
+        'hide_empty' => ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0') ? '1' : '0',
+    ];
+
+    return 'll_ws_buttons_nav_' . md5((string) wp_json_encode($payload));
+}
+
+function ll_tools_wordset_buttons_navigation_manifest_record_key(string $key): void {
+    $key = sanitize_key($key);
+    if ($key === '') {
+        return;
+    }
+
+    $registry_key = 'll_tools_wordset_buttons_navigation_manifest_keys';
+    $keys = get_option($registry_key, []);
+    $keys = is_array($keys) ? array_values(array_filter(array_map('sanitize_key', $keys))) : [];
+    $keys = array_values(array_unique($keys));
+    if (!in_array($key, $keys, true)) {
+        $keys[] = $key;
+    }
+
+    $evicted = count($keys) > 20 ? array_slice($keys, 0, count($keys) - 20) : [];
+    update_option($registry_key, array_slice($keys, -20), false);
+    foreach ($evicted as $evicted_key) {
+        delete_option($evicted_key);
+    }
+}
+
+/**
+ * @return array{schema:int,stored_at:int,entries:array<int,array{term_id:int,lesson_count:int}>}|null
+ */
+function ll_tools_wordset_buttons_navigation_manifest_get(array $atts, string $tag = ''): ?array {
+    $payload = get_option(ll_tools_wordset_buttons_navigation_manifest_key($atts, $tag), null);
+    if (
+        !is_array($payload)
+        || (int) ($payload['schema'] ?? 0) !== 1
+        || !is_array($payload['entries'] ?? null)
+    ) {
+        return null;
+    }
+
+    if (count($payload['entries']) > 5000) {
+        return null;
+    }
+
+    $entries = [];
+    $seen = [];
+    foreach ($payload['entries'] as $entry) {
+        if (!is_array($entry)) {
+            return null;
+        }
+        $term_id = (int) ($entry['term_id'] ?? 0);
+        $lesson_count = (int) ($entry['lesson_count'] ?? 0);
+        if ($term_id <= 0 || $lesson_count <= 0 || isset($seen[$term_id])) {
+            return null;
+        }
+        $seen[$term_id] = true;
+        $entries[] = [
+            'term_id' => $term_id,
+            'lesson_count' => $lesson_count,
+        ];
+    }
+
+    return [
+        'schema' => 1,
+        'stored_at' => max(0, (int) ($payload['stored_at'] ?? 0)),
+        'entries' => $entries,
+    ];
+}
+
+/**
+ * Publish only a fully materialized anonymous item set behind the exact
+ * render-context fence. Empty exact sets are valid manifests too.
+ *
+ * @param array<int,array{term:WP_Term,lesson_count:int,is_private:bool}> $items
+ */
+function ll_tools_wordset_buttons_navigation_manifest_publish(
+    array $atts,
+    string $tag,
+    array $items,
+    string $expected_cache_key,
+    string $expected_stale_key
+): bool {
+    if (
+        get_current_user_id() !== 0
+        || !ll_tools_wordset_buttons_shortcode_context_matches(
+            $atts,
+            $tag,
+            $expected_cache_key,
+            $expected_stale_key
+        )
+    ) {
+        return false;
+    }
+
+    $entries = [];
+    foreach ($items as $item) {
+        $term = $item['term'] ?? null;
+        $lesson_count = (int) ($item['lesson_count'] ?? 0);
+        if (!$term instanceof WP_Term || (int) $term->term_id <= 0 || $lesson_count <= 0 || !empty($item['is_private'])) {
+            continue;
+        }
+        $entries[] = [
+            'term_id' => (int) $term->term_id,
+            'lesson_count' => $lesson_count,
+        ];
+    }
+
+    if (count($entries) > 5000) {
+        return false;
+    }
+
+    $key = ll_tools_wordset_buttons_navigation_manifest_key($atts, $tag);
+    $lock_token = function_exists('ll_tools_acquire_wordset_button_count_lock')
+        ? ll_tools_acquire_wordset_button_count_lock($key)
+        : '';
+    if ($lock_token === '') {
+        return false;
+    }
+
+    $write_token = function_exists('wp_generate_uuid4')
+        ? wp_generate_uuid4()
+        : wp_generate_password(32, false, false);
+    try {
+        if (!ll_tools_wordset_buttons_shortcode_context_matches(
+            $atts,
+            $tag,
+            $expected_cache_key,
+            $expected_stale_key
+        )) {
+            return false;
+        }
+
+        $missing = new stdClass();
+        $previous = get_option($key, $missing);
+        $payload = [
+            'schema' => 1,
+            'stored_at' => time(),
+            'source_context' => $expected_cache_key,
+            'write_token' => $write_token,
+            'entries' => $entries,
+        ];
+        update_option($key, $payload, false);
+        $published = get_option($key, null);
+        if (
+            !is_array($published)
+            || !hash_equals($write_token, (string) ($published['write_token'] ?? ''))
+        ) {
+            return false;
+        }
+        ll_tools_wordset_buttons_navigation_manifest_record_key($key);
+
+        if (ll_tools_wordset_buttons_shortcode_context_matches(
+            $atts,
+            $tag,
+            $expected_cache_key,
+            $expected_stale_key
+        )) {
+            return true;
+        }
+
+        ll_tools_wordset_buttons_navigation_manifest_restore_if_current(
+            $key,
+            $published,
+            $previous,
+            $missing
+        );
+        return false;
+    } finally {
+        ll_tools_release_wordset_button_count_lock($key, $lock_token);
+    }
+}
+
+/** Restore a prior manifest only if the stale candidate is still current. */
+function ll_tools_wordset_buttons_navigation_manifest_restore_if_current(
+    string $key,
+    array $current,
+    $previous,
+    stdClass $missing
+): bool {
+    global $wpdb;
+
+    $serialized_current = maybe_serialize($current);
+    if ($previous === $missing) {
+        $changed = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+            $key,
+            $serialized_current
+        ));
+    } else {
+        $changed = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+            maybe_serialize($previous),
+            $key,
+            $serialized_current
+        ));
+    }
+    wp_cache_delete($key, 'options');
+
+    return (int) $changed === 1;
+}
+
+/** Explicit maintenance/test reset. Normal cache invalidation preserves LKG membership. */
+function ll_tools_reset_wordset_buttons_navigation_manifests(): void {
+    $registry_key = 'll_tools_wordset_buttons_navigation_manifest_keys';
+    $keys = get_option($registry_key, []);
+    $keys = is_array($keys) ? array_values(array_filter(array_map('sanitize_key', $keys))) : [];
+    foreach ($keys as $key) {
+        delete_option($key);
+    }
+    delete_option($registry_key);
+}
+
 function ll_tools_wordset_buttons_shortcode_legacy_bridge_enabled(string $current_version = ''): bool {
     if ($current_version === '') {
         $current_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
@@ -1623,6 +1850,60 @@ function ll_tools_get_wordset_button_items(
     return ll_tools_get_wordset_button_items_from_counts($terms, $lesson_counts);
 }
 
+/**
+ * Resolve the durable public positive set against the current viewer's exact
+ * visibility scope. Stored names, URLs, privacy, and media are never trusted.
+ *
+ * @return array<int,array{term:WP_Term,lesson_count:int,is_private:bool}>
+ */
+function ll_tools_get_wordset_button_navigation_manifest_items(
+    array $atts,
+    string $tag,
+    ?bool &$complete = null,
+    ?bool &$manifest_found = null
+): array {
+    $manifest = ll_tools_wordset_buttons_navigation_manifest_get($atts, $tag);
+    $manifest_found = is_array($manifest);
+    $complete = true;
+    if (!$manifest_found) {
+        return [];
+    }
+
+    $terms_complete = true;
+    $terms = ll_tools_get_wordset_button_visible_terms(
+        ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
+        $terms_complete
+    );
+    if (!$terms_complete) {
+        $complete = false;
+        return [];
+    }
+
+    $term_lookup = [];
+    foreach ($terms as $term) {
+        if ($term instanceof WP_Term && (int) $term->term_id > 0) {
+            $term_lookup[(int) $term->term_id] = $term;
+        }
+    }
+
+    $items = [];
+    foreach ((array) ($manifest['entries'] ?? []) as $entry) {
+        $term_id = (int) ($entry['term_id'] ?? 0);
+        $lesson_count = (int) ($entry['lesson_count'] ?? 0);
+        $term = $term_lookup[$term_id] ?? null;
+        if (!$term instanceof WP_Term || $lesson_count <= 0) {
+            continue;
+        }
+        $items[] = [
+            'term' => $term,
+            'lesson_count' => $lesson_count,
+            'is_private' => function_exists('ll_tools_is_wordset_private') && ll_tools_is_wordset_private($term),
+        ];
+    }
+
+    return $items;
+}
+
 function ll_tools_wordset_buttons_shortcode_classes(array $atts, bool $loading = false): array {
     $classes = ['ll-wordset-page', 'll-wordset-page--shortcode', 'll-wordset-buttons-shortcode'];
     if ($loading) {
@@ -1637,6 +1918,194 @@ function ll_tools_wordset_buttons_shortcode_classes(array $atts, bool $loading =
         ));
 
     return array_values(array_unique(array_merge($classes, $extra_classes)));
+}
+
+/**
+ * Render one stable card. A hydrating card deliberately keeps its exact last
+ * known membership/order and current image while only the count pill shimmers.
+ */
+function ll_tools_wordset_buttons_shortcode_card_html(array $item, bool $count_loading = false): string {
+    $term = $item['term'] ?? null;
+    $lesson_count = (int) ($item['lesson_count'] ?? 0);
+    $is_private = !empty($item['is_private']);
+    if (!$term instanceof WP_Term || (int) $term->term_id <= 0 || $lesson_count <= 0) {
+        return '';
+    }
+
+    $term_id = (int) $term->term_id;
+    $term_name = function_exists('ll_tools_get_wordset_display_name')
+        ? ll_tools_get_wordset_display_name($term)
+        : (string) $term->name;
+    $url = function_exists('ll_tools_get_wordset_page_view_url')
+        ? (string) ll_tools_get_wordset_page_view_url($term)
+        : '';
+    if ($term_name === '' || $url === '') {
+        return '';
+    }
+
+    $button_image = function_exists('ll_tools_get_wordset_button_image_preview_data')
+        ? ll_tools_get_wordset_button_image_preview_data($term, 'large', true)
+        : ['attachment_id' => 0, 'url' => ''];
+    $button_image_url = trim((string) ($button_image['url'] ?? ''));
+    $has_button_image = ($button_image_url !== '');
+    $count_label = sprintf(
+        /* translators: %d: number of lesson pages in the word set. */
+        _n('%d lesson', '%d lessons', $lesson_count, 'll-tools-text-domain'),
+        $lesson_count
+    );
+    $privacy_label = __('Private word set', 'll-tools-text-domain');
+    if ($count_loading) {
+        $link_aria_label = $is_private
+            ? sprintf(
+                /* translators: 1: word set name, 2: word set privacy label. */
+                __('%1$s, %2$s', 'll-tools-text-domain'),
+                $term_name,
+                $privacy_label
+            )
+            : $term_name;
+    } else {
+        $link_aria_label = $is_private
+            ? sprintf(
+                /* translators: 1: word set name, 2: lesson count label. */
+                __('%1$s, private word set, %2$s', 'll-tools-text-domain'),
+                $term_name,
+                $count_label
+            )
+            : sprintf(
+                /* translators: 1: word set name, 2: lesson count label. */
+                __('%1$s, %2$s', 'll-tools-text-domain'),
+                $term_name,
+                $count_label
+            );
+    }
+
+    $button_classes = [
+        'll-study-btn',
+        'll-vocab-lesson-mode-button',
+        'll-wordset-buttons-shortcode__button',
+    ];
+    if ($has_button_image) {
+        $button_classes[] = 'll-wordset-buttons-shortcode__button--has-image';
+    }
+    if ($is_private) {
+        $button_classes[] = 'll-wordset-buttons-shortcode__button--private';
+    }
+    if ($count_loading) {
+        $button_classes[] = 'll-wordset-buttons-shortcode__button--navigation';
+        $button_classes[] = 'll-wordset-buttons-shortcode__button--hydrating';
+    }
+
+    ob_start();
+    ?>
+    <li class="ll-wordset-buttons-shortcode__item" data-ll-wordset-id="<?php echo esc_attr((string) $term_id); ?>">
+        <a
+            class="<?php echo esc_attr(implode(' ', $button_classes)); ?>"
+            href="<?php echo esc_url($url); ?>"
+            aria-label="<?php echo esc_attr($link_aria_label); ?>"
+            data-ll-wordset-id="<?php echo esc_attr((string) $term_id); ?>"
+            data-ll-wordset-card-state="<?php echo $count_loading ? 'hydrating' : 'ready'; ?>"
+            <?php if ($count_loading) : ?>aria-busy="true"<?php endif; ?>
+        >
+            <?php if ($has_button_image) : ?>
+                <span class="ll-wordset-buttons-shortcode__media" aria-hidden="true">
+                    <img class="ll-wordset-buttons-shortcode__image" src="<?php echo esc_url($button_image_url); ?>" alt="" loading="lazy" decoding="async" />
+                </span>
+            <?php endif; ?>
+            <span class="ll-wordset-buttons-shortcode__label-wrap">
+                <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term_name); ?></span>
+                <?php if ($is_private) : ?>
+                    <span class="ll-wordset-buttons-shortcode__privacy-badge" aria-hidden="true" title="<?php echo esc_attr($privacy_label); ?>"></span>
+                <?php endif; ?>
+            </span>
+            <?php if ($count_loading) : ?>
+                <span class="ll-wordset-buttons-shortcode__count ll-wordset-buttons-shortcode__count--loading" aria-hidden="true"></span>
+            <?php else : ?>
+                <span class="ll-wordset-buttons-shortcode__count"><?php echo esc_html($count_label); ?></span>
+            <?php endif; ?>
+        </a>
+    </li>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
+/** Prime term/attachment metadata once so a large card manifest stays bounded. */
+function ll_tools_wordset_buttons_shortcode_prime_card_media(array $items): void {
+    $term_ids = [];
+    foreach ($items as $item) {
+        $term = $item['term'] ?? null;
+        if ($term instanceof WP_Term && (int) $term->term_id > 0) {
+            $term_ids[] = (int) $term->term_id;
+        }
+    }
+    $term_ids = array_values(array_unique($term_ids));
+    if (empty($term_ids)) {
+        return;
+    }
+
+    update_meta_cache('term', $term_ids);
+    $attachment_ids = [];
+    foreach ($term_ids as $term_id) {
+        $attachment_id = (int) get_term_meta(
+            $term_id,
+            LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY,
+            true
+        );
+        if ($attachment_id > 0) {
+            $attachment_ids[] = $attachment_id;
+        }
+    }
+    $attachment_ids = array_values(array_unique($attachment_ids));
+    if (empty($attachment_ids)) {
+        return;
+    }
+
+    if (function_exists('_prime_post_caches')) {
+        _prime_post_caches($attachment_ids, true, true);
+    } else {
+        update_meta_cache('post', $attachment_ids);
+    }
+}
+
+/** @param array<int,array{term:WP_Term,lesson_count:int,is_private:bool}> $items */
+function ll_tools_wordset_buttons_shortcode_items_html(
+    array $atts,
+    array $items,
+    bool $count_loading = false
+): string {
+    $classes = ll_tools_wordset_buttons_shortcode_classes($atts, $count_loading);
+    if ($count_loading) {
+        $classes[] = 'll-wordset-buttons-shortcode--navigation';
+    }
+
+    ll_tools_wordset_buttons_shortcode_prime_card_media($items);
+    $cards = [];
+    foreach ($items as $item) {
+        $card = ll_tools_wordset_buttons_shortcode_card_html($item, $count_loading);
+        if ($card !== '') {
+            $cards[] = $card;
+        }
+    }
+    if (empty($cards)) {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <div
+        class="<?php echo esc_attr(implode(' ', array_unique($classes))); ?>"
+        <?php if ($count_loading) : ?>data-ll-wordset-buttons-navigation aria-busy="true"<?php endif; ?>
+    >
+        <?php if ($count_loading) : ?>
+            <span class="screen-reader-text"><?php echo esc_html__('Loading categories...', 'll-tools-text-domain'); ?></span>
+        <?php endif; ?>
+        <ul class="ll-wordset-buttons-shortcode__list">
+            <?php echo implode("\n", $cards); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Cards are escaped above. ?>
+        </ul>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
 }
 
 /**
@@ -1666,102 +2135,28 @@ function ll_tools_wordset_buttons_shortcode_loading_html(array $atts): string {
 }
 
 /**
- * Render the cheap, privacy-filtered wordset navigation while exact lesson
- * counts are still materializing.
- *
- * This shell deliberately omits lesson counts and button media. Both depend on
- * the completed render, while names and canonical page URLs come from the
- * already-resolved visible term catalog and should never be blocked by that
- * background work.
+ * Render the last exact positive public membership while current exact counts
+ * materialize. New/unproven terms fail closed; current visibility and card
+ * metadata are re-resolved on every request.
  */
 function ll_tools_wordset_buttons_shortcode_navigation_html(
     array $atts,
-    ?bool &$complete = null
+    string $tag = 'll_wordset_buttons',
+    ?bool &$complete = null,
+    ?bool &$manifest_found = null
 ): string {
-    $terms_complete = true;
-    $terms = ll_tools_get_wordset_button_visible_terms(
-        ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
-        $terms_complete
+    $manifest_found = false;
+    $items = ll_tools_get_wordset_button_navigation_manifest_items(
+        $atts,
+        $tag,
+        $complete,
+        $manifest_found
     );
-    $complete = $terms_complete;
-    if (!$terms_complete || empty($terms)) {
+    if (!$manifest_found || !$complete || empty($items)) {
         return '';
     }
 
-    $classes = ll_tools_wordset_buttons_shortcode_classes($atts, true);
-    $classes[] = 'll-wordset-buttons-shortcode--navigation';
-
-    ob_start();
-    ?>
-    <div
-        class="<?php echo esc_attr(implode(' ', array_unique($classes))); ?>"
-        data-ll-wordset-buttons-navigation
-        aria-busy="true"
-    >
-        <span class="screen-reader-text"><?php echo esc_html__('Loading categories...', 'll-tools-text-domain'); ?></span>
-        <ul class="ll-wordset-buttons-shortcode__list">
-            <?php foreach ($terms as $term) : ?>
-                <?php
-                if (!$term instanceof WP_Term || (int) $term->term_id <= 0) {
-                    continue;
-                }
-
-                $term_name = function_exists('ll_tools_get_wordset_display_name')
-                    ? ll_tools_get_wordset_display_name($term)
-                    : (string) $term->name;
-                $url = function_exists('ll_tools_get_wordset_page_view_url')
-                    ? (string) ll_tools_get_wordset_page_view_url($term)
-                    : '';
-                if ($term_name === '' || $url === '') {
-                    continue;
-                }
-
-                $is_private = function_exists('ll_tools_is_wordset_private')
-                    && ll_tools_is_wordset_private($term);
-                $privacy_label = __('Private word set', 'll-tools-text-domain');
-                $link_aria_label = $is_private
-                    ? sprintf(
-                        /* translators: 1: word set name, 2: word set privacy label. */
-                        __('%1$s, %2$s', 'll-tools-text-domain'),
-                        $term_name,
-                        $privacy_label
-                    )
-                    : $term_name;
-                $button_classes = [
-                    'll-study-btn',
-                    'll-vocab-lesson-mode-button',
-                    'll-wordset-buttons-shortcode__button',
-                    'll-wordset-buttons-shortcode__button--navigation',
-                ];
-                if ($is_private) {
-                    $button_classes[] = 'll-wordset-buttons-shortcode__button--private';
-                }
-                ?>
-                <li class="ll-wordset-buttons-shortcode__item">
-                    <a
-                        class="<?php echo esc_attr(implode(' ', $button_classes)); ?>"
-                        href="<?php echo esc_url($url); ?>"
-                        aria-label="<?php echo esc_attr($link_aria_label); ?>"
-                    >
-                        <span class="ll-wordset-buttons-shortcode__label-wrap">
-                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term_name); ?></span>
-                            <?php if ($is_private) : ?>
-                                <span
-                                    class="ll-wordset-buttons-shortcode__privacy-badge"
-                                    aria-hidden="true"
-                                    title="<?php echo esc_attr($privacy_label); ?>"
-                                ></span>
-                            <?php endif; ?>
-                        </span>
-                    </a>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-    <?php
-
-    $html = trim((string) ob_get_clean());
-    return strpos($html, 'll-wordset-buttons-shortcode__button') !== false ? $html : '';
+    return ll_tools_wordset_buttons_shortcode_items_html($atts, $items, true);
 }
 
 function ll_tools_wordset_buttons_shortcode_refresh_retry_ms(): int {
@@ -1818,6 +2213,47 @@ function ll_tools_wordset_buttons_shortcode_reset_public_status_throttle(string 
     }
 
     ll_tools_public_ajax_reset_counter('ll_ws_btn_status_rl_', $identifier);
+}
+
+function ll_tools_wordset_buttons_shortcode_public_worker_window(): int {
+    return min(30, max(1, (int) apply_filters(
+        'll_tools_wordset_buttons_shortcode_public_worker_window',
+        3
+    )));
+}
+
+/**
+ * Admit at most one bounded anonymous builder batch per exact public context
+ * in a short global window. This keeps polling useful when WP-Cron is disabled
+ * or backlogged without allowing every visitor to launch the same scan.
+ */
+function ll_tools_wordset_buttons_shortcode_public_worker_admission(array $atts, string $tag): array {
+    if (!function_exists('ll_tools_public_ajax_reserve_counter')) {
+        return [
+            'allowed' => true,
+            'count' => 0,
+            'limit' => 0,
+            'retry_after' => 0,
+        ];
+    }
+
+    return ll_tools_public_ajax_reserve_counter(
+        'll_ws_btn_worker_',
+        ll_tools_wordset_buttons_navigation_manifest_key($atts, $tag),
+        1,
+        ll_tools_wordset_buttons_shortcode_public_worker_window()
+    );
+}
+
+function ll_tools_wordset_buttons_shortcode_reset_public_worker_admission(array $atts, string $tag): void {
+    if (!function_exists('ll_tools_public_ajax_reset_counter')) {
+        return;
+    }
+
+    ll_tools_public_ajax_reset_counter(
+        'll_ws_btn_worker_',
+        ll_tools_wordset_buttons_navigation_manifest_key($atts, $tag)
+    );
 }
 
 function ll_tools_wordset_buttons_shortcode_public_status_retry_payload(int $retry_after_seconds): array {
@@ -2102,8 +2538,14 @@ function ll_tools_wordset_buttons_shortcode_incomplete_html(
     }
 
     $navigation_complete = true;
-    $navigation_html = $context_current && $stale_html === ''
-        ? ll_tools_wordset_buttons_shortcode_navigation_html($atts, $navigation_complete)
+    $navigation_manifest_found = false;
+    $navigation_html = $context_current
+        ? ll_tools_wordset_buttons_shortcode_navigation_html(
+            $atts,
+            $tag,
+            $navigation_complete,
+            $navigation_manifest_found
+        )
         : '';
     if (
         !ll_tools_wordset_buttons_shortcode_context_matches(
@@ -2116,12 +2558,19 @@ function ll_tools_wordset_buttons_shortcode_incomplete_html(
         $stale_html = '';
         $navigation_html = '';
         $navigation_complete = false;
+        $navigation_manifest_found = false;
     }
-    $inner_html = $stale_html !== ''
-        ? $stale_html
-        : ($navigation_complete && $navigation_html !== ''
-            ? $navigation_html
-            : ll_tools_wordset_buttons_shortcode_loading_html($atts));
+    if ($navigation_complete && $navigation_html !== '') {
+        $inner_html = $navigation_html;
+    } elseif ($navigation_manifest_found) {
+        // An authoritative empty/currently invisible manifest must suppress an
+        // older positive LKG instead of resurrecting ineligible navigation.
+        $inner_html = ll_tools_wordset_buttons_shortcode_loading_html($atts);
+    } elseif ($stale_html !== '') {
+        $inner_html = $stale_html;
+    } else {
+        $inner_html = ll_tools_wordset_buttons_shortcode_loading_html($atts);
+    }
     return $allow_refresh
         ? ll_tools_wordset_buttons_shortcode_refresh_html($atts, $tag, $inner_html)
         : $inner_html;
@@ -2166,6 +2615,29 @@ function ll_tools_wordset_buttons_shortcode_render(
             if (ll_tools_wordset_buttons_shortcode_stale_get($expected_stale_key) === '') {
                 ll_tools_wordset_buttons_shortcode_stale_set($expected_stale_key, $cached_html);
             }
+            if (
+                get_current_user_id() === 0
+                && ll_tools_wordset_buttons_navigation_manifest_get($atts, $tag) === null
+            ) {
+                $manifest_items_complete = true;
+                $manifest_retry_after_ms = 0;
+                $manifest_items = ll_tools_get_wordset_button_items(
+                    ll_tools_wordset_buttons_shortcode_is_truthy($atts['hide_empty'] ?? '0'),
+                    true,
+                    $manifest_items_complete,
+                    $manifest_retry_after_ms,
+                    false
+                );
+                if ($manifest_items_complete) {
+                    ll_tools_wordset_buttons_navigation_manifest_publish(
+                        $atts,
+                        $tag,
+                        $manifest_items,
+                        $expected_cache_key,
+                        $expected_stale_key
+                    );
+                }
+            }
             return $cached_html;
         }
     }
@@ -2204,94 +2676,30 @@ function ll_tools_wordset_buttons_shortcode_render(
             $expected_stale_key
         );
     }
+    if (
+        get_current_user_id() === 0
+        && !ll_tools_wordset_buttons_navigation_manifest_publish(
+            $atts,
+            $tag,
+            $items,
+            $expected_cache_key,
+            $expected_stale_key
+        )
+    ) {
+        $complete = false;
+        return ll_tools_wordset_buttons_shortcode_incomplete_html(
+            $atts,
+            $tag,
+            $allow_refresh,
+            $expected_cache_key,
+            $expected_stale_key
+        );
+    }
     if (empty($items)) {
         return '';
     }
 
-    $classes = ll_tools_wordset_buttons_shortcode_classes($atts);
-
-    ob_start();
-    ?>
-    <div class="<?php echo esc_attr(implode(' ', array_unique($classes))); ?>">
-        <ul class="ll-wordset-buttons-shortcode__list">
-            <?php foreach ($items as $item) : ?>
-                <?php
-                $term = $item['term'] ?? null;
-                $lesson_count = isset($item['lesson_count']) ? (int) $item['lesson_count'] : 0;
-                $is_private = !empty($item['is_private']);
-                if (!$term instanceof WP_Term || $lesson_count <= 0) {
-                    continue;
-                }
-                $term_name = function_exists('ll_tools_get_wordset_display_name')
-                    ? ll_tools_get_wordset_display_name($term)
-                    : (string) $term->name;
-
-                $url = function_exists('ll_tools_get_wordset_page_view_url')
-                    ? (string) ll_tools_get_wordset_page_view_url($term)
-                    : '';
-                if ($url === '') {
-                    continue;
-                }
-
-                $button_image = function_exists('ll_tools_get_wordset_button_image_preview_data')
-                    ? ll_tools_get_wordset_button_image_preview_data($term, 'large', true)
-                    : ['attachment_id' => 0, 'url' => ''];
-                $button_image_url = trim((string) ($button_image['url'] ?? ''));
-                $has_button_image = ($button_image_url !== '');
-
-                $count_label = sprintf(
-                    /* translators: %d: number of lesson pages in the word set. */
-                    _n('%d lesson', '%d lessons', $lesson_count, 'll-tools-text-domain'),
-                    $lesson_count
-                );
-                $privacy_label = __('Private word set', 'll-tools-text-domain');
-                $link_aria_label = $is_private
-                    ? sprintf(
-                        /* translators: 1: word set name, 2: lesson count label. */
-                        __('%1$s, private word set, %2$s', 'll-tools-text-domain'),
-                        $term_name,
-                        $count_label
-                    )
-                    : sprintf(
-                        /* translators: 1: word set name, 2: lesson count label. */
-                        __('%1$s, %2$s', 'll-tools-text-domain'),
-                        $term_name,
-                        $count_label
-                    );
-                $button_classes = [
-                    'll-study-btn',
-                    'll-vocab-lesson-mode-button',
-                    'll-wordset-buttons-shortcode__button',
-                ];
-                if ($has_button_image) {
-                    $button_classes[] = 'll-wordset-buttons-shortcode__button--has-image';
-                }
-                if ($is_private) {
-                    $button_classes[] = 'll-wordset-buttons-shortcode__button--private';
-                }
-                ?>
-                <li class="ll-wordset-buttons-shortcode__item">
-                    <a class="<?php echo esc_attr(implode(' ', $button_classes)); ?>" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr($link_aria_label); ?>">
-                        <?php if ($has_button_image) : ?>
-                            <span class="ll-wordset-buttons-shortcode__media" aria-hidden="true">
-                                <img class="ll-wordset-buttons-shortcode__image" src="<?php echo esc_url($button_image_url); ?>" alt="" loading="lazy" decoding="async" />
-                            </span>
-                        <?php endif; ?>
-                        <span class="ll-wordset-buttons-shortcode__label-wrap">
-                            <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term_name); ?></span>
-                            <?php if ($is_private) : ?>
-                                <span class="ll-wordset-buttons-shortcode__privacy-badge" aria-hidden="true" title="<?php echo esc_attr($privacy_label); ?>"></span>
-                            <?php endif; ?>
-                        </span>
-                        <span class="ll-wordset-buttons-shortcode__count"><?php echo esc_html($count_label); ?></span>
-                    </a>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-    <?php
-
-    $html = trim((string) ob_get_clean());
+    $html = ll_tools_wordset_buttons_shortcode_items_html($atts, $items, false);
     if ($html === '' || strpos($html, 'll-wordset-buttons-shortcode__button') === false) {
         return '';
     }
@@ -2406,7 +2814,20 @@ function ll_tools_wordset_buttons_shortcode_public_status_payload(array $atts, s
         ];
     }
 
-    return ll_tools_wordset_buttons_shortcode_refresh_payload($atts, $tag, false);
+    $admission = ll_tools_wordset_buttons_shortcode_public_worker_admission($atts, $tag);
+    $payload = ll_tools_wordset_buttons_shortcode_refresh_payload(
+        $atts,
+        $tag,
+        !empty($admission['allowed'])
+    );
+    if (empty($payload['complete']) && empty($admission['allowed'])) {
+        $payload['retryAfterMs'] = max(
+            (int) ($payload['retryAfterMs'] ?? 0),
+            max(1, (int) ($admission['retry_after'] ?? 1)) * 1000
+        );
+    }
+
+    return $payload;
 }
 
 function ll_tools_wordset_buttons_shortcode_status_error_http_code(string $error_code): int {

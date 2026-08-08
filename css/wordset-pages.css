@@ -815,14 +815,16 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-buttons-shortcode__loading-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
     gap: 10px;
     width: 100%;
-    min-height: 72px;
-    padding: 14px 18px;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    padding: 16px;
     border: 1px solid rgba(148, 163, 184, 0.3);
     border-radius: 16px;
     background: #f8fafc;
@@ -841,12 +843,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-buttons-shortcode__loading-line--label {
+    position: absolute;
+    top: 16px;
+    left: 16px;
     width: min(68%, 220px);
 }
 
 .ll-wordset-buttons-shortcode__loading-line--count {
-    width: min(34%, 110px);
-    height: 10px;
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    width: 88px;
+    height: 32px;
 }
 
 .ll-wordset-buttons-refresh__error {
@@ -1091,6 +1099,43 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     box-shadow: none;
 }
 
+.ll-wordset-buttons-shortcode__count--loading {
+    position: relative;
+    width: 88px;
+    min-width: 88px;
+    overflow: hidden;
+    color: transparent !important;
+    background: #e2e8f0 !important;
+    border-color: rgba(148, 163, 184, 0.38) !important;
+}
+
+.ll-wordset-buttons-shortcode__count--loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 12%, rgba(255, 255, 255, 0.82) 42%, transparent 72%);
+    transform: translateX(-100%);
+    animation: ll-wordset-count-shimmer 1.15s linear infinite;
+}
+
+.ll-wordset-buttons-shortcode__count--stalled::after {
+    animation: none;
+    background: none;
+    transform: none;
+}
+
+@keyframes ll-wordset-count-shimmer {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ll-wordset-buttons-shortcode__count--loading::after {
+        animation: none;
+    }
+}
+
 .ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count {
     position: absolute;
     right: 16px;
@@ -1100,6 +1145,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: rgba(255, 255, 255, 0.94) !important;
     color: #10233f !important;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.ll-wordset-buttons-shortcode__button--has-image .ll-wordset-buttons-shortcode__count--loading {
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    background: rgba(226, 232, 240, 0.94) !important;
+    color: transparent !important;
 }
 
 .ll-wordset-buttons-shortcode__button--has-image:hover .ll-wordset-buttons-shortcode__count,

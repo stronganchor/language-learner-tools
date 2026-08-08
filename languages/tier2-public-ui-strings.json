@@ -4879,15 +4879,15 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:13346",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2015",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2052",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2066"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2451",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2488",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2502"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:13346",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2015",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2052",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2066"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2451",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2488",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2502"
             ]
         },
         {
@@ -10003,18 +10003,18 @@
                 "includes/shortcodes/flashcard-widget.php:713",
                 "includes/shortcodes/flashcard-widget.php:718",
                 "includes/shortcodes/flashcard-widget.php:720",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2014",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2051",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2065"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2450",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2487",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2501"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:712",
                 "includes/shortcodes/flashcard-widget.php:713",
                 "includes/shortcodes/flashcard-widget.php:718",
                 "includes/shortcodes/flashcard-widget.php:720",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2014",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2051",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2065"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2450",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2487",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2501"
             ]
         },
         {
@@ -10027,13 +10027,13 @@
                 "includes/admin/image-aspect-normalizer-admin.php:85",
                 "includes/admin/offline-app-export.php:920",
                 "includes/shortcodes/flashcard-widget.php:717",
-                "includes/shortcodes/wordset-buttons-shortcode.php:1651",
-                "includes/shortcodes/wordset-buttons-shortcode.php:1701"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2100",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2120"
             ],
             "public_references": [
                 "includes/shortcodes/flashcard-widget.php:717",
-                "includes/shortcodes/wordset-buttons-shortcode.php:1651",
-                "includes/shortcodes/wordset-buttons-shortcode.php:1701"
+                "includes/shortcodes/wordset-buttons-shortcode.php:2100",
+                "includes/shortcodes/wordset-buttons-shortcode.php:2120"
             ]
         },
         {
@@ -10780,17 +10780,27 @@
             ]
         },
         {
+            "key": "0dc961245228a849a7e52da980f46afd91924629",
+            "context": "",
+            "msgid": "%d lesson",
+            "msgid_plural": "%d lessons",
+            "references": [
+                "includes/shortcodes/wordset-buttons-shortcode.php:1953"
+            ],
+            "public_references": [
+                "includes/shortcodes/wordset-buttons-shortcode.php:1953"
+            ]
+        },
+        {
             "key": "791b75b5476b789410f55ae3f721368c80a19762",
             "context": "",
             "msgid": "Private word set",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1721",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2247"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1956"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1721",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2247"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1956"
             ]
         },
         {
@@ -10799,24 +10809,12 @@
             "msgid": "%1$s, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1725",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2257"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1961",
+                "includes/shortcodes/wordset-buttons-shortcode.php:1976"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:1725",
-                "includes/shortcodes/wordset-buttons-shortcode.php:2257"
-            ]
-        },
-        {
-            "key": "0dc961245228a849a7e52da980f46afd91924629",
-            "context": "",
-            "msgid": "%d lesson",
-            "msgid_plural": "%d lessons",
-            "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2244"
-            ],
-            "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2244"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1961",
+                "includes/shortcodes/wordset-buttons-shortcode.php:1976"
             ]
         },
         {
@@ -10825,10 +10823,10 @@
             "msgid": "%1$s, private word set, %2$s",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2251"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1970"
             ],
             "public_references": [
-                "includes/shortcodes/wordset-buttons-shortcode.php:2251"
+                "includes/shortcodes/wordset-buttons-shortcode.php:1970"
             ]
         },
         {
