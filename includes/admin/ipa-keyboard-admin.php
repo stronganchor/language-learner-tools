@@ -2786,7 +2786,7 @@ function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): ar
 }
 
 function ll_tools_ipa_keyboard_get_validation_schema_version(): int {
-    return 23;
+    return 24;
 }
 
 function ll_tools_ipa_keyboard_get_builtin_validation_rules(): array {
@@ -7613,10 +7613,13 @@ function ll_tools_ipa_keyboard_token_unexpected_tie_bar_pair(string $token, stri
         "d\u{0361}b",
         "t\u{0361}s",
         "t\u{0361}ʃ",
+        "t\u{0361}ç",
         "t\u{0361}p",
         "t\u{0361}ʙ",
         "c\u{0361}ç",
+        "p\u{0361}ç",
         "p\u{0361}f",
+        "q\u{0361}χ",
     ];
     $allowed_pairs = array_fill_keys($allowed_pairs, true);
 

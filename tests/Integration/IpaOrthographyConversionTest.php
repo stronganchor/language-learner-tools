@@ -276,7 +276,12 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Allowed Tie Bar Validation');
         $word_id = $this->createWord($wordset_id, 'Allowed Tie Bar', '');
-        $recording_id = $this->createRecording($word_id, 'Ciniya rençber veştwüriya', "d\u{032A}\u{0361}ʒinija rɛnt\u{032A}\u{0361}ʃbɛɾ vɛʃt\u{032A}\u{0361}pyɾija c\u{0361}ç");
+        $recording_id = $this->createRecording(
+            $word_id,
+            'Ciniya rençber veştwüriya',
+            "d\u{032A}\u{0361}ʒinija rɛnt\u{032A}\u{0361}ʃbɛɾ vɛʃt\u{032A}\u{0361}pyɾija c\u{0361}ç "
+                . "p\u{0361}ç p\u{035C}ç t\u{0361}ç t\u{035C}ç q\u{0361}χ q\u{035C}χ"
+        );
 
         ll_tools_ipa_keyboard_update_recording_validation($recording_id);
         $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
@@ -285,6 +290,35 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         }, (array) ($validation['active'] ?? []));
 
         $this->assertNotContains('unexpected_tie_bar_pair', $codes);
+    }
+
+    public function test_wordset_manual_rules_project_affricated_stop_releases_to_stop_letters(): void
+    {
+        $wordset_id = $this->createWordset('Affricated Stop Release Orthography');
+        update_term_meta($wordset_id, 'll_language', 'zza');
+        update_term_meta($wordset_id, ll_tools_ipa_orthography_profile_meta_key(), 'zazaki_genc_palu');
+        update_term_meta(
+            $wordset_id,
+            ll_tools_ipa_orthography_manual_rules_meta_key(),
+            ll_tools_ipa_orthography_sanitize_manual_rules([
+                "p\u{0361}ç" => ['any' => 'p'],
+                "p\u{035C}ç" => ['any' => 'p'],
+                "t\u{0361}ç" => ['any' => 't'],
+                "t\u{035C}ç" => ['any' => 't'],
+                "q\u{0361}χ" => ['any' => 'q'],
+                "q\u{035C}χ" => ['any' => 'q'],
+            ], $wordset_id)
+        );
+
+        $engine_rules = ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id);
+        $prediction = ll_tools_ipa_orthography_convert_ipa_to_best_text(
+            "p\u{0361}ça t\u{035C}ça q\u{0361}χa p\u{035C}ça t\u{0361}ça q\u{035C}χa",
+            $engine_rules,
+            $wordset_id
+        );
+
+        $this->assertTrue((bool) ($prediction['complete'] ?? false));
+        $this->assertSame('Pa ta qa pa ta qa', (string) ($prediction['text'] ?? ''));
     }
 
     public function test_word_overrides_and_optional_matches_are_wordset_settings(): void
