@@ -13,6 +13,12 @@ if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_EXISTS_OPTION')) {
 if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK')) {
     define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK', 'll_tools_wordset_category_search_rebuild_batch');
 }
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK')) {
+    define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK', 'll_tools_wordset_category_search_schedule_sweep_batch');
+}
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION')) {
+    define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION', 'll_tools_wcs_sweep_generation');
+}
 
 /**
  * Return the durable word/category search-index table name.
@@ -723,6 +729,192 @@ function ll_tools_schedule_wordset_category_search_rebuild(int $wordset_id, int 
         );
     }
 }
+
+/**
+ * Return the current global scheduling-sweep generation.
+ */
+function ll_tools_wordset_category_search_sweep_generation(): int {
+    if (function_exists('ll_tools_read_option_epoch')) {
+        return ll_tools_read_option_epoch(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION);
+    }
+
+    return max(1, (int) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION, 1));
+}
+
+/**
+ * Request a fresh bounded sweep across all wordsets.
+ *
+ * Passing the generation and keyset cursor as cron arguments makes an older
+ * sweep self-cancel after a newer global invalidation. No request hydrates an
+ * unbounded wordset ID list or stores an offset-based catalog cursor.
+ */
+function ll_tools_request_wordset_category_search_rebuild_sweep(int $delay = 2): int {
+    if (function_exists('ll_tools_atomic_increment_option_epoch')) {
+        $generation = ll_tools_atomic_increment_option_epoch(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION
+        );
+    } else {
+        $generation = ll_tools_wordset_category_search_sweep_generation() + 1;
+        update_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION,
+            $generation,
+            false
+        );
+    }
+    $generation = max(1, (int) $generation);
+    // Coalesce a burst of structural mutations behind one cursorless kick.
+    // The cron callback snapshots the newest generation when that kick runs.
+    $args = [];
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, $args)) {
+        wp_schedule_single_event(
+            time() + max(1, min(HOUR_IN_SECONDS, $delay)),
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+            $args
+        );
+    }
+
+    return $generation;
+}
+
+/**
+ * Schedule rebuilds for a known complete wordset scope.
+ *
+ * @param array|int $wordset_ids
+ */
+function ll_tools_schedule_wordset_category_search_rebuild_scope($wordset_ids, int $delay = 2): void {
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($wordset_ids, SORT_NUMERIC);
+
+    foreach ($wordset_ids as $offset => $wordset_id) {
+        ll_tools_schedule_wordset_category_search_rebuild(
+            $wordset_id,
+            $delay + min(60, $offset * 2)
+        );
+    }
+}
+
+/**
+ * Return one bounded keyset page of wordset IDs for the scheduling sweep.
+ *
+ * @return int[]
+ */
+function ll_tools_wordset_category_search_get_sweep_wordset_batch(
+    int $after_wordset_id,
+    int $limit,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $after_wordset_id = max(0, $after_wordset_id);
+    $limit = max(1, min(50, $limit));
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_col($wpdb->prepare(
+        "SELECT terms.term_id
+         FROM {$wpdb->terms} AS terms
+         INNER JOIN {$wpdb->term_taxonomy} AS taxonomy
+            ON taxonomy.term_id = terms.term_id
+           AND taxonomy.taxonomy = 'wordset'
+         WHERE terms.term_id > %d
+         ORDER BY terms.term_id ASC
+         LIMIT %d",
+        $after_wordset_id,
+        $limit
+    ));
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+
+    return array_values(array_filter(array_map('intval', (array) $rows), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+}
+
+/**
+ * Queue one bounded page of per-wordset rebuild events.
+ */
+function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, $after_wordset_id = 0): void {
+    $generation = (int) $generation;
+    $after_wordset_id = max(0, (int) $after_wordset_id);
+    if ($generation <= 0) {
+        $generation = ll_tools_wordset_category_search_sweep_generation();
+        $after_wordset_id = 0;
+    }
+    if ($generation !== ll_tools_wordset_category_search_sweep_generation()) {
+        return;
+    }
+
+    $batch_size = (int) apply_filters('ll_tools_wordset_category_search_sweep_batch_size', 10);
+    $batch_size = max(1, min(50, $batch_size));
+    $complete = true;
+    $wordset_ids = ll_tools_wordset_category_search_get_sweep_wordset_batch(
+        $after_wordset_id,
+        $batch_size,
+        $complete
+    );
+    if (!$complete) {
+        $args = [$generation, $after_wordset_id];
+        if (!wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, $args)) {
+            wp_schedule_single_event(
+                time() + MINUTE_IN_SECONDS,
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                $args
+            );
+        }
+        return;
+    }
+
+    ll_tools_schedule_wordset_category_search_rebuild_scope($wordset_ids);
+    if (count($wordset_ids) < $batch_size) {
+        return;
+    }
+    if ($generation !== ll_tools_wordset_category_search_sweep_generation()) {
+        return;
+    }
+
+    $next_cursor = (int) end($wordset_ids);
+    $args = [$generation, $next_cursor];
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, $args)) {
+        wp_schedule_single_event(
+            time() + max(3, min(2 * $batch_size + 2, MINUTE_IN_SECONDS)),
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+            $args
+        );
+    }
+}
+add_action(
+    LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+    'll_tools_wordset_category_search_run_scheduling_sweep',
+    10,
+    2
+);
+
+/**
+ * Keep the durable search index ahead of scoped content mutations.
+ *
+ * @param array<string,mixed> $result
+ */
+function ll_tools_wordset_category_search_schedule_after_content_epoch_bump(array $result): void {
+    $wordset_ids = array_values(array_filter(array_map(
+        'intval',
+        array_keys((array) ($result['wordset_epochs'] ?? []))
+    )));
+    if (!empty($result['scope_complete']) && !empty($wordset_ids)) {
+        ll_tools_schedule_wordset_category_search_rebuild_scope($wordset_ids);
+        return;
+    }
+
+    ll_tools_request_wordset_category_search_rebuild_sweep();
+}
+add_action(
+    'll_tools_quiz_content_cache_epoch_bumped',
+    'll_tools_wordset_category_search_schedule_after_content_epoch_bump',
+    10,
+    1
+);
 
 /**
  * Return one bounded keyset batch of published words and their search strings.

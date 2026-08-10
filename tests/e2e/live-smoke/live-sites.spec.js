@@ -1,7 +1,11 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
-const { isExpectedCloudflareRumAbort } = require('./network-policy');
+const {
+  isExpectedCloudflareRumAbort,
+  isExpectedCategorySearchWarmingResponse,
+  isPotentialCategorySearchWarmingConsoleError
+} = require('./network-policy');
 
 const DEFAULT_SITES_FILE = path.resolve(__dirname, 'sites.local.json');
 const EXAMPLE_SITES_FILE = path.resolve(__dirname, 'sites.example.json');
@@ -542,15 +546,30 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
     () => countVisible(page, '.ll-wordset-card'),
     { timeout: 10000 }
   ).toBe(0);
+  const getSearchOutcome = async () => {
+    if (await isSelectorVisible(page, '[data-ll-wordset-page-search-empty]')) {
+      return 'empty';
+    }
+    if (await isSelectorVisible(page, '[data-ll-wordset-page-search-error]')) {
+      return 'retry';
+    }
+    return 'pending';
+  };
   await expect.poll(
-    () => isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search'),
-    { timeout: 10000 }
-  ).toBe(true);
+    getSearchOutcome,
+    {
+      timeout: 10000,
+      message: 'Wordset no-match search did not settle to a real empty result or an explicit Retry state.'
+    }
+  ).not.toBe('pending');
 
   const noMatchVisibleCardCount = await countVisible(page, '.ll-wordset-card');
-  const emptyVisible = await isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search');
+  const searchOutcome = await getSearchOutcome();
   expect(noMatchVisibleCardCount).toBe(0);
-  expect(emptyVisible).toBe(true);
+  expect(
+    searchOutcome,
+    'Wordset search exhausted durable-index warming and exposed Retry instead of a verified no-match result.'
+  ).toBe('empty');
 
   await searchInput.fill('');
   await expect.poll(
@@ -566,6 +585,7 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
     initialVisibleCardCount,
     filteredVisibleCardCount,
     noMatchVisibleCardCount,
+    searchOutcome,
     restoredVisibleCardCount
   };
 }
@@ -635,12 +655,29 @@ if (loadSitesError) {
         expectedSameOriginRequestAborts: [],
         sameOriginRequestFailures: [],
         sameOriginServerErrors: [],
+        categorySearchResponses: [],
+        categorySearchWarmingResponses: [],
+        categorySearchWarmingConsoleErrors: [],
         cloudflareCacheChecks: []
       };
 
+      const potentialCategorySearchWarmingConsoleErrors = [];
+
       page.on('console', (message) => {
         if (message.type() === 'error') {
-          summary.consoleErrors.push(message.text());
+          const location = message.location();
+          if (
+            exercise.wordsetSearch
+            && isPotentialCategorySearchWarmingConsoleError(
+              message.text(),
+              String((location && location.url) || ''),
+              siteUrl.origin
+            )
+          ) {
+            potentialCategorySearchWarmingConsoleErrors.push(message.text());
+          } else {
+            summary.consoleErrors.push(message.text());
+          }
         }
       });
 
@@ -698,6 +735,21 @@ if (loadSitesError) {
           }
         } catch (_) {
           return;
+        }
+        const requestDetails = parseRequestDetails(response.request());
+        if (
+          exercise.wordsetSearch
+          && requestDetails.adminAjaxAction === 'll_tools_wordset_page_category_search'
+        ) {
+          const responseDetails = {
+            status: response.status(),
+            url: response.url()
+          };
+          summary.categorySearchResponses.push(responseDetails);
+          if (isExpectedCategorySearchWarmingResponse(requestDetails, response.status())) {
+            summary.categorySearchWarmingResponses.push(responseDetails);
+            return;
+          }
         }
         if (response.status() >= 500) {
           summary.sameOriginServerErrors.push({
@@ -791,6 +843,21 @@ if (loadSitesError) {
 
       if (interaction.openSelector) {
         summary.popupExercise = await exercisePopupOpenClose(page, interaction);
+      }
+
+      const categorySearchRecovered = summary.categorySearchResponses.some((item) => (
+        item.status >= 200 && item.status < 300
+      ));
+      if (summary.categorySearchWarmingResponses.length > 0 && categorySearchRecovered) {
+        summary.categorySearchWarmingConsoleErrors = potentialCategorySearchWarmingConsoleErrors.slice();
+      } else {
+        summary.consoleErrors.push(...potentialCategorySearchWarmingConsoleErrors);
+      }
+      if (summary.categorySearchWarmingResponses.length > 0) {
+        expect(
+          categorySearchRecovered,
+          'Retryable category-search preparation responses never recovered to a successful response.'
+        ).toBe(true);
       }
 
       await attachJson(testInfo, 'summary', summary);

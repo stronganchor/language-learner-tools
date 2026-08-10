@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.7.12
+Version: 6.7.13
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,7 +19,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.7.12');
+define('LL_TOOLS_VERSION', '6.7.13');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
@@ -300,6 +300,9 @@ add_filter('user_has_cap', 'll_tools_grant_view_cap_to_administrators', 10, 4);
  */
 function ll_tools_schedule_post_update_maintenance(): void {
     set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 10 * MINUTE_IN_SECONDS);
+    if (function_exists('ll_tools_request_wordset_category_search_rebuild_sweep')) {
+        ll_tools_request_wordset_category_search_rebuild_sweep(5);
+    }
 }
 
 /**

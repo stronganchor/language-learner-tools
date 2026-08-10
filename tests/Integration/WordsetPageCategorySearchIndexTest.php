@@ -510,6 +510,116 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_complete_content_epoch_scope_schedules_only_the_affected_wordset(): void
+    {
+        $wordset_one = wp_insert_term('Scoped Search Rebuild One ' . wp_generate_password(5, false), 'wordset');
+        $wordset_two = wp_insert_term('Scoped Search Rebuild Two ' . wp_generate_password(5, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_one));
+        $this->assertFalse(is_wp_error($wordset_two));
+        $wordset_one_id = (int) $wordset_one['term_id'];
+        $wordset_two_id = (int) $wordset_two['term_id'];
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+
+        try {
+            $result = ll_tools_bump_quiz_content_cache_epoch([$wordset_one_id], true);
+
+            $this->assertTrue((bool) ($result['scope_complete'] ?? false));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_one_id]
+            ));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_two_id]
+            ));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                []
+            ));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_global_scheduling_sweep_uses_bounded_wordset_keyset_pages(): void
+    {
+        $wordset_ids = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordset = wp_insert_term(
+                'Global Search Sweep ' . $index . ' ' . wp_generate_password(5, false),
+                'wordset'
+            );
+            $this->assertFalse(is_wp_error($wordset));
+            $wordset_ids[] = (int) $wordset['term_id'];
+        }
+        sort($wordset_ids, SORT_NUMERIC);
+        foreach ($wordset_ids as $wordset_id) {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+
+        $batch_size = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_category_search_sweep_batch_size', $batch_size);
+        $generation = ll_tools_request_wordset_category_search_rebuild_sweep();
+        $first_cursor = max(0, $wordset_ids[0] - 1);
+
+        try {
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                []
+            ));
+
+            ll_tools_wordset_category_search_run_scheduling_sweep($generation, $first_cursor);
+
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[0]]
+            ));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[1]]
+            ));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[2]]
+            ));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[1]]
+            ));
+
+            ll_tools_wordset_category_search_run_scheduling_sweep(
+                $generation,
+                $wordset_ids[1]
+            );
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[2]]
+            ));
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_sweep_batch_size', $batch_size);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+            wp_clear_scheduled_hook(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[1]]
+            );
+            wp_clear_scheduled_hook(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[2]]
+            );
+            foreach ($wordset_ids as $wordset_id) {
+                wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            }
+        }
+    }
+
     public function test_wordset_page_initial_config_defers_category_search_text_to_ajax(): void
     {
         $wordset = wp_insert_term('Deferred Search Wordset ' . wp_generate_password(6, false), 'wordset');
