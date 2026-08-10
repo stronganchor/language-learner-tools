@@ -955,7 +955,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-grid', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category-card', $html);
         $this->assertStringContainsString('ll-wordset-recorder-queue-category__preview', $html);
-        $this->assertStringContainsString($completed_category_name, $html);
+        $this->assertStringNotContainsString($completed_category_name, $html);
         $this->assertStringNotContainsString('ll-wordset-recorder-queue-item__title">Visible Queue Word', $html);
         $this->assertStringContainsString('Hidden (1)', $html);
         $this->assertStringContainsString('Change queue settings', $html);
