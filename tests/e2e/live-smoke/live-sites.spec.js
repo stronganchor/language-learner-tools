@@ -4,7 +4,9 @@ const path = require('path');
 const {
   isExpectedCloudflareRumAbort,
   isExpectedCategorySearchWarmingResponse,
-  isPotentialCategorySearchWarmingConsoleError
+  isPotentialCategorySearchWarmingConsoleError,
+  isExpectedFlashcardPayloadWarmingResponse,
+  isPotentialFlashcardWarmingConsoleError
 } = require('./network-policy');
 
 const DEFAULT_SITES_FILE = path.resolve(__dirname, 'sites.local.json');
@@ -341,6 +343,14 @@ async function navigateViaMostLessonsWordsetButton(page, navigationConfig) {
   const navigationTimeoutMs = navigationConfig.navigationTimeoutMs || 30000;
   const settleMs = navigationConfig.settleMs || 1500;
 
+  // A cold, anonymous wordset-button generation intentionally starts with a
+  // bounded loading shell. Let the page's own status transport publish the
+  // first usable navigation button before choosing the largest wordset.
+  await page.locator(buttonSelector).first().waitFor({
+    state: 'visible',
+    timeout: navigationTimeoutMs
+  }).catch(() => null);
+
   const candidates = await page.locator(buttonSelector).evaluateAll((nodes, selectors) => {
     const { countSelectorValue } = selectors;
 
@@ -655,13 +665,19 @@ if (loadSitesError) {
         expectedSameOriginRequestAborts: [],
         sameOriginRequestFailures: [],
         sameOriginServerErrors: [],
+        sameOriginRateLimitResponses: [],
         categorySearchResponses: [],
         categorySearchWarmingResponses: [],
         categorySearchWarmingConsoleErrors: [],
+        flashcardPayloadResponses: [],
+        flashcardWarmingResponses: [],
+        flashcardWarmingConsoleErrors: [],
         cloudflareCacheChecks: []
       };
 
       const potentialCategorySearchWarmingConsoleErrors = [];
+      const potentialFlashcardWarmingConsoleErrors = [];
+      const pendingResponseAudits = [];
 
       page.on('console', (message) => {
         if (message.type() === 'error') {
@@ -675,6 +691,15 @@ if (loadSitesError) {
             )
           ) {
             potentialCategorySearchWarmingConsoleErrors.push(message.text());
+          } else if (
+            interaction.openSelector
+            && isPotentialFlashcardWarmingConsoleError(
+              message.text(),
+              String((location && location.url) || ''),
+              siteUrl.origin
+            )
+          ) {
+            potentialFlashcardWarmingConsoleErrors.push(message.text());
           } else {
             summary.consoleErrors.push(message.text());
           }
@@ -737,6 +762,15 @@ if (loadSitesError) {
           return;
         }
         const requestDetails = parseRequestDetails(response.request());
+        if (response.status() === 429) {
+          summary.sameOriginRateLimitResponses.push({
+            status: response.status(),
+            url: response.url(),
+            method: requestDetails.method,
+            pathname: requestDetails.pathname,
+            adminAjaxAction: requestDetails.adminAjaxAction
+          });
+        }
         if (
           exercise.wordsetSearch
           && requestDetails.adminAjaxAction === 'll_tools_wordset_page_category_search'
@@ -749,6 +783,30 @@ if (loadSitesError) {
           if (isExpectedCategorySearchWarmingResponse(requestDetails, response.status())) {
             summary.categorySearchWarmingResponses.push(responseDetails);
             return;
+          }
+        }
+        if (
+          interaction.openSelector
+          && requestDetails.adminAjaxAction === 'll_get_flashcard_payload_page'
+        ) {
+          const responseDetails = {
+            status: response.status(),
+            url: response.url()
+          };
+          summary.flashcardPayloadResponses.push(responseDetails);
+          if (response.status() === 429) {
+            const responseAudit = response.json().then((payload) => {
+              if (isExpectedFlashcardPayloadWarmingResponse(
+                requestDetails,
+                response.status(),
+                payload
+              )) {
+                summary.flashcardWarmingResponses.push(Object.assign({}, responseDetails, {
+                  code: 'cache_warming'
+                }));
+              }
+            }).catch(() => null);
+            pendingResponseAudits.push(responseAudit);
           }
         }
         if (response.status() >= 500) {
@@ -845,6 +903,8 @@ if (loadSitesError) {
         summary.popupExercise = await exercisePopupOpenClose(page, interaction);
       }
 
+      await Promise.all(pendingResponseAudits);
+
       const categorySearchRecovered = summary.categorySearchResponses.some((item) => (
         item.status >= 200 && item.status < 300
       ));
@@ -857,6 +917,34 @@ if (loadSitesError) {
         expect(
           categorySearchRecovered,
           'Retryable category-search preparation responses never recovered to a successful response.'
+        ).toBe(true);
+      }
+
+      const flashcardPayloadRecovered = summary.flashcardPayloadResponses.some((item) => (
+        item.status >= 200 && item.status < 300
+      ));
+      const onlyExpectedFlashcardWarmingRateLimits = summary.sameOriginRateLimitResponses.length > 0
+        && summary.sameOriginRateLimitResponses.length === summary.flashcardWarmingResponses.length;
+      if (
+        summary.flashcardWarmingResponses.length > 0
+        && flashcardPayloadRecovered
+        && summary.popupExercise
+        && onlyExpectedFlashcardWarmingRateLimits
+      ) {
+        summary.flashcardWarmingConsoleErrors = potentialFlashcardWarmingConsoleErrors.slice();
+      } else {
+        summary.consoleErrors.push(...potentialFlashcardWarmingConsoleErrors);
+      }
+      if (summary.flashcardWarmingResponses.length > 0) {
+        expect(
+          flashcardPayloadRecovered,
+          'Retryable flashcard-payload warming responses never recovered to a successful response.'
+        ).toBe(true);
+      }
+      if (summary.sameOriginRateLimitResponses.length > 0) {
+        expect(
+          onlyExpectedFlashcardWarmingRateLimits,
+          'A same-origin 429 response was not an exact flashcard cache-warming response.'
         ).toBe(true);
       }
 
