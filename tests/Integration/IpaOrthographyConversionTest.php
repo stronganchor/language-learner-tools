@@ -292,7 +292,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $this->assertNotContains('unexpected_tie_bar_pair', $codes);
     }
 
-    public function test_wordset_manual_rules_project_affricated_stop_releases_to_stop_letters(): void
+    public function test_wordset_manual_rules_project_affricated_palatal_releases_to_existing_py_ty_spelling(): void
     {
         $wordset_id = $this->createWordset('Affricated Stop Release Orthography');
         update_term_meta($wordset_id, 'll_language', 'zza');
@@ -301,10 +301,10 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
             $wordset_id,
             ll_tools_ipa_orthography_manual_rules_meta_key(),
             ll_tools_ipa_orthography_sanitize_manual_rules([
-                "p\u{0361}ç" => ['any' => 'p'],
-                "p\u{035C}ç" => ['any' => 'p'],
-                "t\u{0361}ç" => ['any' => 't'],
-                "t\u{035C}ç" => ['any' => 't'],
+                "p\u{0361}ç" => ['any' => 'py'],
+                "p\u{035C}ç" => ['any' => 'py'],
+                "t\u{0361}ç" => ['any' => 'ty'],
+                "t\u{035C}ç" => ['any' => 'ty'],
                 "q\u{0361}χ" => ['any' => 'q'],
                 "q\u{035C}χ" => ['any' => 'q'],
             ], $wordset_id)
@@ -318,7 +318,7 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         );
 
         $this->assertTrue((bool) ($prediction['complete'] ?? false));
-        $this->assertSame('Pa ta qa pa ta qa', (string) ($prediction['text'] ?? ''));
+        $this->assertSame('Pya tya qa pya tya qa', (string) ($prediction['text'] ?? ''));
     }
 
     public function test_word_overrides_and_optional_matches_are_wordset_settings(): void
