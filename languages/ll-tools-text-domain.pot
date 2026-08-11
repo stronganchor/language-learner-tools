@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.11\n"
+"Project-Id-Version: Language Learner Tools 6.7.13\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-10T04:24:17+00:00\n"
+"POT-Creation-Date: 2026-08-11T04:36:06+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -354,7 +354,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:401
 #: includes/admin/admin-dashboard-menu.php:843
 #: includes/pages/wordset-pages.php:14105
-#: language-learner-tools.php:858
+#: language-learner-tools.php:861
 msgid "Settings"
 msgstr ""
 
@@ -776,32 +776,32 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:590
 #: includes/admin/audio-image-matcher.php:598
 #: includes/admin/audio-image-matcher.php:601
-#: includes/admin/ipa-keyboard-admin.php:9670
-#: includes/admin/ipa-keyboard-admin.php:9707
-#: includes/admin/ipa-keyboard-admin.php:9738
-#: includes/admin/ipa-keyboard-admin.php:9769
-#: includes/admin/ipa-keyboard-admin.php:9809
-#: includes/admin/ipa-keyboard-admin.php:9825
-#: includes/admin/ipa-keyboard-admin.php:9846
-#: includes/admin/ipa-keyboard-admin.php:9867
-#: includes/admin/ipa-keyboard-admin.php:9922
-#: includes/admin/ipa-keyboard-admin.php:9971
-#: includes/admin/ipa-keyboard-admin.php:10025
-#: includes/admin/ipa-keyboard-admin.php:10050
-#: includes/admin/ipa-keyboard-admin.php:10083
-#: includes/admin/ipa-keyboard-admin.php:10136
-#: includes/admin/ipa-keyboard-admin.php:10166
-#: includes/admin/ipa-keyboard-admin.php:10235
-#: includes/admin/ipa-keyboard-admin.php:10330
-#: includes/admin/ipa-keyboard-admin.php:10356
-#: includes/admin/ipa-keyboard-admin.php:10393
-#: includes/admin/ipa-keyboard-admin.php:10425
-#: includes/admin/ipa-keyboard-admin.php:10503
-#: includes/admin/ipa-keyboard-admin.php:10546
-#: includes/admin/ipa-keyboard-admin.php:10621
-#: includes/admin/ipa-keyboard-admin.php:10660
-#: includes/admin/ipa-keyboard-admin.php:10739
-#: includes/admin/ipa-keyboard-admin.php:10798
+#: includes/admin/ipa-keyboard-admin.php:9673
+#: includes/admin/ipa-keyboard-admin.php:9710
+#: includes/admin/ipa-keyboard-admin.php:9741
+#: includes/admin/ipa-keyboard-admin.php:9772
+#: includes/admin/ipa-keyboard-admin.php:9812
+#: includes/admin/ipa-keyboard-admin.php:9828
+#: includes/admin/ipa-keyboard-admin.php:9849
+#: includes/admin/ipa-keyboard-admin.php:9870
+#: includes/admin/ipa-keyboard-admin.php:9925
+#: includes/admin/ipa-keyboard-admin.php:9974
+#: includes/admin/ipa-keyboard-admin.php:10028
+#: includes/admin/ipa-keyboard-admin.php:10053
+#: includes/admin/ipa-keyboard-admin.php:10086
+#: includes/admin/ipa-keyboard-admin.php:10139
+#: includes/admin/ipa-keyboard-admin.php:10169
+#: includes/admin/ipa-keyboard-admin.php:10238
+#: includes/admin/ipa-keyboard-admin.php:10333
+#: includes/admin/ipa-keyboard-admin.php:10359
+#: includes/admin/ipa-keyboard-admin.php:10396
+#: includes/admin/ipa-keyboard-admin.php:10428
+#: includes/admin/ipa-keyboard-admin.php:10506
+#: includes/admin/ipa-keyboard-admin.php:10549
+#: includes/admin/ipa-keyboard-admin.php:10624
+#: includes/admin/ipa-keyboard-admin.php:10663
+#: includes/admin/ipa-keyboard-admin.php:10742
+#: includes/admin/ipa-keyboard-admin.php:10801
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/shortcodes/editor-hub-shortcode.php:975
 #: includes/shortcodes/word-grid-shortcode.php:8028
@@ -829,7 +829,7 @@ msgid "Missing parameters"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:584
-#: includes/admin/ipa-keyboard-admin.php:10037
+#: includes/admin/ipa-keyboard-admin.php:10040
 msgid "Invalid word"
 msgstr ""
 
@@ -1288,7 +1288,7 @@ msgstr ""
 #: includes/admin/word-images-fixer.php:125
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:465
-#: includes/taxonomies/word-category-taxonomy.php:9767
+#: includes/taxonomies/word-category-taxonomy.php:9772
 msgid "Permission denied"
 msgstr ""
 
@@ -7588,161 +7588,161 @@ msgstr ""
 msgid "Failed to save the suggested recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7975
+#: includes/admin/ipa-keyboard-admin.php:7978
 msgid "A modifier or diacritic appears without a main sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7995
+#: includes/admin/ipa-keyboard-admin.php:7998
 msgid "A tie bar appears without two joined sounds."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8015
+#: includes/admin/ipa-keyboard-admin.php:8018
 msgid "A tie bar joins a sound pair outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8033
+#: includes/admin/ipa-keyboard-admin.php:8036
 msgid "The same IPA modifier is repeated on one sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8060
+#: includes/admin/ipa-keyboard-admin.php:8063
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8080
+#: includes/admin/ipa-keyboard-admin.php:8083
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8099
+#: includes/admin/ipa-keyboard-admin.php:8102
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr ""
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:8124
+#: includes/admin/ipa-keyboard-admin.php:8127
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8199
+#: includes/admin/ipa-keyboard-admin.php:8202
 msgid "Saved text does not match the current orthography rules."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8227
+#: includes/admin/ipa-keyboard-admin.php:8230
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9675
-#: includes/admin/ipa-keyboard-admin.php:9680
-#: includes/admin/ipa-keyboard-admin.php:9712
-#: includes/admin/ipa-keyboard-admin.php:9717
-#: includes/admin/ipa-keyboard-admin.php:9743
-#: includes/admin/ipa-keyboard-admin.php:9748
-#: includes/admin/ipa-keyboard-admin.php:9774
+#: includes/admin/ipa-keyboard-admin.php:9678
+#: includes/admin/ipa-keyboard-admin.php:9683
+#: includes/admin/ipa-keyboard-admin.php:9715
+#: includes/admin/ipa-keyboard-admin.php:9720
+#: includes/admin/ipa-keyboard-admin.php:9746
+#: includes/admin/ipa-keyboard-admin.php:9751
 #: includes/admin/ipa-keyboard-admin.php:9777
-#: includes/admin/ipa-keyboard-admin.php:9814
+#: includes/admin/ipa-keyboard-admin.php:9780
 #: includes/admin/ipa-keyboard-admin.php:9817
-#: includes/admin/ipa-keyboard-admin.php:9851
-#: includes/admin/ipa-keyboard-admin.php:9855
-#: includes/admin/ipa-keyboard-admin.php:9872
-#: includes/admin/ipa-keyboard-admin.php:9876
-#: includes/admin/ipa-keyboard-admin.php:9927
-#: includes/admin/ipa-keyboard-admin.php:9931
-#: includes/admin/ipa-keyboard-admin.php:9976
-#: includes/admin/ipa-keyboard-admin.php:9980
-#: includes/admin/ipa-keyboard-admin.php:10060
-#: includes/admin/ipa-keyboard-admin.php:10088
-#: includes/admin/ipa-keyboard-admin.php:10092
-#: includes/admin/ipa-keyboard-admin.php:10147
-#: includes/admin/ipa-keyboard-admin.php:10171
-#: includes/admin/ipa-keyboard-admin.php:10176
-#: includes/admin/ipa-keyboard-admin.php:10240
-#: includes/admin/ipa-keyboard-admin.php:10245
-#: includes/admin/ipa-keyboard-admin.php:10361
-#: includes/admin/ipa-keyboard-admin.php:10508
-#: includes/admin/ipa-keyboard-admin.php:10626
-#: includes/admin/ipa-keyboard-admin.php:10630
-#: includes/admin/ipa-keyboard-admin.php:10665
-#: includes/admin/ipa-keyboard-admin.php:10670
-#: includes/admin/ipa-keyboard-admin.php:10744
-#: includes/admin/ipa-keyboard-admin.php:10749
-#: includes/admin/ipa-keyboard-admin.php:10803
-#: includes/admin/ipa-keyboard-admin.php:10808
+#: includes/admin/ipa-keyboard-admin.php:9820
+#: includes/admin/ipa-keyboard-admin.php:9854
+#: includes/admin/ipa-keyboard-admin.php:9858
+#: includes/admin/ipa-keyboard-admin.php:9875
+#: includes/admin/ipa-keyboard-admin.php:9879
+#: includes/admin/ipa-keyboard-admin.php:9930
+#: includes/admin/ipa-keyboard-admin.php:9934
+#: includes/admin/ipa-keyboard-admin.php:9979
+#: includes/admin/ipa-keyboard-admin.php:9983
+#: includes/admin/ipa-keyboard-admin.php:10063
+#: includes/admin/ipa-keyboard-admin.php:10091
+#: includes/admin/ipa-keyboard-admin.php:10095
+#: includes/admin/ipa-keyboard-admin.php:10150
+#: includes/admin/ipa-keyboard-admin.php:10174
+#: includes/admin/ipa-keyboard-admin.php:10179
+#: includes/admin/ipa-keyboard-admin.php:10243
+#: includes/admin/ipa-keyboard-admin.php:10248
+#: includes/admin/ipa-keyboard-admin.php:10364
+#: includes/admin/ipa-keyboard-admin.php:10511
+#: includes/admin/ipa-keyboard-admin.php:10629
+#: includes/admin/ipa-keyboard-admin.php:10633
+#: includes/admin/ipa-keyboard-admin.php:10668
+#: includes/admin/ipa-keyboard-admin.php:10673
+#: includes/admin/ipa-keyboard-admin.php:10747
+#: includes/admin/ipa-keyboard-admin.php:10752
+#: includes/admin/ipa-keyboard-admin.php:10806
+#: includes/admin/ipa-keyboard-admin.php:10811
 msgid "Invalid word set"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9784
-#: includes/admin/ipa-keyboard-admin.php:10762
-#: includes/admin/ipa-keyboard-admin.php:10821
+#: includes/admin/ipa-keyboard-admin.php:9787
+#: includes/admin/ipa-keyboard-admin.php:10765
+#: includes/admin/ipa-keyboard-admin.php:10824
 msgid "Invalid mapping"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9822
+#: includes/admin/ipa-keyboard-admin.php:9825
 msgid "Invalid action"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9882
+#: includes/admin/ipa-keyboard-admin.php:9885
 msgid "Invalid segment"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9941
-#: includes/admin/ipa-keyboard-admin.php:9990
+#: includes/admin/ipa-keyboard-admin.php:9944
+#: includes/admin/ipa-keyboard-admin.php:9993
 msgid "Invalid rule"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10032
-#: includes/admin/ipa-keyboard-admin.php:10056
-#: includes/admin/ipa-keyboard-admin.php:10142
-#: includes/admin/ipa-keyboard-admin.php:10336
-#: includes/admin/ipa-keyboard-admin.php:10401
-#: includes/admin/ipa-keyboard-admin.php:10438
-#: includes/admin/ipa-keyboard-admin.php:10559
+#: includes/admin/ipa-keyboard-admin.php:10035
+#: includes/admin/ipa-keyboard-admin.php:10059
+#: includes/admin/ipa-keyboard-admin.php:10145
+#: includes/admin/ipa-keyboard-admin.php:10339
+#: includes/admin/ipa-keyboard-admin.php:10404
+#: includes/admin/ipa-keyboard-admin.php:10441
+#: includes/admin/ipa-keyboard-admin.php:10562
 #: includes/shortcodes/audio-recording-shortcode.php:9475
 #: includes/shortcodes/word-grid-shortcode.php:11128
 msgid "Missing data"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10103
+#: includes/admin/ipa-keyboard-admin.php:10106
 msgid "No words selected"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10154
-#: includes/admin/ipa-keyboard-admin.php:10344
-#: includes/admin/ipa-keyboard-admin.php:10406
-#: includes/admin/ipa-keyboard-admin.php:10448
-#: includes/admin/ipa-keyboard-admin.php:10453
-#: includes/admin/ipa-keyboard-admin.php:10458
-#: includes/admin/ipa-keyboard-admin.php:10567
-#: includes/admin/ipa-keyboard-admin.php:10572
-#: includes/admin/ipa-keyboard-admin.php:10577
+#: includes/admin/ipa-keyboard-admin.php:10157
+#: includes/admin/ipa-keyboard-admin.php:10347
+#: includes/admin/ipa-keyboard-admin.php:10409
+#: includes/admin/ipa-keyboard-admin.php:10451
+#: includes/admin/ipa-keyboard-admin.php:10456
+#: includes/admin/ipa-keyboard-admin.php:10461
+#: includes/admin/ipa-keyboard-admin.php:10570
+#: includes/admin/ipa-keyboard-admin.php:10575
+#: includes/admin/ipa-keyboard-admin.php:10580
 #: includes/shortcodes/word-grid-shortcode.php:11153
 msgid "Invalid recording"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10366
-#: includes/admin/ipa-keyboard-admin.php:10443
-#: includes/admin/ipa-keyboard-admin.php:10514
+#: includes/admin/ipa-keyboard-admin.php:10369
+#: includes/admin/ipa-keyboard-admin.php:10446
+#: includes/admin/ipa-keyboard-admin.php:10517
 msgid "Rules unavailable"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10471
+#: includes/admin/ipa-keyboard-admin.php:10474
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10476
+#: includes/admin/ipa-keyboard-admin.php:10479
 msgid "Could not approve this symbol mapping."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10522
+#: includes/admin/ipa-keyboard-admin.php:10525
 msgid "Invalid symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10562
+#: includes/admin/ipa-keyboard-admin.php:10565
 msgid "Invalid review field"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10636
+#: includes/admin/ipa-keyboard-admin.php:10639
 msgid "No symbols found"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10680
+#: includes/admin/ipa-keyboard-admin.php:10683
 msgid "Invalid letter"
 msgstr ""
 
@@ -17735,7 +17735,7 @@ msgid "Game is unavailable right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:111
-#: includes/taxonomies/wordset-taxonomy.php:5956
+#: includes/taxonomies/wordset-taxonomy.php:5961
 msgid "Default Word Set"
 msgstr ""
 
@@ -21399,7 +21399,7 @@ msgstr ""
 
 #. translators: %s: available plugin version
 #: includes/pages/wordset-pages.php:26654
-#: language-learner-tools.php:656
+#: language-learner-tools.php:659
 msgid "Update to %s"
 msgstr ""
 
@@ -22276,7 +22276,7 @@ msgid "Enabled when selected recordings all share the same recording types."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:474
-#: includes/taxonomies/word-category-taxonomy.php:9776
+#: includes/taxonomies/word-category-taxonomy.php:9781
 msgid "No posts selected"
 msgstr ""
 
@@ -26201,51 +26201,51 @@ msgstr ""
 msgid "Currently disabled (no recording types selected)."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5039
+#: includes/taxonomies/word-category-taxonomy.php:5044
 msgid "Category \"%1$s\" is set to %2$s, so %3$d of %4$d published words currently appear for learners."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5047
+#: includes/taxonomies/word-category-taxonomy.php:5052
 msgid "%d published word does not match this presentation and will not appear for learners on lesson or quiz pages."
 msgid_plural "%d published words do not match this presentation and will not appear for learners on lesson or quiz pages."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5058
+#: includes/taxonomies/word-category-taxonomy.php:5063
 msgid "Changing this category to %1$s would include %2$d of %3$d published words instead."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5065
+#: includes/taxonomies/word-category-taxonomy.php:5070
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9021
+#: includes/taxonomies/word-category-taxonomy.php:9026
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9027
+#: includes/taxonomies/word-category-taxonomy.php:9032
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9035
-#: includes/taxonomies/word-category-taxonomy.php:9041
+#: includes/taxonomies/word-category-taxonomy.php:9040
+#: includes/taxonomies/word-category-taxonomy.php:9046
 msgid "Bulk Add Categories"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9039
+#: includes/taxonomies/word-category-taxonomy.php:9044
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9053
+#: includes/taxonomies/word-category-taxonomy.php:9058
 msgid "Permission denied or invalid nonce."
 msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
-#: includes/taxonomies/word-category-taxonomy.php:9205
+#: includes/taxonomies/word-category-taxonomy.php:9210
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""
@@ -27278,12 +27278,12 @@ msgstr ""
 msgid "Plugin Activation Error"
 msgstr ""
 
-#: language-learner-tools.php:569
+#: language-learner-tools.php:572
 msgid "You are not allowed to check plugin updates."
 msgstr ""
 
 #. translators: %s: available plugin version
-#: language-learner-tools.php:646
+#: language-learner-tools.php:649
 msgid "Language Learner Tools update available: version %s."
 msgstr ""
 
