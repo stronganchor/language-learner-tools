@@ -8384,6 +8384,7 @@
         mainCategorySearchRenderTimer = null;
         clearTimeout(mainCategorySearchLoadingTimer);
         mainCategorySearchLoadingTimer = null;
+        $root.removeClass('is-category-search-filtering');
 
         if (mainCategorySearchRetryTimer) {
             clearTimeout(mainCategorySearchRetryTimer);
@@ -10853,18 +10854,22 @@
         clearTimeout(mainCategorySearchLoadingTimer);
 
         if (shouldShowLoading) {
+            // The filter transition is brief; async index warming must leave provisional matches usable.
+            $root.addClass('is-category-search-filtering');
             setMainCategorySearchLoading(true, { showSpinner: false });
             mainCategorySearchLoadingTimer = setTimeout(function () {
                 if (token !== mainCategorySearchRenderToken) { return; }
                 setMainCategorySearchLoading(true, { showSpinner: true });
             }, 80);
         } else {
+            $root.removeClass('is-category-search-filtering');
             setMainCategorySearchLoading(false);
         }
 
         mainCategorySearchRenderTimer = setTimeout(function () {
             if (token !== mainCategorySearchRenderToken) { return; }
             const result = renderMainCategorySearch({ keepLoading: shouldShowLoading });
+            $root.removeClass('is-category-search-filtering');
             clearTimeout(mainCategorySearchLoadingTimer);
             mainCategorySearchLoadingTimer = null;
             if (!result || !result.searchRequestPending) {

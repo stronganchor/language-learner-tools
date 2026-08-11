@@ -7,6 +7,10 @@ const wordsetScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/wordset-pages.js'),
   'utf8'
 );
+const wordsetStylesSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/wordset-pages.css'),
+  'utf8'
+);
 
 function buildMarkup() {
   return `
@@ -300,6 +304,9 @@ async function mountWordsetPage(page, options = {}) {
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(buildMarkup());
+  if (options.productionStyles) {
+    await page.addStyleTag({ content: wordsetStylesSource });
+  }
   await page.addScriptTag({ content: jquerySource });
 
   const config = buildConfig();
@@ -544,6 +551,37 @@ test('main wordset search keeps loading and retries while the durable index warm
   }).toEqual([11]);
   await expect(page.locator('[data-ll-wordset-page]')).not.toHaveClass(/is-category-search-loading/);
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search keeps provisional matches visible while the durable index warms', async ({ page }) => {
+  await mountWordsetPage(page, {
+    warmFailures: 100,
+    warmQuery: 'fruit',
+    retryBaseMs: 2000,
+    maxRetries: 2,
+    productionStyles: true
+  });
+
+  await setSearchValue(page, 'fruit');
+  await expect.poll(async () => page.evaluate(() => (
+    (window.__categorySearchRequests || []).filter((request) => request.query === 'fruit').length
+  ))).toBeGreaterThan(0);
+  await expect.poll(async () => page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+    .filter((card) => !card.hidden)
+    .map((card) => Number(card.getAttribute('data-cat-id'))))).toEqual([11]);
+  await expect(page.locator('[data-ll-wordset-page]')).toHaveClass(/is-category-search-loading/);
+
+  const provisionalCardState = await page.locator('.ll-wordset-card[data-cat-id="11"]').evaluate((card) => {
+    const styles = window.getComputedStyle(card);
+    return {
+      opacity: styles.opacity,
+      pointerEvents: styles.pointerEvents
+    };
+  });
+  expect(provisionalCardState).toEqual({
+    opacity: '1',
+    pointerEvents: 'auto'
+  });
 });
 
 test('main wordset search shows a retry state instead of a false empty result after warming exhausts', async ({ page }) => {

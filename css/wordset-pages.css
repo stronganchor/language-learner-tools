@@ -2569,7 +2569,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     transform: none !important;
 }
 
-.ll-wordset-page.is-category-search-loading .ll-wordset-card:not([hidden]) {
+.ll-wordset-page.is-category-search-filtering .ll-wordset-card:not([hidden]) {
     opacity: 0;
     transform: translateY(10px) scale(0.98);
     pointer-events: none;

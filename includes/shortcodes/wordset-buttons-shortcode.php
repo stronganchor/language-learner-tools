@@ -6,6 +6,35 @@ function ll_tools_wordset_buttons_shortcode_tags(): array {
     return ['wordset_buttons', 'll_wordset_buttons'];
 }
 
+function ll_tools_wordset_buttons_shortcode_content_has_shortcode(string $content): bool {
+    if ($content === '' || strpos($content, '[') === false) {
+        return false;
+    }
+
+    foreach (ll_tools_wordset_buttons_shortcode_tags() as $tag) {
+        if (has_shortcode($content, $tag)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Elementor can serve a cached shortcode-widget fragment without invoking the
+ * shortcode callback on the current request. Detect its one page-scoped layout
+ * payload early so an incomplete anonymous shell still has its refresh runtime.
+ */
+function ll_tools_wordset_buttons_shortcode_elementor_data_has_shortcode($post): bool {
+    if (!($post instanceof WP_Post) || (int) $post->ID <= 0) {
+        return false;
+    }
+
+    $elementor_data = get_post_meta((int) $post->ID, '_elementor_data', true);
+    return is_string($elementor_data)
+        && ll_tools_wordset_buttons_shortcode_content_has_shortcode($elementor_data);
+}
+
 function ll_tools_wordset_buttons_shortcode_maybe_enqueue_assets(): void {
     if (is_admin() || !is_singular()) {
         return;
@@ -16,20 +45,11 @@ function ll_tools_wordset_buttons_shortcode_maybe_enqueue_assets(): void {
         return;
     }
 
-    $content = (string) $post->post_content;
-    if ($content === '') {
-        return;
-    }
-
-    $has_shortcode = false;
-    foreach (ll_tools_wordset_buttons_shortcode_tags() as $tag) {
-        if (has_shortcode($content, $tag)) {
-            $has_shortcode = true;
-            break;
-        }
-    }
-
-    if (!$has_shortcode) {
+    $has_content_shortcode = ll_tools_wordset_buttons_shortcode_content_has_shortcode(
+        (string) $post->post_content
+    );
+    $has_elementor_shortcode = ll_tools_wordset_buttons_shortcode_elementor_data_has_shortcode($post);
+    if (!$has_content_shortcode && !$has_elementor_shortcode) {
         return;
     }
 
@@ -38,6 +58,9 @@ function ll_tools_wordset_buttons_shortcode_maybe_enqueue_assets(): void {
     }
     if (function_exists('ll_tools_wordset_page_enqueue_styles')) {
         ll_tools_wordset_page_enqueue_styles();
+    }
+    if ($has_elementor_shortcode) {
+        ll_tools_wordset_buttons_shortcode_enqueue_refresh_script();
     }
 }
 add_action('wp_enqueue_scripts', 'll_tools_wordset_buttons_shortcode_maybe_enqueue_assets');

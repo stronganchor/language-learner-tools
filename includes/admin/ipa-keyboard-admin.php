@@ -841,7 +841,35 @@ function ll_tools_ipa_keyboard_get_cached_keyboard_inventory(
     $illegal_symbols = function_exists('ll_tools_get_wordset_secondary_text_illegal_symbols')
         ? ll_tools_get_wordset_secondary_text_illegal_symbols($wordset_id, $mode)
         : [];
+    // Search and save responses deliberately pass only a bounded recording
+    // window here. Keep the keyboard complete by starting from the compact,
+    // materialized wordset inventory and its last-known recording counts, then
+    // merge any symbols that are new in the current window. Reading these term
+    // meta values is bounded by the IPA symbol inventory, not by wordset size.
+    $cached_symbols = function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')
+        ? ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id)
+        : array_values((array) get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true));
+    $summary_raw = get_term_meta($wordset_id, ll_tools_ipa_keyboard_symbol_summary_meta_key(), true);
+    $summary = is_array($summary_raw) ? $summary_raw : [];
+    $summary_counts = (int) ($summary['version'] ?? 0) === ll_tools_ipa_keyboard_aggregate_schema_version()
+        && is_array($summary['recording_counts'] ?? null)
+        ? (array) $summary['recording_counts']
+        : [];
+
     $recording_counts = [];
+    foreach ($summary_counts as $symbol => $count) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized === '') {
+            continue;
+        }
+        if (function_exists('ll_tools_secondary_text_token_has_illegal_symbol')
+            && ll_tools_secondary_text_token_has_illegal_symbol($normalized, $illegal_symbols) !== '') {
+            continue;
+        }
+        $recording_counts[$normalized] = max(0, (int) $count);
+    }
+
+    $candidate_recording_counts = [];
     foreach ($candidate_recordings as $recording) {
         if (!is_array($recording) || !empty($recording['review_fields']['recording_ipa'])) {
             continue;
@@ -864,10 +892,25 @@ function ll_tools_ipa_keyboard_get_cached_keyboard_inventory(
                 continue;
             }
             $seen[$token] = true;
-            $recording_counts[$token] = (int) ($recording_counts[$token] ?? 0) + 1;
+            $candidate_recording_counts[$token] = (int) ($candidate_recording_counts[$token] ?? 0) + 1;
         }
     }
-    $symbols = array_keys($recording_counts);
+    foreach ($candidate_recording_counts as $symbol => $count) {
+        $recording_counts[$symbol] = max((int) ($recording_counts[$symbol] ?? 0), (int) $count);
+    }
+
+    $symbols = [];
+    foreach (array_merge((array) $cached_symbols, array_keys($recording_counts)) as $symbol) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized === '' || in_array($normalized, $symbols, true)) {
+            continue;
+        }
+        if (function_exists('ll_tools_secondary_text_token_has_illegal_symbol')
+            && ll_tools_secondary_text_token_has_illegal_symbol($normalized, $illegal_symbols) !== '') {
+            continue;
+        }
+        $symbols[] = $normalized;
+    }
     if (function_exists('ll_tools_sort_secondary_text_symbols')) {
         $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
     }

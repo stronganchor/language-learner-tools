@@ -4141,6 +4141,11 @@ function ll_tools_word_edit_modal_enqueue_assets(
             30000,
             $wordset_id
         ))),
+        'preparationTimeoutMs' => max(250, min(120000, (int) apply_filters(
+            'll_tools_word_edit_modal_preparation_timeout_ms',
+            30000,
+            $wordset_id
+        ))),
         'i18n' => [
             'openError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
             'renderError' => __('Unable to open the word editor.', 'll-tools-text-domain'),

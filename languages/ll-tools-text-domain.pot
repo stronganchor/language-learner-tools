@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.13\n"
+"Project-Id-Version: Language Learner Tools 6.7.14\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-11T04:36:06+00:00\n"
+"POT-Creation-Date: 2026-08-11T11:46:16+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -606,7 +606,7 @@ msgstr ""
 #: includes/admin/api/assemblyai-api.php:296
 #: includes/shortcodes/audio-recording-shortcode.php:5623
 #: includes/shortcodes/audio-recording-shortcode.php:5682
-#: includes/shortcodes/word-grid-shortcode.php:11323
+#: includes/shortcodes/word-grid-shortcode.php:11328
 msgid "AssemblyAI transcription failed."
 msgstr ""
 
@@ -776,51 +776,51 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:590
 #: includes/admin/audio-image-matcher.php:598
 #: includes/admin/audio-image-matcher.php:601
-#: includes/admin/ipa-keyboard-admin.php:9673
-#: includes/admin/ipa-keyboard-admin.php:9710
-#: includes/admin/ipa-keyboard-admin.php:9741
-#: includes/admin/ipa-keyboard-admin.php:9772
-#: includes/admin/ipa-keyboard-admin.php:9812
-#: includes/admin/ipa-keyboard-admin.php:9828
-#: includes/admin/ipa-keyboard-admin.php:9849
-#: includes/admin/ipa-keyboard-admin.php:9870
-#: includes/admin/ipa-keyboard-admin.php:9925
-#: includes/admin/ipa-keyboard-admin.php:9974
-#: includes/admin/ipa-keyboard-admin.php:10028
-#: includes/admin/ipa-keyboard-admin.php:10053
-#: includes/admin/ipa-keyboard-admin.php:10086
-#: includes/admin/ipa-keyboard-admin.php:10139
-#: includes/admin/ipa-keyboard-admin.php:10169
-#: includes/admin/ipa-keyboard-admin.php:10238
-#: includes/admin/ipa-keyboard-admin.php:10333
-#: includes/admin/ipa-keyboard-admin.php:10359
-#: includes/admin/ipa-keyboard-admin.php:10396
-#: includes/admin/ipa-keyboard-admin.php:10428
-#: includes/admin/ipa-keyboard-admin.php:10506
+#: includes/admin/ipa-keyboard-admin.php:9716
+#: includes/admin/ipa-keyboard-admin.php:9753
+#: includes/admin/ipa-keyboard-admin.php:9784
+#: includes/admin/ipa-keyboard-admin.php:9815
+#: includes/admin/ipa-keyboard-admin.php:9855
+#: includes/admin/ipa-keyboard-admin.php:9871
+#: includes/admin/ipa-keyboard-admin.php:9892
+#: includes/admin/ipa-keyboard-admin.php:9913
+#: includes/admin/ipa-keyboard-admin.php:9968
+#: includes/admin/ipa-keyboard-admin.php:10017
+#: includes/admin/ipa-keyboard-admin.php:10071
+#: includes/admin/ipa-keyboard-admin.php:10096
+#: includes/admin/ipa-keyboard-admin.php:10129
+#: includes/admin/ipa-keyboard-admin.php:10182
+#: includes/admin/ipa-keyboard-admin.php:10212
+#: includes/admin/ipa-keyboard-admin.php:10281
+#: includes/admin/ipa-keyboard-admin.php:10376
+#: includes/admin/ipa-keyboard-admin.php:10402
+#: includes/admin/ipa-keyboard-admin.php:10439
+#: includes/admin/ipa-keyboard-admin.php:10471
 #: includes/admin/ipa-keyboard-admin.php:10549
-#: includes/admin/ipa-keyboard-admin.php:10624
-#: includes/admin/ipa-keyboard-admin.php:10663
-#: includes/admin/ipa-keyboard-admin.php:10742
-#: includes/admin/ipa-keyboard-admin.php:10801
+#: includes/admin/ipa-keyboard-admin.php:10592
+#: includes/admin/ipa-keyboard-admin.php:10667
+#: includes/admin/ipa-keyboard-admin.php:10706
+#: includes/admin/ipa-keyboard-admin.php:10785
+#: includes/admin/ipa-keyboard-admin.php:10844
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/shortcodes/editor-hub-shortcode.php:975
-#: includes/shortcodes/word-grid-shortcode.php:8028
-#: includes/shortcodes/word-grid-shortcode.php:8176
-#: includes/shortcodes/word-grid-shortcode.php:8296
-#: includes/shortcodes/word-grid-shortcode.php:8974
-#: includes/shortcodes/word-grid-shortcode.php:8981
-#: includes/shortcodes/word-grid-shortcode.php:9051
-#: includes/shortcodes/word-grid-shortcode.php:9139
-#: includes/shortcodes/word-grid-shortcode.php:9213
-#: includes/shortcodes/word-grid-shortcode.php:9286
-#: includes/shortcodes/word-grid-shortcode.php:9289
-#: includes/shortcodes/word-grid-shortcode.php:9311
-#: includes/shortcodes/word-grid-shortcode.php:9340
-#: includes/shortcodes/word-grid-shortcode.php:9343
-#: includes/shortcodes/word-grid-shortcode.php:10159
-#: includes/shortcodes/word-grid-shortcode.php:10825
-#: includes/shortcodes/word-grid-shortcode.php:10909
-#: includes/shortcodes/word-grid-shortcode.php:11141
+#: includes/shortcodes/word-grid-shortcode.php:8033
+#: includes/shortcodes/word-grid-shortcode.php:8181
+#: includes/shortcodes/word-grid-shortcode.php:8301
+#: includes/shortcodes/word-grid-shortcode.php:8979
+#: includes/shortcodes/word-grid-shortcode.php:8986
+#: includes/shortcodes/word-grid-shortcode.php:9056
+#: includes/shortcodes/word-grid-shortcode.php:9144
+#: includes/shortcodes/word-grid-shortcode.php:9218
+#: includes/shortcodes/word-grid-shortcode.php:9291
+#: includes/shortcodes/word-grid-shortcode.php:9294
+#: includes/shortcodes/word-grid-shortcode.php:9316
+#: includes/shortcodes/word-grid-shortcode.php:9345
+#: includes/shortcodes/word-grid-shortcode.php:9348
+#: includes/shortcodes/word-grid-shortcode.php:10164
+#: includes/shortcodes/word-grid-shortcode.php:10830
+#: includes/shortcodes/word-grid-shortcode.php:10914
+#: includes/shortcodes/word-grid-shortcode.php:11146
 msgid "Forbidden"
 msgstr ""
 
@@ -829,7 +829,7 @@ msgid "Missing parameters"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:584
-#: includes/admin/ipa-keyboard-admin.php:10040
+#: includes/admin/ipa-keyboard-admin.php:10083
 msgid "Invalid word"
 msgstr ""
 
@@ -913,7 +913,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:527
 #: includes/pages/wordset-editor.php:4712
 #: includes/pages/wordset-pages.php:22048
-#: includes/shortcodes/word-grid-shortcode.php:5748
+#: includes/shortcodes/word-grid-shortcode.php:5753
 msgid "Edit word"
 msgstr ""
 
@@ -930,7 +930,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:3595
 #: includes/admin/split-word-admin.php:177
 #: includes/shortcodes/language-switcher-shortcode.php:1027
-#: includes/shortcodes/word-grid-shortcode.php:5807
+#: includes/shortcodes/word-grid-shortcode.php:5812
 #: templates/offline-app-shell-template.php:691
 #: templates/vocab-lesson-template.php:619
 msgid "Cancel"
@@ -962,7 +962,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1052
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
 #: includes/shortcodes/ranked-word-list-shortcode.php:652
-#: includes/shortcodes/word-grid-shortcode.php:5751
+#: includes/shortcodes/word-grid-shortcode.php:5756
 msgid "Word"
 msgstr ""
 
@@ -990,7 +990,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1080
 #: includes/shortcodes/ranked-word-list-shortcode.php:636
 #: includes/shortcodes/ranked-word-list-shortcode.php:654
-#: includes/shortcodes/word-grid-shortcode.php:5752
+#: includes/shortcodes/word-grid-shortcode.php:5757
 msgid "Translation"
 msgstr ""
 
@@ -1433,7 +1433,7 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:462
 #: includes/shortcodes/audio-recording-shortcode.php:5587
 #: includes/shortcodes/audio-recording-shortcode.php:9483
-#: includes/shortcodes/word-grid-shortcode.php:8041
+#: includes/shortcodes/word-grid-shortcode.php:8046
 msgid "Invalid audio upload."
 msgstr ""
 
@@ -1446,7 +1446,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:1626
 #: includes/shortcodes/audio-recording-shortcode.php:8667
 #: includes/shortcodes/audio-recording-shortcode.php:9693
-#: includes/shortcodes/word-grid-shortcode.php:8100
+#: includes/shortcodes/word-grid-shortcode.php:8105
 msgid "Failed to save file: %s"
 msgstr ""
 
@@ -1465,8 +1465,8 @@ msgid "Invalid word post"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:1715
-#: includes/shortcodes/word-grid-shortcode.php:4215
-#: includes/shortcodes/word-grid-shortcode.php:4218
+#: includes/shortcodes/word-grid-shortcode.php:4220
+#: includes/shortcodes/word-grid-shortcode.php:4223
 msgid "Insufficient permissions to edit this word."
 msgstr ""
 
@@ -1729,7 +1729,7 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:2277
 #: includes/pages/wordset-editor.php:4516
 #: includes/shortcodes/editor-hub-shortcode.php:1083
-#: includes/shortcodes/word-grid-shortcode.php:5762
+#: includes/shortcodes/word-grid-shortcode.php:5767
 msgid "Image"
 msgstr ""
 
@@ -1743,7 +1743,7 @@ msgstr ""
 #: includes/admin/recording-types-admin.php:207
 #: includes/shortcodes/word-grid-shortcode.php:2271
 #: includes/shortcodes/word-grid-shortcode.php:2272
-#: includes/shortcodes/word-grid-shortcode.php:5806
+#: includes/shortcodes/word-grid-shortcode.php:5811
 msgid "Save"
 msgstr ""
 
@@ -2996,7 +2996,7 @@ msgstr ""
 #: includes/admin/duplicate-category-words-admin.php:880
 #: includes/api/word-metadata-plan-rest.php:616
 #: includes/cli/cli-support.php:900
-#: includes/shortcodes/word-grid-shortcode.php:10628
+#: includes/shortcodes/word-grid-shortcode.php:10633
 msgid "Plurality is not enabled for this word set."
 msgstr ""
 
@@ -3222,9 +3222,9 @@ msgstr ""
 #: includes/admin/export-import.php:589
 #: includes/shortcodes/audio-recording-shortcode.php:30
 #: includes/shortcodes/editor-hub-shortcode.php:301
-#: includes/shortcodes/word-grid-shortcode.php:5239
-#: includes/shortcodes/word-grid-shortcode.php:5707
-#: includes/shortcodes/word-grid-shortcode.php:7731
+#: includes/shortcodes/word-grid-shortcode.php:5244
+#: includes/shortcodes/word-grid-shortcode.php:5712
+#: includes/shortcodes/word-grid-shortcode.php:7736
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr ""
@@ -3234,9 +3234,9 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:29
 #: includes/shortcodes/editor-hub-shortcode.php:302
 #: includes/shortcodes/flashcard-widget.php:676
-#: includes/shortcodes/word-grid-shortcode.php:5240
-#: includes/shortcodes/word-grid-shortcode.php:5708
-#: includes/shortcodes/word-grid-shortcode.php:7732
+#: includes/shortcodes/word-grid-shortcode.php:5245
+#: includes/shortcodes/word-grid-shortcode.php:5713
+#: includes/shortcodes/word-grid-shortcode.php:7737
 #: includes/taxonomies/recording-type-taxonomy.php:41
 msgid "Isolation"
 msgstr ""
@@ -3245,17 +3245,17 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/shortcodes/editor-hub-shortcode.php:303
 #: includes/shortcodes/flashcard-widget.php:677
-#: includes/shortcodes/word-grid-shortcode.php:5241
-#: includes/shortcodes/word-grid-shortcode.php:5709
-#: includes/shortcodes/word-grid-shortcode.php:7733
+#: includes/shortcodes/word-grid-shortcode.php:5246
+#: includes/shortcodes/word-grid-shortcode.php:5714
+#: includes/shortcodes/word-grid-shortcode.php:7738
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr ""
 
 #: includes/admin/export-import.php:592
-#: includes/shortcodes/word-grid-shortcode.php:5242
-#: includes/shortcodes/word-grid-shortcode.php:5710
-#: includes/shortcodes/word-grid-shortcode.php:7734
+#: includes/shortcodes/word-grid-shortcode.php:5247
+#: includes/shortcodes/word-grid-shortcode.php:5715
+#: includes/shortcodes/word-grid-shortcode.php:7739
 msgid "Sentence"
 msgstr ""
 
@@ -4380,14 +4380,14 @@ msgstr ""
 #. translators: %s: recording type label
 #. translators: %s is the recording type label.
 #: includes/admin/export-import.php:4598
-#: includes/admin/ipa-keyboard-admin.php:1234
+#: includes/admin/ipa-keyboard-admin.php:1277
 #: includes/admin/word-option-rules-admin.php:2322
 #: includes/pages/wordset-editor.php:4036
 #: includes/shortcodes/flashcard-widget.php:675
-#: includes/shortcodes/word-grid-shortcode.php:5245
-#: includes/shortcodes/word-grid-shortcode.php:5746
-#: includes/shortcodes/word-grid-shortcode.php:8147
-#: includes/shortcodes/word-grid-shortcode.php:8794
+#: includes/shortcodes/word-grid-shortcode.php:5250
+#: includes/shortcodes/word-grid-shortcode.php:5751
+#: includes/shortcodes/word-grid-shortcode.php:8152
+#: includes/shortcodes/word-grid-shortcode.php:8799
 #: templates/vocab-lesson-template.php:1706
 msgid "Play %s recording"
 msgstr ""
@@ -5061,7 +5061,7 @@ msgstr ""
 #: includes/admin/export-import.php:8926
 #: includes/pages/wordset-pages.php:1744
 #: includes/post-types/words-post-type.php:1747
-#: includes/shortcodes/word-grid-shortcode.php:7548
+#: includes/shortcodes/word-grid-shortcode.php:7553
 msgid "Word #%d"
 msgstr ""
 
@@ -5409,7 +5409,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:4807
 #: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
-#: includes/shortcodes/word-grid-shortcode.php:5774
+#: includes/shortcodes/word-grid-shortcode.php:5779
 #: templates/vocab-lesson-print-template.php:127
 #: templates/vocab-lesson-template.php:1328
 msgid "Text"
@@ -5711,8 +5711,8 @@ msgstr ""
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:717
-#: includes/shortcodes/wordset-buttons-shortcode.php:2100
-#: includes/shortcodes/wordset-buttons-shortcode.php:2120
+#: includes/shortcodes/wordset-buttons-shortcode.php:2123
+#: includes/shortcodes/wordset-buttons-shortcode.php:2143
 msgid "Loading categories..."
 msgstr ""
 
@@ -6503,7 +6503,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:424
 #: includes/admin/ipa-keyboard-admin.php:514
-#: includes/admin/ipa-keyboard-admin.php:2466
+#: includes/admin/ipa-keyboard-admin.php:2509
 #: includes/lib/wordset-language-settings.php:1395
 #: includes/lib/wordset-language-settings.php:1396
 #: includes/lib/wordset-language-settings.php:1410
@@ -6512,7 +6512,7 @@ msgid "Pronunciation"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:426
-#: includes/admin/ipa-keyboard-admin.php:1231
+#: includes/admin/ipa-keyboard-admin.php:1274
 #: includes/admin/split-word-admin.php:394
 #: includes/admin/split-word-admin.php:406
 #: includes/admin/split-word-admin.php:413
@@ -6520,7 +6520,7 @@ msgstr ""
 #: includes/post-types/words-post-type.php:2062
 #: includes/post-types/words-post-type.php:2065
 #: includes/shortcodes/editor-hub-shortcode.php:653
-#: includes/shortcodes/word-grid-shortcode.php:7722
+#: includes/shortcodes/word-grid-shortcode.php:7727
 #: templates/vocab-lesson-template.php:1224
 msgid "Recording"
 msgstr ""
@@ -6713,7 +6713,7 @@ msgstr ""
 #: includes/post-types/word-image-post-type.php:1220
 #: includes/post-types/words-post-type.php:2004
 #: includes/shortcodes/flashcard-widget.php:640
-#: includes/shortcodes/word-grid-shortcode.php:5756
+#: includes/shortcodes/word-grid-shortcode.php:5761
 msgid "Categories"
 msgstr ""
 
@@ -6724,7 +6724,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:477
 #: includes/admin/site-sync-admin.php:1785
 #: includes/admin/word-option-rules-admin.php:2304
-#: includes/shortcodes/word-grid-shortcode.php:5767
+#: includes/shortcodes/word-grid-shortcode.php:5772
 msgid "No image"
 msgstr ""
 
@@ -6862,7 +6862,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:513
 #: includes/admin/ipa-keyboard-admin.php:557
-#: includes/admin/ipa-keyboard-admin.php:2465
+#: includes/admin/ipa-keyboard-admin.php:2508
 #: includes/admin/site-sync-admin.php:1053
 msgid "Orthography"
 msgstr ""
@@ -6898,12 +6898,12 @@ msgid "Mark pronunciation reviewed"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:523
-#: includes/shortcodes/word-grid-shortcode.php:5776
+#: includes/shortcodes/word-grid-shortcode.php:5781
 msgid "Mark text for review"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:524
-#: includes/shortcodes/word-grid-shortcode.php:5778
+#: includes/shortcodes/word-grid-shortcode.php:5783
 msgid "Mark pronunciation for review"
 msgstr ""
 
@@ -6924,9 +6924,9 @@ msgid "Word editor opened."
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:530
-#: includes/shortcodes/word-grid-shortcode.php:4145
-#: includes/shortcodes/word-grid-shortcode.php:4146
-#: includes/shortcodes/word-grid-shortcode.php:4223
+#: includes/shortcodes/word-grid-shortcode.php:4150
+#: includes/shortcodes/word-grid-shortcode.php:4151
+#: includes/shortcodes/word-grid-shortcode.php:4228
 msgid "Unable to open the word editor."
 msgstr ""
 
@@ -7056,17 +7056,17 @@ msgid "Restore"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:565
-#: includes/admin/ipa-keyboard-admin.php:3472
+#: includes/admin/ipa-keyboard-admin.php:3515
 msgid "Anywhere"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:566
-#: includes/admin/ipa-keyboard-admin.php:3467
+#: includes/admin/ipa-keyboard-admin.php:3510
 msgid "Word-final"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:567
-#: includes/admin/ipa-keyboard-admin.php:3470
+#: includes/admin/ipa-keyboard-admin.php:3513
 msgid "Elsewhere"
 msgstr ""
 
@@ -7350,8 +7350,8 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1039
 #: includes/shortcodes/editor-hub-shortcode.php:1040
 #: includes/shortcodes/interlinear-shortcode.php:304
-#: includes/shortcodes/word-grid-shortcode.php:5730
-#: includes/shortcodes/word-grid-shortcode.php:5741
+#: includes/shortcodes/word-grid-shortcode.php:5735
+#: includes/shortcodes/word-grid-shortcode.php:5746
 msgid "IPA"
 msgstr ""
 
@@ -7403,8 +7403,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:805
 #: includes/lib/wordset-language-settings.php:1333
 #: includes/lib/wordset-language-settings.php:1337
-#: includes/shortcodes/word-grid-shortcode.php:5735
-#: includes/shortcodes/word-grid-shortcode.php:6773
+#: includes/shortcodes/word-grid-shortcode.php:5740
+#: includes/shortcodes/word-grid-shortcode.php:6778
 msgid "IPA symbols"
 msgstr ""
 
@@ -7418,331 +7418,331 @@ msgstr ""
 msgid "Enter letters and IPA symbols to add."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2795
+#: includes/admin/ipa-keyboard-admin.php:2838
 msgid "Modifier without base sound"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2796
+#: includes/admin/ipa-keyboard-admin.php:2839
 msgid "Flags tokens made only of modifiers or diacritics, without a main sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2799
+#: includes/admin/ipa-keyboard-admin.php:2842
 msgid "Tie bar without a pair"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2800
+#: includes/admin/ipa-keyboard-admin.php:2843
 msgid "Flags tie bars that do not join two sounds into a single affricate-style token."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2803
+#: includes/admin/ipa-keyboard-admin.php:2846
 msgid "Unexpected tie-bar pair"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2804
+#: includes/admin/ipa-keyboard-admin.php:2847
 msgid "Flags tie bars joining sounds outside the approved affricate and cluster inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2807
+#: includes/admin/ipa-keyboard-admin.php:2850
 msgid "Repeated IPA modifier"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2808
+#: includes/admin/ipa-keyboard-admin.php:2851
 msgid "Flags the same modifier appearing more than once on one token."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2811
+#: includes/admin/ipa-keyboard-admin.php:2854
 msgid "Stress marker placement"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2812
+#: includes/admin/ipa-keyboard-admin.php:2855
 msgid "Flags stress markers left at the end or doubled together."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2815
+#: includes/admin/ipa-keyboard-admin.php:2858
 msgid "Aspiration placement"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2816
+#: includes/admin/ipa-keyboard-admin.php:2859
 msgid "Flags ʰ unless it follows a voiceless stop or affricate."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2819
+#: includes/admin/ipa-keyboard-admin.php:2862
 msgid "Dental diacritic placement"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2820
+#: includes/admin/ipa-keyboard-admin.php:2863
 msgid "Flags dental marks that are not attached to t or d."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2823
+#: includes/admin/ipa-keyboard-admin.php:2866
 msgid "Illegal IPA symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2824
+#: includes/admin/ipa-keyboard-admin.php:2867
 msgid "Flags symbols that have been marked illegal for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2827
+#: includes/admin/ipa-keyboard-admin.php:2870
 msgid "Unapproved IPA symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2828
+#: includes/admin/ipa-keyboard-admin.php:2871
 msgid "Flags symbols outside the approved IPA inventory for this workflow."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2831
+#: includes/admin/ipa-keyboard-admin.php:2874
 msgid "Orthography mismatch"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:2832
+#: includes/admin/ipa-keyboard-admin.php:2875
 msgid "Flags saved IPA and orthography text that do not agree with the active conversion profile."
 msgstr ""
 
 #. translators: 1: target sound, 2: previous sounds, 3: next sounds
-#: includes/admin/ipa-keyboard-admin.php:3078
+#: includes/admin/ipa-keyboard-admin.php:3121
 msgid "Do not allow %1$s after %2$s and before %3$s."
 msgstr ""
 
 #. translators: 1: target sound, 2: previous sounds
-#: includes/admin/ipa-keyboard-admin.php:3088
+#: includes/admin/ipa-keyboard-admin.php:3131
 msgid "Do not allow %1$s after %2$s."
 msgstr ""
 
 #. translators: 1: target sound, 2: next sounds
-#: includes/admin/ipa-keyboard-admin.php:3097
+#: includes/admin/ipa-keyboard-admin.php:3140
 msgid "Do not allow %1$s before %2$s."
 msgstr ""
 
 #. translators: %s: target sound
-#: includes/admin/ipa-keyboard-admin.php:3105
+#: includes/admin/ipa-keyboard-admin.php:3148
 msgid "Do not allow %s anywhere in this word set."
 msgstr ""
 
 #. translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen
-#: includes/admin/ipa-keyboard-admin.php:4513
+#: includes/admin/ipa-keyboard-admin.php:4556
 msgid "Preserved the Genç-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href=\"%2$s\">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:4574
+#: includes/admin/ipa-keyboard-admin.php:4617
 msgid "Genç-Palu Zazaki"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:4575
+#: includes/admin/ipa-keyboard-admin.php:4618
 msgid "Genç-Palu"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:4578
+#: includes/admin/ipa-keyboard-admin.php:4621
 msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7092
-#: includes/admin/ipa-keyboard-admin.php:7171
-#: includes/admin/ipa-keyboard-admin.php:7278
+#: includes/admin/ipa-keyboard-admin.php:7135
+#: includes/admin/ipa-keyboard-admin.php:7214
+#: includes/admin/ipa-keyboard-admin.php:7321
 msgid "Current rules"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7291
+#: includes/admin/ipa-keyboard-admin.php:7334
 msgid "Invalid word for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7296
+#: includes/admin/ipa-keyboard-admin.php:7339
 msgid "This word already has written text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7301
+#: includes/admin/ipa-keyboard-admin.php:7344
 msgid "No IPA recording is available for this word."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7308
+#: includes/admin/ipa-keyboard-admin.php:7351
 msgid "This source recording already has text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7317
+#: includes/admin/ipa-keyboard-admin.php:7360
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7324
+#: includes/admin/ipa-keyboard-admin.php:7367
 msgid "Failed to save the converted recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7349
-#: includes/shortcodes/word-grid-shortcode.php:8017
-#: includes/shortcodes/word-grid-shortcode.php:9037
-#: includes/shortcodes/word-grid-shortcode.php:9118
+#: includes/admin/ipa-keyboard-admin.php:7392
+#: includes/shortcodes/word-grid-shortcode.php:8022
+#: includes/shortcodes/word-grid-shortcode.php:9042
+#: includes/shortcodes/word-grid-shortcode.php:9123
 msgid "Invalid recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7354
+#: includes/admin/ipa-keyboard-admin.php:7397
 msgid "Recording does not belong to this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7359
+#: includes/admin/ipa-keyboard-admin.php:7402
 msgid "No IPA transcription is available for this recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7367
+#: includes/admin/ipa-keyboard-admin.php:7410
 msgid "Current rules cannot suggest a written transcription for this recording yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7393
+#: includes/admin/ipa-keyboard-admin.php:7436
 msgid "Failed to save the suggested recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7978
+#: includes/admin/ipa-keyboard-admin.php:8021
 msgid "A modifier or diacritic appears without a main sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7998
+#: includes/admin/ipa-keyboard-admin.php:8041
 msgid "A tie bar appears without two joined sounds."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8018
+#: includes/admin/ipa-keyboard-admin.php:8061
 msgid "A tie bar joins a sound pair outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8036
+#: includes/admin/ipa-keyboard-admin.php:8079
 msgid "The same IPA modifier is repeated on one sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8063
+#: includes/admin/ipa-keyboard-admin.php:8106
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8083
+#: includes/admin/ipa-keyboard-admin.php:8126
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8102
+#: includes/admin/ipa-keyboard-admin.php:8145
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr ""
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:8127
+#: includes/admin/ipa-keyboard-admin.php:8170
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8202
+#: includes/admin/ipa-keyboard-admin.php:8245
 msgid "Saved text does not match the current orthography rules."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8230
+#: includes/admin/ipa-keyboard-admin.php:8273
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9678
-#: includes/admin/ipa-keyboard-admin.php:9683
-#: includes/admin/ipa-keyboard-admin.php:9715
-#: includes/admin/ipa-keyboard-admin.php:9720
-#: includes/admin/ipa-keyboard-admin.php:9746
-#: includes/admin/ipa-keyboard-admin.php:9751
-#: includes/admin/ipa-keyboard-admin.php:9777
-#: includes/admin/ipa-keyboard-admin.php:9780
-#: includes/admin/ipa-keyboard-admin.php:9817
+#: includes/admin/ipa-keyboard-admin.php:9721
+#: includes/admin/ipa-keyboard-admin.php:9726
+#: includes/admin/ipa-keyboard-admin.php:9758
+#: includes/admin/ipa-keyboard-admin.php:9763
+#: includes/admin/ipa-keyboard-admin.php:9789
+#: includes/admin/ipa-keyboard-admin.php:9794
 #: includes/admin/ipa-keyboard-admin.php:9820
-#: includes/admin/ipa-keyboard-admin.php:9854
-#: includes/admin/ipa-keyboard-admin.php:9858
-#: includes/admin/ipa-keyboard-admin.php:9875
-#: includes/admin/ipa-keyboard-admin.php:9879
-#: includes/admin/ipa-keyboard-admin.php:9930
-#: includes/admin/ipa-keyboard-admin.php:9934
-#: includes/admin/ipa-keyboard-admin.php:9979
-#: includes/admin/ipa-keyboard-admin.php:9983
-#: includes/admin/ipa-keyboard-admin.php:10063
-#: includes/admin/ipa-keyboard-admin.php:10091
-#: includes/admin/ipa-keyboard-admin.php:10095
-#: includes/admin/ipa-keyboard-admin.php:10150
-#: includes/admin/ipa-keyboard-admin.php:10174
-#: includes/admin/ipa-keyboard-admin.php:10179
-#: includes/admin/ipa-keyboard-admin.php:10243
-#: includes/admin/ipa-keyboard-admin.php:10248
-#: includes/admin/ipa-keyboard-admin.php:10364
-#: includes/admin/ipa-keyboard-admin.php:10511
-#: includes/admin/ipa-keyboard-admin.php:10629
-#: includes/admin/ipa-keyboard-admin.php:10633
-#: includes/admin/ipa-keyboard-admin.php:10668
-#: includes/admin/ipa-keyboard-admin.php:10673
-#: includes/admin/ipa-keyboard-admin.php:10747
-#: includes/admin/ipa-keyboard-admin.php:10752
-#: includes/admin/ipa-keyboard-admin.php:10806
-#: includes/admin/ipa-keyboard-admin.php:10811
+#: includes/admin/ipa-keyboard-admin.php:9823
+#: includes/admin/ipa-keyboard-admin.php:9860
+#: includes/admin/ipa-keyboard-admin.php:9863
+#: includes/admin/ipa-keyboard-admin.php:9897
+#: includes/admin/ipa-keyboard-admin.php:9901
+#: includes/admin/ipa-keyboard-admin.php:9918
+#: includes/admin/ipa-keyboard-admin.php:9922
+#: includes/admin/ipa-keyboard-admin.php:9973
+#: includes/admin/ipa-keyboard-admin.php:9977
+#: includes/admin/ipa-keyboard-admin.php:10022
+#: includes/admin/ipa-keyboard-admin.php:10026
+#: includes/admin/ipa-keyboard-admin.php:10106
+#: includes/admin/ipa-keyboard-admin.php:10134
+#: includes/admin/ipa-keyboard-admin.php:10138
+#: includes/admin/ipa-keyboard-admin.php:10193
+#: includes/admin/ipa-keyboard-admin.php:10217
+#: includes/admin/ipa-keyboard-admin.php:10222
+#: includes/admin/ipa-keyboard-admin.php:10286
+#: includes/admin/ipa-keyboard-admin.php:10291
+#: includes/admin/ipa-keyboard-admin.php:10407
+#: includes/admin/ipa-keyboard-admin.php:10554
+#: includes/admin/ipa-keyboard-admin.php:10672
+#: includes/admin/ipa-keyboard-admin.php:10676
+#: includes/admin/ipa-keyboard-admin.php:10711
+#: includes/admin/ipa-keyboard-admin.php:10716
+#: includes/admin/ipa-keyboard-admin.php:10790
+#: includes/admin/ipa-keyboard-admin.php:10795
+#: includes/admin/ipa-keyboard-admin.php:10849
+#: includes/admin/ipa-keyboard-admin.php:10854
 msgid "Invalid word set"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9787
-#: includes/admin/ipa-keyboard-admin.php:10765
-#: includes/admin/ipa-keyboard-admin.php:10824
+#: includes/admin/ipa-keyboard-admin.php:9830
+#: includes/admin/ipa-keyboard-admin.php:10808
+#: includes/admin/ipa-keyboard-admin.php:10867
 msgid "Invalid mapping"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9825
+#: includes/admin/ipa-keyboard-admin.php:9868
 msgid "Invalid action"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9885
+#: includes/admin/ipa-keyboard-admin.php:9928
 msgid "Invalid segment"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9944
-#: includes/admin/ipa-keyboard-admin.php:9993
+#: includes/admin/ipa-keyboard-admin.php:9987
+#: includes/admin/ipa-keyboard-admin.php:10036
 msgid "Invalid rule"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10035
-#: includes/admin/ipa-keyboard-admin.php:10059
-#: includes/admin/ipa-keyboard-admin.php:10145
-#: includes/admin/ipa-keyboard-admin.php:10339
-#: includes/admin/ipa-keyboard-admin.php:10404
-#: includes/admin/ipa-keyboard-admin.php:10441
-#: includes/admin/ipa-keyboard-admin.php:10562
+#: includes/admin/ipa-keyboard-admin.php:10078
+#: includes/admin/ipa-keyboard-admin.php:10102
+#: includes/admin/ipa-keyboard-admin.php:10188
+#: includes/admin/ipa-keyboard-admin.php:10382
+#: includes/admin/ipa-keyboard-admin.php:10447
+#: includes/admin/ipa-keyboard-admin.php:10484
+#: includes/admin/ipa-keyboard-admin.php:10605
 #: includes/shortcodes/audio-recording-shortcode.php:9475
-#: includes/shortcodes/word-grid-shortcode.php:11128
+#: includes/shortcodes/word-grid-shortcode.php:11133
 msgid "Missing data"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10106
+#: includes/admin/ipa-keyboard-admin.php:10149
 msgid "No words selected"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10157
-#: includes/admin/ipa-keyboard-admin.php:10347
-#: includes/admin/ipa-keyboard-admin.php:10409
-#: includes/admin/ipa-keyboard-admin.php:10451
-#: includes/admin/ipa-keyboard-admin.php:10456
-#: includes/admin/ipa-keyboard-admin.php:10461
-#: includes/admin/ipa-keyboard-admin.php:10570
-#: includes/admin/ipa-keyboard-admin.php:10575
-#: includes/admin/ipa-keyboard-admin.php:10580
-#: includes/shortcodes/word-grid-shortcode.php:11153
+#: includes/admin/ipa-keyboard-admin.php:10200
+#: includes/admin/ipa-keyboard-admin.php:10390
+#: includes/admin/ipa-keyboard-admin.php:10452
+#: includes/admin/ipa-keyboard-admin.php:10494
+#: includes/admin/ipa-keyboard-admin.php:10499
+#: includes/admin/ipa-keyboard-admin.php:10504
+#: includes/admin/ipa-keyboard-admin.php:10613
+#: includes/admin/ipa-keyboard-admin.php:10618
+#: includes/admin/ipa-keyboard-admin.php:10623
+#: includes/shortcodes/word-grid-shortcode.php:11158
 msgid "Invalid recording"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10369
-#: includes/admin/ipa-keyboard-admin.php:10446
-#: includes/admin/ipa-keyboard-admin.php:10517
+#: includes/admin/ipa-keyboard-admin.php:10412
+#: includes/admin/ipa-keyboard-admin.php:10489
+#: includes/admin/ipa-keyboard-admin.php:10560
 msgid "Rules unavailable"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10474
+#: includes/admin/ipa-keyboard-admin.php:10517
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10479
+#: includes/admin/ipa-keyboard-admin.php:10522
 msgid "Could not approve this symbol mapping."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10525
+#: includes/admin/ipa-keyboard-admin.php:10568
 msgid "Invalid symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10565
+#: includes/admin/ipa-keyboard-admin.php:10608
 msgid "Invalid review field"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10639
+#: includes/admin/ipa-keyboard-admin.php:10682
 msgid "No symbols found"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10683
+#: includes/admin/ipa-keyboard-admin.php:10726
 msgid "Invalid letter"
 msgstr ""
 
@@ -7861,11 +7861,11 @@ msgstr ""
 #: includes/admin/metabox-word-audio-parent.php:35
 #: includes/post-types/dictionary-entry-post-type.php:1489
 #: includes/shortcodes/editor-hub-shortcode.php:1065
-#: includes/shortcodes/word-grid-shortcode.php:6466
-#: includes/shortcodes/word-grid-shortcode.php:6486
-#: includes/shortcodes/word-grid-shortcode.php:6519
-#: includes/shortcodes/word-grid-shortcode.php:6546
-#: includes/shortcodes/word-grid-shortcode.php:6573
+#: includes/shortcodes/word-grid-shortcode.php:6471
+#: includes/shortcodes/word-grid-shortcode.php:6491
+#: includes/shortcodes/word-grid-shortcode.php:6524
+#: includes/shortcodes/word-grid-shortcode.php:6551
+#: includes/shortcodes/word-grid-shortcode.php:6578
 msgid "None"
 msgstr ""
 
@@ -9912,7 +9912,7 @@ msgstr ""
 #: includes/admin/site-sync-admin.php:1058
 #: includes/pages/wordset-editor.php:893
 #: includes/pages/wordset-editor.php:4453
-#: includes/shortcodes/word-grid-shortcode.php:5780
+#: includes/shortcodes/word-grid-shortcode.php:5785
 msgid "Review note"
 msgstr ""
 
@@ -11744,7 +11744,7 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:2385
 #: includes/admin/word-option-rules-admin.php:2401
 #: includes/pages/wordset-pages.php:26176
-#: includes/shortcodes/word-grid-shortcode.php:5799
+#: includes/shortcodes/word-grid-shortcode.php:5804
 #: includes/taxonomies/word-category-taxonomy.php:2056
 msgid "Search words"
 msgstr ""
@@ -12220,7 +12220,7 @@ msgstr ""
 #: includes/api/automation-rest.php:4496
 #: includes/api/word-metadata-plan-rest.php:1685
 #: includes/shortcodes/audio-recording-shortcode.php:5298
-#: includes/shortcodes/word-grid-shortcode.php:8965
+#: includes/shortcodes/word-grid-shortcode.php:8970
 msgid "Missing word ID."
 msgstr ""
 
@@ -12810,7 +12810,7 @@ msgstr ""
 
 #: includes/api/word-metadata-plan-rest.php:633
 #: includes/cli/cli-support.php:935
-#: includes/shortcodes/word-grid-shortcode.php:10668
+#: includes/shortcodes/word-grid-shortcode.php:10673
 msgid "Verb tense is not enabled for this word set."
 msgstr ""
 
@@ -12825,7 +12825,7 @@ msgstr ""
 
 #: includes/api/word-metadata-plan-rest.php:650
 #: includes/cli/cli-support.php:970
-#: includes/shortcodes/word-grid-shortcode.php:10708
+#: includes/shortcodes/word-grid-shortcode.php:10713
 msgid "Verb mood is not enabled for this word set."
 msgstr ""
 
@@ -13136,7 +13136,7 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:733
 #: includes/shortcodes/flashcard-widget.php:821
 #: includes/shortcodes/flashcard-widget.php:822
-#: includes/shortcodes/word-grid-shortcode.php:6484
+#: includes/shortcodes/word-grid-shortcode.php:6489
 #: templates/offline-app-shell-template.php:826
 #: templates/vocab-lesson-template.php:177
 #: templates/vocab-lesson-template.php:734
@@ -14993,8 +14993,8 @@ msgid "Rollback data for this bulk operation is incomplete."
 msgstr ""
 
 #: includes/lib/word-grid-bulk-operations.php:841
-#: includes/shortcodes/word-grid-shortcode.php:10253
-#: includes/shortcodes/word-grid-shortcode.php:10469
+#: includes/shortcodes/word-grid-shortcode.php:10258
+#: includes/shortcodes/word-grid-shortcode.php:10474
 msgid "Another bulk request took over this operation. Reload before continuing."
 msgstr ""
 
@@ -15025,8 +15025,8 @@ msgid "You must be logged in."
 msgstr ""
 
 #: includes/lib/word-grid-bulk-operations.php:1117
-#: includes/shortcodes/word-grid-shortcode.php:9371
-#: includes/shortcodes/word-grid-shortcode.php:10321
+#: includes/shortcodes/word-grid-shortcode.php:9376
+#: includes/shortcodes/word-grid-shortcode.php:10326
 msgid "Missing word set or category."
 msgstr ""
 
@@ -15037,7 +15037,7 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:2485
 #: includes/shortcodes/flashcard-widget.php:2538
 #: includes/shortcodes/flashcard-widget.php:2713
-#: includes/shortcodes/word-grid-shortcode.php:10326
+#: includes/shortcodes/word-grid-shortcode.php:10331
 msgid "Invalid category."
 msgstr ""
 
@@ -15321,8 +15321,8 @@ msgid "Secondary transcription field (%s)"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1332
-#: includes/shortcodes/word-grid-shortcode.php:5734
-#: includes/shortcodes/word-grid-shortcode.php:6769
+#: includes/shortcodes/word-grid-shortcode.php:5739
+#: includes/shortcodes/word-grid-shortcode.php:6774
 msgid "IPA suggestions"
 msgstr ""
 
@@ -16698,8 +16698,8 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:6494
 #: includes/pages/vocab-lesson-pages.php:7188
-#: includes/shortcodes/word-grid-shortcode.php:8183
-#: includes/shortcodes/word-grid-shortcode.php:8195
+#: includes/shortcodes/word-grid-shortcode.php:8188
+#: includes/shortcodes/word-grid-shortcode.php:8200
 msgid "Lesson terms are missing."
 msgstr ""
 
@@ -16908,7 +16908,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:417
 #: includes/shortcodes/word-grid-shortcode.php:3465
-#: includes/shortcodes/word-grid-shortcode.php:8367
+#: includes/shortcodes/word-grid-shortcode.php:8372
 msgid "Select categories from this word set."
 msgstr ""
 
@@ -16931,7 +16931,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:871
 #: includes/shortcodes/editor-hub-shortcode.php:512
 #: includes/shortcodes/editor-hub-shortcode.php:1054
-#: includes/shortcodes/word-grid-shortcode.php:5755
+#: includes/shortcodes/word-grid-shortcode.php:5760
 msgid "Note"
 msgstr ""
 
@@ -16942,7 +16942,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:888
 #: includes/shortcodes/editor-hub-shortcode.php:513
 #: includes/shortcodes/editor-hub-shortcode.php:1056
-#: includes/shortcodes/word-grid-shortcode.php:6458
+#: includes/shortcodes/word-grid-shortcode.php:6463
 msgid "Dictionary entry"
 msgstr ""
 
@@ -16956,7 +16956,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:956
 #: includes/shortcodes/editor-hub-shortcode.php:516
 #: includes/shortcodes/editor-hub-shortcode.php:1060
-#: includes/shortcodes/word-grid-shortcode.php:6517
+#: includes/shortcodes/word-grid-shortcode.php:6522
 #: includes/taxonomies/wordset-taxonomy.php:4022
 #: templates/vocab-lesson-template.php:789
 #: templates/vocab-lesson-template.php:814
@@ -16996,12 +16996,12 @@ msgid "Quick edited \"%s\"."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3524
-#: includes/shortcodes/word-grid-shortcode.php:9082
+#: includes/shortcodes/word-grid-shortcode.php:9087
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3557
-#: includes/shortcodes/word-grid-shortcode.php:9170
+#: includes/shortcodes/word-grid-shortcode.php:9175
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr ""
 
@@ -17088,13 +17088,13 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:3935
 #: includes/shortcodes/word-grid-shortcode.php:4010
-#: includes/shortcodes/word-grid-shortcode.php:9093
+#: includes/shortcodes/word-grid-shortcode.php:9098
 msgid "Recording moved to Trash."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:3937
 #: includes/shortcodes/word-grid-shortcode.php:4013
-#: includes/shortcodes/word-grid-shortcode.php:9184
+#: includes/shortcodes/word-grid-shortcode.php:9189
 msgid "Recording moved."
 msgstr ""
 
@@ -17140,7 +17140,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:3965
 #: includes/pages/wordset-editor.php:4510
-#: includes/shortcodes/word-grid-shortcode.php:6301
+#: includes/shortcodes/word-grid-shortcode.php:6306
 msgid "Draft"
 msgstr ""
 
@@ -17440,9 +17440,9 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1063
 #: includes/shortcodes/flashcard-widget.php:678
 #: includes/shortcodes/word-grid-shortcode.php:4000
-#: includes/shortcodes/word-grid-shortcode.php:5771
-#: includes/shortcodes/word-grid-shortcode.php:6824
-#: includes/shortcodes/word-grid-shortcode.php:6889
+#: includes/shortcodes/word-grid-shortcode.php:5776
+#: includes/shortcodes/word-grid-shortcode.php:6829
+#: includes/shortcodes/word-grid-shortcode.php:6894
 msgid "Recordings"
 msgstr ""
 
@@ -17455,7 +17455,7 @@ msgid "Move this recording to Trash?"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4827
-#: includes/shortcodes/word-grid-shortcode.php:5802
+#: includes/shortcodes/word-grid-shortcode.php:5807
 msgid "Move recording to Trash"
 msgstr ""
 
@@ -19004,9 +19004,9 @@ msgid "Matching your audio..."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:13346
-#: includes/shortcodes/wordset-buttons-shortcode.php:2451
-#: includes/shortcodes/wordset-buttons-shortcode.php:2488
-#: includes/shortcodes/wordset-buttons-shortcode.php:2502
+#: includes/shortcodes/wordset-buttons-shortcode.php:2474
+#: includes/shortcodes/wordset-buttons-shortcode.php:2511
+#: includes/shortcodes/wordset-buttons-shortcode.php:2525
 msgid "Try again"
 msgstr ""
 
@@ -19605,7 +19605,7 @@ msgid "No image selected yet."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14972
-#: includes/shortcodes/word-grid-shortcode.php:5763
+#: includes/shortcodes/word-grid-shortcode.php:5768
 msgid "Choose image"
 msgstr ""
 
@@ -19919,7 +19919,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:16976
 #: includes/pages/wordset-pages.php:26122
 #: includes/pages/wordset-pages.php:26128
-#: includes/shortcodes/word-grid-shortcode.php:5757
+#: includes/shortcodes/word-grid-shortcode.php:5762
 msgid "Search categories"
 msgstr ""
 
@@ -20159,7 +20159,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:17514
 #: includes/shortcodes/audio-recording-shortcode.php:1712
-#: includes/shortcodes/word-grid-shortcode.php:6301
+#: includes/shortcodes/word-grid-shortcode.php:6306
 msgid "Hidden"
 msgstr ""
 
@@ -21036,7 +21036,7 @@ msgstr ""
 #: includes/post-types/dictionary-entry-post-type.php:1487
 #: includes/shortcodes/editor-hub-shortcode.php:514
 #: includes/shortcodes/editor-hub-shortcode.php:1058
-#: includes/shortcodes/word-grid-shortcode.php:6464
+#: includes/shortcodes/word-grid-shortcode.php:6469
 #: templates/vocab-lesson-template.php:713
 msgid "Part of speech"
 msgstr ""
@@ -21077,13 +21077,13 @@ msgstr ""
 #: includes/pages/wordset-pages.php:25875
 #: includes/shortcodes/flashcard-widget.php:659
 #: includes/shortcodes/word-grid-shortcode.php:3976
-#: includes/shortcodes/word-grid-shortcode.php:6236
+#: includes/shortcodes/word-grid-shortcode.php:6241
 msgid "Star word"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:25876
 #: includes/shortcodes/word-grid-shortcode.php:3977
-#: includes/shortcodes/word-grid-shortcode.php:6235
+#: includes/shortcodes/word-grid-shortcode.php:6240
 msgid "Unstar word"
 msgstr ""
 
@@ -21432,7 +21432,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:26832
 #: includes/pages/wordset-pages.php:26833
-#: includes/shortcodes/word-grid-shortcode.php:5758
+#: includes/shortcodes/word-grid-shortcode.php:5763
 #: templates/offline-app-shell-template.php:762
 #: templates/offline-app-shell-template.php:763
 msgid "Sort categories"
@@ -21444,7 +21444,7 @@ msgid "Default"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:26847
-#: includes/shortcodes/word-grid-shortcode.php:5760
+#: includes/shortcodes/word-grid-shortcode.php:5765
 #: templates/offline-app-shell-template.php:782
 msgid "A-Z"
 msgstr ""
@@ -22318,8 +22318,8 @@ msgstr ""
 
 #: includes/post-types/word-image-post-type.php:810
 #: includes/post-types/word-image-post-type.php:829
-#: includes/shortcodes/word-grid-shortcode.php:4205
-#: includes/shortcodes/word-grid-shortcode.php:8970
+#: includes/shortcodes/word-grid-shortcode.php:4210
+#: includes/shortcodes/word-grid-shortcode.php:8975
 msgid "Invalid word."
 msgstr ""
 
@@ -22340,7 +22340,7 @@ msgid "Copyright Info:"
 msgstr ""
 
 #: includes/post-types/word-image-post-type.php:996
-#: includes/shortcodes/word-grid-shortcode.php:5769
+#: includes/shortcodes/word-grid-shortcode.php:5774
 msgid "Edit or add any copyright or source info for this image."
 msgstr ""
 
@@ -22349,7 +22349,7 @@ msgid "Replacing this featured image also updates connected word posts automatic
 msgstr ""
 
 #: includes/post-types/word-image-post-type.php:1221
-#: includes/shortcodes/word-grid-shortcode.php:5768
+#: includes/shortcodes/word-grid-shortcode.php:5773
 msgid "Copyright Info"
 msgstr ""
 
@@ -23017,7 +23017,7 @@ msgid "Missing word data"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1592
-#: includes/shortcodes/word-grid-shortcode.php:8201
+#: includes/shortcodes/word-grid-shortcode.php:8206
 msgid "New word"
 msgstr ""
 
@@ -23628,7 +23628,7 @@ msgid "Invalid image ID"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:9543
-#: includes/shortcodes/word-grid-shortcode.php:8291
+#: includes/shortcodes/word-grid-shortcode.php:8296
 msgid "Invalid word ID"
 msgstr ""
 
@@ -23932,7 +23932,7 @@ msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:517
 #: includes/shortcodes/editor-hub-shortcode.php:1061
-#: includes/shortcodes/word-grid-shortcode.php:6544
+#: includes/shortcodes/word-grid-shortcode.php:6549
 #: includes/taxonomies/wordset-taxonomy.php:4039
 #: templates/vocab-lesson-template.php:839
 #: templates/vocab-lesson-template.php:862
@@ -23942,7 +23942,7 @@ msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:518
 #: includes/shortcodes/editor-hub-shortcode.php:1062
-#: includes/shortcodes/word-grid-shortcode.php:6571
+#: includes/shortcodes/word-grid-shortcode.php:6576
 #: includes/taxonomies/wordset-taxonomy.php:4056
 #: templates/vocab-lesson-template.php:889
 #: templates/vocab-lesson-template.php:912
@@ -23978,12 +23978,12 @@ msgid "No word set is available for Editor Hub."
 msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:1055
-#: includes/shortcodes/word-grid-shortcode.php:5770
+#: includes/shortcodes/word-grid-shortcode.php:5775
 msgid "Wrong answer options (one per line)"
 msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:1057
-#: includes/shortcodes/word-grid-shortcode.php:6459
+#: includes/shortcodes/word-grid-shortcode.php:6464
 msgid "Type to select or create dictionary entry"
 msgstr ""
 
@@ -24229,9 +24229,9 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:713
 #: includes/shortcodes/flashcard-widget.php:718
 #: includes/shortcodes/flashcard-widget.php:720
-#: includes/shortcodes/wordset-buttons-shortcode.php:2450
-#: includes/shortcodes/wordset-buttons-shortcode.php:2487
-#: includes/shortcodes/wordset-buttons-shortcode.php:2501
+#: includes/shortcodes/wordset-buttons-shortcode.php:2473
+#: includes/shortcodes/wordset-buttons-shortcode.php:2510
+#: includes/shortcodes/wordset-buttons-shortcode.php:2524
 msgid "Something went wrong"
 msgstr ""
 
@@ -25116,17 +25116,17 @@ msgid "Saving in background..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3987
-#: includes/shortcodes/word-grid-shortcode.php:8140
+#: includes/shortcodes/word-grid-shortcode.php:8145
 msgid "Audio processed."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3988
-#: includes/shortcodes/word-grid-shortcode.php:5783
+#: includes/shortcodes/word-grid-shortcode.php:5788
 msgid "Process audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3989
-#: includes/shortcodes/word-grid-shortcode.php:5784
+#: includes/shortcodes/word-grid-shortcode.php:5789
 msgid "Reprocess audio"
 msgstr ""
 
@@ -25143,17 +25143,17 @@ msgid "This browser cannot process audio here."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3993
-#: includes/shortcodes/word-grid-shortcode.php:5794
+#: includes/shortcodes/word-grid-shortcode.php:5799
 msgid "Using saved original audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3994
-#: includes/shortcodes/word-grid-shortcode.php:5795
+#: includes/shortcodes/word-grid-shortcode.php:5800
 msgid "Using current audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3995
-#: includes/shortcodes/word-grid-shortcode.php:5788
+#: includes/shortcodes/word-grid-shortcode.php:5793
 msgid "Play clip"
 msgstr ""
 
@@ -25162,17 +25162,17 @@ msgid "Pause clip"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3997
-#: includes/shortcodes/word-grid-shortcode.php:5796
+#: includes/shortcodes/word-grid-shortcode.php:5801
 msgid "Download audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3998
-#: includes/shortcodes/word-grid-shortcode.php:5790
+#: includes/shortcodes/word-grid-shortcode.php:5795
 msgid "Loading waveform..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3999
-#: includes/shortcodes/word-grid-shortcode.php:5791
+#: includes/shortcodes/word-grid-shortcode.php:5796
 msgid "Waveform unavailable."
 msgstr ""
 
@@ -25181,12 +25181,12 @@ msgid "Deleting word..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4003
-#: includes/shortcodes/word-grid-shortcode.php:9014
+#: includes/shortcodes/word-grid-shortcode.php:9019
 msgid "Word moved to Trash."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4004
-#: includes/shortcodes/word-grid-shortcode.php:8986
+#: includes/shortcodes/word-grid-shortcode.php:8991
 msgid "Unable to delete word."
 msgstr ""
 
@@ -25211,7 +25211,7 @@ msgid "Deleting recording..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4011
-#: includes/shortcodes/word-grid-shortcode.php:9059
+#: includes/shortcodes/word-grid-shortcode.php:9064
 msgid "Unable to delete recording."
 msgstr ""
 
@@ -25220,7 +25220,7 @@ msgid "Moving recording..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4014
-#: includes/shortcodes/word-grid-shortcode.php:9154
+#: includes/shortcodes/word-grid-shortcode.php:9159
 msgid "Unable to move recording."
 msgstr ""
 
@@ -25262,7 +25262,7 @@ msgid "Undo last bulk change"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4035
-#: includes/shortcodes/word-grid-shortcode.php:10781
+#: includes/shortcodes/word-grid-shortcode.php:10786
 msgid "Bulk changes undone."
 msgstr ""
 
@@ -25271,7 +25271,7 @@ msgid "Rollback skipped %d words changed after the bulk operation."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4037
-#: includes/shortcodes/word-grid-shortcode.php:10425
+#: includes/shortcodes/word-grid-shortcode.php:10430
 msgid "Unable to undo bulk changes."
 msgstr ""
 
@@ -25318,7 +25318,7 @@ msgid "Saving prerequisites..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4052
-#: includes/shortcodes/word-grid-shortcode.php:9525
+#: includes/shortcodes/word-grid-shortcode.php:9530
 msgid "Prerequisites saved."
 msgstr ""
 
@@ -25407,250 +25407,242 @@ msgstr ""
 msgid "Unable to fetch the recording audio in this browser."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4147
+#: includes/shortcodes/word-grid-shortcode.php:4152
 msgid "Word editor modal is not available on this page."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4148
+#: includes/shortcodes/word-grid-shortcode.php:4153
 msgid "Loading word editor..."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4210
+#: includes/shortcodes/word-grid-shortcode.php:4215
 msgid "Invalid word editor context."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4351
+#: includes/shortcodes/word-grid-shortcode.php:4356
 msgid "Word image #%d"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4711
+#: includes/shortcodes/word-grid-shortcode.php:4716
 msgid "Please choose an image to upload."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4715
-#: includes/shortcodes/word-grid-shortcode.php:4743
+#: includes/shortcodes/word-grid-shortcode.php:4720
+#: includes/shortcodes/word-grid-shortcode.php:4748
 msgid "Image uploads are not available right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4733
-#: includes/shortcodes/word-grid-shortcode.php:4766
+#: includes/shortcodes/word-grid-shortcode.php:4738
+#: includes/shortcodes/word-grid-shortcode.php:4771
 msgid "Image upload failed. Please try again."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4735
+#: includes/shortcodes/word-grid-shortcode.php:4740
 msgid "Please upload a valid JPG, PNG, GIF, or WebP image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4775
+#: includes/shortcodes/word-grid-shortcode.php:4780
 msgid "Lesson image"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4789
+#: includes/shortcodes/word-grid-shortcode.php:4794
 msgid "Could not save the uploaded image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5243
-#: includes/shortcodes/word-grid-shortcode.php:5711
-#: includes/shortcodes/word-grid-shortcode.php:7735
+#: includes/shortcodes/word-grid-shortcode.php:5248
+#: includes/shortcodes/word-grid-shortcode.php:5716
+#: includes/shortcodes/word-grid-shortcode.php:7740
 msgid "In sentence"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5749
+#: includes/shortcodes/word-grid-shortcode.php:5754
 msgid "Edit %s"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5750
-#: includes/shortcodes/word-grid-shortcode.php:8148
-#: includes/shortcodes/word-grid-shortcode.php:8795
+#: includes/shortcodes/word-grid-shortcode.php:5755
+#: includes/shortcodes/word-grid-shortcode.php:8153
+#: includes/shortcodes/word-grid-shortcode.php:8800
 msgid "Edit %s recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5753
+#: includes/shortcodes/word-grid-shortcode.php:5758
 #: templates/vocab-lesson-template.php:1779
 msgid "Add word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5754
+#: includes/shortcodes/word-grid-shortcode.php:5759
 msgid "Add translation"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5759
+#: includes/shortcodes/word-grid-shortcode.php:5764
 msgid "Wordset order"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5761
+#: includes/shortcodes/word-grid-shortcode.php:5766
 msgid "No categories match."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5764
+#: includes/shortcodes/word-grid-shortcode.php:5769
 msgid "Existing image"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5765
+#: includes/shortcodes/word-grid-shortcode.php:5770
 msgid "Search word set images"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5766
+#: includes/shortcodes/word-grid-shortcode.php:5771
 msgid "Upload a new image or select an existing word image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5772
+#: includes/shortcodes/word-grid-shortcode.php:5777
 msgid "Recording type"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5773
+#: includes/shortcodes/word-grid-shortcode.php:5778
 msgid "No recording types available"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5777
+#: includes/shortcodes/word-grid-shortcode.php:5782
 msgid "Clear text review flag"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5779
+#: includes/shortcodes/word-grid-shortcode.php:5784
 msgid "Clear pronunciation review flag"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5781
+#: includes/shortcodes/word-grid-shortcode.php:5786
 msgid "Superscript selection"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5782
+#: includes/shortcodes/word-grid-shortcode.php:5787
 msgid "Audio processing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5785
+#: includes/shortcodes/word-grid-shortcode.php:5790
 msgid "Auto trim"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5786
+#: includes/shortcodes/word-grid-shortcode.php:5791
 msgid "Noise reduction"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5787
+#: includes/shortcodes/word-grid-shortcode.php:5792
 msgid "Normalize volume"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5789
+#: includes/shortcodes/word-grid-shortcode.php:5794
 msgid "Audio clip boundaries"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5792
+#: includes/shortcodes/word-grid-shortcode.php:5797
 msgid "Start boundary"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5793
+#: includes/shortcodes/word-grid-shortcode.php:5798
 msgid "End boundary"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5797
+#: includes/shortcodes/word-grid-shortcode.php:5802
 msgid "Move recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5798
+#: includes/shortcodes/word-grid-shortcode.php:5803
 msgid "Move to word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5800
+#: includes/shortcodes/word-grid-shortcode.php:5805
 msgid "Delete recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5801
+#: includes/shortcodes/word-grid-shortcode.php:5806
 msgid "Delete this recording?"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5803
+#: includes/shortcodes/word-grid-shortcode.php:5808
 msgid "Delete word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5804
+#: includes/shortcodes/word-grid-shortcode.php:5809
 msgid "Delete this word?"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5805
+#: includes/shortcodes/word-grid-shortcode.php:5810
 msgid "Move word to Trash"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6173
-#: includes/shortcodes/word-grid-shortcode.php:6652
-#: includes/shortcodes/word-grid-shortcode.php:6846
+#: includes/shortcodes/word-grid-shortcode.php:6178
+#: includes/shortcodes/word-grid-shortcode.php:6657
+#: includes/shortcodes/word-grid-shortcode.php:6851
 msgid "Secondary"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6225
+#: includes/shortcodes/word-grid-shortcode.php:6230
 msgid "Drag to reorder word"
 msgstr ""
 
 #. translators: %d is the number of quiz-ready published words in a category.
-#: includes/shortcodes/word-grid-shortcode.php:6400
+#: includes/shortcodes/word-grid-shortcode.php:6405
 msgid "%d quizzable word"
 msgid_plural "%d quizzable words"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6761
+#: includes/shortcodes/word-grid-shortcode.php:6766
 msgid "Transcription guide"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6762
+#: includes/shortcodes/word-grid-shortcode.php:6767
 msgid "Previous letter"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6764
+#: includes/shortcodes/word-grid-shortcode.php:6769
 msgid "Next letter"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6908
+#: includes/shortcodes/word-grid-shortcode.php:6913
 msgid "No words found in this category."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8007
-#: includes/shortcodes/word-grid-shortcode.php:8162
-#: includes/shortcodes/word-grid-shortcode.php:8281
-#: includes/shortcodes/word-grid-shortcode.php:8959
-#: includes/shortcodes/word-grid-shortcode.php:9026
-#: includes/shortcodes/word-grid-shortcode.php:9106
-#: includes/shortcodes/word-grid-shortcode.php:9199
-#: includes/shortcodes/word-grid-shortcode.php:9265
-#: includes/shortcodes/word-grid-shortcode.php:9306
-#: includes/shortcodes/word-grid-shortcode.php:9328
-#: includes/shortcodes/word-grid-shortcode.php:10147
-#: includes/shortcodes/word-grid-shortcode.php:10808
-#: includes/shortcodes/word-grid-shortcode.php:10895
-#: includes/shortcodes/word-grid-shortcode.php:11119
+#: includes/shortcodes/word-grid-shortcode.php:8012
+#: includes/shortcodes/word-grid-shortcode.php:8167
+#: includes/shortcodes/word-grid-shortcode.php:8286
+#: includes/shortcodes/word-grid-shortcode.php:8964
+#: includes/shortcodes/word-grid-shortcode.php:9031
+#: includes/shortcodes/word-grid-shortcode.php:9111
+#: includes/shortcodes/word-grid-shortcode.php:9204
+#: includes/shortcodes/word-grid-shortcode.php:9270
+#: includes/shortcodes/word-grid-shortcode.php:9311
+#: includes/shortcodes/word-grid-shortcode.php:9333
+#: includes/shortcodes/word-grid-shortcode.php:10152
+#: includes/shortcodes/word-grid-shortcode.php:10813
+#: includes/shortcodes/word-grid-shortcode.php:10900
+#: includes/shortcodes/word-grid-shortcode.php:11124
 msgid "You must be logged in"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8012
+#: includes/shortcodes/word-grid-shortcode.php:8017
 msgid "Missing required audio data."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8023
+#: includes/shortcodes/word-grid-shortcode.php:8028
 msgid "Invalid parent word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8032
+#: includes/shortcodes/word-grid-shortcode.php:8037
 msgid "Audio upload validation is unavailable."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8050
+#: includes/shortcodes/word-grid-shortcode.php:8055
 msgid "Upload directory is unavailable."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8059
-#: includes/shortcodes/word-grid-shortcode.php:8332
+#: includes/shortcodes/word-grid-shortcode.php:8064
+#: includes/shortcodes/word-grid-shortcode.php:8337
 msgid "Invalid recording type."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8103
+#: includes/shortcodes/word-grid-shortcode.php:8108
 msgid "Failed to save file."
-msgstr ""
-
-#: includes/shortcodes/word-grid-shortcode.php:8168
-#: includes/shortcodes/word-grid-shortcode.php:9205
-#: includes/shortcodes/word-grid-shortcode.php:10817
-#: includes/shortcodes/word-grid-shortcode.php:10901
-#: includes/shortcodes/word-grid-shortcode.php:11133
-msgid "Invalid lesson"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:8173
@@ -25658,279 +25650,287 @@ msgstr ""
 #: includes/shortcodes/word-grid-shortcode.php:10822
 #: includes/shortcodes/word-grid-shortcode.php:10906
 #: includes/shortcodes/word-grid-shortcode.php:11138
+msgid "Invalid lesson"
+msgstr ""
+
+#: includes/shortcodes/word-grid-shortcode.php:8178
+#: includes/shortcodes/word-grid-shortcode.php:9215
+#: includes/shortcodes/word-grid-shortcode.php:10827
+#: includes/shortcodes/word-grid-shortcode.php:10911
+#: includes/shortcodes/word-grid-shortcode.php:11143
 msgid "Missing lesson metadata"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8198
+#: includes/shortcodes/word-grid-shortcode.php:8203
 msgid "This category is outside the lesson word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8211
+#: includes/shortcodes/word-grid-shortcode.php:8216
 msgid "Unable to create the word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8255
+#: includes/shortcodes/word-grid-shortcode.php:8260
 msgid "Created a new word in \"%s\"."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8265
+#: includes/shortcodes/word-grid-shortcode.php:8270
 msgid "Word created."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8286
+#: includes/shortcodes/word-grid-shortcode.php:8291
 msgid "Missing word ID"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8325
+#: includes/shortcodes/word-grid-shortcode.php:8330
 msgid "Choose a recording type."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8394
+#: includes/shortcodes/word-grid-shortcode.php:8399
 msgid "You do not have permission to upload images."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8407
+#: includes/shortcodes/word-grid-shortcode.php:8412
 msgid "Unable to upload the image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8420
+#: includes/shortcodes/word-grid-shortcode.php:8425
 msgid "Select an image from this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8809
+#: includes/shortcodes/word-grid-shortcode.php:8814
 msgid "Image syncing is not available right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8817
+#: includes/shortcodes/word-grid-shortcode.php:8822
 msgid "Could not update the linked word image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8849
+#: includes/shortcodes/word-grid-shortcode.php:8854
 msgid "The selected word image does not have an image file."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9004
+#: includes/shortcodes/word-grid-shortcode.php:9009
 msgid "Moved \"%s\" to Trash."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9032
+#: includes/shortcodes/word-grid-shortcode.php:9037
 msgid "Missing recording ID."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9042
+#: includes/shortcodes/word-grid-shortcode.php:9047
 msgid "Invalid recording parent."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9048
+#: includes/shortcodes/word-grid-shortcode.php:9053
 msgid "Recording is outside this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9113
+#: includes/shortcodes/word-grid-shortcode.php:9118
 msgid "Choose a recording and target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9123
+#: includes/shortcodes/word-grid-shortcode.php:9128
 msgid "Choose a different target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9129
+#: includes/shortcodes/word-grid-shortcode.php:9134
 msgid "Invalid target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9136
+#: includes/shortcodes/word-grid-shortcode.php:9141
 msgid "Move recordings within the same word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9363
+#: includes/shortcodes/word-grid-shortcode.php:9368
 msgid "You must be logged in to edit prerequisites."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9376
+#: includes/shortcodes/word-grid-shortcode.php:9381
 msgid "You do not have permission to edit prerequisites for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9384
+#: includes/shortcodes/word-grid-shortcode.php:9389
 msgid "This word set is not using prerequisite ordering."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9396
+#: includes/shortcodes/word-grid-shortcode.php:9401
 msgid "Prerequisite editing is unavailable right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9404
+#: includes/shortcodes/word-grid-shortcode.php:9409
 msgid "This lesson category is not available for prerequisite ordering."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9495
+#: includes/shortcodes/word-grid-shortcode.php:9500
 msgid "Prerequisites were not saved because they create a loop: %s"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9507
+#: includes/shortcodes/word-grid-shortcode.php:9512
 msgid "Prerequisites were not saved because they create a loop."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9902
+#: includes/shortcodes/word-grid-shortcode.php:9907
 msgid "Missing part of speech"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9906
+#: includes/shortcodes/word-grid-shortcode.php:9911
 msgid "Invalid part of speech"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9920
+#: includes/shortcodes/word-grid-shortcode.php:9925
 msgid "Gender not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9921
+#: includes/shortcodes/word-grid-shortcode.php:9926
 msgid "Missing gender"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9922
+#: includes/shortcodes/word-grid-shortcode.php:9927
 msgid "Invalid gender"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9928
+#: includes/shortcodes/word-grid-shortcode.php:9933
 msgid "Plurality not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9929
+#: includes/shortcodes/word-grid-shortcode.php:9934
 msgid "Missing plurality"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9930
+#: includes/shortcodes/word-grid-shortcode.php:9935
 msgid "Invalid plurality"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9936
+#: includes/shortcodes/word-grid-shortcode.php:9941
 msgid "Verb tense not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9937
+#: includes/shortcodes/word-grid-shortcode.php:9942
 msgid "Missing verb tense"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9938
+#: includes/shortcodes/word-grid-shortcode.php:9943
 msgid "Invalid verb tense"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9944
+#: includes/shortcodes/word-grid-shortcode.php:9949
 msgid "Verb mood not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9945
+#: includes/shortcodes/word-grid-shortcode.php:9950
 msgid "Missing verb mood"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9946
+#: includes/shortcodes/word-grid-shortcode.php:9951
 msgid "Invalid verb mood"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9951
-#: includes/shortcodes/word-grid-shortcode.php:10164
+#: includes/shortcodes/word-grid-shortcode.php:9956
+#: includes/shortcodes/word-grid-shortcode.php:10169
 msgid "Invalid mode"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10153
+#: includes/shortcodes/word-grid-shortcode.php:10158
 msgid "Missing wordset or category"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10156
+#: includes/shortcodes/word-grid-shortcode.php:10161
 msgid "Invalid category"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10285
+#: includes/shortcodes/word-grid-shortcode.php:10290
 msgid "Some words could not be updated. Reload to retry or undo."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10313
+#: includes/shortcodes/word-grid-shortcode.php:10318
 msgid "You must be logged in to undo bulk changes."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10331
+#: includes/shortcodes/word-grid-shortcode.php:10336
 msgid "You do not have permission to undo bulk changes for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10338
+#: includes/shortcodes/word-grid-shortcode.php:10343
 msgid "Invalid bulk edit mode."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10374
-#: includes/shortcodes/word-grid-shortcode.php:10458
+#: includes/shortcodes/word-grid-shortcode.php:10379
+#: includes/shortcodes/word-grid-shortcode.php:10463
 msgid "Nothing was available to undo."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10397
-#: includes/shortcodes/word-grid-shortcode.php:10447
+#: includes/shortcodes/word-grid-shortcode.php:10402
+#: includes/shortcodes/word-grid-shortcode.php:10452
 msgid "Bulk rollback skipped words changed after the bulk operation."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10410
+#: includes/shortcodes/word-grid-shortcode.php:10415
 msgid "This older bulk rollback is no longer available. Reload before making another change."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10591
+#: includes/shortcodes/word-grid-shortcode.php:10596
 msgid "Gender is not enabled for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10766
+#: includes/shortcodes/word-grid-shortcode.php:10771
 msgid "Some words could not be restored. Reload to retry the rollback."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10836
-#: includes/shortcodes/word-grid-shortcode.php:11144
+#: includes/shortcodes/word-grid-shortcode.php:10841
+#: includes/shortcodes/word-grid-shortcode.php:11149
 msgid "Transcription service not configured"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:10971
-#: includes/shortcodes/word-grid-shortcode.php:11080
+#: includes/shortcodes/word-grid-shortcode.php:10976
+#: includes/shortcodes/word-grid-shortcode.php:11085
 msgid "Empty transcript"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11148
+#: includes/shortcodes/word-grid-shortcode.php:11153
 msgid "Recording not in lesson"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11178
+#: includes/shortcodes/word-grid-shortcode.php:11183
 msgid "Local transcript missing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11201
-#: includes/shortcodes/word-grid-shortcode.php:11284
+#: includes/shortcodes/word-grid-shortcode.php:11206
+#: includes/shortcodes/word-grid-shortcode.php:11289
 msgid "Audio file missing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11242
+#: includes/shortcodes/word-grid-shortcode.php:11247
 msgid "AssemblyAI integration not available"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11253
+#: includes/shortcodes/word-grid-shortcode.php:11258
 msgid "Transcription session expired"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:11256
+#: includes/shortcodes/word-grid-shortcode.php:11261
 msgid "Transcription session mismatch"
 msgstr ""
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1953
+#: includes/shortcodes/wordset-buttons-shortcode.php:1976
 msgid "%d lesson"
 msgid_plural "%d lessons"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:1956
+#: includes/shortcodes/wordset-buttons-shortcode.php:1979
 msgid "Private word set"
 msgstr ""
 
 #. translators: 1: word set name, 2: word set privacy label.
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1961
-#: includes/shortcodes/wordset-buttons-shortcode.php:1976
+#: includes/shortcodes/wordset-buttons-shortcode.php:1984
+#: includes/shortcodes/wordset-buttons-shortcode.php:1999
 msgid "%1$s, %2$s"
 msgstr ""
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1970
+#: includes/shortcodes/wordset-buttons-shortcode.php:1993
 msgid "%1$s, private word set, %2$s"
 msgstr ""
 

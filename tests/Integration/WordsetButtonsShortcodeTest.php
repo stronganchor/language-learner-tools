@@ -1315,6 +1315,37 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('retryLabel', $localized_data);
     }
 
+    public function test_anonymous_elementor_page_pre_enqueues_refresh_runtime_for_cached_shortcode_markup(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Anonymous Cached Wordset Buttons Shell',
+            'post_content' => 'Page-builder content is cached outside post_content.',
+        ]);
+        update_post_meta($page_id, '_elementor_data', wp_json_encode([
+            [
+                'elType' => 'widget',
+                'widgetType' => 'shortcode',
+                'settings' => ['shortcode' => '[ll_wordset_buttons]'],
+            ],
+        ]));
+
+        wp_dequeue_script('ll-tools-wordset-buttons-refresh');
+        wp_deregister_script('ll-tools-wordset-buttons-refresh');
+        wp_set_current_user(0);
+        $this->go_to(get_permalink($page_id));
+        ll_tools_wordset_buttons_shortcode_maybe_enqueue_assets();
+
+        $this->assertTrue(wp_script_is('ll-tools-wordset-buttons-refresh', 'enqueued'));
+        $localized_data = (string) wp_scripts()->get_data('ll-tools-wordset-buttons-refresh', 'data');
+        $this->assertStringContainsString('llToolsWordsetButtonsRefresh', $localized_data);
+        $this->assertStringContainsString('errorMessage', $localized_data);
+        $this->assertStringContainsString('retryLabel', $localized_data);
+        $this->assertStringNotContainsString('ll_tools_wordset_buttons_refresh', $localized_data);
+        $this->assertStringNotContainsString('"nonce"', $localized_data);
+    }
+
     public function test_structural_privacy_epoch_never_reuses_the_previous_complete_render(): void
     {
         wp_set_current_user(0);
