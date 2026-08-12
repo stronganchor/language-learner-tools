@@ -45,7 +45,7 @@ performance work evidence-led and scoped to a measured growth dimension.
   source text contains no prohibited zero-width characters, and compatibility
   wrappers for DeepL language maps, bounded word-option pages, and bounded
   image-fixer scans have direct parity tests. Current no-install discovery lists
-  631 Playwright tests in 100 files; the refreshed POT contains 6,000 messages,
+  629 Playwright tests in 100 files; the refreshed POT contains 6,000 messages,
   full Turkish/German catalogs pass at 6,000/6,000, and the tier-2 public
   manifest remains 793/793.
 
