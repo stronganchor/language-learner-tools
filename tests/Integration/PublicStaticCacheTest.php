@@ -238,6 +238,80 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_category_search_recovery_marker_bypasses_public_cache_read_and_capture(): void
+    {
+        $term = wp_insert_term('Public Static Cache Search Recovery', 'wordset');
+        $this->assertIsArray($term);
+        $wordset = get_term((int) ($term['term_id'] ?? 0), 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        wp_set_current_user(0);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/';
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', '');
+        $this->clear404Flag();
+
+        $identity = ll_tools_public_static_cache_request_identity();
+        $this->assertIsArray($identity);
+        $key = ll_tools_public_static_cache_key($identity);
+        $file = ll_tools_public_static_cache_file_path($key);
+        $this->assertNotSame('', $file);
+        $this->assertTrue(wp_mkdir_p(dirname($file)));
+        $baseline = '<!doctype html><html><body>' . str_repeat('cached baseline search page ', 40) . '</body></html>';
+        $this->assertNotFalse(file_put_contents($file, $baseline));
+        touch($file, time());
+
+        $_GET = ['ll_category_search_recovery' => '1'];
+        $_SERVER['REQUEST_URI'] = '/' . $wordset->slug . '/?ll_category_search_recovery=1';
+        unset($GLOBALS['ll_tools_public_static_cache_request']);
+
+        $this->assertTrue(ll_tools_public_static_cache_has_category_search_recovery_arg());
+        $this->assertFalse(ll_tools_public_static_cache_has_category_search_recovery_arg([
+            'll_category_search_recovery' => '0',
+        ]));
+        $this->assertFalse(ll_tools_public_static_cache_has_safe_request_shape());
+        $this->assertFalse(ll_tools_is_cacheable_public_static_request());
+        $this->assertSame(
+            'private, no-store, no-cache, must-revalidate, max-age=0',
+            ll_tools_public_static_cache_category_search_recovery_cache_control_value()
+        );
+
+        ll_tools_serve_public_static_cache();
+        $this->assertArrayNotHasKey('ll_tools_public_static_cache_request', $GLOBALS);
+        $this->assertSame($baseline, file_get_contents($file));
+
+        $capture_file = trailingslashit(dirname($file)) . 'public-search-recovery-capture-guard-test.html';
+        @unlink($capture_file);
+        $capture_key = md5('public-search-recovery-capture-guard-test');
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($capture_key));
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $capture_key,
+            'file' => $capture_file,
+            'identity' => $identity,
+            'lock_acquired' => true,
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('fresh recovery response ', 40) . '</body></html>';
+            ll_tools_store_public_static_cache();
+            $this->assertFileDoesNotExist($capture_file);
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($capture_key));
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            ll_tools_public_static_cache_release_rebuild_lock($capture_key);
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+            @unlink($capture_file);
+        }
+    }
+
     public function test_public_static_cache_identifies_only_public_wordset_main_view(): void
     {
         $term = wp_insert_term('Public Static Cache Wordset', 'wordset');

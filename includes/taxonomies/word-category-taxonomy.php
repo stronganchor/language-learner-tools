@@ -4201,11 +4201,6 @@ function ll_tools_bump_category_cache_epoch($wordset_ids = []) {
     if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
         ll_tools_purge_wordset_buttons_shortcode_cache_once();
     }
-    // This global structural epoch is part of every wordset search signature,
-    // so rebuild readiness must advance across all wordsets in bounded cron steps.
-    if (function_exists('ll_tools_request_wordset_category_search_rebuild_sweep')) {
-        ll_tools_request_wordset_category_search_rebuild_sweep();
-    }
 }
 
 /**

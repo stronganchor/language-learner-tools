@@ -2594,24 +2594,63 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: flex;
 }
 
-.ll-wordset-search-error__retry {
-    appearance: none;
-    border: 1px solid #bcc7d2;
-    border-radius: 999px;
-    background: #fff;
-    color: #243447;
-    cursor: pointer;
-    font: inherit;
-    font-weight: 700;
-    line-height: 1.2;
-    padding: 8px 14px;
+.ll-wordset-page .ll-wordset-search-error__retry {
+    appearance: none !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 8px 16px !important;
+    border: 1px solid #bcc7d2 !important;
+    border-radius: 999px !important;
+    background: #fff !important;
+    color: #243447 !important;
+    cursor: pointer !important;
+    font: inherit !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
 }
 
-.ll-wordset-search-error__retry:hover,
-.ll-wordset-search-error__retry:focus-visible {
-    border-color: #65788a;
-    box-shadow: 0 0 0 3px rgba(36, 52, 71, 0.12);
-    outline: none;
+.ll-wordset-page .ll-wordset-search-error__retry:hover,
+.ll-wordset-page .ll-wordset-search-error__retry:focus,
+.ll-wordset-page .ll-wordset-search-error__retry:active {
+    border-color: #65788a !important;
+    background: #f4f7f9 !important;
+    color: #172536 !important;
+    text-decoration: none !important;
+    box-shadow: 0 0 0 3px rgba(36, 52, 71, 0.12) !important;
+}
+
+.ll-wordset-page .ll-wordset-search-error__retry:focus:not(:focus-visible) {
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-search-error__retry:focus-visible {
+    border-color: #65788a !important;
+    background: #f4f7f9 !important;
+    color: #172536 !important;
+    outline: 3px solid #243447 !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+}
+
+@media (forced-colors: active) {
+    .ll-wordset-page .ll-wordset-search-error__retry,
+    .ll-wordset-page .ll-wordset-search-error__retry:hover,
+    .ll-wordset-page .ll-wordset-search-error__retry:focus,
+    .ll-wordset-page .ll-wordset-search-error__retry:focus-visible,
+    .ll-wordset-page .ll-wordset-search-error__retry:active {
+        border-color: ButtonText !important;
+        background: ButtonFace !important;
+        color: ButtonText !important;
+        box-shadow: none !important;
+        forced-color-adjust: auto;
+    }
+
+    .ll-wordset-page .ll-wordset-search-error__retry:focus-visible {
+        outline: 2px solid Highlight !important;
+        outline-offset: 3px !important;
+    }
 }
 
 .ll-wordset-grid-lazy {

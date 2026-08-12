@@ -19,6 +19,21 @@ if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK')) {
 if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION')) {
     define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_GENERATION_OPTION', 'll_tools_wcs_sweep_generation');
 }
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK')) {
+    define(
+        'LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK',
+        'll_tools_wordset_category_search_deleted_wordset_cleanup_batch'
+    );
+}
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SOURCE_EPOCH_OPTION_PREFIX')) {
+    define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_SOURCE_EPOCH_OPTION_PREFIX', 'll_tools_wcs_source_epoch_');
+}
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION')) {
+    define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION', 'll_tools_wcs_source_unknown_epoch');
+}
+if (!defined('LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION')) {
+    define('LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION', 'll_tools_wcs_source_failsafe_epoch');
+}
 
 /**
  * Return the durable word/category search-index table name.
@@ -202,26 +217,77 @@ function ll_tools_wordset_category_search_lock_option(int $wordset_id): string {
 }
 
 /**
+ * Return the option name for one wordset's search-source generation.
+ */
+function ll_tools_wordset_category_search_source_epoch_option(int $wordset_id): string {
+    return LL_TOOLS_WORDSET_CATEGORY_SEARCH_SOURCE_EPOCH_OPTION_PREFIX . max(0, $wordset_id);
+}
+
+/**
+ * Read an option epoch without trusting a persistent object-cache snapshot.
+ */
+function ll_tools_wordset_category_search_read_source_epoch_option(string $option_name): int {
+    if (function_exists('ll_tools_read_option_epoch')) {
+        return max(1, (int) ll_tools_read_option_epoch($option_name));
+    }
+
+    return max(1, (int) get_option($option_name, 1));
+}
+
+/**
+ * Return the narrow source generation for a wordset materialization.
+ *
+ * The unknown-scope generation is a fail-safe for a mutation whose old and
+ * new wordset scopes could not be resolved without an unbounded scan.
+ */
+function ll_tools_wordset_category_search_source_epoch_signature(int $wordset_id): string {
+    $wordset_id = max(0, $wordset_id);
+    $failsafe_epoch = ll_tools_wordset_category_search_read_source_epoch_option(
+        LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION
+    );
+    $unknown_epoch = ll_tools_wordset_category_search_read_source_epoch_option(
+        LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+    );
+    $wordset_epoch = $wordset_id > 0
+        ? ll_tools_wordset_category_search_read_source_epoch_option(
+            ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+        )
+        : 1;
+
+    return 'wcs1:f' . $failsafe_epoch . ':u' . $unknown_epoch . ':w' . $wordset_epoch;
+}
+
+/**
+ * Reset request-local epoch snapshots when source options change directly.
+ */
+function ll_tools_wordset_category_search_reset_source_epoch_cache(string $option_name): void {
+    if (
+        !in_array($option_name, [
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION,
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION,
+        ], true)
+        && strpos($option_name, LL_TOOLS_WORDSET_CATEGORY_SEARCH_SOURCE_EPOCH_OPTION_PREFIX) !== 0
+    ) {
+        return;
+    }
+    if (function_exists('ll_tools_epoch_request_cache_reset') && function_exists('ll_tools_epoch_request_cache_key')) {
+        ll_tools_epoch_request_cache_reset(ll_tools_epoch_request_cache_key('option', 0, $option_name));
+    }
+}
+add_action('added_option', 'll_tools_wordset_category_search_reset_source_epoch_cache', 6, 1);
+add_action('updated_option', 'll_tools_wordset_category_search_reset_source_epoch_cache', 6, 1);
+add_action('deleted_option', 'll_tools_wordset_category_search_reset_source_epoch_cache', 6, 1);
+
+/**
  * Return the cache dependencies that make a wordset materialization current.
  */
 function ll_tools_wordset_category_search_dependency_signature(int $wordset_id): string {
     $wordset_id = max(0, $wordset_id);
-    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
-        ? max(1, (int) ll_tools_get_category_cache_epoch())
-        : 1;
-    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
-        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
-        : 1;
-    $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
-        ? (string) ll_tools_get_quiz_content_cache_epoch([$wordset_id])
-        : (string) $category_epoch;
 
     return hash('sha256', wp_json_encode([
         'schema' => LL_TOOLS_WORDSET_CATEGORY_SEARCH_TABLE_VERSION,
         'wordset_id' => $wordset_id,
-        'category_epoch' => $category_epoch,
-        'wordset_epoch' => $wordset_epoch,
-        'quiz_content_epoch' => $quiz_content_epoch,
+        'source_epoch' => ll_tools_wordset_category_search_source_epoch_signature($wordset_id),
     ]));
 }
 
@@ -900,28 +966,570 @@ add_action(
 );
 
 /**
- * Keep the durable search index ahead of scoped content mutations.
- *
- * @param array<string,mixed> $result
+ * Atomically advance one search-source option epoch.
  */
-function ll_tools_wordset_category_search_schedule_after_content_epoch_bump(array $result): void {
-    $wordset_ids = array_values(array_filter(array_map(
-        'intval',
-        array_keys((array) ($result['wordset_epochs'] ?? []))
+function ll_tools_wordset_category_search_increment_source_epoch_option(string $option_name): int {
+    $before = ll_tools_wordset_category_search_read_source_epoch_option($option_name);
+    if (function_exists('ll_tools_atomic_increment_option_epoch')) {
+        return max($before, (int) ll_tools_atomic_increment_option_epoch($option_name));
+    }
+
+    update_option($option_name, $before + 1, false);
+    ll_tools_wordset_category_search_reset_source_epoch_cache($option_name);
+
+    return ll_tools_wordset_category_search_read_source_epoch_option($option_name);
+}
+
+/**
+ * Advance the dedicated search-source generation for a known wordset scope.
+ *
+ * An incomplete scope advances a global unknown-scope generation and starts a
+ * bounded scheduling sweep. A complete scope schedules only affected wordsets.
+ *
+ * @param array|int $wordset_ids
+ * @return array{wordset_epochs:array<int,int>,unknown_epoch:int,failsafe_epoch:int,scope_complete:bool,generation_advanced:bool}
+ */
+function ll_tools_bump_wordset_category_search_source_epoch($wordset_ids, bool $scope_complete = true): array {
+    $raw_ids = array_map('intval', (array) $wordset_ids);
+    $normalized_ids = array_values(array_unique(array_filter($raw_ids, static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($normalized_ids, SORT_NUMERIC);
+    if (count($normalized_ids) !== count(array_unique($raw_ids))) {
+        $scope_complete = false;
+    }
+
+    $wordset_epochs = [];
+    foreach ($normalized_ids as $wordset_id) {
+        $option_name = ll_tools_wordset_category_search_source_epoch_option($wordset_id);
+        $before = ll_tools_wordset_category_search_read_source_epoch_option($option_name);
+        $after = ll_tools_wordset_category_search_increment_source_epoch_option($option_name);
+        if ($after <= $before) {
+            $scope_complete = false;
+            continue;
+        }
+        $wordset_epochs[$wordset_id] = $after;
+    }
+
+    $unknown_epoch = ll_tools_wordset_category_search_read_source_epoch_option(
+        LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+    );
+    $unknown_advanced = false;
+    $failsafe_epoch = ll_tools_wordset_category_search_read_source_epoch_option(
+        LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION
+    );
+    $failsafe_advanced = false;
+    if (!$scope_complete) {
+        $unknown_before = $unknown_epoch;
+        $unknown_epoch = ll_tools_wordset_category_search_increment_source_epoch_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+        );
+        $unknown_advanced = $unknown_epoch > $unknown_before;
+        if (!$unknown_advanced) {
+            $failsafe_before = $failsafe_epoch;
+            $failsafe_epoch = ll_tools_wordset_category_search_increment_source_epoch_option(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_FAILSAFE_SOURCE_EPOCH_OPTION
+            );
+            $failsafe_advanced = $failsafe_epoch > $failsafe_before;
+        }
+        ll_tools_request_wordset_category_search_rebuild_sweep();
+    } elseif (!empty($wordset_epochs)) {
+        ll_tools_schedule_wordset_category_search_rebuild_scope(array_keys($wordset_epochs));
+    }
+
+    return [
+        'wordset_epochs' => $wordset_epochs,
+        'unknown_epoch' => $unknown_epoch,
+        'failsafe_epoch' => $failsafe_epoch,
+        'scope_complete' => $scope_complete,
+        'generation_advanced' => !empty($wordset_epochs) || $unknown_advanced || $failsafe_advanced,
+    ];
+}
+
+/**
+ * Resolve a word's direct wordset memberships without scanning a wordset.
+ *
+ * @return array{wordset_ids:int[],complete:bool}
+ */
+function ll_tools_wordset_category_search_wordset_scope_for_word(int $word_id): array {
+    global $wpdb;
+
+    $word_id = max(0, $word_id);
+    if ($word_id <= 0) {
+        return ['wordset_ids' => [], 'complete' => true];
+    }
+    $limit = max(1, min(500, (int) apply_filters(
+        'll_tools_wordset_category_search_word_wordset_limit',
+        100
     )));
-    if (!empty($result['scope_complete']) && !empty($wordset_ids)) {
-        ll_tools_schedule_wordset_category_search_rebuild_scope($wordset_ids);
+    $wpdb->last_error = '';
+    $wordset_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT taxonomy.term_id
+         FROM {$wpdb->term_relationships} AS relationships
+         INNER JOIN {$wpdb->term_taxonomy} AS taxonomy
+            ON taxonomy.term_taxonomy_id = relationships.term_taxonomy_id
+           AND taxonomy.taxonomy = 'wordset'
+         WHERE relationships.object_id = %d
+         ORDER BY taxonomy.term_id ASC
+         LIMIT %d",
+        $word_id,
+        $limit + 1
+    ));
+    if ($wpdb->last_error !== '') {
+        return ['wordset_ids' => [], 'complete' => false];
+    }
+
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($wordset_ids, SORT_NUMERIC);
+    $complete = count($wordset_ids) <= $limit;
+    if (!$complete) {
+        // Do not emit one option write and cron lookup per partial membership.
+        // The unknown epoch plus bounded sweep owns malformed fanout safely.
+        $wordset_ids = [];
+    }
+
+    return ['wordset_ids' => $wordset_ids, 'complete' => $complete];
+}
+
+/**
+ * Resolve a bounded set of term-taxonomy IDs to term IDs.
+ *
+ * @return array{term_ids:int[],complete:bool}
+ */
+function ll_tools_wordset_category_search_term_taxonomy_scope(array $term_taxonomy_ids, string $taxonomy): array {
+    global $wpdb;
+
+    $term_taxonomy_ids = array_values(array_unique(array_filter(array_map('intval', $term_taxonomy_ids), static function (int $term_taxonomy_id): bool {
+        return $term_taxonomy_id > 0;
+    })));
+    if (empty($term_taxonomy_ids)) {
+        return ['term_ids' => [], 'complete' => true];
+    }
+    if (count($term_taxonomy_ids) > 100) {
+        return ['term_ids' => [], 'complete' => false];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($term_taxonomy_ids), '%d'));
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT term_taxonomy_id, term_id
+         FROM {$wpdb->term_taxonomy}
+         WHERE taxonomy = %s
+           AND term_taxonomy_id IN ({$placeholders})",
+        array_merge([$taxonomy], $term_taxonomy_ids)
+    ), ARRAY_A);
+    $resolved_tt_ids = [];
+    $term_ids = [];
+    foreach ((array) $rows as $row) {
+        $resolved_tt_ids[] = (int) ($row['term_taxonomy_id'] ?? 0);
+        $term_ids[] = (int) ($row['term_id'] ?? 0);
+    }
+    $resolved_tt_ids = array_values(array_unique(array_filter($resolved_tt_ids)));
+    $term_ids = array_values(array_unique(array_filter($term_ids)));
+    sort($term_ids, SORT_NUMERIC);
+
+    return [
+        'term_ids' => $term_ids,
+        'complete' => $wpdb->last_error === '' && count($resolved_tt_ids) === count($term_taxonomy_ids),
+    ];
+}
+
+/**
+ * Invalidate a resolved scope, escalating only genuinely incomplete lookups.
+ *
+ * @param array{wordset_ids?:int[],complete?:bool} $scope
+ */
+function ll_tools_wordset_category_search_invalidate_scope(array $scope): void {
+    $wordset_ids = array_values(array_unique(array_filter(array_map(
+        'intval',
+        (array) ($scope['wordset_ids'] ?? [])
+    ))));
+    if (!empty($wordset_ids) || empty($scope['complete'])) {
+        ll_tools_bump_wordset_category_search_source_epoch($wordset_ids, !empty($scope['complete']));
+    }
+}
+
+/**
+ * Published word titles are durable category-search source text.
+ */
+function ll_tools_wordset_category_search_on_word_updated(int $post_id, WP_Post $post_after, WP_Post $post_before): void {
+    if (
+        $post_after->post_type !== 'words'
+        || $post_before->post_type !== 'words'
+        || $post_after->post_status !== 'publish'
+        || $post_before->post_status !== 'publish'
+        || $post_after->post_title === $post_before->post_title
+    ) {
         return;
     }
 
-    ll_tools_request_wordset_category_search_rebuild_sweep();
+    ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+    );
+}
+add_action('post_updated', 'll_tools_wordset_category_search_on_word_updated', 30, 3);
+
+/**
+ * Preserve the old published-word scope before core writes status or type.
+ *
+ * wp_insert_post() updates the posts row before applying tax_input, so term
+ * callbacks for a publish-to-draft update see the new non-published status.
+ * Capturing only a change that leaves the indexed published-word set lets the
+ * later callback invalidate old and new scopes once without weakening the
+ * normal published-only term hooks.
+ */
+function ll_tools_wordset_category_search_capture_scope_before_published_word_exit(int $post_id, array $data): void {
+    $post = get_post($post_id);
+    $next_status = (string) ($data['post_status'] ?? $post->post_status ?? '');
+    $next_type = (string) ($data['post_type'] ?? $post->post_type ?? '');
+    if (
+        !($post instanceof WP_Post)
+        || $post->post_type !== 'words'
+        || $post->post_status !== 'publish'
+        || ($next_status === 'publish' && $next_type === 'words')
+    ) {
+        return;
+    }
+
+    $GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]
+        = ll_tools_wordset_category_search_wordset_scope_for_word($post_id);
 }
 add_action(
-    'll_tools_quiz_content_cache_epoch_bumped',
-    'll_tools_wordset_category_search_schedule_after_content_epoch_bump',
-    10,
-    1
+    'pre_post_update',
+    'll_tools_wordset_category_search_capture_scope_before_published_word_exit',
+    30,
+    2
 );
+
+/**
+ * Whether a combined update is leaving the indexed published-word set.
+ *
+ * Core can apply tax_input/meta_input before it clears the old post object
+ * cache, so get_post_status() may still report publish inside those callbacks.
+ * The final status/type callback owns this mutation's one source invalidation.
+ */
+function ll_tools_wordset_category_search_published_word_exit_in_progress(int $post_id): bool {
+    return isset($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id])
+        && is_array($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]);
+}
+
+/**
+ * Entering or leaving publish status adds or removes a word from the index.
+ */
+function ll_tools_wordset_category_search_on_word_status_change(string $new_status, string $old_status, WP_Post $post): void {
+    $post_id = (int) $post->ID;
+    $captured_scopes = (array) ($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'] ?? []);
+    $old_scope = isset($captured_scopes[$post_id]) && is_array($captured_scopes[$post_id])
+        ? $captured_scopes[$post_id]
+        : null;
+    if ($new_status === $old_status || ($new_status !== 'publish' && $old_status !== 'publish')) {
+        return;
+    }
+
+    if ($old_status === 'publish' && is_array($old_scope)) {
+        unset($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]);
+        $current_scope = $post->post_type === 'words'
+            ? ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+            : ['wordset_ids' => [], 'complete' => true];
+        ll_tools_wordset_category_search_invalidate_scope([
+            'wordset_ids' => array_merge(
+                (array) ($old_scope['wordset_ids'] ?? []),
+                (array) ($current_scope['wordset_ids'] ?? [])
+            ),
+            'complete' => !empty($old_scope['complete']) && !empty($current_scope['complete']),
+        ]);
+        return;
+    }
+
+    unset($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]);
+    if ($new_status === 'publish' && $post->post_type === 'words') {
+        ll_tools_wordset_category_search_invalidate_scope(
+            ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+        );
+    }
+}
+add_action('transition_post_status', 'll_tools_wordset_category_search_on_word_status_change', 30, 3);
+
+/**
+ * Entering or leaving the published `words` post type changes index membership
+ * even when post status and direct term relationships are unchanged.
+ */
+function ll_tools_wordset_category_search_on_word_type_change(
+    int $post_id,
+    WP_Post $post_after,
+    WP_Post $post_before
+): void {
+    if (
+        $post_after->post_status !== 'publish'
+        || $post_before->post_status !== 'publish'
+        || $post_after->post_type === $post_before->post_type
+        || ($post_after->post_type !== 'words' && $post_before->post_type !== 'words')
+    ) {
+        return;
+    }
+
+    $captured_scopes = (array) ($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'] ?? []);
+    $old_scope = isset($captured_scopes[$post_id]) && is_array($captured_scopes[$post_id])
+        ? $captured_scopes[$post_id]
+        : null;
+    unset($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]);
+
+    $current_scope = ll_tools_wordset_category_search_wordset_scope_for_word($post_id);
+    if ($post_before->post_type === 'words' && is_array($old_scope)) {
+        ll_tools_wordset_category_search_invalidate_scope([
+            'wordset_ids' => array_merge(
+                (array) ($old_scope['wordset_ids'] ?? []),
+                (array) ($current_scope['wordset_ids'] ?? [])
+            ),
+            'complete' => !empty($old_scope['complete']) && !empty($current_scope['complete']),
+        ]);
+        return;
+    }
+
+    ll_tools_wordset_category_search_invalidate_scope($current_scope);
+}
+add_action('post_updated', 'll_tools_wordset_category_search_on_word_type_change', 25, 3);
+
+/**
+ * Current and legacy translations are the only indexed word metadata.
+ */
+function ll_tools_wordset_category_search_on_word_translation_change($meta_id, int $post_id, string $meta_key): void {
+    unset($meta_id);
+    if (
+        !in_array($meta_key, ['word_translation', 'word_english_meaning'], true)
+        || !empty($GLOBALS['ll_tools_wcs_word_deletion'][$post_id])
+        || ll_tools_wordset_category_search_published_word_exit_in_progress($post_id)
+        || get_post_type($post_id) !== 'words'
+        || get_post_status($post_id) !== 'publish'
+    ) {
+        return;
+    }
+
+    ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+    );
+}
+add_action('added_post_meta', 'll_tools_wordset_category_search_on_word_translation_change', 30, 3);
+add_action('updated_post_meta', 'll_tools_wordset_category_search_on_word_translation_change', 30, 3);
+add_action('deleted_post_meta', 'll_tools_wordset_category_search_on_word_translation_change', 30, 3);
+
+/**
+ * Mark core term deletion so its relationship teardown does not schedule one
+ * source bump per attached word; the successful term-delete hooks below own
+ * the global category invalidation or wordset cleanup.
+ */
+function ll_tools_wordset_category_search_mark_term_deletion(int $term_id, string $taxonomy): void {
+    unset($term_id);
+    if (in_array($taxonomy, ['wordset', 'word-category'], true)) {
+        $GLOBALS['ll_tools_wcs_term_deletion'][$taxonomy] = true;
+    }
+}
+add_action('pre_delete_term', 'll_tools_wordset_category_search_mark_term_deletion', 30, 2);
+
+function ll_tools_wordset_category_search_clear_term_deletion(int $term_id, int $term_taxonomy_id, string $taxonomy): void {
+    unset($term_id, $term_taxonomy_id);
+    if (isset($GLOBALS['ll_tools_wcs_term_deletion'][$taxonomy])) {
+        unset($GLOBALS['ll_tools_wcs_term_deletion'][$taxonomy]);
+    }
+}
+add_action('delete_term', 'll_tools_wordset_category_search_clear_term_deletion', 1, 3);
+
+function ll_tools_wordset_category_search_term_deletion_in_progress(string $taxonomy): bool {
+    return !empty($GLOBALS['ll_tools_wcs_term_deletion'][$taxonomy]);
+}
+
+/**
+ * Direct wordset/category relationship changes alter indexed membership.
+ */
+function ll_tools_wordset_category_search_on_word_terms_change(
+    int $object_id,
+    $terms,
+    array $tt_ids,
+    string $taxonomy,
+    bool $append,
+    array $old_tt_ids
+): void {
+    unset($terms);
+    if (
+        !in_array($taxonomy, ['wordset', 'word-category'], true)
+        || ll_tools_wordset_category_search_term_deletion_in_progress($taxonomy)
+        || ll_tools_wordset_category_search_published_word_exit_in_progress($object_id)
+        || get_post_type($object_id) !== 'words'
+        || get_post_status($object_id) !== 'publish'
+    ) {
+        return;
+    }
+
+    $new_ids = array_values(array_unique(array_map('intval', $tt_ids)));
+    $old_ids = array_values(array_unique(array_map('intval', $old_tt_ids)));
+    sort($new_ids, SORT_NUMERIC);
+    sort($old_ids, SORT_NUMERIC);
+    if ($new_ids === $old_ids) {
+        return;
+    }
+    if (!$append && !empty(array_diff($old_ids, $new_ids))) {
+        // Core has already fired deleted_term_relationships after inserting
+        // additions and removing the old relationships. That handler resolves
+        // removed plus current wordsets and owns this mutation's one bump.
+        return;
+    }
+
+    if ($taxonomy === 'wordset') {
+        $term_scope = ll_tools_wordset_category_search_term_taxonomy_scope(
+            array_merge($new_ids, $old_ids),
+            'wordset'
+        );
+        ll_tools_wordset_category_search_invalidate_scope([
+            'wordset_ids' => (array) ($term_scope['term_ids'] ?? []),
+            'complete' => !empty($term_scope['complete']),
+        ]);
+        return;
+    }
+
+    ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_wordset_scope_for_word($object_id)
+    );
+}
+add_action('set_object_terms', 'll_tools_wordset_category_search_on_word_terms_change', 30, 6);
+
+/**
+ * Cover direct wp_remove_object_terms() calls, which do not fire set_object_terms.
+ */
+function ll_tools_wordset_category_search_on_word_terms_removed(
+    int $object_id,
+    array $tt_ids,
+    string $taxonomy
+): void {
+    if (
+        !in_array($taxonomy, ['wordset', 'word-category'], true)
+        || ll_tools_wordset_category_search_term_deletion_in_progress($taxonomy)
+        || !empty($GLOBALS['ll_tools_wcs_word_deletion'][$object_id])
+        || ll_tools_wordset_category_search_published_word_exit_in_progress($object_id)
+        || get_post_type($object_id) !== 'words'
+        || get_post_status($object_id) !== 'publish'
+    ) {
+        return;
+    }
+
+    if ($taxonomy === 'word-category') {
+        ll_tools_wordset_category_search_invalidate_scope(
+            ll_tools_wordset_category_search_wordset_scope_for_word($object_id)
+        );
+        return;
+    }
+
+    $removed_scope = ll_tools_wordset_category_search_term_taxonomy_scope($tt_ids, 'wordset');
+    $current_scope = ll_tools_wordset_category_search_wordset_scope_for_word($object_id);
+    ll_tools_wordset_category_search_invalidate_scope([
+        'wordset_ids' => array_merge(
+            (array) ($removed_scope['term_ids'] ?? []),
+            (array) ($current_scope['wordset_ids'] ?? [])
+        ),
+        'complete' => !empty($removed_scope['complete']) && !empty($current_scope['complete']),
+    ]);
+}
+add_action('deleted_term_relationships', 'll_tools_wordset_category_search_on_word_terms_removed', 30, 3);
+
+/**
+ * Hard deletion runs while direct wordset relationships are still available.
+ */
+function ll_tools_wordset_category_search_before_word_delete(int $post_id, WP_Post $post): void {
+    if ($post->post_type !== 'words' || $post->post_status !== 'publish') {
+        return;
+    }
+
+    ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+    );
+    $GLOBALS['ll_tools_wcs_word_deletion'][$post_id] = true;
+}
+add_action('before_delete_post', 'll_tools_wordset_category_search_before_word_delete', 5, 2);
+
+function ll_tools_wordset_category_search_clear_word_deletion(int $post_id, WP_Post $post): void {
+    if ($post->post_type === 'words' && isset($GLOBALS['ll_tools_wcs_word_deletion'][$post_id])) {
+        unset($GLOBALS['ll_tools_wcs_word_deletion'][$post_id]);
+    }
+}
+add_action('delete_post', 'll_tools_wordset_category_search_clear_word_deletion', 1, 2);
+add_action('deleted_post', 'll_tools_wordset_category_search_clear_word_deletion', 1, 2);
+
+/**
+ * Resolve the wordsets whose indexed rows were affected by category deletion.
+ *
+ * Core supplies every previously attached object ID after removing the term.
+ * Keep that request work bounded; an oversized or failed lookup escalates to
+ * the existing keyset scheduling sweep instead of hydrating all objects.
+ *
+ * @return array{wordset_ids:int[],complete:bool}
+ */
+function ll_tools_wordset_category_search_category_delete_scope(array $object_ids): array {
+    global $wpdb;
+
+    $object_ids = array_values(array_unique(array_filter(array_map('intval', $object_ids), static function (int $object_id): bool {
+        return $object_id > 0;
+    })));
+    if (empty($object_ids)) {
+        return ['wordset_ids' => [], 'complete' => true];
+    }
+
+    $object_limit = max(1, min(500, (int) apply_filters(
+        'll_tools_wordset_category_search_category_delete_object_limit',
+        100
+    )));
+    if (count($object_ids) > $object_limit) {
+        return ['wordset_ids' => [], 'complete' => false];
+    }
+
+    $relationship_limit = max($object_limit, min(2000, (int) apply_filters(
+        'll_tools_wordset_category_search_category_delete_relationship_limit',
+        $object_limit * 4
+    )));
+    $placeholders = implode(',', array_fill(0, count($object_ids), '%d'));
+    $wpdb->last_error = '';
+    $wordset_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT wordset_taxonomy.term_id
+         FROM {$wpdb->posts} AS posts
+         INNER JOIN {$wpdb->term_relationships} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+         INNER JOIN {$wpdb->term_taxonomy} AS wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationships.term_taxonomy_id
+           AND wordset_taxonomy.taxonomy = 'wordset'
+         WHERE posts.ID IN ({$placeholders})
+           AND posts.post_type = 'words'
+           AND posts.post_status = 'publish'
+         ORDER BY wordset_taxonomy.term_id ASC
+         LIMIT %d",
+        array_merge($object_ids, [$relationship_limit + 1])
+    ));
+    if ($wpdb->last_error !== '' || count((array) $wordset_ids) > $relationship_limit) {
+        return ['wordset_ids' => [], 'complete' => false];
+    }
+
+    $wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($wordset_ids, SORT_NUMERIC);
+
+    return ['wordset_ids' => $wordset_ids, 'complete' => true];
+}
+
+/**
+ * Invalidate only wordsets that actually lost indexed category relationships.
+ */
+function ll_tools_wordset_category_search_on_category_delete(
+    int $term_id,
+    int $term_taxonomy_id,
+    WP_Term $deleted_term,
+    array $object_ids
+): void {
+    unset($term_id, $term_taxonomy_id, $deleted_term);
+    ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_category_delete_scope($object_ids)
+    );
+}
+add_action('delete_word-category', 'll_tools_wordset_category_search_on_category_delete', 30, 4);
 
 /**
  * Return one bounded keyset batch of published words and their search strings.
@@ -2034,36 +2642,94 @@ function ll_tools_wordset_category_search_query_matches(
 }
 
 /**
- * Remove durable rows and coordinator state after a wordset is deleted.
+ * Remove at most one ordinary cleanup-sized batch for a deleted wordset.
+ *
+ * @return array{success:bool,deleted:int,complete:bool}
+ */
+function ll_tools_wordset_category_search_delete_deleted_wordset_row_batch(int $wordset_id): array {
+    global $wpdb;
+
+    $wordset_id = max(0, $wordset_id);
+    if ($wordset_id <= 0 || !ll_tools_wordset_category_search_table_exists()) {
+        return ['success' => true, 'deleted' => 0, 'complete' => true];
+    }
+
+    $limit = max(50, min(2000, (int) apply_filters(
+        'll_tools_wordset_category_search_cleanup_row_limit',
+        500
+    )));
+    $wpdb->last_error = '';
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM " . ll_tools_wordset_category_search_table_name() . "
+         WHERE wordset_id = %d
+         LIMIT %d",
+        $wordset_id,
+        $limit
+    ));
+    if ($deleted === false || $wpdb->last_error !== '') {
+        return ['success' => false, 'deleted' => 0, 'complete' => false];
+    }
+
+    $deleted = max(0, (int) $deleted);
+    return [
+        'success' => true,
+        'deleted' => $deleted,
+        'complete' => $deleted < $limit,
+    ];
+}
+
+/**
+ * Continue bounded row cleanup after a wordset and its coordinator are gone.
+ */
+function ll_tools_wordset_category_search_run_deleted_wordset_cleanup(int $wordset_id): void {
+    $wordset_id = max(0, $wordset_id);
+    if ($wordset_id <= 0) {
+        return;
+    }
+
+    $args = [$wordset_id];
+    wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK, $args);
+    delete_option(ll_tools_wordset_category_search_state_option($wordset_id));
+    delete_option(ll_tools_wordset_category_search_lock_option($wordset_id));
+    delete_option(ll_tools_wordset_category_search_source_epoch_option($wordset_id));
+    wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+
+    $result = ll_tools_wordset_category_search_delete_deleted_wordset_row_batch($wordset_id);
+    if (!empty($result['complete'])) {
+        return;
+    }
+    if (!wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK, $args)) {
+        wp_schedule_single_event(
+            time() + MINUTE_IN_SECONDS,
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+            $args
+        );
+    }
+}
+add_action(
+    LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+    'll_tools_wordset_category_search_run_deleted_wordset_cleanup',
+    10,
+    1
+);
+
+/**
+ * Remove coordinator state immediately, then start bounded durable-row cleanup.
  */
 function ll_tools_wordset_category_search_cleanup_deleted_wordset(
     $term_id,
     $term_taxonomy_id,
     $taxonomy
 ): void {
-    global $wpdb;
-
+    unset($term_taxonomy_id);
     if ((string) $taxonomy !== 'wordset') {
         return;
     }
-    $wordset_id = max(0, (int) $term_id);
-    if ($wordset_id <= 0) {
-        return;
-    }
 
-    if (ll_tools_wordset_category_search_table_exists()) {
-        $wpdb->delete(
-            ll_tools_wordset_category_search_table_name(),
-            ['wordset_id' => $wordset_id],
-            ['%d']
-        );
-    }
-    delete_option(ll_tools_wordset_category_search_state_option($wordset_id));
-    delete_option(ll_tools_wordset_category_search_lock_option($wordset_id));
-    wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+    ll_tools_wordset_category_search_run_deleted_wordset_cleanup(max(0, (int) $term_id));
 }
 add_action(
-    'deleted_term',
+    'delete_term',
     'll_tools_wordset_category_search_cleanup_deleted_wordset',
     10,
     3

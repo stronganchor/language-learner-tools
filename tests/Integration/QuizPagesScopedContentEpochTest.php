@@ -102,10 +102,10 @@ final class QuizPagesScopedContentEpochTest extends LL_Tools_TestCase
                 'Affected cache generation did not rotate for ' . $prefix
             );
         }
-        $this->assertNotSame(
+        $this->assertSame(
             $search_generation_before,
             $this->wordsetCategorySearchPublishedGeneration($wordset_a),
-            'The affected wordset must publish a new durable category-search generation.'
+            'Broad quiz/category cache rotation must not rebuild category search without an indexed source mutation.'
         );
     }
 

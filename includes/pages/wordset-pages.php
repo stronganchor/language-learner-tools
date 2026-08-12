@@ -6060,6 +6060,45 @@ function ll_tools_wordset_page_payload_access_signature(int $wordset_id, int $us
 }
 
 /**
+ * Revalidate category-search authorization without tying an open search tab to
+ * quiz/media content generations that do not alter its allowed category scope.
+ */
+function ll_tools_wordset_page_category_search_payload_access_signature(int $wordset_id, int $user_id = 0): string {
+    $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        return '';
+    }
+    if (function_exists('ll_tools_user_can_view_wordset')
+        && !ll_tools_user_can_view_wordset($wordset, $user_id)) {
+        return '';
+    }
+
+    return md5((string) wp_json_encode([
+        'schema' => 1,
+        'wordset_id' => $wordset_id,
+        'user_id' => max(0, $user_id),
+        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch')
+            ? ll_tools_get_wordset_cache_epoch()
+            : 1,
+        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch')
+            ? ll_tools_get_category_cache_epoch()
+            : 1,
+        'preview_inactive' => ll_tools_wordset_page_current_user_can_preview_inactive_categories($wordset_id),
+    ]));
+}
+
+function ll_tools_wordset_page_category_search_payload_scope_is_current(
+    int $wordset_id,
+    string $stored_signature,
+    int $user_id = 0
+): bool {
+    $current_signature = ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $user_id);
+    return $stored_signature !== ''
+        && $current_signature !== ''
+        && hash_equals($stored_signature, $current_signature);
+}
+
+/**
  * Revalidate a stored lazy/search payload in O(1) against current access state.
  */
 function ll_tools_wordset_page_payload_scope_is_current(
@@ -6218,16 +6257,20 @@ function ll_tools_wordset_page_category_search_ajax_cache_key(array $args): stri
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
+    $source_epoch = function_exists('ll_tools_wordset_category_search_source_epoch_signature')
+        ? ll_tools_wordset_category_search_source_epoch_signature($wordset_id)
+        : 'wcs-unavailable';
     $quiz_content_epoch = function_exists('ll_tools_get_quiz_content_cache_epoch')
         ? ll_tools_get_quiz_content_cache_epoch($wordset_id > 0 ? [$wordset_id] : [])
-        : (string) $category_epoch;
+        : 'qce-unavailable';
 
     return ll_tools_wordset_page_build_cache_key('category_search_ajax', [
-        'schema' => 2,
+        'schema' => 4,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
+        'source_epoch' => $source_epoch,
         'quiz_content_epoch' => $quiz_content_epoch,
         'args' => $args,
     ]);
@@ -25509,7 +25552,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'wordset_id' => $wordset_id,
             'category_ids' => $category_search_category_ids,
             'user_id' => $category_search_user_id,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, $category_search_user_id),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $category_search_user_id),
         ];
         $category_search_token_hint = '';
         if ($category_search_user_id <= 0 && !empty($category_search_category_ids)) {
@@ -26996,7 +27039,7 @@ function ll_tools_wordset_page_handle_category_search_ajax(): void {
     $real_category_ids = array_values(array_filter($allowed_category_ids, static function (int $category_id) use ($uncategorized_virtual_category_id): bool {
         return $category_id !== $uncategorized_virtual_category_id;
     }));
-    if (!ll_tools_wordset_page_payload_scope_is_current(
+    if (!ll_tools_wordset_page_category_search_payload_scope_is_current(
         $wordset_id,
         (string) ($payload['access_signature'] ?? ''),
         $payload_user_id

@@ -96,7 +96,10 @@
     const mainCategorySearchCache = {};
     const mainCategorySearchFailedQueries = {};
     const mainCategorySearchErrorQueries = {};
-    const mainCategorySearchRetryCounts = {};
+    const mainCategorySearchFailureStatuses = {};
+    const mainCategorySearchPreparationRetryCounts = {};
+    const mainCategorySearchTransientRetryCounts = {};
+    const mainCategorySearchPreparationStartedAt = {};
     let mainCategorySort = 'default';
     let mainCategorySortMenuOpen = false;
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
@@ -587,9 +590,23 @@
     const categorySearchToken = String(categorySearchCfg.token || '');
     const categorySearchWordsetId = Math.max(0, parseInt(categorySearchCfg.wordsetId, 10) || wordsetId || 0);
     const categorySearchMinQueryLength = Math.max(1, parseInt(categorySearchCfg.minQueryLength, 10) || 1);
-    const categorySearchMaxRetries = Math.max(1, Math.min(120, parseInt(categorySearchCfg.maxRetries, 10) || 6));
+    const categorySearchMaxRetries = Math.max(1, Math.min(120, parseInt(categorySearchCfg.maxRetries, 10) || 120));
+    const categorySearchTransientMaxRetries = Math.max(1, Math.min(3, parseInt(categorySearchCfg.transientMaxRetries, 10) || 2));
+    const categorySearchPreparationRetryWindowMs = Math.max(
+        1000,
+        Math.min(180000, parseInt(categorySearchCfg.preparationRetryWindowMs, 10) || 120000)
+    );
+    const categorySearchRequestTimeoutMs = Math.max(
+        10000,
+        Math.min(15000, parseInt(categorySearchCfg.requestTimeoutMs, 10) || 12000)
+    );
     const categorySearchRetryBaseMs = Math.max(10, Math.min(2000, parseInt(categorySearchCfg.retryBaseMs, 10) || 250));
     const categorySearchEnabled = !!categorySearchCfg.enabled && !!ajaxUrl && !!categorySearchNonce && !!categorySearchToken && !!categorySearchWordsetId;
+    const categorySearchRecoveryMaxAgeMs = 2 * 60 * 1000;
+    const categorySearchRecoveryQueryKey = 'll_category_search_recovery';
+    const categorySearchRecoveryQueryValue = '1';
+    const categorySearchRecoveryStorageKey = 'llToolsWordsetCategorySearchRecovery:v1:' + String(categorySearchWordsetId);
+    const categorySearchRecoveryReloadKey = categorySearchRecoveryStorageKey + ':reload';
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
@@ -8237,6 +8254,121 @@
         return normalizeSearchText(query || '');
     }
 
+    function getMainCategorySearchRecoveryPath() {
+        return String(window.location.pathname || '');
+    }
+
+    function getMainCategorySearchRecoveryUrl() {
+        const recoveryUrl = new URL(window.location.href);
+        recoveryUrl.search = '';
+        recoveryUrl.hash = '';
+        recoveryUrl.searchParams.set(categorySearchRecoveryQueryKey, categorySearchRecoveryQueryValue);
+        return recoveryUrl.href;
+    }
+
+    function removeMainCategorySearchRecoveryMarkerFromUrl() {
+        if (!window.history || typeof window.history.replaceState !== 'function') {
+            return;
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get(categorySearchRecoveryQueryKey) !== categorySearchRecoveryQueryValue) {
+                return;
+            }
+            url.searchParams.delete(categorySearchRecoveryQueryKey);
+            window.history.replaceState(window.history.state, '', url.href);
+        } catch (_) { /* no-op */ }
+    }
+
+    function navigateMainCategorySearchRecovery() {
+        window.location.assign(getMainCategorySearchRecoveryUrl());
+    }
+
+    function readMainCategorySearchRecoveryRecord(storageKey) {
+        try {
+            const parsed = JSON.parse(String(window.sessionStorage.getItem(storageKey) || ''));
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function removeMainCategorySearchRecoveryRecord(storageKey) {
+        try {
+            window.sessionStorage.removeItem(storageKey);
+        } catch (_) { /* no-op */ }
+    }
+
+    function clearMainCategorySearchRecovery() {
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryReloadKey);
+    }
+
+    function restoreMainCategorySearchRecoveryQuery() {
+        const recovery = readMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        if (!recovery) {
+            return '';
+        }
+
+        const storedAt = Math.max(0, parseInt(recovery.storedAt, 10) || 0);
+        const query = String(recovery.query || '').slice(0, 120);
+        if (
+            !storedAt
+            || Date.now() - storedAt < 0
+            || Date.now() - storedAt > categorySearchRecoveryMaxAgeMs
+            || String(recovery.path || '') !== getMainCategorySearchRecoveryPath()
+            || Math.max(0, parseInt(recovery.wordsetId, 10) || 0) !== categorySearchWordsetId
+            || !query.trim()
+        ) {
+            return '';
+        }
+        return query;
+    }
+
+    function reloadMainCategorySearchWithFreshCredentials(query) {
+        const path = getMainCategorySearchRecoveryPath();
+        const now = Date.now();
+        const previousReload = readMainCategorySearchRecoveryRecord(categorySearchRecoveryReloadKey);
+        if (
+            previousReload
+            && String(previousReload.path || '') === path
+            && Math.max(0, parseInt(previousReload.wordsetId, 10) || 0) === categorySearchWordsetId
+            && now - (parseInt(previousReload.storedAt, 10) || 0) >= 0
+            && now - (parseInt(previousReload.storedAt, 10) || 0) < categorySearchRecoveryMaxAgeMs
+        ) {
+            return 'fenced';
+        }
+
+        try {
+            const recovery = {
+                query: String(query || '').slice(0, 120),
+                path: path,
+                wordsetId: categorySearchWordsetId,
+                storedAt: now
+            };
+            const reloadFence = {
+                path: path,
+                wordsetId: categorySearchWordsetId,
+                storedAt: now
+            };
+            window.sessionStorage.setItem(categorySearchRecoveryStorageKey, JSON.stringify(recovery));
+            window.sessionStorage.setItem(categorySearchRecoveryReloadKey, JSON.stringify(reloadFence));
+        } catch (_) {
+            return 'storage-unavailable';
+        }
+        navigateMainCategorySearchRecovery();
+        return 'reloading';
+    }
+
+    function retryMainCategorySearchWithFreshCredentials(query) {
+        const recoveryResult = reloadMainCategorySearchWithFreshCredentials(query);
+        if (recoveryResult === 'storage-unavailable') {
+            navigateMainCategorySearchRecovery();
+        }
+    }
+
     function getMainCategorySearchLookup(query) {
         const key = getMainCategorySearchQueryKey(query);
         if (!key || !Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)) {
@@ -8436,6 +8568,48 @@
         scheduleMainCategorySearchRender({ showLoading: true });
     }
 
+    function getMainCategorySearchRetryAfterSeconds(xhr) {
+        return xhr && typeof xhr.getResponseHeader === 'function'
+            ? Math.max(0, parseInt(xhr.getResponseHeader('Retry-After'), 10) || 0)
+            : 0;
+    }
+
+    function mainCategorySearchFailureRetryClass(xhr, status, responseData) {
+        const payload = (responseData && typeof responseData === 'object') ? responseData : {};
+        if (Object.prototype.hasOwnProperty.call(payload, 'retry')) {
+            return payload.retry ? 'preparation' : '';
+        }
+
+        const httpStatus = Math.max(0, parseInt(xhr && xhr.status, 10) || 0);
+        if (status === 'timeout' || status === 'parsererror') {
+            return 'transport';
+        }
+        if (httpStatus === 0 && xhr) {
+            return 'transport';
+        }
+        if (httpStatus === 429) {
+            return '';
+        }
+        return [408, 425, 500, 502, 503, 504].indexOf(httpStatus) !== -1 ? 'transport' : '';
+    }
+
+    function mainCategorySearchPreparationRetryDelay(key, retryDelay, retryClass) {
+        if (retryClass !== 'preparation') {
+            return retryDelay;
+        }
+
+        const now = Date.now();
+        if (!Object.prototype.hasOwnProperty.call(mainCategorySearchPreparationStartedAt, key)) {
+            mainCategorySearchPreparationStartedAt[key] = now;
+        }
+        const elapsed = Math.max(0, now - mainCategorySearchPreparationStartedAt[key]);
+        const remaining = Math.max(0, categorySearchPreparationRetryWindowMs - elapsed);
+        if (remaining <= 0) {
+            return -1;
+        }
+        return Math.min(retryDelay, remaining);
+    }
+
     function requestMainCategorySearchMatches(query) {
         const key = getMainCategorySearchQueryKey(query || '');
         if (
@@ -8460,19 +8634,23 @@
             return true;
         }
 
-        if (mainCategorySearchRequest && typeof mainCategorySearchRequest.abort === 'function') {
+        const previousRequest = mainCategorySearchRequest;
+        const requestToken = ++mainCategorySearchRequestToken;
+        mainCategorySearchRequest = null;
+        mainCategorySearchPendingQuery = '';
+        if (previousRequest && typeof previousRequest.abort === 'function') {
             try {
-                mainCategorySearchRequest.abort();
+                previousRequest.abort();
             } catch (_) { /* no-op */ }
         }
 
-        const requestToken = ++mainCategorySearchRequestToken;
         let retryScheduled = false;
         mainCategorySearchPendingQuery = key;
         mainCategorySearchRequest = $.ajax({
             url: ajaxUrl,
             method: 'POST',
             dataType: 'json',
+            timeout: categorySearchRequestTimeoutMs,
             data: {
                 action: 'll_tools_wordset_page_category_search',
                 nonce: categorySearchNonce,
@@ -8491,6 +8669,7 @@
             if (!payload) {
                 mainCategorySearchFailedQueries[key] = true;
                 mainCategorySearchErrorQueries[key] = true;
+                mainCategorySearchFailureStatuses[key] = 0;
                 return;
             }
 
@@ -8505,9 +8684,13 @@
                 wordMatches: normalizeMainCategorySearchWordMatches(payload.wordMatches || payload.word_matches || {})
             };
             mainCategorySearchCache[key] = cachedSearch;
-            delete mainCategorySearchRetryCounts[key];
+            clearMainCategorySearchRecovery();
+            delete mainCategorySearchPreparationRetryCounts[key];
+            delete mainCategorySearchTransientRetryCounts[key];
+            delete mainCategorySearchPreparationStartedAt[key];
             delete mainCategorySearchFailedQueries[key];
             delete mainCategorySearchErrorQueries[key];
+            delete mainCategorySearchFailureStatuses[key];
             if (responseKey && responseKey !== key) {
                 mainCategorySearchCache[responseKey] = cachedSearch;
             }
@@ -8522,17 +8705,25 @@
                 && typeof xhr.responseJSON.data === 'object'
                 ? xhr.responseJSON.data
                 : {};
-            const shouldRetry = !!responseData.retry;
-            const retryCount = parseInt(mainCategorySearchRetryCounts[key], 10) || 0;
             const currentKey = getMainCategorySearchQueryKey(mainCategorySearchQuery || '');
-            if (shouldRetry && retryCount < categorySearchMaxRetries && currentKey === key) {
-                const retryAfterHeader = xhr && typeof xhr.getResponseHeader === 'function'
-                    ? parseInt(xhr.getResponseHeader('Retry-After'), 10) || 0
-                    : 0;
-                const retryDelay = retryAfterHeader > 0
-                    ? Math.min(5000, retryAfterHeader * 1000)
-                    : Math.min(3000, categorySearchRetryBaseMs * Math.pow(1.6, retryCount));
-                mainCategorySearchRetryCounts[key] = retryCount + 1;
+            if (currentKey !== key) {
+                return;
+            }
+            const retryAfterHeader = getMainCategorySearchRetryAfterSeconds(xhr);
+            const retryClass = mainCategorySearchFailureRetryClass(xhr, status, responseData);
+            const retryCounts = retryClass === 'preparation'
+                ? mainCategorySearchPreparationRetryCounts
+                : mainCategorySearchTransientRetryCounts;
+            const retryLimit = retryClass === 'preparation'
+                ? categorySearchMaxRetries
+                : categorySearchTransientMaxRetries;
+            const retryCount = parseInt(retryCounts[key], 10) || 0;
+            let retryDelay = retryAfterHeader > 0
+                ? Math.min(5000, retryAfterHeader * 1000)
+                : Math.min(3000, categorySearchRetryBaseMs * Math.pow(1.6, retryCount));
+            retryDelay = mainCategorySearchPreparationRetryDelay(key, retryDelay, retryClass);
+            if (retryClass && retryCount < retryLimit && retryDelay >= 0) {
+                retryCounts[key] = retryCount + 1;
                 mainCategorySearchRetryQuery = key;
                 retryScheduled = true;
                 mainCategorySearchRetryTimer = setTimeout(function () {
@@ -8549,6 +8740,7 @@
 
             mainCategorySearchFailedQueries[key] = true;
             mainCategorySearchErrorQueries[key] = true;
+            mainCategorySearchFailureStatuses[key] = Math.max(0, parseInt(xhr && xhr.status, 10) || 0);
         }).always(function () {
             if (requestToken !== mainCategorySearchRequestToken) {
                 return;
@@ -17770,6 +17962,11 @@
         });
 
         if ($mainCategorySearchInput.length) {
+            removeMainCategorySearchRecoveryMarkerFromUrl();
+            const recoveredQuery = restoreMainCategorySearchRecoveryQuery();
+            if (recoveredQuery) {
+                $mainCategorySearchInput.val(recoveredQuery);
+            }
             mainCategorySearchQuery = String($mainCategorySearchInput.val() || '');
             syncMainCategorySearchClearButton();
             renderMainCategorySearch();
@@ -17877,9 +18074,17 @@
             if (!key) {
                 return;
             }
+            const failureStatus = Math.max(0, parseInt(mainCategorySearchFailureStatuses[key], 10) || 0);
+            if (failureStatus === 403 || failureStatus === 410) {
+                retryMainCategorySearchWithFreshCredentials(mainCategorySearchQuery);
+                return;
+            }
             delete mainCategorySearchFailedQueries[key];
             delete mainCategorySearchErrorQueries[key];
-            delete mainCategorySearchRetryCounts[key];
+            delete mainCategorySearchFailureStatuses[key];
+            delete mainCategorySearchPreparationRetryCounts[key];
+            delete mainCategorySearchTransientRetryCounts[key];
+            delete mainCategorySearchPreparationStartedAt[key];
             if (mainCategorySearchRetryTimer && mainCategorySearchRetryQuery === key) {
                 clearTimeout(mainCategorySearchRetryTimer);
                 mainCategorySearchRetryTimer = null;

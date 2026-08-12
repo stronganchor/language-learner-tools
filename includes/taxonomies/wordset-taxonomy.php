@@ -5859,11 +5859,6 @@ function ll_tools_bump_wordset_cache_epoch($wordset_ids = []): void {
     if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
         ll_tools_purge_wordset_buttons_shortcode_cache_once();
     }
-    // This global structural epoch is part of every wordset search signature,
-    // so use the bounded coordinator instead of rebuilding inside this request.
-    if (function_exists('ll_tools_request_wordset_category_search_rebuild_sweep')) {
-        ll_tools_request_wordset_category_search_rebuild_sweep();
-    }
 }
 
 function ll_tools_handle_wordset_cache_epoch_bump($term_id = 0): void {
