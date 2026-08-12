@@ -91,28 +91,6 @@ function ll_tools_site_tools_current_user_can_save_section(string $section): boo
     return ll_tools_site_tools_current_user_can_manage_settings();
 }
 
-function ll_tools_site_tools_sync_wordpress_registration_setting(int $enabled): void {
-    if (is_multisite()) {
-        $current = (string) get_site_option('registration', 'none');
-
-        if ($enabled === 1) {
-            $next = in_array($current, ['blog', 'all'], true) ? 'all' : 'user';
-        } else {
-            $next = in_array($current, ['blog', 'all'], true) ? 'blog' : 'none';
-        }
-
-        if ($current !== $next) {
-            update_site_option('registration', $next);
-        }
-
-        return;
-    }
-
-    if ((int) get_option('users_can_register', 0) !== $enabled) {
-        update_option('users_can_register', $enabled);
-    }
-}
-
 function ll_tools_site_tools_get_current_url(): string {
     $current_url = function_exists('ll_tools_get_current_request_url')
         ? (string) ll_tools_get_current_request_url()
@@ -583,7 +561,6 @@ function ll_tools_handle_save_site_tools_action(): void {
             : ll_tools_site_tools_normalize_toggle(isset($_POST['ll_tools_send_registration_admin_email']) ? 1 : 0);
 
         update_option('ll_allow_learner_self_registration', $learner_registration);
-        ll_tools_site_tools_sync_wordpress_registration_setting($learner_registration);
         update_option('ll_show_generated_registration_password', $show_generated_password);
         update_option('ll_tools_send_registration_admin_email', $send_admin_email);
     } elseif ($section === 'recording-defaults') {

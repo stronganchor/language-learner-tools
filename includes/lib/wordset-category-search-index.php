@@ -164,19 +164,26 @@ function ll_tools_install_wordset_category_search_schema(): bool {
 /**
  * Ensure the durable table exists without starting an unbounded global backfill.
  */
-function ll_tools_maybe_upgrade_wordset_category_search_schema(): void {
-    $installed = (string) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_VERSION_OPTION, '');
-    if (
-        $installed === LL_TOOLS_WORDSET_CATEGORY_SEARCH_TABLE_VERSION
-        && ll_tools_wordset_category_search_table_exists()
-    ) {
-        return;
+function ll_tools_maybe_upgrade_wordset_category_search_schema(): bool {
+    $is_current = static function (): bool {
+        return (string) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_VERSION_OPTION, '')
+                === LL_TOOLS_WORDSET_CATEGORY_SEARCH_TABLE_VERSION
+            && (string) get_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_EXISTS_OPTION, '') === '1';
+    };
+    if ($is_current()) {
+        return true;
     }
 
     if (get_transient('ll_tools_wordset_category_search_schema_retry')) {
-        return;
+        ll_tools_schedule_schema_maintenance('wordset_category_search', 5 * MINUTE_IN_SECONDS);
+        return false;
     }
-    ll_tools_install_wordset_category_search_schema();
+
+    return ll_tools_maybe_run_schema_maintenance(
+        'wordset_category_search',
+        $is_current,
+        'll_tools_install_wordset_category_search_schema'
+    );
 }
 add_action('init', 'll_tools_maybe_upgrade_wordset_category_search_schema', 13);
 
@@ -1296,7 +1303,9 @@ function ll_tools_wordset_category_search_process_rebuild_batch(int $wordset_id)
         return ll_tools_get_wordset_category_search_state($wordset_id);
     }
     if (!ll_tools_wordset_category_search_table_exists()) {
-        if (!ll_tools_install_wordset_category_search_schema()) {
+        delete_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_VERSION_OPTION);
+        update_option(LL_TOOLS_WORDSET_CATEGORY_SEARCH_EXISTS_OPTION, '0', false);
+        if (!ll_tools_maybe_upgrade_wordset_category_search_schema()) {
             $signature = ll_tools_wordset_category_search_dependency_signature($wordset_id);
             return ll_tools_wordset_category_search_record_failure(
                 $wordset_id,

@@ -1,29 +1,53 @@
 # Maintenance Backlog
 
-Updated July 31, 2026 after the weekly maintenance/performance audit and
-autonomous follow-up pass. The July 31 work preserved the intentional mobile
-quiz/game zoom guard while closing dual-scope raw-password REST admission,
-bounded public dictionary input, resumable inactive-preview preparation,
-single-owner lesson-map rebuilding with last-known-good service, masked-media
-fallback cache protection, recoverable accessible quiz dialogs, matcher
-loading/retry/keyboard UX, localization guards, and focused local browser
-coverage.
+Updated August 12, 2026 after revalidating the July 31 audit against the current
+repository and fixing every still-actionable item. The August 12 work moves
+schema repair and legacy IPA cleanup out of public request work, rejects
+oversized study payloads before decoding/hydration, completes word-editor and
+recorder dialog behavior, centralizes invitation and multisite registration
+contracts, corrects flat-category copy, and strengthens translation and
+compatibility coverage.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## Current Short List
 
-The active maintenance list is now narrowed to changes that need product,
-compatibility, storage, or human-language judgment. The July 31 autonomous pass
-closed the safe resource-guard, bounded-query, loading-state, localization, and
-regression work. Remaining work is native review of machine-assisted German
-and residual Turkish admin/formal copy, compatibility review before removing
-externally callable helpers, and a durable lesson-map materializer only if
-production measurements justify replacing the winning cold full scan. Keep
-new performance work evidence-led and scoped to a measured growth dimension.
+The active maintenance list is narrowed to changes that need product,
+compatibility, storage, live evidence, or human-language judgment. Remaining
+work is native review of machine-assisted German and residual Turkish
+admin/formal copy, any future decision to remove externally callable
+compatibility helpers, and a durable lesson-map materializer only if production
+measurements justify replacing the winning cold full scan. Keep new
+performance work evidence-led and scoped to a measured growth dimension.
 
 ## Recently Closed
+
+- August 12 schema, migration, and study-request protection:
+  offline-session, learner-progress, dictionary, wordset-category-search, and
+  image-match schema repair now runs only at explicit maintenance boundaries,
+  with coalesced cron scheduling and exact-owner leases. The one-time dotless-i
+  `recording_ipa` correction is a durable leased keyset cron migration rather
+  than a public-init full scan/rebuild. Progress, snapshot, goals,
+  recommendation, and analytics request collections now pass byte, count, and
+  shape admission before JSON decoding, mapping, or downstream query work.
+- August 12 accessibility and shared contracts:
+  detached word-editor and recorder dialogs now contain focus, isolate the
+  background, restore their opener, and follow a conservative Escape policy
+  that cannot discard active recorder work. Recorder/manager invitation tokens
+  share one canonical byte-compatible codec and fail-closed parser with
+  tamper, cross-role, expiry, deleted-wordset, malformed-payload, and wrong-user
+  coverage. Learner-registration transitions have one always-loaded owner plus
+  focused multisite configuration and tests that preserve `none/user/blog/all`
+  semantics and network maintenance context.
+- August 12 copy, localization, compatibility, and test inventory:
+  flat category settings no longer promise re-parenting, Turkish catalog
+  source text contains no prohibited zero-width characters, and compatibility
+  wrappers for DeepL language maps, bounded word-option pages, and bounded
+  image-fixer scans have direct parity tests. Current no-install discovery lists
+  631 Playwright tests in 100 files; the refreshed POT contains 6,000 messages,
+  full Turkish/German catalogs pass at 6,000/6,000, and the tier-2 public
+  manifest remains 793/793.
 
 - July 31 security and resource protection:
   raw Basic compatibility auth now reserves both a coarse direct-peer allowance

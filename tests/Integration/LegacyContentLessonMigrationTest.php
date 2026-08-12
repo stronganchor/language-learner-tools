@@ -338,7 +338,11 @@ final class LegacyContentLessonMigrationTest extends LL_Tools_TestCase
             'apply' => true,
         ]);
         $this->assertIsArray($relation_result);
-        $this->assertSame(1, (int) $relation_result['resolved_dependencies']);
+        $this->assertSame(
+            1,
+            (int) $relation_result['resolved_dependencies'],
+            wp_json_encode($relation_result)
+        );
         $this->assertSame(1, (int) $relation_result['unresolved_dependencies']);
         $this->assertSame(1, (int) $relation_result['rewritten_links']);
         $this->assertSame(

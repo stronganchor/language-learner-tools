@@ -4151,6 +4151,7 @@ function ll_tools_word_edit_modal_enqueue_assets(
             'renderError' => __('Unable to open the word editor.', 'll-tools-text-domain'),
             'missingHost' => __('Word editor modal is not available on this page.', 'll-tools-text-domain'),
             'loading' => __('Loading word editor...', 'll-tools-text-domain'),
+            'loadingDialogLabel' => __('Loading word editor', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -6245,7 +6246,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     $edit_button_data = $defer_edit_panels
                         ? ' data-ll-word-edit-deferred'
                         : ' data-ll-word-edit-toggle';
-                    $actions_row_html .= '<button type="button" class="ll-word-edit-toggle"' . $edit_button_data . ' data-word-id="' . esc_attr((string) $word_id) . '" aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-expanded="false">';
+                    $actions_row_html .= '<button type="button" class="ll-word-edit-toggle"' . $edit_button_data . ' data-word-id="' . esc_attr((string) $word_id) . '" aria-label="' . esc_attr($edit_labels['edit_word']) . '" title="' . esc_attr($edit_labels['edit_word']) . '" aria-haspopup="dialog" aria-expanded="false">';
                     $actions_row_html .= '<span class="ll-word-edit-icon" aria-hidden="true">';
                     $actions_row_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
                     $actions_row_html .= '</span>';
@@ -6348,7 +6349,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $translation_input_id = 'll-word-edit-translation-' . $word_id;
                 $note_input_id = 'll-word-edit-note-' . $word_id;
                 echo '<div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="true" hidden></div>';
-                echo '<div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">';
+                echo '<div class="ll-word-edit-panel" data-ll-word-edit-panel role="dialog" aria-modal="true" aria-label="' . esc_attr($edit_labels['edit_word']) . '" aria-hidden="true" tabindex="-1">';
                 echo '<div class="ll-word-edit-body" data-ll-word-edit-body>';
                 echo '<div class="ll-word-edit-fields">';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($word_input_id) . '">' . esc_html($edit_labels['word']) . '</label>';

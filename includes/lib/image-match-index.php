@@ -606,17 +606,29 @@ function ll_tools_image_match_index_mark_unavailable_for_repair(bool $table_unav
     ll_tools_image_match_index_schedule_rebuild($had_version || $needs_reset);
 }
 
-function ll_tools_image_match_index_maybe_upgrade(): void {
-    $installed = (string) get_option(LL_TOOLS_IMAGE_MATCH_INDEX_VERSION_OPTION, '');
-    if ($installed === LL_TOOLS_IMAGE_MATCH_INDEX_VERSION && ll_tools_image_match_index_table_exists()) {
-        return;
+function ll_tools_image_match_index_maybe_upgrade(): bool {
+    $is_current = static function (): bool {
+        return (string) get_option(LL_TOOLS_IMAGE_MATCH_INDEX_VERSION_OPTION, '')
+                === LL_TOOLS_IMAGE_MATCH_INDEX_VERSION
+            && (string) get_option(LL_TOOLS_IMAGE_MATCH_INDEX_EXISTS_OPTION, '') === '1';
+    };
+    if ($is_current()) {
+        return true;
     }
     if (get_transient('ll_tools_image_match_index_schema_retry')) {
-        return;
+        ll_tools_schedule_schema_maintenance('image_match_index', 5 * MINUTE_IN_SECONDS);
+        return false;
     }
-    if (ll_tools_install_image_match_index_schema()) {
+
+    $installed = ll_tools_maybe_run_schema_maintenance(
+        'image_match_index',
+        $is_current,
+        'll_tools_install_image_match_index_schema'
+    );
+    if ($installed) {
         ll_tools_image_match_index_schedule_rebuild(true);
     }
+    return $installed;
 }
 add_action('init', 'll_tools_image_match_index_maybe_upgrade', 14);
 
@@ -670,9 +682,10 @@ function ll_tools_image_match_index_process_rebuild_batch(int $requested = 0): a
                 !== LL_TOOLS_IMAGE_MATCH_INDEX_VERSION
             || !ll_tools_image_match_index_schema_ready()
         ) {
+            delete_option(LL_TOOLS_IMAGE_MATCH_INDEX_VERSION_OPTION);
             if (
                 get_transient('ll_tools_image_match_index_schema_retry')
-                || !ll_tools_install_image_match_index_schema()
+                || !ll_tools_image_match_index_maybe_upgrade()
             ) {
                 ll_tools_image_match_index_schedule_rebuild();
                 return array_merge($state, ['batch' => 0]);

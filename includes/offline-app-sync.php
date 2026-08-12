@@ -14,6 +14,9 @@ if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION')) {
 if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION')) {
     define('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION', 'll_tools_offline_app_session_schema_version');
 }
+if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_RETRY_TRANSIENT')) {
+    define('LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_RETRY_TRANSIENT', 'll_tools_offline_app_session_schema_retry');
+}
 if (!defined('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK')) {
     define('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK', 'll_tools_offline_app_session_cleanup');
 }
@@ -699,8 +702,14 @@ if (!function_exists('ll_tools_install_offline_app_session_schema')) {
                 LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION,
                 false
             );
+            delete_transient(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_RETRY_TRANSIENT);
         } else {
             delete_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION);
+            set_transient(
+                LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_RETRY_TRANSIENT,
+                1,
+                5 * MINUTE_IN_SECONDS
+            );
         }
         return $ready;
     }
@@ -844,11 +853,24 @@ if (!function_exists('ll_tools_offline_app_session_schema_ready')) {
 }
 
 if (!function_exists('ll_tools_maybe_install_offline_app_session_schema')) {
-    function ll_tools_maybe_install_offline_app_session_schema(): void {
-        if ((string) get_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION, '') === LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION) {
-            return;
+    function ll_tools_maybe_install_offline_app_session_schema(): bool {
+        $is_current = static function (): bool {
+            return (string) get_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION, '')
+                === LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION;
+        };
+        if ($is_current()) {
+            return true;
         }
-        ll_tools_install_offline_app_session_schema();
+        if (get_transient(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_RETRY_TRANSIENT)) {
+            ll_tools_schedule_schema_maintenance('offline_app_sessions', 5 * MINUTE_IN_SECONDS);
+            return false;
+        }
+
+        return ll_tools_maybe_run_schema_maintenance(
+            'offline_app_sessions',
+            $is_current,
+            'll_tools_install_offline_app_session_schema'
+        );
     }
 }
 add_action('init', 'll_tools_maybe_install_offline_app_session_schema', 4);
@@ -1147,8 +1169,14 @@ if (!function_exists('ll_tools_offline_app_create_session')) {
         if ($user_id <= 0) {
             return [];
         }
-        if (!ll_tools_offline_app_session_schema_ready() && !ll_tools_install_offline_app_session_schema()) {
-            return [];
+        if (!ll_tools_offline_app_session_schema_ready()) {
+            delete_option(LL_TOOLS_OFFLINE_APP_SESSION_SCHEMA_VERSION_OPTION);
+            if (!ll_tools_maybe_install_offline_app_session_schema()) {
+                return [];
+            }
+            if (!ll_tools_offline_app_session_schema_ready(true)) {
+                return [];
+            }
         }
         if (!ll_tools_offline_app_import_legacy_sessions_for_user($user_id)) {
             return [];

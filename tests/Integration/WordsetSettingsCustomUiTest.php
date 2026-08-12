@@ -67,6 +67,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_tool=language', $html);
         $this->assertStringContainsString('Categories', $html);
         $this->assertStringContainsString('ll_wordset_tool=categories', $html);
+        $this->assertStringContainsString('Create, rename, translate, and safely delete categories in this word set.', $html);
+        $this->assertStringNotContainsString('re-parent', $html);
         $this->assertStringContainsString('Advanced', $html);
         $this->assertStringContainsString('ll_wordset_tool=advanced', $html);
         $this->assertStringContainsString('Template', $html);

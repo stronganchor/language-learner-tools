@@ -72,6 +72,8 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
     public function test_dotless_i_recording_ipa_migration_updates_stored_transcriptions_and_caches(): void
     {
         delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION);
+        delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION);
+        delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION);
 
         $wordset_id = $this->createWordset('zza');
         $word_id = $this->createWord($wordset_id, 'IPA Dotless Migration Word');
@@ -83,9 +85,22 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
             ],
         ]);
 
-        $this->assertSame(1, ll_tools_normalize_dotless_i_recording_ipa_meta());
+        $batch_size_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_dotless_i_ipa_migration_batch_size', $batch_size_filter);
+        try {
+            ll_tools_run_dotless_i_recording_ipa_migration_batch();
+        } finally {
+            remove_filter('ll_tools_dotless_i_ipa_migration_batch_size', $batch_size_filter);
+        }
 
         $this->assertSame('bɪr qɪ', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertSame(1, (int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0));
+        $this->assertSame('complete', (string) (ll_tools_dotless_i_recording_ipa_migration_state()['status'] ?? ''));
+        $this->assertFalse(get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION, false));
+
+        ll_tools_word_grid_run_wordset_ipa_rebuild($wordset_id);
         $symbols = (array) get_term_meta($wordset_id, 'll_wordset_ipa_special_chars', true);
         $this->assertContains('ɪ', $symbols);
         $this->assertNotContains('ı', $symbols);
@@ -93,6 +108,25 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
         $map = ll_tools_word_grid_get_wordset_ipa_letter_map($wordset_id);
         $this->assertSame(2, (int) ($map['ı']['ɪ'] ?? 0));
         $this->assertFalse(isset($map['ı']['ı']));
+    }
+
+    public function test_dotless_i_migration_init_only_schedules_bounded_cron_work(): void
+    {
+        delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION);
+        delete_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK);
+
+        $wordset_id = $this->createWordset('zza');
+        $word_id = $this->createWord($wordset_id, 'IPA Scheduled Migration Word');
+        $recording_id = $this->createRecording($word_id, 'Bır', 'bır');
+
+        ll_tools_maybe_normalize_dotless_i_recording_ipa_meta();
+
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK));
+        $this->assertSame('bır', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertSame(0, (int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0));
+
+        wp_clear_scheduled_hook(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK);
     }
 
     public static function turkishStyleLanguageProvider(): array

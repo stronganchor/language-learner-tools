@@ -82,7 +82,7 @@ read_first:
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/flashcard-payload-materializer.php`, `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/expired-transient-maintenance.php`, `includes/lib/public-ajax-resource-guards.php`, `includes/lib/wordset-category-search-index.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/flashcard-payload-materializer.php`, `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/learner-registration-settings.php`, `includes/lib/expired-transient-maintenance.php`, `includes/lib/public-ajax-resource-guards.php`, `includes/lib/wordset-category-search-index.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
   - Loads `includes/api/automation-rest.php` directly; that controller loads `includes/api/word-metadata-plan-rest.php` for durable word-metadata plan job storage, processing, status, discard, and result helpers.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
@@ -117,6 +117,8 @@ read_first:
   - GET export bodies use route-level object/transient caching; HEAD requests remain header-only and must not build cold export bodies.
 - `includes/lib/public-ajax-resource-guards.php`
   - Provides atomic fixed-window counters, expiring per-client leases, exact-owner release, and bounded cache-wait polling for anonymous cache-miss admission.
+- `includes/lib/schema-maintenance.php`
+  - Centralizes schema-upgrade request admission, coalesced WP-Cron repair scheduling, and exact-owner installer leases. Public pages, REST, and public AJAX may schedule repair but never run schema DDL.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
   - Missing local files may use only validated public HTTP(S) fallback URLs. Remote bytes stream into a size-bounded temporary file, must validate as an allowed raster image, and publish through an exact-owner per-key lease into the uploads cache. Fresh disk hits avoid origin work; contention waits briefly for the owner, then serves validated stale data no older than 14 days or redirects to the safe origin. Origin failures back off for five minutes. Each attachment/size bucket keeps at most four cached images and 32 MB by default, attachment deletion removes all deterministic shards for that attachment, and daily maintenance advances through the 65,536 attachment/size shards in bounded one-minute continuations with native seeks capped at 1,024 entries. Open cache handles protect Windows readers across atomic replacement, and fallback response cache headers never outlive the server freshness TTL.
@@ -132,6 +134,8 @@ module list.
 <!-- bootstrap-include-index:start -->
 - includes/assets.php
 - includes/lib/php-compat.php
+- includes/lib/learner-registration-settings.php
+- includes/lib/schema-maintenance.php
 - includes/lib/expired-transient-maintenance.php
 - includes/lib/public-ajax-resource-guards.php
 - includes/lib/wordset-category-search-index.php
@@ -274,6 +278,7 @@ includes/
   wordset-templates.php       # Reusable wordset template bundles
   lib/
     php-compat.php            # Compatibility helpers for older PHP runtimes
+    schema-maintenance.php    # Schema DDL admission, cron repair scheduling, and exact-owner installer leases
     expired-transient-maintenance.php # Bounded hourly cleanup for expired LL-owned database transients
     public-ajax-resource-guards.php # Atomic anonymous cache-miss budgets, leases, and bounded cache waits
     wordset-category-search-index.php # Durable bounded wordset category-search materializer
@@ -818,6 +823,9 @@ wordset can opt into it.
 - Public static caches must exclude logged-in users, wp-admin, admin-ajax, REST/API, POST requests, preview/customizer requests, error/redirect responses, and any request carrying `ll_tools_auth` or `ll_tools_auth_feedback`. Front-end auth/feedback responses are private `no-store` pages and must bypass both public-cache reads and captures; anonymous baseline cache keys may still normalize unrelated noise such as `ll_locale_nonce` and `ll_wordset_back`.
 - Public static cache writes must keep the configured max-byte guard, and MISS responses should not receive public cache headers until storage succeeds.
 - Anonymous public AJAX surfaces that can rebuild expensive payloads should be cache-aware and resource-guarded: preserve cheap cache hits, but throttle or cap cache misses and oversized batch requests.
+- User-study progress, snapshot, goals, recommendation, and analytics AJAX collections must pass byte/count/shape admission before JSON decoding, ID mapping, or downstream queries. Oversized input is rejected instead of silently truncated; stored-state sanitizers remain a separate defense-in-depth boundary.
+- Schema installers for offline sessions, learner progress, dictionary lookup, wordset category search, and image matching may run only during activation, tests, WP-CLI, WP-Cron, or a capability-bearing wp-admin request. A public page, REST request, or public admin-ajax request with a stale/missing marker must fail closed and coalesce a repair through `includes/lib/schema-maintenance.php`; every later repair rechecks its marker behind an expiring exact-owner lease before issuing `dbDelta()` or `ALTER`, and only that exact owner may release the lease. The flashcard payload table retains its equivalent subsystem-specific admission and exact-owner schema lease.
+- The one-time dotless-i `recording_ipa` correction may be scheduled from `init`, but it must execute only as leased WP-Cron keyset batches with a durable cursor. A batch schedules coalesced wordset IPA-map rebuilds; public initialization may not scan or update recording metadata or rebuild whole-wordset aggregates.
 - Expired-transient maintenance must remain database-only and cron-only: skip when an external object cache is active, use only audited LL-owned cache/rate-limit prefixes, keep the five-minute grace and hard 200-row/two-second caps, conditionally recheck the exact timeout during pair deletion, and emit aggregate counts/namespaces/bytes without transient keys or values. Timeout-only rows are eligible; active pairs, value-only rows, non-LL transients, and persistent options/jobs are not.
 - Named performance profiles own one manifest/history/report tuple. `LL_PERF_SKIP_SEED=1` is read-only and must fail unless the stored fixture version and `canonical-json-v1` checksum match the selected manifest. The parent passes the small stored-fixture JSON to the verifier as an explicit argument because WSL-to-Windows-PHP stdin is not a reliable UTF-8 transport. The child E2E runner must preserve every parent-set locked `LL_E2E_PERF_*` value across env-file loading.
 - Pasted bulk word and prompt-audio imports are synchronous small-batch tools: keep both the raw-byte and actionable-row ceilings in place, and use a durable job instead of raising those limits for large imports.

@@ -3,6 +3,76 @@ declare(strict_types=1);
 
 final class UserStateResourceGuardTest extends LL_Tools_TestCase
 {
+    public function test_user_study_ajax_collections_reject_oversized_input_before_mapping_or_decoding(): void
+    {
+        $events_limit = static function (): int {
+            return 2;
+        };
+        $events_byte_limit = static function (): int {
+            return 1024;
+        };
+        add_filter('ll_tools_user_study_request_events_limit', $events_limit);
+        add_filter('ll_tools_user_study_request_events_byte_limit', $events_byte_limit);
+
+        try {
+            $too_many = ll_tools_user_study_parse_request_collection([
+                ['word_id' => 1],
+                ['word_id' => 2],
+                ['word_id' => 3],
+            ], 'events');
+            $too_many_json = ll_tools_user_study_parse_request_collection(wp_json_encode([
+                ['word_id' => 1],
+                ['word_id' => 2],
+                ['word_id' => 3],
+            ]), 'events');
+            $too_many_bytes = ll_tools_user_study_parse_request_collection(
+                wp_json_encode([str_repeat('x', 1100)]),
+                'events'
+            );
+            $too_deep_json = ll_tools_user_study_parse_request_collection(
+                '[[[[[[[[1]]]]]]]]',
+                'events'
+            );
+
+            foreach ([$too_many, $too_many_json, $too_many_bytes, $too_deep_json] as $result) {
+                $this->assertInstanceOf(WP_Error::class, $result);
+                $this->assertSame('request_payload_too_large', $result->get_error_code());
+            }
+        } finally {
+            remove_filter('ll_tools_user_study_request_events_limit', $events_limit);
+            remove_filter('ll_tools_user_study_request_events_byte_limit', $events_byte_limit);
+        }
+    }
+
+    public function test_user_study_ajax_id_collections_preserve_boundary_values_and_reject_wrong_shapes(): void
+    {
+        $category_limit = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_user_study_request_category_ids_limit', $category_limit);
+
+        try {
+            $this->assertSame(
+                [10, 11],
+                ll_tools_user_study_parse_request_id_collection(['10', 11, 10], 'category_ids')
+            );
+            $this->assertSame(
+                [10, 11],
+                ll_tools_user_study_parse_request_id_collection('[10,11,10]', 'category_ids')
+            );
+
+            $associative = ll_tools_user_study_parse_request_id_collection(['one' => 10], 'category_ids');
+            $nested = ll_tools_user_study_parse_request_id_collection([[10]], 'category_ids');
+            $malformed = ll_tools_user_study_parse_request_id_collection('{bad json', 'category_ids');
+            foreach ([$associative, $nested, $malformed] as $result) {
+                $this->assertInstanceOf(WP_Error::class, $result);
+                $this->assertSame('invalid_request_payload', $result->get_error_code());
+            }
+        } finally {
+            remove_filter('ll_tools_user_study_request_category_ids_limit', $category_limit);
+        }
+    }
+
     public function test_offline_sync_word_ids_are_sanitized_deduped_and_capped(): void
     {
         $limit_filter = static function (): int {

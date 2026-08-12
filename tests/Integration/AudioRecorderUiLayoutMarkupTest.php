@@ -73,6 +73,20 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('id="ll-hidden-words-panel"', $output);
         $this->assertStringContainsString('id="ll-new-word-overlay"', $output);
         $this->assertStringContainsString('id="ll-recording-review-overlay"', $output);
+        $this->assertStringContainsString('aria-controls="ll-new-word-panel"', $output);
+        $this->assertStringContainsString('aria-controls="ll-hidden-words-panel"', $output);
+        $this->assertStringContainsString(
+            'id="ll-hidden-words-panel" role="dialog" aria-modal="true" aria-labelledby="ll-hidden-words-title" tabindex="-1"',
+            $output
+        );
+        $this->assertStringContainsString(
+            'id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" tabindex="-1"',
+            $output
+        );
+        $this->assertStringContainsString(
+            'class="ll-recording-review-shell" role="dialog" aria-modal="true" aria-labelledby="ll-recording-review-title" tabindex="-1"',
+            $output
+        );
         $this->assertStringContainsString('class="ll-new-word-layout"', $output);
         $this->assertStringContainsString('class="ll-new-word-form-grid"', $output);
         $this->assertStringContainsString('class="ll-new-word-sidebar"', $output);

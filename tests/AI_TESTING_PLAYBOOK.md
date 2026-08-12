@@ -29,6 +29,12 @@ tests/bin/run-tests.sh tests/Integration/FlashcardWidgetFlowTest.php
 tests/bin/run-tests.sh Integration/FlashcardWidgetFlowTest.php
 ```
 
+Run the focused multisite contract through the same cross-platform wrapper:
+
+```bash
+tests/bin/run-tests.sh --configuration tests/phpunit.multisite.xml.dist Integration/MultisiteRegistrationAndMaintenanceTest.php
+```
+
 Run one Playwright spec:
 
 ```bash

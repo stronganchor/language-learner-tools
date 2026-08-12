@@ -1553,16 +1553,26 @@ function ll_tools_install_user_progress_schema(): bool {
     return true;
 }
 
-function ll_tools_maybe_upgrade_user_progress_schema(): void {
-    $installed = (string) get_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, '');
-    $verified = (string) get_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION, '');
-    if ($installed === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION && $verified === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION) {
-        return;
+function ll_tools_maybe_upgrade_user_progress_schema(): bool {
+    $is_current = static function (): bool {
+        $installed = (string) get_option(LL_TOOLS_USER_PROGRESS_VERSION_OPTION, '');
+        $verified = (string) get_option(LL_TOOLS_USER_PROGRESS_VERIFIED_VERSION_OPTION, '');
+        return $installed === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION
+            && $verified === LL_TOOLS_USER_PROGRESS_SCHEMA_VERSION;
+    };
+    if ($is_current()) {
+        return true;
     }
     if (get_transient(LL_TOOLS_USER_PROGRESS_SCHEMA_RETRY_TRANSIENT)) {
-        return;
+        ll_tools_schedule_schema_maintenance('user_progress', 5 * MINUTE_IN_SECONDS);
+        return false;
     }
-    ll_tools_install_user_progress_schema();
+
+    return ll_tools_maybe_run_schema_maintenance(
+        'user_progress',
+        $is_current,
+        'll_tools_install_user_progress_schema'
+    );
 }
 add_action('init', 'll_tools_maybe_upgrade_user_progress_schema', 12);
 
@@ -1638,6 +1648,163 @@ function ll_tools_sanitize_user_study_goal_id_array($values, string $array_key):
 
 function ll_tools_user_progress_sync_word_ids_limit(): int {
     return max(0, (int) apply_filters('ll_tools_user_progress_sync_word_ids_limit', 5000));
+}
+
+/**
+ * Return the bounded request budget for one user-study AJAX field.
+ */
+function ll_tools_user_study_request_field_limit(string $field): int {
+    $defaults = [
+        'events' => 200,
+        'category_ids' => 1000,
+        'word_ids' => ll_tools_user_progress_sync_word_ids_limit(),
+        'goals' => 32,
+        'word_filter' => 32,
+    ];
+    $hard_limits = [
+        'events' => 500,
+        'category_ids' => 2000,
+        'word_ids' => 5000,
+        'goals' => 64,
+        'word_filter' => 64,
+    ];
+    $default = $defaults[$field] ?? 100;
+    $hard_limit = $hard_limits[$field] ?? 1000;
+    $limit = (int) apply_filters('ll_tools_user_study_request_field_limit', $default, $field);
+    $limit = (int) apply_filters("ll_tools_user_study_request_{$field}_limit", $limit, $field);
+
+    return max(0, min($hard_limit, $limit));
+}
+
+function ll_tools_user_study_request_field_byte_limit(string $field): int {
+    $defaults = [
+        'events' => 512 * 1024,
+        'category_ids' => 32 * 1024,
+        'word_ids' => 128 * 1024,
+        'goals' => 256 * 1024,
+        'word_filter' => 64 * 1024,
+    ];
+    $default = $defaults[$field] ?? (64 * 1024);
+    $limit = (int) apply_filters('ll_tools_user_study_request_field_byte_limit', $default, $field);
+    $limit = (int) apply_filters("ll_tools_user_study_request_{$field}_byte_limit", $limit, $field);
+
+    return max(1024, min(MB_IN_BYTES, $limit));
+}
+
+/**
+ * Check a PHP-parsed request value without creating another serialized copy.
+ */
+function ll_tools_user_study_request_value_fits_budget($value, int $byte_limit, int $node_limit): bool {
+    $remaining_bytes = max(0, $byte_limit);
+    $remaining_nodes = max(1, $node_limit);
+    $stack = [[$value, 0]];
+
+    while ($stack !== []) {
+        [$current, $depth] = array_pop($stack);
+        $remaining_nodes--;
+        if ($remaining_nodes < 0 || $depth > 6) {
+            return false;
+        }
+
+        if (is_array($current)) {
+            foreach ($current as $key => $child) {
+                $remaining_bytes -= strlen((string) $key) + 4;
+                if ($remaining_bytes < 0) {
+                    return false;
+                }
+                $stack[] = [$child, $depth + 1];
+            }
+            continue;
+        }
+        if (!is_scalar($current) && $current !== null) {
+            return false;
+        }
+
+        $remaining_bytes -= strlen((string) $current) + 4;
+        if ($remaining_bytes < 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Decode an AJAX collection only after cheap byte/count admission checks.
+ *
+ * @return array|WP_Error
+ */
+function ll_tools_user_study_parse_request_collection(
+    $raw,
+    string $field,
+    bool $require_list = true
+) {
+    $item_limit = ll_tools_user_study_request_field_limit($field);
+    $byte_limit = ll_tools_user_study_request_field_byte_limit($field);
+    $node_limit = max(64, min(10000, max(1, $item_limit) * 32));
+    if (is_array($raw)) {
+        if (count($raw) > $item_limit) {
+            return new WP_Error('request_payload_too_large');
+        }
+        if (!ll_tools_user_study_request_value_fits_budget($raw, $byte_limit, $node_limit)) {
+            return new WP_Error('request_payload_too_large');
+        }
+        $decoded = wp_unslash($raw);
+    } elseif (is_scalar($raw)) {
+        $encoded = wp_unslash((string) $raw);
+        if (strlen($encoded) > $byte_limit) {
+            return new WP_Error('request_payload_too_large');
+        }
+        $decoded = json_decode($encoded, true);
+        if (!is_array($decoded)) {
+            return new WP_Error('invalid_request_payload');
+        }
+        if (count($decoded) > $item_limit) {
+            return new WP_Error('request_payload_too_large');
+        }
+        if (!ll_tools_user_study_request_value_fits_budget($decoded, $byte_limit, $node_limit)) {
+            return new WP_Error('request_payload_too_large');
+        }
+    } else {
+        return new WP_Error('invalid_request_payload');
+    }
+
+    $is_list = $decoded === [] || array_keys($decoded) === range(0, count($decoded) - 1);
+    if ($require_list && !$is_list) {
+        return new WP_Error('invalid_request_payload');
+    }
+
+    return $decoded;
+}
+
+/**
+ * Parse a bounded positive-ID list without mapping an oversized collection.
+ *
+ * @return int[]|WP_Error
+ */
+function ll_tools_user_study_parse_request_id_collection($raw, string $field = 'category_ids') {
+    $values = ll_tools_user_study_parse_request_collection($raw, $field, true);
+    if (is_wp_error($values)) {
+        return $values;
+    }
+
+    $ids = [];
+    foreach ($values as $value) {
+        if (!is_scalar($value)) {
+            return new WP_Error('invalid_request_payload');
+        }
+        $id = (int) $value;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+
+    return array_values($ids);
+}
+
+function ll_tools_user_study_send_request_collection_error(WP_Error $error): void {
+    $status = $error->get_error_code() === 'request_payload_too_large' ? 413 : 400;
+    wp_send_json_error(['message' => __('Invalid request.', 'll-tools-text-domain')], $status);
 }
 
 function ll_tools_sanitize_user_progress_sync_word_ids($values): array {
@@ -10638,25 +10805,20 @@ function ll_tools_user_progress_batch_ajax() {
     }
     check_ajax_referer('ll_user_study', 'nonce');
 
-    $events_raw = $_POST['events'] ?? '[]';
-    if (is_array($events_raw)) {
-        $events = $events_raw;
-    } else {
-        $decoded = json_decode(wp_unslash((string) $events_raw), true);
-        $events = is_array($decoded) ? $decoded : [];
+    $events = ll_tools_user_study_parse_request_collection($_POST['events'] ?? '[]', 'events', true);
+    if (is_wp_error($events)) {
+        ll_tools_user_study_send_request_collection_error($events);
     }
-
-    $events = array_slice($events, 0, 200);
     $stats = ll_tools_process_progress_events_batch(get_current_user_id(), $events);
     if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
         ll_tools_user_progress_send_retryable_failure($stats);
     }
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
-        return $id > 0;
-    }));
+    $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
+    if (is_wp_error($category_ids)) {
+        ll_tools_user_study_send_request_collection_error($category_ids);
+    }
 
     $categories = function_exists('ll_tools_user_study_categories_for_wordset')
         ? ll_tools_user_study_categories_for_wordset($wordset_id)
@@ -10685,14 +10847,10 @@ function ll_tools_user_progress_sync_snapshot_ajax() {
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $word_ids_raw = $_POST['word_ids'] ?? [];
-    if (!is_array($word_ids_raw)) {
-        $decoded = json_decode(wp_unslash((string) $word_ids_raw), true);
-        $word_ids_raw = is_array($decoded) ? $decoded : [];
+    $word_ids = ll_tools_user_study_parse_request_id_collection($_POST['word_ids'] ?? [], 'word_ids');
+    if (is_wp_error($word_ids)) {
+        ll_tools_user_study_send_request_collection_error($word_ids);
     }
-    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids_raw), static function ($id): bool {
-        return $id > 0;
-    }));
 
     wp_send_json_success(
         ll_tools_build_user_progress_sync_snapshot(get_current_user_id(), $wordset_id, $word_ids)
@@ -10706,19 +10864,18 @@ function ll_tools_user_study_save_goals_ajax() {
     }
     check_ajax_referer('ll_user_study', 'nonce');
 
-    $goals_raw = isset($_POST['goals']) ? $_POST['goals'] : [];
-    if (!is_array($goals_raw)) {
-        $decoded = json_decode(wp_unslash((string) $goals_raw), true);
-        $goals_raw = is_array($decoded) ? $decoded : [];
+    $goals_raw = ll_tools_user_study_parse_request_collection($_POST['goals'] ?? [], 'goals', false);
+    if (is_wp_error($goals_raw)) {
+        ll_tools_user_study_send_request_collection_error($goals_raw);
     }
 
     $goals = ll_tools_save_user_study_goals($goals_raw, get_current_user_id());
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
-        return $id > 0;
-    }));
+    $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
+    if (is_wp_error($category_ids)) {
+        ll_tools_user_study_send_request_collection_error($category_ids);
+    }
 
     $categories = function_exists('ll_tools_user_study_categories_for_wordset')
         ? ll_tools_user_study_categories_for_wordset($wordset_id)
@@ -10845,7 +11002,10 @@ function ll_tools_user_study_recommendation_ajax() {
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
+    $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
+    if (is_wp_error($category_ids)) {
+        ll_tools_user_study_send_request_collection_error($category_ids);
+    }
     $preferred_mode = sanitize_key((string) ($_POST['preferred_mode'] ?? ''));
     $force_refresh = !isset($_POST['refresh']) || !empty($_POST['refresh']);
 
@@ -12232,7 +12392,10 @@ function ll_tools_user_study_analytics_ajax() {
     check_ajax_referer('ll_user_study', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_ids = isset($_POST['category_ids']) ? (array) $_POST['category_ids'] : [];
+    $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
+    if (is_wp_error($category_ids)) {
+        ll_tools_user_study_send_request_collection_error($category_ids);
+    }
     $days = isset($_POST['days']) ? (int) $_POST['days'] : 14;
     $include_ignored = !empty($_POST['include_ignored']);
     $include_words = true;
@@ -12273,19 +12436,11 @@ function ll_tools_user_study_analytics_ajax() {
     $word_offset = isset($_POST['word_offset']) ? max(0, (int) $_POST['word_offset']) : 0;
     $word_filter = [];
     if (isset($_POST['word_filter'])) {
-        $word_filter_raw = wp_unslash($_POST['word_filter']);
-        if (is_array($word_filter_raw)) {
-            $word_filter = $word_filter_raw;
-        } elseif (is_scalar($word_filter_raw)) {
-            $decoded_word_filter = json_decode((string) $word_filter_raw, true);
-            if (is_array($decoded_word_filter)) {
-                $word_filter = $decoded_word_filter;
-            }
+        $word_filter = ll_tools_user_study_parse_request_collection($_POST['word_filter'], 'word_filter', false);
+        if (is_wp_error($word_filter)) {
+            ll_tools_user_study_send_request_collection_error($word_filter);
         }
     }
-    $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
-        return $id > 0;
-    }));
 
     $analytics_complete = true;
     $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, $category_ids, $days, $include_ignored, [

@@ -378,6 +378,10 @@ test('wordset games does not duplicate English i18n fallback strings in JS', asy
 test('Turkish translation avoids high-risk tone and glossary regressions', async () => {
   const file = path.join(repoRoot, 'languages', 'll-tools-text-domain-tr_TR.po');
   const source = fs.readFileSync(file, 'utf8');
+  expect(
+    source,
+    'Turkish catalog contains prohibited zero-width or byte-order format characters.'
+  ).not.toMatch(/[\u200B\u200C\u200D\u2060\uFEFF]/u);
   const translationLines = [];
   let inTranslation = false;
 
@@ -452,6 +456,20 @@ test('Turkish translation avoids high-risk tone and glossary regressions', async
     findings,
     `Review languages/TURKISH_TRANSLATION_GUIDELINES.md before changing Turkish PO glossary/tone terms:\n${findings.join('\n')}`
   ).toEqual([]);
+});
+
+test('learner registration transitions have one always-loaded owner', async () => {
+  const helperPath = path.join(repoRoot, 'includes', 'lib', 'learner-registration-settings.php');
+  const helper = fs.readFileSync(helperPath, 'utf8');
+  const bootstrap = fs.readFileSync(path.join(repoRoot, 'includes', 'bootstrap.php'), 'utf8');
+  const adminSettings = fs.readFileSync(path.join(repoRoot, 'includes', 'admin', 'settings.php'), 'utf8');
+  const siteTools = fs.readFileSync(path.join(repoRoot, 'includes', 'shortcodes', 'site-tools-shortcode.php'), 'utf8');
+
+  expect(bootstrap).toContain("require_once __DIR__ . '/lib/learner-registration-settings.php';");
+  expect(helper.match(/function ll_tools_sync_wordpress_registration_setting\s*\(/g) || []).toHaveLength(1);
+  expect(helper).toContain("'pre_update_option_ll_allow_learner_self_registration'");
+  expect(adminSettings).not.toContain('function ll_tools_sync_wordpress_registration_setting(');
+  expect(siteTools).not.toContain('ll_tools_site_tools_sync_wordpress_registration_setting');
 });
 
 test('PHP include and template files block direct web access', async () => {

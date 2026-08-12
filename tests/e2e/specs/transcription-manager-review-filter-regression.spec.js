@@ -2525,9 +2525,11 @@ test('detached word editor reuses cached markup until an internal review-note au
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.unroute('**/*');
   await page.setContent(`
+    <button type="button" id="ll-modal-test-opener">Open editor</button>
     <div class="ll-word-edit-modal-host" data-ll-word-edit-modal-host aria-live="polite">
       <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-word-edit-modal-grid="1"></div>
     </div>
+    <button type="button" id="ll-modal-test-outside">Outside editor</button>
   `);
   await page.addScriptTag({ content: jquerySource });
 
@@ -2564,6 +2566,7 @@ test('detached word editor reuses cached markup until an internal review-note au
   await page.addScriptTag({ content: wordEditModalSource });
 
   await page.evaluate(() => {
+    document.getElementById('ll-modal-test-opener').focus();
     window.__llModalMock.preparedToken = window.LLToolsWordEditModal.prepare({
       wordId: 91,
       wordsetId: 7,
@@ -2574,6 +2577,21 @@ test('detached word editor reuses cached markup until an internal review-note au
 
   await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeVisible();
   await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toHaveText('Loading word editor...');
+  const loadingPanel = page.locator('.ll-word-edit-modal-loading__panel');
+  await expect(loadingPanel).toHaveAttribute('role', 'dialog');
+  await expect(loadingPanel).toHaveAttribute('aria-modal', 'true');
+  await expect(loadingPanel).toHaveAccessibleName('Loading word editor');
+  await expect(loadingPanel).toBeFocused();
+  await expect(page.locator('#ll-modal-test-opener')).toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-modal-test-opener')).toHaveAttribute('aria-hidden', 'true');
+  await page.keyboard.press('Tab');
+  await expect(loadingPanel).toBeFocused();
+  await page.evaluate(() => {
+    const outside = document.getElementById('ll-modal-test-outside');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect(loadingPanel).toBeFocused();
   expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(0);
 
   await page.evaluate(() => {
@@ -2616,6 +2634,9 @@ test('detached word editor reuses cached markup until an internal review-note au
 
   await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
   expect(await page.evaluate(() => document.body.classList.contains('ll-word-edit-modal-loading-open'))).toBe(false);
+  await expect(page.locator('#ll-modal-test-opener')).toBeFocused();
+  await expect(page.locator('#ll-modal-test-opener')).not.toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-modal-test-opener')).not.toHaveAttribute('aria-hidden', 'true');
 
   await page.evaluate(() => window.LLToolsWordEditModal.open({
     wordId: 91,

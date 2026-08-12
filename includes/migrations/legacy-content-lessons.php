@@ -104,6 +104,15 @@ function ll_tools_legacy_lesson_array_meta_value(int $post_id, string $meta_key)
 }
 
 /**
+ * Compare migrated HTML by its rendered entity value. WordPress may encode an
+ * ampersand in a rewritten URL while saving, even though the stored link is
+ * semantically identical to the tag processor output.
+ */
+function ll_tools_legacy_lesson_content_comparison_value(string $content): string {
+    return html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
+
+/**
  * Read a fresh, bounded, allowlisted metadata snapshot.
  *
  * The migration must not interpret a failed metadata query as an empty legacy
@@ -997,7 +1006,9 @@ function ll_tools_migrate_legacy_lesson_post(
                 $existing->post_title,
                 $existing->post_name,
                 $existing->post_excerpt,
-                $existing->post_content,
+                ll_tools_legacy_lesson_content_comparison_value(
+                    (string) $existing->post_content
+                ),
                 (int) $existing->post_author,
                 (string) $existing->post_password,
                 (int) $existing->menu_order,
@@ -1029,7 +1040,9 @@ function ll_tools_migrate_legacy_lesson_post(
         $post_data['post_title'],
         $post_data['post_name'],
         $post_data['post_excerpt'],
-        $post_data['post_content'],
+        ll_tools_legacy_lesson_content_comparison_value(
+            (string) $post_data['post_content']
+        ),
         $post_data['post_author'],
         $post_data['post_password'],
         $post_data['menu_order'],
@@ -1922,7 +1935,10 @@ function ll_tools_migrate_legacy_lesson_relations(
             $target_id,
             LL_TOOLS_LEGACY_LESSON_UNRESOLVED_META
         ) !== $unresolved
-        || $rewritten_content !== (string) $target_post->post_content;
+        || ll_tools_legacy_lesson_content_comparison_value($rewritten_content)
+            !== ll_tools_legacy_lesson_content_comparison_value(
+                (string) $target_post->post_content
+            );
     if (!empty($args['apply'])) {
         if (empty($target_prerequisite_ids)) {
             delete_post_meta($target_id, LL_TOOLS_CONTENT_LESSON_PREREQ_LESSON_IDS_META);
@@ -1938,7 +1954,11 @@ function ll_tools_migrate_legacy_lesson_relations(
         } else {
             update_post_meta($target_id, LL_TOOLS_LEGACY_LESSON_UNRESOLVED_META, $unresolved);
         }
-        if ($rewritten_content !== (string) $target_post->post_content) {
+        if (ll_tools_legacy_lesson_content_comparison_value($rewritten_content)
+            !== ll_tools_legacy_lesson_content_comparison_value(
+                (string) $target_post->post_content
+            )
+        ) {
             $content_update = wp_update_post(
                 wp_slash([
                     'ID' => $target_id,
@@ -1958,7 +1978,9 @@ function ll_tools_migrate_legacy_lesson_relations(
                 LL_TOOLS_LEGACY_LESSON_UNRESOLVED_META
             ) !== $unresolved
             || !($stored_post instanceof WP_Post)
-            || (string) $stored_post->post_content !== $rewritten_content
+            || ll_tools_legacy_lesson_content_comparison_value(
+                (string) $stored_post->post_content
+            ) !== ll_tools_legacy_lesson_content_comparison_value($rewritten_content)
         ) {
             return new WP_Error(
                 'legacy_lesson_relation_verification_failed',

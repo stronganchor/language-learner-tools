@@ -1687,7 +1687,14 @@ function ll_audio_recording_interface_shortcode($atts) {
 
             <?php if ($allow_new_words): ?>
             <div class="ll-new-word-toggle">
-                <button type="button" class="ll-btn ll-btn-secondary" id="ll-new-word-toggle">
+                <button
+                    type="button"
+                    class="ll-btn ll-btn-secondary"
+                    id="ll-new-word-toggle"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-controls="ll-new-word-panel"
+                >
                     <?php _e('Record New Word', 'll-tools-text-domain'); ?>
                 </button>
             </div>
@@ -1698,6 +1705,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                     type="button"
                     class="ll-btn ll-hidden-words-toggle-btn"
                     id="ll-hidden-words-toggle"
+                    aria-haspopup="dialog"
                     aria-expanded="false"
                     aria-controls="ll-hidden-words-panel"
                     title="<?php esc_attr_e('Hidden words', 'll-tools-text-domain'); ?>"
@@ -1765,7 +1773,7 @@ function ll_audio_recording_interface_shortcode($atts) {
 
         <div class="ll-hidden-words-overlay" id="ll-hidden-words-overlay" hidden>
             <div class="ll-hidden-words-overlay-backdrop" id="ll-hidden-words-backdrop"></div>
-            <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" role="dialog" aria-modal="true" aria-labelledby="ll-hidden-words-title" hidden>
+            <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" role="dialog" aria-modal="true" aria-labelledby="ll-hidden-words-title" tabindex="-1" hidden>
                 <div class="ll-hidden-words-panel-head">
                     <h3 class="ll-hidden-words-title" id="ll-hidden-words-title"><?php esc_html_e('Hidden words', 'll-tools-text-domain'); ?></h3>
                     <button type="button" class="ll-btn ll-hidden-words-close" id="ll-hidden-words-close" title="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>" aria-label="<?php esc_attr_e('Close', 'll-tools-text-domain'); ?>">
@@ -1782,7 +1790,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         <?php if ($allow_new_words): ?>
         <div class="ll-new-word-overlay" id="ll-new-word-overlay" hidden>
             <div class="ll-new-word-overlay-backdrop"></div>
-            <div class="ll-new-word-panel" id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" style="display: none;">
+            <div class="ll-new-word-panel" id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" tabindex="-1" style="display: none;">
                 <div class="ll-new-word-card">
                     <div class="ll-new-word-shell">
                         <div class="ll-new-word-header">
@@ -2025,7 +2033,7 @@ function ll_audio_recording_interface_shortcode($atts) {
         <?php if ($auto_process_recordings): ?>
         <div class="ll-recording-review-overlay" id="ll-recording-review-overlay" hidden>
             <div class="ll-recording-review-overlay-backdrop"></div>
-            <div class="ll-recording-review-shell" role="dialog" aria-modal="true" aria-labelledby="ll-recording-review-title">
+            <div class="ll-recording-review-shell" role="dialog" aria-modal="true" aria-labelledby="ll-recording-review-title" tabindex="-1">
                 <div id="ll-recording-review-slot" class="ll-recording-review-slot">
                     <div id="ll-recording-review" class="ll-review-interface ll-recording-review" style="display:none;">
                         <h2 id="ll-recording-review-title"><?php _e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>

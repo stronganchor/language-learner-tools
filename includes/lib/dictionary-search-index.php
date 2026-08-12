@@ -438,11 +438,8 @@ function ll_tools_dictionary_mark_lookup_unavailable_for_repair(int $delay = 30)
  */
 function ll_tools_schedule_dictionary_lookup_rebuild(bool $reset = false): void {
     if (!ll_tools_dictionary_lookup_schema_is_ready()) {
-        if (get_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT)) {
-            ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
-            return;
-        }
-        if (!ll_tools_install_dictionary_lookup_schema()) {
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+        if (!ll_tools_maybe_upgrade_dictionary_lookup_schema()) {
             ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
             return;
         }
@@ -484,26 +481,35 @@ function ll_tools_dictionary_lookup_is_ready(): bool {
 /**
  * Install/upgrade the lookup table and ensure a backfill is queued.
  */
-function ll_tools_maybe_upgrade_dictionary_lookup_schema(): void {
-    $installed = (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '');
-    if (
-        $installed === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
-        && (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, '') === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
-    ) {
+function ll_tools_maybe_upgrade_dictionary_lookup_schema(): bool {
+    $is_current = static function (): bool {
+        return (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, '')
+                === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION
+            && (string) get_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION, '')
+                === LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION;
+    };
+    if ($is_current()) {
         // The verified marker is written only after the full table contract has
         // passed. Do not issue SHOW queries on every unrelated WordPress init;
         // mutation/rebuild paths still force a full contract check, while
         // reads verify table availability and fail closed on query errors.
-        return;
+        return true;
     }
     if (get_transient(LL_TOOLS_DICTIONARY_LOOKUP_SCHEMA_RETRY_TRANSIENT)) {
-        return;
+        ll_tools_schedule_schema_maintenance('dictionary_lookup', 5 * MINUTE_IN_SECONDS);
+        return false;
     }
 
-    if (!ll_tools_install_dictionary_lookup_schema()) {
-        return;
+    $installed = ll_tools_maybe_run_schema_maintenance(
+        'dictionary_lookup',
+        $is_current,
+        'll_tools_install_dictionary_lookup_schema'
+    );
+    if (!$installed) {
+        return false;
     }
     ll_tools_schedule_dictionary_lookup_rebuild(true);
+    return true;
 }
 add_action('init', 'll_tools_maybe_upgrade_dictionary_lookup_schema', 13);
 
@@ -897,7 +903,8 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
 
     try {
         if (!ll_tools_dictionary_lookup_schema_is_ready(true)) {
-            if (!ll_tools_install_dictionary_lookup_schema()) {
+            delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERIFIED_VERSION_OPTION);
+            if (!ll_tools_maybe_upgrade_dictionary_lookup_schema()) {
                 ll_tools_schedule_dictionary_lookup_rebuild_event(5 * MINUTE_IN_SECONDS);
                 return;
             }

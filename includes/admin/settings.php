@@ -135,44 +135,9 @@ function ll_sanitize_browser_language_autoswitch_setting($value) {
     return absint($value) === 1 ? 1 : 0;
 }
 
-function ll_tools_normalize_learner_registration_setting_value($value) {
-    return (absint($value) === 1) ? 1 : 0;
-}
-
 function ll_tools_normalize_generated_registration_password_setting_value($value) {
     return (absint($value) === 1) ? 1 : 0;
 }
-
-function ll_tools_sync_wordpress_registration_setting($value) {
-    $enabled = ll_tools_normalize_learner_registration_setting_value($value);
-
-    if (is_multisite()) {
-        $current = (string) get_site_option('registration', 'none');
-
-        if ($enabled === 1) {
-            $next = in_array($current, ['blog', 'all'], true) ? 'all' : 'user';
-        } else {
-            $next = in_array($current, ['blog', 'all'], true) ? 'blog' : 'none';
-        }
-
-        if ($current !== $next) {
-            update_site_option('registration', $next);
-        }
-
-        return;
-    }
-
-    if ((int) get_option('users_can_register', 0) !== $enabled) {
-        update_option('users_can_register', $enabled);
-    }
-}
-
-function ll_tools_sync_wordpress_registration_from_learner_setting($value, $old_value, $option) {
-    $normalized = ll_tools_normalize_learner_registration_setting_value($value);
-    ll_tools_sync_wordpress_registration_setting($normalized);
-    return $normalized;
-}
-add_filter('pre_update_option_ll_allow_learner_self_registration', 'll_tools_sync_wordpress_registration_from_learner_setting', 10, 3);
 
 function ll_sanitize_title_language_role($value) {
     return in_array($value, array('target','translation'), true) ? $value : 'target';

@@ -10584,7 +10584,53 @@ function ll_tools_recorder_invite_secret(): string {
     return (string) wp_salt('auth');
 }
 
-function ll_tools_recorder_invite_build_token(int $wordset_id, array $args = []): string {
+function ll_tools_wordset_manager_invite_secret(): string {
+    return (string) wp_salt('auth') . '|wordset-manager';
+}
+
+/**
+ * Return the security-sensitive settings shared by word set invitation flows.
+ *
+ * Keeping the codec and request parsing in one implementation prevents recorder
+ * and manager links from drifting while their role-specific copy and acceptance
+ * behavior remain deliberately separate.
+ *
+ * @return array<string,string>
+ */
+function ll_tools_wordset_invite_token_config(string $invite_type): array {
+    if ($invite_type === 'recorder') {
+        return [
+            'query_arg' => 'll_tools_recorder_invite',
+            'context_global' => 'll_tools_recorder_invite_request_context',
+            'secret' => ll_tools_recorder_invite_secret(),
+            'expiration_filter' => 'll_tools_recorder_invite_expiration_seconds',
+            'invalid_message' => __('This recorder invitation link is invalid.', 'll-tools-text-domain'),
+            'missing_message' => __('This recorder invitation no longer matches an available word set.', 'll-tools-text-domain'),
+            'expired_message' => __('This recorder invitation link has expired.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($invite_type === 'manager') {
+        return [
+            'query_arg' => 'll_tools_wordset_manager_invite',
+            'context_global' => 'll_tools_wordset_manager_invite_request_context',
+            'secret' => ll_tools_wordset_manager_invite_secret(),
+            'expiration_filter' => 'll_tools_wordset_manager_invite_expiration_seconds',
+            'invalid_message' => __('This word set manager invitation link is invalid.', 'll-tools-text-domain'),
+            'missing_message' => __('This word set manager invitation no longer matches an available word set.', 'll-tools-text-domain'),
+            'expired_message' => __('This word set manager invitation link has expired.', 'll-tools-text-domain'),
+        ];
+    }
+
+    return [];
+}
+
+function ll_tools_wordset_invite_build_token(string $invite_type, int $wordset_id, array $args = []): string {
+    $config = ll_tools_wordset_invite_token_config($invite_type);
+    if (empty($config)) {
+        return '';
+    }
+
     $wordset_term = get_term($wordset_id, 'wordset');
     if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
         return '';
@@ -10600,7 +10646,7 @@ function ll_tools_recorder_invite_build_token(int $wordset_id, array $args = [])
 
     $expiry = isset($args['expires_at']) ? (int) $args['expires_at'] : 0;
     if ($expiry <= time()) {
-        $expiry = time() + (int) apply_filters('ll_tools_recorder_invite_expiration_seconds', 30 * DAY_IN_SECONDS, $wordset_id, $email);
+        $expiry = time() + (int) apply_filters($config['expiration_filter'], 30 * DAY_IN_SECONDS, $wordset_id, $email);
     }
 
     $payload = [
@@ -10614,43 +10660,57 @@ function ll_tools_recorder_invite_build_token(int $wordset_id, array $args = [])
         return '';
     }
 
-    return $encoded_payload . '.' . hash_hmac('sha256', $encoded_payload, ll_tools_recorder_invite_secret());
+    return $encoded_payload . '.' . hash_hmac('sha256', $encoded_payload, $config['secret']);
 }
 
-function ll_tools_recorder_invite_parse_token(string $token) {
+function ll_tools_wordset_invite_parse_token(string $invite_type, string $token) {
+    $config = ll_tools_wordset_invite_token_config($invite_type);
+    if (empty($config)) {
+        return new WP_Error('invalid_invite');
+    }
+
     $token = trim($token);
-    if ($token === '' || strpos($token, '.') === false) {
-        return new WP_Error('invalid_invite', __('This recorder invitation link is invalid.', 'll-tools-text-domain'));
+    if ($token === '' || strlen($token) > 4096 || substr_count($token, '.') !== 1) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
     }
 
     [$encoded_payload, $signature] = explode('.', $token, 2);
-    $expected_signature = hash_hmac('sha256', $encoded_payload, ll_tools_recorder_invite_secret());
-    if (!hash_equals($expected_signature, (string) $signature)) {
-        return new WP_Error('invalid_invite', __('This recorder invitation link is invalid.', 'll-tools-text-domain'));
+    if ($encoded_payload === '' || !preg_match('/^[a-f0-9]{64}$/', $signature)) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
+    }
+
+    $expected_signature = hash_hmac('sha256', $encoded_payload, $config['secret']);
+    if (!hash_equals($expected_signature, $signature)) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
     }
 
     $decoded_payload = ll_tools_recorder_invite_base64url_decode($encoded_payload);
-    if ($decoded_payload === '') {
-        return new WP_Error('invalid_invite', __('This recorder invitation link is invalid.', 'll-tools-text-domain'));
+    if ($decoded_payload === '' || ll_tools_recorder_invite_base64url_encode($decoded_payload) !== $encoded_payload) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
     }
 
     $payload = json_decode($decoded_payload, true);
     if (!is_array($payload)) {
-        return new WP_Error('invalid_invite', __('This recorder invitation link is invalid.', 'll-tools-text-domain'));
+        return new WP_Error('invalid_invite', $config['invalid_message']);
     }
 
     $wordset_id = max(0, (int) ($payload['wid'] ?? 0));
-    $email = strtolower(trim(sanitize_email((string) ($payload['email'] ?? ''))));
+    $raw_email = $payload['email'] ?? '';
+    if (!is_string($raw_email)) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
+    }
+    $raw_email = strtolower(trim($raw_email));
+    $email = strtolower(trim(sanitize_email($raw_email)));
     $expires_at = (int) ($payload['exp'] ?? 0);
     $wordset_term = get_term($wordset_id, 'wordset');
     if ($wordset_id <= 0 || !($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
-        return new WP_Error('missing_wordset', __('This recorder invitation no longer matches an available word set.', 'll-tools-text-domain'));
+        return new WP_Error('missing_wordset', $config['missing_message']);
     }
-    if ($email !== '' && !is_email($email)) {
-        return new WP_Error('invalid_invite', __('This recorder invitation link is invalid.', 'll-tools-text-domain'));
+    if (($raw_email !== '' && ($email !== $raw_email || !is_email($email))) || $expires_at <= 0) {
+        return new WP_Error('invalid_invite', $config['invalid_message']);
     }
     if ($expires_at <= time()) {
-        return new WP_Error('expired_invite', __('This recorder invitation link has expired.', 'll-tools-text-domain'));
+        return new WP_Error('expired_invite', $config['expired_message']);
     }
 
     return [
@@ -10663,34 +10723,63 @@ function ll_tools_recorder_invite_parse_token(string $token) {
     ];
 }
 
-function ll_tools_recorder_invite_get_request_token(): string {
-    $raw = isset($_REQUEST[LL_TOOLS_RECORDER_INVITE_QUERY_ARG])
-        ? (string) wp_unslash($_REQUEST[LL_TOOLS_RECORDER_INVITE_QUERY_ARG])
-        : '';
+function ll_tools_wordset_invite_get_request_token(string $invite_type): string {
+    $config = ll_tools_wordset_invite_token_config($invite_type);
+    if (empty($config) || !isset($_REQUEST[$config['query_arg']]) || !is_scalar($_REQUEST[$config['query_arg']])) {
+        return '';
+    }
+
+    $raw = trim((string) wp_unslash($_REQUEST[$config['query_arg']]));
+    if ($raw === '' || strlen($raw) > 4096) {
+        return '';
+    }
+
     $token = preg_replace('/[^A-Za-z0-9\-\_\.]/', '', $raw);
-    return is_string($token) ? $token : '';
+    return is_string($token) && hash_equals($raw, $token) ? $token : '';
 }
 
-function ll_tools_recorder_invite_get_request_context() {
-    if (array_key_exists('ll_tools_recorder_invite_request_context', $GLOBALS)) {
-        return $GLOBALS['ll_tools_recorder_invite_request_context'];
+function ll_tools_wordset_invite_get_request_context(string $invite_type) {
+    $config = ll_tools_wordset_invite_token_config($invite_type);
+    if (empty($config)) {
+        return [];
     }
 
-    $token = ll_tools_recorder_invite_get_request_token();
+    $global_key = $config['context_global'];
+    if (array_key_exists($global_key, $GLOBALS)) {
+        return $GLOBALS[$global_key];
+    }
+
+    $token = ll_tools_wordset_invite_get_request_token($invite_type);
     if ($token === '') {
-        $GLOBALS['ll_tools_recorder_invite_request_context'] = [];
-        return $GLOBALS['ll_tools_recorder_invite_request_context'];
+        $GLOBALS[$global_key] = [];
+        return $GLOBALS[$global_key];
     }
 
-    $parsed = ll_tools_recorder_invite_parse_token($token);
+    $parsed = ll_tools_wordset_invite_parse_token($invite_type, $token);
     if (is_wp_error($parsed)) {
-        $GLOBALS['ll_tools_recorder_invite_request_context'] = $parsed;
-        return $GLOBALS['ll_tools_recorder_invite_request_context'];
+        $GLOBALS[$global_key] = $parsed;
+        return $GLOBALS[$global_key];
     }
 
     $parsed['token'] = $token;
-    $GLOBALS['ll_tools_recorder_invite_request_context'] = $parsed;
-    return $GLOBALS['ll_tools_recorder_invite_request_context'];
+    $GLOBALS[$global_key] = $parsed;
+    return $GLOBALS[$global_key];
+}
+
+function ll_tools_recorder_invite_build_token(int $wordset_id, array $args = []): string {
+    return ll_tools_wordset_invite_build_token('recorder', $wordset_id, $args);
+}
+
+function ll_tools_recorder_invite_parse_token(string $token) {
+    return ll_tools_wordset_invite_parse_token('recorder', $token);
+}
+
+function ll_tools_recorder_invite_get_request_token(): string {
+    return ll_tools_wordset_invite_get_request_token('recorder');
+}
+
+function ll_tools_recorder_invite_get_request_context() {
+    return ll_tools_wordset_invite_get_request_context('recorder');
 }
 
 function ll_tools_recorder_invite_current_request_allows_signup_registration(): bool {
@@ -10894,117 +10983,20 @@ function ll_tools_wordset_page_assign_manager_user_to_wordset(int $user_id, int 
     return true;
 }
 
-function ll_tools_wordset_manager_invite_secret(): string {
-    return (string) wp_salt('auth') . '|wordset-manager';
-}
-
 function ll_tools_wordset_manager_invite_build_token(int $wordset_id, array $args = []): string {
-    $wordset_term = get_term($wordset_id, 'wordset');
-    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
-        return '';
-    }
-
-    $email = '';
-    if (!empty($args['email'])) {
-        $email = strtolower(trim(sanitize_email((string) $args['email'])));
-        if (!is_email($email)) {
-            return '';
-        }
-    }
-
-    $expiry = isset($args['expires_at']) ? (int) $args['expires_at'] : 0;
-    if ($expiry <= time()) {
-        $expiry = time() + (int) apply_filters('ll_tools_wordset_manager_invite_expiration_seconds', 30 * DAY_IN_SECONDS, $wordset_id, $email);
-    }
-
-    $payload = [
-        'wid' => (int) $wordset_term->term_id,
-        'email' => $email,
-        'exp' => $expiry,
-    ];
-
-    $encoded_payload = ll_tools_recorder_invite_base64url_encode((string) wp_json_encode($payload));
-    if ($encoded_payload === '') {
-        return '';
-    }
-
-    return $encoded_payload . '.' . hash_hmac('sha256', $encoded_payload, ll_tools_wordset_manager_invite_secret());
+    return ll_tools_wordset_invite_build_token('manager', $wordset_id, $args);
 }
 
 function ll_tools_wordset_manager_invite_parse_token(string $token) {
-    $token = trim($token);
-    if ($token === '' || strpos($token, '.') === false) {
-        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
-    }
-
-    [$encoded_payload, $signature] = explode('.', $token, 2);
-    $expected_signature = hash_hmac('sha256', $encoded_payload, ll_tools_wordset_manager_invite_secret());
-    if (!hash_equals($expected_signature, (string) $signature)) {
-        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
-    }
-
-    $decoded_payload = ll_tools_recorder_invite_base64url_decode($encoded_payload);
-    if ($decoded_payload === '') {
-        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
-    }
-
-    $payload = json_decode($decoded_payload, true);
-    if (!is_array($payload)) {
-        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
-    }
-
-    $wordset_id = max(0, (int) ($payload['wid'] ?? 0));
-    $email = strtolower(trim(sanitize_email((string) ($payload['email'] ?? ''))));
-    $expires_at = (int) ($payload['exp'] ?? 0);
-    $wordset_term = get_term($wordset_id, 'wordset');
-    if ($wordset_id <= 0 || !($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
-        return new WP_Error('missing_wordset', __('This word set manager invitation no longer matches an available word set.', 'll-tools-text-domain'));
-    }
-    if ($email !== '' && !is_email($email)) {
-        return new WP_Error('invalid_invite', __('This word set manager invitation link is invalid.', 'll-tools-text-domain'));
-    }
-    if ($expires_at <= time()) {
-        return new WP_Error('expired_invite', __('This word set manager invitation link has expired.', 'll-tools-text-domain'));
-    }
-
-    return [
-        'wordset_id' => $wordset_id,
-        'wordset_slug' => (string) $wordset_term->slug,
-        'wordset_name' => (string) $wordset_term->name,
-        'wordset_term' => $wordset_term,
-        'email' => $email,
-        'expires_at' => $expires_at,
-    ];
+    return ll_tools_wordset_invite_parse_token('manager', $token);
 }
 
 function ll_tools_wordset_manager_invite_get_request_token(): string {
-    $raw = isset($_REQUEST[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
-        ? (string) wp_unslash($_REQUEST[LL_TOOLS_WORDSET_MANAGER_INVITE_QUERY_ARG])
-        : '';
-    $token = preg_replace('/[^A-Za-z0-9\-\_\.]/', '', $raw);
-    return is_string($token) ? $token : '';
+    return ll_tools_wordset_invite_get_request_token('manager');
 }
 
 function ll_tools_wordset_manager_invite_get_request_context() {
-    if (array_key_exists('ll_tools_wordset_manager_invite_request_context', $GLOBALS)) {
-        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
-    }
-
-    $token = ll_tools_wordset_manager_invite_get_request_token();
-    if ($token === '') {
-        $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = [];
-        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
-    }
-
-    $parsed = ll_tools_wordset_manager_invite_parse_token($token);
-    if (is_wp_error($parsed)) {
-        $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = $parsed;
-        return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
-    }
-
-    $parsed['token'] = $token;
-    $GLOBALS['ll_tools_wordset_manager_invite_request_context'] = $parsed;
-    return $GLOBALS['ll_tools_wordset_manager_invite_request_context'];
+    return ll_tools_wordset_invite_get_request_context('manager');
 }
 
 function ll_tools_wordset_manager_invite_current_request_allows_signup_registration(): bool {
@@ -14165,7 +14157,7 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
         return __('Public/private visibility and manager access for this word set.', 'll-tools-text-domain');
     }
     if ($tool === 'categories') {
-        return __('Create, rename, translate, re-parent, and safely delete categories in this word set.', 'll-tools-text-domain');
+        return __('Create, rename, translate, and safely delete categories in this word set.', 'll-tools-text-domain');
     }
     if ($tool === 'editor') {
         return __('Search words, filter media states, bulk-edit categories and statuses, and undo recent editor actions.', 'll-tools-text-domain');

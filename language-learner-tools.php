@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.7.14
+Version: 6.7.15
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,12 +19,15 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.7.14');
+define('LL_TOOLS_VERSION', '6.7.15');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
 define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION', 'll_tools_dotless_i_ipa_migrated');
+define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION', 'll_tools_dotless_i_ipa_migration_state');
+define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION', 'll_tools_dotless_i_ipa_migration_lock');
+define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK', 'll_tools_dotless_i_ipa_migration_batch');
 
 function ll_tools_is_supported_php_version($version = null): bool {
     if (!is_string($version) || $version === '') {
@@ -305,38 +308,148 @@ function ll_tools_schedule_post_update_maintenance(): void {
     }
 }
 
+function ll_tools_dotless_i_recording_ipa_migration_batch_size(): int {
+    return max(1, min(250, (int) apply_filters('ll_tools_dotless_i_ipa_migration_batch_size', 50)));
+}
+
+function ll_tools_dotless_i_recording_ipa_migration_state(): array {
+    $state = get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION, []);
+    $state = is_array($state) ? $state : [];
+
+    return [
+        'cursor' => max(0, (int) ($state['cursor'] ?? 0)),
+        'processed' => max(0, (int) ($state['processed'] ?? 0)),
+        'updated' => max(0, (int) ($state['updated'] ?? 0)),
+        'status' => sanitize_key((string) ($state['status'] ?? 'pending')),
+        'updated_at' => max(0, (int) ($state['updated_at'] ?? 0)),
+    ];
+}
+
+function ll_tools_schedule_dotless_i_recording_ipa_migration(int $delay_seconds = 5): bool {
+    if ((int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0) >= 1) {
+        return true;
+    }
+    if (wp_next_scheduled(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK)) {
+        return true;
+    }
+
+    return wp_schedule_single_event(
+        time() + max(1, min(HOUR_IN_SECONDS, $delay_seconds)),
+        LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK
+    ) !== false;
+}
+
 /**
- * Rewrite accidental Turkish dotless-i characters in stored IPA transcriptions.
+ * Acquire an exact-owner lease for the bounded IPA data migration.
+ *
+ * @return array{acquired:bool,value:string}
  */
-function ll_tools_normalize_dotless_i_recording_ipa_meta(): int {
+function ll_tools_acquire_dotless_i_recording_ipa_migration_lease(int $ttl = 300): array {
+    global $wpdb;
+
+    $ttl = max(MINUTE_IN_SECONDS, min(HOUR_IN_SECONDS, $ttl));
+    $now = time();
+    $value = ($now + $ttl) . '|' . (function_exists('wp_generate_uuid4')
+        ? wp_generate_uuid4()
+        : hash('sha256', microtime(true) . '|' . wp_rand()));
+    if (add_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION, $value, '', false)) {
+        return ['acquired' => true, 'value' => $value];
+    }
+
+    $current = (string) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION, '');
+    $separator = strpos($current, '|');
+    $expires_at = $separator === false ? (int) $current : (int) substr($current, 0, $separator);
+    if ($expires_at > $now) {
+        return ['acquired' => false, 'value' => ''];
+    }
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+        $value,
+        LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION,
+        $current
+    ));
+    wp_cache_delete(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION, 'options');
+
+    return ['acquired' => $updated === 1, 'value' => $updated === 1 ? $value : ''];
+}
+
+function ll_tools_release_dotless_i_recording_ipa_migration_lease(array $lease): void {
+    global $wpdb;
+
+    $value = (string) ($lease['value'] ?? '');
+    if ($value === '') {
+        return;
+    }
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION,
+        $value
+    ));
+    wp_cache_delete(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_LOCK_OPTION, 'options');
+}
+
+/**
+ * Rewrite one keyset page of accidental dotless-i IPA characters.
+ *
+ * @return array{processed:int,updated:int,next_cursor:int,has_more:bool,failed:bool,word_ids:int[]}
+ */
+function ll_tools_normalize_dotless_i_recording_ipa_meta_batch(int $after_meta_id = 0, int $batch_size = 0): array {
     global $wpdb;
 
     if (!($wpdb instanceof wpdb)) {
-        return 0;
+        return [
+            'processed' => 0,
+            'updated' => 0,
+            'next_cursor' => max(0, $after_meta_id),
+            'has_more' => false,
+            'failed' => true,
+            'word_ids' => [],
+        ];
     }
 
+    $after_meta_id = max(0, $after_meta_id);
+    $batch_size = $batch_size > 0
+        ? min(250, $batch_size)
+        : ll_tools_dotless_i_recording_ipa_migration_batch_size();
     $dotless_i = "\u{0131}";
+    $wpdb->last_error = '';
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT pm.post_id, pm.meta_value, p.post_parent
+        "SELECT pm.meta_id, pm.post_id, pm.meta_value, p.post_parent
          FROM {$wpdb->postmeta} pm
          INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
          WHERE pm.meta_key = %s
            AND p.post_type = %s
-           AND pm.meta_value LIKE %s",
+           AND pm.meta_id > %d
+           AND pm.meta_value LIKE %s
+         ORDER BY pm.meta_id ASC
+         LIMIT %d",
         'recording_ipa',
         'word_audio',
-        '%' . $wpdb->esc_like($dotless_i) . '%'
+        $after_meta_id,
+        '%' . $wpdb->esc_like($dotless_i) . '%',
+        $batch_size + 1
     ));
-
-    if (empty($rows)) {
-        return 0;
+    if ($wpdb->last_error !== '') {
+        return [
+            'processed' => 0,
+            'updated' => 0,
+            'next_cursor' => $after_meta_id,
+            'has_more' => true,
+            'failed' => true,
+            'word_ids' => [],
+        ];
     }
 
+    $has_more = count((array) $rows) > $batch_size;
+    $rows = array_slice((array) $rows, 0, $batch_size);
+    $processed = 0;
     $updated_count = 0;
     $word_ids = [];
     foreach ($rows as $row) {
+        $meta_id = max(0, (int) ($row->meta_id ?? 0));
         $recording_id = (int) ($row->post_id ?? 0);
-        if ($recording_id <= 0) {
+        if ($meta_id <= 0 || $recording_id <= 0) {
             continue;
         }
 
@@ -345,10 +458,23 @@ function ll_tools_normalize_dotless_i_recording_ipa_meta(): int {
             ? ll_tools_word_grid_normalize_ipa_output($current, 'ipa')
             : str_replace($dotless_i, "\u{026A}", $current);
         if ($current === $normalized) {
+            $after_meta_id = $meta_id;
+            $processed++;
             continue;
         }
 
-        update_post_meta($recording_id, 'recording_ipa', $normalized);
+        if (update_metadata_by_mid('post', $meta_id, $normalized, 'recording_ipa') === false) {
+            return [
+                'processed' => $processed,
+                'updated' => $updated_count,
+                'next_cursor' => $after_meta_id,
+                'has_more' => true,
+                'failed' => true,
+                'word_ids' => array_map('intval', array_keys($word_ids)),
+            ];
+        }
+        $after_meta_id = $meta_id;
+        $processed++;
         $updated_count++;
 
         $word_id = (int) ($row->post_parent ?? 0);
@@ -357,33 +483,79 @@ function ll_tools_normalize_dotless_i_recording_ipa_meta(): int {
         }
     }
 
-    if (!empty($word_ids)) {
-        $wordset_ids = [];
-        foreach (array_keys($word_ids) as $word_id) {
-            $terms = wp_get_post_terms((int) $word_id, 'wordset', ['fields' => 'ids']);
-            if (is_wp_error($terms) || empty($terms)) {
-                continue;
-            }
-            foreach ((array) $terms as $wordset_id) {
-                $wordset_id = (int) $wordset_id;
-                if ($wordset_id > 0) {
-                    $wordset_ids[$wordset_id] = true;
-                }
-            }
-        }
+    return [
+        'processed' => $processed,
+        'updated' => $updated_count,
+        'next_cursor' => $after_meta_id,
+        'has_more' => $has_more,
+        'failed' => false,
+        'word_ids' => array_map('intval', array_keys($word_ids)),
+    ];
+}
 
-        foreach (array_keys($wordset_ids) as $wordset_id) {
-            if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
-                ll_tools_word_grid_rebuild_wordset_ipa_special_chars((int) $wordset_id);
-            }
-            if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_letter_map')) {
-                ll_tools_word_grid_rebuild_wordset_ipa_letter_map((int) $wordset_id);
-            }
+/**
+ * Backward-compatible explicit maintenance helper; automatic work uses cron.
+ */
+function ll_tools_normalize_dotless_i_recording_ipa_meta(): int {
+    $batch = ll_tools_normalize_dotless_i_recording_ipa_meta_batch(
+        0,
+        ll_tools_dotless_i_recording_ipa_migration_batch_size()
+    );
+    foreach ((array) ($batch['word_ids'] ?? []) as $word_id) {
+        if (function_exists('ll_tools_word_grid_schedule_wordset_ipa_rebuild')) {
+            ll_tools_word_grid_schedule_wordset_ipa_rebuild((int) $word_id, 5 * MINUTE_IN_SECONDS);
         }
     }
 
-    return $updated_count;
+    return (int) ($batch['updated'] ?? 0);
 }
+
+function ll_tools_run_dotless_i_recording_ipa_migration_batch(): void {
+    if ((int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0) >= 1) {
+        return;
+    }
+
+    $lease = ll_tools_acquire_dotless_i_recording_ipa_migration_lease();
+    if (empty($lease['acquired'])) {
+        ll_tools_schedule_dotless_i_recording_ipa_migration(30);
+        return;
+    }
+
+    try {
+        $state = ll_tools_dotless_i_recording_ipa_migration_state();
+        $batch = ll_tools_normalize_dotless_i_recording_ipa_meta_batch((int) $state['cursor']);
+        $state['cursor'] = max((int) $state['cursor'], (int) ($batch['next_cursor'] ?? 0));
+        $state['processed'] += max(0, (int) ($batch['processed'] ?? 0));
+        $state['updated'] += max(0, (int) ($batch['updated'] ?? 0));
+        $state['updated_at'] = time();
+        foreach ((array) ($batch['word_ids'] ?? []) as $word_id) {
+            if (function_exists('ll_tools_word_grid_schedule_wordset_ipa_rebuild')) {
+                ll_tools_word_grid_schedule_wordset_ipa_rebuild((int) $word_id, 5 * MINUTE_IN_SECONDS);
+            }
+        }
+
+        if (!empty($batch['failed'])) {
+            $state['status'] = 'retry';
+            update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION, $state, false);
+            ll_tools_schedule_dotless_i_recording_ipa_migration(5 * MINUTE_IN_SECONDS);
+            return;
+        }
+
+        if (!empty($batch['has_more'])) {
+            $state['status'] = 'running';
+            update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION, $state, false);
+            ll_tools_schedule_dotless_i_recording_ipa_migration(5);
+            return;
+        }
+
+        $state['status'] = 'complete';
+        update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_STATE_OPTION, $state, false);
+        update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 1, false);
+    } finally {
+        ll_tools_release_dotless_i_recording_ipa_migration_lease($lease);
+    }
+}
+add_action(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_HOOK, 'll_tools_run_dotless_i_recording_ipa_migration_batch');
 
 function ll_tools_maybe_normalize_dotless_i_recording_ipa_meta(): void {
     $stored_version = (int) get_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 0);
@@ -391,8 +563,7 @@ function ll_tools_maybe_normalize_dotless_i_recording_ipa_meta(): void {
         return;
     }
 
-    ll_tools_normalize_dotless_i_recording_ipa_meta();
-    update_option(LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION, 1, false);
+    ll_tools_schedule_dotless_i_recording_ipa_migration(5);
 }
 add_action('init', 'll_tools_maybe_normalize_dotless_i_recording_ipa_meta', 6);
 
@@ -764,6 +935,16 @@ register_activation_hook(__FILE__, function () {
     }
     if (function_exists('ll_tools_install_dictionary_lookup_schema')) {
         ll_tools_install_dictionary_lookup_schema();
+    }
+    if (function_exists('ll_tools_install_wordset_category_search_schema')) {
+        ll_tools_install_wordset_category_search_schema();
+    }
+    if (
+        function_exists('ll_tools_install_image_match_index_schema')
+        && ll_tools_install_image_match_index_schema()
+        && function_exists('ll_tools_image_match_index_schedule_rebuild')
+    ) {
+        ll_tools_image_match_index_schedule_rebuild(true);
     }
     if (function_exists('ll_tools_install_flashcard_payload_schema')) {
         ll_tools_install_flashcard_payload_schema();

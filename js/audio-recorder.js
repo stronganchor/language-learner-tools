@@ -60,6 +60,18 @@
     let categoryOverviewGeneration = '';
     let categoryOverviewNeedsSelection = false;
     const completedCategoryOverviewSlugs = new Set();
+    const RECORDER_DIALOG_FOCUSABLE_SELECTOR = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        'audio[controls]',
+        'video[controls]',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    let activeRecorderDialog = null;
+    let recorderDialogFocusGuard = false;
 
     const images = window.ll_recorder_data?.images || [];
     const ajaxUrl = window.ll_recorder_data?.ajax_url;
@@ -579,6 +591,8 @@
             newWordRedoBtn: document.getElementById('ll-new-word-redo-btn'),
             processingReview: document.getElementById('ll-recording-review'),
             processingReviewOverlay: document.getElementById('ll-recording-review-overlay'),
+            processingReviewBackdrop: document.querySelector('.ll-recording-review-overlay-backdrop'),
+            processingReviewDialog: document.querySelector('.ll-recording-review-shell'),
             reviewContainer: document.getElementById('ll-review-files-container'),
             reviewRedoBtn: document.getElementById('ll-review-redo'),
             reviewSubmitBtn: document.getElementById('ll-review-submit'),
@@ -596,6 +610,147 @@
 
     function isOverlayVisible(element) {
         return !!element && !element.hasAttribute('hidden');
+    }
+
+    function isRecorderDialogFocusable(element) {
+        if (!(element instanceof HTMLElement) || element.hasAttribute('disabled')) return false;
+        if (element.closest('[hidden], [inert]')) return false;
+        const styles = window.getComputedStyle(element);
+        return styles.display !== 'none'
+            && styles.visibility !== 'hidden'
+            && element.getClientRects().length > 0;
+    }
+
+    function getRecorderDialogFocusables(dialog) {
+        if (!(dialog instanceof HTMLElement)) return [];
+        return Array.from(dialog.querySelectorAll(RECORDER_DIALOG_FOCUSABLE_SELECTOR))
+            .filter(isRecorderDialogFocusable);
+    }
+
+    function focusRecorderDialog(dialog, preferLast, preferredTarget) {
+        if (!(dialog instanceof HTMLElement)) return;
+        const focusables = getRecorderDialogFocusables(dialog);
+        const preferred = preferredTarget instanceof HTMLElement && isRecorderDialogFocusable(preferredTarget)
+            ? preferredTarget
+            : null;
+        const target = preferred || (focusables.length
+            ? (preferLast ? focusables[focusables.length - 1] : focusables[0])
+            : dialog);
+        try {
+            target.focus({ preventScroll: true });
+        } catch (_) {
+            target.focus();
+        }
+    }
+
+    function restoreRecorderDialogBackground(records) {
+        (Array.isArray(records) ? records : []).forEach(record => {
+            const element = record && record.element;
+            if (!(element instanceof HTMLElement)) return;
+            if (record.hadInert) {
+                element.setAttribute('inert', record.inertValue || '');
+            } else {
+                element.removeAttribute('inert');
+            }
+            if (record.hadAriaHidden) {
+                element.setAttribute('aria-hidden', record.ariaHiddenValue || '');
+            } else {
+                element.removeAttribute('aria-hidden');
+            }
+        });
+    }
+
+    function isolateRecorderDialogBackground(dialog, backdrop) {
+        const records = [];
+        let branch = dialog;
+        while (branch instanceof HTMLElement && branch.parentElement) {
+            const parent = branch.parentElement;
+            Array.from(parent.children).forEach(sibling => {
+                if (sibling === branch || sibling === backdrop) return;
+                records.push({
+                    element: sibling,
+                    hadInert: sibling.hasAttribute('inert'),
+                    inertValue: sibling.getAttribute('inert'),
+                    hadAriaHidden: sibling.hasAttribute('aria-hidden'),
+                    ariaHiddenValue: sibling.getAttribute('aria-hidden')
+                });
+                sibling.setAttribute('inert', '');
+                sibling.setAttribute('aria-hidden', 'true');
+            });
+            if (parent === document.body) break;
+            branch = parent;
+        }
+        return records;
+    }
+
+    function activateRecorderDialog(kind, dialog, opener, backdrop, initialFocus) {
+        if (!(dialog instanceof HTMLElement)) return;
+        if (activeRecorderDialog && activeRecorderDialog.dialog === dialog) {
+            return;
+        }
+        if (activeRecorderDialog) {
+            deactivateRecorderDialog(activeRecorderDialog.dialog, false);
+        }
+        activeRecorderDialog = {
+            kind: String(kind || ''),
+            dialog,
+            opener: opener instanceof HTMLElement
+                ? opener
+                : (document.activeElement instanceof HTMLElement ? document.activeElement : null),
+            isolation: isolateRecorderDialogBackground(dialog, backdrop)
+        };
+        focusRecorderDialog(dialog, false, initialFocus);
+    }
+
+    function deactivateRecorderDialog(dialog, restoreFocus = true, fallbackFocus = null) {
+        if (!activeRecorderDialog || activeRecorderDialog.dialog !== dialog) return;
+        const state = activeRecorderDialog;
+        activeRecorderDialog = null;
+        restoreRecorderDialogBackground(state.isolation);
+        const focusTarget = isRecorderDialogFocusable(state.opener) && state.opener.isConnected
+            ? state.opener
+            : (isRecorderDialogFocusable(fallbackFocus) && fallbackFocus.isConnected ? fallbackFocus : null);
+        if (restoreFocus && focusTarget) {
+            try {
+                focusTarget.focus({ preventScroll: true });
+            } catch (_) {
+                focusTarget.focus();
+            }
+        }
+    }
+
+    function containRecorderDialogFocus(event) {
+        if (!activeRecorderDialog || recorderDialogFocusGuard) return;
+        const dialog = activeRecorderDialog.dialog;
+        if (!(dialog instanceof HTMLElement) || dialog.contains(event.target)) return;
+        recorderDialogFocusGuard = true;
+        focusRecorderDialog(dialog, false);
+        recorderDialogFocusGuard = false;
+    }
+
+    function trapRecorderDialogTab(event) {
+        if (!activeRecorderDialog || !event || event.key !== 'Tab') return false;
+        const dialog = activeRecorderDialog.dialog;
+        const focusables = getRecorderDialogFocusables(dialog);
+        if (!focusables.length) {
+            event.preventDefault();
+            focusRecorderDialog(dialog, false);
+            return true;
+        }
+        const active = document.activeElement;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && (active === first || !dialog.contains(active))) {
+            event.preventDefault();
+            focusRecorderDialog(dialog, true);
+            return true;
+        }
+        if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+            event.preventDefault();
+            focusRecorderDialog(dialog, false);
+            return true;
+        }
+        return false;
     }
 
     function isAnyOverlayOpen() {
@@ -1775,12 +1930,22 @@
         }
     }
 
-    function maybeDismissNewWordOverlay() {
+    function canSafelyDismissNewWordOverlay() {
         const el = window.llRecorder;
-        if (!isNewWordPanelActive()) return;
-        if (uploadLockState) return;
-        if (el?.newWordBackBtn?.disabled) return;
+        if (!isNewWordPanelActive() || newWordStage !== 'setup') return false;
+        if (uploadLockState || currentBlob || processingState) return false;
+        if (newWordTranscriptionInFlight || newWordTranslationInFlight) return false;
+        if (isRecordingContextLocked() || isRecordingStartupPending() || isRecordingStopPending()) return false;
+        if (mediaRecorder && mediaRecorder.state === 'recording') return false;
+        if (el?.processingReview && el.processingReview.style.display !== 'none') return false;
+        if (el?.newWordPlaybackControls && el.newWordPlaybackControls.style.display !== 'none') return false;
+        return !el?.newWordBackBtn?.disabled;
+    }
+
+    function maybeDismissNewWordOverlay() {
+        if (!canSafelyDismissNewWordOverlay()) return false;
         exitNewWordMode();
+        return true;
     }
 
     function decodeEntities(text) {
@@ -1985,6 +2150,11 @@
             el.hiddenPanel.setAttribute('hidden', 'hidden');
         }
         el.hiddenToggleBtn.setAttribute('aria-expanded', hiddenWordsPanelOpen ? 'true' : 'false');
+        if (hiddenWordsPanelOpen) {
+            activateRecorderDialog('hidden-words', el.hiddenPanel, el.hiddenToggleBtn, el.hiddenBackdrop, el.hiddenCloseBtn);
+        } else {
+            deactivateRecorderDialog(el.hiddenPanel, true);
+        }
         syncOverlayScrollLock();
     }
 
@@ -2323,9 +2493,13 @@
         syncProcessingReviewSlot();
         if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
         if (el.newWordPanel) el.newWordPanel.style.display = 'none';
-        if (el.newWordToggle) el.newWordToggle.disabled = false;
+        if (el.newWordToggle) {
+            el.newWordToggle.disabled = false;
+            el.newWordToggle.setAttribute('aria-expanded', 'false');
+        }
         if (el.categorySelect) el.categorySelect.disabled = false;
         if (el.wordsetSelect) el.wordsetSelect.disabled = false;
+        deactivateRecorderDialog(el.newWordPanel, true);
         syncOverlayScrollLock();
 
         if (recorderView === 'overview') {
@@ -2388,10 +2562,14 @@
         if (el.newWordPanel) el.newWordPanel.style.display = 'block';
         if (el.categorySelect) el.categorySelect.disabled = true;
         if (el.wordsetSelect) el.wordsetSelect.disabled = true;
-        if (el.newWordToggle) el.newWordToggle.disabled = true;
+        if (el.newWordToggle) {
+            el.newWordToggle.disabled = true;
+            el.newWordToggle.setAttribute('aria-expanded', 'true');
+        }
         resetNewWordForm();
         syncProcessingReviewSlot();
         if (el.newWordPanel) el.newWordPanel.scrollTop = 0;
+        activateRecorderDialog('new-word', el.newWordPanel, el.newWordToggle, el.newWordBackdrop, el.newWordBackBtn);
         syncOverlayScrollLock();
     }
 
@@ -2733,6 +2911,7 @@
             if (window.llRecorder?.processingReviewOverlay) {
                 window.llRecorder.processingReviewOverlay.setAttribute('hidden', 'hidden');
             }
+            deactivateRecorderDialog(window.llRecorder?.processingReviewDialog, false);
         } else {
             moveProcessingReviewToMainSlot();
         }
@@ -3712,10 +3891,14 @@
                 if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'block';
                 if (el.mainScreen) el.mainScreen.style.display = 'none';
+                if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'true');
+                activateRecorderDialog('new-word', el.newWordPanel, el.newWordToggle, el.newWordBackdrop, el.newWordBackBtn);
             } else {
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
                 if (el.mainScreen) el.mainScreen.style.display = 'flex';
+                if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'false');
+                deactivateRecorderDialog(el.newWordPanel, true, el.recordBtn);
             }
             syncProcessingReviewSlot();
 
@@ -4108,7 +4291,9 @@
                 newWordUsingPanel = false;
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+                if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'false');
                 el.mainScreen.style.display = 'flex';
+                deactivateRecorderDialog(el.newWordPanel, true, el.recordBtn);
                 syncProcessingReviewSlot();
             }
             setTypeForCurrentImage();
@@ -4165,10 +4350,25 @@
         if (el.recordingTypeSelect) {
             el.recordingTypeSelect.addEventListener('change', updateNewWordRecordingTypeLabel);
         }
+        document.addEventListener('focusin', containRecorderDialogFocus, true);
         document.addEventListener('keydown', event => {
-            if (event.key === 'Escape' && hiddenWordsPanelOpen) {
-                setHiddenWordsPanelOpen(false);
+            if (event.key === 'Tab' && trapRecorderDialogTab(event)) {
+                event.stopPropagation();
+                return;
             }
+            if (event.key !== 'Escape' || !activeRecorderDialog) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (activeRecorderDialog.kind === 'hidden-words') {
+                setHiddenWordsPanelOpen(false);
+                return;
+            }
+            if (activeRecorderDialog.kind === 'new-word') {
+                maybeDismissNewWordOverlay();
+            }
+            // Processing-review Escape is intentionally a no-op: closing it
+            // implicitly would discard a recording that has not been saved.
         });
         window.addEventListener('pagehide', event => {
             if (!event || event.persisted !== true) {
@@ -4612,16 +4812,23 @@
                 if (el.newWordOverlay) el.newWordOverlay.removeAttribute('hidden');
                 if (el.newWordPanel) el.newWordPanel.style.display = 'block';
                 if (el.mainScreen) el.mainScreen.style.display = 'none';
+                if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'true');
+                activateRecorderDialog('new-word', el.newWordPanel, el.newWordToggle, el.newWordBackdrop, el.newWordBackBtn);
             } else if (el.mainScreen) {
                 if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
                 el.mainScreen.style.display = 'flex';
                 if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+                if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'false');
+                deactivateRecorderDialog(el.newWordPanel, true, el.recordBtn);
             }
         } else if (el.mainScreen) {
             if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
             el.mainScreen.style.display = 'flex';
             if (el.newWordPanel) el.newWordPanel.style.display = 'none';
+            if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'false');
+            deactivateRecorderDialog(el.newWordPanel, true, el.recordBtn);
         }
+        deactivateRecorderDialog(el.processingReviewDialog, true);
         currentBlob = null;
         audioChunks = [];
         processingState = null;
@@ -5034,6 +5241,7 @@
             el.mainScreen.style.display = 'flex';
         }
         if (!controls.playbackControls || !controls.playbackAudio) {
+            deactivateRecorderDialog(el.processingReviewDialog, true);
             syncNewWordProcessingReviewState();
             syncOverlayScrollLock();
             return;
@@ -5051,6 +5259,7 @@
         }
 
         controls.playbackAudio.play().catch(() => {});
+        deactivateRecorderDialog(el.processingReviewDialog, true);
         syncNewWordProcessingReviewState();
         syncOverlayScrollLock();
     }
@@ -5070,10 +5279,18 @@
         el.processingReview.style.display = 'block';
         processingState.reviewReady = true;
         if (!isNewWordPanelActive() && el.mainScreen) {
+            const reviewOpener = activeRecordingControls?.recordBtn || el.recordBtn;
             el.mainScreen.style.display = 'none';
             if (el.processingReviewOverlay) {
                 el.processingReviewOverlay.removeAttribute('hidden');
             }
+            activateRecorderDialog(
+                'processing-review',
+                el.processingReviewDialog,
+                reviewOpener,
+                el.processingReviewBackdrop,
+                el.reviewRedoBtn
+            );
         }
         if (el.playbackControls) {
             el.playbackControls.style.display = 'none';
@@ -6233,6 +6450,9 @@
         setHiddenWordsPanelOpen(false);
         if (el.newWordOverlay) el.newWordOverlay.setAttribute('hidden', 'hidden');
         if (el.processingReviewOverlay) el.processingReviewOverlay.setAttribute('hidden', 'hidden');
+        if (el.newWordToggle) el.newWordToggle.setAttribute('aria-expanded', 'false');
+        deactivateRecorderDialog(el.newWordPanel, true);
+        deactivateRecorderDialog(el.processingReviewDialog, true);
         if (el.mainScreen) el.mainScreen.style.display = 'none';
 
         let nextCategory = null;

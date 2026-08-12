@@ -625,10 +625,175 @@
     let vizAudio = null;
     let vizSource = null;
     let wordRecordingLaunchPending = false;
+    const WORD_EDIT_DIALOG_FOCUSABLE_SELECTOR = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        'audio[controls]',
+        'video[controls]',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    let wordEditDialogState = null;
+    let wordEditDialogFocusGuard = false;
 
     function syncEditModalBodyLock() {
         const hasOpenPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').length > 0;
         $('body').toggleClass('ll-word-edit-modal-open', hasOpenPanel);
+    }
+
+    function isWordEditDialogFocusable(element) {
+        if (!(element instanceof HTMLElement) || element.hasAttribute('disabled')) {
+            return false;
+        }
+        if (element.closest('[hidden], [inert]')) {
+            return false;
+        }
+        return $(element).is(':visible');
+    }
+
+    function getWordEditDialogFocusables(panel) {
+        if (!(panel instanceof HTMLElement)) { return []; }
+        return Array.from(panel.querySelectorAll(WORD_EDIT_DIALOG_FOCUSABLE_SELECTOR))
+            .filter(isWordEditDialogFocusable);
+    }
+
+    function focusWordEditDialog(panel, preferLast) {
+        if (!(panel instanceof HTMLElement)) { return; }
+        const focusables = getWordEditDialogFocusables(panel);
+        const target = focusables.length
+            ? (preferLast ? focusables[focusables.length - 1] : focusables[0])
+            : panel;
+        try {
+            target.focus({ preventScroll: true });
+        } catch (_) {
+            target.focus();
+        }
+    }
+
+    function isWordEditDialogIsolationException(element, allowedBackdrop) {
+        if (!(element instanceof HTMLElement)) { return true; }
+        if (element === allowedBackdrop) { return true; }
+        return element.matches('.media-modal, .media-modal-backdrop, .ui-dialog, .ui-autocomplete, #wp-link-wrap');
+    }
+
+    function isolateWordEditDialogBackground(panel, allowedBackdrop) {
+        const records = [];
+        let branch = panel;
+        while (branch instanceof HTMLElement && branch.parentElement) {
+            const parent = branch.parentElement;
+            Array.from(parent.children).forEach(function (sibling) {
+                if (sibling === branch || isWordEditDialogIsolationException(sibling, allowedBackdrop)) {
+                    return;
+                }
+                records.push({
+                    element: sibling,
+                    hadInert: sibling.hasAttribute('inert'),
+                    inertValue: sibling.getAttribute('inert'),
+                    hadAriaHidden: sibling.hasAttribute('aria-hidden'),
+                    ariaHiddenValue: sibling.getAttribute('aria-hidden')
+                });
+                sibling.setAttribute('inert', '');
+                sibling.setAttribute('aria-hidden', 'true');
+            });
+            if (parent === document.body) { break; }
+            branch = parent;
+        }
+        return records;
+    }
+
+    function restoreWordEditDialogBackground(records) {
+        (Array.isArray(records) ? records : []).forEach(function (record) {
+            const element = record && record.element;
+            if (!(element instanceof HTMLElement)) { return; }
+            if (record.hadInert) {
+                element.setAttribute('inert', record.inertValue || '');
+            } else {
+                element.removeAttribute('inert');
+            }
+            if (record.hadAriaHidden) {
+                element.setAttribute('aria-hidden', record.ariaHiddenValue || '');
+            } else {
+                element.removeAttribute('aria-hidden');
+            }
+        });
+    }
+
+    function activateWordEditDialog(panel, opener, backdrop) {
+        if (!(panel instanceof HTMLElement)) { return; }
+        if (wordEditDialogState && wordEditDialogState.panel === panel) { return; }
+        if (wordEditDialogState) {
+            deactivateWordEditDialog(wordEditDialogState.panel, false);
+        }
+
+        const safeOpener = opener instanceof HTMLElement
+            ? opener
+            : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+        wordEditDialogState = {
+            panel: panel,
+            opener: safeOpener,
+            isolation: []
+        };
+        focusWordEditDialog(panel, false);
+        wordEditDialogState.isolation = isolateWordEditDialogBackground(panel, backdrop);
+    }
+
+    function deactivateWordEditDialog(panel, restoreFocus) {
+        if (!wordEditDialogState || wordEditDialogState.panel !== panel) { return; }
+        const state = wordEditDialogState;
+        wordEditDialogState = null;
+        restoreWordEditDialogBackground(state.isolation);
+        if (restoreFocus !== false && state.opener && state.opener.isConnected && isWordEditDialogFocusable(state.opener)) {
+            try {
+                state.opener.focus({ preventScroll: true });
+            } catch (_) {
+                state.opener.focus();
+            }
+        }
+    }
+
+    function isWordEditDialogFocusException(target, panel) {
+        if (!(target instanceof Element)) { return false; }
+        const secondaryDialog = target.closest('.media-modal, .ui-dialog, .ui-autocomplete, #wp-link-wrap, [role="dialog"][aria-modal="true"]');
+        return !!secondaryDialog && secondaryDialog !== panel && !panel.contains(secondaryDialog);
+    }
+
+    function containWordEditDialogFocus(event) {
+        if (!wordEditDialogState || wordEditDialogFocusGuard) { return; }
+        const panel = wordEditDialogState.panel;
+        const target = event && event.target;
+        if (!(panel instanceof HTMLElement) || panel.contains(target) || isWordEditDialogFocusException(target, panel)) {
+            return;
+        }
+        wordEditDialogFocusGuard = true;
+        focusWordEditDialog(panel, false);
+        wordEditDialogFocusGuard = false;
+    }
+
+    function trapWordEditDialogTab(event) {
+        if (!wordEditDialogState || !event || event.key !== 'Tab') { return false; }
+        const panel = wordEditDialogState.panel;
+        const focusables = getWordEditDialogFocusables(panel);
+        if (!focusables.length) {
+            event.preventDefault();
+            focusWordEditDialog(panel, false);
+            return true;
+        }
+        const active = document.activeElement;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && (active === first || !panel.contains(active))) {
+            event.preventDefault();
+            focusWordEditDialog(panel, true);
+            return true;
+        }
+        if (!event.shiftKey && (active === last || !panel.contains(active))) {
+            event.preventDefault();
+            focusWordEditDialog(panel, false);
+            return true;
+        }
+        return false;
     }
 
     function protectMaqafNoBreak(value) {
@@ -2884,6 +3049,9 @@
         const $backdrop = $item.find('[data-ll-word-edit-backdrop]').first();
         if (!$panel.length || !$toggle.length) { return; }
         const open = !!shouldOpen;
+        const requestedOpener = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : $toggle.get(0);
         if (open) {
             $grids.find('[data-ll-inline-word-editor].is-editing').each(function () {
                 const $inlineEditor = $(this);
@@ -2903,6 +3071,8 @@
                 }
             });
             resetWordCategoryFields($item);
+        } else {
+            deactivateWordEditDialog($panel.get(0), true);
         }
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         if ($backdrop.length) {
@@ -2910,16 +3080,11 @@
         }
         $toggle.attr('aria-expanded', open ? 'true' : 'false');
         $item.toggleClass('ll-word-edit-open', open);
+        syncEditModalBodyLock();
         if (open) {
+            activateWordEditDialog($panel.get(0), requestedOpener, $backdrop.get(0));
             window.requestAnimationFrame(function () {
                 initLessonEditProcessingWaveforms($item);
-                const $firstFocusable = $panel
-                    .find('input, textarea, select, button')
-                    .filter(':enabled:visible')
-                    .first();
-                if ($firstFocusable.length) {
-                    $firstFocusable.trigger('focus');
-                }
             });
         } else {
             if ($panel.find(document.activeElement).length) {
@@ -2929,7 +3094,6 @@
             stopLessonEditProcessingPlayback($item);
             resetWordCategoryFields($item);
         }
-        syncEditModalBodyLock();
     }
 
     function setRecordingsPanelOpen($item, shouldOpen) {
@@ -9342,8 +9506,12 @@
             hideIpaKeyboards();
         });
 
+        $(document).on('focusin.llWordEditModalA11y', containWordEditDialogFocus);
+
         $(document).on('keydown.llWordEditModal', function (event) {
-            if (!event || event.key !== 'Escape') { return; }
+            if (!event) { return; }
+            if (event.key === 'Tab' && trapWordEditDialogTab(event)) { return; }
+            if (event.key !== 'Escape') { return; }
             if ($('.ui-autocomplete:visible').length) { return; }
             const $openPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').first();
             if (!$openPanel.length) { return; }

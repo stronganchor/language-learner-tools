@@ -90,6 +90,24 @@ async function installFakeRecorderRuntime(page) {
       disconnect() {}
     }
 
+    class FakeAudioBuffer {
+      constructor(length = 1200, sampleRate = 1000, withSignal = false) {
+        this.length = length;
+        this.sampleRate = sampleRate;
+        this.numberOfChannels = 1;
+        this.data = new Float32Array(length);
+        if (withSignal) {
+          for (let index = 100; index < length - 100; index += 1) {
+            this.data[index] = index % 2 === 0 ? 0.35 : -0.35;
+          }
+        }
+      }
+
+      getChannelData() {
+        return this.data;
+      }
+    }
+
     class FakeAudioContext {
       constructor() {
         this.state = 'running';
@@ -104,6 +122,14 @@ async function installFakeRecorderRuntime(page) {
         return new FakeMediaStreamSource();
       }
 
+      createBuffer(channels, length, sampleRate) {
+        return new FakeAudioBuffer(length, sampleRate, false);
+      }
+
+      decodeAudioData() {
+        return Promise.resolve(new FakeAudioBuffer(1200, 1000, true));
+      }
+
       resume() {
         this.state = 'running';
         return Promise.resolve();
@@ -112,6 +138,36 @@ async function installFakeRecorderRuntime(page) {
       close() {
         this.state = 'closed';
         return Promise.resolve();
+      }
+    }
+
+    class FakeOfflineAudioContext {
+      constructor(channels, length, sampleRate) {
+        this.length = length;
+        this.sampleRate = sampleRate;
+        this.destination = {};
+        this.source = null;
+      }
+
+      createBufferSource() {
+        this.source = {
+          buffer: null,
+          connect() {},
+          start() {}
+        };
+        return this.source;
+      }
+
+      createBiquadFilter() {
+        return {
+          type: '',
+          frequency: { value: 0 },
+          connect() {}
+        };
+      }
+
+      startRendering() {
+        return Promise.resolve(this.source?.buffer || new FakeAudioBuffer(this.length, this.sampleRate, true));
       }
     }
 
@@ -151,6 +207,15 @@ async function installFakeRecorderRuntime(page) {
       window.webkitAudioContext = FakeAudioContext;
     }
 
+    try {
+      Object.defineProperty(window, 'OfflineAudioContext', {
+        value: FakeOfflineAudioContext,
+        configurable: true
+      });
+    } catch (_) {
+      window.OfflineAudioContext = FakeOfflineAudioContext;
+    }
+
     window.__llResolveRecorderMic = () => {
       if (typeof resolveMicStart === 'function') {
         resolveMicStart(fakeStream);
@@ -176,6 +241,136 @@ test('recorder overview keeps the new-word panel closed until its button is clic
   await expect(page.locator('.ll-current-num')).toHaveCount(0);
   await expect(page.locator('.ll-total-num')).toHaveCount(0);
   await openNewWordPanel(page);
+});
+
+test('recorder dialogs contain focus, isolate the page, and restore their openers', async ({ page }) => {
+  await mountNewWordRecorderFixture(page);
+
+  const outsideBefore = page.locator('#ll-recorder-outside-before');
+  const hiddenToggle = page.locator('#ll-hidden-words-toggle');
+  const hiddenPanel = page.locator('#ll-hidden-words-panel');
+  const hiddenClose = page.locator('#ll-hidden-words-close');
+
+  await hiddenToggle.focus();
+  await hiddenToggle.click();
+  await expect(hiddenPanel).toBeVisible();
+  await expect(hiddenPanel).toHaveAttribute('role', 'dialog');
+  await expect(hiddenPanel).toHaveAttribute('aria-modal', 'true');
+  await expect(hiddenClose).toBeFocused();
+  await expect(outsideBefore).toHaveAttribute('inert', '');
+  await expect(outsideBefore).toHaveAttribute('aria-hidden', 'true');
+
+  await page.evaluate(() => {
+    const outside = document.getElementById('ll-recorder-outside-before');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect(hiddenClose).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(hiddenPanel).toBeHidden();
+  await expect(hiddenToggle).toBeFocused();
+  await expect(hiddenToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(outsideBefore).not.toHaveAttribute('inert', '');
+  await expect(outsideBefore).not.toHaveAttribute('aria-hidden', 'true');
+
+  const newWordToggle = page.locator('#ll-new-word-toggle');
+  const newWordPanel = page.locator('#ll-new-word-panel');
+  const newWordClose = page.locator('#ll-new-word-back');
+  const newWordRecord = page.locator('#ll-new-word-record-btn');
+
+  await newWordToggle.click();
+  await expect(newWordPanel).toBeVisible();
+  await expect(newWordPanel).toHaveAttribute('role', 'dialog');
+  await expect(newWordPanel).toHaveAttribute('aria-modal', 'true');
+  await expect(newWordToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(newWordClose).toBeFocused();
+  await expect(outsideBefore).toHaveAttribute('inert', '');
+
+  await newWordRecord.focus();
+  await page.keyboard.press('Tab');
+  await expect(newWordClose).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(newWordRecord).toBeFocused();
+
+  await page.evaluate(() => {
+    const outside = document.getElementById('ll-recorder-outside-after');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect(newWordClose).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#ll-new-word-overlay')).toBeHidden();
+  await expect(newWordToggle).toBeFocused();
+  await expect(newWordToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(outsideBefore).not.toHaveAttribute('inert', '');
+});
+
+test('new-word Escape never discards an active or completed recording', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page);
+  await openNewWordPanel(page);
+
+  const overlay = page.locator('#ll-new-word-overlay');
+  const recordButton = page.locator('#ll-new-word-record-btn');
+  await recordButton.click();
+  await page.evaluate(() => window.__llResolveRecorderMic());
+  await expect(recordButton).toHaveClass(/recording/);
+
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeVisible();
+  await expect(recordButton).toHaveClass(/recording/);
+
+  await recordButton.click();
+  await expect(page.locator('#ll-new-word-playback-controls')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeVisible();
+  await expect(page.locator('#ll-new-word-playback-controls')).toBeVisible();
+});
+
+test('processed-review dialog contains focus and ignores Escape until the user chooses an action', async ({ page }) => {
+  await installFakeRecorderRuntime(page);
+  await mountNewWordRecorderFixture(page, {
+    mainRecorder: true,
+    autoProcessRecordings: true
+  });
+
+  const recordButton = page.locator('#ll-record-btn');
+  const reviewOverlay = page.locator('#ll-recording-review-overlay');
+  const reviewDialog = page.locator('.ll-recording-review-shell');
+  const outsideBefore = page.locator('#ll-recorder-outside-before');
+
+  await recordButton.click();
+  await page.evaluate(() => window.__llResolveRecorderMic());
+  await expect(recordButton).toHaveClass(/recording/);
+  await recordButton.click();
+
+  await expect(reviewOverlay).toBeVisible({ timeout: 10000 });
+  await expect(reviewDialog).toHaveAttribute('role', 'dialog');
+  await expect(reviewDialog).toHaveAttribute('aria-modal', 'true');
+  await expect(reviewDialog).toHaveAccessibleName('Review Processed Audio');
+  await expect(outsideBefore).toHaveAttribute('inert', '');
+  await expect.poll(() => page.evaluate(() => (
+    document.querySelector('.ll-recording-review-shell')?.contains(document.activeElement) || false
+  ))).toBe(true);
+
+  await page.keyboard.press('Escape');
+  await expect(reviewOverlay).toBeVisible();
+  await expect(page.locator('.ll-review-file')).toBeVisible();
+
+  await page.evaluate(() => {
+    const outside = document.getElementById('ll-recorder-outside-before');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect.poll(() => page.evaluate(() => (
+    document.querySelector('.ll-recording-review-shell')?.contains(document.activeElement) || false
+  ))).toBe(true);
+
+  await page.locator('#ll-review-redo').click();
+  await expect(reviewOverlay).toBeHidden();
+  await expect(recordButton).toBeVisible();
+  await expect(recordButton).toBeFocused();
+  await expect(outsideBefore).not.toHaveAttribute('aria-hidden', 'true');
 });
 
 test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
