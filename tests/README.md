@@ -636,6 +636,7 @@ tests/bin/run-performance-benchmark.sh
 
 ## Notes
 
+- `WordsetTemplateBundleImportExportTest` enforces that imported `wordset_template` bundles are private staging objects, including duplicate/race cleanup and final cache fencing; destination wordsets created from templates are a separate workflow.
 - PHPUnit runs against a WordPress test database, not your production site DB.
 - Playwright and performance fixtures target the configured Local site. They can mutate Local-site content; the performance seeder deletes only objects already carrying its fixture marker and refuses untagged slug collisions.
 - Avoid running multiple PHPUnit commands in parallel against the same `wptests` database; InnoDB deadlocks can produce intermittent false failures.
