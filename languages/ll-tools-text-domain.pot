@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.16\n"
+"Project-Id-Version: Language Learner Tools 6.7.20\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-13T08:03:55+00:00\n"
+"POT-Creation-Date: 2026-08-13T22:47:55+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -354,7 +354,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:401
 #: includes/admin/admin-dashboard-menu.php:843
 #: includes/pages/wordset-pages.php:14140
-#: language-learner-tools.php:1042
+#: language-learner-tools.php:1116
 msgid "Settings"
 msgstr ""
 
@@ -929,7 +929,7 @@ msgstr ""
 #: includes/admin/offline-app-export.php:2852
 #: includes/admin/offline-app-export.php:3595
 #: includes/admin/split-word-admin.php:177
-#: includes/shortcodes/language-switcher-shortcode.php:1027
+#: includes/shortcodes/language-switcher-shortcode.php:1066
 #: includes/shortcodes/word-grid-shortcode.php:5813
 #: templates/offline-app-shell-template.php:691
 #: templates/vocab-lesson-template.php:619
@@ -3371,32 +3371,32 @@ msgid "The import job data file is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1499
-#: includes/admin/export-import.php:16556
+#: includes/admin/export-import.php:16948
 msgid "Import failed: zip file is empty."
 msgstr ""
 
 #: includes/admin/export-import.php:1502
-#: includes/admin/export-import.php:16559
+#: includes/admin/export-import.php:16951
 msgid "Import failed: zip contains too many files."
 msgstr ""
 
 #: includes/admin/export-import.php:1513
-#: includes/admin/export-import.php:16569
+#: includes/admin/export-import.php:16961
 msgid "Import failed: zip metadata is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1521
-#: includes/admin/export-import.php:16577
+#: includes/admin/export-import.php:16969
 msgid "Import failed: zip contains an invalid file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1526
-#: includes/admin/export-import.php:16594
+#: includes/admin/export-import.php:16986
 msgid "Import failed: zip entry size is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1532
-#: includes/admin/export-import.php:16598
+#: includes/admin/export-import.php:16990
 msgid "Import failed: uncompressed zip size is too large."
 msgstr ""
 
@@ -3417,24 +3417,24 @@ msgid "Import failed: could not open zip file."
 msgstr ""
 
 #: includes/admin/export-import.php:1590
-#: includes/admin/export-import.php:16582
+#: includes/admin/export-import.php:16974
 msgid "Import failed: zip contains an unsafe file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1595
 #: includes/admin/export-import.php:1602
-#: includes/admin/export-import.php:16587
-#: includes/admin/export-import.php:16603
+#: includes/admin/export-import.php:16979
+#: includes/admin/export-import.php:16995
 msgid "Import failed: could not create extraction folders."
 msgstr ""
 
 #: includes/admin/export-import.php:1608
-#: includes/admin/export-import.php:16608
+#: includes/admin/export-import.php:17000
 msgid "Import failed: could not read a file from the zip."
 msgstr ""
 
 #: includes/admin/export-import.php:1614
-#: includes/admin/export-import.php:16614
+#: includes/admin/export-import.php:17006
 msgid "Import failed: could not write extracted files."
 msgstr ""
 
@@ -4413,7 +4413,7 @@ msgid "Template import behavior"
 msgstr ""
 
 #: includes/admin/export-import.php:4663
-msgid "Template bundles always create a new isolated word set on this site. You can rename that new word set below before confirming the import."
+msgid "Template bundles always create a new isolated, private staging word set on this site, regardless of bundled visibility. You can rename it below before importing, then publish it separately when it is ready."
 msgstr ""
 
 #: includes/admin/export-import.php:4672
@@ -4702,19 +4702,19 @@ msgid "Detected %1$s of media files (warning threshold: %2$s). Large imports can
 msgstr ""
 
 #: includes/admin/export-import.php:5522
-#: includes/admin/export-import.php:14495
+#: includes/admin/export-import.php:14887
 msgid "CSV parsing skipped %d file before import. Review the warnings below for details."
 msgid_plural "CSV parsing skipped %d files before import. Review the warnings below for details."
 msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/export-import.php:5538
-#: includes/admin/export-import.php:14511
+#: includes/admin/export-import.php:14903
 msgid "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
 
 #: includes/admin/export-import.php:5545
-#: includes/admin/export-import.php:14518
+#: includes/admin/export-import.php:14910
 msgid "CSV parsing skipped %d row before import."
 msgid_plural "CSV parsing skipped %d rows before import."
 msgstr[0] ""
@@ -4810,7 +4810,7 @@ msgid "Import failed: data.json is not valid JSON."
 msgstr ""
 
 #: includes/admin/export-import.php:7389
-#: includes/admin/export-import.php:14766
+#: includes/admin/export-import.php:15158
 msgid "Import failed: payload missing categories or word images."
 msgstr ""
 
@@ -5519,183 +5519,201 @@ msgstr ""
 msgid "Import complete."
 msgstr ""
 
-#: includes/admin/export-import.php:14323
-msgid "Imported Template"
-msgstr ""
-
-#: includes/admin/export-import.php:14344
-msgid "Failed to create template word set \"%s\": %s"
-msgstr ""
-
-#: includes/admin/export-import.php:14350
+#: includes/admin/export-import.php:14455
+#: includes/admin/export-import.php:14463
+#: includes/admin/export-import.php:14472
+#: includes/admin/export-import.php:14483
+#: includes/admin/export-import.php:14515
+#: includes/admin/export-import.php:14531
+#: includes/admin/export-import.php:14542
+#: includes/admin/export-import.php:14565
+#: includes/admin/export-import.php:14576
+#: includes/admin/export-import.php:14681
+#: includes/admin/export-import.php:14709
+#: includes/admin/export-import.php:14724
+#: includes/admin/export-import.php:14855
 msgid "Template import failed: the destination word set could not be created."
 msgstr ""
 
-#: includes/admin/export-import.php:14392
+#: includes/admin/export-import.php:14456
+#: includes/admin/export-import.php:14484
+#: includes/admin/export-import.php:14532
+msgid "The incomplete word set was retained privately; use Undo Import to remove it."
+msgstr ""
+
+#: includes/admin/export-import.php:14584
+msgid "Imported Template"
+msgstr ""
+
+#: includes/admin/export-import.php:14686
+msgid "Failed to create template word set \"%s\": %s"
+msgstr ""
+
+#: includes/admin/export-import.php:14767
 msgid "Word set category creation is not available right now."
 msgstr ""
 
-#: includes/admin/export-import.php:14394
-#: includes/admin/export-import.php:14451
-#: includes/admin/export-import.php:14592
+#: includes/admin/export-import.php:14769
+#: includes/admin/export-import.php:14826
+#: includes/admin/export-import.php:14984
 msgid "Unknown error"
 msgstr ""
 
-#: includes/admin/export-import.php:14395
+#: includes/admin/export-import.php:14770
 msgid "Failed to create template category \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:14452
+#: includes/admin/export-import.php:14827
 msgid "Failed to create template word image \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:14452
+#: includes/admin/export-import.php:14827
 msgid "(no slug)"
 msgstr ""
 
-#: includes/admin/export-import.php:14593
-#: includes/admin/export-import.php:14621
+#: includes/admin/export-import.php:14985
+#: includes/admin/export-import.php:15013
 msgid "Category \"%s\" could not be created: %s"
 msgstr ""
 
-#: includes/admin/export-import.php:14698
+#: includes/admin/export-import.php:15090
 msgid "Failed to update word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:14707
+#: includes/admin/export-import.php:15099
 msgid "Failed to create word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:14788
+#: includes/admin/export-import.php:15180
 msgid "Import failed: select a valid existing word set for assignment."
 msgstr ""
 
-#: includes/admin/export-import.php:15082
+#: includes/admin/export-import.php:15474
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:15086
+#: includes/admin/export-import.php:15478
 msgid "Image file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:15100
+#: includes/admin/export-import.php:15492
 #: includes/wordset-isolation.php:2273
 msgid "word"
 msgstr ""
 
-#: includes/admin/export-import.php:15100
+#: includes/admin/export-import.php:15492
 #: includes/wordset-isolation.php:2377
 msgid "word image"
 msgstr ""
 
-#: includes/admin/export-import.php:15101
+#: includes/admin/export-import.php:15493
 msgid "Failed to import image for %1$s \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:15247
+#: includes/admin/export-import.php:15639
 msgid "Failed to update word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:15256
+#: includes/admin/export-import.php:15648
 msgid "Failed to create word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:15398
+#: includes/admin/export-import.php:15790
 msgid "Could not link word \"%1$s\" to source word image \"%2$s\"."
 msgstr ""
 
-#: includes/admin/export-import.php:15425
+#: includes/admin/export-import.php:15817
 msgid "Failed to update audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:15434
+#: includes/admin/export-import.php:15826
 msgid "Failed to create audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:15812
+#: includes/admin/export-import.php:16204
 msgid "Imported wrong-image preferences were skipped because word option rules are unavailable."
 msgstr ""
 
-#: includes/admin/export-import.php:15912
+#: includes/admin/export-import.php:16304
 msgid "Imported wrong-image preference \"%1$s\" for word \"%2$s\" could not be matched to another imported word in the same category/word set."
 msgstr ""
 
-#: includes/admin/export-import.php:15935
+#: includes/admin/export-import.php:16327
 msgid "%d additional wrong-image preference warning was not shown."
 msgid_plural "%d additional wrong-image preference warnings were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/export-import.php:16033
+#: includes/admin/export-import.php:16425
 msgid "Failed to update word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:16044
+#: includes/admin/export-import.php:16436
 msgid "Failed to create word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:16112
+#: includes/admin/export-import.php:16504
 msgid "Could not create %1$s term \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:16167
+#: includes/admin/export-import.php:16559
 msgid "Skipped audio import for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:16171
+#: includes/admin/export-import.php:16563
 msgid "Audio file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:16177
+#: includes/admin/export-import.php:16569
 msgid "Failed to import audio for \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:16202
-#: includes/admin/export-import.php:16449
+#: includes/admin/export-import.php:16594
+#: includes/admin/export-import.php:16841
 msgid "Could not create uploads directory."
 msgstr ""
 
-#: includes/admin/export-import.php:16218
+#: includes/admin/export-import.php:16610
 msgid "Could not copy audio into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:16240
+#: includes/admin/export-import.php:16632
 msgid "Imported audio file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:16265
+#: includes/admin/export-import.php:16657
 msgid "Imported file is not a supported audio type."
 msgstr ""
 
-#: includes/admin/export-import.php:16269
+#: includes/admin/export-import.php:16661
 msgid "Imported file is not an audio recording."
 msgstr ""
 
-#: includes/admin/export-import.php:16366
+#: includes/admin/export-import.php:16758
 msgid "The external image URL is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:16385
+#: includes/admin/export-import.php:16777
 msgid "The external image URL is not a supported image type."
 msgstr ""
 
-#: includes/admin/export-import.php:16392
+#: includes/admin/export-import.php:16784
 msgid "Imported remote image"
 msgstr ""
 
-#: includes/admin/export-import.php:16466
+#: includes/admin/export-import.php:16858
 msgid "Could not copy image into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:16690
+#: includes/admin/export-import.php:17082
 msgid "Imported image file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:16695
+#: includes/admin/export-import.php:17087
 msgid "Imported file is not a valid image."
 msgstr ""
 
-#: includes/admin/export-import.php:16700
+#: includes/admin/export-import.php:17092
 msgid "Imported image type is not allowed on this site."
 msgstr ""
 
@@ -13808,46 +13826,46 @@ msgstr ""
 msgid "Unable to save the dictionary snapshot entry."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:699
+#: includes/lib/flashcard-payload-materializer.php:701
 msgid "This flashcard selection includes too many wordsets."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:728
+#: includes/lib/flashcard-payload-materializer.php:730
 msgid "No flashcard content is available for that category and wordset."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:729
-#: includes/lib/flashcard-payload-materializer.php:745
-#: includes/lib/flashcard-payload-materializer.php:771
-#: includes/lib/flashcard-payload-materializer.php:815
+#: includes/lib/flashcard-payload-materializer.php:731
+#: includes/lib/flashcard-payload-materializer.php:747
+#: includes/lib/flashcard-payload-materializer.php:773
+#: includes/lib/flashcard-payload-materializer.php:817
 msgid "Flashcard scope could not be verified."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:744
+#: includes/lib/flashcard-payload-materializer.php:746
 msgid "Choose a wordset before loading this flashcard category."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:783
+#: includes/lib/flashcard-payload-materializer.php:785
 msgid "Public flashcard pages support one wordset at a time."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:791
-#: includes/lib/flashcard-payload-materializer.php:822
-#: includes/shortcodes/flashcard-widget.php:2572
+#: includes/lib/flashcard-payload-materializer.php:793
+#: includes/lib/flashcard-payload-materializer.php:824
+#: includes/shortcodes/flashcard-widget.php:2574
 msgid "You do not have permission to view this flashcard content."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:3124
-#: includes/lib/flashcard-payload-materializer.php:3155
+#: includes/lib/flashcard-payload-materializer.php:3271
+#: includes/lib/flashcard-payload-materializer.php:3302
 msgid "Flashcard data could not be prepared."
 msgstr ""
 
-#: includes/lib/flashcard-payload-materializer.php:3365
-#: includes/lib/flashcard-payload-materializer.php:3374
-#: includes/lib/flashcard-payload-materializer.php:3385
-#: includes/lib/flashcard-payload-materializer.php:3583
-#: includes/lib/flashcard-payload-materializer.php:3592
-#: includes/lib/flashcard-payload-materializer.php:3603
+#: includes/lib/flashcard-payload-materializer.php:3512
+#: includes/lib/flashcard-payload-materializer.php:3521
+#: includes/lib/flashcard-payload-materializer.php:3532
+#: includes/lib/flashcard-payload-materializer.php:3730
+#: includes/lib/flashcard-payload-materializer.php:3739
+#: includes/lib/flashcard-payload-materializer.php:3750
 msgid "Flashcard data is still being prepared."
 msgstr ""
 
@@ -15034,9 +15052,9 @@ msgstr ""
 #: includes/pages/quiz-pages.php:913
 #: includes/pages/vocab-lesson-pages.php:2903
 #: includes/pages/vocab-lesson-pages.php:3054
-#: includes/shortcodes/flashcard-widget.php:2503
-#: includes/shortcodes/flashcard-widget.php:2562
-#: includes/shortcodes/flashcard-widget.php:2737
+#: includes/shortcodes/flashcard-widget.php:2505
+#: includes/shortcodes/flashcard-widget.php:2564
+#: includes/shortcodes/flashcard-widget.php:2739
 #: includes/shortcodes/word-grid-shortcode.php:10332
 msgid "Invalid category."
 msgstr ""
@@ -16713,7 +16731,7 @@ msgid "Too many lesson grid requests. Please wait a few minutes and try again."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:7274
-#: includes/shortcodes/flashcard-widget.php:1971
+#: includes/shortcodes/flashcard-widget.php:1973
 msgid "Lesson words are still being prepared. Please try again in a moment."
 msgstr ""
 
@@ -19190,11 +19208,11 @@ msgid "Study"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14101
-#: includes/shortcodes/language-switcher-shortcode.php:992
-#: includes/shortcodes/language-switcher-shortcode.php:1016
-#: includes/shortcodes/language-switcher-shortcode.php:1022
-#: includes/shortcodes/language-switcher-shortcode.php:1158
-#: includes/shortcodes/language-switcher-shortcode.php:1168
+#: includes/shortcodes/language-switcher-shortcode.php:1031
+#: includes/shortcodes/language-switcher-shortcode.php:1055
+#: includes/shortcodes/language-switcher-shortcode.php:1061
+#: includes/shortcodes/language-switcher-shortcode.php:1197
+#: includes/shortcodes/language-switcher-shortcode.php:1207
 #: includes/taxonomies/language-taxonomy.php:12
 #: includes/taxonomies/wordset-taxonomy.php:1480
 msgid "Language"
@@ -20437,7 +20455,7 @@ msgid "Queue by Category"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:23240
-#: includes/shortcodes/flashcard-widget.php:1554
+#: includes/shortcodes/flashcard-widget.php:1556
 msgid "The category catalog is temporarily unavailable. Please try again."
 msgstr ""
 
@@ -21392,7 +21410,7 @@ msgstr ""
 
 #. translators: %s: available plugin version
 #: includes/pages/wordset-pages.php:26689
-#: language-learner-tools.php:830
+#: language-learner-tools.php:904
 msgid "Update to %s"
 msgstr ""
 
@@ -24265,39 +24283,39 @@ msgstr ""
 msgid "Female and male symbols icon"
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:1786
-#: includes/shortcodes/flashcard-widget.php:1984
+#: includes/shortcodes/flashcard-widget.php:1788
+#: includes/shortcodes/flashcard-widget.php:1986
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2388
+#: includes/shortcodes/flashcard-widget.php:2390
 msgid "Preparing flashcard data. Please wait a moment."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2399
+#: includes/shortcodes/flashcard-widget.php:2401
 msgid "Flashcard data changed. Please restart the quiz."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2405
+#: includes/shortcodes/flashcard-widget.php:2407
 msgid "Invalid flashcard page cursor."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2414
-#: includes/shortcodes/flashcard-widget.php:2431
-#: includes/shortcodes/flashcard-widget.php:2531
+#: includes/shortcodes/flashcard-widget.php:2416
+#: includes/shortcodes/flashcard-widget.php:2433
+#: includes/shortcodes/flashcard-widget.php:2533
 #: includes/user-progress.php:877
 msgid "Flashcard data is temporarily unavailable."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2475
+#: includes/shortcodes/flashcard-widget.php:2477
 msgid "Invalid flashcard locale."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2541
+#: includes/shortcodes/flashcard-widget.php:2543
 msgid "Invalid wordset."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2942
+#: includes/shortcodes/flashcard-widget.php:2944
 msgid "This flashcard category must be loaded in pages. Please refresh the page."
 msgstr ""
 
@@ -24326,13 +24344,13 @@ msgstr ""
 msgid "FREE"
 msgstr ""
 
-#: includes/shortcodes/language-switcher-shortcode.php:996
-#: includes/shortcodes/language-switcher-shortcode.php:1160
+#: includes/shortcodes/language-switcher-shortcode.php:1035
+#: includes/shortcodes/language-switcher-shortcode.php:1199
 msgid "Other languages"
 msgstr ""
 
 #. translators: %s: Current language name.
-#: includes/shortcodes/language-switcher-shortcode.php:1008
+#: includes/shortcodes/language-switcher-shortcode.php:1047
 msgid "Language: %s"
 msgstr ""
 
@@ -27269,20 +27287,20 @@ msgid "Unable to create the new word set right now."
 msgstr ""
 
 #. translators: 1: minimum supported PHP version, 2: current PHP version
-#: language-learner-tools.php:47
+#: language-learner-tools.php:49
 msgid "Language Learner Tools requires PHP %1$s or newer. This site is running PHP %2$s, so the plugin was not loaded to prevent a fatal error."
 msgstr ""
 
-#: language-learner-tools.php:72
+#: language-learner-tools.php:74
 msgid "Plugin Activation Error"
 msgstr ""
 
-#: language-learner-tools.php:743
+#: language-learner-tools.php:817
 msgid "You are not allowed to check plugin updates."
 msgstr ""
 
 #. translators: %s: available plugin version
-#: language-learner-tools.php:820
+#: language-learner-tools.php:894
 msgid "Language Learner Tools update available: version %s."
 msgstr ""
 

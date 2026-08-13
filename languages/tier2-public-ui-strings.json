@@ -2994,18 +2994,18 @@
                 "includes/pages/quiz-pages.php:913",
                 "includes/pages/vocab-lesson-pages.php:2903",
                 "includes/pages/vocab-lesson-pages.php:3054",
-                "includes/shortcodes/flashcard-widget.php:2503",
-                "includes/shortcodes/flashcard-widget.php:2562",
-                "includes/shortcodes/flashcard-widget.php:2737",
+                "includes/shortcodes/flashcard-widget.php:2505",
+                "includes/shortcodes/flashcard-widget.php:2564",
+                "includes/shortcodes/flashcard-widget.php:2739",
                 "includes/shortcodes/word-grid-shortcode.php:10332"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:913",
                 "includes/pages/vocab-lesson-pages.php:2903",
                 "includes/pages/vocab-lesson-pages.php:3054",
-                "includes/shortcodes/flashcard-widget.php:2503",
-                "includes/shortcodes/flashcard-widget.php:2562",
-                "includes/shortcodes/flashcard-widget.php:2737"
+                "includes/shortcodes/flashcard-widget.php:2505",
+                "includes/shortcodes/flashcard-widget.php:2564",
+                "includes/shortcodes/flashcard-widget.php:2739"
             ]
         },
         {
@@ -9170,10 +9170,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:23240",
-                "includes/shortcodes/flashcard-widget.php:1554"
+                "includes/shortcodes/flashcard-widget.php:1556"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:1554"
+                "includes/shortcodes/flashcard-widget.php:1556"
             ]
         },
         {
@@ -9182,12 +9182,12 @@
             "msgid": "Too many flashcard category requests. Please try again shortly.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:1786",
-                "includes/shortcodes/flashcard-widget.php:1984"
+                "includes/shortcodes/flashcard-widget.php:1788",
+                "includes/shortcodes/flashcard-widget.php:1986"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:1786",
-                "includes/shortcodes/flashcard-widget.php:1984"
+                "includes/shortcodes/flashcard-widget.php:1788",
+                "includes/shortcodes/flashcard-widget.php:1986"
             ]
         },
         {
@@ -9197,10 +9197,10 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/vocab-lesson-pages.php:7274",
-                "includes/shortcodes/flashcard-widget.php:1971"
+                "includes/shortcodes/flashcard-widget.php:1973"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:1971"
+                "includes/shortcodes/flashcard-widget.php:1973"
             ]
         },
         {
@@ -9209,10 +9209,10 @@
             "msgid": "Preparing flashcard data. Please wait a moment.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2388"
+                "includes/shortcodes/flashcard-widget.php:2390"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2388"
+                "includes/shortcodes/flashcard-widget.php:2390"
             ]
         },
         {
@@ -9221,10 +9221,10 @@
             "msgid": "Flashcard data changed. Please restart the quiz.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2399"
+                "includes/shortcodes/flashcard-widget.php:2401"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2399"
+                "includes/shortcodes/flashcard-widget.php:2401"
             ]
         },
         {
@@ -9233,10 +9233,10 @@
             "msgid": "Invalid flashcard page cursor.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2405"
+                "includes/shortcodes/flashcard-widget.php:2407"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2405"
+                "includes/shortcodes/flashcard-widget.php:2407"
             ]
         },
         {
@@ -9245,15 +9245,15 @@
             "msgid": "Flashcard data is temporarily unavailable.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2414",
-                "includes/shortcodes/flashcard-widget.php:2431",
-                "includes/shortcodes/flashcard-widget.php:2531",
+                "includes/shortcodes/flashcard-widget.php:2416",
+                "includes/shortcodes/flashcard-widget.php:2433",
+                "includes/shortcodes/flashcard-widget.php:2533",
                 "includes/user-progress.php:877"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2414",
-                "includes/shortcodes/flashcard-widget.php:2431",
-                "includes/shortcodes/flashcard-widget.php:2531"
+                "includes/shortcodes/flashcard-widget.php:2416",
+                "includes/shortcodes/flashcard-widget.php:2433",
+                "includes/shortcodes/flashcard-widget.php:2533"
             ]
         },
         {
@@ -9262,10 +9262,10 @@
             "msgid": "Invalid flashcard locale.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2475"
+                "includes/shortcodes/flashcard-widget.php:2477"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2475"
+                "includes/shortcodes/flashcard-widget.php:2477"
             ]
         },
         {
@@ -9274,10 +9274,10 @@
             "msgid": "Invalid wordset.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2541"
+                "includes/shortcodes/flashcard-widget.php:2543"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2541"
+                "includes/shortcodes/flashcard-widget.php:2543"
             ]
         },
         {
@@ -9286,12 +9286,12 @@
             "msgid": "You do not have permission to view this flashcard content.",
             "msgid_plural": null,
             "references": [
-                "includes/lib/flashcard-payload-materializer.php:791",
-                "includes/lib/flashcard-payload-materializer.php:822",
-                "includes/shortcodes/flashcard-widget.php:2572"
+                "includes/lib/flashcard-payload-materializer.php:793",
+                "includes/lib/flashcard-payload-materializer.php:824",
+                "includes/shortcodes/flashcard-widget.php:2574"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2572"
+                "includes/shortcodes/flashcard-widget.php:2574"
             ]
         },
         {
@@ -9300,10 +9300,10 @@
             "msgid": "This flashcard category must be loaded in pages. Please refresh the page.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2942"
+                "includes/shortcodes/flashcard-widget.php:2944"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2942"
+                "includes/shortcodes/flashcard-widget.php:2944"
             ]
         },
         {
@@ -10274,38 +10274,52 @@
             ]
         },
         {
-            "key": "2210b994e977db33cf4842a09a910573b1ab34d8",
-            "context": "",
-            "msgid": "Language: %s",
-            "msgid_plural": null,
-            "references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1008"
-            ],
-            "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1008"
-            ]
-        },
-        {
             "key": "99ed0fd095dfbabe164de5fd94264522ba85fb11",
             "context": "",
             "msgid": "Language",
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:14101",
-                "includes/shortcodes/language-switcher-shortcode.php:1016",
-                "includes/shortcodes/language-switcher-shortcode.php:1022",
-                "includes/shortcodes/language-switcher-shortcode.php:1158",
-                "includes/shortcodes/language-switcher-shortcode.php:1168",
-                "includes/shortcodes/language-switcher-shortcode.php:992",
+                "includes/shortcodes/language-switcher-shortcode.php:1031",
+                "includes/shortcodes/language-switcher-shortcode.php:1055",
+                "includes/shortcodes/language-switcher-shortcode.php:1061",
+                "includes/shortcodes/language-switcher-shortcode.php:1197",
+                "includes/shortcodes/language-switcher-shortcode.php:1207",
                 "includes/taxonomies/language-taxonomy.php:12",
                 "includes/taxonomies/wordset-taxonomy.php:1480"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1016",
-                "includes/shortcodes/language-switcher-shortcode.php:1022",
-                "includes/shortcodes/language-switcher-shortcode.php:1158",
-                "includes/shortcodes/language-switcher-shortcode.php:1168",
-                "includes/shortcodes/language-switcher-shortcode.php:992"
+                "includes/shortcodes/language-switcher-shortcode.php:1031",
+                "includes/shortcodes/language-switcher-shortcode.php:1055",
+                "includes/shortcodes/language-switcher-shortcode.php:1061",
+                "includes/shortcodes/language-switcher-shortcode.php:1197",
+                "includes/shortcodes/language-switcher-shortcode.php:1207"
+            ]
+        },
+        {
+            "key": "88b69c14bd4c473c352ff8b046e441c8771e239b",
+            "context": "",
+            "msgid": "Other languages",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1035",
+                "includes/shortcodes/language-switcher-shortcode.php:1199"
+            ],
+            "public_references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1035",
+                "includes/shortcodes/language-switcher-shortcode.php:1199"
+            ]
+        },
+        {
+            "key": "2210b994e977db33cf4842a09a910573b1ab34d8",
+            "context": "",
+            "msgid": "Language: %s",
+            "msgid_plural": null,
+            "references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1047"
+            ],
+            "public_references": [
+                "includes/shortcodes/language-switcher-shortcode.php:1047"
             ]
         },
         {
@@ -10321,28 +10335,14 @@
                 "includes/admin/offline-app-export.php:2852",
                 "includes/admin/offline-app-export.php:3595",
                 "includes/admin/split-word-admin.php:177",
-                "includes/shortcodes/language-switcher-shortcode.php:1027",
+                "includes/shortcodes/language-switcher-shortcode.php:1066",
                 "includes/shortcodes/word-grid-shortcode.php:5813",
                 "templates/offline-app-shell-template.php:691",
                 "templates/vocab-lesson-template.php:619"
             ],
             "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1027",
+                "includes/shortcodes/language-switcher-shortcode.php:1066",
                 "templates/offline-app-shell-template.php:691"
-            ]
-        },
-        {
-            "key": "88b69c14bd4c473c352ff8b046e441c8771e239b",
-            "context": "",
-            "msgid": "Other languages",
-            "msgid_plural": null,
-            "references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1160",
-                "includes/shortcodes/language-switcher-shortcode.php:996"
-            ],
-            "public_references": [
-                "includes/shortcodes/language-switcher-shortcode.php:1160",
-                "includes/shortcodes/language-switcher-shortcode.php:996"
             ]
         },
         {
