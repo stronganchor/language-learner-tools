@@ -16,6 +16,7 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $_POST = [];
         $_REQUEST = [];
         $_SERVER['REQUEST_METHOD'] = 'GET';
+        delete_option(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION);
 
         parent::tearDown();
     }
@@ -423,6 +424,24 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertFalse(get_transient('ll_tools_seed_default_wordset'));
         $this->assertSame(1, (int) get_transient('ll_tools_vocab_lesson_flush_rewrite'));
         $this->assertSame(LL_TOOLS_VERSION, (string) get_option(LL_TOOLS_VERSION_OPTION, ''));
+        $this->assertSame(
+            ['5.10.14'],
+            get_option(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION, [])
+        );
+    }
+
+    public function test_recent_version_history_is_deduplicated_sanitized_and_bounded(): void
+    {
+        $raw = ['6.7.17', '6.7.17', '', '../bad', '6.7.16', '6.7.15'];
+        for ($version = 14; $version >= 1; $version--) {
+            $raw[] = '6.7.' . $version;
+        }
+
+        $normalized = ll_tools_normalize_recent_plugin_versions($raw);
+
+        $this->assertCount(LL_TOOLS_RECENT_VERSION_HISTORY_LIMIT, $normalized);
+        $this->assertSame(['6.7.17', '6.7.16', '6.7.15'], array_slice($normalized, 0, 3));
+        $this->assertNotContains('../bad', $normalized);
     }
 
     public function test_image_upload_shortcode_hides_form_from_upload_only_user(): void

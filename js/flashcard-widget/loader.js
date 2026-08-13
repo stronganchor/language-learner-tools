@@ -446,6 +446,7 @@
                 categoryAjaxTimeoutMs: getClampedInt(tuning.categoryAjaxTimeoutMs, 30000, 250, 120000),
                 categoryAjaxMaxRetriesOn429: getClampedInt(tuning.categoryAjaxMaxRetriesOn429, 2, 0, 6),
                 categoryPayloadWarmingMaxRetries: getClampedInt(tuning.categoryPayloadWarmingMaxRetries, 60, 1, 120),
+                categoryPayloadWarmingDeadlineMs: getClampedInt(tuning.categoryPayloadWarmingDeadlineMs, 15000, 1000, 120000),
                 categoryAjaxRetryBaseMs: getClampedInt(tuning.categoryAjaxRetryBaseMs, 900, 100, 30000),
                 categoryAjaxRetryMaxMs: getClampedInt(tuning.categoryAjaxRetryMaxMs, 10000, 500, 90000),
                 categoryMediaChunkSize: getClampedInt(tuning.categoryMediaChunkSize, 8, 1, 30),
@@ -1394,10 +1395,13 @@
                 payload.option_pool_limit = String(SESSION_OPTION_POOL_LIMIT);
             }
             const requestId = ++requestSerial;
+            const categoryLoadStartedAt = Date.now();
             let callbackInvoked = false;
             const usesPagedPayload = candidateWordIds.length === 0;
             let accumulatedPageRows = [];
             let pageRestartCount = 0;
+            let payloadWarmingDeadlineAt = 0;
+            let lastPayloadWarmingFailure = null;
 
             function invokeCallbackOnce() {
                 if (callbackInvoked) {
@@ -1449,6 +1453,42 @@
                 } catch (_) {}
             }
 
+            function finishPayloadWarmingTimeout(attemptNumber) {
+                const failure = lastPayloadWarmingFailure || {};
+                const xhr = failure.xhr || null;
+                const status = failure.status || 'error';
+                const error = failure.error || 'cache_warming_timeout';
+                const httpStatus = xhr && typeof xhr.status !== 'undefined'
+                    ? xhr.status
+                    : 429;
+
+                if (inFlightRequests[cacheKey] === requestId) {
+                    delete inFlightRequests[cacheKey];
+                }
+                delete payload.cursor;
+                recordAjaxFailure(xhr, status, error, {
+                    retrying: false,
+                    code: 'cache_warming_timeout',
+                    retryable: true,
+                    timedOut: true,
+                    attempt: attemptNumber
+                });
+                console.warn('Flashcard payload warming timed out for category:', categoryName, {
+                    attempt: attemptNumber,
+                    httpStatus: httpStatus
+                });
+                invokeCallbackOnce();
+
+                return {
+                    success: false,
+                    category: categoryName,
+                    httpStatus: httpStatus,
+                    code: 'cache_warming_timeout',
+                    retryable: true,
+                    timedOut: true
+                };
+            }
+
             function runAjaxAttempt(attempt) {
                 const attemptNumber = Math.max(1, parseInt(attempt, 10) || 1);
                 if (!requestIsCurrent()) {
@@ -1471,16 +1511,30 @@
                     }
                     return Promise.resolve({ stale: true, category: categoryName });
                 }
+                if (payloadWarmingDeadlineAt > 0 && Date.now() >= payloadWarmingDeadlineAt) {
+                    return Promise.resolve(finishPayloadWarmingTimeout(attemptNumber));
+                }
 
                 inFlightRequests[cacheKey] = requestId;
                 recordAjaxStart(attemptNumber);
+
+                const attemptTuning = getPreloadTuning();
+                let requestTimeoutMs = attemptTuning.categoryAjaxTimeoutMs;
+                let warmingDeadlineBoundRequest = false;
+                if (payloadWarmingDeadlineAt > 0) {
+                    const remainingDeadlineMs = Math.max(1, payloadWarmingDeadlineAt - Date.now());
+                    if (remainingDeadlineMs < requestTimeoutMs) {
+                        requestTimeoutMs = remainingDeadlineMs;
+                        warmingDeadlineBoundRequest = true;
+                    }
+                }
 
                 return new Promise(function (resolve) {
                     $.ajax({
                         url: llToolsFlashcardsData.ajaxurl,
                         method: 'POST',
                         dataType: 'json',
-                        timeout: getPreloadTuning().categoryAjaxTimeoutMs,
+                        timeout: requestTimeoutMs,
                         data: payload,
                         success: function (response) {
                             // Ignore stale responses from previous wordset/session requests.
@@ -1545,7 +1599,7 @@
                             }
 
                             const httpStatus = xhr && typeof xhr.status !== 'undefined' ? xhr.status : null;
-                            const retryCfg = getPreloadTuning();
+                            const retryCfg = attemptTuning;
                             const responseData = xhr
                                 && xhr.responseJSON
                                 && xhr.responseJSON.data
@@ -1553,10 +1607,53 @@
                                 ? xhr.responseJSON.data
                                 : {};
                             const responseCode = String(responseData.code || '');
-                            const retryLimit = usesPagedPayload && responseCode === 'cache_warming'
-                                ? retryCfg.categoryPayloadWarmingMaxRetries
-                                : retryCfg.categoryAjaxMaxRetriesOn429;
-                            const canRetry429 = httpStatus === 429 && attemptNumber <= retryLimit;
+                            const isTypedPayloadWarming = usesPagedPayload
+                                && httpStatus === 429
+                                && responseCode === 'cache_warming';
+
+                            if (
+                                payloadWarmingDeadlineAt > 0
+                                && warmingDeadlineBoundRequest
+                                && String(status || '').toLowerCase() === 'timeout'
+                            ) {
+                                lastPayloadWarmingFailure = { xhr: xhr, status: status, error: error };
+                                resolve(finishPayloadWarmingTimeout(attemptNumber));
+                                return;
+                            }
+
+                            if (isTypedPayloadWarming) {
+                                lastPayloadWarmingFailure = { xhr: xhr, status: status, error: error };
+                                if (payloadWarmingDeadlineAt <= 0) {
+                                    payloadWarmingDeadlineAt = categoryLoadStartedAt + retryCfg.categoryPayloadWarmingDeadlineMs;
+                                }
+
+                                const retryDelayMs = getCategoryAjaxRetryDelayMs(xhr, attemptNumber);
+                                const remainingDeadlineMs = payloadWarmingDeadlineAt - Date.now();
+                                const canRetryWarming = attemptNumber <= retryCfg.categoryPayloadWarmingMaxRetries
+                                    && remainingDeadlineMs > retryDelayMs;
+                                if (canRetryWarming) {
+                                    recordAjaxFailure(xhr, status, error, {
+                                        retrying: true,
+                                        retryDelayMs: retryDelayMs,
+                                        warmingDeadlineAt: payloadWarmingDeadlineAt
+                                    });
+                                    console.warn('AJAX rate-limited for category; retrying with backoff:', categoryName, {
+                                        attempt: attemptNumber,
+                                        retryDelayMs: retryDelayMs,
+                                        httpStatus: httpStatus
+                                    });
+                                    resolve(wait(retryDelayMs).then(function () {
+                                        return runAjaxAttempt(attemptNumber + 1);
+                                    }));
+                                    return;
+                                }
+
+                                resolve(finishPayloadWarmingTimeout(attemptNumber));
+                                return;
+                            }
+
+                            const canRetry429 = httpStatus === 429
+                                && attemptNumber <= retryCfg.categoryAjaxMaxRetriesOn429;
                             if (canRetry429) {
                                 const retryDelayMs = getCategoryAjaxRetryDelayMs(xhr, attemptNumber);
                                 recordAjaxFailure(xhr, status, error, {

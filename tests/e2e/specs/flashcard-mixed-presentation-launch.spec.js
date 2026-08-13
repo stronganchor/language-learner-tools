@@ -22,7 +22,11 @@ function buildHarnessMarkup() {
         <div id="ll-tools-prompt"></div>
         <div id="ll-tools-flashcard-content"></div>
         <div id="ll-tools-flashcard"></div>
-        <div id="quiz-results" style="display:block;">Previous results</div>
+        <div id="quiz-results" style="display:block;">
+          <h2 id="quiz-results-title"></h2>
+          <div id="quiz-results-message">Previous results</div>
+          <div><span id="correct-count"></span></div>
+        </div>
         <div id="ll-tools-mode-switcher-wrap" aria-expanded="false">
           <div id="ll-tools-mode-menu" aria-hidden="true">
             <button class="ll-tools-mode-option practice" data-mode="practice" type="button"></button>
@@ -37,6 +41,8 @@ function buildHarnessMarkup() {
         <button id="restart-listening-mode" type="button"></button>
         <button id="restart-quiz" type="button"></button>
       </div>
+      <div id="ll-tools-loading-animation" style="display:none;"></div>
+      <div id="ll-tools-loading-status" hidden></div>
     </div>
   `;
 }
@@ -44,6 +50,8 @@ function buildHarnessMarkup() {
 async function mountLaunchHarness(page, options = {}) {
   const preserveMixedPresentation = !!options.preserveMixedPresentation;
   const initialCategoryLoadFailure = !!options.initialCategoryLoadFailure;
+  const initialCategoryWarmupTimeout = !!options.initialCategoryWarmupTimeout;
+  const retryCategoryLoadFailure = !!options.retryCategoryLoadFailure;
   const boundedSelectionPlan = !!options.boundedSelectionPlan;
   const boundedPreloadFailure = !!options.boundedPreloadFailure;
 
@@ -90,6 +98,8 @@ async function mountLaunchHarness(page, options = {}) {
     window.__loadCategoryCalls = [];
     window.__boundedPreloadCalls = [];
     window.__hideResultsCalls = 0;
+    window.__hideLoadingImmediatelyCalls = 0;
+    window.__listeningRoundCalls = 0;
     window.__listeningCategoryCancelCalls = 0;
     window.llToolsFlashcardsData = {
       debug: false,
@@ -104,6 +114,14 @@ async function mountLaunchHarness(page, options = {}) {
       sessionWordIds: bootstrap.boundedSelectionPlan ? [101, 202] : []
     };
     window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal' };
+    window.llToolsFlashcardsMessages = {
+      loadingError: 'Localized loading error',
+      somethingWentWrong: 'Localized fallback error',
+      sessionContinuationError: 'Localized retryable loading error',
+      retry: 'Localized Retry',
+      errorDetailsLabel: 'Localized details',
+      noContentAvailable: 'Localized no content'
+    };
 
     window.LLFlashcards = window.LLFlashcards || {};
     window.LLFlashcards.Util = {
@@ -114,9 +132,19 @@ async function mountLaunchHarness(page, options = {}) {
     window.LLFlashcards.Dom = {
       clearRepeatButtonBinding() {},
       restoreHeaderUI() {},
-      showLoading() {},
+      showLoading() {
+        window.jQuery('#ll-tools-loading-animation').show();
+        window.jQuery('#ll-tools-loading-status').prop('hidden', false);
+        window.jQuery('#ll-tools-flashcard-quiz-popup').attr('aria-busy', 'true');
+      },
       hideLoading() { return Promise.resolve(); },
-      hideLoadingImmediately() { return Promise.resolve(); },
+      hideLoadingImmediately() {
+        window.__hideLoadingImmediatelyCalls += 1;
+        window.jQuery('#ll-tools-loading-animation').hide();
+        window.jQuery('#ll-tools-loading-status').prop('hidden', true);
+        window.jQuery('#ll-tools-flashcard-quiz-popup').removeAttr('aria-busy');
+        return Promise.resolve();
+      },
       setRepeatButton() {},
       updateCategoryNameDisplay() {},
       enableRepeatButton() {},
@@ -159,6 +187,9 @@ async function mountLaunchHarness(page, options = {}) {
       },
       Listening: {
         initialize() {},
+        runRound() {
+          window.__listeningRoundCalls += 1;
+        },
         cancelPendingCategoryLoads() {
           window.__listeningCategoryCancelCalls += 1;
         }
@@ -170,12 +201,27 @@ async function mountLaunchHarness(page, options = {}) {
     };
     window.FlashcardLoader = {
       loadAudio() {},
-      loadResourcesForCategory(categoryName) {
+      loadResourcesForCategory(categoryName, callback) {
         window.__loadCategoryCalls.push(String(categoryName || ''));
         if (bootstrap.initialCategoryLoadFailure && window.__loadCategoryCalls.length === 1) {
           return Promise.resolve({ success: false, category: String(categoryName || '') });
         }
-        return Promise.resolve({ success: true, category: String(categoryName || '') });
+        if (bootstrap.initialCategoryWarmupTimeout && window.__loadCategoryCalls.length === 1) {
+          return Promise.resolve({
+            success: false,
+            retryable: true,
+            code: 'cache_warming_timeout',
+            category: String(categoryName || '')
+          });
+        }
+        if (bootstrap.retryCategoryLoadFailure && window.__loadCategoryCalls.length === 2) {
+          return Promise.resolve({ success: false, category: String(categoryName || '') });
+        }
+        const result = { success: true, category: String(categoryName || '') };
+        if (typeof callback === 'function') {
+          Promise.resolve().then(callback);
+        }
+        return Promise.resolve(result);
       },
       consumeBoundedPreloadedCategoryData(categoryNames) {
         window.__boundedPreloadCalls.push(Array.isArray(categoryNames) ? categoryNames.slice() : []);
@@ -205,6 +251,8 @@ async function mountLaunchHarness(page, options = {}) {
   }, {
     preserveMixedPresentation,
     initialCategoryLoadFailure,
+    initialCategoryWarmupTimeout,
+    retryCategoryLoadFailure,
     boundedSelectionPlan,
     boundedPreloadFailure
   });
@@ -298,6 +346,98 @@ test('practice init rejects when the explicit first-category load result fails',
     resultsDisplay: 'block'
   });
   expect(result.message).toContain('did not load successfully');
+});
+
+test('retryable initial-category warmup timeout stays open and Retry can initialize listening mode', async ({ page }) => {
+  await mountLaunchHarness(page, {
+    preserveMixedPresentation: true,
+    initialCategoryWarmupTimeout: true
+  });
+
+  const initialResult = await page.evaluate(async () => {
+    window.jQuery('#ll-tools-flashcard-quiz-popup')
+      .show()
+      .addClass('ll-round-loading-active')
+      .attr('aria-busy', 'true');
+    window.jQuery('#ll-tools-loading-animation').show();
+    window.jQuery('#ll-tools-loading-status').prop('hidden', false);
+
+    try {
+      await window.initFlashcardWidget(['Cat A', 'Cat B'], 'listening');
+      return {
+        resolved: true,
+        state: window.LLFlashcards.State.getState(),
+        loadCategoryCalls: window.__loadCategoryCalls.slice(),
+        hideResultsCalls: window.__hideResultsCalls,
+        hideLoadingImmediatelyCalls: window.__hideLoadingImmediatelyCalls
+      };
+    } catch (error) {
+      return {
+        resolved: false,
+        message: String(error && error.message || '')
+      };
+    }
+  });
+
+  expect(initialResult).toMatchObject({
+    resolved: true,
+    state: 'showing_results',
+    loadCategoryCalls: ['Cat A'],
+    hideResultsCalls: 0
+  });
+  expect(initialResult.hideLoadingImmediatelyCalls).toBeGreaterThanOrEqual(1);
+
+  const quizPopup = page.locator('#ll-tools-flashcard-quiz-popup');
+  const retry = page.locator('#restart-quiz');
+  await expect(quizPopup).toBeVisible();
+  await expect(quizPopup).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#ll-tools-loading-animation')).toBeHidden();
+  await expect(page.locator('#ll-tools-loading-status')).toBeHidden();
+  await expect(page.locator('#quiz-results-message')).toContainText('Localized retryable loading error');
+  await expect(retry).toBeVisible();
+  await expect(retry).toHaveText('Localized Retry');
+  expect(await page.evaluate(() => {
+    const events = window.jQuery._data(document.getElementById('restart-quiz'), 'events') || {};
+    return (events.click || []).map((handler) => String(handler.namespace || ''));
+  })).toEqual(['llInitialCategoryWarmupRetry']);
+
+  await retry.click();
+
+  await expect.poll(async () => page.evaluate(() => window.__loadCategoryCalls.slice(0, 2)))
+    .toEqual(['Cat A', 'Cat A']);
+  await expect.poll(async () => page.evaluate(() => window.__listeningRoundCalls)).toBe(1);
+  await expect(quizPopup).toBeVisible();
+  await expect(page.locator('#quiz-results')).toBeHidden();
+  await expect(retry).toBeHidden();
+  await expect(quizPopup).not.toHaveClass(/ll-tools-error-state/);
+  expect(await page.evaluate(() => {
+    const events = window.jQuery._data(document.getElementById('restart-quiz'), 'events') || {};
+    return (events.click || []).map((handler) => String(handler.namespace || ''));
+  })).toEqual(['']);
+});
+
+test('a generic failure during warmup Retry clears loading and restores one Retry handler', async ({ page }) => {
+  await mountLaunchHarness(page, {
+    preserveMixedPresentation: true,
+    initialCategoryWarmupTimeout: true,
+    retryCategoryLoadFailure: true
+  });
+
+  await page.evaluate(async () => {
+    await window.initFlashcardWidget(['Cat A', 'Cat B'], 'listening');
+  });
+  await page.locator('#restart-quiz').click();
+
+  await expect.poll(async () => page.evaluate(() => window.__loadCategoryCalls.slice()))
+    .toEqual(['Cat A', 'Cat A']);
+  await expect(page.locator('#ll-tools-flashcard-quiz-popup')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('#ll-tools-loading-animation')).toBeHidden();
+  await expect(page.locator('#quiz-results-message')).toContainText('Localized retryable loading error');
+  await expect(page.locator('#restart-quiz')).toBeVisible();
+  expect(await page.evaluate(() => {
+    const events = window.jQuery._data(document.getElementById('restart-quiz'), 'events') || {};
+    return (events.click || []).map((handler) => String(handler.namespace || ''));
+  })).toEqual(['llInitialCategoryWarmupRetry']);
 });
 
 test('bounded practice init propagates handoff rejection before category loading starts', async ({ page }) => {

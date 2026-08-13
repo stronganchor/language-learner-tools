@@ -268,6 +268,129 @@ test('flashcard loader retries retryable category AJAX 429 responses', async ({ 
   expect(activeWordIds).toEqual([1001]);
 });
 
+test('flashcard loader bounds persistent payload warming and permits a manual retry', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    window.wordsByCategory = {};
+    window.optionWordsByCategory = {};
+    window.categoryRoundCount = {};
+    window.categoryNames = ['Warming Category'];
+    window.getCategoryDisplayMode = function () { return 'text_title'; };
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      wordset: 'set-a',
+      wordsetIds: [101],
+      wordsetFallback: false,
+      preloadTuning: {
+        categoryAjaxConcurrency: 1,
+        categoryAjaxSpacingMs: 0,
+        categoryAjaxTimeoutMs: 30000,
+        categoryPayloadWarmingMaxRetries: 120,
+        categoryPayloadWarmingDeadlineMs: 1000,
+        categoryAjaxRetryBaseMs: 100,
+        categoryAjaxRetryMaxMs: 1000
+      },
+      categories: [
+        { id: 11, name: 'Warming Category', prompt_type: 'text_title', option_type: 'text_title' }
+      ]
+    };
+
+    window.__llPersistentWarming = true;
+    window.__llWarmingAttempts = 0;
+    const $ = window.jQuery;
+    $.ajax = function (opts) {
+      window.__llWarmingAttempts += 1;
+      if (window.__llPersistentWarming) {
+        setTimeout(() => {
+          opts.error({
+            status: 429,
+            getResponseHeader(name) {
+              return String(name || '').toLowerCase() === 'retry-after' ? '0.2' : '';
+            },
+            responseJSON: {
+              success: false,
+              data: { code: 'cache_warming', retry_after: 0.2 }
+            },
+            responseText: '{"success":false,"data":{"code":"cache_warming","retry_after":0.2}}'
+          }, 'error', 'rate_limited');
+        }, 0);
+      } else {
+        setTimeout(() => {
+          opts.success({
+            success: true,
+            data: {
+              rows: [{
+                id: 1001,
+                title: 'Recovered word',
+                label: 'Recovered word',
+                audio: '',
+                image: '',
+                audio_files: [],
+                wordset_ids: [101]
+              }],
+              next_cursor: '',
+              complete: true
+            }
+          });
+        }, 0);
+      }
+      return { abort: function () {} };
+    };
+  });
+
+  await page.addScriptTag({ content: loaderScriptSource });
+  const state = await page.evaluate(async () => {
+    let callbackCount = 0;
+    const startedAt = Date.now();
+    const first = await window.FlashcardLoader.loadResourcesForCategory(
+      'Warming Category',
+      function () { callbackCount += 1; },
+      { skipCategoryPreload: true }
+    );
+    const elapsedMs = Date.now() - startedAt;
+    const warmingAttempts = window.__llWarmingAttempts;
+    const loadingAfterTimeout = window.FlashcardLoader.isCategoryLoading('Warming Category');
+
+    window.__llPersistentWarming = false;
+    const second = await window.FlashcardLoader.loadResourcesForCategory(
+      'Warming Category',
+      null,
+      { skipCategoryPreload: true }
+    );
+
+    return {
+      first,
+      second,
+      callbackCount,
+      elapsedMs,
+      warmingAttempts,
+      totalAttempts: window.__llWarmingAttempts,
+      loadingAfterTimeout,
+      loadingAfterRelaunch: window.FlashcardLoader.isCategoryLoading('Warming Category'),
+      wordIds: (window.wordsByCategory['Warming Category'] || []).map((row) => Number(row.id) || 0)
+    };
+  });
+
+  expect(state.first).toMatchObject({
+    success: false,
+    category: 'Warming Category',
+    code: 'cache_warming_timeout',
+    retryable: true,
+    timedOut: true
+  });
+  expect(state.warmingAttempts).toBeGreaterThan(1);
+  expect(state.warmingAttempts).toBeLessThanOrEqual(6);
+  expect(state.elapsedMs).toBeLessThan(1500);
+  expect(state.callbackCount).toBe(1);
+  expect(state.loadingAfterTimeout).toBe(false);
+  expect(state.second).toMatchObject({ success: true, category: 'Warming Category' });
+  expect(state.totalAttempts).toBe(state.warmingAttempts + 1);
+  expect(state.loadingAfterRelaunch).toBe(false);
+  expect(state.wordIds).toEqual([1001]);
+});
+
 test('flashcard loader times out a stalled category request and allows one clean relaunch', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });

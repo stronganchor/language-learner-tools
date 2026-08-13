@@ -30,6 +30,7 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         delete_option(ll_tools_flashcard_payload_lock_option('global'));
         delete_option(LL_TOOLS_FLASHCARD_PAYLOAD_CLEANUP_CURSOR_OPTION);
         delete_option(LL_TOOLS_FLASHCARD_PAYLOAD_ORPHAN_CURSOR_OPTION);
+        delete_option(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION);
         wp_clear_scheduled_hook(LL_TOOLS_FLASHCARD_PAYLOAD_CLEANUP_HOOK);
         $_POST = [];
         $_REQUEST = [];
@@ -196,6 +197,190 @@ final class FlashcardPayloadMaterializerTest extends LL_Tools_TestCase
         $staleRead = ll_tools_flashcard_payload_read_page($scope, $oldCursor, 10);
         $this->assertWPError($staleRead);
         $this->assertSame('stale_flashcard_payload_cursor', $staleRead->get_error_code());
+    }
+
+    public function test_dependency_signature_is_release_independent_and_schema_driven(): void
+    {
+        $fixture = $this->createTextFixture('Stable Signature', 1);
+        $components = ll_tools_flashcard_payload_dependency_signature_components(
+            $fixture['scope']
+        );
+
+        $this->assertArrayNotHasKey('plugin_version', $components);
+        $this->assertSame(
+            LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION,
+            $components['table_schema'] ?? null
+        );
+        $this->assertSame(2, $components['payload_schema'] ?? null);
+        $this->assertSame(
+            LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA,
+            $components['builder_schema'] ?? null
+        );
+        $this->assertSame(
+            hash('sha256', (string) wp_json_encode($components)),
+            ll_tools_flashcard_payload_dependency_signature($fixture['scope'])
+        );
+
+        $legacy = ll_tools_flashcard_payload_legacy_dependency_signature(
+            $fixture['scope'],
+            '6.7.17'
+        );
+        $this->assertNotSame(
+            $legacy,
+            ll_tools_flashcard_payload_legacy_dependency_signature(
+                $fixture['scope'],
+                '6.7.18'
+            )
+        );
+        $this->assertNotSame(
+            $legacy,
+            ll_tools_flashcard_payload_dependency_signature($fixture['scope'])
+        );
+    }
+
+    public function test_completed_legacy_signature_is_adopted_without_rebuilding_rows(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createTextFixture('Legacy Signature Adoption', 3);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+        $published = $this->warmScope($scope);
+        $generation = (string) ($published['published_generation'] ?? '');
+        $this->assertNotSame('', $generation);
+
+        $legacyVersion = '6.7.17';
+        update_option(
+            LL_TOOLS_RECENT_VERSION_HISTORY_OPTION,
+            [$legacyVersion],
+            false
+        );
+        $published['signature'] = ll_tools_flashcard_payload_legacy_dependency_signature(
+            $scope,
+            $legacyVersion
+        );
+        update_option(
+            ll_tools_flashcard_payload_state_option($scopeHash),
+            ll_tools_flashcard_payload_sanitize_state($published),
+            false
+        );
+        wp_cache_delete(ll_tools_flashcard_payload_state_option($scopeHash), 'options');
+
+        $beforeRows = (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_flashcard_payload_table_name()
+                . ' WHERE scope_hash = %s AND generation = %s',
+            $scopeHash,
+            $generation
+        ));
+        $page = ll_tools_flashcard_payload_read_page($scope, '', 10);
+        $this->assertIsArray($page);
+        $this->assertSame($fixture['word_ids'], $this->rowIds((array) ($page['rows'] ?? [])));
+
+        $adopted = ll_tools_get_flashcard_payload_state($scopeHash);
+        $this->assertSame('completed', (string) ($adopted['status'] ?? ''));
+        $this->assertSame($generation, (string) ($adopted['generation'] ?? ''));
+        $this->assertSame($generation, (string) ($adopted['published_generation'] ?? ''));
+        $this->assertSame(
+            ll_tools_flashcard_payload_dependency_signature($scope),
+            (string) ($adopted['signature'] ?? '')
+        );
+        $this->assertSame(
+            $beforeRows,
+            (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_flashcard_payload_table_name()
+                    . ' WHERE scope_hash = %s AND generation = %s',
+                $scopeHash,
+                $generation
+            ))
+        );
+    }
+
+    public function test_unrecognized_legacy_signature_is_not_adopted(): void
+    {
+        $fixture = $this->createTextFixture('Unknown Legacy Signature', 1);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+        $published = $this->warmScope($scope);
+        $oldGeneration = (string) ($published['published_generation'] ?? '');
+
+        update_option(
+            LL_TOOLS_RECENT_VERSION_HISTORY_OPTION,
+            ['6.7.17'],
+            false
+        );
+        $unknownSignature = ll_tools_flashcard_payload_legacy_dependency_signature(
+            $scope,
+            '5.0.0'
+        );
+        $published['signature'] = $unknownSignature;
+        update_option(
+            ll_tools_flashcard_payload_state_option($scopeHash),
+            ll_tools_flashcard_payload_sanitize_state($published),
+            false
+        );
+        wp_cache_delete(ll_tools_flashcard_payload_state_option($scopeHash), 'options');
+
+        $adoption = ll_tools_flashcard_payload_maybe_adopt_legacy_signature(
+            $scope,
+            ll_tools_flashcard_payload_dependency_signature($scope),
+            ll_tools_get_flashcard_payload_state($scopeHash)
+        );
+        $this->assertSame($unknownSignature, (string) ($adoption['signature'] ?? ''));
+        $this->assertSame($oldGeneration, (string) ($adoption['generation'] ?? ''));
+
+        $this->assertFalse(ll_tools_flashcard_payload_ensure_ready($scope));
+        $rebuilding = ll_tools_get_flashcard_payload_state($scopeHash);
+        $this->assertSame('running', (string) ($rebuilding['status'] ?? ''));
+        $this->assertNotSame($oldGeneration, (string) ($rebuilding['generation'] ?? ''));
+    }
+
+    public function test_legacy_signature_adoption_defers_to_an_active_scope_lock(): void
+    {
+        $fixture = $this->createTextFixture('Locked Legacy Signature', 1);
+        $scope = $fixture['scope'];
+        $scopeHash = (string) $scope['scope_hash'];
+        $published = $this->warmScope($scope);
+        $generation = (string) ($published['published_generation'] ?? '');
+        $legacyVersion = '6.7.17';
+
+        update_option(
+            LL_TOOLS_RECENT_VERSION_HISTORY_OPTION,
+            [$legacyVersion],
+            false
+        );
+        $legacySignature = ll_tools_flashcard_payload_legacy_dependency_signature(
+            $scope,
+            $legacyVersion
+        );
+        $published['signature'] = $legacySignature;
+        update_option(
+            ll_tools_flashcard_payload_state_option($scopeHash),
+            ll_tools_flashcard_payload_sanitize_state($published),
+            false
+        );
+        wp_cache_delete(ll_tools_flashcard_payload_state_option($scopeHash), 'options');
+
+        $scopeLock = ll_tools_acquire_flashcard_payload_lock($scopeHash, 90);
+        $this->assertTrue((bool) ($scopeLock['acquired'] ?? false));
+        try {
+            $whileLocked = ll_tools_flashcard_payload_maybe_adopt_legacy_signature(
+                $scope,
+                ll_tools_flashcard_payload_dependency_signature($scope),
+                ll_tools_get_flashcard_payload_state($scopeHash)
+            );
+            $this->assertSame($legacySignature, (string) ($whileLocked['signature'] ?? ''));
+            $this->assertSame($generation, (string) ($whileLocked['generation'] ?? ''));
+        } finally {
+            ll_tools_release_flashcard_payload_lock($scopeLock);
+        }
+
+        $this->assertTrue(ll_tools_flashcard_payload_ensure_ready($scope));
+        $adopted = ll_tools_get_flashcard_payload_state($scopeHash);
+        $this->assertSame($generation, (string) ($adopted['generation'] ?? ''));
+        $this->assertSame(
+            ll_tools_flashcard_payload_dependency_signature($scope),
+            (string) ($adopted['signature'] ?? '')
+        );
     }
 
     public function test_public_materialized_page_ajax_redacts_speaker_identifiers(): void
