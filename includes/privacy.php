@@ -83,7 +83,7 @@ if (!function_exists('ll_tools_render_privacy_settings_rows')) {
             <th scope="row"><?php esc_html_e('Learner Progress Privacy:', 'll-tools-text-domain'); ?></th>
             <td>
                 <p class="description">
-                    <?php esc_html_e('LL Tools treats logged-in study progress as core account functionality. No separate consent checkbox is shown for this core feature. Personal learner analytics should be limited to administrators, documented in the site privacy policy, and handled through WordPress export/erase tools.', 'll-tools-text-domain'); ?>
+                    <?php esc_html_e('LL Tools treats logged-in study progress as core account functionality. No separate consent checkbox is shown for this core feature. Personal learner analytics and formative practice results should be limited to administrators and the learner\'s assigned teachers, documented in the site privacy policy, and handled through WordPress export/erase tools.', 'll-tools-text-domain'); ?>
                 </p>
             </td>
         </tr>
@@ -985,7 +985,7 @@ if (!function_exists('ll_tools_add_privacy_policy_content')) {
         $content .= '<p><strong>' . esc_html__('Suggested Text:', 'll-tools-text-domain') . '</strong> ';
         $content .= sprintf(
             /* translators: %d: retention days */
-            esc_html__('When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, and let site administrators review learner progress when needed for site operations. Detailed activity log entries are kept for %d days. Summary progress data remains until your account is deleted or the site erases your LL Tools personal data. You can request an export or erasure of this data through the site’s privacy request tools.', 'll-tools-text-domain'),
+            esc_html__('When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, and let site administrators and teachers assigned through LL Tools classes review the progress and practice results of their learners. Detailed activity log entries are kept for %d days. Summary progress data remains until your account is deleted or the site erases your LL Tools personal data. You can request an export or erasure of this data through the site’s privacy request tools.', 'll-tools-text-domain'),
             $retention_days
         );
         $content .= '</p>';

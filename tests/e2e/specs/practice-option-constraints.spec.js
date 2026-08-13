@@ -1760,7 +1760,16 @@ test('practice mode continues a bounded logical session before emitting final re
   expect(outcome.final.modeSessionCompleteCalls).toBe(1);
   expect(outcome.final.modeSessionCompletePayloads).toEqual([{
     mode: 'practice',
-    categoryIds: [81, 82]
+    categoryIds: [81, 82],
+    payload: {
+      result: {
+        schema: 1,
+        kind: 'practice_first_try',
+        score_given: 1,
+        score_maximum: 2,
+        score_basis: 'first_try_distinct_words'
+      }
+    }
   }]);
   expect(outcome.final.modeSessionCompleteTracked).toBe(true);
   expect(outcome.final.progressFlushCalls).toBe(1);
