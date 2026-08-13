@@ -525,10 +525,26 @@ function ll_tools_dictionary_prepare_lookup_value(string $value): string {
         return '';
     }
 
-    if (function_exists('mb_substr')) {
+    global $wpdb;
+    $connection_charset = is_object($wpdb) && isset($wpdb->charset)
+        ? strtolower(trim((string) $wpdb->charset))
+        : '';
+    $connection_charset = str_replace(['-', '_'], '', $connection_charset);
+    $connection_uses_raw_utf8_byte_width = $connection_charset === 'latin1';
+
+    if (!$connection_uses_raw_utf8_byte_width && function_exists('mb_substr')) {
         $value = mb_substr($value, 0, 191, 'UTF-8');
+    } elseif (!$connection_uses_raw_utf8_byte_width && preg_match('/^.{0,191}/us', $value, $matches) === 1) {
+        $value = (string) ($matches[0] ?? '');
+    } elseif (function_exists('mb_strcut')) {
+        // A latin1 connection counts the raw UTF-8 bytes as connection
+        // characters. Cap those bytes without cutting through a Unicode scalar.
+        $value = mb_strcut($value, 0, 191, 'UTF-8');
     } else {
         $value = substr($value, 0, 191);
+        while ($value !== '' && preg_match('//u', $value) !== 1) {
+            $value = substr($value, 0, -1);
+        }
     }
 
     return trim((string) $value);
