@@ -96,7 +96,10 @@
     const mainCategorySearchCache = {};
     const mainCategorySearchFailedQueries = {};
     const mainCategorySearchErrorQueries = {};
-    const mainCategorySearchRetryCounts = {};
+    const mainCategorySearchFailureStatuses = {};
+    const mainCategorySearchPreparationRetryCounts = {};
+    const mainCategorySearchTransientRetryCounts = {};
+    const mainCategorySearchPreparationStartedAt = {};
     let mainCategorySort = 'default';
     let mainCategorySortMenuOpen = false;
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
@@ -587,9 +590,23 @@
     const categorySearchToken = String(categorySearchCfg.token || '');
     const categorySearchWordsetId = Math.max(0, parseInt(categorySearchCfg.wordsetId, 10) || wordsetId || 0);
     const categorySearchMinQueryLength = Math.max(1, parseInt(categorySearchCfg.minQueryLength, 10) || 1);
-    const categorySearchMaxRetries = Math.max(1, Math.min(120, parseInt(categorySearchCfg.maxRetries, 10) || 6));
+    const categorySearchMaxRetries = Math.max(1, Math.min(120, parseInt(categorySearchCfg.maxRetries, 10) || 120));
+    const categorySearchTransientMaxRetries = Math.max(1, Math.min(3, parseInt(categorySearchCfg.transientMaxRetries, 10) || 2));
+    const categorySearchPreparationRetryWindowMs = Math.max(
+        1000,
+        Math.min(180000, parseInt(categorySearchCfg.preparationRetryWindowMs, 10) || 120000)
+    );
+    const categorySearchRequestTimeoutMs = Math.max(
+        10000,
+        Math.min(15000, parseInt(categorySearchCfg.requestTimeoutMs, 10) || 12000)
+    );
     const categorySearchRetryBaseMs = Math.max(10, Math.min(2000, parseInt(categorySearchCfg.retryBaseMs, 10) || 250));
     const categorySearchEnabled = !!categorySearchCfg.enabled && !!ajaxUrl && !!categorySearchNonce && !!categorySearchToken && !!categorySearchWordsetId;
+    const categorySearchRecoveryMaxAgeMs = 2 * 60 * 1000;
+    const categorySearchRecoveryQueryKey = 'll_category_search_recovery';
+    const categorySearchRecoveryQueryValue = '1';
+    const categorySearchRecoveryStorageKey = 'llToolsWordsetCategorySearchRecovery:v1:' + String(categorySearchWordsetId);
+    const categorySearchRecoveryReloadKey = categorySearchRecoveryStorageKey + ':reload';
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
@@ -8237,6 +8254,121 @@
         return normalizeSearchText(query || '');
     }
 
+    function getMainCategorySearchRecoveryPath() {
+        return String(window.location.pathname || '');
+    }
+
+    function getMainCategorySearchRecoveryUrl() {
+        const recoveryUrl = new URL(window.location.href);
+        recoveryUrl.search = '';
+        recoveryUrl.hash = '';
+        recoveryUrl.searchParams.set(categorySearchRecoveryQueryKey, categorySearchRecoveryQueryValue);
+        return recoveryUrl.href;
+    }
+
+    function removeMainCategorySearchRecoveryMarkerFromUrl() {
+        if (!window.history || typeof window.history.replaceState !== 'function') {
+            return;
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get(categorySearchRecoveryQueryKey) !== categorySearchRecoveryQueryValue) {
+                return;
+            }
+            url.searchParams.delete(categorySearchRecoveryQueryKey);
+            window.history.replaceState(window.history.state, '', url.href);
+        } catch (_) { /* no-op */ }
+    }
+
+    function navigateMainCategorySearchRecovery() {
+        window.location.assign(getMainCategorySearchRecoveryUrl());
+    }
+
+    function readMainCategorySearchRecoveryRecord(storageKey) {
+        try {
+            const parsed = JSON.parse(String(window.sessionStorage.getItem(storageKey) || ''));
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function removeMainCategorySearchRecoveryRecord(storageKey) {
+        try {
+            window.sessionStorage.removeItem(storageKey);
+        } catch (_) { /* no-op */ }
+    }
+
+    function clearMainCategorySearchRecovery() {
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryReloadKey);
+    }
+
+    function restoreMainCategorySearchRecoveryQuery() {
+        const recovery = readMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        removeMainCategorySearchRecoveryRecord(categorySearchRecoveryStorageKey);
+        if (!recovery) {
+            return '';
+        }
+
+        const storedAt = Math.max(0, parseInt(recovery.storedAt, 10) || 0);
+        const query = String(recovery.query || '').slice(0, 120);
+        if (
+            !storedAt
+            || Date.now() - storedAt < 0
+            || Date.now() - storedAt > categorySearchRecoveryMaxAgeMs
+            || String(recovery.path || '') !== getMainCategorySearchRecoveryPath()
+            || Math.max(0, parseInt(recovery.wordsetId, 10) || 0) !== categorySearchWordsetId
+            || !query.trim()
+        ) {
+            return '';
+        }
+        return query;
+    }
+
+    function reloadMainCategorySearchWithFreshCredentials(query) {
+        const path = getMainCategorySearchRecoveryPath();
+        const now = Date.now();
+        const previousReload = readMainCategorySearchRecoveryRecord(categorySearchRecoveryReloadKey);
+        if (
+            previousReload
+            && String(previousReload.path || '') === path
+            && Math.max(0, parseInt(previousReload.wordsetId, 10) || 0) === categorySearchWordsetId
+            && now - (parseInt(previousReload.storedAt, 10) || 0) >= 0
+            && now - (parseInt(previousReload.storedAt, 10) || 0) < categorySearchRecoveryMaxAgeMs
+        ) {
+            return 'fenced';
+        }
+
+        try {
+            const recovery = {
+                query: String(query || '').slice(0, 120),
+                path: path,
+                wordsetId: categorySearchWordsetId,
+                storedAt: now
+            };
+            const reloadFence = {
+                path: path,
+                wordsetId: categorySearchWordsetId,
+                storedAt: now
+            };
+            window.sessionStorage.setItem(categorySearchRecoveryStorageKey, JSON.stringify(recovery));
+            window.sessionStorage.setItem(categorySearchRecoveryReloadKey, JSON.stringify(reloadFence));
+        } catch (_) {
+            return 'storage-unavailable';
+        }
+        navigateMainCategorySearchRecovery();
+        return 'reloading';
+    }
+
+    function retryMainCategorySearchWithFreshCredentials(query) {
+        const recoveryResult = reloadMainCategorySearchWithFreshCredentials(query);
+        if (recoveryResult === 'storage-unavailable') {
+            navigateMainCategorySearchRecovery();
+        }
+    }
+
     function getMainCategorySearchLookup(query) {
         const key = getMainCategorySearchQueryKey(query);
         if (!key || !Object.prototype.hasOwnProperty.call(mainCategorySearchCache, key)) {
@@ -8384,6 +8516,7 @@
         mainCategorySearchRenderTimer = null;
         clearTimeout(mainCategorySearchLoadingTimer);
         mainCategorySearchLoadingTimer = null;
+        $root.removeClass('is-category-search-filtering');
 
         if (mainCategorySearchRetryTimer) {
             clearTimeout(mainCategorySearchRetryTimer);
@@ -8435,6 +8568,48 @@
         scheduleMainCategorySearchRender({ showLoading: true });
     }
 
+    function getMainCategorySearchRetryAfterSeconds(xhr) {
+        return xhr && typeof xhr.getResponseHeader === 'function'
+            ? Math.max(0, parseInt(xhr.getResponseHeader('Retry-After'), 10) || 0)
+            : 0;
+    }
+
+    function mainCategorySearchFailureRetryClass(xhr, status, responseData) {
+        const payload = (responseData && typeof responseData === 'object') ? responseData : {};
+        if (Object.prototype.hasOwnProperty.call(payload, 'retry')) {
+            return payload.retry ? 'preparation' : '';
+        }
+
+        const httpStatus = Math.max(0, parseInt(xhr && xhr.status, 10) || 0);
+        if (status === 'timeout' || status === 'parsererror') {
+            return 'transport';
+        }
+        if (httpStatus === 0 && xhr) {
+            return 'transport';
+        }
+        if (httpStatus === 429) {
+            return '';
+        }
+        return [408, 425, 500, 502, 503, 504].indexOf(httpStatus) !== -1 ? 'transport' : '';
+    }
+
+    function mainCategorySearchPreparationRetryDelay(key, retryDelay, retryClass) {
+        if (retryClass !== 'preparation') {
+            return retryDelay;
+        }
+
+        const now = Date.now();
+        if (!Object.prototype.hasOwnProperty.call(mainCategorySearchPreparationStartedAt, key)) {
+            mainCategorySearchPreparationStartedAt[key] = now;
+        }
+        const elapsed = Math.max(0, now - mainCategorySearchPreparationStartedAt[key]);
+        const remaining = Math.max(0, categorySearchPreparationRetryWindowMs - elapsed);
+        if (remaining <= 0) {
+            return -1;
+        }
+        return Math.min(retryDelay, remaining);
+    }
+
     function requestMainCategorySearchMatches(query) {
         const key = getMainCategorySearchQueryKey(query || '');
         if (
@@ -8459,19 +8634,23 @@
             return true;
         }
 
-        if (mainCategorySearchRequest && typeof mainCategorySearchRequest.abort === 'function') {
+        const previousRequest = mainCategorySearchRequest;
+        const requestToken = ++mainCategorySearchRequestToken;
+        mainCategorySearchRequest = null;
+        mainCategorySearchPendingQuery = '';
+        if (previousRequest && typeof previousRequest.abort === 'function') {
             try {
-                mainCategorySearchRequest.abort();
+                previousRequest.abort();
             } catch (_) { /* no-op */ }
         }
 
-        const requestToken = ++mainCategorySearchRequestToken;
         let retryScheduled = false;
         mainCategorySearchPendingQuery = key;
         mainCategorySearchRequest = $.ajax({
             url: ajaxUrl,
             method: 'POST',
             dataType: 'json',
+            timeout: categorySearchRequestTimeoutMs,
             data: {
                 action: 'll_tools_wordset_page_category_search',
                 nonce: categorySearchNonce,
@@ -8490,6 +8669,7 @@
             if (!payload) {
                 mainCategorySearchFailedQueries[key] = true;
                 mainCategorySearchErrorQueries[key] = true;
+                mainCategorySearchFailureStatuses[key] = 0;
                 return;
             }
 
@@ -8504,9 +8684,13 @@
                 wordMatches: normalizeMainCategorySearchWordMatches(payload.wordMatches || payload.word_matches || {})
             };
             mainCategorySearchCache[key] = cachedSearch;
-            delete mainCategorySearchRetryCounts[key];
+            clearMainCategorySearchRecovery();
+            delete mainCategorySearchPreparationRetryCounts[key];
+            delete mainCategorySearchTransientRetryCounts[key];
+            delete mainCategorySearchPreparationStartedAt[key];
             delete mainCategorySearchFailedQueries[key];
             delete mainCategorySearchErrorQueries[key];
+            delete mainCategorySearchFailureStatuses[key];
             if (responseKey && responseKey !== key) {
                 mainCategorySearchCache[responseKey] = cachedSearch;
             }
@@ -8521,17 +8705,25 @@
                 && typeof xhr.responseJSON.data === 'object'
                 ? xhr.responseJSON.data
                 : {};
-            const shouldRetry = !!responseData.retry;
-            const retryCount = parseInt(mainCategorySearchRetryCounts[key], 10) || 0;
             const currentKey = getMainCategorySearchQueryKey(mainCategorySearchQuery || '');
-            if (shouldRetry && retryCount < categorySearchMaxRetries && currentKey === key) {
-                const retryAfterHeader = xhr && typeof xhr.getResponseHeader === 'function'
-                    ? parseInt(xhr.getResponseHeader('Retry-After'), 10) || 0
-                    : 0;
-                const retryDelay = retryAfterHeader > 0
-                    ? Math.min(5000, retryAfterHeader * 1000)
-                    : Math.min(3000, categorySearchRetryBaseMs * Math.pow(1.6, retryCount));
-                mainCategorySearchRetryCounts[key] = retryCount + 1;
+            if (currentKey !== key) {
+                return;
+            }
+            const retryAfterHeader = getMainCategorySearchRetryAfterSeconds(xhr);
+            const retryClass = mainCategorySearchFailureRetryClass(xhr, status, responseData);
+            const retryCounts = retryClass === 'preparation'
+                ? mainCategorySearchPreparationRetryCounts
+                : mainCategorySearchTransientRetryCounts;
+            const retryLimit = retryClass === 'preparation'
+                ? categorySearchMaxRetries
+                : categorySearchTransientMaxRetries;
+            const retryCount = parseInt(retryCounts[key], 10) || 0;
+            let retryDelay = retryAfterHeader > 0
+                ? Math.min(5000, retryAfterHeader * 1000)
+                : Math.min(3000, categorySearchRetryBaseMs * Math.pow(1.6, retryCount));
+            retryDelay = mainCategorySearchPreparationRetryDelay(key, retryDelay, retryClass);
+            if (retryClass && retryCount < retryLimit && retryDelay >= 0) {
+                retryCounts[key] = retryCount + 1;
                 mainCategorySearchRetryQuery = key;
                 retryScheduled = true;
                 mainCategorySearchRetryTimer = setTimeout(function () {
@@ -8548,6 +8740,7 @@
 
             mainCategorySearchFailedQueries[key] = true;
             mainCategorySearchErrorQueries[key] = true;
+            mainCategorySearchFailureStatuses[key] = Math.max(0, parseInt(xhr && xhr.status, 10) || 0);
         }).always(function () {
             if (requestToken !== mainCategorySearchRequestToken) {
                 return;
@@ -10853,18 +11046,22 @@
         clearTimeout(mainCategorySearchLoadingTimer);
 
         if (shouldShowLoading) {
+            // The filter transition is brief; async index warming must leave provisional matches usable.
+            $root.addClass('is-category-search-filtering');
             setMainCategorySearchLoading(true, { showSpinner: false });
             mainCategorySearchLoadingTimer = setTimeout(function () {
                 if (token !== mainCategorySearchRenderToken) { return; }
                 setMainCategorySearchLoading(true, { showSpinner: true });
             }, 80);
         } else {
+            $root.removeClass('is-category-search-filtering');
             setMainCategorySearchLoading(false);
         }
 
         mainCategorySearchRenderTimer = setTimeout(function () {
             if (token !== mainCategorySearchRenderToken) { return; }
             const result = renderMainCategorySearch({ keepLoading: shouldShowLoading });
+            $root.removeClass('is-category-search-filtering');
             clearTimeout(mainCategorySearchLoadingTimer);
             mainCategorySearchLoadingTimer = null;
             if (!result || !result.searchRequestPending) {
@@ -13881,6 +14078,7 @@
         {
             const publicWarmingMaxRetries = 2;
             const payloadWarmingMaxRetries = 60;
+            const transportMaxRetries = 2;
             const publicRetryDelayMs = function (xhr) {
                 let retryAfter = 0;
                 const responseData = xhr
@@ -13895,11 +14093,47 @@
                 }
                 return Math.max(250, Math.min(5000, retryAfter > 0 ? retryAfter * 1000 : 1000));
             };
-            const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount) {
+            const transportRetryDelayMs = function (xhr, attempt) {
+                let retryAfter = 0;
+                if (xhr && typeof xhr.getResponseHeader === 'function') {
+                    retryAfter = Number(xhr.getResponseHeader('Retry-After') || 0);
+                }
+                if (retryAfter > 0) {
+                    return Math.max(250, Math.min(5000, retryAfter * 1000));
+                }
+                return Math.min(3000, 500 * Math.pow(2, Math.max(0, parseInt(attempt, 10) || 0)));
+            };
+            const isTransientTransportFailure = function (xhr, textStatus) {
+                if (xhr && xhr.llToolsLaunchCanceled) {
+                    return false;
+                }
+                const statusText = String(textStatus || '').toLowerCase();
+                if (statusText === 'abort') {
+                    return false;
+                }
+                if (statusText === 'timeout' || statusText === 'parsererror') {
+                    return true;
+                }
+                const status = Number(xhr && xhr.status);
+                return status === 0 || [408, 425, 500, 502, 503, 504].indexOf(status) !== -1;
+            };
+            const waitForPublicRetry = function (delayMs) {
+                const delay = $.Deferred();
+                window.setTimeout(function () {
+                    if (isRequestCurrent()) {
+                        delay.resolve();
+                    } else {
+                        delay.reject({ status: 0, llToolsLaunchCanceled: true }, 'abort', 'abort');
+                    }
+                }, delayMs);
+                return delay.promise();
+            };
+            const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount, transportAttempt) {
                 if (!isRequestCurrent()) {
                     return rejectStaleRequest();
                 }
                 const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
+                const transportAttemptNumber = Math.max(0, parseInt(transportAttempt, 10) || 0);
                 const rows = Array.isArray(accumulatedRows) ? accumulatedRows : [];
                 const restarts = Math.max(0, parseInt(restartCount, 10) || 0);
                 const rawRequest = $.post(ajaxUrl, payload);
@@ -13925,7 +14159,7 @@
                         const nextCursor = String(res.data.next_cursor || '').trim();
                         if (nextCursor) {
                             const nextPayload = Object.assign({}, payload, { cursor: nextCursor });
-                            return requestPublicCategory(nextPayload, 0, mergedRows, restarts);
+                            return requestPublicCategory(nextPayload, 0, mergedRows, restarts, 0);
                         }
                         return {
                             success: true,
@@ -13933,7 +14167,7 @@
                         };
                     }
                     return res;
-                }, function (xhr) {
+                }, function (xhr, textStatus) {
                     if (!isRequestCurrent()) {
                         return rejectStaleRequest();
                     }
@@ -13951,12 +14185,14 @@
                         ? payloadWarmingMaxRetries
                         : publicWarmingMaxRetries;
                     if (isWarming && attemptNumber < retryLimit) {
-                        const delay = $.Deferred();
-                        window.setTimeout(function () {
-                            delay.resolve();
-                        }, publicRetryDelayMs(xhr));
-                        return delay.promise().then(function () {
-                            return requestPublicCategory(payload, attemptNumber + 1, rows, restarts);
+                        return waitForPublicRetry(publicRetryDelayMs(xhr)).then(function () {
+                            return requestPublicCategory(
+                                payload,
+                                attemptNumber + 1,
+                                rows,
+                                restarts,
+                                transportAttemptNumber
+                            );
                         });
                     }
                     if (
@@ -13966,7 +14202,21 @@
                     ) {
                         const restartPayload = Object.assign({}, payload);
                         delete restartPayload.cursor;
-                        return requestPublicCategory(restartPayload, 0, [], restarts + 1);
+                        return requestPublicCategory(restartPayload, 0, [], restarts + 1, 0);
+                    }
+                    if (
+                        isTransientTransportFailure(xhr, textStatus)
+                        && transportAttemptNumber < transportMaxRetries
+                    ) {
+                        return waitForPublicRetry(transportRetryDelayMs(xhr, transportAttemptNumber)).then(function () {
+                            return requestPublicCategory(
+                                payload,
+                                attemptNumber,
+                                rows,
+                                restarts,
+                                transportAttemptNumber + 1
+                            );
+                        });
                     }
 
                     const rejected = $.Deferred();
@@ -14010,7 +14260,7 @@
                         publicPayload.option_pool_limit = '12';
                     }
 
-                    return requestPublicCategory(publicPayload, 0, [], 0).then(function (res) {
+                    return requestPublicCategory(publicPayload, 0, [], 0, 0).then(function (res) {
                         if (res && res.success && Array.isArray(res.data)) {
                             if (candidateWordIds.length) {
                                 setCandidateScopedWords(categoryId, candidateWordIds, res.data);
@@ -14025,6 +14275,11 @@
                                 return rejected.promise();
                             }
                             setCandidateScopedWords(categoryId, candidateWordIds, []);
+                        } else if (rejectOnFailure) {
+                            delete wordsByCategory[categoryId];
+                            const rejected = $.Deferred();
+                            rejected.reject(res);
+                            return rejected.promise();
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
@@ -14038,6 +14293,8 @@
                             } else {
                                 setCandidateScopedWords(categoryId, candidateWordIds, []);
                             }
+                        } else if (rejectOnFailure) {
+                            delete wordsByCategory[categoryId];
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
@@ -17140,6 +17397,7 @@
         };
         const withSelectionLaunchGuards = function (options) {
             return Object.assign({}, (options && typeof options === 'object') ? options : {}, {
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                 launchToken: launchToken,
                 isLaunchCurrent: isSelectionLaunchCurrent
             });
@@ -17215,6 +17473,7 @@
             && (criteriaKey !== '' || selectedIds.length > 8);
         if (shouldUseBoundedSelectionPlan) {
             requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode, {
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                 onRequest: noteSelectionLaunchRequest
             }).done(function (serverPlan) {
                 if (!isSelectionLaunchCurrent()) {
@@ -17279,6 +17538,7 @@
                         star_mode: 'normal',
                         details: launchDetails,
                         category_label_override: boundedCategoryLabelOverride,
+                        request_timeout_ms: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                         bounded_selection_plan: true,
                         continuous: true
                     };
@@ -17359,11 +17619,13 @@
         }
 
         ensureWordsForCategories(selectedIds, {
+            requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+            rejectOnFailure: true,
             isRequestCurrent: function () {
                 return isSelectionLaunchCurrent();
             },
             onRequest: noteSelectionLaunchRequest
-        }).always(function () {
+        }).done(function () {
             if (!isSelectionLaunchCurrent()) {
                 return;
             }
@@ -17473,6 +17735,14 @@
                 details: launchDetails,
                 launchUi: launchUi
             }));
+        }).fail(function (_xhr, statusText) {
+            if (!isSelectionLaunchCurrent()) {
+                return;
+            }
+            if (String(statusText || '').toLowerCase() === 'abort') {
+                return;
+            }
+            abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');
         });
     }
 
@@ -17765,6 +18035,11 @@
         });
 
         if ($mainCategorySearchInput.length) {
+            removeMainCategorySearchRecoveryMarkerFromUrl();
+            const recoveredQuery = restoreMainCategorySearchRecoveryQuery();
+            if (recoveredQuery) {
+                $mainCategorySearchInput.val(recoveredQuery);
+            }
             mainCategorySearchQuery = String($mainCategorySearchInput.val() || '');
             syncMainCategorySearchClearButton();
             renderMainCategorySearch();
@@ -17872,9 +18147,17 @@
             if (!key) {
                 return;
             }
+            const failureStatus = Math.max(0, parseInt(mainCategorySearchFailureStatuses[key], 10) || 0);
+            if (failureStatus === 403 || failureStatus === 410) {
+                retryMainCategorySearchWithFreshCredentials(mainCategorySearchQuery);
+                return;
+            }
             delete mainCategorySearchFailedQueries[key];
             delete mainCategorySearchErrorQueries[key];
-            delete mainCategorySearchRetryCounts[key];
+            delete mainCategorySearchFailureStatuses[key];
+            delete mainCategorySearchPreparationRetryCounts[key];
+            delete mainCategorySearchTransientRetryCounts[key];
+            delete mainCategorySearchPreparationStartedAt[key];
             if (mainCategorySearchRetryTimer && mainCategorySearchRetryQuery === key) {
                 clearTimeout(mainCategorySearchRetryTimer);
                 mainCategorySearchRetryTimer = null;
@@ -18857,16 +19140,18 @@
         }
 
         const slug = String($placeholder.attr('data-recorder-queue-category') || '');
-        const categoryName = String($placeholder.attr('data-recorder-queue-category-name') || slug);
+        const loadingLabel = String(i18n.recorderQueueLoadingCategory || i18n.recorderQueueLoading || '');
         const retries = String($placeholder.attr('data-ll-recorder-queue-summary-retries') || '');
         const $card = $('<article>')
             .addClass('ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading')
             .attr({
                 'data-recorder-queue-category': slug,
-                'data-recorder-queue-category-name': categoryName,
                 'data-ll-recorder-queue-summary-placeholder': 'true',
                 'aria-busy': 'true'
             });
+        if (loadingLabel) {
+            $card.attr('aria-label', loadingLabel);
+        }
         if (retries) {
             $card.attr('data-ll-recorder-queue-summary-retries', retries);
         }
@@ -18874,8 +19159,8 @@
         const $top = $('<span>').addClass('ll-wordset-card__top ll-wordset-recorder-queue-category-card__top');
         $top.append(
             $('<span>')
-                .addClass('ll-wordset-card__title ll-wordset-recorder-queue-category__name')
-                .text(categoryName),
+                .addClass('ll-wordset-card__title ll-wordset-recorder-queue-category__name ll-wordset-recorder-queue-category-card__title-skeleton')
+                .attr('aria-hidden', 'true'),
             $('<span>')
                 .addClass('ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton')
                 .attr('aria-hidden', 'true')

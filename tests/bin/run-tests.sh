@@ -294,6 +294,11 @@ ensure_wordpress_test_framework() {
     if [[ ! -f "$core_settings" ]]; then
         needs_install=1
     fi
+    # Single-site bootstrap does not touch the network query classes, so an
+    # interrupted core download can look healthy until the first multisite run.
+    if [[ ! -f "$core_includes/class-wp-site-query.php" || ! -f "$core_includes/class-wp-network-query.php" ]]; then
+        needs_install=1
+    fi
 
     if [[ "$needs_install" == "1" ]]; then
         echo "WordPress test framework is missing or incomplete." >&2
@@ -385,6 +390,7 @@ phpunit_options=()
 phpunit_targets=()
 phpunit_option_expects_value=0
 user_specified_cache_directory=0
+user_specified_configuration=0
 
 phpunit_option_requires_value() {
     case "$1" in
@@ -406,6 +412,9 @@ for arg in "${normalized_args[@]}"; do
 
     if [[ "$arg" == -* ]]; then
         phpunit_options+=("$arg")
+        if [[ "$arg" == "-c" || "$arg" == "--configuration" || "$arg" == --configuration=* ]]; then
+            user_specified_configuration=1
+        fi
         if [[ "$arg" == "--cache-directory" || "$arg" == --cache-directory=* ]]; then
             user_specified_cache_directory=1
         fi
@@ -418,6 +427,10 @@ for arg in "${normalized_args[@]}"; do
 done
 
 phpunit_runtime_args=()
+phpunit_configuration_args=()
+if [[ "$user_specified_configuration" != "1" ]]; then
+    phpunit_configuration_args=(-c "$TESTS_DIR/phpunit.xml.dist")
+fi
 if [[ "$user_specified_cache_directory" != "1" ]]; then
     phpunit_cache_root="$(get_phpunit_runtime_cache_root)"
     mkdir -p "$phpunit_cache_root"
@@ -476,7 +489,7 @@ run_phpunit_once() {
     local phpunit_bin="$1"
     local target="$2"
 
-    "${PHP_LOCAL[@]}" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${phpunit_options[@]}" "$target"
+    "${PHP_LOCAL[@]}" "$phpunit_bin" "${phpunit_configuration_args[@]}" "${phpunit_runtime_args[@]}" "${phpunit_options[@]}" "$target"
 }
 
 phpunit_bin=""
@@ -505,7 +518,7 @@ if [[ "${#phpunit_targets[@]}" -gt 1 ]]; then
     exit 0
 fi
 
-if "${PHP_LOCAL[@]}" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${normalized_args[@]}"; then
+if "${PHP_LOCAL[@]}" "$phpunit_bin" "${phpunit_configuration_args[@]}" "${phpunit_runtime_args[@]}" "${normalized_args[@]}"; then
     exit 0
 else
     status=$?

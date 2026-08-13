@@ -13,6 +13,11 @@
     const gridRequestCache = {};
     let gridCacheGeneration = 0;
     let activeOpenGeneration = 0;
+    let preparedOpenToken = 0;
+    let activePreparedOpen = null;
+    let loadingDialogOpener = null;
+    let loadingDialogIsolation = [];
+    let loadingDialogFocusGuard = false;
 
     function t(key, fallback) {
         const value = i18n[key];
@@ -42,6 +47,84 @@
         return getHost().find(gridSelector).first();
     }
 
+    function restoreLoadingDialogBackground() {
+        loadingDialogIsolation.forEach(function (record) {
+            const element = record && record.element;
+            if (!(element instanceof HTMLElement)) { return; }
+            if (record.hadInert) {
+                element.setAttribute('inert', record.inertValue || '');
+            } else {
+                element.removeAttribute('inert');
+            }
+            if (record.hadAriaHidden) {
+                element.setAttribute('aria-hidden', record.ariaHiddenValue || '');
+            } else {
+                element.removeAttribute('aria-hidden');
+            }
+        });
+        loadingDialogIsolation = [];
+    }
+
+    function isolateLoadingDialogBackground(shell, backdrop) {
+        restoreLoadingDialogBackground();
+        let branch = shell;
+        while (branch instanceof HTMLElement && branch.parentElement) {
+            const parent = branch.parentElement;
+            Array.from(parent.children).forEach(function (sibling) {
+                if (sibling === branch || sibling === backdrop) { return; }
+                loadingDialogIsolation.push({
+                    element: sibling,
+                    hadInert: sibling.hasAttribute('inert'),
+                    inertValue: sibling.getAttribute('inert'),
+                    hadAriaHidden: sibling.hasAttribute('aria-hidden'),
+                    ariaHiddenValue: sibling.getAttribute('aria-hidden')
+                });
+                sibling.setAttribute('inert', '');
+                sibling.setAttribute('aria-hidden', 'true');
+            });
+            if (parent === document.body) { break; }
+            branch = parent;
+        }
+    }
+
+    function restoreLoadingDialogOpener() {
+        const opener = loadingDialogOpener;
+        loadingDialogOpener = null;
+        if (!(opener instanceof HTMLElement) || !opener.isConnected) { return; }
+        try {
+            opener.focus({ preventScroll: true });
+        } catch (_) {
+            opener.focus();
+        }
+    }
+
+    function getVisibleLoadingDialogPanel() {
+        const $shell = getHost().find(loadingSelector).first();
+        if (!$shell.length || $shell.prop('hidden') || $shell.attr('aria-hidden') !== 'false') {
+            return null;
+        }
+        const panel = $shell.find('.ll-word-edit-modal-loading__panel').get(0);
+        return panel instanceof HTMLElement ? panel : null;
+    }
+
+    function focusLoadingDialogPanel(panel) {
+        if (!(panel instanceof HTMLElement)) { return; }
+        try {
+            panel.focus({ preventScroll: true });
+        } catch (_) {
+            panel.focus();
+        }
+    }
+
+    function containLoadingDialogFocus(event) {
+        if (loadingDialogFocusGuard) { return; }
+        const panel = getVisibleLoadingDialogPanel();
+        if (!panel || panel.contains(event.target)) { return; }
+        loadingDialogFocusGuard = true;
+        focusLoadingDialogPanel(panel);
+        loadingDialogFocusGuard = false;
+    }
+
     function buildGridCacheKey(wordId, wordsetId, categoryId) {
         return [
             parseInt(wordsetId, 10) || 0,
@@ -66,7 +149,9 @@
             $('<div>', {
                 class: 'll-word-edit-modal-loading__panel',
                 role: 'dialog',
-                'aria-modal': 'true'
+                'aria-modal': 'true',
+                'aria-label': t('loadingDialogLabel', 'Loading word editor'),
+                tabindex: '-1'
             }).append(
                 $('<span>', { class: 'll-word-edit-modal-loading__spinner', 'aria-hidden': 'true' }),
                 $('<span>', {
@@ -79,11 +164,104 @@
         return $shell;
     }
 
-    function setLoadingShellVisible($host, visible) {
+    function setLoadingShellVisible($host, visible, options) {
         const $shell = ensureLoadingShell($host);
         const show = !!visible;
+        const settings = (options && typeof options === 'object') ? options : {};
+        const wasVisible = !$shell.prop('hidden') && $shell.attr('aria-hidden') === 'false';
         $shell.prop('hidden', !show).attr('aria-hidden', show ? 'false' : 'true');
         $('body').toggleClass('ll-word-edit-modal-loading-open', show);
+        if (show && !wasVisible) {
+            loadingDialogOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            const shell = $shell.get(0);
+            const backdrop = $shell.find('.ll-word-edit-modal-loading__backdrop').get(0);
+            isolateLoadingDialogBackground(shell, backdrop);
+            focusLoadingDialogPanel($shell.find('.ll-word-edit-modal-loading__panel').get(0));
+        } else if (!show && wasVisible) {
+            restoreLoadingDialogBackground();
+            if (settings.restoreFocus !== false) {
+                restoreLoadingDialogOpener();
+            }
+        }
+    }
+
+    $(document).on('focusin.llWordEditLoadingDialog', containLoadingDialogFocus);
+    $(document).on('keydown.llWordEditLoadingDialog', function (event) {
+        if (!event || event.key !== 'Tab') { return; }
+        const panel = getVisibleLoadingDialogPanel();
+        if (!panel) { return; }
+        event.preventDefault();
+        focusLoadingDialogPanel(panel);
+    });
+
+    function normalizeOpenSettings(options) {
+        const settings = (options && typeof options === 'object') ? options : {};
+        return {
+            wordId: parseInt(settings.wordId || settings.word_id, 10) || 0,
+            wordsetId: parseInt(settings.wordsetId || settings.wordset_id, 10) || 0,
+            recordingId: parseInt(settings.recordingId || settings.recording_id, 10) || 0,
+            categoryId: parseInt(settings.categoryId || settings.category_id, 10) || 0,
+            loadingToken: parseInt(settings.loadingToken || settings.loading_token, 10) || 0,
+            forceLoading: !!(settings.forceLoading || settings.force_loading)
+        };
+    }
+
+    function preparedOpenMatches(entry, settings) {
+        return !!entry
+            && entry.token === settings.loadingToken
+            && entry.wordId === settings.wordId
+            && entry.wordsetId === settings.wordsetId
+            && entry.recordingId === settings.recordingId
+            && entry.categoryId === settings.categoryId;
+    }
+
+    function prepareWordEditor(options) {
+        const settings = normalizeOpenSettings(options);
+        const $host = getHost();
+        if (!settings.wordId || !settings.wordsetId || !ajaxUrl || !nonce || !$host.length || !getHostGrid().length) {
+            return 0;
+        }
+
+        const cacheKey = buildGridCacheKey(settings.wordId, settings.wordsetId, settings.categoryId);
+        const token = ++preparedOpenToken;
+        const openGeneration = ++activeOpenGeneration;
+        activePreparedOpen = {
+            token: token,
+            openGeneration: openGeneration,
+            wordId: settings.wordId,
+            wordsetId: settings.wordsetId,
+            recordingId: settings.recordingId,
+            categoryId: settings.categoryId,
+            cacheKey: cacheKey
+        };
+
+        $host.attr('aria-busy', 'true').attr('data-ll-word-edit-modal-loading', '1');
+        if (settings.forceLoading || !gridResponseCache[cacheKey]) {
+            setLoadingShellVisible($host, true);
+        } else {
+            setLoadingShellVisible($host, false);
+        }
+        $(document).trigger('lltools:word-edit-modal-loading', [{
+            wordId: settings.wordId,
+            wordsetId: settings.wordsetId,
+            recordingId: settings.recordingId
+        }]);
+
+        return token;
+    }
+
+    function cancelPreparedWordEditor(token) {
+        const safeToken = parseInt(token, 10) || 0;
+        if (!activePreparedOpen || !safeToken || activePreparedOpen.token !== safeToken) {
+            return false;
+        }
+
+        activePreparedOpen = null;
+        activeOpenGeneration += 1;
+        const $host = getHost();
+        setLoadingShellVisible($host, false);
+        $host.removeAttr('aria-busy').removeAttr('data-ll-word-edit-modal-loading');
+        return true;
     }
 
     function syncElementAttributes(source, target) {
@@ -248,11 +426,11 @@
     }
 
     function openWordEditor(options) {
-        const settings = (options && typeof options === 'object') ? options : {};
-        const wordId = parseInt(settings.wordId || settings.word_id, 10) || 0;
-        const wordsetId = parseInt(settings.wordsetId || settings.wordset_id, 10) || 0;
-        const recordingId = parseInt(settings.recordingId || settings.recording_id, 10) || 0;
-        const categoryId = parseInt(settings.categoryId || settings.category_id, 10) || 0;
+        const settings = normalizeOpenSettings(options);
+        const wordId = settings.wordId;
+        const wordsetId = settings.wordsetId;
+        const recordingId = settings.recordingId;
+        const categoryId = settings.categoryId;
         const $host = getHost();
 
         if (!wordId || !wordsetId || !ajaxUrl || !nonce) {
@@ -262,18 +440,23 @@
             return Promise.reject(new Error(t('missingHost', 'Word editor modal is not available on this page.')));
         }
 
-        const cacheKey = buildGridCacheKey(wordId, wordsetId, categoryId);
-        const openGeneration = ++activeOpenGeneration;
-        const hasCachedResponse = !!gridResponseCache[cacheKey];
-        $host.attr('aria-busy', 'true').attr('data-ll-word-edit-modal-loading', '1');
-        if (!hasCachedResponse) {
-            setLoadingShellVisible($host, true);
+        let prepared = preparedOpenMatches(activePreparedOpen, settings) ? activePreparedOpen : null;
+        if (!prepared && settings.loadingToken) {
+            const stalePreparationError = new Error(t('openError', 'Unable to open the word editor.'));
+            stalePreparationError.code = 'll_word_edit_modal_stale_preparation';
+            return Promise.reject(stalePreparationError);
         }
-        $(document).trigger('lltools:word-edit-modal-loading', [{
-            wordId: wordId,
-            wordsetId: wordsetId,
-            recordingId: recordingId
-        }]);
+        if (!prepared) {
+            const loadingToken = prepareWordEditor(settings);
+            const preparedSettings = $.extend({}, settings, { loadingToken: loadingToken });
+            prepared = preparedOpenMatches(activePreparedOpen, preparedSettings) ? activePreparedOpen : null;
+        }
+        if (!prepared) {
+            return Promise.reject(new Error(t('missingHost', 'Word editor modal is not available on this page.')));
+        }
+
+        activePreparedOpen = null;
+        const openGeneration = prepared.openGeneration;
 
         return requestGridData(wordId, wordsetId, categoryId).then(function (data) {
             if (openGeneration !== activeOpenGeneration) {
@@ -331,6 +514,8 @@
     }
 
     window.LLToolsWordEditModal = window.LLToolsWordEditModal || {};
+    window.LLToolsWordEditModal.prepare = prepareWordEditor;
+    window.LLToolsWordEditModal.cancelPrepared = cancelPreparedWordEditor;
     window.LLToolsWordEditModal.open = openWordEditor;
     $(document).on(
         'lltools:word-grid-word-updated.llToolsWordEditModal lltools:word-grid-word-deleted.llToolsWordEditModal lltools:word-grid-recording-deleted.llToolsWordEditModal lltools:word-grid-recording-moved.llToolsWordEditModal lltools:internal-review-note-updated.llToolsWordEditModal',

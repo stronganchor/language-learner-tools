@@ -130,13 +130,27 @@ function ll_tools_get_category_card_reference_link($category, ?bool &$complete =
     ];
 }
 
-function ll_tools_resolve_word_category_term($category): ?WP_Term {
+/**
+ * Resolve a word-category reference and report whether every required read completed.
+ *
+ * @param mixed     $category Category term object, term ID, slug, or display name.
+ * @param bool|null $complete Set false when a database-backed term lookup fails.
+ */
+function ll_tools_resolve_word_category_term($category, ?bool &$complete = null): ?WP_Term {
+    global $wpdb;
+
+    $complete = true;
     if ($category instanceof WP_Term) {
         return ($category->taxonomy === 'word-category') ? $category : null;
     }
 
     if (is_numeric($category)) {
+        $wpdb->last_error = '';
         $term = get_term((int) $category, 'word-category');
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return null;
+        }
         return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
     }
 
@@ -149,17 +163,27 @@ function ll_tools_resolve_word_category_term($category): ?WP_Term {
         return null;
     }
 
+    $wpdb->last_error = '';
     $term = get_term_by('slug', sanitize_title($category), 'word-category');
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return null;
+    }
     if ($term instanceof WP_Term && !is_wp_error($term)) {
         return $term;
     }
 
+    $wpdb->last_error = '';
     $term = get_term_by('name', $category, 'word-category');
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return null;
+    }
     return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
 }
 
-function ll_tools_resolve_word_category_term_id($category): int {
-    $term = ll_tools_resolve_word_category_term($category);
+function ll_tools_resolve_word_category_term_id($category, ?bool &$complete = null): int {
+    $term = ll_tools_resolve_word_category_term($category, $complete);
     return ($term instanceof WP_Term) ? (int) $term->term_id : 0;
 }
 
@@ -717,7 +741,12 @@ function ll_tools_current_user_can_manage_category_privacy(): bool {
 
 function ll_tools_user_can_view_category($category, int $user_id = 0, ?bool &$complete = null): bool {
     $complete = true;
-    $term_id = ll_tools_resolve_word_category_term_id($category);
+    $term_resolution_complete = true;
+    $term_id = ll_tools_resolve_word_category_term_id($category, $term_resolution_complete);
+    if (!$term_resolution_complete) {
+        $complete = false;
+        return false;
+    }
     if ($term_id <= 0) {
         return false;
     }

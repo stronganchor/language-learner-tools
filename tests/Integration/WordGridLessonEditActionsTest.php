@@ -135,6 +135,11 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-word-grid', $html);
         $this->assertStringContainsString('data-word-id="' . (int) $fixture['source_word_id'] . '"', $html);
         $this->assertStringContainsString('data-ll-word-edit-toggle', $html);
+        $this->assertStringContainsString('aria-haspopup="dialog" aria-expanded="false"', $html);
+        $this->assertStringContainsString(
+            'data-ll-word-edit-panel role="dialog" aria-modal="true" aria-label="Edit word" aria-hidden="true" tabindex="-1"',
+            $html
+        );
         $this->assertStringContainsString('data-ll-recording-delete-toggle', $html);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $html);
         $this->assertStringContainsString('Detached Modal Off Page Category', $html);

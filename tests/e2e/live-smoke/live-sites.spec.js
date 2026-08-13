@@ -1,7 +1,13 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
-const { isExpectedCloudflareRumAbort } = require('./network-policy');
+const {
+  isExpectedCloudflareRumAbort,
+  isExpectedCategorySearchWarmingResponse,
+  isPotentialCategorySearchWarmingConsoleError,
+  isExpectedFlashcardPayloadWarmingResponse,
+  isPotentialFlashcardWarmingConsoleError
+} = require('./network-policy');
 
 const DEFAULT_SITES_FILE = path.resolve(__dirname, 'sites.local.json');
 const EXAMPLE_SITES_FILE = path.resolve(__dirname, 'sites.example.json');
@@ -337,6 +343,14 @@ async function navigateViaMostLessonsWordsetButton(page, navigationConfig) {
   const navigationTimeoutMs = navigationConfig.navigationTimeoutMs || 30000;
   const settleMs = navigationConfig.settleMs || 1500;
 
+  // A cold, anonymous wordset-button generation intentionally starts with a
+  // bounded loading shell. Let the page's own status transport publish the
+  // first usable navigation button before choosing the largest wordset.
+  await page.locator(buttonSelector).first().waitFor({
+    state: 'visible',
+    timeout: navigationTimeoutMs
+  }).catch(() => null);
+
   const candidates = await page.locator(buttonSelector).evaluateAll((nodes, selectors) => {
     const { countSelectorValue } = selectors;
 
@@ -542,15 +556,30 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
     () => countVisible(page, '.ll-wordset-card'),
     { timeout: 10000 }
   ).toBe(0);
+  const getSearchOutcome = async () => {
+    if (await isSelectorVisible(page, '[data-ll-wordset-page-search-empty]')) {
+      return 'empty';
+    }
+    if (await isSelectorVisible(page, '[data-ll-wordset-page-search-error]')) {
+      return 'retry';
+    }
+    return 'pending';
+  };
   await expect.poll(
-    () => isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search'),
-    { timeout: 10000 }
-  ).toBe(true);
+    getSearchOutcome,
+    {
+      timeout: 10000,
+      message: 'Wordset no-match search did not settle to a real empty result or an explicit Retry state.'
+    }
+  ).not.toBe('pending');
 
   const noMatchVisibleCardCount = await countVisible(page, '.ll-wordset-card');
-  const emptyVisible = await isSelectorVisible(page, '[data-ll-wordset-page-search-empty], .ll-wordset-empty--search');
+  const searchOutcome = await getSearchOutcome();
   expect(noMatchVisibleCardCount).toBe(0);
-  expect(emptyVisible).toBe(true);
+  expect(
+    searchOutcome,
+    'Wordset search exhausted durable-index warming and exposed Retry instead of a verified no-match result.'
+  ).toBe('empty');
 
   await searchInput.fill('');
   await expect.poll(
@@ -566,6 +595,7 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
     initialVisibleCardCount,
     filteredVisibleCardCount,
     noMatchVisibleCardCount,
+    searchOutcome,
     restoredVisibleCardCount
   };
 }
@@ -635,12 +665,44 @@ if (loadSitesError) {
         expectedSameOriginRequestAborts: [],
         sameOriginRequestFailures: [],
         sameOriginServerErrors: [],
+        sameOriginRateLimitResponses: [],
+        categorySearchResponses: [],
+        categorySearchWarmingResponses: [],
+        categorySearchWarmingConsoleErrors: [],
+        flashcardPayloadResponses: [],
+        flashcardWarmingResponses: [],
+        flashcardWarmingConsoleErrors: [],
         cloudflareCacheChecks: []
       };
 
+      const potentialCategorySearchWarmingConsoleErrors = [];
+      const potentialFlashcardWarmingConsoleErrors = [];
+      const pendingResponseAudits = [];
+
       page.on('console', (message) => {
         if (message.type() === 'error') {
-          summary.consoleErrors.push(message.text());
+          const location = message.location();
+          if (
+            exercise.wordsetSearch
+            && isPotentialCategorySearchWarmingConsoleError(
+              message.text(),
+              String((location && location.url) || ''),
+              siteUrl.origin
+            )
+          ) {
+            potentialCategorySearchWarmingConsoleErrors.push(message.text());
+          } else if (
+            interaction.openSelector
+            && isPotentialFlashcardWarmingConsoleError(
+              message.text(),
+              String((location && location.url) || ''),
+              siteUrl.origin
+            )
+          ) {
+            potentialFlashcardWarmingConsoleErrors.push(message.text());
+          } else {
+            summary.consoleErrors.push(message.text());
+          }
         }
       });
 
@@ -698,6 +760,54 @@ if (loadSitesError) {
           }
         } catch (_) {
           return;
+        }
+        const requestDetails = parseRequestDetails(response.request());
+        if (response.status() === 429) {
+          summary.sameOriginRateLimitResponses.push({
+            status: response.status(),
+            url: response.url(),
+            method: requestDetails.method,
+            pathname: requestDetails.pathname,
+            adminAjaxAction: requestDetails.adminAjaxAction
+          });
+        }
+        if (
+          exercise.wordsetSearch
+          && requestDetails.adminAjaxAction === 'll_tools_wordset_page_category_search'
+        ) {
+          const responseDetails = {
+            status: response.status(),
+            url: response.url()
+          };
+          summary.categorySearchResponses.push(responseDetails);
+          if (isExpectedCategorySearchWarmingResponse(requestDetails, response.status())) {
+            summary.categorySearchWarmingResponses.push(responseDetails);
+            return;
+          }
+        }
+        if (
+          interaction.openSelector
+          && requestDetails.adminAjaxAction === 'll_get_flashcard_payload_page'
+        ) {
+          const responseDetails = {
+            status: response.status(),
+            url: response.url()
+          };
+          summary.flashcardPayloadResponses.push(responseDetails);
+          if (response.status() === 429) {
+            const responseAudit = response.json().then((payload) => {
+              if (isExpectedFlashcardPayloadWarmingResponse(
+                requestDetails,
+                response.status(),
+                payload
+              )) {
+                summary.flashcardWarmingResponses.push(Object.assign({}, responseDetails, {
+                  code: 'cache_warming'
+                }));
+              }
+            }).catch(() => null);
+            pendingResponseAudits.push(responseAudit);
+          }
         }
         if (response.status() >= 500) {
           summary.sameOriginServerErrors.push({
@@ -791,6 +901,51 @@ if (loadSitesError) {
 
       if (interaction.openSelector) {
         summary.popupExercise = await exercisePopupOpenClose(page, interaction);
+      }
+
+      await Promise.all(pendingResponseAudits);
+
+      const categorySearchRecovered = summary.categorySearchResponses.some((item) => (
+        item.status >= 200 && item.status < 300
+      ));
+      if (summary.categorySearchWarmingResponses.length > 0 && categorySearchRecovered) {
+        summary.categorySearchWarmingConsoleErrors = potentialCategorySearchWarmingConsoleErrors.slice();
+      } else {
+        summary.consoleErrors.push(...potentialCategorySearchWarmingConsoleErrors);
+      }
+      if (summary.categorySearchWarmingResponses.length > 0) {
+        expect(
+          categorySearchRecovered,
+          'Retryable category-search preparation responses never recovered to a successful response.'
+        ).toBe(true);
+      }
+
+      const flashcardPayloadRecovered = summary.flashcardPayloadResponses.some((item) => (
+        item.status >= 200 && item.status < 300
+      ));
+      const onlyExpectedFlashcardWarmingRateLimits = summary.sameOriginRateLimitResponses.length > 0
+        && summary.sameOriginRateLimitResponses.length === summary.flashcardWarmingResponses.length;
+      if (
+        summary.flashcardWarmingResponses.length > 0
+        && flashcardPayloadRecovered
+        && summary.popupExercise
+        && onlyExpectedFlashcardWarmingRateLimits
+      ) {
+        summary.flashcardWarmingConsoleErrors = potentialFlashcardWarmingConsoleErrors.slice();
+      } else {
+        summary.consoleErrors.push(...potentialFlashcardWarmingConsoleErrors);
+      }
+      if (summary.flashcardWarmingResponses.length > 0) {
+        expect(
+          flashcardPayloadRecovered,
+          'Retryable flashcard-payload warming responses never recovered to a successful response.'
+        ).toBe(true);
+      }
+      if (summary.sameOriginRateLimitResponses.length > 0) {
+        expect(
+          onlyExpectedFlashcardWarmingRateLimits,
+          'A same-origin 429 response was not an exact flashcard cache-warming response.'
+        ).toBe(true);
       }
 
       await attachJson(testInfo, 'summary', summary);

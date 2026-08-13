@@ -381,7 +381,12 @@ ensure_safe_database_target() {
 }
 
 install_wp_core() {
-    if [[ -d "$WP_CORE_DIR/wp-includes" && -f "$WP_CORE_DIR/wp-settings.php" ]]; then
+    if [[
+        -d "$WP_CORE_DIR/wp-includes"
+        && -f "$WP_CORE_DIR/wp-settings.php"
+        && -f "$WP_CORE_DIR/wp-includes/class-wp-site-query.php"
+        && -f "$WP_CORE_DIR/wp-includes/class-wp-network-query.php"
+    ]]; then
         return
     fi
     rm -rf "$WP_CORE_DIR"

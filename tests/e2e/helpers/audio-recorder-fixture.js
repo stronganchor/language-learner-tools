@@ -6,10 +6,53 @@ const recorderJsSource = fs.readFileSync(
   'utf8'
 );
 
-function buildNewWordRecorderMarkup() {
+function buildNewWordRecorderMarkup(options = {}) {
+  const mainRecorderMarkup = options.mainRecorder ? `
+      <div class="ll-recording-main" style="display:flex;">
+        <div class="ll-recording-image-container">
+          <div class="flashcard-container">
+            <img id="ll-current-image" alt="" />
+          </div>
+          <h2 id="ll-image-title"></h2>
+        </div>
+        <span class="ll-current-num">1</span>
+        <span class="ll-total-num">1</span>
+        <div id="ll-recording-prompt"></div>
+        <button type="button" id="ll-record-btn">Record</button>
+        <button type="button" id="ll-hide-btn">Hide</button>
+        <button type="button" id="ll-skip-btn">Skip</button>
+        <div id="ll-recording-indicator" style="display:none;">
+          <span id="ll-recording-meter" class="ll-recording-meter">
+            <span class="ll-recording-meter-bar"></span>
+            <span class="ll-recording-meter-bar"></span>
+          </span>
+          <span id="ll-recording-timer">0:00</span>
+        </div>
+        <div id="ll-playback-controls" style="display:none;">
+          <audio id="ll-playback-audio" controls></audio>
+          <button type="button" id="ll-redo-btn">Redo</button>
+          <button type="button" id="ll-submit-btn">Save</button>
+        </div>
+        <div id="ll-upload-status"></div>
+        <div id="ll-upload-feedback" hidden>
+          <span id="ll-upload-feedback-label"></span>
+          <span id="ll-upload-feedback-value"></span>
+          <div id="ll-upload-progress-bar"><span id="ll-upload-progress-fill"></span></div>
+        </div>
+      </div>
+      <div class="ll-recording-complete" style="display:none;"><span class="ll-completed-count"></span></div>
+  ` : '';
+
   return `
     <style>
       .ll-new-word-overlay:not([hidden]) {
+        position: fixed;
+        inset: 0;
+        display: block;
+      }
+
+      .ll-hidden-words-overlay:not([hidden]),
+      .ll-recording-review-overlay:not([hidden]) {
         position: fixed;
         inset: 0;
         display: block;
@@ -42,14 +85,28 @@ function buildNewWordRecorderMarkup() {
       }
     </style>
 
+    <button type="button" id="ll-recorder-outside-before">Before recorder</button>
     <div class="ll-recording-interface">
       <div class="ll-recording-header">
-        <button type="button" id="ll-new-word-toggle">New Word</button>
+        <button type="button" id="ll-new-word-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="ll-new-word-panel">New Word</button>
+        <button type="button" id="ll-hidden-words-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="ll-hidden-words-panel">Hidden</button>
+      </div>
+
+      ${mainRecorderMarkup}
+
+      <div class="ll-hidden-words-overlay" id="ll-hidden-words-overlay" hidden>
+        <div class="ll-hidden-words-overlay-backdrop" id="ll-hidden-words-backdrop"></div>
+        <div class="ll-hidden-words-panel" id="ll-hidden-words-panel" role="dialog" aria-modal="true" aria-labelledby="ll-hidden-words-title" tabindex="-1" hidden>
+          <h3 id="ll-hidden-words-title">Hidden words</h3>
+          <button type="button" id="ll-hidden-words-close" aria-label="Close hidden words">Close</button>
+          <ul id="ll-hidden-words-list"></ul>
+          <p id="ll-hidden-words-empty">No hidden words yet.</p>
+        </div>
       </div>
 
       <div class="ll-new-word-overlay" id="ll-new-word-overlay" hidden>
         <div class="ll-new-word-overlay-backdrop"></div>
-        <div class="ll-new-word-panel" id="ll-new-word-panel" style="display:none;">
+        <div class="ll-new-word-panel" id="ll-new-word-panel" role="dialog" aria-modal="true" aria-labelledby="ll-new-word-title" tabindex="-1" style="display:none;">
           <div class="ll-new-word-card">
             <div class="ll-new-word-shell">
               <div class="ll-new-word-header">
@@ -154,7 +211,22 @@ function buildNewWordRecorderMarkup() {
       </div>
 
       <select id="ll-recording-type" hidden aria-hidden="true" tabindex="-1"></select>
+
+      <div class="ll-recording-review-overlay" id="ll-recording-review-overlay" hidden>
+        <div class="ll-recording-review-overlay-backdrop"></div>
+        <div class="ll-recording-review-shell" role="dialog" aria-modal="true" aria-labelledby="ll-recording-review-title" tabindex="-1">
+          <div id="ll-recording-review-slot">
+            <div id="ll-recording-review" style="display:none;">
+              <h2 id="ll-recording-review-title">Review Processed Audio</h2>
+              <div id="ll-review-files-container"></div>
+              <button type="button" id="ll-review-redo">Redo</button>
+              <button type="button" id="ll-review-submit">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+    <button type="button" id="ll-recorder-outside-after">After recorder</button>
   `;
 }
 
@@ -165,7 +237,7 @@ async function mountNewWordRecorderFixture(page, options = {}) {
     body: '<!doctype html><html><head></head><body></body></html>'
   }));
   await page.goto('https://ll-recorder-fixture.test/');
-  await page.setContent(buildNewWordRecorderMarkup());
+  await page.setContent(buildNewWordRecorderMarkup(options));
 
   await page.evaluate((mountOptions) => {
     window.__llStartupTestState = {
@@ -352,9 +424,23 @@ async function mountNewWordRecorderFixture(page, options = {}) {
     window.ll_recorder_data = {
       ajax_url: '/wp-admin/admin-ajax.php',
       nonce: 'test-nonce',
-      images: [],
+      images: mountOptions.mainRecorder ? [{
+        id: 701,
+        title: 'Recorder dialog fixture',
+        word_id: 701,
+        word_title: 'Recorder dialog fixture',
+        word_translation: 'Fixture translation',
+        category_name: 'Fixture category',
+        category_slug: 'fixture-category',
+        is_text_only: true,
+        use_word_display: true,
+        missing_types: ['isolation'],
+        existing_types: [],
+        prompt_types: ['isolation'],
+        my_existing_types: []
+      }] : [],
       available_categories: { uncategorized: 'Uncategorized' },
-      view: 'overview',
+      view: mountOptions.mainRecorder ? 'category' : 'overview',
       language: '',
       wordset: '',
       wordset_ids: [],
@@ -377,7 +463,7 @@ async function mountNewWordRecorderFixture(page, options = {}) {
       initial_category: '',
       include_types: '',
       exclude_types: '',
-      auto_process_recordings: false,
+      auto_process_recordings: mountOptions.autoProcessRecordings === true,
       category_queue: {
         category: '',
         page: 1,

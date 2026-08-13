@@ -46,6 +46,25 @@ final class WordOptionRulesResourceTest extends LL_Tools_TestCase
         $this->assertLessThanOrEqual(10, max($audio_parent_counts));
     }
 
+    public function test_legacy_word_posts_wrapper_matches_the_canonical_first_page(): void
+    {
+        $fixture = $this->createLargeFixture(8, false);
+
+        $page = ll_tools_word_option_rules_get_word_page(
+            $fixture['wordset_id'],
+            $fixture['category_id']
+        );
+        $legacy_posts = ll_tools_word_option_rules_get_word_posts(
+            $fixture['wordset_id'],
+            $fixture['category_id']
+        );
+
+        $this->assertSame(
+            array_map('intval', wp_list_pluck((array) $page['posts'], 'ID')),
+            array_map('intval', wp_list_pluck($legacy_posts, 'ID'))
+        );
+    }
+
     public function test_large_category_group_autosave_merges_only_visible_candidates(): void
     {
         $fixture = $this->createLargeFixture(80, false);

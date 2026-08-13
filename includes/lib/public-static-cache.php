@@ -149,10 +149,33 @@ function ll_tools_public_static_cache_has_frontend_auth_args(?array $raw_args = 
 }
 
 /**
+ * Return whether this request is the one-shot category-search recovery load.
+ *
+ * The marker is deliberately exact: other values remain ordinary query noise.
+ *
+ * @param array<string,mixed>|null $raw_args
+ */
+function ll_tools_public_static_cache_has_category_search_recovery_arg(?array $raw_args = null): bool {
+    if ($raw_args === null) {
+        $raw_args = $_GET;
+    }
+    if (!array_key_exists('ll_category_search_recovery', $raw_args)) {
+        return false;
+    }
+
+    $value = wp_unslash($raw_args['ll_category_search_recovery']);
+    return is_scalar($value) && (string) $value === '1';
+}
+
+/**
  * Return the downstream cache policy for an authentication-bearing response.
  */
 function ll_tools_public_static_cache_auth_cache_control_value(): string {
     return 'private, no-store, no-cache, must-revalidate, max-age=0';
+}
+
+function ll_tools_public_static_cache_category_search_recovery_cache_control_value(): string {
+    return ll_tools_public_static_cache_auth_cache_control_value();
 }
 
 /**
@@ -167,6 +190,24 @@ function ll_tools_public_static_cache_send_auth_bypass_headers(): void {
     header('X-LL-Public-Static-Cache: BYPASS');
     header('X-LL-Public-Static-Cache-Reason: frontend-auth');
     header('Cache-Control: ' . ll_tools_public_static_cache_auth_cache_control_value());
+    header('Pragma: no-cache');
+    header('Expires: Wed, 11 Jan 1984 05:00:00 GMT');
+    header('Vary: Accept-Language, Cookie', false);
+}
+
+/**
+ * Keep the one-shot search recovery response out of browser/CDN caches so it
+ * must mint and render a fresh category-search payload before JS removes the
+ * marker from the visible URL.
+ */
+function ll_tools_public_static_cache_send_category_search_recovery_bypass_headers(): void {
+    if (headers_sent()) {
+        return;
+    }
+
+    header('X-LL-Public-Static-Cache: BYPASS');
+    header('X-LL-Public-Static-Cache-Reason: category-search-recovery');
+    header('Cache-Control: ' . ll_tools_public_static_cache_category_search_recovery_cache_control_value());
     header('Pragma: no-cache');
     header('Expires: Wed, 11 Jan 1984 05:00:00 GMT');
     header('Vary: Accept-Language, Cookie', false);
@@ -317,6 +358,9 @@ function ll_tools_public_static_cache_has_safe_request_shape(): bool {
         return false;
     }
     if (ll_tools_public_static_cache_has_frontend_auth_args()) {
+        return false;
+    }
+    if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
         return false;
     }
     $is_wordset_page_request = function_exists('ll_tools_is_wordset_page_context') && ll_tools_is_wordset_page_context();
@@ -873,6 +917,10 @@ function ll_tools_public_static_cache_send_headers(string $cache_status, string 
  * Serve or start capturing one anonymous public read-only page request.
  */
 function ll_tools_serve_public_static_cache(): void {
+    if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
+        ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
+        return;
+    }
     if (ll_tools_public_static_cache_has_frontend_auth_args()) {
         ll_tools_public_static_cache_send_auth_bypass_headers();
         return;
@@ -989,6 +1037,11 @@ function ll_tools_store_public_static_cache(): void {
     $release_lock = !empty($context['lock_acquired']) && !empty($context['key']);
 
     try {
+        if (ll_tools_public_static_cache_has_category_search_recovery_arg()) {
+            ll_tools_public_static_cache_debug_log('skip_category_search_recovery');
+            ll_tools_public_static_cache_send_category_search_recovery_bypass_headers();
+            return;
+        }
         if (ll_tools_public_static_cache_has_frontend_auth_args()) {
             ll_tools_public_static_cache_debug_log('skip_frontend_auth');
             ll_tools_public_static_cache_send_auth_bypass_headers();

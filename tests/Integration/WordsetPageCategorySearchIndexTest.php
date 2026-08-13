@@ -510,6 +510,669 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_unrelated_audio_transcription_and_quiz_epochs_do_not_invalidate_category_search_materialization(): void
+    {
+        $wordset = wp_insert_term('Stable Search Sources ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Stable Search Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $word_id = $this->createSearchWord('Stable Indexed Title', 'Stable indexed translation', $wordset_id, [$category_id]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Original recording title',
+        ]);
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        $cache_args = [
+            'token' => 'search_stable_source_test',
+            'wordset_id' => $wordset_id,
+            'query' => 'stable',
+        ];
+        $dependency_before = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+        $source_epoch_before = ll_tools_wordset_category_search_source_epoch_signature($wordset_id);
+        $ajax_cache_before = ll_tools_wordset_page_category_search_ajax_cache_key($cache_args);
+        $category_search_access_before = ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0);
+        $lazy_access_before = ll_tools_wordset_page_payload_access_signature($wordset_id, 0);
+        $quiz_epoch_before = ll_tools_get_quiz_content_cache_epoch([$wordset_id]);
+
+        try {
+            $result = ll_tools_bump_quiz_content_cache_epoch([$wordset_id], true);
+            $this->assertTrue((bool) ($result['scope_complete'] ?? false));
+            update_post_meta($audio_id, 'recording_text', 'changed transcription text');
+            update_post_meta($audio_id, 'internal_review_notes', 'changed review note');
+            wp_update_post([
+                'ID' => $audio_id,
+                'post_title' => 'Edited recording title',
+            ]);
+
+            $this->assertNotSame($quiz_epoch_before, ll_tools_get_quiz_content_cache_epoch([$wordset_id]));
+            $this->assertSame($dependency_before, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+            $this->assertSame($source_epoch_before, ll_tools_wordset_category_search_source_epoch_signature($wordset_id));
+            $this->assertNotSame($ajax_cache_before, ll_tools_wordset_page_category_search_ajax_cache_key($cache_args), 'Hydrated image/media fields require a fresh AJAX response cache generation.');
+            $this->assertSame($category_search_access_before, ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0));
+            $this->assertNotSame($lazy_access_before, ll_tools_wordset_page_payload_access_signature($wordset_id, 0));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_id]
+            ));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                []
+            ));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_combined_unpublish_and_wordset_move_invalidates_old_and_new_published_scopes_once(): void
+    {
+        $wordset_one = wp_insert_term('Unpublish Move Search One ' . wp_generate_password(5, false), 'wordset');
+        $wordset_two = wp_insert_term('Unpublish Move Search Two ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Unpublish Move Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset_one);
+        $this->assertIsArray($wordset_two);
+        $this->assertIsArray($category);
+        $wordset_one_id = (int) $wordset_one['term_id'];
+        $wordset_two_id = (int) $wordset_two['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_one_id);
+        $word_id = $this->createSearchWord(
+            'Combined Unpublish Move Word',
+            'Combined unpublish move translation',
+            $wordset_one_id,
+            [$category_id]
+        );
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $previous_user_id = get_current_user_id();
+
+        foreach ([$wordset_one_id, $wordset_two_id] as $wordset_id) {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        wp_set_current_user($admin_id);
+        try {
+            $one_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            );
+            $two_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            );
+
+            $updated = wp_update_post([
+                'ID' => $word_id,
+                'post_status' => 'draft',
+                'tax_input' => [
+                    'wordset' => [$wordset_two_id],
+                ],
+            ], true);
+
+            $this->assertSame($word_id, $updated);
+            $this->assertSame('draft', get_post_status($word_id));
+            $this->assertSame([$wordset_two_id], array_values(array_map('intval', wp_get_object_terms(
+                $word_id,
+                'wordset',
+                ['fields' => 'ids']
+            ))));
+            $this->assertSame($one_epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            ));
+            $this->assertSame($two_epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            ));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        } finally {
+            wp_set_current_user($previous_user_id);
+            foreach ([$wordset_one_id, $wordset_two_id] as $wordset_id) {
+                wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            }
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_published_post_type_exit_and_entry_invalidate_the_wordset_source(): void
+    {
+        $wordset = wp_insert_term('Post Type Search Scope ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Post Type Search Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $word_id = $this->createSearchWord(
+            'Published Post Type Word',
+            'Published post type translation',
+            $wordset_id,
+            [$category_id]
+        );
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        try {
+            $epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            );
+            $this->assertSame($word_id, wp_update_post([
+                'ID' => $word_id,
+                'post_type' => 'post',
+            ]));
+            $this->assertSame($epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            ));
+
+            $epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            );
+            $this->assertSame($word_id, wp_update_post([
+                'ID' => $word_id,
+                'post_type' => 'words',
+            ]));
+            $this->assertSame($epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            ));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+    }
+
+    public function test_wordset_scope_query_failure_advances_unknown_source_instead_of_no_op(): void
+    {
+        global $wpdb;
+
+        $wordset = wp_insert_term('Failed Scope Search ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Failed Scope Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $word_id = $this->createSearchWord(
+            'Failed Scope Indexed Word',
+            'Failed scope indexed translation',
+            $wordset_id,
+            [$category_id]
+        );
+        $unknown_before = ll_tools_wordset_category_search_read_source_epoch_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+        );
+        $faulted = false;
+        $fail_wordset_terms = static function (string $query) use ($wpdb, $word_id, &$faulted): string {
+            if (
+                !$faulted
+                && stripos($query, 'SELECT DISTINCT taxonomy.term_id') !== false
+                && stripos($query, $wpdb->term_relationships) !== false
+                && stripos($query, 'relationships.object_id = ' . $word_id) !== false
+            ) {
+                $faulted = true;
+                return str_replace(
+                    'SELECT DISTINCT taxonomy.term_id',
+                    'SELECT invalid_ll_tools_wordset_scope_column',
+                    $query
+                );
+            }
+            return $query;
+        };
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_wordset_terms);
+        try {
+            $scope = ll_tools_wordset_category_search_wordset_scope_for_word($word_id);
+        } finally {
+            remove_filter('query', $fail_wordset_terms);
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+
+        $this->assertTrue($faulted, 'The test must fault the direct wordset-term lookup.');
+        $this->assertFalse((bool) ($scope['complete'] ?? true));
+        $this->assertSame([], $scope['wordset_ids'] ?? null);
+        $wpdb->last_error = '';
+        ll_tools_wordset_category_search_invalidate_scope($scope);
+        $this->assertGreaterThan($unknown_before, ll_tools_wordset_category_search_read_source_epoch_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+        ));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+    }
+
+    public function test_wordset_scope_lookup_is_bounded_and_overflow_advances_unknown_source(): void
+    {
+        $wordset_ids = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordset = wp_insert_term(
+                'Bounded Word Scope ' . $index . ' ' . wp_generate_password(5, false),
+                'wordset'
+            );
+            $this->assertIsArray($wordset);
+            $wordset_ids[] = (int) $wordset['term_id'];
+        }
+        sort($wordset_ids, SORT_NUMERIC);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Bounded Wordset Scope ' . wp_generate_password(5, false),
+        ]);
+        $assigned = wp_set_object_terms($word_id, $wordset_ids, 'wordset', false);
+        $this->assertIsArray($assigned);
+        $limit = static function (): int {
+            return 2;
+        };
+        $unknown_before = ll_tools_wordset_category_search_read_source_epoch_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+        );
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        add_filter('ll_tools_wordset_category_search_word_wordset_limit', $limit);
+        try {
+            $scope = ll_tools_wordset_category_search_wordset_scope_for_word($word_id);
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_word_wordset_limit', $limit);
+        }
+
+        $this->assertFalse((bool) ($scope['complete'] ?? true));
+        $this->assertSame([], $scope['wordset_ids'] ?? null, 'Unknown-scope sweep must own overflow without partial per-wordset writes.');
+        ll_tools_wordset_category_search_invalidate_scope($scope);
+        $this->assertGreaterThan($unknown_before, ll_tools_wordset_category_search_read_source_epoch_option(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_UNKNOWN_SOURCE_EPOCH_OPTION
+        ));
+        $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        foreach ($wordset_ids as $wordset_id) {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+    }
+
+    public function test_title_translation_and_publish_status_advance_only_the_wordset_search_source(): void
+    {
+        $wordset = wp_insert_term('Mutable Search Sources ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Mutable Search Category ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $word_id = $this->createSearchWord('Original Indexed Title', 'Original indexed translation', $wordset_id, [$category_id]);
+        $cache_args = [
+            'token' => 'search_mutable_source_test',
+            'wordset_id' => $wordset_id,
+            'query' => 'original',
+        ];
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        $access_signature = ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0);
+        try {
+            $dependency = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+            $ajax_cache_key = ll_tools_wordset_page_category_search_ajax_cache_key($cache_args);
+            wp_update_post(['ID' => $word_id, 'post_title' => 'Changed Indexed Title']);
+            $this->assertNotSame($dependency, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+            $this->assertNotSame($ajax_cache_key, ll_tools_wordset_page_category_search_ajax_cache_key($cache_args));
+            $this->assertSame($access_signature, ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0), 'An existing search payload remains usable after source-only edits.');
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]));
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            $dependency = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+            update_post_meta($word_id, 'word_translation', 'Changed current translation');
+            $this->assertNotSame($dependency, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+
+            $dependency = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+            update_post_meta($word_id, 'word_english_meaning', 'Changed legacy translation');
+            $this->assertNotSame($dependency, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+
+            $dependency = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+            wp_update_post(['ID' => $word_id, 'post_status' => 'draft']);
+            $this->assertNotSame($dependency, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_wordset_and_category_membership_changes_cover_old_and_new_wordset_scopes(): void
+    {
+        $wordset_one = wp_insert_term('Membership Search One ' . wp_generate_password(5, false), 'wordset');
+        $wordset_two = wp_insert_term('Membership Search Two ' . wp_generate_password(5, false), 'wordset');
+        $category_one = wp_insert_term('Membership Category One ' . wp_generate_password(5, false), 'word-category');
+        $category_one_replacement = wp_insert_term('Membership Category One Replacement ' . wp_generate_password(5, false), 'word-category');
+        $category_two = wp_insert_term('Membership Category Two ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset_one);
+        $this->assertIsArray($wordset_two);
+        $this->assertIsArray($category_one);
+        $this->assertIsArray($category_one_replacement);
+        $this->assertIsArray($category_two);
+        $wordset_one_id = (int) $wordset_one['term_id'];
+        $wordset_two_id = (int) $wordset_two['term_id'];
+        $category_one_id = (int) $category_one['term_id'];
+        $category_one_replacement_id = (int) $category_one_replacement['term_id'];
+        $category_two_id = (int) $category_two['term_id'];
+        $this->setCategoryOwner($category_one_id, $wordset_one_id);
+        $this->setCategoryOwner($category_one_replacement_id, $wordset_one_id);
+        $this->setCategoryOwner($category_two_id, $wordset_two_id);
+        $word_id = $this->createSearchWord('Moved Indexed Word', 'Moved indexed translation', $wordset_one_id, [$category_one_id]);
+
+        foreach ([$wordset_one_id, $wordset_two_id] as $wordset_id) {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+
+        try {
+            $one_before = ll_tools_wordset_category_search_dependency_signature($wordset_one_id);
+            $removed = wp_remove_object_terms($word_id, $category_one_id, 'word-category');
+            $this->assertTrue($removed);
+            $this->assertNotSame($one_before, ll_tools_wordset_category_search_dependency_signature($wordset_one_id));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]));
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]);
+            $one_before = ll_tools_wordset_category_search_dependency_signature($wordset_one_id);
+            $added = wp_add_object_terms($word_id, $category_one_id, 'word-category');
+            $this->assertIsArray($added);
+            $this->assertNotSame($one_before, ll_tools_wordset_category_search_dependency_signature($wordset_one_id));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]));
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]);
+            $one_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            );
+            wp_set_object_terms($word_id, [$category_one_replacement_id], 'word-category', false);
+            $this->assertSame($one_epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            ), 'A normal replacement with removals must advance the source epoch once.');
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]);
+            $one_before = ll_tools_wordset_category_search_dependency_signature($wordset_one_id);
+            $two_before = ll_tools_wordset_category_search_dependency_signature($wordset_two_id);
+            $one_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            );
+            $two_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            );
+            wp_set_object_terms($word_id, [$wordset_two_id], 'wordset', false);
+            $this->assertNotSame($one_before, ll_tools_wordset_category_search_dependency_signature($wordset_one_id));
+            $this->assertNotSame($two_before, ll_tools_wordset_category_search_dependency_signature($wordset_two_id));
+            $this->assertSame($one_epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_one_id)
+            ));
+            $this->assertGreaterThan($two_epoch_before, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            ), 'The wordset move and its isolation-owned category remap must invalidate the new scope.');
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_one_id]));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]));
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]);
+            $two_before = ll_tools_wordset_category_search_dependency_signature($wordset_two_id);
+            $added = wp_add_object_terms($word_id, $category_two_id, 'word-category');
+            $this->assertIsArray($added);
+            $this->assertNotSame($two_before, ll_tools_wordset_category_search_dependency_signature($wordset_two_id));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]));
+
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]);
+            $two_before = ll_tools_wordset_category_search_dependency_signature($wordset_two_id);
+            $two_epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            );
+            wp_delete_post($word_id, true);
+            $this->assertNotSame($two_before, ll_tools_wordset_category_search_dependency_signature($wordset_two_id));
+            $this->assertSame($two_epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_two_id)
+            ), 'Hard deletion must not bump again while core removes terms and translation metadata.');
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_two_id]));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+
+            $source_epoch_option = ll_tools_wordset_category_search_source_epoch_option($wordset_two_id);
+            $this->assertNotFalse(get_option($source_epoch_option, false));
+            $deleted_wordset = wp_delete_term($wordset_two_id, 'wordset');
+            $this->assertTrue($deleted_wordset);
+            $this->assertFalse(get_option($source_epoch_option, false));
+
+            $unknown_scope_before = ll_tools_wordset_category_search_dependency_signature($wordset_one_id);
+            $deleted_category = wp_delete_term($category_two_id, 'word-category');
+            $this->assertTrue($deleted_category);
+            $this->assertSame($unknown_scope_before, ll_tools_wordset_category_search_dependency_signature($wordset_one_id));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        } finally {
+            foreach ([$wordset_one_id, $wordset_two_id] as $wordset_id) {
+                wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            }
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_category_deletion_invalidates_only_bounded_attached_wordset_scopes(): void
+    {
+        $wordset = wp_insert_term('Category Delete Search ' . wp_generate_password(5, false), 'wordset');
+        $category = wp_insert_term('Category Delete Candidate ' . wp_generate_password(5, false), 'word-category');
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+        $this->setCategoryOwner($category_id, $wordset_id);
+        $this->createSearchWord(
+            'Category Delete Indexed Word',
+            'Category delete indexed translation',
+            $wordset_id,
+            [$category_id]
+        );
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        try {
+            $dependency_before = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+            $epoch_before = ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            );
+
+            $deleted = wp_delete_term($category_id, 'word-category');
+            $this->assertTrue($deleted);
+            $this->assertNotSame($dependency_before, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+            $this->assertSame($epoch_before + 1, ll_tools_wordset_category_search_read_source_epoch_option(
+                ll_tools_wordset_category_search_source_epoch_option($wordset_id)
+            ));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_deleted_wordset_rows_are_cleaned_in_bounded_continuation_batches(): void
+    {
+        global $wpdb;
+
+        $wordset = wp_insert_term('Deleted Search Rows ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $table = ll_tools_wordset_category_search_table_name();
+        $generation = 'deleted-wordset-' . wp_generate_password(8, false);
+        $rows = [];
+        for ($index = 1; $index <= 121; $index++) {
+            $rows[] = [
+                'wordset_id' => $wordset_id,
+                'generation' => $generation,
+                'category_id' => 900000 + $index,
+                'word_id' => 910000 + $index,
+                'title_value' => 'Deleted row ' . $index,
+                'translation_value' => 'Deleted translation ' . $index,
+                'title_normalized' => 'deleted row ' . $index,
+                'translation_normalized' => 'deleted translation ' . $index,
+                'title_tokens' => ' deleted row ' . $index . ' ',
+                'translation_tokens' => ' deleted translation ' . $index . ' ',
+                'updated_at' => current_time('mysql', true),
+            ];
+        }
+        $this->assertTrue(ll_tools_wordset_category_search_insert_rows($rows));
+        update_option(ll_tools_wordset_category_search_state_option($wordset_id), ['status' => 'completed'], false);
+        update_option(ll_tools_wordset_category_search_lock_option($wordset_id), 'test-lock', false);
+        update_option(ll_tools_wordset_category_search_source_epoch_option($wordset_id), 7, false);
+        wp_schedule_single_event(
+            time() + HOUR_IN_SECONDS,
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+            [$wordset_id]
+        );
+        $cleanup_limit = static function (): int {
+            return 50;
+        };
+
+        wp_clear_scheduled_hook(
+            LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+            [$wordset_id]
+        );
+        add_filter('ll_tools_wordset_category_search_cleanup_row_limit', $cleanup_limit);
+        try {
+            $this->assertTrue(wp_delete_term($wordset_id, 'wordset'));
+            $this->assertSame(71, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(1) FROM {$table} WHERE wordset_id = %d",
+                $wordset_id
+            )));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_state_option($wordset_id), false));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_lock_option($wordset_id), false));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_source_epoch_option($wordset_id), false));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+                [$wordset_id]
+            ));
+
+            ll_tools_wordset_category_search_run_deleted_wordset_cleanup($wordset_id);
+            $this->assertSame(21, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(1) FROM {$table} WHERE wordset_id = %d",
+                $wordset_id
+            )));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+                [$wordset_id]
+            ));
+
+            ll_tools_wordset_category_search_run_deleted_wordset_cleanup($wordset_id);
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(1) FROM {$table} WHERE wordset_id = %d",
+                $wordset_id
+            )));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+                [$wordset_id]
+            ));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_state_option($wordset_id), false));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_lock_option($wordset_id), false));
+            $this->assertFalse(get_option(ll_tools_wordset_category_search_source_epoch_option($wordset_id), false));
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_cleanup_row_limit', $cleanup_limit);
+            wp_clear_scheduled_hook(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_DELETED_WORDSET_CLEANUP_HOOK,
+                [$wordset_id]
+            );
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table} WHERE wordset_id = %d LIMIT 2000",
+                $wordset_id
+            ));
+        }
+    }
+
+    public function test_broad_structural_cache_epochs_do_not_schedule_a_search_source_rebuild(): void
+    {
+        $wordset = wp_insert_term('Unrelated Structural Search Epoch ' . wp_generate_password(5, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        $dependency_before = ll_tools_wordset_category_search_dependency_signature($wordset_id);
+        try {
+            ll_tools_bump_category_cache_epoch([$wordset_id]);
+            ll_tools_bump_wordset_cache_epoch([$wordset_id]);
+
+            $this->assertSame($dependency_before, ll_tools_wordset_category_search_dependency_signature($wordset_id));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []));
+        } finally {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+        }
+    }
+
+    public function test_global_scheduling_sweep_uses_bounded_wordset_keyset_pages(): void
+    {
+        $wordset_ids = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $wordset = wp_insert_term(
+                'Global Search Sweep ' . $index . ' ' . wp_generate_password(5, false),
+                'wordset'
+            );
+            $this->assertFalse(is_wp_error($wordset));
+            $wordset_ids[] = (int) $wordset['term_id'];
+        }
+        sort($wordset_ids, SORT_NUMERIC);
+        foreach ($wordset_ids as $wordset_id) {
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+        }
+        wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+
+        $batch_size = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_wordset_category_search_sweep_batch_size', $batch_size);
+        $generation = ll_tools_request_wordset_category_search_rebuild_sweep();
+        $first_cursor = max(0, $wordset_ids[0] - 1);
+
+        try {
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                []
+            ));
+
+            ll_tools_wordset_category_search_run_scheduling_sweep($generation, $first_cursor);
+
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[0]]
+            ));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[1]]
+            ));
+            $this->assertFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[2]]
+            ));
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[1]]
+            ));
+
+            ll_tools_wordset_category_search_run_scheduling_sweep(
+                $generation,
+                $wordset_ids[1]
+            );
+            $this->assertNotFalse(wp_next_scheduled(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK,
+                [$wordset_ids[2]]
+            ));
+        } finally {
+            remove_filter('ll_tools_wordset_category_search_sweep_batch_size', $batch_size);
+            wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK, []);
+            wp_clear_scheduled_hook(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[1]]
+            );
+            wp_clear_scheduled_hook(
+                LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
+                [$generation, $wordset_ids[2]]
+            );
+            foreach ($wordset_ids as $wordset_id) {
+                wp_clear_scheduled_hook(LL_TOOLS_WORDSET_CATEGORY_SEARCH_REBUILD_HOOK, [$wordset_id]);
+            }
+        }
+    }
+
     public function test_wordset_page_initial_config_defers_category_search_text_to_ajax(): void
     {
         $wordset = wp_insert_term('Deferred Search Wordset ' . wp_generate_password(6, false), 'wordset');
@@ -601,7 +1264,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => 0,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0),
         ]);
         $this->assertNotSame('', $token);
 
@@ -713,7 +1376,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => 0,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0),
         ];
         $token = ll_tools_wordset_page_build_category_search_token($payload);
         $this->assertTrue(ll_tools_wordset_page_is_shared_category_search_token($token));
@@ -848,7 +1511,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => $admin_id,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, $admin_id),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $admin_id),
         ]);
         $transcription_queries = [];
         $capture_query = static function (string $sql) use (&$transcription_queries): string {
@@ -918,7 +1581,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$category_id],
             'user_id' => 0,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, 0),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, 0),
         ]);
         $public_response = $this->postCategorySearchAjax([
             'nonce' => wp_create_nonce('ll_tools_wordset_page_category_search'),
@@ -977,7 +1640,7 @@ final class WordsetPageCategorySearchIndexTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_ids' => [$virtual_category_id],
             'user_id' => $admin_id,
-            'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, $admin_id),
+            'access_signature' => ll_tools_wordset_page_category_search_payload_access_signature($wordset_id, $admin_id),
         ]);
         $this->assertNotSame('', $token);
 

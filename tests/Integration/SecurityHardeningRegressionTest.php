@@ -279,6 +279,148 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertLessThanOrEqual(5, count($ids));
     }
 
+    public function test_public_word_fetch_rejects_an_incomplete_source_and_recovers_on_retry(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->create_flashcard_word_with_audio(3131);
+        $category = get_term_by('name', $fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+        update_term_meta((int) $category->term_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta((int) $category->term_id, 'll_quiz_option_type', 'text_translation');
+        wp_set_current_user(0);
+
+        $request = [
+            'category' => $fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $fixture['word_id'],
+        ];
+        $injected = false;
+        $term_taxonomy_id = (int) $category->term_taxonomy_id;
+        $break_query = static function (string $sql) use ($wpdb, $term_taxonomy_id, &$injected): string {
+            if (
+                !$injected
+                && strpos($sql, "{$wpdb->posts}.post_type = 'words'") !== false
+                && preg_match('/term_taxonomy_id\s+IN\s*\([^)]*\b' . preg_quote((string) $term_taxonomy_id, '/') . '\b[^)]*\)/i', $sql) === 1
+            ) {
+                $injected = true;
+                return "SELECT ID FROM {$wpdb->posts}_ll_tools_missing_public_words";
+            }
+            return $sql;
+        };
+
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_query);
+        try {
+            $_POST = $request;
+            $_REQUEST = $_POST;
+            $failed = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            remove_filter('query', $break_query);
+            $wpdb->suppress_errors($previous_suppress);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($injected);
+        $this->assertFalse((bool) ($failed['success'] ?? true));
+        $this->assertSame('source_incomplete', (string) ($failed['data']['code'] ?? ''));
+        $this->assertSame(2, (int) ($failed['data']['retry_after'] ?? 0));
+
+        $_POST = $request;
+        $_REQUEST = $_POST;
+        try {
+            $retried = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($retried['success'] ?? false));
+        $row_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($retried['data'] ?? []))));
+        $this->assertContains((int) $fixture['word_id'], $row_ids);
+    }
+
+    public function test_public_word_fetch_rejects_incomplete_category_visibility_and_recovers_on_retry(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->create_flashcard_word_with_audio(3132);
+        $category = get_term_by('name', $fixture['category_name'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+        update_term_meta((int) $category->term_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta((int) $category->term_id, 'll_quiz_option_type', 'text_translation');
+        wp_set_current_user(0);
+
+        $request = [
+            'category' => $fixture['category_name'],
+            'display_mode' => 'text',
+            'option_type' => 'text_translation',
+            'prompt_type' => 'audio',
+            'candidate_word_ids' => (string) $fixture['word_id'],
+        ];
+        $category_id = (int) $category->term_id;
+        wp_cache_delete($category_id, 'term_meta');
+        $injected = false;
+        $break_visibility = static function (string $query) use ($category_id, &$injected): string {
+            if (
+                !$injected
+                && stripos($query, 'termmeta') !== false
+                && preg_match('/term_id\s+IN\s*\(\s*' . preg_quote((string) $category_id, '/') . '\s*\)/i', $query) === 1
+            ) {
+                $injected = true;
+                return 'SELECT term_id, meta_key, meta_value FROM ll_tools_missing_public_termmeta';
+            }
+            return $query;
+        };
+
+        $previous_suppress = $wpdb->suppress_errors(true);
+        add_filter('query', $break_visibility);
+        try {
+            $_POST = $request;
+            $_REQUEST = $_POST;
+            $failed = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            remove_filter('query', $break_visibility);
+            $wpdb->suppress_errors($previous_suppress);
+            $wpdb->last_error = '';
+            wp_cache_delete($category_id, 'term_meta');
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($injected);
+        $this->assertFalse((bool) ($failed['success'] ?? true));
+        $this->assertSame('source_incomplete', (string) ($failed['data']['code'] ?? ''));
+
+        $_POST = $request;
+        $_REQUEST = $_POST;
+        try {
+            $retried = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($retried['success'] ?? false));
+        $row_ids = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($retried['data'] ?? []))));
+        $this->assertContains((int) $fixture['word_id'], $row_ids);
+    }
+
     public function test_public_word_fetch_option_pool_scans_past_ineligible_candidates(): void
     {
         $target_fixture = $this->create_flashcard_word_with_audio(333);

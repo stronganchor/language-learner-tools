@@ -2418,6 +2418,24 @@ function ll_tools_flashcards_send_payload_page_error(WP_Error $error, array $con
 }
 
 /**
+ * Fail a public flashcard read closed when an underlying source was incomplete.
+ */
+function ll_tools_flashcards_send_source_incomplete_error(string $message = ''): void {
+    $retry_after = 2;
+    if (!headers_sent()) {
+        header('Retry-After: ' . $retry_after);
+    }
+    ll_tools_flashcards_send_public_ajax_cache_header('BYPASS');
+    wp_send_json_error([
+        'code' => 'source_incomplete',
+        'message' => $message !== ''
+            ? $message
+            : __('Flashcard data is temporarily unavailable.', 'll-tools-text-domain'),
+        'retry_after' => $retry_after,
+    ], 503);
+}
+
+/**
  * Keep AJAX materialization on the locale that rendered the front-end page.
  *
  * @return string|WP_Error
@@ -2509,9 +2527,15 @@ function ll_tools_flashcards_resolve_payload_page_scope(array $request) {
     ), static function (int $wordset_id): bool {
         return $wordset_id > 0;
     })));
+    if (!$wordset_resolution_complete) {
+        return new WP_Error(
+            'source_incomplete',
+            __('Flashcard data is temporarily unavailable.', 'll-tools-text-domain'),
+            ['status' => 503]
+        );
+    }
     if (
-        !$wordset_resolution_complete
-        || (!empty($requested_wordset_ids) && empty($wordset_ids))
+        (!empty($requested_wordset_ids) && empty($wordset_ids))
         || ($wordset_spec !== '' && empty($wordset_ids))
     ) {
         return new WP_Error(
@@ -2722,24 +2746,40 @@ function ll_get_words_by_category_ajax() {
         $wordset_resolution_complete,
         $requested_wordset_ids
     );
+    if (!$wordset_resolution_complete) {
+        ll_tools_flashcards_send_source_incomplete_error();
+    }
     if (
-        !$wordset_resolution_complete
-        || (!empty($requested_wordset_ids) && empty($wordset_ids))
+        (!empty($requested_wordset_ids) && empty($wordset_ids))
         || ($wordset_spec !== '' && empty($wordset_ids))
     ) {
         wp_send_json_success([]);
     }
 
     $term = null;
+    $category_resolution_complete = true;
     if ($category_slug !== '' && function_exists('ll_tools_resolve_word_category_term')) {
-        $term = ll_tools_resolve_word_category_term($category_slug);
+        $term = ll_tools_resolve_word_category_term($category_slug, $category_resolution_complete);
     }
-    if (!($term instanceof WP_Term) && $category !== '' && function_exists('ll_tools_resolve_word_category_term')) {
-        $term = ll_tools_resolve_word_category_term($category);
+    if (
+        $category_resolution_complete
+        && !($term instanceof WP_Term)
+        && $category !== ''
+        && function_exists('ll_tools_resolve_word_category_term')
+    ) {
+        $term = ll_tools_resolve_word_category_term($category, $category_resolution_complete);
+    }
+    if (!$category_resolution_complete) {
+        ll_tools_flashcards_send_source_incomplete_error();
     }
 
     if ($term instanceof WP_Term && function_exists('ll_tools_user_can_view_category')) {
-        if (!ll_tools_user_can_view_category($term)) {
+        $visibility_complete = true;
+        $can_view_category = ll_tools_user_can_view_category($term, 0, $visibility_complete);
+        if (!$visibility_complete) {
+            ll_tools_flashcards_send_source_incomplete_error();
+        }
+        if (!$can_view_category) {
             wp_send_json_success([]);
         }
     }
@@ -2908,12 +2948,22 @@ function ll_get_words_by_category_ajax() {
                 ? $legacy_page['rows']
                 : [];
         } else {
+            $words_complete = true;
             $words = ll_get_words_by_category(
                 $category_ref,
                 $base_config['option_type'],
                 $wordset_ids,
-                $base_config
+                $base_config,
+                $words_complete
             );
+            if (!$words_complete) {
+                ll_tools_flashcards_public_ajax_release_client_inflight($public_client_lease);
+                if ($public_cache_build_lock_acquired) {
+                    ll_tools_flashcards_public_ajax_release_build_lock($public_cache_args);
+                    $public_cache_build_lock_acquired = false;
+                }
+                ll_tools_flashcards_send_source_incomplete_error();
+            }
         }
 
         if (

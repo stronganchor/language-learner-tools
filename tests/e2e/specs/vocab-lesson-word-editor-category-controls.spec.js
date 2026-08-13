@@ -51,13 +51,17 @@ function categoryOption(id, label, order, checked = false) {
   `;
 }
 
-function buildEditorMarkup() {
+function buildEditorMarkup(options = {}) {
+  const startClosed = options.startClosed === true;
+  const outsideBefore = options.includeOutside ? '<button type="button" id="word-editor-outside-before">Before editor</button>' : '';
+  const outsideAfter = options.includeOutside ? '<button type="button" id="word-editor-outside-after">After editor</button>' : '';
   return `
+    ${outsideBefore}
     <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="7" data-ll-category-id="11">
-      <div class="word-item ll-word-edit-open" data-word-id="101">
-        <button type="button" data-ll-word-edit-toggle aria-expanded="true">Edit</button>
-        <div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="false"></div>
-        <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="false">
+      <div class="word-item${startClosed ? '' : ' ll-word-edit-open'}" data-word-id="101">
+        <button type="button" data-ll-word-edit-toggle aria-haspopup="dialog" aria-expanded="${startClosed ? 'false' : 'true'}">Edit</button>
+        <div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="${startClosed ? 'true' : 'false'}"${startClosed ? ' hidden' : ''}></div>
+        <div class="ll-word-edit-panel" data-ll-word-edit-panel role="dialog" aria-modal="true" aria-label="Edit word" aria-hidden="${startClosed ? 'true' : 'false'}" tabindex="-1">
           <div class="ll-word-edit-body" data-ll-word-edit-body>
             <fieldset class="ll-word-edit-field ll-word-edit-categories" data-ll-word-categories-field>
               <legend class="ll-word-edit-label">Categories</legend>
@@ -88,15 +92,20 @@ function buildEditorMarkup() {
               <div class="ll-word-edit-category-empty" data-ll-word-category-empty hidden>No categories match.</div>
             </fieldset>
           </div>
+          <div class="ll-word-edit-footer">
+            <button type="button" data-ll-word-edit-save>Save</button>
+            <button type="button" data-ll-word-edit-cancel>Cancel</button>
+          </div>
         </div>
       </div>
     </div>
+    ${outsideAfter}
   `;
 }
 
-async function mountEditor(page) {
+async function mountEditor(page, options = {}) {
   await page.goto('about:blank');
-  await page.setContent(buildEditorMarkup());
+  await page.setContent(buildEditorMarkup(options));
   await page.addStyleTag({ content: languageLearnerToolsCssSource });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate((cfg) => {
@@ -115,6 +124,44 @@ async function visibleCategoryLabels(page) {
       })
   );
 }
+
+test('word editor dialog contains focus, isolates the page, and restores its opener', async ({ page }) => {
+  await mountEditor(page, { startClosed: true, includeOutside: true });
+
+  const toggle = page.locator('[data-ll-word-edit-toggle]');
+  const panel = page.locator('[data-ll-word-edit-panel]');
+  const firstInput = page.locator('[data-ll-word-category-search]');
+  const cancel = page.locator('[data-ll-word-edit-cancel]');
+  const outsideBefore = page.locator('#word-editor-outside-before');
+
+  await toggle.click();
+  await expect(panel).toBeVisible();
+  await expect(panel).toHaveAttribute('role', 'dialog');
+  await expect(panel).toHaveAttribute('aria-modal', 'true');
+  await expect(panel).toHaveAccessibleName('Edit word');
+  await expect(firstInput).toBeFocused();
+  await expect(outsideBefore).toHaveAttribute('inert', '');
+  await expect(outsideBefore).toHaveAttribute('aria-hidden', 'true');
+
+  await cancel.focus();
+  await page.keyboard.press('Tab');
+  await expect(firstInput).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(cancel).toBeFocused();
+
+  await page.evaluate(() => {
+    const outside = document.getElementById('word-editor-outside-after');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect(firstInput).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(outsideBefore).not.toHaveAttribute('inert', '');
+  await expect(outsideBefore).not.toHaveAttribute('aria-hidden', 'true');
+});
 
 test('word editor category controls filter as the user types and show empty state', async ({ page }) => {
   await mountEditor(page);

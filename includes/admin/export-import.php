@@ -4660,7 +4660,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                         </fieldset>
                     <?php elseif ($preview_is_template_bundle) : ?>
                         <p><strong><?php esc_html_e('Template import behavior', 'll-tools-text-domain'); ?></strong></p>
-                        <p class="description"><?php esc_html_e('Template bundles always create a new isolated word set on this site. You can rename that new word set below before confirming the import.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php esc_html_e('Template bundles always create a new isolated, private staging word set on this site, regardless of bundled visibility. You can rename it below before importing, then publish it separately when it is ready.', 'll-tools-text-domain'); ?></p>
                     <?php endif; ?>
 
                     <?php if (($preview_has_full_bundle || $preview_is_template_bundle) && !empty($preview_wordsets)) : ?>
@@ -14259,6 +14259,18 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
     }
 
     $wordset_meta = isset($wordset_payload['meta']) && is_array($wordset_payload['meta']) ? $wordset_payload['meta'] : [];
+    $visibility_meta_key = defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        ? (string) constant('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        : 'll_wordset_visibility';
+    if ($visibility_meta_key !== '') {
+        // Imported template bundles are private staging objects. Publishing a
+        // destination word set is a separate, deliberate manager action.
+        foreach (array_keys($wordset_meta) as $meta_key) {
+            if (strcasecmp(trim((string) $meta_key), trim($visibility_meta_key)) === 0) {
+                unset($wordset_meta[$meta_key]);
+            }
+        }
+    }
     if (!empty($wordset_meta)) {
         ll_tools_import_replace_term_meta_values($target_wordset_id, $wordset_meta, 'wordset');
     }
@@ -14315,7 +14327,256 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
     }
 }
 
+function ll_tools_import_template_wordset_mapping_is_live(int $wordset_id, int $term_taxonomy_id, ?bool &$complete = null): bool {
+    global $wpdb;
+
+    $complete = true;
+    if ($wordset_id <= 0 || $term_taxonomy_id <= 0) {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $mapping = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+            $term_taxonomy_id
+        ),
+        ARRAY_A
+    );
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return false;
+    }
+
+    return is_array($mapping)
+        && (int) ($mapping['term_id'] ?? 0) === $wordset_id
+        && (string) ($mapping['taxonomy'] ?? '') === 'wordset';
+}
+
+function ll_tools_import_template_wordset_keep_private(int $wordset_id): bool {
+    global $wpdb;
+
+    $visibility_meta_key = defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        ? (string) constant('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        : 'll_wordset_visibility';
+    if ($wordset_id <= 0 || $visibility_meta_key === '') {
+        return false;
+    }
+
+    try {
+        update_term_meta($wordset_id, $visibility_meta_key, 'private');
+        $wpdb->last_error = '';
+        $stored_values = $wpdb->get_col($wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->termmeta} WHERE term_id = %d AND meta_key = %s ORDER BY meta_id ASC",
+            $wordset_id,
+            $visibility_meta_key
+        ));
+        if ($wpdb->last_error !== '' || count($stored_values) !== 1 || (string) $stored_values[0] !== 'private') {
+            return false;
+        }
+
+        $privacy_complete = true;
+        return function_exists('ll_tools_is_wordset_private')
+            && ll_tools_is_wordset_private($wordset_id, $privacy_complete)
+            && $privacy_complete;
+    } catch (Throwable $throwable) {
+        return false;
+    }
+}
+
+function ll_tools_import_template_wordset_remove_vocab_lesson_option_id(int $wordset_id): bool {
+    global $wpdb;
+
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    $option_name = 'll_vocab_lesson_wordsets';
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $wpdb->last_error = '';
+        $serialized_before = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $option_name
+        ));
+        if ($wpdb->last_error !== '') {
+            return false;
+        }
+        if ($serialized_before === null) {
+            return true;
+        }
+
+        $before = maybe_unserialize($serialized_before);
+        if (is_string($before)) {
+            $before = array_filter(array_map('trim', explode(',', $before)));
+        }
+        if (!is_array($before)) {
+            return false;
+        }
+
+        $before_ids = array_values(array_unique(array_filter(array_map('intval', $before))));
+        if (!in_array($wordset_id, $before_ids, true)) {
+            return true;
+        }
+
+        $after_ids = array_values(array_filter($before_ids, static function (int $candidate_id) use ($wordset_id): bool {
+            return $candidate_id !== $wordset_id;
+        }));
+        $changed = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+            maybe_serialize($after_ids),
+            $option_name,
+            $serialized_before
+        ));
+        wp_cache_delete($option_name, 'options');
+        wp_cache_delete('alloptions', 'options');
+        if ((int) $changed === 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_import_template_wordset_record_owned_failure(
+    int $wordset_id,
+    int $term_taxonomy_id,
+    string $reason,
+    array &$result
+): void {
+    $reason = sanitize_key($reason);
+    $reason = $reason !== '' ? $reason : 'template_wordset_creation_failed';
+    $mapping_complete = true;
+    if (!ll_tools_import_template_wordset_mapping_is_live($wordset_id, $term_taxonomy_id, $mapping_complete)) {
+        if (!$mapping_complete) {
+            if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
+                ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+                $result['errors'][] = sprintf(
+                    '%s %s [%s; cleanup_status=ownership_read_failed_retained_private; wordset_id=%d]',
+                    __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+                    __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
+                    $reason,
+                    $wordset_id
+                );
+            } else {
+                $result['errors'][] = sprintf(
+                    '%s [CRITICAL: template_wordset_cleanup_failed; reason=%s; cleanup_status=ownership_read_failed; wordset_id=%d]',
+                    __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+                    $reason,
+                    $wordset_id
+                );
+            }
+            return;
+        }
+        $result['errors'][] = sprintf(
+            '%s [%s; cleanup_status=unverified_term_taxonomy; wordset_id=%d]',
+            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+            $reason,
+            $wordset_id
+        );
+        return;
+    }
+
+    if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
+        ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+        $result['errors'][] = sprintf(
+            '%s %s [%s; cleanup_status=retained_private; wordset_id=%d]',
+            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+            __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
+            $reason,
+            $wordset_id
+        );
+        return;
+    }
+
+    $delete_status = 'delete_failed';
+    try {
+        $deleted = wp_delete_term($wordset_id, 'wordset');
+        if (is_wp_error($deleted)) {
+            $delete_status = sanitize_key((string) $deleted->get_error_code());
+        } elseif ($deleted) {
+            $delete_status = 'deleted';
+        } else {
+            $delete_status = 'delete_returned_false';
+        }
+    } catch (Throwable $throwable) {
+        $delete_status = 'delete_threw';
+    }
+
+    $post_delete_mapping_complete = true;
+    $post_delete_mapping_live = ll_tools_import_template_wordset_mapping_is_live(
+        $wordset_id,
+        $term_taxonomy_id,
+        $post_delete_mapping_complete
+    );
+    if ($post_delete_mapping_complete && !$post_delete_mapping_live) {
+        $option_clean = ll_tools_import_template_wordset_remove_vocab_lesson_option_id($wordset_id);
+        $result['errors'][] = sprintf(
+            '%s [%s; cleanup_status=%s%s; wordset_id=%d]',
+            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+            $reason,
+            $delete_status,
+            $option_clean ? '' : '_option_cleanup_failed',
+            $wordset_id
+        );
+        return;
+    }
+    if (!$post_delete_mapping_complete) {
+        $delete_status .= '_mapping_read_failed';
+    }
+
+    if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
+        ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+        $result['errors'][] = sprintf(
+            '%s %s [%s; cleanup_status=%s_retained_private; wordset_id=%d]',
+            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+            __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
+            $reason,
+            $delete_status,
+            $wordset_id
+        );
+        return;
+    }
+
+    $result['errors'][] = sprintf(
+        '%s [CRITICAL: template_wordset_cleanup_failed; reason=%s; cleanup_status=%s; wordset_id=%d]',
+        __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+        $reason,
+        $delete_status,
+        $wordset_id
+    );
+}
+
+function ll_tools_import_template_wordset_finalize_cache_state(int $wordset_id, array &$result): void {
+    $callbacks = [
+        'll_tools_public_static_cache_reset_purge_once_state' => [],
+        'll_tools_cloudflare_static_cache_reset_purge_once_state' => [],
+        'll_tools_reset_wordset_buttons_shortcode_cache_purge_once_state' => [],
+        'll_tools_bump_wordset_cache_epoch' => [[$wordset_id]],
+    ];
+    foreach ($callbacks as $callback => $args) {
+        if (!function_exists($callback)) {
+            continue;
+        }
+        try {
+            call_user_func_array($callback, $args);
+        } catch (Throwable $throwable) {
+            $result['errors'][] = sprintf(
+                '%s [template_wordset_cache_finalization_failed; callback=%s]',
+                __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
+                sanitize_key($callback)
+            );
+        }
+    }
+}
+
 function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, array $options, array &$result): array {
+    global $wp_version;
+
+    if (version_compare((string) $wp_version, '6.1', '<')) {
+        $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [requires_wordpress_6_1]';
+        return [];
+    }
+
     $source_wordsets = isset($payload['wordsets']) && is_array($payload['wordsets']) ? array_values($payload['wordsets']) : [];
     $source_wordset = (!empty($source_wordsets) && is_array($source_wordsets[0])) ? $source_wordsets[0] : [];
     $source_slug = sanitize_title((string) ($source_wordset['slug'] ?? ''));
@@ -14339,14 +14600,127 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         $insert_args['slug'] = $source_slug;
     }
 
-    $wordset_insert = wp_insert_term($target_name, 'wordset', $insert_args);
+    $visibility_meta_key = defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        ? (string) constant('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
+        : 'll_wordset_visibility';
+    $template_import_token = wp_generate_uuid4();
+    $insert_args['_ll_tools_template_import_token'] = $template_import_token;
+    $raw_wordset_id = 0;
+    $raw_wordset_tt_id = 0;
+    $term_id_was_remapped = false;
+    $seed_private = static function ($term_id, $term_taxonomy_id = 0, $taxonomy = '', $created_args = []) use (
+        $template_import_token,
+        &$raw_wordset_id,
+        &$raw_wordset_tt_id
+    ): void {
+        if (
+            (string) $taxonomy !== 'wordset'
+            || !is_array($created_args)
+            || !isset($created_args['_ll_tools_template_import_token'])
+            || !is_string($created_args['_ll_tools_template_import_token'])
+            || !hash_equals($template_import_token, $created_args['_ll_tools_template_import_token'])
+        ) {
+            return;
+        }
+
+        $term_id = (int) $term_id;
+        $term_taxonomy_id = (int) $term_taxonomy_id;
+        if ($raw_wordset_id <= 0 && $term_id > 0 && $term_taxonomy_id > 0) {
+            $raw_wordset_id = $term_id;
+            $raw_wordset_tt_id = $term_taxonomy_id;
+        }
+        if ($term_id !== $raw_wordset_id || $term_taxonomy_id !== $raw_wordset_tt_id) {
+            return;
+        }
+        if (!ll_tools_import_template_wordset_keep_private($raw_wordset_id)) {
+            throw new RuntimeException('Template wordset privacy could not be seeded.');
+        }
+    };
+    $protect_raw_term_id = static function ($filtered_term_id, $term_taxonomy_id = 0, $filtered_args = []) use (
+        &$raw_wordset_id,
+        &$raw_wordset_tt_id,
+        &$term_id_was_remapped
+    ) {
+        if (
+            $raw_wordset_id <= 0
+            || $raw_wordset_tt_id <= 0
+            || (int) $term_taxonomy_id !== $raw_wordset_tt_id
+        ) {
+            return $filtered_term_id;
+        }
+
+        if ((int) $filtered_term_id !== $raw_wordset_id) {
+            $term_id_was_remapped = true;
+        }
+        return $raw_wordset_id;
+    };
+
+    $wordset_insert = null;
+    $insert_throwable = null;
+    add_action('create_term', $seed_private, PHP_INT_MIN, 4);
+    add_filter('term_id_filter', $protect_raw_term_id, PHP_INT_MAX, 3);
+    try {
+        $wordset_insert = wp_insert_term($target_name, 'wordset', $insert_args);
+    } catch (Throwable $throwable) {
+        $insert_throwable = $throwable;
+    } finally {
+        remove_action('create_term', $seed_private, PHP_INT_MIN);
+        remove_filter('term_id_filter', $protect_raw_term_id, PHP_INT_MAX);
+    }
+
+    if ($insert_throwable instanceof Throwable) {
+        if ($raw_wordset_id > 0) {
+            ll_tools_import_template_wordset_record_owned_failure(
+                $raw_wordset_id,
+                $raw_wordset_tt_id,
+                'template_wordset_insert_threw',
+                $result
+            );
+            ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
+        } else {
+            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [template_wordset_insert_threw]';
+        }
+        return [];
+    }
     if (is_wp_error($wordset_insert)) {
         $result['errors'][] = sprintf(__('Failed to create template word set "%s": %s', 'll-tools-text-domain'), $target_name, $wordset_insert->get_error_message());
         return [];
     }
 
     $target_wordset_id = (int) ($wordset_insert['term_id'] ?? 0);
-    if ($target_wordset_id <= 0) {
+    $target_wordset_tt_id = (int) ($wordset_insert['term_taxonomy_id'] ?? 0);
+    if (
+        $term_id_was_remapped
+        || $raw_wordset_id <= 0
+        || $raw_wordset_tt_id <= 0
+        || $target_wordset_id !== $raw_wordset_id
+        || $target_wordset_tt_id !== $raw_wordset_tt_id
+        || !ll_tools_import_template_wordset_mapping_is_live($raw_wordset_id, $raw_wordset_tt_id)
+    ) {
+        if ($raw_wordset_id > 0) {
+            ll_tools_import_template_wordset_record_owned_failure(
+                $raw_wordset_id,
+                $raw_wordset_tt_id,
+                $term_id_was_remapped ? 'template_wordset_term_id_remapped' : 'template_wordset_ownership_unverified',
+                $result
+            );
+            ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
+        } else {
+            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain');
+        }
+        return [];
+    }
+    if (!ll_tools_import_template_wordset_keep_private($target_wordset_id)) {
+        ll_tools_import_template_wordset_record_owned_failure(
+            $target_wordset_id,
+            $target_wordset_tt_id,
+            'template_wordset_private_readback_failed',
+            $result
+        );
+        ll_tools_import_template_wordset_finalize_cache_state($target_wordset_id, $result);
+        return [];
+    }
+    if ($visibility_meta_key === '') {
         $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain');
         return [];
     }
@@ -14355,6 +14729,8 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
     ll_tools_import_track_undo_id($result, 'wordset_term_ids', $target_wordset_id);
 
     $categories_by_slug = [];
+    $category_slug_to_id = [];
+    try {
     foreach ((array) ($payload['categories'] ?? []) as $category_payload) {
         if (!is_array($category_payload)) {
             continue;
@@ -14366,7 +14742,6 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         }
     }
 
-    $category_slug_to_id = [];
     $create_category = static function (string $category_slug) use (&$create_category, &$categories_by_slug, &$category_slug_to_id, $target_wordset_id, &$result): int {
         $category_slug = sanitize_title($category_slug);
         if ($category_slug === '') {
@@ -14474,6 +14849,23 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         if (function_exists('ll_tools_set_word_image_wordset_owner')) {
             ll_tools_set_word_image_wordset_owner($image_post_id, $target_wordset_id, $image_post_id);
         }
+    }
+
+    } catch (Throwable $throwable) {
+        $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [template_wordset_assembly_threw]';
+    } finally {
+        if (
+            !ll_tools_import_template_wordset_mapping_is_live($target_wordset_id, $target_wordset_tt_id)
+            || !ll_tools_import_template_wordset_keep_private($target_wordset_id)
+        ) {
+            ll_tools_import_template_wordset_record_owned_failure(
+                $target_wordset_id,
+                $target_wordset_tt_id,
+                'template_wordset_final_private_readback_failed',
+                $result
+            );
+        }
+        ll_tools_import_template_wordset_finalize_cache_state($target_wordset_id, $result);
     }
 
     return array_values(array_unique(array_filter(array_map('intval', array_values($category_slug_to_id)))));

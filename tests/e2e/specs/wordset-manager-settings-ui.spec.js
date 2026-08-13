@@ -251,17 +251,17 @@ function buildRecorderQueueToolMarkup() {
 }
 
 function buildRecorderQueueLazySummaryMarkup() {
-  const placeholder = (slug, name) => `
+  const placeholder = (slug) => `
     <article
       class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading"
       role="listitem"
       data-recorder-queue-category="${slug}"
-      data-recorder-queue-category-name="${name}"
       data-ll-recorder-queue-summary-placeholder="true"
+      aria-label="Loading queue categories..."
       aria-busy="true"
     >
       <span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top">
-        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">${name}</span>
+        <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name ll-wordset-recorder-queue-category-card__title-skeleton" aria-hidden="true"></span>
         <span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span>
       </span>
       <span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true">
@@ -302,9 +302,9 @@ function buildRecorderQueueLazySummaryMarkup() {
                 <span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Fruit</span>
                 <span class="ll-wordset-settings-card__pill">2 words</span>
               </a>
-              ${placeholder('market', 'Market')}
-              ${placeholder('empty', 'Empty category')}
-              ${placeholder('travel', 'Travel')}
+              ${placeholder('market')}
+              ${placeholder('empty')}
+              ${placeholder('travel')}
               <span
                 class="ll-wordset-recorder-queue-category-marker"
                 data-recorder-queue-category="food"
@@ -1335,6 +1335,18 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(4);
   await expect(grid.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(3);
   await expect(grid.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(6);
+  const initialLoadingCards = grid.locator('.ll-wordset-recorder-queue-category-card--loading');
+  const initialLoadingTitles = initialLoadingCards.locator('.ll-wordset-recorder-queue-category__name');
+  await expect(initialLoadingCards).toHaveCount(3);
+  await expect(grid.locator('.ll-wordset-recorder-queue-category-card--loading[aria-label="Loading queue categories..."]')).toHaveCount(3);
+  await expect(initialLoadingTitles).toHaveCount(3);
+  expect(await initialLoadingTitles.allTextContents()).toEqual(['', '', '']);
+  const initialTitleGeometry = await initialLoadingTitles.first().evaluate((title) => {
+    const rect = title.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  expect(initialTitleGeometry.width).toBeGreaterThan(0);
+  expect(initialTitleGeometry.height).toBeGreaterThanOrEqual(16);
   await expect(page.locator('.ll-wordset-recorder-queue-pagination')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Continue' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /^2$/ })).toHaveCount(0);
@@ -1349,13 +1361,17 @@ test('manager recorder queue streams one recorder category queue in bounded orde
 
   await expect.poll(() => page.evaluate(() => window.__recorderQueueSummaryCalls.length)).toBe(3);
 
-  // The final candidate began as a hidden compact marker. It is promoted only
-  // when selected, preserving its known name while its count/preview shimmer.
+  // The final candidate began as a hidden compact marker. Empty categories can
+  // disappear before it is selected, so its promoted shimmer stays unnamed.
   const foodLoadingCard = grid.locator(
     '.ll-wordset-recorder-queue-category-card--loading[data-recorder-queue-category="food"]'
   );
+  await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);
   await expect(foodLoadingCard).toBeVisible();
-  await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category__name')).toHaveText('Food');
+  await expect(foodLoadingCard).toHaveAttribute('aria-label', 'Loading queue categories...');
+  await expect(foodLoadingCard).not.toHaveAttribute('data-recorder-queue-category-name', /.+/);
+  await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category__name')).toHaveText('');
+  await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category-card__title-skeleton')).toHaveCount(1);
   await expect(foodLoadingCard.locator('.ll-wordset-recorder-queue-category-card__count-skeleton')).toHaveCount(1);
   await expect(foodLoadingCard.locator('.ll-wordset-preview-item--lazy-skeleton')).toHaveCount(2);
   await expect(foodLoadingCard).toHaveAttribute('aria-busy', 'true');
@@ -1387,6 +1403,11 @@ test('manager recorder queue streams one recorder category queue in bounded orde
   await expect(grid.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
   await expect(grid.locator('[data-recorder-queue-category="empty"]')).toHaveCount(0);
   await expect(grid.locator('.ll-wordset-recorder-queue-category-card')).toHaveCount(4);
+  const foodResolvedCard = grid.locator(
+    '.ll-wordset-recorder-queue-category-card:not([data-ll-recorder-queue-summary-placeholder])[data-recorder-queue-category="food"]'
+  );
+  await expect(foodResolvedCard.locator('.ll-wordset-recorder-queue-category__name')).toHaveText('Food');
+  await expect(foodResolvedCard.locator('.ll-wordset-recorder-queue-category-card__title-skeleton')).toHaveCount(0);
   const resolvedOrder = await grid.locator('.ll-wordset-recorder-queue-category-card').evaluateAll((cards) => (
     cards.map((card) => card.getAttribute('data-recorder-queue-category'))
   ));
@@ -1479,12 +1500,27 @@ for (const failureMode of ['timeout', 'catalog', 'card']) {
     await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('Could not load more queue categories right now.');
     await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry' })).toBeEnabled();
-    await expect(page.locator('.ll-wordset-recorder-queue-category-card--loading')).toHaveCount(3);
+    const loadingCards = page.locator('.ll-wordset-recorder-queue-category-card--loading');
+    const loadingTitles = loadingCards.locator('.ll-wordset-recorder-queue-category__name');
+    await expect(loadingCards).toHaveCount(3);
+    await expect(page.locator('.ll-wordset-recorder-queue-category-card--loading[aria-label="Loading queue categories..."]')).toHaveCount(3);
+    expect(await loadingTitles.allTextContents()).toEqual(['', '', '']);
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(1);
 
     if (failureMode === 'timeout') {
-      await page.getByRole('button', { name: 'Retry' }).click();
+      const retrySnapshot = await page.getByRole('button', { name: 'Retry' }).evaluate((button) => {
+        button.click();
+        return Array.from(document.querySelectorAll('.ll-wordset-recorder-queue-category-card--loading')).map((card) => ({
+          label: card.getAttribute('aria-label'),
+          title: (card.querySelector('.ll-wordset-recorder-queue-category__name') || {}).textContent || ''
+        }));
+      });
+      expect(retrySnapshot).toEqual([
+        { label: 'Loading queue categories...', title: '' },
+        { label: 'Loading queue categories...', title: '' },
+        { label: 'Loading queue categories...', title: '' }
+      ]);
       await expect.poll(() => page.evaluate(() => window.__recorderQueueFailureCalls.length)).toBe(3);
       await expect(page.locator('[data-ll-recorder-queue-summary-placeholder]')).toHaveCount(0);
       await expect(page.locator('[data-ll-recorder-queue-summary-status]')).toHaveText('All queue categories are loaded.');

@@ -5038,6 +5038,7 @@
             }
         } catch (_) { /* no-op */ }
         const isMinimumOptionsError = reason === 'minimum-options';
+        const isBoundedSessionContinuationError = reason === 'bounded-session-continuation';
         const isInitialCategoryRetryError = reason === 'initial-category-retry';
         const title = isMinimumOptionsError
             ? (msgs.optionsInvariantErrorTitle || msgs.loadingError || 'Loading Error')
@@ -5063,7 +5064,7 @@
                 escapeErrorText(summaryLine) +
                 '<br>' +
                 escapeErrorText(msgs.minimumOptionsInvariantMessage || msgs.noContentAvailable || 'No content available.');
-        } else if (isInitialCategoryRetryError) {
+        } else if (isBoundedSessionContinuationError || isInitialCategoryRetryError) {
             errorMessage = detailHtml
                 ? detailHtml.replace(/<br>$/, '')
                 : escapeErrorText(msgs.sessionContinuationError || msgs.somethingWentWrong || 'Please try again.');
@@ -5072,6 +5073,8 @@
                 escapeErrorText(msgs.noContentAvailable || msgs.noWordsFound || 'No content available.');
         }
 
+        $('#ll-tools-flashcard-quiz-popup').addClass('ll-tools-error-state');
+        $('#quiz-results').addClass('ll-tools-error-state');
         $('#quiz-results-message').html(errorMessage).show();
         $('#quiz-results').show();
         $('#correct-count').parent().hide();
@@ -5080,6 +5083,7 @@
         Dom.hideLoading();
         $('#ll-tools-repeat-flashcard').hide();
         $('#ll-tools-category-stack, #ll-tools-category-display').hide();
+        $('#ll-tools-learning-progress, #ll-tools-mode-switcher-wrap').hide();
         State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Error state');
     }
 
@@ -5107,6 +5111,7 @@
             .off('click')
             .on('click.llLogicalSessionRetry', function (event) {
                 event.preventDefault();
+                $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
                 $('#quiz-results').hide();
                 $('#ll-tools-flashcard').show();
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Retrying bounded session continuation');
@@ -5214,6 +5219,7 @@
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded practice continuation ready');
             }
             logicalSessionContinuationPromise = null;
+            $('#ll-tools-mode-switcher-wrap').show();
             runQuizRound();
         }).catch(function (error) {
             if (currentSession !== __LLSession || !State.widgetActive) {

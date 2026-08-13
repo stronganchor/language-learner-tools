@@ -171,7 +171,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame(3, (int) ($data['page_start'] ?? 0));
             $this->assertSame(4, (int) ($data['page_end'] ?? 0));
             $this->assertTrue((bool) ($data['has_more'] ?? false));
-            $this->assertSame([], array_values((array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? [])));
+            $this->assertSame(['ɬ'], array_values((array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? [])));
 
             $results = array_values((array) ($data['results'] ?? []));
             $this->assertCount(2, $results);

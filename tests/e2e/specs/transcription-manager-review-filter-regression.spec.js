@@ -306,6 +306,31 @@ test('reviewed rows stay visible until the transcription search is manually refr
           return;
         }
 
+        if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
+          const recordingId = parseInt(requestData.recording_id, 10) || 0;
+          window.__llTranscriptionManagerMock.recordings = window.__llTranscriptionManagerMock.recordings.map(function (recording) {
+            if (recording.recording_id !== recordingId) {
+              return recording;
+            }
+            return Object.assign({}, recording, {
+              recording_text: (requestData.recording_text || '').toString(),
+              recording_ipa: (requestData.recording_ipa || '').toString()
+            });
+          });
+          const updated = window.__llTranscriptionManagerMock.recordings.find(function (recording) {
+            return recording.recording_id === recordingId;
+          });
+          deferred.resolve({
+            success: true,
+            data: {
+              recording: clone(updated),
+              validation: null,
+              keyboard_symbols: []
+            }
+          });
+          return;
+        }
+
         deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
       }, 0);
 
@@ -471,6 +496,15 @@ test('reviewed rows stay visible until the transcription search is manually refr
   await expect(reviewIpaStatus.locator('.ll-ipa-search-review-status-label')).toHaveText('Saving...');
   await expect(rows.nth(0)).toHaveAttribute('data-needs-review', '1');
 
+  await rows.nth(0).locator('.ll-ipa-search-text-input').fill('alpha typed after review began');
+  await rows.nth(0).locator('.ll-ipa-search-ipa-input').fill('alpha ipa typed after review began');
+  await rows.nth(0).locator('.ll-ipa-search-ipa-input').press('Tab');
+  expect(await page.evaluate(() => {
+    return window.__llTranscriptionManagerMock.postCalls
+      .filter(call => call.data.action === 'll_tools_update_ipa_keyboard_recording')
+      .length;
+  })).toBe(0);
+
   await page.evaluate(() => {
     const mock = window.__llTranscriptionManagerMock;
     const pending = mock.pendingReviewStateRequests.shift();
@@ -494,6 +528,21 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(reviewedReviewTextLayout.toggleVisibility).toBe('visible');
   expect(Math.abs(reviewedReviewTextLayout.actionHeight - savingReviewTextLayout.actionHeight)).toBeLessThanOrEqual(1);
   await expect(rows.nth(0).locator('.ll-ipa-search-field-review-note')).toHaveCount(0);
+  await expect(rows.nth(0).locator('.ll-ipa-search-text-input')).toHaveValue('alpha typed after review began');
+  await expect(rows.nth(0).locator('.ll-ipa-search-ipa-input')).toHaveValue('alpha ipa typed after review began');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llTranscriptionManagerMock.postCalls
+      .filter(call => call.data.action === 'll_tools_update_ipa_keyboard_recording')
+      .map(call => ({
+        text: call.data.recording_text,
+        ipa: call.data.recording_ipa
+      }));
+  })).toEqual([
+    {
+      text: 'alpha typed after review began',
+      ipa: 'alpha ipa typed after review began'
+    }
+  ]);
   const reviewedReviewRowLayout = await getOrthographySuggestionLayout(page);
   expect(reviewedReviewRowLayout.textBlockHeight).toBeGreaterThanOrEqual(initialReviewRowLayout.textBlockHeight);
   expect(reviewedReviewRowLayout.rowHeight).toBeGreaterThanOrEqual(initialReviewRowLayout.rowHeight);
@@ -542,6 +591,7 @@ test('reviewed rows stay visible until the transcription search is manually refr
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
     'll_tools_set_ipa_keyboard_transcription_review_state',
+    'll_tools_update_ipa_keyboard_recording',
     'll_tools_set_ipa_keyboard_transcription_review_state',
     'll_tools_set_ipa_keyboard_transcription_review_state'
   ]);
@@ -825,7 +875,9 @@ test('word internal review notes autosave and sync visible duplicate recording r
       wordNotes: {
         55: 'Check the family image before publishing.'
       },
-      postCalls: []
+      postCalls: [],
+      holdNoteSaves: false,
+      pendingNoteSaves: []
     };
 
     const $ = window.jQuery;
@@ -880,22 +932,29 @@ test('word internal review notes autosave and sync visible duplicate recording r
         if (requestData.action === 'll_tools_save_internal_review_note') {
           const wordId = parseInt(requestData.object_id, 10) || 0;
           const note = (requestData.note || '').toString();
-          mock.wordNotes[wordId] = note;
-          deferred.resolve({
-            success: true,
-            data: {
-              object_type: 'word',
-              object_id: wordId,
-              wordset_id: parseInt(requestData.wordset_id, 10) || 0,
-              note,
-              row: {
+          const finish = function () {
+            mock.wordNotes[wordId] = note;
+            deferred.resolve({
+              success: true,
+              data: {
                 object_type: 'word',
                 object_id: wordId,
+                wordset_id: parseInt(requestData.wordset_id, 10) || 0,
                 note,
-                title: 'Gamma'
+                row: {
+                  object_type: 'word',
+                  object_id: wordId,
+                  note,
+                  title: 'Gamma'
+                }
               }
-            }
-          });
+            });
+          };
+          if (mock.holdNoteSaves) {
+            mock.pendingNoteSaves.push({ note, finish });
+            return;
+          }
+          finish();
           return;
         }
 
@@ -964,6 +1023,45 @@ test('word internal review notes autosave and sync visible duplicate recording r
       note: 'Use the alternate family photo.'
     }
   ]);
+
+  await page.evaluate(() => {
+    window.__llWordReviewNoteMock.holdNoteSaves = true;
+  });
+  await firstInput.fill('');
+  await firstInput.press('Tab');
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llWordReviewNoteMock.pendingNoteSaves.length;
+  })).toBe(1);
+  await firstInput.fill('Keep this newer note.');
+
+  expect(await page.evaluate(() => {
+    return window.__llWordReviewNoteMock.postCalls
+      .filter(call => call.data.action === 'll_tools_save_internal_review_note')
+      .map(call => call.data.note);
+  })).toEqual(['Use the alternate family photo.', '']);
+
+  await page.evaluate(() => {
+    window.__llWordReviewNoteMock.pendingNoteSaves.shift().finish();
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    return window.__llWordReviewNoteMock.pendingNoteSaves.length;
+  })).toBe(1);
+  await expect(firstInput).toHaveValue('Keep this newer note.');
+  await expect(secondInput).toHaveValue('Keep this newer note.');
+  await expect(notes.nth(0).locator('[data-ll-internal-review-note-status]')).toHaveText('Saving review note...');
+  expect(await page.evaluate(() => {
+    return window.__llWordReviewNoteMock.postCalls
+      .filter(call => call.data.action === 'll_tools_save_internal_review_note')
+      .map(call => call.data.note);
+  })).toEqual(['Use the alternate family photo.', '', 'Keep this newer note.']);
+
+  await page.evaluate(() => {
+    window.__llWordReviewNoteMock.pendingNoteSaves.shift().finish();
+  });
+  await expect(notes.nth(0).locator('[data-ll-internal-review-note-status]')).toHaveText('Review note saved.');
+  await expect(firstInput).toHaveValue('Keep this newer note.');
+  await expect(secondInput).toHaveValue('Keep this newer note.');
+  await expect.poll(async () => page.evaluate(() => window.__llWordReviewNoteMock.wordNotes[55])).toBe('Keep this newer note.');
 });
 
 test('transcription autosave response preserves an in-progress internal review note editor', async ({ page }) => {
@@ -2202,14 +2300,34 @@ test('dirty transcription rows save once and then open the detached word editor'
       i18n: {}
     };
 
+    window.llToolsWordEditModalData = {
+      preparationTimeoutMs: 150
+    };
     window.__llQueuedEditorMock = {
       recording: buildRecording(),
       postCalls: [],
-      openCalls: []
+      prepareCalls: [],
+      cancelCalls: [],
+      openCalls: [],
+      pendingUpdate: null,
+      nextLoadingToken: 72
     };
     window.LLToolsWordEditModal = {
+      prepare(options) {
+        window.__llQueuedEditorMock.prepareCalls.push(Object.assign({}, options));
+        window.jQuery('#ll-test-word-editor-loading').remove();
+        window.jQuery('<div id="ll-test-word-editor-loading" role="dialog">Loading word editor...</div>').appendTo('body');
+        window.__llQueuedEditorMock.nextLoadingToken += 1;
+        return window.__llQueuedEditorMock.nextLoadingToken;
+      },
+      cancelPrepared(token) {
+        window.__llQueuedEditorMock.cancelCalls.push(Number(token));
+        window.jQuery('#ll-test-word-editor-loading').remove();
+        return true;
+      },
       open(options) {
         window.__llQueuedEditorMock.openCalls.push(Object.assign({}, options));
+        window.jQuery('#ll-test-word-editor-loading').remove();
         return Promise.resolve({
           wordId: options.wordId,
           wordsetId: options.wordsetId,
@@ -2265,23 +2383,31 @@ test('dirty transcription rows save once and then open the detached word editor'
         }
 
         if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
-          mock.recording = Object.assign({}, mock.recording, {
-            recording_text: requestData.recording_text,
-            recording_ipa: requestData.recording_ipa
-          });
-          deferred.resolve({
-            success: true,
-            data: {
-              recording: clone(mock.recording),
-              validation: null,
-              keyboard_symbols: []
+          const pendingUpdate = {
+            finish() {
+              if (mock.pendingUpdate === pendingUpdate) {
+                mock.pendingUpdate = null;
+              }
+              mock.recording = Object.assign({}, mock.recording, {
+                recording_text: requestData.recording_text,
+                recording_ipa: requestData.recording_ipa
+              });
+              deferred.resolve({
+                success: true,
+                data: {
+                  recording: clone(mock.recording),
+                  validation: null,
+                  keyboard_symbols: []
+                }
+              });
             }
-          });
+          };
+          mock.pendingUpdate = pendingUpdate;
           return;
         }
 
         deferred.reject(new Error('Unexpected action: ' + String(requestData.action || '')));
-      }, requestData.action === 'll_tools_update_ipa_keyboard_recording' ? 150 : 0);
+      }, 0);
 
       return deferred.promise();
     };
@@ -2295,11 +2421,24 @@ test('dirty transcription rows save once and then open the detached word editor'
   await row.locator('.ll-ipa-search-word-edit-toggle').click();
 
   await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Saving changes before opening the word editor...');
+  await expect(page.locator('#ll-test-word-editor-loading')).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => !!window.__llQueuedEditorMock.pendingUpdate)).toBe(true);
+  expect(await page.evaluate(() => window.__llQueuedEditorMock.openCalls.length)).toBe(0);
+  expect(await page.evaluate(() => window.__llQueuedEditorMock.prepareCalls.length)).toBe(1);
+
+  await page.evaluate(() => {
+    window.__llQueuedEditorMock.pendingUpdate.finish();
+  });
   await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Word editor opened.');
+  await expect(row.locator('.ll-ipa-search-text-input')).toHaveValue('delta changed');
+  await expect(row.locator('.ll-ipa-search-text-input')).toHaveAttribute('data-saved-value', 'delta changed');
+  await expect(row).not.toHaveClass(/is-search-row-dirty/);
 
   const result = await page.evaluate(() => {
     return {
       actions: window.__llQueuedEditorMock.postCalls.map(call => call.data.action),
+      prepareCalls: window.__llQueuedEditorMock.prepareCalls,
+      cancelCalls: window.__llQueuedEditorMock.cancelCalls,
       openCalls: window.__llQueuedEditorMock.openCalls,
       savedText: window.__llQueuedEditorMock.recording.recording_text
     };
@@ -2309,14 +2448,72 @@ test('dirty transcription rows save once and then open the detached word editor'
     'll_tools_search_ipa_keyboard_recordings',
     'll_tools_update_ipa_keyboard_recording'
   ]);
+  expect(result.prepareCalls).toEqual([
+    {
+      wordId: 88,
+      wordsetId: 7,
+      recordingId: 404,
+      forceLoading: true
+    }
+  ]);
+  expect(result.cancelCalls).toEqual([]);
   expect(result.openCalls).toEqual([
     {
       wordId: 88,
       wordsetId: 7,
-      recordingId: 404
+      recordingId: 404,
+      loadingToken: 73
     }
   ]);
   expect(result.savedText).toBe('delta changed');
+
+  await row.locator('.ll-ipa-search-text-input').fill('delta saved after timeout');
+  await row.locator('.ll-ipa-search-word-edit-toggle').click();
+  await expect(page.locator('#ll-test-word-editor-loading')).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => !!window.__llQueuedEditorMock.pendingUpdate)).toBe(true);
+
+  await expect(page.locator('#ll-test-word-editor-loading')).toHaveCount(0);
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Unable to open the word editor.');
+  expect(await page.evaluate(() => ({
+    cancelCalls: window.__llQueuedEditorMock.cancelCalls,
+    openCount: window.__llQueuedEditorMock.openCalls.length
+  }))).toEqual({
+    cancelCalls: [74],
+    openCount: 1
+  });
+
+  const liveIpaInput = row.locator('.ll-ipa-search-ipa-input');
+  await expect(liveIpaInput).toBeEnabled();
+  await liveIpaInput.fill('delta ipa still editable');
+  await page.evaluate(() => {
+    window.__llQueuedEditorMock.pendingUpdate.finish();
+  });
+  await expect.poll(async () => page.evaluate(() => !!window.__llQueuedEditorMock.pendingUpdate)).toBe(true);
+  await page.evaluate(() => {
+    window.__llQueuedEditorMock.pendingUpdate.finish();
+  });
+
+  await expect(row.locator('.ll-ipa-search-text-input')).toHaveValue('delta saved after timeout');
+  await expect(row.locator('.ll-ipa-search-ipa-input')).toHaveValue('delta ipa still editable');
+  await expect(row.locator('.ll-ipa-search-text-input')).toHaveAttribute('data-saved-value', 'delta saved after timeout');
+  await expect(row.locator('.ll-ipa-search-ipa-input')).toHaveAttribute('data-saved-value', 'delta ipa still editable');
+  await expect(row).not.toHaveClass(/is-search-row-dirty/);
+  expect(await page.evaluate(() => ({
+    actions: window.__llQueuedEditorMock.postCalls.map(call => call.data.action),
+    openCount: window.__llQueuedEditorMock.openCalls.length,
+    savedText: window.__llQueuedEditorMock.recording.recording_text,
+    savedIpa: window.__llQueuedEditorMock.recording.recording_ipa
+  }))).toEqual({
+    actions: [
+      'll_tools_search_ipa_keyboard_recordings',
+      'll_tools_update_ipa_keyboard_recording',
+      'll_tools_update_ipa_keyboard_recording',
+      'll_tools_update_ipa_keyboard_recording'
+    ],
+    openCount: 1,
+    savedText: 'delta saved after timeout',
+    savedIpa: 'delta ipa still editable'
+  });
 });
 
 test('detached word editor reuses cached markup until an internal review-note autosave invalidates it', async ({ page }) => {
@@ -2328,9 +2525,11 @@ test('detached word editor reuses cached markup until an internal review-note au
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.unroute('**/*');
   await page.setContent(`
+    <button type="button" id="ll-modal-test-opener">Open editor</button>
     <div class="ll-word-edit-modal-host" data-ll-word-edit-modal-host aria-live="polite">
       <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-word-edit-modal-grid="1"></div>
     </div>
+    <button type="button" id="ll-modal-test-outside">Outside editor</button>
   `);
   await page.addScriptTag({ content: jquerySource });
 
@@ -2367,10 +2566,40 @@ test('detached word editor reuses cached markup until an internal review-note au
   await page.addScriptTag({ content: wordEditModalSource });
 
   await page.evaluate(() => {
+    document.getElementById('ll-modal-test-opener').focus();
+    window.__llModalMock.preparedToken = window.LLToolsWordEditModal.prepare({
+      wordId: 91,
+      wordsetId: 7,
+      recordingId: 505,
+      forceLoading: true
+    });
+  });
+
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeVisible();
+  await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toHaveText('Loading word editor...');
+  const loadingPanel = page.locator('.ll-word-edit-modal-loading__panel');
+  await expect(loadingPanel).toHaveAttribute('role', 'dialog');
+  await expect(loadingPanel).toHaveAttribute('aria-modal', 'true');
+  await expect(loadingPanel).toHaveAccessibleName('Loading word editor');
+  await expect(loadingPanel).toBeFocused();
+  await expect(page.locator('#ll-modal-test-opener')).toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-modal-test-opener')).toHaveAttribute('aria-hidden', 'true');
+  await page.keyboard.press('Tab');
+  await expect(loadingPanel).toBeFocused();
+  await page.evaluate(() => {
+    const outside = document.getElementById('ll-modal-test-outside');
+    outside.removeAttribute('inert');
+    outside.focus();
+  });
+  await expect(loadingPanel).toBeFocused();
+  expect(await page.evaluate(() => window.__llModalMock.postCalls.length)).toBe(0);
+
+  await page.evaluate(() => {
     window.__llModalMock.firstOpen = window.LLToolsWordEditModal.open({
       wordId: 91,
       wordsetId: 7,
-      recordingId: 505
+      recordingId: 505,
+      loadingToken: window.__llModalMock.preparedToken
     });
   });
 
@@ -2405,6 +2634,9 @@ test('detached word editor reuses cached markup until an internal review-note au
 
   await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
   expect(await page.evaluate(() => document.body.classList.contains('ll-word-edit-modal-loading-open'))).toBe(false);
+  await expect(page.locator('#ll-modal-test-opener')).toBeFocused();
+  await expect(page.locator('#ll-modal-test-opener')).not.toHaveAttribute('inert', '');
+  await expect(page.locator('#ll-modal-test-opener')).not.toHaveAttribute('aria-hidden', 'true');
 
   await page.evaluate(() => window.LLToolsWordEditModal.open({
     wordId: 91,

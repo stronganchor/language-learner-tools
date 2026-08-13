@@ -36,20 +36,28 @@ async function mountRestartHarness(page) {
         <div id="ll-tools-prompt"></div>
         <div id="ll-tools-flashcard-content"></div>
         <div id="ll-tools-flashcard"></div>
-        <div id="quiz-results"></div>
         <div id="ll-tools-mode-switcher-wrap" aria-expanded="false">
           <div id="ll-tools-mode-menu" aria-hidden="true">
             <button class="ll-tools-mode-option practice" data-mode="practice" type="button"></button>
           </div>
           <button id="ll-tools-mode-switcher" type="button"></button>
         </div>
+        <div id="quiz-results" style="display:none;">
+          <h2 id="quiz-results-title"></h2>
+          <p id="quiz-results-message" style="display:none;"></p>
+          <p class="ll-quiz-results-score">
+            <span id="correct-count">0</span> / <span id="total-questions">0</span>
+          </p>
+          <div id="quiz-mode-buttons" style="display:none;">
+            <button id="restart-practice-mode" type="button"></button>
+            <button id="restart-learning-mode" type="button"></button>
+            <button id="restart-self-check-mode" type="button"></button>
+            <button id="restart-gender-mode" type="button"></button>
+            <button id="restart-listening-mode" type="button"></button>
+          </div>
+          <button id="restart-quiz" class="quiz-button" type="button" style="display:none;"></button>
+        </div>
         <button id="ll-tools-repeat-flashcard" type="button"></button>
-        <button id="restart-practice-mode" type="button"></button>
-        <button id="restart-learning-mode" type="button"></button>
-        <button id="restart-self-check-mode" type="button"></button>
-        <button id="restart-gender-mode" type="button"></button>
-        <button id="restart-listening-mode" type="button"></button>
-        <button id="restart-quiz" type="button"></button>
       </div>
     </div>
   `);
@@ -737,6 +745,59 @@ test('restartQuiz keeps the popup session active after resetting state', async (
 
   expect(state.widgetActive).toBe(true);
   expect(['loading', 'quiz_ready']).toContain(state.flowState);
+});
+
+test('bounded continuation error renders a localized retry state and clears it on Retry', async ({ page }) => {
+  await mountRestartHarness(page);
+
+  await page.evaluate(() => {
+    window.llToolsFlashcardsMessages = {
+      loadingError: 'Bir şeyler ters gitti',
+      errorDetailsLabel: 'Hata ayrıntıları',
+      sessionContinuationError: 'Lütfen tekrar deneyin.',
+      noContentAvailable: 'Gösterilecek içerik yok.',
+      retry: 'Yeniden Dene'
+    };
+    window.__continuationCalls = 0;
+    window.__pendingRetry = new Promise(() => {});
+    window.llToolsFlashcardsData.boundedSessionContinuation = () => {
+      window.__continuationCalls += 1;
+      return window.__continuationCalls === 1
+        ? Promise.reject(new Error('server hot'))
+        : window.__pendingRetry;
+    };
+    window.LLFlashcards.Main.tryContinueLogicalSession();
+  });
+
+  await page.waitForFunction(() => (
+    window.__continuationCalls === 1
+    && window.LLFlashcards.State.getState() === 'showing_results'
+  ));
+
+  const popup = page.locator('#ll-tools-flashcard-quiz-popup');
+  const results = page.locator('#quiz-results');
+  const retry = page.locator('#restart-quiz');
+  await expect(results).toBeVisible();
+  await expect(popup).toHaveClass(/ll-tools-error-state/);
+  await expect(results).toHaveClass(/ll-tools-error-state/);
+  await expect(page.locator('#quiz-results-title')).toHaveText('Bir şeyler ters gitti');
+  await expect(page.locator('#quiz-results-message')).toHaveText('Hata ayrıntıları: Lütfen tekrar deneyin.');
+  await expect(page.locator('#quiz-results-message')).not.toContainText('Gösterilecek içerik yok.');
+  await expect(retry).toBeVisible();
+  await expect(retry).toHaveText('Yeniden Dene');
+  await expect(page.locator('.ll-quiz-results-score')).toBeHidden();
+  await expect(page.locator('#quiz-mode-buttons')).toBeHidden();
+  await expect(page.locator('#ll-tools-learning-progress')).toBeHidden();
+  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeHidden();
+
+  await retry.click();
+  await page.waitForFunction(() => (
+    window.__continuationCalls === 2
+    && window.LLFlashcards.State.getState() === 'loading'
+  ));
+  await expect(results).toBeHidden();
+  await expect(popup).not.toHaveClass(/ll-tools-error-state/);
+  await expect(results).not.toHaveClass(/ll-tools-error-state/);
 });
 
 test('practice progress reaches full on the actual last answer without inserting an extra replay', async ({ page }) => {

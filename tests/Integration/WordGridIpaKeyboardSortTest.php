@@ -96,6 +96,48 @@ final class WordGridIpaKeyboardSortTest extends LL_Tools_TestCase
         $this->assertNotContains("r\u{0325}", array_values((array) ($config['keyboard_symbols'] ?? [])));
     }
 
+    public function test_bounded_transcription_config_keeps_materialized_keyboard_symbols_and_counts(): void
+    {
+        $wordset_id = $this->createWordset();
+        $vowel = "\u{025B}";
+        $consonant = "\u{0283}";
+        $manual = "\u{026C}";
+        $current_batch_sign = "\u{0294}";
+        update_term_meta($wordset_id, 'll_wordset_ipa_special_chars', [$vowel, $consonant]);
+        update_term_meta($wordset_id, 'll_wordset_ipa_manual_symbols', [$manual]);
+        update_term_meta($wordset_id, ll_tools_ipa_keyboard_symbol_summary_meta_key(), [
+            'version' => ll_tools_ipa_keyboard_aggregate_schema_version(),
+            'recording_counts' => [
+                $vowel => 8,
+                $consonant => 6,
+                $manual => 3,
+            ],
+        ]);
+
+        $config = ll_tools_ipa_keyboard_get_transcription_config($wordset_id, true, [
+            [
+                'recording_ipa' => $current_batch_sign,
+                'review_fields' => [
+                    'recording_text' => false,
+                    'recording_ipa' => false,
+                ],
+            ],
+        ]);
+        $groups = [];
+        foreach ((array) ($config['keyboard_groups'] ?? []) as $group) {
+            $groups[(string) ($group['key'] ?? '')] = array_values((array) ($group['symbols'] ?? []));
+        }
+
+        $this->assertContains($vowel, array_values((array) ($config['keyboard_symbols'] ?? [])));
+        $this->assertContains($consonant, array_values((array) ($config['keyboard_symbols'] ?? [])));
+        $this->assertContains($manual, array_values((array) ($config['keyboard_symbols'] ?? [])));
+        $this->assertContains($current_batch_sign, array_values((array) ($config['keyboard_symbols'] ?? [])));
+        $this->assertContains($vowel, $groups['vowels'] ?? []);
+        $this->assertContains($consonant, $groups['consonants'] ?? []);
+        $this->assertContains($manual, $groups['consonants'] ?? []);
+        $this->assertContains($current_batch_sign, $groups['signs'] ?? []);
+    }
+
     public function test_ipa_keyboard_groups_all_reviewed_tie_bar_tokens_before_compacting_diacritics(): void
     {
         $wordset_id = $this->createWordset();
