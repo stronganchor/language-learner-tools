@@ -19,6 +19,18 @@
     padding: 0;
 }
 
+.ll-lang-switcher__locale-form {
+    margin: 0;
+    padding: 0;
+}
+
+button.ll-lang-link {
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+    text-align: inherit;
+}
+
 .ll-lang-switcher .ll-lang-link,
 .ll-lang-switcher .ll-lang-current,
 .ll-lang-switcher__more {

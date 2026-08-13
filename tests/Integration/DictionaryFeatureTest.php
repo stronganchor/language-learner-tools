@@ -1054,7 +1054,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $dictionary_nonce = wp_create_nonce('ll_tools_dictionary_live_search');
         $locale_nonce = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
         $stored = ll_tools_dictionary_static_cache_prepare_html_for_storage(
-            '<script>' . $dictionary_nonce . '</script><a href="?ll_locale_nonce=' . $locale_nonce . '">Locale</a>'
+            '<script>' . $dictionary_nonce . '</script><form method="post"><input type="hidden" name="ll_locale_nonce" value="' . $locale_nonce . '"><button>Locale</button></form>'
         );
 
         $this->assertStringContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_NONCE_PLACEHOLDER, $stored);

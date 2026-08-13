@@ -3,15 +3,31 @@ declare(strict_types=1);
 
 final class LocalePreferenceTest extends LL_Tools_TestCase
 {
+    private array $originalRequestServer = [];
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->originalRequestServer = array_intersect_key(
+            $_SERVER,
+            array_flip(['REQUEST_METHOD', 'REQUEST_URI'])
+        );
         update_option('ll_enable_browser_language_autoswitch', 1);
     }
 
     protected function tearDown(): void
     {
-        unset($_COOKIE[LL_TOOLS_I18N_COOKIE], $_REQUEST['ll_locale'], $_GET['ll_locale'], $_REQUEST['ll_locale_nonce'], $_GET['ll_locale_nonce']);
+        unset(
+            $_COOKIE[LL_TOOLS_I18N_COOKIE],
+            $_REQUEST['ll_locale'],
+            $_GET['ll_locale'],
+            $_POST['ll_locale'],
+            $_REQUEST['ll_locale_nonce'],
+            $_GET['ll_locale_nonce'],
+            $_POST['ll_locale_nonce']
+        );
+        unset($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
+        $_SERVER = array_merge($_SERVER, $this->originalRequestServer);
         unset($_SERVER['HTTP_ACCEPT_LANGUAGE']);
         delete_option('ll_enable_browser_language_autoswitch');
         delete_option(LL_TOOLS_LANGUAGE_SWITCHER_PRIMARY_COUNT_OPTION);
@@ -266,6 +282,105 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
     }
 
+    public function test_signed_locale_switch_post_persists_locale_then_redirects_to_clean_url(): void
+    {
+        $nonce = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/learn/?keep=1';
+        $_POST = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => $nonce,
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect = $this->captureLocaleSwitchRedirect(static function (): void {
+            ll_tools_handle_locale_switch();
+        });
+
+        $this->assertStringContainsString('keep=1', $redirect);
+        $this->assertStringNotContainsString('ll_locale=', $redirect);
+        $this->assertStringNotContainsString('ll_locale_nonce=', $redirect);
+        $this->assertSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
+    public function test_unsigned_locale_switch_post_redirects_without_persisting_locale(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/learn/?keep=1';
+        $_POST = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'bad',
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect = $this->captureLocaleSwitchRedirect(static function (): void {
+            ll_tools_handle_locale_switch();
+        });
+
+        $this->assertStringContainsString('keep=1', $redirect);
+        $this->assertStringNotContainsString('ll_locale=', $redirect);
+        $this->assertStringNotContainsString('ll_locale_nonce=', $redirect);
+        $this->assertNotSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
+    public function test_locale_switch_post_values_take_precedence_without_mixing_get_nonce(): void
+    {
+        $_POST = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'bad',
+        ];
+        $_GET = [
+            'll_locale' => 'de_DE',
+            'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+        ];
+        $_REQUEST = array_merge($_GET, $_POST);
+
+        $this->assertSame('tr_TR', ll_tools_get_requested_switcher_locale(true));
+        $this->assertFalse(ll_tools_verify_locale_switch_request_nonce());
+
+        $_POST['ll_locale_nonce'] = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
+        $_REQUEST = array_merge($_GET, $_POST);
+
+        $this->assertSame('tr_TR', ll_tools_get_requested_switcher_locale(true));
+        $this->assertTrue(ll_tools_verify_locale_switch_request_nonce());
+    }
+
+    public function test_unrelated_post_does_not_process_legacy_get_locale_switch_values(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = '/learn/?ll_locale=tr_TR';
+        $_POST = ['unrelated_action' => 'save'];
+        $_GET = [
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
+        ];
+        $_REQUEST = array_merge($_GET, $_POST);
+        $redirected = false;
+        $redirect_filter = static function ($location) use (&$redirected) {
+            $redirected = true;
+            throw new RuntimeException('unexpected_redirect');
+        };
+        add_filter('wp_redirect', $redirect_filter, 10, 1);
+
+        try {
+            ll_tools_handle_locale_switch();
+        } finally {
+            remove_filter('wp_redirect', $redirect_filter, 10);
+        }
+
+        $this->assertFalse($redirected);
+        $this->assertNotSame('tr_TR', $_COOKIE[LL_TOOLS_I18N_COOKIE] ?? '');
+    }
+
+    public function test_browser_locale_preference_skips_explicit_posted_locale(): void
+    {
+        $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'de-DE,de;q=0.9';
+        $_POST['ll_locale'] = 'tr_TR';
+        $_REQUEST['ll_locale'] = 'tr_TR';
+
+        $this->assertSame('', ll_tools_get_browser_locale_preference());
+    }
+
     public function test_filter_locale_defaults_to_browser_language_when_enabled(): void
     {
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7';
@@ -310,8 +425,14 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-flag', $html);
         $this->assertStringNotContainsString('ll-lang-switcher__summary-label', $html);
         $this->assertStringNotContainsString('A/あ', $html);
-        $this->assertStringContainsString('ll_locale_nonce', $html);
-        $this->assertStringContainsString('rel="nofollow"', $html);
+        $this->assertStringContainsString('<form method="post" class="ll-lang-switcher__locale-form">', $html);
+        $this->assertStringContainsString('name="ll_locale"', $html);
+        $this->assertStringContainsString('name="ll_locale_nonce"', $html);
+        $this->assertDoesNotMatchRegularExpression('/<a\b[^>]*href="[^"]*ll_locale/i', $html);
+
+        $matches = [];
+        $this->assertSame(1, preg_match('/name="ll_locale_nonce" value="([^"]+)"/', $html, $matches));
+        $this->assertSame(1, wp_verify_nonce(html_entity_decode($matches[1], ENT_QUOTES), ll_tools_get_locale_switch_nonce_action()));
     }
 
     public function test_language_switcher_list_defaults_to_first_three_languages_then_more_button(): void
@@ -320,10 +441,10 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
         $more_position = strpos($html, 'data-ll-language-switcher-more');
         $secondary_start = strpos($html, 'll-lang-switcher__secondary-locale');
-        $turkish_position = strpos($html, 'll_locale=tr_TR');
+        $turkish_position = strpos($html, 'name="ll_locale" value="tr_TR"');
         $english_position = strpos($html, 'English');
-        $german_position = strpos($html, 'll_locale=de_DE');
-        $russian_position = strpos($html, 'll_locale=ru_RU');
+        $german_position = strpos($html, 'name="ll_locale" value="de_DE"');
+        $russian_position = strpos($html, 'name="ll_locale" value="ru_RU"');
 
         $this->assertStringContainsString('ll-lang-switcher--list', $html);
         $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
@@ -348,11 +469,11 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $html = ll_language_switcher_shortcode([]);
 
         $more_position = strpos($html, 'data-ll-language-switcher-more');
-        $french_position = strpos($html, 'll_locale=fr_FR');
+        $french_position = strpos($html, 'name="ll_locale" value="fr_FR"');
         $english_position = strpos($html, 'English');
-        $turkish_position = strpos($html, 'll_locale=tr_TR');
-        $german_position = strpos($html, 'll_locale=de_DE');
-        $russian_position = strpos($html, 'll_locale=ru_RU');
+        $turkish_position = strpos($html, 'name="ll_locale" value="tr_TR"');
+        $german_position = strpos($html, 'name="ll_locale" value="de_DE"');
+        $russian_position = strpos($html, 'name="ll_locale" value="ru_RU"');
 
         $this->assertIsInt($more_position);
         $this->assertIsInt($french_position);
@@ -377,7 +498,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
         $this->assertStringNotContainsString('ll-lang-switcher--has-secondary', $html);
         $this->assertStringNotContainsString('data-ll-language-switcher-more', $html);
-        $this->assertStringContainsString('ll_locale=ru_RU', $html);
+        $this->assertStringContainsString('name="ll_locale" value="ru_RU"', $html);
     }
 
     public function test_language_switcher_can_bucket_secondary_languages_after_primary_locales(): void
@@ -388,9 +509,9 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
 
         $more_position = strpos($html, 'data-ll-language-switcher-more');
         $secondary_start = strpos($html, 'll-lang-switcher__secondary-locale');
-        $turkish_position = strpos($html, 'll_locale=tr_TR');
-        $german_position = strpos($html, 'll_locale=de_DE');
-        $russian_position = strpos($html, 'll_locale=ru_RU');
+        $turkish_position = strpos($html, 'name="ll_locale" value="tr_TR"');
+        $german_position = strpos($html, 'name="ll_locale" value="de_DE"');
+        $russian_position = strpos($html, 'name="ll_locale" value="ru_RU"');
 
         $this->assertStringContainsString('ll-lang-switcher--has-secondary', $html);
         $this->assertStringContainsString('ll-lang-switcher__more', $html);
@@ -419,6 +540,7 @@ final class LocalePreferenceTest extends LL_Tools_TestCase
         $this->assertStringContainsString('role="dialog"', $html);
         $this->assertStringContainsString('data-ll-language-switcher-close', $html);
         $this->assertStringContainsString('ll_locale_nonce', $html);
+        $this->assertStringContainsString('<form method="post" class="ll-lang-switcher__locale-form">', $html);
     }
 
     public function test_language_switcher_uses_configured_locale_display_metadata(): void

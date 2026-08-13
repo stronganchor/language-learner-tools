@@ -544,6 +544,7 @@ function ll_tools_context_pack_definitions(): array
                 'Public dictionary search should avoid broad postmeta contains scans.',
                 'Anonymous live-search misses take the same-query build lock before atomic client admission and return retryable warming payloads while another builder owns the key.',
                 'Static cache keys must be deterministic and locale-safe.',
+                'Public language-switcher choices must use nonce-protected POST forms rather than crawler-discoverable locale query links.',
                 'User-facing strings must be translation-ready and discoverable by Loco Translate.',
                 'Tier-2 public source policy must use named symbols or strict semantic regions, not numeric line ranges.',
                 'AI crawler exports must stay bounded and include anonymous public content only.',

@@ -302,6 +302,7 @@ FREE | little boy
 - **Attributes**: `hide_empty` (`1|0` to hide word sets without learner-ready categories), `class`.
 
 ### `[ll_language_switcher]`
+- Locale choices submit as nonce-protected POST forms; legacy signed GET locale URLs remain accepted for inbound compatibility and redirect back to the clean current URL.
 - **Attributes**:
   - `show_flags`: `1|0` to show or hide locale flags.
   - `style`: `native`, `english`, or `code`.

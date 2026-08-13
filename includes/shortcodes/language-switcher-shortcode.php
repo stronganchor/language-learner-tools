@@ -601,14 +601,47 @@ function ll_tools_persist_locale_preference($locale, $user_id = 0) {
 }
 
 /**
+ * Read a paired locale-switch action from POST first, then GET.
+ *
+ * @return array{has_locale:bool,source:string,locale:mixed,nonce:mixed}
+ */
+function ll_tools_get_locale_switch_request_data(): array {
+    if (isset($_POST['ll_locale'])) {
+        return [
+            'has_locale' => true,
+            'source' => 'post',
+            'locale' => $_POST['ll_locale'],
+            'nonce' => $_POST['ll_locale_nonce'] ?? '',
+        ];
+    }
+
+    if (isset($_GET['ll_locale'])) {
+        return [
+            'has_locale' => true,
+            'source' => 'get',
+            'locale' => $_GET['ll_locale'],
+            'nonce' => $_GET['ll_locale_nonce'] ?? '',
+        ];
+    }
+
+    return [
+        'has_locale' => false,
+        'source' => '',
+        'locale' => '',
+        'nonce' => '',
+    ];
+}
+
+/**
  * Return a requested locale from the current request when it is valid.
  */
 function ll_tools_get_requested_switcher_locale($require_available = false) {
-    if (!isset($_REQUEST['ll_locale'])) {
+    $request = ll_tools_get_locale_switch_request_data();
+    if (!$request['has_locale'] || !is_scalar($request['locale'])) {
         return '';
     }
 
-    $requested = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale']));
+    $requested = sanitize_text_field(wp_unslash((string) $request['locale']));
     if (!ll_tools_is_valid_switcher_locale($requested)) {
         return '';
     }
@@ -624,7 +657,7 @@ function ll_tools_get_requested_switcher_locale($require_available = false) {
 }
 
 /**
- * Build the nonce action used by locale-switch links.
+ * Build the nonce action used by locale-switch forms and legacy links.
  */
 function ll_tools_get_locale_switch_nonce_action(): string {
     return 'll_tools_switch_locale';
@@ -634,11 +667,12 @@ function ll_tools_get_locale_switch_nonce_action(): string {
  * Verify the current locale-switch request nonce.
  */
 function ll_tools_verify_locale_switch_request_nonce(): bool {
-    if (!isset($_REQUEST['ll_locale_nonce'])) {
+    $request = ll_tools_get_locale_switch_request_data();
+    if (!$request['has_locale'] || !is_scalar($request['nonce'])) {
         return false;
     }
 
-    $nonce = sanitize_text_field(wp_unslash((string) $_REQUEST['ll_locale_nonce']));
+    $nonce = sanitize_text_field(wp_unslash((string) $request['nonce']));
     if ($nonce === '') {
         return false;
     }
@@ -646,14 +680,19 @@ function ll_tools_verify_locale_switch_request_nonce(): bool {
     return (bool) wp_verify_nonce($nonce, ll_tools_get_locale_switch_nonce_action());
 }
 
-function ll_tools_has_locale_switch_query_request(): bool {
-    return isset($_GET['ll_locale']);
+function ll_tools_has_locale_switch_request(): bool {
+    return ll_tools_get_locale_switch_request_data()['has_locale'];
 }
 
 function ll_tools_locale_switch_request_allows_clean_redirect(): bool {
+    $request = ll_tools_get_locale_switch_request_data();
     $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
 
-    return in_array($method, ['GET', 'HEAD'], true);
+    if ($request['source'] === 'post') {
+        return $method === 'POST';
+    }
+
+    return $request['source'] === 'get' && in_array($method, ['GET', 'HEAD'], true);
 }
 
 function ll_tools_get_clean_locale_switch_redirect_url(): string {
@@ -794,19 +833,18 @@ function ll_tools_handle_locale_switch() {
     if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
         return; // front-end only
     }
+    $has_locale_switch_request = ll_tools_has_locale_switch_request();
+    $request_allows_clean_redirect = ll_tools_locale_switch_request_allows_clean_redirect();
+    if (!$has_locale_switch_request || !$request_allows_clean_redirect) {
+        return;
+    }
     $requested = ll_tools_get_requested_switcher_locale(true);
-    $should_clean_locale_query = ll_tools_has_locale_switch_query_request()
-        && ll_tools_locale_switch_request_allows_clean_redirect();
     if ($requested === '') {
-        if ($should_clean_locale_query) {
-            ll_tools_redirect_clean_locale_switch_request();
-        }
+        ll_tools_redirect_clean_locale_switch_request();
         return;
     }
     if (!ll_tools_verify_locale_switch_request_nonce()) {
-        if ($should_clean_locale_query) {
-            ll_tools_redirect_clean_locale_switch_request();
-        }
+        ll_tools_redirect_clean_locale_switch_request();
         return;
     }
 
@@ -898,10 +936,7 @@ function ll_tools_render_language_switcher_locale_item(string $locale, string $c
     $flag = $show_flags ? ll_tools_locale_flag($locale) : '';
     $meta = ll_tools_get_locale_display_meta($locale);
     $dir = (string) ($meta['dir'] ?? 'auto');
-    $url = esc_url(add_query_arg([
-        'll_locale' => $locale,
-        'll_locale_nonce' => wp_create_nonce(ll_tools_get_locale_switch_nonce_action()),
-    ]));
+    $nonce = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
     $item_classes = array_filter([
         $is_current ? 'is-current' : '',
         sanitize_html_class($item_class),
@@ -916,10 +951,14 @@ function ll_tools_render_language_switcher_locale_item(string $locale, string $c
                 <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
             </span>
         <?php else: ?>
-            <a href="<?php echo $url; ?>" class="ll-lang-link" rel="nofollow">
-                <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
-                <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
-            </a>
+            <form method="post" class="ll-lang-switcher__locale-form">
+                <input type="hidden" name="ll_locale" value="<?php echo esc_attr($locale); ?>" />
+                <input type="hidden" name="ll_locale_nonce" value="<?php echo esc_attr($nonce); ?>" />
+                <button type="submit" class="ll-lang-link">
+                    <?php echo $flag ? '<span class="ll-flag" aria-hidden="true">' . esc_html($flag) . '</span> ' : ''; ?>
+                    <span class="ll-label" dir="<?php echo esc_attr($dir); ?>"><?php echo esc_html($label); ?></span>
+                </button>
+            </form>
         <?php endif; ?>
     </li>
     <?php

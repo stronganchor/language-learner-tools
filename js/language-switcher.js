@@ -128,7 +128,7 @@
         button.setAttribute('aria-expanded', 'true');
         scheduleOpenDropdownHeightUpdate();
 
-        var firstSecondary = switcher.querySelector('.ll-lang-switcher__secondary-locale a, .ll-lang-switcher__secondary-locale .ll-lang-current');
+        var firstSecondary = switcher.querySelector('.ll-lang-switcher__secondary-locale .ll-lang-link, .ll-lang-switcher__secondary-locale .ll-lang-current');
         if (firstSecondary && typeof firstSecondary.focus === 'function') {
             firstSecondary.focus();
         }
