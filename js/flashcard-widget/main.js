@@ -23,6 +23,7 @@
     let sessionWordFilterRecoveryAttempts = 0;
     let practiceProgressMinDisplayRatio = 0;
     let logicalSessionContinuationPromise = null;
+    let initialCategoryWarmupRetryToken = 0;
     const flashcardInteractionGuard = {
         active: false,
         historyActive: false,
@@ -838,6 +839,7 @@
     function newSession() {
         __LLSession++;
         logicalSessionContinuationPromise = null;
+        clearInitialCategoryWarmupRetry();
         __LLTimers.forEach(id => clearTimeout(id));
         __LLTimers.clear();
         firstRoundRecoveryAttempts = 0;
@@ -5036,6 +5038,7 @@
             }
         } catch (_) { /* no-op */ }
         const isMinimumOptionsError = reason === 'minimum-options';
+        const isInitialCategoryRetryError = reason === 'initial-category-retry';
         const title = isMinimumOptionsError
             ? (msgs.optionsInvariantErrorTitle || msgs.loadingError || 'Loading Error')
             : (msgs.loadingError || 'Loading Error');
@@ -5060,6 +5063,10 @@
                 escapeErrorText(summaryLine) +
                 '<br>' +
                 escapeErrorText(msgs.minimumOptionsInvariantMessage || msgs.noContentAvailable || 'No content available.');
+        } else if (isInitialCategoryRetryError) {
+            errorMessage = detailHtml
+                ? detailHtml.replace(/<br>$/, '')
+                : escapeErrorText(msgs.sessionContinuationError || msgs.somethingWentWrong || 'Please try again.');
         } else {
             errorMessage = detailHtml +
                 escapeErrorText(msgs.noContentAvailable || msgs.noWordsFound || 'No content available.');
@@ -5228,6 +5235,120 @@
         return error;
     }
 
+    function isRetryableInitialCategoryWarmupTimeout(error) {
+        const result = error && error.result && typeof error.result === 'object'
+            ? error.result
+            : null;
+        return !!(
+            result
+            && String(result.code || '').trim().toLowerCase() === 'cache_warming_timeout'
+            && parseBooleanFlag(result.retryable)
+        );
+    }
+
+    function clearInitialCategoryWarmupRetry() {
+        initialCategoryWarmupRetryToken++;
+        try {
+            $('#restart-quiz').off('.llInitialCategoryWarmupRetry');
+        } catch (_) { /* no-op */ }
+    }
+
+    function hideInitialCategoryWarmupLoading() {
+        try {
+            if (Dom && typeof Dom.hideLoadingImmediately === 'function') {
+                Dom.hideLoadingImmediately();
+            } else if (Dom && typeof Dom.hideLoading === 'function') {
+                Dom.hideLoading();
+            }
+        } catch (_) { /* no-op */ }
+
+        // Keep this explicit fallback in sync with Dom.applyLoadingVisibility().
+        // It also clears launchers that marked the popup busy before main.js ran.
+        try {
+            $('#ll-tools-flashcard-quiz-popup')
+                .removeClass('ll-round-loading-active ll-round-loading-instant')
+                .removeAttr('aria-busy');
+            $('#ll-tools-loading-status').prop('hidden', true);
+            $('#ll-tools-loading-animation').hide();
+        } catch (_) { /* no-op */ }
+    }
+
+    function showInitialCategoryRetryError(error, selectedCategories, mode, launchSession) {
+        if (launchSession !== __LLSession || !State.widgetActive || !isFlashcardPopupVisible()) {
+            clearInitialCategoryWarmupRetry();
+            return;
+        }
+
+        hideInitialCategoryWarmupLoading();
+
+        const result = error && error.result && typeof error.result === 'object'
+            ? error.result
+            : {};
+        const messages = root.llToolsFlashcardsMessages || {};
+        const errorMessage = String(
+            result.message
+            || messages.sessionContinuationError
+            || messages.somethingWentWrong
+            || 'Please try again.'
+        ).trim();
+
+        showLoadingError({
+            reason: 'initial-category-retry',
+            errorMessage: errorMessage
+        });
+        hideInitialCategoryWarmupLoading();
+
+        const retryCategories = normalizeCategoryNameList(selectedCategories);
+        const retryMode = mode;
+        const retrySession = __LLSession;
+        const retryToken = ++initialCategoryWarmupRetryToken;
+        const $retry = $('#restart-quiz');
+        if (!$retry.length) {
+            return;
+        }
+
+        $retry
+            .text(messages.retry || 'Retry')
+            .prop('disabled', false)
+            .removeAttr('aria-busy')
+            .show()
+            .off('click')
+            .on('click.llInitialCategoryWarmupRetry', function (event) {
+                event.preventDefault();
+                if (
+                    retryToken !== initialCategoryWarmupRetryToken
+                    || retrySession !== __LLSession
+                    || !State.widgetActive
+                ) {
+                    return;
+                }
+
+                clearInitialCategoryWarmupRetry();
+                const $button = $(this);
+                $button.prop('disabled', true).attr('aria-busy', 'true').hide();
+                $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
+                $('#quiz-results').hide();
+                $('#ll-tools-flashcard').show();
+                try {
+                    if (Dom && typeof Dom.showLoading === 'function') {
+                        Dom.showLoading();
+                    }
+                } catch (_) { /* no-op */ }
+
+                Promise.resolve().then(function () {
+                    return initFlashcardWidget(retryCategories, retryMode);
+                }).catch(function (retryError) {
+                    console.error('Failed to retry flashcard widget initialization:', retryError);
+                    showInitialCategoryRetryError(
+                        retryError,
+                        retryCategories,
+                        retryMode,
+                        __LLSession
+                    );
+                });
+            });
+    }
+
     function prepareInitialCategoryLoad(categoryNames) {
         const loader = root.FlashcardLoader;
         const names = normalizeCategoryNameList(categoryNames);
@@ -5302,6 +5423,7 @@
             activateFlashcardInteractionGuard();
             resetWordsetScopedCachesIfNeeded();
             newSession();
+            const launchSession = __LLSession;
 
             // Clear any leftover overlays/flags from a previous popup session
             try {
@@ -5541,6 +5663,11 @@
                     });
                 });
             }).catch(function (err) {
+                if (isRetryableInitialCategoryWarmupTimeout(err)) {
+                    console.warn('Flashcard category cache is still warming; waiting for user retry.', err.result);
+                    showInitialCategoryRetryError(err, selectedCategories, mode, launchSession);
+                    return;
+                }
                 console.error('Failed to initialize flashcard widget:', err);
                 State.forceTransitionTo(STATES.IDLE, 'Initialization error');
                 throw err;

@@ -5,6 +5,8 @@ if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION')) {
     define('LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION', '1');
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA')) {
+    // Bump this whenever stored row shape, eligibility, or presentation
+    // semantics change. Ordinary plugin releases must not invalidate payloads.
     define('LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA', 1);
 }
 if (!defined('LL_TOOLS_FLASHCARD_PAYLOAD_VERSION_OPTION')) {
@@ -839,7 +841,15 @@ function ll_tools_flashcard_payload_build_scope(
     return $scope;
 }
 
-function ll_tools_flashcard_payload_dependency_signature(array $scope): string {
+/**
+ * Return the stable inputs that define one materialized payload generation.
+ *
+ * Plugin release versions are deliberately excluded. Callers that change the
+ * stored payload contract must bump LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA.
+ *
+ * @return array<string,mixed>
+ */
+function ll_tools_flashcard_payload_dependency_signature_components(array $scope): array {
     $scope = ll_tools_flashcard_payload_normalize_scope($scope);
     $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
         ? max(1, (int) ll_tools_get_category_cache_epoch())
@@ -865,13 +875,10 @@ function ll_tools_flashcard_payload_dependency_signature(array $scope): string {
         ? (string) ll_tools_specific_wrong_answer_owner_map_integrity()
         : '';
 
-    return hash('sha256', (string) wp_json_encode([
+    return [
         'table_schema' => LL_TOOLS_FLASHCARD_PAYLOAD_TABLE_VERSION,
         'payload_schema' => 2,
         'builder_schema' => LL_TOOLS_FLASHCARD_PAYLOAD_BUILDER_SCHEMA,
-        'plugin_version' => defined('LL_TOOLS_VERSION')
-            ? (string) LL_TOOLS_VERSION
-            : '',
         'scope' => $scope,
         'category_epoch' => $category_epoch,
         'category_version' => $category_version,
@@ -886,7 +893,44 @@ function ll_tools_flashcard_payload_dependency_signature(array $scope): string {
         'image_hash_threshold' => function_exists('ll_tools_get_image_hash_threshold')
             ? max(0, (int) ll_tools_get_image_hash_threshold())
             : 5,
-    ]));
+    ];
+}
+
+function ll_tools_flashcard_payload_dependency_signature(array $scope): string {
+    return hash(
+        'sha256',
+        (string) wp_json_encode(
+            ll_tools_flashcard_payload_dependency_signature_components($scope)
+        )
+    );
+}
+
+/**
+ * Reproduce the pre-stable signature formula exactly for one known release.
+ */
+function ll_tools_flashcard_payload_legacy_dependency_signature(
+    array $scope,
+    string $plugin_version
+): string {
+    $components = ll_tools_flashcard_payload_dependency_signature_components($scope);
+    $legacy_components = [
+        'table_schema' => $components['table_schema'],
+        'payload_schema' => $components['payload_schema'],
+        'builder_schema' => $components['builder_schema'],
+        'plugin_version' => $plugin_version,
+        'scope' => $components['scope'],
+        'category_epoch' => $components['category_epoch'],
+        'category_version' => $components['category_version'],
+        'query_category_version' => $components['query_category_version'],
+        'wordset_epoch' => $components['wordset_epoch'],
+        'quiz_content_epoch' => $components['quiz_content_epoch'],
+        'specific_wrong_source_epoch' => $components['specific_wrong_source_epoch'],
+        'specific_wrong_integrity' => $components['specific_wrong_integrity'],
+        'masked_image_proxy' => $components['masked_image_proxy'],
+        'image_hash_threshold' => $components['image_hash_threshold'],
+    ];
+
+    return hash('sha256', (string) wp_json_encode($legacy_components));
 }
 
 function ll_tools_flashcard_payload_state_option(string $scope_hash): string {
@@ -3098,6 +3142,101 @@ function ll_tools_flashcard_payload_state_is_ready(
 }
 
 /**
+ * Adopt the stable signature for an otherwise-current completed generation.
+ *
+ * Only signatures reproduced from the bounded deployment-version history are
+ * eligible. Adoption owns the scope lease while re-reading state, then uses
+ * the existing generation-fenced exact-value compare-and-swap. A concurrent
+ * rebuild or state mutation therefore wins safely instead of being overwritten.
+ *
+ * @return array<string,mixed>
+ */
+function ll_tools_flashcard_payload_maybe_adopt_legacy_signature(
+    array $scope,
+    string $stable_signature,
+    array $state
+): array {
+    $scope = ll_tools_flashcard_payload_normalize_scope($scope);
+    $state = ll_tools_flashcard_payload_sanitize_state($state);
+    $scope_hash = ll_tools_flashcard_payload_scope_hash($scope);
+    $generation = (string) ($state['generation'] ?? '');
+    $stored_signature = (string) ($state['signature'] ?? '');
+
+    if (
+        ($state['status'] ?? '') !== 'completed'
+        || !hash_equals($scope_hash, (string) ($state['scope_hash'] ?? ''))
+        || $generation === ''
+        || !hash_equals($generation, (string) ($state['published_generation'] ?? ''))
+        || $stable_signature === ''
+        || $stored_signature === ''
+        || !function_exists('ll_tools_get_recent_plugin_versions')
+    ) {
+        return $state;
+    }
+
+    $scope_lock = ll_tools_acquire_flashcard_payload_lock($scope_hash, 30);
+    if (empty($scope_lock['acquired'])) {
+        return ll_tools_get_flashcard_payload_state($scope_hash);
+    }
+
+    try {
+        if (!hash_equals(
+            $stable_signature,
+            ll_tools_flashcard_payload_dependency_signature($scope)
+        )) {
+            return ll_tools_get_flashcard_payload_state($scope_hash);
+        }
+
+        $fresh_state = ll_tools_get_flashcard_payload_state($scope_hash);
+        $fresh_generation = (string) ($fresh_state['generation'] ?? '');
+        $fresh_signature = (string) ($fresh_state['signature'] ?? '');
+        if (
+            ($fresh_state['status'] ?? '') !== 'completed'
+            || !hash_equals($scope_hash, (string) ($fresh_state['scope_hash'] ?? ''))
+            || !hash_equals($generation, $fresh_generation)
+            || !hash_equals(
+                $fresh_generation,
+                (string) ($fresh_state['published_generation'] ?? '')
+            )
+            || !hash_equals($stored_signature, $fresh_signature)
+        ) {
+            return $fresh_state;
+        }
+
+        $recognized = false;
+        foreach (ll_tools_get_recent_plugin_versions() as $plugin_version) {
+            if (hash_equals(
+                $fresh_signature,
+                ll_tools_flashcard_payload_legacy_dependency_signature(
+                    $scope,
+                    (string) $plugin_version
+                )
+            )) {
+                $recognized = true;
+                break;
+            }
+        }
+        if (!$recognized) {
+            return $fresh_state;
+        }
+
+        $replacement = $fresh_state;
+        $replacement['signature'] = $stable_signature;
+        $updated = false;
+        $latest = ll_tools_update_flashcard_payload_state(
+            $scope_hash,
+            $replacement,
+            $fresh_generation,
+            $updated
+        );
+
+        return $updated ? $latest : ll_tools_get_flashcard_payload_state($scope_hash);
+    } finally {
+        ll_tools_release_flashcard_payload_lock($scope_lock);
+    }
+}
+
+/**
  * Advance at most one batch and report readiness.
  *
  * @return true|false|WP_Error
@@ -3111,6 +3250,14 @@ function ll_tools_flashcard_payload_ensure_ready(array $scope) {
 
     $signature = ll_tools_flashcard_payload_dependency_signature($scope);
     $state = ll_tools_get_flashcard_payload_state($scope_hash);
+    if (ll_tools_flashcard_payload_state_is_ready($scope, $signature, $state)) {
+        return true;
+    }
+    $state = ll_tools_flashcard_payload_maybe_adopt_legacy_signature(
+        $scope,
+        $signature,
+        $state
+    );
     if (ll_tools_flashcard_payload_state_is_ready($scope, $signature, $state)) {
         return true;
     }

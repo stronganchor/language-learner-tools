@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.7.17
+Version: 6.7.18
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,11 +19,13 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.7.17');
+define('LL_TOOLS_VERSION', '6.7.18');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
+define('LL_TOOLS_RECENT_VERSION_HISTORY_OPTION', 'll_tools_recent_plugin_versions');
+define('LL_TOOLS_RECENT_VERSION_HISTORY_LIMIT', 8);
 define('LL_TOOLS_DOTLESS_I_IPA_MIGRATION_OPTION', 'll_tools_dotless_i_ipa_migrated');
 
 function ll_tools_is_supported_php_version($version = null): bool {
@@ -396,6 +398,68 @@ add_action('init', 'll_tools_maybe_normalize_dotless_i_recording_ipa_meta', 6);
 /**
  * Detect deployed version changes even when WordPress update hooks were skipped.
  */
+function ll_tools_normalize_recent_plugin_versions($versions): array {
+    $normalized = [];
+    $seen = [];
+    $limit = max(1, min(20, (int) LL_TOOLS_RECENT_VERSION_HISTORY_LIMIT));
+
+    foreach (is_array($versions) ? $versions : [] as $version) {
+        $version = trim((string) $version);
+        if (
+            $version === ''
+            || strlen($version) > 64
+            || !preg_match('/^[0-9A-Za-z][0-9A-Za-z._+-]*$/', $version)
+            || isset($seen[$version])
+        ) {
+            continue;
+        }
+        $seen[$version] = true;
+        $normalized[] = $version;
+        if (count($normalized) >= $limit) {
+            break;
+        }
+    }
+
+    return $normalized;
+}
+
+function ll_tools_get_recent_plugin_versions(): array {
+    return ll_tools_normalize_recent_plugin_versions(
+        get_option(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION, [])
+    );
+}
+
+function ll_tools_record_recent_plugin_version(string $version): bool {
+    $candidate = ll_tools_normalize_recent_plugin_versions([$version]);
+    if (empty($candidate)) {
+        return false;
+    }
+
+    $version = (string) $candidate[0];
+    $history = ll_tools_get_recent_plugin_versions();
+    $next_history = ll_tools_normalize_recent_plugin_versions(
+        array_merge([$version], $history)
+    );
+    $existing = get_option(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION, null);
+    if ($existing === null) {
+        add_option(
+            LL_TOOLS_RECENT_VERSION_HISTORY_OPTION,
+            $next_history,
+            '',
+            false
+        );
+    } elseif ($history !== $next_history || !is_array($existing)) {
+        update_option(
+            LL_TOOLS_RECENT_VERSION_HISTORY_OPTION,
+            $next_history,
+            false
+        );
+    }
+    wp_cache_delete(LL_TOOLS_RECENT_VERSION_HISTORY_OPTION, 'options');
+
+    return in_array($version, ll_tools_get_recent_plugin_versions(), true);
+}
+
 function ll_tools_maybe_run_version_maintenance(): void {
     $current_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
     if ($current_version === '') {
@@ -408,6 +472,16 @@ function ll_tools_maybe_run_version_maintenance(): void {
     }
 
     ll_tools_schedule_post_update_maintenance();
+    $normalized_stored_version = ll_tools_normalize_recent_plugin_versions([$stored_version]);
+    if (
+        !empty($normalized_stored_version)
+        && !ll_tools_record_recent_plugin_version((string) $normalized_stored_version[0])
+    ) {
+        // Keep the old marker so a later request can retry recording the
+        // compatibility signature before the deployed version is advanced.
+        return;
+    }
+
     update_option(LL_TOOLS_VERSION_OPTION, $current_version, false);
 }
 add_action('init', 'll_tools_maybe_run_version_maintenance', 5);

@@ -209,7 +209,10 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `FlashcardPayloadMaterializerTest` verifies a cold category advances through
   bounded ID-keyset batches without `OFFSET`, publishes only after completion,
   pages the immutable generation through signed cursors, rejects tampering and
-  signature-drift cursors, redacts speaker identifiers at the public AJAX
+  signature-drift cursors, keeps dependency signatures payload-schema-driven
+  instead of release-version-driven, adopts only an exact recognized legacy
+  release signature without changing the completed generation or its rows,
+  redacts speaker identifiers at the public AJAX
   boundary, keeps private wordset/category support out of public rows, holds a
   scope lease across each bounded page read, exact-generation-fences cleanup,
   sweeps old rows whose state disappeared after a lost lease, and prevents
@@ -323,7 +326,9 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
   - Verifies stale category AJAX responses cannot overwrite current wordset
     data in the flashcard loader, category preloads are serialized, retryable
-    `429` category responses are retried, immutable payload pages are drained in
+    `429` category responses are retried within one elapsed warming deadline,
+    persistent warming returns one typed retryable timeout with cleared request
+    state so a later manual attempt can succeed, immutable payload pages are drained in
     order with the rendered locale, one stale-cursor restart cannot mix
     generations, and an underfilled bounded category handoff rolls back
     atomically before quiz setup.
@@ -426,7 +431,10 @@ Representative E2E coverage areas:
   - Verifies wordset page launch actions can open Listening mode with the
     expected category/wordset context, avoid the signed-in dashboard bulk-word
     fetch, preserve popup loading while category materializations warm, and use
-    the paged payload envelope for no-candidate category hydration. Broad and
+    the paged payload envelope for no-candidate category hydration. A launch
+    that exhausts the bounded warming deadline must clear the global loader and
+    dialog busy state, retain the popup with a translated Retry action, and let
+    that manual retry initialize the same Listening selection. Broad and
     progress-filtered logged-in selections use one bounded launch-plan request
     that either preserves every match across server-planned transport chunks or
     fails closed for an impossible sparse layout. They serially hydrate only the
