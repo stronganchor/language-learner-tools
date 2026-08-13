@@ -170,7 +170,7 @@ function ll_tools_get_browser_locale_preference(): string {
     }
 
     // Respect explicit user locale choices.
-    if (isset($_GET['ll_locale'])) {
+    if (isset($_POST['ll_locale']) || isset($_GET['ll_locale'])) {
         return '';
     }
     if (function_exists('ll_tools_get_logged_in_user_locale_preference')) {
