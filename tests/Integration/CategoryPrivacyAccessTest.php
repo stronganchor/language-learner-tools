@@ -108,6 +108,49 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
         $this->assertTrue($complete);
     }
 
+    public function test_category_term_resolution_reports_query_failure_and_recovers(): void
+    {
+        global $wpdb;
+
+        $category_name = 'Resolution Failure Category';
+        $category_slug = 'resolution-failure-category-' . strtolower(wp_generate_uuid4());
+
+        $injected = false;
+        $query_filter = static function (string $query) use ($wpdb, $category_slug, &$injected): string {
+            if (
+                !$injected
+                && stripos($query, "FROM {$wpdb->terms} AS t") !== false
+                && stripos($query, 'word-category') !== false
+                && stripos($query, $category_slug) !== false
+            ) {
+                $injected = true;
+                return "SELECT t.*, tt.* FROM {$wpdb->terms}_ll_tools_missing AS t";
+            }
+
+            return $query;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $query_filter);
+        try {
+            $complete = true;
+            $this->assertNull(ll_tools_resolve_word_category_term($category_slug, $complete));
+            $this->assertFalse($complete);
+            $this->assertTrue($injected, 'Expected the category lookup query failure to be injected.');
+        } finally {
+            remove_filter('query', $query_filter);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $category_id = $this->ensure_term('word-category', $category_name, $category_slug);
+        $complete = false;
+        $resolved = ll_tools_resolve_word_category_term($category_slug, $complete);
+        $this->assertInstanceOf(WP_Term::class, $resolved);
+        $this->assertSame($category_id, (int) $resolved->term_id);
+        $this->assertTrue($complete);
+    }
+
     public function test_private_wordset_is_hidden_from_public_flashcard_queries_and_initial_render(): void
     {
         $min_words_filter = static function (): int {

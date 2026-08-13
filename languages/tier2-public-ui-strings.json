@@ -573,7 +573,7 @@
                 "includes/shortcodes/content-lesson-index-shortcode.php:708",
                 "includes/shortcodes/dictionary-shortcode.php:2930",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:590",
-                "includes/taxonomies/word-category-taxonomy.php:2059"
+                "includes/taxonomies/word-category-taxonomy.php:2088"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1670",
@@ -636,7 +636,7 @@
                 "includes/shortcodes/dictionary-shortcode.php:2953",
                 "includes/shortcodes/flashcard-widget.php:682",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:591",
-                "includes/taxonomies/word-category-taxonomy.php:2060"
+                "includes/taxonomies/word-category-taxonomy.php:2089"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1686",
@@ -2994,18 +2994,18 @@
                 "includes/pages/quiz-pages.php:913",
                 "includes/pages/vocab-lesson-pages.php:2903",
                 "includes/pages/vocab-lesson-pages.php:3054",
-                "includes/shortcodes/flashcard-widget.php:2485",
-                "includes/shortcodes/flashcard-widget.php:2538",
-                "includes/shortcodes/flashcard-widget.php:2713",
+                "includes/shortcodes/flashcard-widget.php:2503",
+                "includes/shortcodes/flashcard-widget.php:2562",
+                "includes/shortcodes/flashcard-widget.php:2737",
                 "includes/shortcodes/word-grid-shortcode.php:10332"
             ],
             "public_references": [
                 "includes/pages/quiz-pages.php:913",
                 "includes/pages/vocab-lesson-pages.php:2903",
                 "includes/pages/vocab-lesson-pages.php:3054",
-                "includes/shortcodes/flashcard-widget.php:2485",
-                "includes/shortcodes/flashcard-widget.php:2538",
-                "includes/shortcodes/flashcard-widget.php:2713"
+                "includes/shortcodes/flashcard-widget.php:2503",
+                "includes/shortcodes/flashcard-widget.php:2562",
+                "includes/shortcodes/flashcard-widget.php:2737"
             ]
         },
         {
@@ -3091,7 +3091,7 @@
                 "includes/shortcodes/ranked-word-list-shortcode.php:377",
                 "includes/shortcodes/ranked-word-list-shortcode.php:383",
                 "includes/shortcodes/word-audio-shortcode.php:210",
-                "includes/taxonomies/word-category-taxonomy.php:1480"
+                "includes/taxonomies/word-category-taxonomy.php:1509"
             ],
             "public_references": [
                 "includes/pages/vocab-lesson-pages.php:1949",
@@ -3130,7 +3130,7 @@
             "references": [
                 "includes/pages/vocab-lesson-pages.php:5070",
                 "includes/pages/wordset-pages.php:13350",
-                "includes/taxonomies/word-category-taxonomy.php:2065"
+                "includes/taxonomies/word-category-taxonomy.php:2094"
             ],
             "public_references": [
                 "includes/pages/vocab-lesson-pages.php:5070",
@@ -3145,7 +3145,7 @@
             "references": [
                 "includes/pages/vocab-lesson-pages.php:5071",
                 "includes/pages/wordset-pages.php:13351",
-                "includes/taxonomies/word-category-taxonomy.php:2066"
+                "includes/taxonomies/word-category-taxonomy.php:2095"
             ],
             "public_references": [
                 "includes/pages/vocab-lesson-pages.php:5071",
@@ -3247,7 +3247,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-games.php:222",
-                "includes/taxonomies/word-category-taxonomy.php:1829"
+                "includes/taxonomies/word-category-taxonomy.php:1858"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:222"
@@ -3272,7 +3272,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-games.php:227",
-                "includes/taxonomies/word-category-taxonomy.php:1833"
+                "includes/taxonomies/word-category-taxonomy.php:1862"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:227"
@@ -3361,7 +3361,7 @@
             "references": [
                 "includes/pages/wordset-games.php:4273",
                 "includes/pages/wordset-games.php:6461",
-                "includes/taxonomies/word-category-taxonomy.php:1837"
+                "includes/taxonomies/word-category-taxonomy.php:1866"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:4273",
@@ -3422,7 +3422,7 @@
             "references": [
                 "includes/pages/wordset-games.php:4338",
                 "includes/pages/wordset-games.php:6527",
-                "includes/taxonomies/word-category-taxonomy.php:1841"
+                "includes/taxonomies/word-category-taxonomy.php:1870"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:4338",
@@ -3451,7 +3451,7 @@
             "references": [
                 "includes/pages/wordset-games.php:4377",
                 "includes/pages/wordset-games.php:6563",
-                "includes/taxonomies/word-category-taxonomy.php:1845"
+                "includes/taxonomies/word-category-taxonomy.php:1874"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:4377",
@@ -7538,7 +7538,7 @@
                 "includes/admin/word-option-rules-admin.php:2401",
                 "includes/pages/wordset-pages.php:26211",
                 "includes/shortcodes/word-grid-shortcode.php:5805",
-                "includes/taxonomies/word-category-taxonomy.php:2056"
+                "includes/taxonomies/word-category-taxonomy.php:2085"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:26211"
@@ -7789,7 +7789,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:26851",
-                "includes/taxonomies/word-category-taxonomy.php:2058",
+                "includes/taxonomies/word-category-taxonomy.php:2087",
                 "templates/vocab-lesson-template.php:1157"
             ],
             "public_references": [
@@ -8250,8 +8250,8 @@
                 "includes/pages/wordset-pages.php:9272",
                 "includes/pages/wordset-pages.php:9853",
                 "includes/shortcodes/site-tools-shortcode.php:419",
-                "includes/taxonomies/word-category-taxonomy.php:2388",
-                "includes/taxonomies/word-category-taxonomy.php:2401"
+                "includes/taxonomies/word-category-taxonomy.php:2417",
+                "includes/taxonomies/word-category-taxonomy.php:2430"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:8887"
@@ -9120,7 +9120,7 @@
                 "includes/post-types/content-lesson-post-type.php:1819",
                 "includes/shortcodes/dictionary-shortcode.php:4649",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:196",
-                "includes/taxonomies/word-category-taxonomy.php:2057"
+                "includes/taxonomies/word-category-taxonomy.php:2086"
             ],
             "public_references": [
                 "includes/shortcodes/dictionary-shortcode.php:4649",
@@ -9246,10 +9246,14 @@
             "msgid_plural": null,
             "references": [
                 "includes/shortcodes/flashcard-widget.php:2414",
+                "includes/shortcodes/flashcard-widget.php:2431",
+                "includes/shortcodes/flashcard-widget.php:2531",
                 "includes/user-progress.php:877"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2414"
+                "includes/shortcodes/flashcard-widget.php:2414",
+                "includes/shortcodes/flashcard-widget.php:2431",
+                "includes/shortcodes/flashcard-widget.php:2531"
             ]
         },
         {
@@ -9258,10 +9262,10 @@
             "msgid": "Invalid flashcard locale.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2457"
+                "includes/shortcodes/flashcard-widget.php:2475"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2457"
+                "includes/shortcodes/flashcard-widget.php:2475"
             ]
         },
         {
@@ -9270,10 +9274,10 @@
             "msgid": "Invalid wordset.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2517"
+                "includes/shortcodes/flashcard-widget.php:2541"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2517"
+                "includes/shortcodes/flashcard-widget.php:2541"
             ]
         },
         {
@@ -9284,10 +9288,10 @@
             "references": [
                 "includes/lib/flashcard-payload-materializer.php:791",
                 "includes/lib/flashcard-payload-materializer.php:822",
-                "includes/shortcodes/flashcard-widget.php:2548"
+                "includes/shortcodes/flashcard-widget.php:2572"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2548"
+                "includes/shortcodes/flashcard-widget.php:2572"
             ]
         },
         {
@@ -9296,10 +9300,10 @@
             "msgid": "This flashcard category must be loaded in pages. Please refresh the page.",
             "msgid_plural": null,
             "references": [
-                "includes/shortcodes/flashcard-widget.php:2902"
+                "includes/shortcodes/flashcard-widget.php:2942"
             ],
             "public_references": [
-                "includes/shortcodes/flashcard-widget.php:2902"
+                "includes/shortcodes/flashcard-widget.php:2942"
             ]
         },
         {
@@ -10604,9 +10608,9 @@
                 "includes/shortcodes/editor-hub-shortcode.php:1082",
                 "includes/shortcodes/ranked-word-list-shortcode.php:638",
                 "includes/shortcodes/ranked-word-list-shortcode.php:665",
-                "includes/taxonomies/word-category-taxonomy.php:1493",
-                "includes/taxonomies/word-category-taxonomy.php:2732",
-                "includes/taxonomies/word-category-taxonomy.php:2838"
+                "includes/taxonomies/word-category-taxonomy.php:1522",
+                "includes/taxonomies/word-category-taxonomy.php:2761",
+                "includes/taxonomies/word-category-taxonomy.php:2867"
             ],
             "public_references": [
                 "includes/shortcodes/ranked-word-list-shortcode.php:638",
@@ -10894,7 +10898,7 @@
                 "includes/pages/vocab-lesson-pages.php:7176",
                 "includes/pages/vocab-lesson-pages.php:7179",
                 "includes/pages/vocab-lesson-pages.php:7182",
-                "includes/taxonomies/word-category-taxonomy.php:2379",
+                "includes/taxonomies/word-category-taxonomy.php:2408",
                 "templates/content-lesson-template.php:32",
                 "templates/content-lesson-template.php:40",
                 "templates/vocab-lesson-print-template.php:107",

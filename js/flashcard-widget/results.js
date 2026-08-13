@@ -570,6 +570,7 @@
     }
 
     function hideResults() {
+        $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
         $('#quiz-results').hide();
         $('#restart-quiz').hide();
         $('#quiz-mode-buttons').hide();
@@ -588,11 +589,14 @@
         $('#quiz-results-categories').hide().empty();
         resetLearningResultsButtonLabel();
         resetGenderResultsButtonLabel();
+        $('#ll-tools-mode-switcher-wrap').show();
     }
 
     function showResults() {
         const msgs = root.llToolsFlashcardsMessages || {};
         const State = root.LLFlashcards.State;
+        $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
+        $('#ll-tools-mode-switcher-wrap').hide();
         if (State && !State.modeSessionCompleteTracked) {
             trackModeSessionCompletionForProgress(getCurrentResultsMode());
             State.modeSessionCompleteTracked = true;

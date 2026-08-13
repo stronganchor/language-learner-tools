@@ -14078,6 +14078,7 @@
         {
             const publicWarmingMaxRetries = 2;
             const payloadWarmingMaxRetries = 60;
+            const transportMaxRetries = 2;
             const publicRetryDelayMs = function (xhr) {
                 let retryAfter = 0;
                 const responseData = xhr
@@ -14092,11 +14093,47 @@
                 }
                 return Math.max(250, Math.min(5000, retryAfter > 0 ? retryAfter * 1000 : 1000));
             };
-            const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount) {
+            const transportRetryDelayMs = function (xhr, attempt) {
+                let retryAfter = 0;
+                if (xhr && typeof xhr.getResponseHeader === 'function') {
+                    retryAfter = Number(xhr.getResponseHeader('Retry-After') || 0);
+                }
+                if (retryAfter > 0) {
+                    return Math.max(250, Math.min(5000, retryAfter * 1000));
+                }
+                return Math.min(3000, 500 * Math.pow(2, Math.max(0, parseInt(attempt, 10) || 0)));
+            };
+            const isTransientTransportFailure = function (xhr, textStatus) {
+                if (xhr && xhr.llToolsLaunchCanceled) {
+                    return false;
+                }
+                const statusText = String(textStatus || '').toLowerCase();
+                if (statusText === 'abort') {
+                    return false;
+                }
+                if (statusText === 'timeout' || statusText === 'parsererror') {
+                    return true;
+                }
+                const status = Number(xhr && xhr.status);
+                return status === 0 || [408, 425, 500, 502, 503, 504].indexOf(status) !== -1;
+            };
+            const waitForPublicRetry = function (delayMs) {
+                const delay = $.Deferred();
+                window.setTimeout(function () {
+                    if (isRequestCurrent()) {
+                        delay.resolve();
+                    } else {
+                        delay.reject({ status: 0, llToolsLaunchCanceled: true }, 'abort', 'abort');
+                    }
+                }, delayMs);
+                return delay.promise();
+            };
+            const requestPublicCategory = function (payload, attempt, accumulatedRows, restartCount, transportAttempt) {
                 if (!isRequestCurrent()) {
                     return rejectStaleRequest();
                 }
                 const attemptNumber = Math.max(0, parseInt(attempt, 10) || 0);
+                const transportAttemptNumber = Math.max(0, parseInt(transportAttempt, 10) || 0);
                 const rows = Array.isArray(accumulatedRows) ? accumulatedRows : [];
                 const restarts = Math.max(0, parseInt(restartCount, 10) || 0);
                 const rawRequest = $.post(ajaxUrl, payload);
@@ -14122,7 +14159,7 @@
                         const nextCursor = String(res.data.next_cursor || '').trim();
                         if (nextCursor) {
                             const nextPayload = Object.assign({}, payload, { cursor: nextCursor });
-                            return requestPublicCategory(nextPayload, 0, mergedRows, restarts);
+                            return requestPublicCategory(nextPayload, 0, mergedRows, restarts, 0);
                         }
                         return {
                             success: true,
@@ -14130,7 +14167,7 @@
                         };
                     }
                     return res;
-                }, function (xhr) {
+                }, function (xhr, textStatus) {
                     if (!isRequestCurrent()) {
                         return rejectStaleRequest();
                     }
@@ -14148,12 +14185,14 @@
                         ? payloadWarmingMaxRetries
                         : publicWarmingMaxRetries;
                     if (isWarming && attemptNumber < retryLimit) {
-                        const delay = $.Deferred();
-                        window.setTimeout(function () {
-                            delay.resolve();
-                        }, publicRetryDelayMs(xhr));
-                        return delay.promise().then(function () {
-                            return requestPublicCategory(payload, attemptNumber + 1, rows, restarts);
+                        return waitForPublicRetry(publicRetryDelayMs(xhr)).then(function () {
+                            return requestPublicCategory(
+                                payload,
+                                attemptNumber + 1,
+                                rows,
+                                restarts,
+                                transportAttemptNumber
+                            );
                         });
                     }
                     if (
@@ -14163,7 +14202,21 @@
                     ) {
                         const restartPayload = Object.assign({}, payload);
                         delete restartPayload.cursor;
-                        return requestPublicCategory(restartPayload, 0, [], restarts + 1);
+                        return requestPublicCategory(restartPayload, 0, [], restarts + 1, 0);
+                    }
+                    if (
+                        isTransientTransportFailure(xhr, textStatus)
+                        && transportAttemptNumber < transportMaxRetries
+                    ) {
+                        return waitForPublicRetry(transportRetryDelayMs(xhr, transportAttemptNumber)).then(function () {
+                            return requestPublicCategory(
+                                payload,
+                                attemptNumber,
+                                rows,
+                                restarts,
+                                transportAttemptNumber + 1
+                            );
+                        });
                     }
 
                     const rejected = $.Deferred();
@@ -14207,7 +14260,7 @@
                         publicPayload.option_pool_limit = '12';
                     }
 
-                    return requestPublicCategory(publicPayload, 0, [], 0).then(function (res) {
+                    return requestPublicCategory(publicPayload, 0, [], 0, 0).then(function (res) {
                         if (res && res.success && Array.isArray(res.data)) {
                             if (candidateWordIds.length) {
                                 setCandidateScopedWords(categoryId, candidateWordIds, res.data);
@@ -14222,6 +14275,11 @@
                                 return rejected.promise();
                             }
                             setCandidateScopedWords(categoryId, candidateWordIds, []);
+                        } else if (rejectOnFailure) {
+                            delete wordsByCategory[categoryId];
+                            const rejected = $.Deferred();
+                            rejected.reject(res);
+                            return rejected.promise();
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
@@ -14235,6 +14293,8 @@
                             } else {
                                 setCandidateScopedWords(categoryId, candidateWordIds, []);
                             }
+                        } else if (rejectOnFailure) {
+                            delete wordsByCategory[categoryId];
                         } else if (!Array.isArray(wordsByCategory[categoryId])) {
                             wordsByCategory[categoryId] = [];
                         }
@@ -17337,6 +17397,7 @@
         };
         const withSelectionLaunchGuards = function (options) {
             return Object.assign({}, (options && typeof options === 'object') ? options : {}, {
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                 launchToken: launchToken,
                 isLaunchCurrent: isSelectionLaunchCurrent
             });
@@ -17412,6 +17473,7 @@
             && (criteriaKey !== '' || selectedIds.length > 8);
         if (shouldUseBoundedSelectionPlan) {
             requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode, {
+                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                 onRequest: noteSelectionLaunchRequest
             }).done(function (serverPlan) {
                 if (!isSelectionLaunchCurrent()) {
@@ -17476,6 +17538,7 @@
                         star_mode: 'normal',
                         details: launchDetails,
                         category_label_override: boundedCategoryLabelOverride,
+                        request_timeout_ms: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                         bounded_selection_plan: true,
                         continuous: true
                     };
@@ -17556,11 +17619,13 @@
         }
 
         ensureWordsForCategories(selectedIds, {
+            requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+            rejectOnFailure: true,
             isRequestCurrent: function () {
                 return isSelectionLaunchCurrent();
             },
             onRequest: noteSelectionLaunchRequest
-        }).always(function () {
+        }).done(function () {
             if (!isSelectionLaunchCurrent()) {
                 return;
             }
@@ -17670,6 +17735,14 @@
                 details: launchDetails,
                 launchUi: launchUi
             }));
+        }).fail(function (_xhr, statusText) {
+            if (!isSelectionLaunchCurrent()) {
+                return;
+            }
+            if (String(statusText || '').toLowerCase() === 'abort') {
+                return;
+            }
+            abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');
         });
     }
 

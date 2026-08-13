@@ -2,14 +2,14 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.15\n"
+"Project-Id-Version: Language Learner Tools 6.7.16\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-12T18:02:45+00:00\n"
+"POT-Creation-Date: 2026-08-13T08:03:55+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -260,8 +260,8 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:338
 #: includes/admin/admin-dashboard-menu.php:794
 #: includes/admin/admin-dashboard-menu.php:795
-#: includes/taxonomies/word-category-taxonomy.php:877
-#: includes/taxonomies/word-category-taxonomy.php:882
+#: includes/taxonomies/word-category-taxonomy.php:906
+#: includes/taxonomies/word-category-taxonomy.php:911
 msgid "Word Categories"
 msgstr ""
 
@@ -1202,7 +1202,7 @@ msgstr ""
 #: includes/shortcodes/content-lesson-index-shortcode.php:708
 #: includes/shortcodes/dictionary-shortcode.php:2930
 #: includes/shortcodes/image-copyright-grid-shortcode.php:590
-#: includes/taxonomies/word-category-taxonomy.php:2059
+#: includes/taxonomies/word-category-taxonomy.php:2088
 msgid "Previous"
 msgstr ""
 
@@ -1235,7 +1235,7 @@ msgstr ""
 #: includes/shortcodes/dictionary-shortcode.php:2953
 #: includes/shortcodes/flashcard-widget.php:682
 #: includes/shortcodes/image-copyright-grid-shortcode.php:591
-#: includes/taxonomies/word-category-taxonomy.php:2060
+#: includes/taxonomies/word-category-taxonomy.php:2089
 msgid "Next"
 msgstr ""
 
@@ -1288,7 +1288,7 @@ msgstr ""
 #: includes/admin/word-images-fixer.php:125
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:465
-#: includes/taxonomies/word-category-taxonomy.php:9767
+#: includes/taxonomies/word-category-taxonomy.php:9796
 msgid "Permission denied"
 msgstr ""
 
@@ -1657,7 +1657,7 @@ msgstr ""
 #: includes/post-types/content-lesson-post-type.php:1819
 #: includes/shortcodes/dictionary-shortcode.php:4649
 #: includes/shortcodes/image-copyright-grid-shortcode.php:196
-#: includes/taxonomies/word-category-taxonomy.php:2057
+#: includes/taxonomies/word-category-taxonomy.php:2086
 msgid "Search"
 msgstr ""
 
@@ -3273,9 +3273,9 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1082
 #: includes/shortcodes/ranked-word-list-shortcode.php:638
 #: includes/shortcodes/ranked-word-list-shortcode.php:665
-#: includes/taxonomies/word-category-taxonomy.php:1493
-#: includes/taxonomies/word-category-taxonomy.php:2732
-#: includes/taxonomies/word-category-taxonomy.php:2838
+#: includes/taxonomies/word-category-taxonomy.php:1522
+#: includes/taxonomies/word-category-taxonomy.php:2761
+#: includes/taxonomies/word-category-taxonomy.php:2867
 msgid "Audio"
 msgstr ""
 
@@ -5899,10 +5899,10 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:5131
 #: includes/pages/vocab-lesson-pages.php:5174
 #: includes/pages/vocab-lesson-pages.php:5292
-#: includes/taxonomies/word-category-taxonomy.php:2120
-#: includes/taxonomies/word-category-taxonomy.php:2174
-#: includes/taxonomies/word-category-taxonomy.php:2302
-#: includes/taxonomies/word-category-taxonomy.php:2370
+#: includes/taxonomies/word-category-taxonomy.php:2149
+#: includes/taxonomies/word-category-taxonomy.php:2203
+#: includes/taxonomies/word-category-taxonomy.php:2331
+#: includes/taxonomies/word-category-taxonomy.php:2399
 msgid "Category not found."
 msgstr ""
 
@@ -9218,9 +9218,9 @@ msgstr ""
 #: includes/admin/uploads/audio-upload-form.php:566
 #: includes/admin/uploads/image-upload-form.php:635
 #: includes/pages/wordset-pages.php:14134
-#: includes/taxonomies/word-category-taxonomy.php:1498
-#: includes/taxonomies/word-category-taxonomy.php:2727
-#: includes/taxonomies/word-category-taxonomy.php:2833
+#: includes/taxonomies/word-category-taxonomy.php:1527
+#: includes/taxonomies/word-category-taxonomy.php:2756
+#: includes/taxonomies/word-category-taxonomy.php:2862
 msgid "Images"
 msgstr ""
 
@@ -10967,133 +10967,133 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:543
 #: includes/admin/uploads/image-upload-form.php:612
-#: includes/taxonomies/word-category-taxonomy.php:1083
-#: includes/taxonomies/word-category-taxonomy.php:1108
+#: includes/taxonomies/word-category-taxonomy.php:1112
+#: includes/taxonomies/word-category-taxonomy.php:1137
 msgid "Translated Name"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:549
 #: includes/admin/uploads/image-upload-form.php:618
-#: includes/taxonomies/word-category-taxonomy.php:2710
-#: includes/taxonomies/word-category-taxonomy.php:2810
+#: includes/taxonomies/word-category-taxonomy.php:2739
+#: includes/taxonomies/word-category-taxonomy.php:2839
 msgid "Quiz Prompt Type"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:551
 #: includes/admin/uploads/image-upload-form.php:620
-#: includes/taxonomies/word-category-taxonomy.php:2712
-#: includes/taxonomies/word-category-taxonomy.php:2814
+#: includes/taxonomies/word-category-taxonomy.php:2741
+#: includes/taxonomies/word-category-taxonomy.php:2843
 msgid "Play audio (default)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:552
 #: includes/admin/uploads/image-upload-form.php:621
-#: includes/taxonomies/word-category-taxonomy.php:1463
-#: includes/taxonomies/word-category-taxonomy.php:2713
-#: includes/taxonomies/word-category-taxonomy.php:2815
+#: includes/taxonomies/word-category-taxonomy.php:1492
+#: includes/taxonomies/word-category-taxonomy.php:2742
+#: includes/taxonomies/word-category-taxonomy.php:2844
 msgid "Play audio + show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:553
 #: includes/admin/uploads/image-upload-form.php:622
-#: includes/taxonomies/word-category-taxonomy.php:1465
-#: includes/taxonomies/word-category-taxonomy.php:2714
-#: includes/taxonomies/word-category-taxonomy.php:2816
+#: includes/taxonomies/word-category-taxonomy.php:1494
+#: includes/taxonomies/word-category-taxonomy.php:2743
+#: includes/taxonomies/word-category-taxonomy.php:2845
 msgid "Play audio + show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:554
 #: includes/admin/uploads/image-upload-form.php:623
-#: includes/taxonomies/word-category-taxonomy.php:1467
-#: includes/taxonomies/word-category-taxonomy.php:2715
-#: includes/taxonomies/word-category-taxonomy.php:2817
+#: includes/taxonomies/word-category-taxonomy.php:1496
+#: includes/taxonomies/word-category-taxonomy.php:2744
+#: includes/taxonomies/word-category-taxonomy.php:2846
 msgid "Show image"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:555
 #: includes/admin/uploads/image-upload-form.php:624
-#: includes/taxonomies/word-category-taxonomy.php:1469
-#: includes/taxonomies/word-category-taxonomy.php:2716
-#: includes/taxonomies/word-category-taxonomy.php:2818
+#: includes/taxonomies/word-category-taxonomy.php:1498
+#: includes/taxonomies/word-category-taxonomy.php:2745
+#: includes/taxonomies/word-category-taxonomy.php:2847
 msgid "Show image + play audio"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:556
 #: includes/admin/uploads/image-upload-form.php:625
-#: includes/taxonomies/word-category-taxonomy.php:1471
-#: includes/taxonomies/word-category-taxonomy.php:2717
-#: includes/taxonomies/word-category-taxonomy.php:2819
+#: includes/taxonomies/word-category-taxonomy.php:1500
+#: includes/taxonomies/word-category-taxonomy.php:2746
+#: includes/taxonomies/word-category-taxonomy.php:2848
 msgid "Show image + text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:557
 #: includes/admin/uploads/image-upload-form.php:626
-#: includes/taxonomies/word-category-taxonomy.php:1473
-#: includes/taxonomies/word-category-taxonomy.php:2718
-#: includes/taxonomies/word-category-taxonomy.php:2820
+#: includes/taxonomies/word-category-taxonomy.php:1502
+#: includes/taxonomies/word-category-taxonomy.php:2747
+#: includes/taxonomies/word-category-taxonomy.php:2849
 msgid "Show image + text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:558
 #: includes/admin/uploads/image-upload-form.php:627
-#: includes/taxonomies/word-category-taxonomy.php:1475
-#: includes/taxonomies/word-category-taxonomy.php:2719
-#: includes/taxonomies/word-category-taxonomy.php:2821
+#: includes/taxonomies/word-category-taxonomy.php:1504
+#: includes/taxonomies/word-category-taxonomy.php:2748
+#: includes/taxonomies/word-category-taxonomy.php:2850
 msgid "Show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:559
 #: includes/admin/uploads/image-upload-form.php:628
-#: includes/taxonomies/word-category-taxonomy.php:1477
-#: includes/taxonomies/word-category-taxonomy.php:2720
-#: includes/taxonomies/word-category-taxonomy.php:2822
+#: includes/taxonomies/word-category-taxonomy.php:1506
+#: includes/taxonomies/word-category-taxonomy.php:2749
+#: includes/taxonomies/word-category-taxonomy.php:2851
 msgid "Show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:564
 #: includes/admin/uploads/image-upload-form.php:633
-#: includes/taxonomies/word-category-taxonomy.php:2725
-#: includes/taxonomies/word-category-taxonomy.php:2829
+#: includes/taxonomies/word-category-taxonomy.php:2754
+#: includes/taxonomies/word-category-taxonomy.php:2858
 msgid "Answer Options"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:567
 #: includes/admin/uploads/image-upload-form.php:636
-#: includes/taxonomies/word-category-taxonomy.php:2729
-#: includes/taxonomies/word-category-taxonomy.php:2835
+#: includes/taxonomies/word-category-taxonomy.php:2758
+#: includes/taxonomies/word-category-taxonomy.php:2864
 msgid "Text (opposite prompt)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:568
 #: includes/admin/uploads/image-upload-form.php:637
-#: includes/taxonomies/word-category-taxonomy.php:1489
-#: includes/taxonomies/word-category-taxonomy.php:2730
-#: includes/taxonomies/word-category-taxonomy.php:2836
+#: includes/taxonomies/word-category-taxonomy.php:1518
+#: includes/taxonomies/word-category-taxonomy.php:2759
+#: includes/taxonomies/word-category-taxonomy.php:2865
 msgid "Text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:569
 #: includes/admin/uploads/image-upload-form.php:638
-#: includes/taxonomies/word-category-taxonomy.php:1491
-#: includes/taxonomies/word-category-taxonomy.php:2731
-#: includes/taxonomies/word-category-taxonomy.php:2837
+#: includes/taxonomies/word-category-taxonomy.php:1520
+#: includes/taxonomies/word-category-taxonomy.php:2760
+#: includes/taxonomies/word-category-taxonomy.php:2866
 msgid "Text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:571
 #: includes/admin/uploads/image-upload-form.php:640
 #: includes/pages/wordset-pages.php:24147
-#: includes/taxonomies/word-category-taxonomy.php:1495
-#: includes/taxonomies/word-category-taxonomy.php:2733
-#: includes/taxonomies/word-category-taxonomy.php:2839
+#: includes/taxonomies/word-category-taxonomy.php:1524
+#: includes/taxonomies/word-category-taxonomy.php:2762
+#: includes/taxonomies/word-category-taxonomy.php:2868
 msgid "Text + audio pairs"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:577
 #: includes/admin/uploads/image-upload-form.php:646
 #: includes/shortcodes/audio-recording-shortcode.php:1855
-#: includes/taxonomies/word-category-taxonomy.php:3131
-#: includes/taxonomies/word-category-taxonomy.php:3166
+#: includes/taxonomies/word-category-taxonomy.php:3160
+#: includes/taxonomies/word-category-taxonomy.php:3195
 msgid "Desired Recording Types"
 msgstr ""
 
@@ -11745,7 +11745,7 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:2401
 #: includes/pages/wordset-pages.php:26211
 #: includes/shortcodes/word-grid-shortcode.php:5805
-#: includes/taxonomies/word-category-taxonomy.php:2056
+#: includes/taxonomies/word-category-taxonomy.php:2085
 msgid "Search words"
 msgstr ""
 
@@ -13833,7 +13833,7 @@ msgstr ""
 
 #: includes/lib/flashcard-payload-materializer.php:791
 #: includes/lib/flashcard-payload-materializer.php:822
-#: includes/shortcodes/flashcard-widget.php:2548
+#: includes/shortcodes/flashcard-widget.php:2572
 msgid "You do not have permission to view this flashcard content."
 msgstr ""
 
@@ -15034,9 +15034,9 @@ msgstr ""
 #: includes/pages/quiz-pages.php:913
 #: includes/pages/vocab-lesson-pages.php:2903
 #: includes/pages/vocab-lesson-pages.php:3054
-#: includes/shortcodes/flashcard-widget.php:2485
-#: includes/shortcodes/flashcard-widget.php:2538
-#: includes/shortcodes/flashcard-widget.php:2713
+#: includes/shortcodes/flashcard-widget.php:2503
+#: includes/shortcodes/flashcard-widget.php:2562
+#: includes/shortcodes/flashcard-widget.php:2737
 #: includes/shortcodes/word-grid-shortcode.php:10332
 msgid "Invalid category."
 msgstr ""
@@ -16230,7 +16230,7 @@ msgid "Program-managed public quiz pages generated from word categories."
 msgstr ""
 
 #: includes/pages/quiz-pages.php:256
-#: includes/taxonomies/word-category-taxonomy.php:878
+#: includes/taxonomies/word-category-taxonomy.php:907
 msgid "Word Category"
 msgstr ""
 
@@ -16456,7 +16456,7 @@ msgstr ""
 #: includes/shortcodes/ranked-word-list-shortcode.php:377
 #: includes/shortcodes/ranked-word-list-shortcode.php:383
 #: includes/shortcodes/word-audio-shortcode.php:210
-#: includes/taxonomies/word-category-taxonomy.php:1480
+#: includes/taxonomies/word-category-taxonomy.php:1509
 msgid "Play audio"
 msgstr ""
 
@@ -16513,8 +16513,8 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:4887
 #: includes/pages/vocab-lesson-pages.php:5283
-#: includes/taxonomies/word-category-taxonomy.php:2394
-#: includes/taxonomies/word-category-taxonomy.php:2408
+#: includes/taxonomies/word-category-taxonomy.php:2423
+#: includes/taxonomies/word-category-taxonomy.php:2437
 msgid "You do not have permission to update this category."
 msgstr ""
 
@@ -16532,8 +16532,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:11441
 #: includes/pages/wordset-pages.php:11550
 #: includes/shortcodes/site-tools-shortcode.php:419
-#: includes/taxonomies/word-category-taxonomy.php:2388
-#: includes/taxonomies/word-category-taxonomy.php:2401
+#: includes/taxonomies/word-category-taxonomy.php:2417
+#: includes/taxonomies/word-category-taxonomy.php:2430
 msgid "Your session expired. Please try again."
 msgstr ""
 
@@ -16551,7 +16551,7 @@ msgstr ""
 #: includes/pages/vocab-lesson-pages.php:7176
 #: includes/pages/vocab-lesson-pages.php:7179
 #: includes/pages/vocab-lesson-pages.php:7182
-#: includes/taxonomies/word-category-taxonomy.php:2379
+#: includes/taxonomies/word-category-taxonomy.php:2408
 #: templates/content-lesson-template.php:32
 #: templates/content-lesson-template.php:40
 #: templates/vocab-lesson-print-template.php:107
@@ -16584,13 +16584,13 @@ msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:5070
 #: includes/pages/wordset-pages.php:13350
-#: includes/taxonomies/word-category-taxonomy.php:2065
+#: includes/taxonomies/word-category-taxonomy.php:2094
 msgid "Move earlier"
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:5071
 #: includes/pages/wordset-pages.php:13351
-#: includes/taxonomies/word-category-taxonomy.php:2066
+#: includes/taxonomies/word-category-taxonomy.php:2095
 msgid "Move later"
 msgstr ""
 
@@ -17154,8 +17154,8 @@ msgstr ""
 #: includes/pages/wordset-editor.php:4512
 #: includes/pages/wordset-pages.php:14639
 #: includes/pages/wordset-pages.php:25294
-#: includes/taxonomies/word-category-taxonomy.php:1127
-#: includes/taxonomies/word-category-taxonomy.php:1154
+#: includes/taxonomies/word-category-taxonomy.php:1156
+#: includes/taxonomies/word-category-taxonomy.php:1183
 #: includes/taxonomies/wordset-taxonomy.php:3832
 msgid "Private"
 msgstr ""
@@ -17501,7 +17501,7 @@ msgid "Editor history pages"
 msgstr ""
 
 #: includes/pages/wordset-games.php:222
-#: includes/taxonomies/word-category-taxonomy.php:1829
+#: includes/taxonomies/word-category-taxonomy.php:1858
 msgid "Space Shooter"
 msgstr ""
 
@@ -17510,7 +17510,7 @@ msgid "Hear the word. Blast the matching picture."
 msgstr ""
 
 #: includes/pages/wordset-games.php:227
-#: includes/taxonomies/word-category-taxonomy.php:1833
+#: includes/taxonomies/word-category-taxonomy.php:1862
 msgid "Bubble Pop"
 msgstr ""
 
@@ -17543,7 +17543,7 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:4273
 #: includes/pages/wordset-games.php:6461
-#: includes/taxonomies/word-category-taxonomy.php:1837
+#: includes/taxonomies/word-category-taxonomy.php:1866
 msgid "Unscramble"
 msgstr ""
 
@@ -17566,7 +17566,7 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:4338
 #: includes/pages/wordset-games.php:6527
-#: includes/taxonomies/word-category-taxonomy.php:1841
+#: includes/taxonomies/word-category-taxonomy.php:1870
 msgid "Speaking Practice"
 msgstr ""
 
@@ -17577,7 +17577,7 @@ msgstr ""
 
 #: includes/pages/wordset-games.php:4377
 #: includes/pages/wordset-games.php:6563
-#: includes/taxonomies/word-category-taxonomy.php:1845
+#: includes/taxonomies/word-category-taxonomy.php:1874
 msgid "Word Stack"
 msgstr ""
 
@@ -19478,8 +19478,8 @@ msgid "Save Language Settings"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14635
-#: includes/taxonomies/word-category-taxonomy.php:1124
-#: includes/taxonomies/word-category-taxonomy.php:1149
+#: includes/taxonomies/word-category-taxonomy.php:1153
+#: includes/taxonomies/word-category-taxonomy.php:1178
 #: includes/taxonomies/wordset-taxonomy.php:3829
 msgid "Visibility"
 msgstr ""
@@ -19490,8 +19490,8 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:14638
 #: includes/pages/wordset-pages.php:25294
-#: includes/taxonomies/word-category-taxonomy.php:1126
-#: includes/taxonomies/word-category-taxonomy.php:1153
+#: includes/taxonomies/word-category-taxonomy.php:1155
+#: includes/taxonomies/word-category-taxonomy.php:1182
 #: includes/taxonomies/wordset-taxonomy.php:3831
 msgid "Public"
 msgstr ""
@@ -21418,7 +21418,7 @@ msgid "No lesson categories yet."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:26851
-#: includes/taxonomies/word-category-taxonomy.php:2058
+#: includes/taxonomies/word-category-taxonomy.php:2087
 #: templates/vocab-lesson-template.php:1157
 msgid "Clear search"
 msgstr ""
@@ -22269,7 +22269,7 @@ msgid "Enabled when selected recordings all share the same recording types."
 msgstr ""
 
 #: includes/post-types/word-audio-post-type.php:474
-#: includes/taxonomies/word-category-taxonomy.php:9776
+#: includes/taxonomies/word-category-taxonomy.php:9805
 msgid "No posts selected"
 msgstr ""
 
@@ -24283,19 +24283,21 @@ msgid "Invalid flashcard page cursor."
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:2414
+#: includes/shortcodes/flashcard-widget.php:2431
+#: includes/shortcodes/flashcard-widget.php:2531
 #: includes/user-progress.php:877
 msgid "Flashcard data is temporarily unavailable."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2457
+#: includes/shortcodes/flashcard-widget.php:2475
 msgid "Invalid flashcard locale."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2517
+#: includes/shortcodes/flashcard-widget.php:2541
 msgid "Invalid wordset."
 msgstr ""
 
-#: includes/shortcodes/flashcard-widget.php:2902
+#: includes/shortcodes/flashcard-widget.php:2942
 msgid "This flashcard category must be loaded in pages. Please refresh the page."
 msgstr ""
 
@@ -25972,277 +25974,277 @@ msgstr ""
 msgid "New Recording Type Name"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:866
+#: includes/taxonomies/word-category-taxonomy.php:895
 msgid "No user accounts are available yet."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1085
-#: includes/taxonomies/word-category-taxonomy.php:1112
+#: includes/taxonomies/word-category-taxonomy.php:1114
+#: includes/taxonomies/word-category-taxonomy.php:1141
 msgid "Enter the translated name for this category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1129
-#: includes/taxonomies/word-category-taxonomy.php:1156
+#: includes/taxonomies/word-category-taxonomy.php:1158
+#: includes/taxonomies/word-category-taxonomy.php:1185
 msgid "Private categories are visible only to administrators and the users assigned below."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1132
 #: includes/taxonomies/word-category-taxonomy.php:1161
+#: includes/taxonomies/word-category-taxonomy.php:1190
 msgid "Allowed Users"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1134
-#: includes/taxonomies/word-category-taxonomy.php:1165
+#: includes/taxonomies/word-category-taxonomy.php:1163
+#: includes/taxonomies/word-category-taxonomy.php:1194
 msgid "Assign learners, recorders, or other specific users who should be able to view or work inside this private category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1487
-#: includes/taxonomies/word-category-taxonomy.php:2728
-#: includes/taxonomies/word-category-taxonomy.php:2834
+#: includes/taxonomies/word-category-taxonomy.php:1516
+#: includes/taxonomies/word-category-taxonomy.php:2757
+#: includes/taxonomies/word-category-taxonomy.php:2863
 msgid "Images + text (translation)"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1507
+#: includes/taxonomies/word-category-taxonomy.php:1536
 msgid "%1$s -> %2$s"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:1849
+#: includes/taxonomies/word-category-taxonomy.php:1878
 #: templates/vocab-lesson-template.php:1246
 msgid "Line-Up"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2051
-#: includes/taxonomies/word-category-taxonomy.php:2993
+#: includes/taxonomies/word-category-taxonomy.php:2080
+#: includes/taxonomies/word-category-taxonomy.php:3022
 msgid "Loading Line-Up words..."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2052
+#: includes/taxonomies/word-category-taxonomy.php:2081
 msgid "Custom sequence"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2053
+#: includes/taxonomies/word-category-taxonomy.php:2082
 msgid "Custom-positioned words are used first in the order shown. Other category words follow automatically."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2054
+#: includes/taxonomies/word-category-taxonomy.php:2083
 msgid "No custom positions yet. Category words currently follow their automatic order."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2055
+#: includes/taxonomies/word-category-taxonomy.php:2084
 msgid "Find category words"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2061
+#: includes/taxonomies/word-category-taxonomy.php:2090
 msgid "Page {page} of {pages}"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2062
+#: includes/taxonomies/word-category-taxonomy.php:2091
 msgid "Custom positioned"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2063
+#: includes/taxonomies/word-category-taxonomy.php:2092
 msgid "Add to custom sequence"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2064
+#: includes/taxonomies/word-category-taxonomy.php:2093
 msgid "Reset to automatic position"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2067
+#: includes/taxonomies/word-category-taxonomy.php:2096
 msgid "Unable to load Line-Up words right now."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2068
+#: includes/taxonomies/word-category-taxonomy.php:2097
 msgid "Unable to update the Line-Up sequence right now."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2069
+#: includes/taxonomies/word-category-taxonomy.php:2098
 msgid "Updating sequence..."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2070
-#: includes/taxonomies/word-category-taxonomy.php:2462
+#: includes/taxonomies/word-category-taxonomy.php:2099
+#: includes/taxonomies/word-category-taxonomy.php:2491
 msgid "Sequence updated."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2071
+#: includes/taxonomies/word-category-taxonomy.php:2100
 msgid "No category words match this search."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2072
-#: includes/taxonomies/word-category-taxonomy.php:2232
+#: includes/taxonomies/word-category-taxonomy.php:2101
+#: includes/taxonomies/word-category-taxonomy.php:2261
 msgid "Unavailable word #%d"
 msgstr ""
 
 #. translators: %d is the maximum number of submitted word IDs.
-#: includes/taxonomies/word-category-taxonomy.php:2130
+#: includes/taxonomies/word-category-taxonomy.php:2159
 msgid "Submit no more than %d Line-Up words at once."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2161
+#: includes/taxonomies/word-category-taxonomy.php:2190
 msgid "One or more submitted words no longer belong to this category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2307
+#: includes/taxonomies/word-category-taxonomy.php:2336
 msgid "Invalid Line-Up update."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2311
+#: includes/taxonomies/word-category-taxonomy.php:2340
 msgid "Select a valid word."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2336
+#: includes/taxonomies/word-category-taxonomy.php:2365
 msgid "That word no longer has a custom Line-Up position."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2385
+#: includes/taxonomies/word-category-taxonomy.php:2414
 msgid "This lesson no longer matches that category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2722
+#: includes/taxonomies/word-category-taxonomy.php:2751
 msgid "Choose whether the quiz starts with audio, an image, text, or a mixed prompt for this category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2735
-#: includes/taxonomies/word-category-taxonomy.php:2841
+#: includes/taxonomies/word-category-taxonomy.php:2764
+#: includes/taxonomies/word-category-taxonomy.php:2870
 msgid "Use text options for text-only quizzes (no audio/images), or choose audio options to play recordings."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2738
-#: includes/taxonomies/word-category-taxonomy.php:2846
+#: includes/taxonomies/word-category-taxonomy.php:2767
+#: includes/taxonomies/word-category-taxonomy.php:2875
 msgid "Lesson/Grid Text Visibility"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2740
-#: includes/taxonomies/word-category-taxonomy.php:2850
+#: includes/taxonomies/word-category-taxonomy.php:2769
+#: includes/taxonomies/word-category-taxonomy.php:2879
 #: templates/vocab-lesson-template.php:1197
 msgid "Use word set default"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2741
-#: includes/taxonomies/word-category-taxonomy.php:2851
+#: includes/taxonomies/word-category-taxonomy.php:2770
+#: includes/taxonomies/word-category-taxonomy.php:2880
 #: templates/vocab-lesson-template.php:1198
 msgid "Always show text"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2742
-#: includes/taxonomies/word-category-taxonomy.php:2852
+#: includes/taxonomies/word-category-taxonomy.php:2771
+#: includes/taxonomies/word-category-taxonomy.php:2881
 #: templates/vocab-lesson-template.php:1199
 msgid "Always hide text"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2744
-#: includes/taxonomies/word-category-taxonomy.php:2854
+#: includes/taxonomies/word-category-taxonomy.php:2773
+#: includes/taxonomies/word-category-taxonomy.php:2883
 msgid "Controls lesson pages and [word_grid] displays. \"Hide\" shows images/audio buttons only. \"Use word set default\" follows the word set setting for non-text quiz categories."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2824
+#: includes/taxonomies/word-category-taxonomy.php:2853
 msgid "Whether to start rounds with audio, with the word image, with text, or with a mixed prompt."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2917
-#: includes/taxonomies/word-category-taxonomy.php:2938
+#: includes/taxonomies/word-category-taxonomy.php:2946
+#: includes/taxonomies/word-category-taxonomy.php:2967
 msgid "Enabled Games"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2926
+#: includes/taxonomies/word-category-taxonomy.php:2955
 msgid "Select which games may use words from this category. Leave all unchecked to keep this category out of every game. New categories default to disabled for all games."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2949
+#: includes/taxonomies/word-category-taxonomy.php:2978
 msgid "Select which games may use words from this category. Leave all unchecked to keep this category out of every game."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2958
-#: includes/taxonomies/word-category-taxonomy.php:2979
+#: includes/taxonomies/word-category-taxonomy.php:2987
+#: includes/taxonomies/word-category-taxonomy.php:3008
 msgid "Line-Up Sequence"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2959
+#: includes/taxonomies/word-category-taxonomy.php:2988
 msgid "Save the category first, then add words. Line-Up can only be configured after the category has words."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2984
+#: includes/taxonomies/word-category-taxonomy.php:3013
 #: templates/vocab-lesson-template.php:1249
 msgid "Direction"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2986
+#: includes/taxonomies/word-category-taxonomy.php:3015
 #: templates/vocab-lesson-template.php:1251
 msgid "Auto"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2987
+#: includes/taxonomies/word-category-taxonomy.php:3016
 #: templates/vocab-lesson-template.php:1252
 msgid "Left to right"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2988
+#: includes/taxonomies/word-category-taxonomy.php:3017
 #: templates/vocab-lesson-template.php:1253
 msgid "Right to left"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:2990
+#: includes/taxonomies/word-category-taxonomy.php:3019
 msgid "Choose the visual reading direction used by the game. Stored sequence order always remains logical and is never reversed."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:3140
+#: includes/taxonomies/word-category-taxonomy.php:3169
 msgid "Select the recording types that make sense for words in this category. Leave all unchecked to disable recording for this category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:3179
+#: includes/taxonomies/word-category-taxonomy.php:3208
 msgid "If none selected, recording is disabled for this category."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:3181
+#: includes/taxonomies/word-category-taxonomy.php:3210
 msgid "Currently disabled (no recording types selected)."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5039
+#: includes/taxonomies/word-category-taxonomy.php:5068
 msgid "Category \"%1$s\" is set to %2$s, so %3$d of %4$d published words currently appear for learners."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5047
+#: includes/taxonomies/word-category-taxonomy.php:5076
 msgid "%d published word does not match this presentation and will not appear for learners on lesson or quiz pages."
 msgid_plural "%d published words do not match this presentation and will not appear for learners on lesson or quiz pages."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5058
+#: includes/taxonomies/word-category-taxonomy.php:5087
 msgid "Changing this category to %1$s would include %2$d of %3$d published words instead."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:5065
+#: includes/taxonomies/word-category-taxonomy.php:5094
 msgid "Either <a href=\"%1$s\">change this category's quiz presentation</a> or <a href=\"%2$s\">edit the words in this category</a> so they match the current presentation."
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9021
+#: includes/taxonomies/word-category-taxonomy.php:9050
 msgid "Successfully added %d category."
 msgid_plural "Successfully added %d categories."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9027
+#: includes/taxonomies/word-category-taxonomy.php:9056
 msgid "%d entry failed."
 msgid_plural "%d entries failed."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9035
-#: includes/taxonomies/word-category-taxonomy.php:9041
+#: includes/taxonomies/word-category-taxonomy.php:9064
+#: includes/taxonomies/word-category-taxonomy.php:9070
 msgid "Bulk Add Categories"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9039
+#: includes/taxonomies/word-category-taxonomy.php:9068
 msgid "Enter names separated by commas, tabs or new lines…"
 msgstr ""
 
-#: includes/taxonomies/word-category-taxonomy.php:9053
+#: includes/taxonomies/word-category-taxonomy.php:9082
 msgid "Permission denied or invalid nonce."
 msgstr ""
 
 #. translators: 1: category name, 2: owning word set name
-#: includes/taxonomies/word-category-taxonomy.php:9205
+#: includes/taxonomies/word-category-taxonomy.php:9234
 msgctxt "category label with owning word set in admin selectors"
 msgid "%1$s - %2$s"
 msgstr ""

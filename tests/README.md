@@ -400,7 +400,9 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-iframe-recovery.spec.js`
   - Verifies shared and standalone quiz dialogs trap focus, isolate background content, restore the opener, expose timeout/load-error recovery, wait for and accept late embed-ready signals, and honor reduced-motion preferences.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
-  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled recovery fails closed without dropping the target, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, and a failed continuation renders one localized retry state without the false no-content line before cleaning that state up immediately on Retry. It also verifies unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled recovery fails closed without dropping the target, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
+- `tests/e2e/specs/quiz-results-mobile-layout.spec.js`
+  - Verifies mobile results remain below the close control and inside the viewport, and that the recoverable continuation error card keeps its neutral Retry geometry, colors, focus treatment, and 44px target under later hostile theme CSS while hiding the in-round progress bar and floating mode switcher.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review
     card while preserving per-word answer audio, and that client-side bounded
@@ -469,8 +471,12 @@ Representative E2E coverage areas:
     and the selected progress filter remains visible across hydration boundaries. Verified candidate rows are handed
     directly to the flashcard runtime without a second AJAX fetch for the same
     chunk. Aggregate score/replay state survives each boundary and results plus
-    mode-session completion occur once after the final chunk. A failed batch
-    keeps the same index retryable; a simulated 429 must close every loading
+    mode-session completion occur once after the final chunk. Selection-plan,
+    ordinary hydration, and continuation requests all enforce the configured
+    deadline. A typed 503 or other transient transport failure retries only the
+    failed serial category request without duplicating or advancing the chunk.
+    An exhausted ordinary batch closes its loader and reports the error, while a
+    failed continuation keeps the same index retryable; a simulated 429 must close every loading
     surface, issue no category requests, and show one retryable error. This is
     also the canonical cross-surface launch-ownership guard: direct-category,
     top-recommendation, next-activity, selection, results Repeat/Continue, and

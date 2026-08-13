@@ -480,6 +480,8 @@ async function mountWordsetPage(page, options = {}) {
     window.__llRecommendationRequests = [];
     window.__llAbortedRequests = [];
     window.__llFailPublicCategoryOnce = '';
+    window.__llFailPublicCategoryRemaining = {};
+    window.__llHangPublicCategoryOnce = '';
     window.__llPartialPublicCategoryOnce = null;
     window.__llInitAttempts = [];
     window.__llInitFailureOnce = '';
@@ -489,6 +491,7 @@ async function mountWordsetPage(page, options = {}) {
       0,
       Number(bootstrap.publicCategoryWarmingResponses) || 0
     );
+    let selectionPlanHangRemaining = bootstrap.selectionPlanHangOnce ? 1 : 0;
     window.alert = function (message) {
       window.__llAlerts.push(String(message || ''));
     };
@@ -635,13 +638,29 @@ async function mountWordsetPage(page, options = {}) {
           if (!settleCategoryRequest()) {
             return;
           }
+          const remainingFailures = Math.max(
+            0,
+            Number((window.__llFailPublicCategoryRemaining || {})[categoryName]) || 0
+          );
+          if (remainingFailures > 0) {
+            window.__llFailPublicCategoryRemaining[categoryName] = remainingFailures - 1;
+            deferred.reject({
+              status: 503,
+              responseJSON: {
+                success: false,
+                data: { code: 'source_incomplete' }
+              },
+              getResponseHeader: () => ''
+            });
+            return;
+          }
           if (String(window.__llFailPublicCategoryOnce || '') === categoryName) {
             window.__llFailPublicCategoryOnce = '';
             deferred.reject({
-              status: 500,
+              status: 503,
               responseJSON: {
                 success: false,
-                data: { code: 'test_category_failure' }
+                data: { code: 'source_incomplete' }
               },
               getResponseHeader: () => ''
             });
@@ -695,7 +714,7 @@ async function mountWordsetPage(page, options = {}) {
               : responseRows
           });
         };
-        categoryPromise.abort = () => {
+        categoryPromise.abort = (reason) => {
           if (categoryRequestSettled) {
             return;
           }
@@ -707,14 +726,17 @@ async function mountWordsetPage(page, options = {}) {
             return;
           }
           window.__llAbortedRequests.push({ action, categoryName });
+          const textStatus = String(reason || 'abort');
           deferred.reject({
             status: 0,
             llToolsTestAborted: true,
             getResponseHeader: () => ''
-          }, 'abort', 'abort');
+          }, textStatus, textStatus);
         };
         const publicCategoryDelayMs = Math.max(0, Number(window.__llPublicCategoryDelayMs) || 0);
-        if (publicCategoryDelayMs > 0) {
+        if (String(window.__llHangPublicCategoryOnce || '') === categoryName) {
+          window.__llHangPublicCategoryOnce = '';
+        } else if (publicCategoryDelayMs > 0) {
           categoryRequestTimer = window.setTimeout(resolveCategoryRequest, publicCategoryDelayMs);
         } else {
           resolveCategoryRequest();
@@ -731,7 +753,7 @@ async function mountWordsetPage(page, options = {}) {
         let planRequestSettled = false;
         let planRequestTimer = null;
         const planPromise = deferred.promise();
-        planPromise.abort = () => {
+        planPromise.abort = (reason) => {
           if (planRequestSettled) {
             return;
           }
@@ -741,11 +763,12 @@ async function mountWordsetPage(page, options = {}) {
             planRequestTimer = null;
           }
           window.__llAbortedRequests.push({ action, categoryName: '' });
+          const textStatus = String(reason || 'abort');
           deferred.reject({
             status: 0,
             llToolsTestAborted: true,
             getResponseHeader: () => ''
-          }, 'abort', 'abort');
+          }, textStatus, textStatus);
         };
         const resolvePlanRequest = () => {
           if (planRequestSettled) {
@@ -834,7 +857,9 @@ async function mountWordsetPage(page, options = {}) {
             data: { plan }
           });
         };
-        if (bootstrap.selectionPlanDelayMs > 0) {
+        if (selectionPlanHangRemaining > 0) {
+          selectionPlanHangRemaining -= 1;
+        } else if (bootstrap.selectionPlanDelayMs > 0) {
           planRequestTimer = window.setTimeout(resolvePlanRequest, bootstrap.selectionPlanDelayMs);
         } else {
           resolvePlanRequest();
@@ -908,6 +933,7 @@ async function mountWordsetPage(page, options = {}) {
     selectionLaunchPlan: options.selectionLaunchPlan || null,
     selectionPlanFailureStatus: Math.max(0, Number(options.selectionPlanFailureStatus) || 0),
     selectionPlanDelayMs: Math.max(0, Number(options.selectionPlanDelayMs) || 0),
+    selectionPlanHangOnce: !!options.selectionPlanHangOnce,
     recommendationDelayMs: Math.max(0, Number(options.recommendationDelayMs) || 0)
   });
 
@@ -1002,6 +1028,101 @@ test('logged-out public practice hydration serializes category cache misses', as
   expect(requestStats.categories).toEqual(['Cat A', 'Cat B', 'Cat C']);
   expect(requestStats.maxActive).toBe(1);
   expect(requestStats.active).toBe(0);
+});
+
+test('ordinary selection hydration applies its deadline and retries one timeout', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: false,
+    configPatch: { selectionLaunchRequestTimeoutMs: 250 }
+  });
+  await page.evaluate(() => {
+    window.__llHangPublicCategoryOnce = 'Cat A';
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  const state = await page.evaluate(() => ({
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    abortedRequests: window.__llAbortedRequests.slice(),
+    alerts: window.__llAlerts.slice()
+  }));
+  expect(state.categories).toEqual(['Cat A', 'Cat A', 'Cat B', 'Cat C']);
+  expect(state.maxActive).toBe(1);
+  expect(state.abortedRequests).toContainEqual({
+    action: 'll_get_flashcard_payload_page',
+    categoryName: 'Cat A'
+  });
+  expect(state.alerts).toEqual([]);
+});
+
+test('ordinary selection hydration exposes an error after transient retries are exhausted', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: false });
+  await page.evaluate(() => {
+    window.__llFailPublicCategoryRemaining = { 'Cat A': 3 };
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length), { timeout: 10000 }).toBe(1);
+
+  const state = await page.evaluate(() => ({
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    active: window.__llPublicCategoryRequests.active,
+    launches: window.__llLaunches.slice(),
+    alerts: window.__llAlerts.slice(),
+    quizBusy: window.jQuery('#ll-tools-flashcard-quiz-popup').attr('aria-busy') || ''
+  }));
+  expect(state.categories).toEqual(['Cat A', 'Cat A', 'Cat A']);
+  expect(state.maxActive).toBe(1);
+  expect(state.active).toBe(0);
+  expect(state.launches).toEqual([]);
+  expect(state.alerts).toEqual(['Something went wrong. Please try again.']);
+  expect(state.quizBusy).not.toBe('true');
+
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  const retried = await page.evaluate(() => ({
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    alerts: window.__llAlerts.slice()
+  }));
+  expect(retried.categories).toEqual(['Cat A', 'Cat A', 'Cat A', 'Cat A', 'Cat B', 'Cat C']);
+  expect(retried.alerts).toEqual(['Something went wrong. Please try again.']);
+});
+
+test('bounded selection planning applies its deadline and closes the loader on timeout', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    selectionPlanHangOnce: true,
+    configPatch: Object.assign({}, fixture.configPatch, {
+      selectionLaunchRequestTimeoutMs: 250
+    })
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llAlerts.length)).toBe(1);
+
+  const state = await page.evaluate(() => ({
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    abortedRequests: window.__llAbortedRequests.slice(),
+    launches: window.__llLaunches.slice(),
+    alerts: window.__llAlerts.slice(),
+    quizBusy: window.jQuery('#ll-tools-flashcard-quiz-popup').attr('aria-busy') || ''
+  }));
+  expect(state.planRequests).toHaveLength(1);
+  expect(state.abortedRequests).toContainEqual({
+    action: 'll_user_study_selection_launch_plan',
+    categoryName: ''
+  });
+  expect(state.launches).toEqual([]);
+  expect(state.alerts).toEqual(['Something went wrong. Please try again.']);
+  expect(state.quizBusy).not.toBe('true');
 });
 
 test('logged-out public practice keeps loading while a category cache warms', async ({ page }) => {
@@ -2268,6 +2389,91 @@ test('bounded selection continuation coalesces one serial next-batch request', a
   });
   await expect(page.locator('#quiz-results')).toBeHidden();
   await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
+});
+
+test('bounded selection continuation retries one transient category read without advancing twice', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__llFailPublicCategoryOnce = 'Cat C';
+  });
+
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    requests: window.__llPublicCategoryRequests.requests.map((request) => ({
+      categoryName: request.categoryName,
+      candidateIds: request.candidateIds.slice()
+    })),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(result.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat C']);
+  expect(result.maxActive).toBe(1);
+  expect(result.launches).toHaveLength(1);
+  expect(result.appends).toHaveLength(1);
+  expect(result.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  expect(result.requests.slice(-2)).toEqual([
+    { categoryName: 'Cat C', candidateIds: fixture.secondChunkWordIds },
+    { categoryName: 'Cat C', candidateIds: fixture.secondChunkWordIds }
+  ]);
+  expect(result.continuationType).toBe('undefined');
+});
+
+test('bounded selection continuation applies its request deadline and retries one timeout', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: Object.assign({}, fixture.configPatch, {
+      selectionLaunchRequestTimeoutMs: 250
+    })
+  });
+
+  await startInProgressPracticeSelection(page);
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+  await page.evaluate(() => {
+    window.__llHangPublicCategoryOnce = 'Cat C';
+  });
+
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+
+  const result = await page.evaluate(() => ({
+    launches: window.__llLaunches.length,
+    appends: window.__llBoundedSessionAppends.slice(),
+    categories: window.__llPublicCategoryRequests.categories.slice(),
+    maxActive: window.__llPublicCategoryRequests.maxActive,
+    abortedRequests: window.__llAbortedRequests.slice()
+  }));
+  expect(result.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat C', 'Cat C']);
+  expect(result.maxActive).toBe(1);
+  expect(result.abortedRequests).toContainEqual({
+    action: 'll_get_words_by_category',
+    categoryName: 'Cat C'
+  });
+  expect(result.launches).toBe(1);
+  expect(result.appends).toHaveLength(1);
+  expect(result.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
 });
 
 test('bounded candidate hydration keeps retrying while its materialized option pool warms', async ({ page }) => {

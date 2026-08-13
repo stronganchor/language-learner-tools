@@ -612,6 +612,86 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     text-transform: none !important;
 }
 
+/* Keep recoverable quiz failures neutral and isolated from host-theme button styles. */
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results.ll-tools-error-state {
+    width: min(88vw, 480px) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 24px 20px !important;
+    border: 1px solid #d8dee6 !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14) !important;
+    color: #111827 !important;
+    color-scheme: light;
+    isolation: isolate;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button {
+    display: inline-flex;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 148px !important;
+    max-width: 100% !important;
+    min-height: 44px !important;
+    margin: 16px auto 0 !important;
+    padding: 10px 18px !important;
+    border: 1px solid #64748b !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.1) !important;
+    color: #1f2937 !important;
+    font-family: inherit !important;
+    font-size: 0.95rem !important;
+    font-style: normal !important;
+    font-weight: 650 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    text-transform: none !important;
+    cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button:hover,
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button:focus-visible {
+    border-color: #334155 !important;
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
+    background-image: none !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14) !important;
+    color: #0f172a !important;
+    transform: none !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button:focus-visible {
+    outline: 3px solid rgba(71, 85, 105, 0.35) !important;
+    outline-offset: 3px !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button:active {
+    background: #eef2f6 !important;
+    background-color: #eef2f6 !important;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12) !important;
+    transform: none !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results #restart-quiz.quiz-button[disabled] {
+    cursor: wait !important;
+    opacity: 0.62 !important;
+}
+
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #ll-tools-learning-progress,
+#ll-tools-flashcard-quiz-popup.ll-tools-error-state #ll-tools-mode-switcher-wrap {
+    display: none !important;
+}
+
 #quiz-results .ll-quiz-results-score {
     margin: 0 0 10px !important;
     padding: 0 !important;
@@ -2349,15 +2429,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     flex: 0 0 auto;
 }
 
-/* Hide mode switcher during results */
-#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher {
-    display: none !important;
-}
-
-#quiz-results:not([style*="display: none"])~.ll-tools-mode-switcher-wrap {
-    display: none !important;
-}
-
 /* Responsive adjustments */
 @media (max-width: 480px) {
     .quiz-mode-button,
@@ -2390,6 +2461,10 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         padding: 16px 14px 18px;
+    }
+
+    #ll-tools-flashcard-quiz-popup.ll-tools-error-state #quiz-results.ll-tools-error-state {
+        padding: 22px 16px !important;
     }
 
     .ll-gender-results-progress-card {
