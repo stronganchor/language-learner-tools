@@ -15,6 +15,32 @@ path to standards-based grade passback for major LMS platforms. Compatibility
 with any particular LMS is not complete until that platform's current sandbox
 and production setup have been tested.
 
+### Implementation status (August 2026)
+
+- Phase 1 is implemented: bounded formative Practice results appear in the
+  existing teacher Classes report.
+- A Phase 2 foundation is implemented behind versioned schema gates:
+  immutable bounded closed-response revisions, current-class learner attempts,
+  server-derived first answers and scores, `first`/`latest`/`best` selected
+  grades, cookie-authenticated native REST routes, privacy export/erasure, and
+  a provider-neutral ordered delivery outbox. A complete teacher assignment
+  authoring/player UI and provider mappings are still required before this is
+  a finished production assessment workflow.
+- A Google Classroom connection foundation is implemented: configuration-only
+  OAuth secrets, one-use state plus PKCE, authenticated encryption for refresh
+  credentials, fixed Google origins, scope readback, a teacher connection
+  screen, and a bounded active-course list. Database-verified helpers for DRAFT
+  CourseWork and `draftGrade` exist but have no UI/adapter registration and are
+  disabled unless the explicit production-write gate is enabled. They do not
+  accept Phase 1 results.
+- LTI 1.3/AGS is not implemented or claimed. The repository still has no
+  audited production JOSE/OIDC dependency, signing-key custody/rotation model,
+  registration/deployment store, or LMS sandbox proof. Those are one security
+  boundary, not a small transport patch.
+
+See `docs/GOOGLE_CLASSROOM_SETUP.md` for the connector's deployment boundary
+and remaining acceptance gates.
+
 ## Existing foundation
 
 The plugin already has useful building blocks:
@@ -368,15 +394,22 @@ surface uses different APIs as a separate adapter over the same assignment,
 attempt, identity-mapping, and delivery-outbox domain.
 
 Google Classroom is the first explicit example. Google's current publisher
-paths are Classroom Share, the CourseWork API, and Classroom add-ons. A
-Wordboat activity integration should use an activity-type add-on attachment
-with a positive `maxPoints`, then update the attachment submission's
+paths are Classroom Share, the CourseWork API, and Classroom add-ons. The
+initial connector targets the CourseWork API: the same configured Cloud
+project creates explicit DRAFT CourseWork, then an exact mapped student
+submission receives `draftGrade` from the selected server-authoritative grade.
+That project-ownership restriction is part of the mapping/readback contract;
+the connector must not attach itself to an arbitrary pre-existing assignment.
+
+An embedded Wordboat activity should later use an activity-type add-on
+attachment with a positive `maxPoints`, then update the attachment submission's
 `pointsEarned` through the Classroom API. The attachment must have been
 created by the add-on, and automatic completion-time passback may require
 securely retained teacher offline authorization. Marketplace listing, OAuth
 verification, domain allowlisting, license availability, review, identity
 mapping, assignment ownership, and retry behavior are therefore a separate
-delivery workstream from LTI registration and AGS.
+delivery workstream from both CourseWork and LTI registration/AGS. Do not mix
+the CourseWork and add-on journeys inside one resource mapping.
 
 Do not implement the Classroom adapter by translating Classroom objects into
 pretend LTI claims. Reuse the protocol-neutral Phase 2 records and expose a
@@ -490,11 +523,13 @@ Wordboat grade passback.
 | Phase | Deliverable | Exit gate |
 | --- | --- | --- |
 | 1 | Native, client-reported Practice results in teacher Classes | Exact nested contract, bounded reporting, privacy coverage, formative labeling |
-| 2 | Native assignments and server-verifiable attempts | Immutable revisions, server score, idempotent finalization, explicit grade policy |
-| 3 | LTI Core launch plus AGS for one fixed assignment on one LMS | Security review, outbox ordering proof, sandbox and correction tests |
+| 2A | Provider-neutral assignment, attempt, grade, and outbox foundation | Immutable revisions, server score, idempotent finalization, explicit grade policy, ordered delivery tests |
+| 2B | Native teacher authoring and learner assignment player | Bounded frozen-content builder, accessible UI, correction/retention policy, end-to-end browser test |
+| 2C | Google Classroom CourseWork pilot | OAuth verification, exact project-owned CourseWork/submission mappings, draft-grade ordering, sandbox tests |
+| 3 | LTI Core launch plus AGS for one fixed assignment on one LMS | Audited JOSE dependency/key custody, security review, outbox ordering proof, sandbox and correction tests |
 | 4 | Deep Linking assignment picker | Signed instructor flow, bounded picker, line-item and course-copy tests |
 | 5 | Optional NRPS roster sync and additional LTI LMSs | Explicit roster policy and a passing versioned platform matrix |
-| 6 | Vendor-specific adapters such as Google Classroom | Shared assignment/attempt semantics, platform review, OAuth and grade-passback tests |
+| 6 | Google Classroom add-on and other vendor-specific adapters | Shared assignment/attempt semantics, platform review, OAuth and grade-passback tests |
 | 7 | Public conformance claim | Applicable 1EdTech validator/certification and documented supported platforms |
 
 Do not skip Phase 2 for a high-stakes or externally published grade. A Phase 3
@@ -515,6 +550,8 @@ until the server-verifiable attempt gate is complete.
 - [ADL SCORM 2004 programmer guide][scorm]
 - [Google Classroom integration paths][classroom-paths]
 - [Google Classroom add-on attachment and grade-passback guide][classroom-grades]
+- [Google Classroom CourseWork creation][classroom-coursework-create]
+- [Google Classroom grade management][classroom-grade-management]
 
 [lti-core]: https://www.imsglobal.org/spec/lti/v1p3/
 [lti-security]: https://www.imsglobal.org/spec/security/v1p0/
@@ -526,3 +563,5 @@ until the server-verifiable attempt gate is complete.
 [scorm]: https://adlnet.gov/assets/uploads/SCORM_Users_Guide_for_Programmers.pdf
 [classroom-paths]: https://developers.google.com/workspace/classroom/guides/integration-paths/integration-paths
 [classroom-grades]: https://developers.google.com/workspace/classroom/add-ons/developer-guides/attachment-interactions
+[classroom-coursework-create]: https://developers.google.com/workspace/classroom/reference/rest/v1/courses.courseWork/create
+[classroom-grade-management]: https://developers.google.com/workspace/classroom/guides/classroom-api/manage-grades
