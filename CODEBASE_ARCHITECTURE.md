@@ -24,6 +24,10 @@ read_first:
   - includes/shortcodes/audio-recording-shortcode.php
   - includes/user-study.php
   - includes/user-progress.php
+  - includes/lms/assignments.php
+  - includes/lms/grade-delivery.php
+  - includes/lms/google-classroom.php
+  - docs/GOOGLE_CLASSROOM_SETUP.md
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
   - includes/post-types/words-post-type.php
@@ -193,12 +197,17 @@ module list.
 - includes/content-lesson-progress.php
 - includes/user-study.php
 - includes/user-progress-report-data.php
+- includes/lms/credential-store.php
+- includes/lms/assignments.php
+- includes/lms/grade-delivery.php
+- includes/lms/google-classroom.php
 - includes/offline-app-sync.php
 - includes/privacy.php
 - includes/admin/example-sentence-migration.php
 - includes/admin/api/deepl-api.php
 - includes/admin/api/assemblyai-api.php
 - includes/api/automation-rest.php
+- includes/api/lms-rest.php
 - includes/admin/word-option-rules-admin.php
 - includes/admin/admin-dashboard-menu.php
 - includes/admin/missing-audio-admin-page.php
@@ -217,6 +226,7 @@ module list.
 - includes/admin/offline-app-export.php
 - includes/admin/user-progress-report.php
 - includes/admin/teacher-classes-page.php
+- includes/admin/google-classroom-integration.php
 - includes/admin/word-images-fixer.php
 - includes/admin/ipa-keyboard-admin.php
 - includes/admin/image-aspect-normalizer-admin.php
@@ -275,6 +285,11 @@ includes/
   legacy-content-lesson-contracts.php # Stable legacy source/category/default-wordset migration contract
   user-progress.php           # Learner progress writes/lookups
   user-progress-report-data.php # Shared progress report queries
+  lms/
+    credential-store.php      # Configuration-key authenticated encryption for provider credentials
+    assignments.php           # Immutable assignment revisions, authoritative attempts, answers, and selected grades
+    grade-delivery.php        # Provider-neutral mappings plus bounded ordered outbox worker
+    google-classroom.php      # Fixed-origin Google OAuth, encrypted teacher connections, and bounded Classroom client
   wordset-isolation.php       # Wordset-owned category isolation/remapping
   wordset-templates.php       # Reusable wordset template bundles
   lib/
@@ -308,6 +323,7 @@ includes/
     image-hash.php            # Perceptual image hashing/similarity helpers
   api/
     automation-rest.php       # JSON-first automation endpoints with server-side guardrails
+    lms-rest.php              # Cookie/nonce native assignment and attempt routes
     word-metadata-plan-rest.php # Durable word-metadata plan job helpers loaded by automation-rest.php
   pages/
     quiz-pages.php            # Auto /quiz CPT records + sync + assets
@@ -372,6 +388,7 @@ includes/
     site-sync-admin.php       # LL Site Sync admin workflow for pull/preview/push
     offline-app-export.php
     teacher-classes-page.php
+    google-classroom-integration.php # Teacher/admin OAuth connection and bounded active-course screen
     example-sentence-migration.php
     ipa-keyboard-admin.php
     word-option-rules-admin.php
@@ -510,6 +527,12 @@ vendor/
   - Stores wordset-scoped class records with teacher ownership and learner membership.
   - Managed primarily through the wordset Classes view; invite and manual-assignment helpers live in `includes/teacher-classes.php`.
   - Both the frontend and legacy wp-admin Classes surfaces page class/account results and hydrate at most one learner-progress page. Keep class/account queries at `page_size + 1`, use `ID ASC` after title/display-name ordering so offset pages are deterministic, preserve the selected teacher outside the current account page, globally order admin progress before applying its bounded `number`/`offset`, reset empty class pages, clamp stale final learner-page requests, and label paged progress metrics as page-scoped rather than rebuilding full-class aggregates during an interactive request.
+- LMS assignment and delivery tables (custom InnoDB tables)
+  - `ll_tools_lms_assignments` and `ll_tools_lms_assignment_revisions` bind an opaque assignment to one owned class/wordset and a bounded immutable closed-response manifest revision.
+  - `ll_tools_lms_assignment_attempts` and `ll_tools_lms_attempt_answers` bind one current class learner to an attempt and preserve the first idempotent server-validated answer for each frozen item. A client never submits correctness or a score.
+  - `ll_tools_lms_assignment_grades` stores the revision-pinned grade selected under the immutable `first`, `latest`, or `best` policy with a monotonic grade revision.
+  - `ll_tools_external_identities`, `ll_tools_grade_destinations`, `ll_tools_grade_recipients`, and `ll_tools_grade_deliveries` retain only local IDs, keyed hashes, canonical grade snapshots, leases, and redacted diagnostics. Raw provider identifiers and credentials belong in a provider-owned encrypted/mapping store, not the generic outbox.
+  - `ll_tools_google_classroom_connections` stores one teacher's refresh credential in a context-bound authenticated envelope; `ll_tools_google_classroom_oauth_states` stores short-lived one-use state/PKCE envelopes. Neither table stores a plaintext token.
 
 ## Taxonomies
 - `word-category` (flat; attached to `words` and `word_images`)
@@ -681,6 +704,9 @@ wordset can opt into it.
 - `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).
   - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes/entity translations, and import preview/start/process/discard/result routes.
   - Word-metadata plan job create/status/process/discard/result routes are registered by `automation-rest.php` and implemented through its loaded `includes/api/word-metadata-plan-rest.php` job helpers.
+- Native LMS foundation routes under `/wp-json/ll-tools/v1/lms/...` are handled by `includes/api/lms-rest.php`.
+  - Teacher mutations require cookie authentication, a valid REST nonce, class-management capability, and exact class ownership before accepting a bounded frozen manifest.
+  - Learner attempt routes re-check current class membership and the published revision on every request. Answer bodies contain opaque item/option/idempotency keys only; finalize derives and returns the server score.
 
 # Flashcard widget architecture
 ## PHP controller
@@ -828,7 +854,7 @@ wordset can opt into it.
 - Public static cache writes must keep the configured max-byte guard, and MISS responses should not receive public cache headers until storage succeeds.
 - Anonymous public AJAX surfaces that can rebuild expensive payloads should be cache-aware and resource-guarded: preserve cheap cache hits, but throttle or cap cache misses and oversized batch requests.
 - User-study progress, snapshot, goals, recommendation, and analytics AJAX collections must pass byte/count/shape admission before JSON decoding, ID mapping, or downstream queries. Oversized input is rejected instead of silently truncated; stored-state sanitizers remain a separate defense-in-depth boundary.
-- Schema installers for offline sessions, learner progress, dictionary lookup, wordset category search, and image matching may run only during activation, tests, WP-CLI, WP-Cron, or a capability-bearing wp-admin request. A public page, REST request, or public admin-ajax request with a stale/missing marker must fail closed and coalesce a repair through `includes/lib/schema-maintenance.php`; every later repair rechecks its marker behind an expiring exact-owner lease before issuing `dbDelta()` or `ALTER`, and only that exact owner may release the lease. The flashcard payload table retains its equivalent subsystem-specific admission and exact-owner schema lease.
+- Schema installers for offline sessions, learner progress, dictionary lookup, wordset category search, image matching, LMS assignments, grade delivery, and Google Classroom connections may run only during activation, tests, WP-CLI, WP-Cron, or a capability-bearing wp-admin request. A public page, REST request, or public admin-ajax request with a stale/missing marker must fail closed and coalesce a repair through `includes/lib/schema-maintenance.php`; every later repair rechecks its marker behind an expiring exact-owner lease before issuing `dbDelta()` or `ALTER`, and only that exact owner may release the lease. The flashcard payload table retains its equivalent subsystem-specific admission and exact-owner schema lease.
 - The one-time dotless-i `recording_ipa` correction may be scheduled from `init`, but it must execute only as leased WP-Cron keyset batches with a durable cursor. A batch schedules coalesced wordset IPA-map rebuilds; public initialization may not scan or update recording metadata or rebuild whole-wordset aggregates.
 - Expired-transient maintenance must remain database-only and cron-only: skip when an external object cache is active, use only audited LL-owned cache/rate-limit prefixes, keep the five-minute grace and hard 200-row/two-second caps, conditionally recheck the exact timeout during pair deletion, and emit aggregate counts/namespaces/bytes without transient keys or values. Timeout-only rows are eligible; active pairs, value-only rows, non-LL transients, and persistent options/jobs are not.
 - Named performance profiles own one manifest/history/report tuple. `LL_PERF_SKIP_SEED=1` is read-only and must fail unless the stored fixture version and `canonical-json-v1` checksum match the selected manifest. The parent passes the small stored-fixture JSON to the verifier as an explicit argument because WSL-to-Windows-PHP stdin is not a reliable UTF-8 transport. The child E2E runner must preserve every parent-set locked `LL_E2E_PERF_*` value across env-file loading.
@@ -867,6 +893,11 @@ wordset can opt into it.
 - Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
 - Teacher-class admin rendering must page classes, account options, and learner progress before hydration. Membership is still stored as serialized bidirectional ID arrays; replacing that contract requires a staged data migration, not an interactive full-class scan.
 - A non-empty Practice session records the exact result shown to the learner in its existing idempotent `mode_session_complete` event under `payload.result = {schema:1, kind:"practice_first_try", score_given, score_maximum, score_basis:"first_try_distinct_words"}`. The server must reconstruct the canonical shape, require integer `0 <= score_given <= score_maximum` within the configured bound, discard result data for other modes, and compute percentages for reports instead of accepting a submitted percentage. Teacher-class reports may read only the already-paged current learners in the class's fixed wordset and must bound raw event scans before decoding payload JSON. These are client-reported formative Practice results governed by detailed-event retention, not tamper-resistant grades or permanent class attribution. LMS passback must add server-verifiable assignments/attempts plus a durable after-commit delivery outbox; never perform outbound delivery inside the learner-progress transaction.
+- Official assignment grades must come only from a published immutable revision and server-computed first answers. Start, answer, and finalize paths lock their exact learner/attempt scope, enforce attempt/window bounds, make retries idempotent, and commit the selected grade plus any deduplicated delivery rows atomically. Schedule external work only after the owning transaction commits; a nested savepoint finalization returns an explicit deferred-scheduling signal to its outer owner.
+- The grade-delivery worker claims at most twenty due rows with an exact-owner expiring lease, serializes one destination/learner, re-reads the current selected grade before every send, supersedes stale revisions, bounds retries with jitter/`Retry-After`, and persists no response body, token, URL, raw provider ID, email, or unredacted diagnostic. Installer repair and a throttled marker-only runtime resumer re-arm stranded durable rows; a due-query error schedules a bounded retry instead of masquerading as an empty outbox. Privacy erasure must return an explicit retryable error while a claimed delivery is processing and must not delete its audit or mappings beneath an external call.
+- Plugin activation must reschedule the earliest durable pending/retry delivery because deactivation clears only the worker event, not its rows. WordPress account deletion removes local delivery mappings before assignment grades/attempts and Google credentials without calling a provider. One atomic per-user/per-site option acts as the deletion tombstone through core's post-delete `deleted_user` hook and durably records the site-removal boundary; network deletion prepares every affected site before WordPress removes membership. Ordinary multisite `remove_user_from_blog` establishes that same site-local tombstone and unlinks teacher-class membership before capabilities disappear, then the bounded worker completes against the durable absent-membership proof. Assignment, mapping, and credential writes recheck that tombstone under the user-row transaction fence, and a stale cron consumer must never recreate a completed tombstone. Recovery keyset-pages at most fifty tombstones per pass and a throttled init resumer covers failed cron writes. Manual privacy erasure holds an exact-owner per-call lease inside one stable bounded job fence, transfers ownership only by compare-and-swap between successful continuation pages, releases only its own lease on an explicit error, and lets an abandoned job expire. Privacy exporter/eraser storage failures return `WP_Error`; `done=false` is reserved for successful bounded continuation so WordPress does not silently omit data or immediately loop forever.
+- Google Classroom OAuth uses exact redirect URI state, one-use PKCE, fixed HTTPS Google origins, bounded responses, encrypted refresh credentials, least-privilege connection scopes, and teacher/class capability checks. Under the teacher user-row lock, server admission caps each teacher at twenty stored connections and five nonexpired OAuth generations; the admin UI must use those same hard limits rather than being the authority. Expired OAuth-state envelopes are removed by an hourly 100-row bounded cleanup and exports expose only safe state metadata. The connection screen and course list are not grade-passback compatibility: all Google writes remain fail closed even when the deployment constant is set until a registered provider adapter and provider-owned CourseWork/submission mapping consume only a finalized authoritative grade and pass sandbox tests. See `docs/GOOGLE_CLASSROOM_SETUP.md`.
+- LTI 1.3 compatibility is not currently claimed. Do not add a homegrown JWT/OIDC path or send the formative Practice event through AGS; registration/deployment state, nonce replay protection, audited JOSE dependencies and key custody, signed launch validation, OAuth service tokens, destination mappings, and one-platform sandbox/conformance gates must land together.
 
 # UI color standards (canonical)
 Use one shared status palette across user-facing plugin UI so progress states always mean the same thing.

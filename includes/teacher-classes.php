@@ -678,8 +678,25 @@ if (!function_exists('ll_tools_teacher_class_cleanup_deleted_user')) {
         ll_tools_teacher_class_unlink_student($user_id);
     }
 }
+
+if (!function_exists('ll_tools_teacher_class_cleanup_removed_user')) {
+    /** Unlink site-local class membership before WordPress removes site caps. */
+    function ll_tools_teacher_class_cleanup_removed_user(int $user_id, int $blog_id): void {
+        if (
+            $user_id <= 0
+            || $blog_id <= 0
+            || !is_multisite()
+            || get_current_blog_id() !== $blog_id
+        ) {
+            return;
+        }
+
+        ll_tools_teacher_class_unlink_student($user_id);
+    }
+}
 add_action('delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
 add_action('wpmu_delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
+add_action('remove_user_from_blog', 'll_tools_teacher_class_cleanup_removed_user', 10, 2);
 
 if (!function_exists('ll_tools_teacher_class_delete')) {
     function ll_tools_teacher_class_delete(int $class_id) {
