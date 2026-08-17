@@ -2073,18 +2073,21 @@ test('progress hydration timeout clears loading and Retry refetches before launc
   const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
   await expect(retry).toBeVisible();
   await expectFlashcardLaunchUiClosed(page);
-  expect(await page.evaluate(() => ({
-    aborted: window.__llFetchWordsRequests[0].aborted,
-    abortStatus: window.__llFetchWordsRequests[0].abortStatus,
-    state: window.__llFetchWordsRequests[0].deferred.state()
-  }))).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.map((entry) => ({
+    aborted: entry.aborted,
+    abortStatus: entry.abortStatus,
+    state: entry.deferred.state()
+  })))).toEqual(Array.from({ length: 3 }, () => (
+    { aborted: true, abortStatus: 'timeout', state: 'rejected' }
+  )));
 
   await page.evaluate(() => {
     window.__llHoldFetchWordsRequests = false;
   });
   await retry.click();
 
-  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(4);
   await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
@@ -2108,11 +2111,14 @@ test('bounded progress hydration timeout clears loading and Retry refetches befo
   const retry = page.locator('[data-ll-wordset-progress-launch-retry]');
   await expect(retry).toBeVisible();
   await expectFlashcardLaunchUiClosed(page);
-  expect(await page.evaluate(() => ({
-    aborted: window.__llFetchWordsRequests[0].aborted,
-    abortStatus: window.__llFetchWordsRequests[0].abortStatus,
-    state: window.__llFetchWordsRequests[0].deferred.state()
-  }))).toEqual({ aborted: true, abortStatus: 'timeout', state: 'rejected' });
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.map((entry) => ({
+    aborted: entry.aborted,
+    abortStatus: entry.abortStatus,
+    state: entry.deferred.state()
+  })))).toEqual(Array.from({ length: 3 }, () => (
+    { aborted: true, abortStatus: 'timeout', state: 'rejected' }
+  )));
 
   await page.evaluate(() => {
     window.__llHoldFetchWordsRequests = false;
@@ -2120,7 +2126,7 @@ test('bounded progress hydration timeout clears loading and Retry refetches befo
   await retry.click();
 
   await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(2);
-  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(4);
   await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
