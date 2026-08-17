@@ -4759,6 +4759,7 @@
             optionType: displayMode
         }));
         const roundSessionToken = __LLSession;
+        let distractorRefillGeneration = 0;
         const isStaleRound = function () {
             return roundSessionToken !== __LLSession || !State.widgetActive;
         };
@@ -4953,6 +4954,154 @@
                     });
                 };
 
+                const showDistractorMinimumOptionsError = function (recovery, errorMessage, errorDetails) {
+                    const recoveryDetails = (recovery && typeof recovery === 'object') ? recovery : {};
+                    const suppliedDetails = (errorDetails && typeof errorDetails === 'object') ? errorDetails : {};
+                    showLoadingError({
+                        reason: 'minimum-options',
+                        errorMessage: errorMessage || '',
+                        details: Object.assign({
+                            chosenCount: Math.max(0, parseInt(recoveryDetails.remainingCount, 10) || 0),
+                            minimumRequired: 2,
+                            failedWordIds: Array.isArray(recoveryDetails.failedWordIds) ? recoveryDetails.failedWordIds : [],
+                            targetCardPresent: !!recoveryDetails.targetCardPresent,
+                            remainingImagesReady: !!recoveryDetails.remainingImagesReady
+                        }, suppliedDetails)
+                    });
+                };
+
+                const refillFailedDistractorOptions = function (initialRecovery) {
+                    const recovery = (initialRecovery && typeof initialRecovery === 'object') ? initialRecovery : {};
+                    const excludedWordIds = Array.isArray(recovery.failedWordIds)
+                        ? recovery.failedWordIds.slice()
+                        : [];
+                    const refillGeneration = ++distractorRefillGeneration;
+                    let refillOptionPromise;
+
+                    $flashcardContainer.empty();
+                    Dom.showLoading();
+
+                    try {
+                        refillOptionPromise = Promise.resolve(Selection.fillQuizOptions(target, {
+                            excludedOptionWordIds: excludedWordIds
+                        }));
+                    } catch (refillBuildError) {
+                        if (refillBuildError && refillBuildError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
+                            showDistractorMinimumOptionsError(
+                                recovery,
+                                refillBuildError.message || '',
+                                refillBuildError.details || {}
+                            );
+                            return;
+                        }
+                        console.error('Failed to refill quiz distractors:', refillBuildError);
+                        showLoadingError({
+                            reason: 'options-build',
+                            errorMessage: (refillBuildError && refillBuildError.message) ? String(refillBuildError.message) : '',
+                            details: (refillBuildError && refillBuildError.details && typeof refillBuildError.details === 'object')
+                                ? refillBuildError.details
+                                : {}
+                        });
+                        return;
+                    }
+
+                    Promise.all([
+                        refillOptionPromise,
+                        waitForRoundMediaReadiness(promptType, {
+                            audioTimeoutMs: 5600,
+                            imageTimeoutMs: 4700
+                        })
+                    ]).then(function (refillStatuses) {
+                        if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
+                        const refillOptionStatus = refillStatuses[0] || {};
+                        const refillRenderedStatus = refillStatuses[1] || {};
+
+                        if (refillOptionStatus && refillOptionStatus.errorCode === 'LL_MINIMUM_OPTIONS_VIOLATION') {
+                            showDistractorMinimumOptionsError(
+                                recovery,
+                                refillOptionStatus.errorMessage || '',
+                                refillOptionStatus.details || {}
+                            );
+                            return;
+                        }
+                        if (refillOptionStatus && refillOptionStatus.errorCode) {
+                            showLoadingError({
+                                reason: 'options-build',
+                                errorMessage: refillOptionStatus.errorMessage || '',
+                                details: refillOptionStatus.details || {}
+                            });
+                            return;
+                        }
+                        if (refillRenderedStatus.imagesReady) {
+                            continueAfterImageRetry(refillRenderedStatus);
+                            return;
+                        }
+
+                        retryRenderedImagesForRound(6200).then(function (refillImagesReadyAfterRetry) {
+                            if (
+                                isStaleRound() ||
+                                refillGeneration !== distractorRefillGeneration
+                            ) {
+                                return;
+                            }
+                            const retriedRefillStatus = Object.assign({}, refillRenderedStatus, {
+                                imagesReady: !!refillImagesReadyAfterRetry
+                            });
+                            if (refillImagesReadyAfterRetry) {
+                                continueAfterImageRetry(retriedRefillStatus);
+                                return;
+                            }
+
+                            const finalRecovery = recoverRoundFromUnreadyDistractorImages(target);
+                            if (finalRecovery.recovered) {
+                                retriedRefillStatus.imagesReady = true;
+                                continueAfterImageRetry(retriedRefillStatus);
+                                return;
+                            }
+                            if (finalRecovery.distractorOnly) {
+                                showDistractorMinimumOptionsError(finalRecovery);
+                                return;
+                            }
+                            skipWordAfterMediaFailure(target, 'round-images-not-ready-after-distractor-refill', {
+                                initialRecovery: recovery,
+                                optionStatus: refillOptionStatus,
+                                renderedStatus: retriedRefillStatus,
+                                unreadyImages: getUnreadyRenderedImageDetails()
+                            });
+                        }).catch(function (refillRetryError) {
+                            if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
+                            console.warn('Round distractor refill image retry failed', refillRetryError);
+                            const exceptionRecovery = recoverRoundFromUnreadyDistractorImages(target);
+                            if (exceptionRecovery.distractorOnly) {
+                                showDistractorMinimumOptionsError(exceptionRecovery);
+                                return;
+                            }
+                            skipWordAfterMediaFailure(target, 'round-distractor-refill-retry-exception', {
+                                initialRecovery: recovery,
+                                unreadyImages: getUnreadyRenderedImageDetails()
+                            });
+                        });
+                    }).catch(function (refillError) {
+                        if (isStaleRound() || refillGeneration !== distractorRefillGeneration) { return; }
+                        if (refillError && refillError.code === 'LL_MINIMUM_OPTIONS_VIOLATION') {
+                            showDistractorMinimumOptionsError(
+                                recovery,
+                                refillError.message || '',
+                                refillError.details || {}
+                            );
+                            return;
+                        }
+                        console.error('Failed while waiting for refilled quiz distractors:', refillError);
+                        showLoadingError({
+                            reason: 'options-build',
+                            errorMessage: (refillError && refillError.message) ? String(refillError.message) : '',
+                            details: (refillError && refillError.details && typeof refillError.details === 'object')
+                                ? refillError.details
+                                : {}
+                        });
+                    });
+                };
+
                 if (!renderedStatus.imagesReady) {
                     retryRenderedImagesForRound(6200).then(function (imagesReadyAfterRetry) {
                         if (isStaleRound()) { return; }
@@ -4967,16 +5116,7 @@
                                 return;
                             }
                             if (distractorRecovery.distractorOnly) {
-                                showLoadingError({
-                                    reason: 'minimum-options',
-                                    details: {
-                                        chosenCount: distractorRecovery.remainingCount,
-                                        minimumRequired: 2,
-                                        failedWordIds: distractorRecovery.failedWordIds,
-                                        targetCardPresent: distractorRecovery.targetCardPresent,
-                                        remainingImagesReady: distractorRecovery.remainingImagesReady
-                                    }
-                                });
+                                refillFailedDistractorOptions(distractorRecovery);
                                 return;
                             }
                             skipWordAfterMediaFailure(target, 'round-images-not-ready', {

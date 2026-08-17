@@ -736,10 +736,13 @@ wordset can opt into it.
 - `main.js` - orchestrates quiz lifecycle, mode switching, settings UI, and
   session guards. A round is revealed only after its rendered media is usable;
   a failed target/prompt image retains the bounded target-skip behavior, while
-  failed distractor-image cards may be removed only when the healthy target and
-  at least one other ready option remain. Otherwise the round fails closed
-  without discarding the healthy target. After an image retry, recheck the
-  already-mounted prompt audio before considering a foreground remount.
+  failed distractor images first receive one bounded refill from the already
+  hydrated same-category option pool, excluding only the failed round-local
+  IDs and without a network fetch or full-category hydration. Failed cards may
+  be removed only when the healthy target and at least one other ready option
+  remain; otherwise the round fails closed without discarding the target. After
+  an image retry, recheck the already-mounted prompt audio before considering a
+  foreground remount.
 - `state.js` - shared state container and constants.
 - `selection.js` - category/word selection, prompt rendering, and star-weighted
   selection. Option preloads request only media used by the option type; an
@@ -842,6 +845,10 @@ wordset can opt into it.
 - Vocab-lesson prompt-card mode detection must use the capped ID-only summary path; full prompt-card rows belong in the deferred grid request, not the initial lesson template render.
 - Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across server-planned transport chunks without duplicates or dropped leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words). Keep each category-owned queue contiguous and order owned queues largest-first. After balancing, order runnable chunks by fewest represented categories, then fullest word count, then stable original order so the first card needs the fewest serial category requests without dropping or duplicating later work. Filtered bounded practice sessions retain their filter label and full logical total across hydration boundaries. If full coverage cannot also satisfy the minimum round size and hard category cap, reject the plan explicitly. Practice must request valid chunks serially just in time, append each verified candidate payload to the active runtime without reinitializing it, suppress intermediate results/actions/completion events, and retry a failed unchanged chunk without advancing; other modes keep explicit results-stage continuation. No mode may refetch a successful chunk or flatten category IDs into one all-category hydration request.
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
+- A rendered Practice round whose distractor images fail must make at most one
+  automatic refill from its already-hydrated same-category reserve, keep the
+  selected target and progress counters unchanged, and exclude the failed IDs
+  only for that refill. It must not refetch or mutate the bounded payload.
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
 - Keep flashcard row payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`, `option_image_hash`, `option_image_hash_threshold`, `option_similar_image_allowed_ids`); option safety depends on them in both `ll_get_words_by_category()` candidate responses and materialized pages.
 - Learning mode options are built from all introduced categories, so conflict filtering must be evaluated against all currently chosen options (not just the target).

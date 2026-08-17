@@ -2837,3 +2837,54 @@ test('uses expanded option pool for progress-filtered practice sessions', async 
   expect(result.threw).toBe(false);
   expect(result.optionIds.sort((a, b) => a - b)).toEqual([84226, 84227]);
 });
+
+test('excludes failed image distractors while refilling from the expanded option pool', async ({ page }) => {
+  const category = 'Progress filtered image recovery';
+  const targetWord = {
+    id: 84226,
+    title: 'Target',
+    label: 'Target',
+    audio: 'target.mp3',
+    image: 'target.jpg',
+    wordset_ids: [101]
+  };
+  const failedDistractor = {
+    id: 84227,
+    title: 'Failed distractor',
+    label: 'Failed distractor',
+    audio: 'failed.mp3',
+    image: 'failed.jpg',
+    wordset_ids: [101]
+  };
+  const healthyReserve = {
+    id: 84228,
+    title: 'Healthy reserve',
+    label: 'Healthy reserve',
+    audio: 'reserve.mp3',
+    image: 'reserve.jpg',
+    wordset_ids: [101]
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    desiredCount: 2,
+    wordsByCategory: {
+      [category]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, failedDistractor, healthyReserve]
+    }
+  });
+
+  const result = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Progress filtered image recovery' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target, {
+      excludedOptionWordIds: [84227]
+    });
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((card) => Number(card.getAttribute('data-word-id')) || 0);
+  }, targetWord);
+
+  expect(result).toEqual([84226, 84228]);
+});
