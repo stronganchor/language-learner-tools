@@ -1,6 +1,158 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+if (!function_exists('ll_tools_user_progress_report_parse_practice_result')) {
+    /**
+     * Parse the canonical, learner-facing Practice result stored in an event payload.
+     *
+     * @return array|null
+     */
+    function ll_tools_user_progress_report_parse_practice_result($payload_json): ?array {
+        if (!is_string($payload_json) || $payload_json === '' || strlen($payload_json) > (64 * 1024)) {
+            return null;
+        }
+
+        $payload = json_decode($payload_json, true, 8);
+        if (!is_array($payload) || json_last_error() !== JSON_ERROR_NONE) {
+            return null;
+        }
+
+        $result = $payload['result'] ?? null;
+        if (!is_array($result)) {
+            return null;
+        }
+
+        if (
+            ($result['schema'] ?? null) !== 1
+            || ($result['kind'] ?? null) !== 'practice_first_try'
+            || ($result['score_basis'] ?? null) !== 'first_try_distinct_words'
+            || !isset($result['score_given'], $result['score_maximum'])
+            || !is_int($result['score_given'])
+            || !is_int($result['score_maximum'])
+        ) {
+            return null;
+        }
+
+        $score_given = $result['score_given'];
+        $score_maximum = $result['score_maximum'];
+        $score_limit = function_exists('ll_tools_user_progress_practice_result_score_limit')
+            ? ll_tools_user_progress_practice_result_score_limit()
+            : 100000;
+        if (
+            $score_maximum <= 0
+            || $score_maximum > $score_limit
+            || $score_given < 0
+            || $score_given > $score_maximum
+        ) {
+            return null;
+        }
+
+        return [
+            'schema' => 1,
+            'kind' => 'practice_first_try',
+            'score_given' => $score_given,
+            'score_maximum' => $score_maximum,
+            'score_basis' => 'first_try_distinct_words',
+            'percentage' => round(($score_given / $score_maximum) * 100, 1),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_user_progress_report_practice_results_for_users')) {
+    /**
+     * Return bounded Practice-result summaries for an already-paged learner list.
+     *
+     * Each learner query uses the event ledger's user/wordset/created index and a
+     * hard row ceiling. A trailing "+" can be shown when unusually dense recent
+     * activity reaches that ceiling, rather than hydrating an unbounded history.
+     */
+    function ll_tools_user_progress_report_practice_results_for_users(array $user_ids, int $wordset_id): array {
+        global $wpdb;
+
+        $user_ids = array_slice(array_values(array_unique(array_filter(array_map('intval', $user_ids), static function (int $user_id): bool {
+            return $user_id > 0;
+        }))), 0, 101);
+        if ($wordset_id <= 0 || empty($user_ids) || !function_exists('ll_tools_user_progress_table_names')) {
+            return [];
+        }
+
+        $scan_limit = (int) apply_filters('ll_tools_user_progress_report_practice_result_scan_limit', 500);
+        $scan_limit = max(25, min(1000, $scan_limit));
+        $query_limit = $scan_limit + 1;
+        $cutoff_30d = gmdate('Y-m-d H:i:s', time() - (30 * DAY_IN_SECONDS));
+        $events_table = ll_tools_user_progress_table_names()['events'];
+        $summaries = [];
+
+        foreach ($user_ids as $user_id) {
+            $summaries[$user_id] = [
+                'latest_result' => null,
+                'attempts_30d' => 0,
+                'attempts_30d_truncated' => false,
+            ];
+
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT id, payload_json, created_at
+                    FROM {$events_table}
+                    WHERE user_id = %d
+                        AND wordset_id = %d
+                        AND event_type = %s
+                        AND mode = %s
+                        AND payload_json IS NOT NULL
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %d",
+                    $user_id,
+                    $wordset_id,
+                    'mode_session_complete',
+                    'practice',
+                    $query_limit
+                ),
+                ARRAY_A
+            );
+            if (!is_array($rows) || empty($rows)) {
+                continue;
+            }
+
+            $has_more = count($rows) > $scan_limit;
+            $overflow_row = $has_more ? $rows[$scan_limit] : null;
+            $rows = array_slice($rows, 0, $scan_limit);
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $result = ll_tools_user_progress_report_parse_practice_result($row['payload_json'] ?? null);
+                if ($result === null) {
+                    continue;
+                }
+
+                $created_at = isset($row['created_at']) ? (string) $row['created_at'] : '';
+                if ($summaries[$user_id]['latest_result'] === null) {
+                    $result['event_id'] = max(0, (int) ($row['id'] ?? 0));
+                    $result['created_at'] = $created_at;
+                    $summaries[$user_id]['latest_result'] = $result;
+                }
+
+                if ($created_at !== '' && strcmp($created_at, $cutoff_30d) >= 0) {
+                    $summaries[$user_id]['attempts_30d']++;
+                }
+            }
+
+            if (
+                $has_more
+                && is_array($overflow_row)
+                && isset($overflow_row['created_at'])
+                && strcmp((string) $overflow_row['created_at'], $cutoff_30d) >= 0
+            ) {
+                $summaries[$user_id]['attempts_30d_truncated'] = true;
+            }
+        }
+
+        return $summaries;
+    }
+}
+
 if (!function_exists('ll_tools_user_progress_report_stats_for_users')) {
     function ll_tools_user_progress_report_stats_for_users(array $user_ids, int $wordset_id = 0): array {
         global $wpdb;

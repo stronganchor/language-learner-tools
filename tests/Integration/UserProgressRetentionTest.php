@@ -8,8 +8,13 @@ final class UserProgressRetentionTest extends LL_Tools_TestCase
 
     protected function setUp(): void
     {
+        global $wpdb;
+
         parent::setUp();
         $this->assertTrue(ll_tools_install_user_progress_schema());
+        $this->assertNotFalse(
+            $wpdb->query('DELETE FROM ' . ll_tools_user_progress_table_names()['events'])
+        );
         delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CURSOR_OPTION);
         delete_option(LL_TOOLS_USER_PROGRESS_RETENTION_CEILING_OPTION);
         wp_clear_scheduled_hook(LL_TOOLS_USER_PROGRESS_RETENTION_CONTINUATION_HOOK);

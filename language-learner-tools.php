@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.7.20
+Version: 6.7.22
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -19,7 +19,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.7.20');
+define('LL_TOOLS_VERSION', '6.7.22');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
@@ -984,6 +984,24 @@ add_action('upgrader_process_complete', function ($upgrader, $options) {
     }
 }, 10, 2);
 
+/**
+ * Resume durable LMS work that intentionally survives deactivation.
+ */
+function ll_tools_resume_lms_background_work(): void {
+    // Deactivation clears the delivery event but intentionally preserves its
+    // durable rows. Re-establish the earliest pending/retry/lease boundary so
+    // a reactivated plugin cannot strand an already-queued grade.
+    if (function_exists('ll_tools_grade_delivery_schedule_next_due')) {
+        ll_tools_grade_delivery_schedule_next_due();
+    }
+    if (function_exists('ll_tools_privacy_resume_deleted_user_lms_cleanup')) {
+        ll_tools_privacy_resume_deleted_user_lms_cleanup();
+    }
+    if (function_exists('ll_tools_google_classroom_schedule_oauth_state_cleanup')) {
+        ll_tools_google_classroom_schedule_oauth_state_cleanup();
+    }
+}
+
 // Actions to take on plugin activation
 register_activation_hook(__FILE__, function () {
     // Add 'view_ll_tools' capability to administrator role
@@ -1000,6 +1018,15 @@ register_activation_hook(__FILE__, function () {
 
     if (function_exists('ll_tools_install_user_progress_schema')) {
         ll_tools_install_user_progress_schema();
+    }
+    if (function_exists('ll_tools_install_lms_assignment_schema')) {
+        ll_tools_install_lms_assignment_schema();
+    }
+    if (function_exists('ll_tools_install_grade_delivery_schema')) {
+        ll_tools_install_grade_delivery_schema();
+    }
+    if (function_exists('ll_tools_install_google_classroom_schema')) {
+        ll_tools_install_google_classroom_schema();
     }
     if (function_exists('ll_tools_install_offline_app_session_schema')) {
         ll_tools_install_offline_app_session_schema();
@@ -1026,6 +1053,7 @@ register_activation_hook(__FILE__, function () {
     if (function_exists('ll_tools_schedule_dictionary_lookup_rebuild')) {
         ll_tools_schedule_dictionary_lookup_rebuild(true);
     }
+    ll_tools_resume_lms_background_work();
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).
@@ -1058,6 +1086,12 @@ register_deactivation_hook(__FILE__, function () {
     if (defined('LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK')) {
         wp_clear_scheduled_hook(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK);
         wp_clear_scheduled_hook(LL_TOOLS_OFFLINE_APP_SESSION_CLEANUP_HOOK, ['continuation']);
+    }
+    if (defined('LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK')) {
+        wp_clear_scheduled_hook(LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK);
+    }
+    if (defined('LL_TOOLS_GOOGLE_CLASSROOM_OAUTH_CLEANUP_HOOK')) {
+        wp_clear_scheduled_hook(LL_TOOLS_GOOGLE_CLASSROOM_OAUTH_CLEANUP_HOOK);
     }
 });
 
