@@ -21,9 +21,6 @@ function ll_tools_schema_maintenance_callbacks(): array {
         'dictionary_lookup' => 'll_tools_maybe_upgrade_dictionary_lookup_schema',
         'wordset_category_search' => 'll_tools_maybe_upgrade_wordset_category_search_schema',
         'image_match_index' => 'll_tools_image_match_index_maybe_upgrade',
-        'lms_assignments' => 'll_tools_maybe_upgrade_lms_assignment_schema',
-        'grade_delivery' => 'll_tools_maybe_upgrade_grade_delivery_schema',
-        'google_classroom' => 'll_tools_maybe_upgrade_google_classroom_schema',
     ];
 
     /**

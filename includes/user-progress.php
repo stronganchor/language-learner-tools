@@ -2160,15 +2160,6 @@ function ll_tools_user_progress_session_category_limit(): int {
 }
 
 /**
- * Bound one client-reported practice result while allowing large wordsets to
- * complete as a single logical session across transport chunks.
- */
-function ll_tools_user_progress_practice_result_score_limit(): int {
-    $limit = (int) apply_filters('ll_tools_user_progress_practice_result_score_limit', 100000);
-    return max(1, min(1000000, $limit));
-}
-
-/**
  * Bound one category-study event so a corrupt client cannot create huge jumps.
  */
 function ll_tools_user_progress_category_study_units_limit(): int {
@@ -2774,55 +2765,6 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
             0,
             ll_tools_user_progress_session_category_limit()
         );
-
-        // Result summaries are learner-submitted formative data. Keep one
-        // explicit versioned contract so teacher reports and future delivery
-        // adapters never have to trust arbitrary payload fields or a submitted
-        // percentage.
-        $raw_result = isset($payload['result']) && is_array($payload['result'])
-            ? $payload['result']
-            : [];
-        unset($payload['result']);
-        if ($mode === 'practice' && !empty($raw_result)) {
-            $parse_result_integer = static function ($value): ?int {
-                if (is_int($value)) {
-                    return $value;
-                }
-                if (is_float($value) && is_finite($value) && floor($value) === $value) {
-                    return (int) $value;
-                }
-                if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value)) {
-                    return (int) $value;
-                }
-                return null;
-            };
-            $schema = $parse_result_integer($raw_result['schema'] ?? null);
-            $score_given = $parse_result_integer($raw_result['score_given'] ?? null);
-            $score_maximum = $parse_result_integer($raw_result['score_maximum'] ?? null);
-            $score_limit = ll_tools_user_progress_practice_result_score_limit();
-            $kind = isset($raw_result['kind']) ? (string) $raw_result['kind'] : '';
-            $score_basis = isset($raw_result['score_basis']) ? (string) $raw_result['score_basis'] : '';
-
-            if (
-                $schema === 1
-                && $kind === 'practice_first_try'
-                && $score_basis === 'first_try_distinct_words'
-                && $score_given !== null
-                && $score_maximum !== null
-                && $score_given >= 0
-                && $score_maximum > 0
-                && $score_given <= $score_maximum
-                && $score_maximum <= $score_limit
-            ) {
-                $payload['result'] = [
-                    'schema' => 1,
-                    'kind' => 'practice_first_try',
-                    'score_given' => $score_given,
-                    'score_maximum' => $score_maximum,
-                    'score_basis' => 'first_try_distinct_words',
-                ];
-            }
-        }
     }
     if ($type === 'category_study') {
         $payload['units'] = max(

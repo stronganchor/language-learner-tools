@@ -370,27 +370,6 @@
         return getMessage('practiceModeShort');
     }
 
-    function getPracticeResultForProgress(mode) {
-        if (normalizeProgressMode(mode) !== 'practice' || !State || !State.quizResults) {
-            return null;
-        }
-
-        const scoreGiven = Math.max(0, parseInt(State.quizResults.correctOnFirstTry, 10) || 0);
-        const incorrect = Array.isArray(State.quizResults.incorrect) ? State.quizResults.incorrect : [];
-        const scoreMaximum = scoreGiven + incorrect.length;
-        if (scoreMaximum <= 0 || scoreGiven > scoreMaximum) {
-            return null;
-        }
-
-        return {
-            schema: 1,
-            kind: 'practice_first_try',
-            score_given: scoreGiven,
-            score_maximum: scoreMaximum,
-            score_basis: 'first_try_distinct_words'
-        };
-    }
-
     function trackModeSessionCompletionForProgress(mode) {
         const tracker = root.LLFlashcards && root.LLFlashcards.ProgressTracker;
         if (!tracker || typeof tracker.trackModeSessionComplete !== 'function') {
@@ -414,15 +393,10 @@
                 return id > 0;
             });
         }
-        const result = getPracticeResultForProgress(mode);
-        const event = {
+        const eventId = tracker.trackModeSessionComplete({
             mode: normalizeProgressMode(mode) || 'practice',
             categoryIds: categoryIds
-        };
-        if (result) {
-            event.payload = { result: result };
-        }
-        const eventId = tracker.trackModeSessionComplete(event);
+        });
         if (!eventId || typeof tracker.flush !== 'function') {
             return;
         }

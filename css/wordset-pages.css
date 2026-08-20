@@ -11006,13 +11006,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-size: 0.9rem;
 }
 
-.ll-teacher-classes__practice-help {
-    margin: -4px 0 14px;
-    color: var(--ll-wp-muted, #6b6256);
-    font-size: 0.86rem;
-    line-height: 1.5;
-}
-
 .ll-teacher-classes__copy-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -11026,7 +11019,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-teacher-classes__table {
     width: 100%;
-    min-width: 980px;
+    min-width: 760px;
     border-collapse: separate;
     border-spacing: 0;
 }
@@ -11109,32 +11102,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-teacher-classes__table a,
 .ll-teacher-classes__table a:visited {
     color: var(--ll-wp-pill-blue-text, #1d4d99);
-}
-
-.ll-teacher-classes__practice-result {
-    display: inline-grid;
-    gap: 0.22rem;
-    min-width: 9.5rem;
-    color: var(--ll-wp-text, #2e2a24);
-    line-height: 1.25;
-}
-
-.ll-teacher-classes__practice-score {
-    color: var(--ll-wp-text, #2e2a24);
-    font-size: 0.92rem;
-    font-weight: 800;
-    white-space: nowrap;
-}
-
-.ll-teacher-classes__practice-date,
-.ll-teacher-classes__practice-empty {
-    color: var(--ll-wp-muted, #6b6256);
-    font-size: 0.76rem;
-    font-weight: 600;
-}
-
-.ll-teacher-classes__practice-date {
-    white-space: nowrap;
 }
 
 @media (max-width: 1080px) {

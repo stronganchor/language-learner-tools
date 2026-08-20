@@ -73,10 +73,6 @@ require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/content-lesson-progress.php');
 require_once(__DIR__ . '/user-study.php');
 require_once(__DIR__ . '/user-progress-report-data.php');
-require_once(__DIR__ . '/lms/credential-store.php');
-require_once(__DIR__ . '/lms/assignments.php');
-require_once(__DIR__ . '/lms/grade-delivery.php');
-require_once(__DIR__ . '/lms/google-classroom.php');
 require_once(__DIR__ . '/offline-app-sync.php');
 require_once(__DIR__ . '/privacy.php');
 // Its bounded continuation must also be registered during WP-Cron requests.
@@ -86,7 +82,6 @@ require_once(__DIR__ . '/admin/example-sentence-migration.php');
 require_once(__DIR__ . '/admin/api/deepl-api.php');
 require_once(__DIR__ . '/admin/api/assemblyai-api.php');
 require_once(__DIR__ . '/api/automation-rest.php');
-require_once(__DIR__ . '/api/lms-rest.php');
 // Word option rules now power a lesson-side modal as well as the admin screen.
 require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 
@@ -125,7 +120,6 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/offline-app-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/teacher-classes-page.php');
-    require_once(__DIR__ . '/admin/google-classroom-integration.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');

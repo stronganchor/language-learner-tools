@@ -1015,16 +1015,11 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
             </div>
 
             <h3><?php esc_html_e('Student progress', 'll-tools-text-domain'); ?></h3>
-            <p class="description">
-                <?php esc_html_e('Latest practice shows the number of distinct words answered correctly on the first try. These formative results support learning and are not verified exam grades.', 'll-tools-text-domain'); ?>
-            </p>
             <table class="widefat striped">
                 <thead>
                     <tr>
                         <th><?php esc_html_e('Learner', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Email', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Latest practice', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('30d attempts', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('30d Rounds', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Studied', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
@@ -1036,7 +1031,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <tbody>
                     <?php if (empty($student_rows)) : ?>
                         <tr>
-                            <td colspan="10"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
+                            <td colspan="8"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ($student_rows as $row) : ?>
@@ -1046,26 +1041,10 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             if (!($user instanceof WP_User)) {
                                 continue;
                             }
-                            $practice_display = function_exists('ll_tools_teacher_class_practice_result_display_data')
-                                ? ll_tools_teacher_class_practice_result_display_data($row)
-                                : [];
                             ?>
                             <tr>
                                 <td><?php echo esc_html(ll_tools_teacher_class_user_label($user)); ?></td>
                                 <td><a href="mailto:<?php echo esc_attr($user->user_email); ?>"><?php echo esc_html($user->user_email); ?></a></td>
-                                <td>
-                                    <?php if (!empty($practice_display['score_label'])) : ?>
-                                        <span class="ll-teacher-classes__practice-result">
-                                            <strong class="ll-teacher-classes__practice-score"><?php echo esc_html((string) $practice_display['score_label']); ?></strong>
-                                            <?php if (!empty($practice_display['date_label'])) : ?>
-                                                <time class="ll-teacher-classes__practice-date" datetime="<?php echo esc_attr((string) ($practice_display['datetime'] ?? '')); ?>"><?php echo esc_html((string) $practice_display['date_label']); ?></time>
-                                            <?php endif; ?>
-                                        </span>
-                                    <?php else : ?>
-                                        <span aria-label="<?php echo esc_attr__('No practice result', 'll-tools-text-domain'); ?>">&mdash;</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo esc_html((string) ($practice_display['attempts_30d_label'] ?? '0')); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>

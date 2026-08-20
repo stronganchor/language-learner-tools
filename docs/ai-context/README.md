@@ -76,7 +76,7 @@ Available packs:
 | `recording-media-transcription` | Audio recording, media admin/imports, IPA/transcription manager, matching, and media helpers. |
 | `automation-import-sync` | Automation REST, imports/exports, CLI helpers, site sync, and server-owned bulk jobs. |
 | `dictionary-i18n-cache` | Dictionary search/browser, public i18n, AI crawler discovery, language switcher, and static cache behavior. |
-| `offline-games-content-progress` | Offline app export/sync, wordset games, user progress, content lessons, interlinear content, teacher classes, formative reporting, and LMS assignment/delivery connectors. |
+| `offline-games-content-progress` | Offline app export/sync, wordset games, user progress, content lessons, interlinear content, and classes. |
 | `performance-benchmark` | Benchmark fixtures, seeding, Playwright scenarios, and benchmark history behavior. |
 
 Convenience aliases are supported for older/narrower names: `wordset-page`,

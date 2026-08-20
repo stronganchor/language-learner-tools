@@ -13015,7 +13015,6 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                         <div class="ll-teacher-classes__panel-head">
                             <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Student progress', 'll-tools-text-domain'); ?></h3>
                         </div>
-                        <?php ll_tools_teacher_class_render_frontend_practice_help(); ?>
                         <?php if (empty($student_rows)) : ?>
                             <div class="ll-teacher-classes__empty">
                                 <?php echo esc_html($student_total > 0 ? __('No learners are available on this page.', 'll-tools-text-domain') : __('No learners have joined this class yet.', 'll-tools-text-domain')); ?>
@@ -13037,7 +13036,6 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                                                     <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </th>
-                                            <?php ll_tools_teacher_class_render_frontend_practice_headers(); ?>
                                             <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
                                                 <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="rounds_30d" data-sort-type="number" data-sort-default="desc">
                                                     <span><?php echo esc_html__('30d', 'll-tools-text-domain'); ?></span>
@@ -13090,7 +13088,6 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                                             <tr>
                                                 <td data-sort-value="<?php echo esc_attr($learner_label); ?>"><?php echo esc_html($learner_label); ?></td>
                                                 <td data-sort-value="<?php echo esc_attr($email); ?>"><a href="mailto:<?php echo esc_attr($email); ?>"><?php echo esc_html($email); ?></a></td>
-                                                <?php ll_tools_teacher_class_render_frontend_practice_cells($row); ?>
                                                 <td data-sort-value="<?php echo esc_attr((string) $rounds_30d); ?>"><?php echo esc_html((string) $rounds_30d); ?></td>
                                                 <td data-sort-value="<?php echo esc_attr((string) $studied_words); ?>"><?php echo esc_html((string) $studied_words); ?></td>
                                                 <td data-sort-value="<?php echo esc_attr((string) $mastered_words); ?>"><?php echo esc_html((string) $mastered_words); ?></td>
@@ -13131,6 +13128,7 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
         </section>
     <?php endif; ?>
     <?php
+
     return (string) ob_get_clean();
 }
 
@@ -13154,6 +13152,7 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
         30000,
         $wordset_id
     )));
+
     return [
         'bootstrapAction' => 'll_wordset_games_bootstrap',
         'launchAction' => 'll_wordset_games_launch',
@@ -13298,6 +13297,7 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
         ],
     ];
 }
+
 function ll_tools_get_wordset_games_i18n_messages(): array {
     return [
         'gamesLoading' => __('Checking game availability...', 'll-tools-text-domain'),

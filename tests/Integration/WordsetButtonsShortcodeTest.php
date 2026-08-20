@@ -1742,12 +1742,6 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $public_wordset_id = (int) ($public_term['term_id'] ?? 0);
         $private_wordset_id = (int) ($private_term['term_id'] ?? 0);
         update_term_meta($private_wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
-        $user_id = self::factory()->user->create(['role' => 'wordset_manager']);
-        $this->assertTrue(ll_tools_set_wordset_manager_user_ids(
-            $private_wordset_id,
-            [$user_id],
-            $user_id
-        ));
 
         $this->createPublishedLessonForWordset($public_wordset_id, 'Buttons LKG Public Lesson');
         for ($index = 1; $index <= 2; $index++) {
@@ -1758,7 +1752,6 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
             $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
             $this->assertGreaterThan(0, $category_id);
             update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
-            update_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$user_id]);
         }
 
         $anonymous_generation = ll_tools_wordset_button_counts_generation_key(
@@ -1777,12 +1770,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         delete_transient($public_lkg_key);
         $this->assertSame('', ll_tools_wordset_buttons_shortcode_stale_get($public_lkg_key));
 
-        $unassigned_user_id = self::factory()->user->create(['role' => 'subscriber']);
-        wp_set_current_user($unassigned_user_id);
-        $unassigned_html = do_shortcode('[ll_wordset_buttons]');
-        $this->assertStringContainsString('Buttons LKG Public Wordset', $unassigned_html);
-        $this->assertStringNotContainsString('Buttons LKG Private Wordset', $unassigned_html);
-
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($user_id);
         $private_scope_ids = ll_tools_wordset_button_normalize_wordset_ids([
             $public_wordset_id,
@@ -1808,8 +1796,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
 
         $this->assertNotSame($anonymous_generation, $logged_in_generation, 'Authorization-specific count scopes must remain isolated.');
         $this->assertStringContainsString('Buttons LKG Public Wordset', $incomplete_html);
-        $this->assertStringContainsString('Buttons LKG Private Wordset', $incomplete_html);
-        $this->assertStringContainsString('ll-wordset-buttons-shortcode__button--private', $incomplete_html);
+        $this->assertStringNotContainsString('Buttons LKG Private Wordset', $incomplete_html);
         $this->assertStringContainsString('data-ll-wordset-buttons-navigation', $incomplete_html);
         $this->assertStringContainsString('data-ll-wordset-card-state="hydrating"', $incomplete_html);
         $this->assertStringContainsString('ll-wordset-buttons-shortcode__count--loading', $incomplete_html);

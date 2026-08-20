@@ -1877,11 +1877,6 @@ function ll_tools_get_wordset_button_items(
  * Resolve the durable public positive set against the current viewer's exact
  * visibility scope. Stored names, URLs, privacy, and media are never trusted.
  *
- * A signed-in viewer can have additional private wordsets that can never enter
- * the shared public manifest. Keep those currently authorized terms usable as
- * hydrating cards while their exact user-scoped lesson counts materialize. The
- * provisional count is never displayed or published as authoritative output.
- *
  * @return array<int,array{term:WP_Term,lesson_count:int,is_private:bool}>
  */
 function ll_tools_get_wordset_button_navigation_manifest_items(
@@ -1927,32 +1922,6 @@ function ll_tools_get_wordset_button_navigation_manifest_items(
             'lesson_count' => $lesson_count,
             'is_private' => function_exists('ll_tools_is_wordset_private') && ll_tools_is_wordset_private($term),
         ];
-    }
-
-    if (get_current_user_id() > 0 && function_exists('ll_tools_is_wordset_private')) {
-        $included_ids = array_fill_keys(array_map(static function (array $item): int {
-            $term = $item['term'] ?? null;
-            return $term instanceof WP_Term ? (int) $term->term_id : 0;
-        }, $items), true);
-
-        foreach ($terms as $term) {
-            if (
-                !$term instanceof WP_Term
-                || (int) $term->term_id <= 0
-                || isset($included_ids[(int) $term->term_id])
-                || !ll_tools_is_wordset_private($term)
-            ) {
-                continue;
-            }
-
-            $items[] = [
-                'term' => $term,
-                // Hydrating markup requires a positive sentinel, but never
-                // renders this provisional value as a lesson count.
-                'lesson_count' => 1,
-                'is_private' => true,
-            ];
-        }
     }
 
     return $items;

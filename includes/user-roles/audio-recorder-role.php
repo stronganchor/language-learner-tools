@@ -488,9 +488,6 @@ function ll_tools_limited_role_admin_post_action_is_allowed($user = null): bool 
         'll_tools_teacher_assign_class_student',
         'll_tools_teacher_remove_class_student',
         'll_tools_teacher_delete_class',
-        'll_tools_google_classroom_oauth_start',
-        'll_tools_google_classroom_oauth_callback',
-        'll_tools_google_classroom_disconnect',
     ];
     $allowed_actions = (array) apply_filters('ll_tools_limited_role_allowed_admin_post_actions', $allowed_actions, $user);
 
@@ -534,19 +531,6 @@ function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin
         return '';
     }
     if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID)) {
-        $page = isset($_GET['page'])
-            ? sanitize_key((string) wp_unslash($_GET['page']))
-            : '';
-        $allowed_pages = (array) apply_filters(
-            'll_tools_limited_role_allowed_admin_page_slugs',
-            ['ll-tools-google-classroom'],
-            $user
-        );
-        $allowed_pages = array_values(array_filter(array_map('sanitize_key', $allowed_pages)));
-        if ($page !== '' && in_array($page, $allowed_pages, true)) {
-            return '';
-        }
-
         if (function_exists('ll_tools_get_teacher_classes_frontend_url')) {
             return (string) wp_validate_redirect(ll_tools_get_teacher_classes_frontend_url(), home_url('/'));
         }
