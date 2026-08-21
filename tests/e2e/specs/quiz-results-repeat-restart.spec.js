@@ -920,6 +920,44 @@ test('bounded starred continuation refreshes the actual category instead of reta
   await expect(page.locator('#ll-tools-category-display')).toHaveText('Animals');
 });
 
+test('bounded listening continuation is accepted and delegated to the active listening sequence', async ({ page }) => {
+  await mountBoundedCategoryLabelHarness(page, {
+    categoryDisplayOverride: 'In progress words'
+  });
+
+  const continuation = await page.evaluate(async () => {
+    const state = window.LLFlashcards.State;
+    state.isListeningMode = true;
+    state.isLearningMode = false;
+    state.isGenderMode = false;
+    state.isSelfCheckMode = false;
+    window.__listeningAppendCalls = [];
+    window.LLFlashcards.Modes.Listening = {
+      appendBoundedSelectionChunk(categoryNames) {
+        window.__listeningAppendCalls.push(Array.isArray(categoryNames) ? categoryNames.slice() : []);
+        return true;
+      }
+    };
+
+    const result = await window.LLFlashcards.Main.appendBoundedSelectionChunk(['Animals']);
+    return {
+      result,
+      appendCalls: window.__listeningAppendCalls.slice(),
+      currentCategory: state.currentCategoryName,
+      totalWordCount: state.totalWordCount
+    };
+  });
+
+  expect(continuation.result).toEqual({
+    success: true,
+    categories: ['Animals'],
+    sessionWordIds: [2201, 2202]
+  });
+  expect(continuation.appendCalls).toEqual([['Animals']]);
+  expect(continuation.currentCategory).toBe('Animals');
+  expect(continuation.totalWordCount).toBe(4);
+});
+
 test('header restoration leaves practice progress visible when requested', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent(`

@@ -424,7 +424,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/wordset-page-progress-loading.spec.js`
-  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial Practice continuation. A separate 1,505-ID regression requires Listen, Gender, and Self Check to use that same bounded first-chunk startup while retaining their explicit results-stage continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
+  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial Practice continuation. A separate 1,505-ID regression requires Listen, Gender, and Self Check to use that same bounded first-chunk startup; Listen appends the next verified chunk into one uninterrupted session, while Gender and Self Check retain explicit results-stage continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
@@ -471,12 +471,12 @@ Representative E2E coverage areas:
     that either preserves every match across server-planned transport chunks or
     fails closed for an impossible sparse layout. They serially hydrate only the
     current chunk, then append the next verified chunk before results so the
-    learner sees one logical practice session with a full progress denominator
+    learner sees one logical Practice or Listen session with a full progress denominator
     and no intermediate Continue/Next Set action. Bounded Learning keeps
     presentation- and aspect-compatible 8-15-word chunks within eight categories,
     tracks exact targets separately from compatible fillers without a full-category
     fallback, and advances later chunks through the results-screen Next action.
-    Other bounded non-practice modes retain their explicit results-stage continuation. Direct specific-wrong-answer-only
+    Gender and Self Check retain their explicit results-stage continuation. Direct specific-wrong-answer-only
     rows remain available as options without entering the target plan, while a
     prompt card's canonical answer remains targetable. Category queues are
     kept contiguous and owned queues are ordered largest-first. Runnable chunks

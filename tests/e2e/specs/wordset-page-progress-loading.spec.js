@@ -585,12 +585,30 @@ async function mountProgressPage(page, options = {}) {
     window.__llFetchWordsRequests = [];
     window.__llFlashcardLaunches = [];
     window.__llFlashcardInitRequests = [];
+    window.__llBoundedSessionAppends = [];
     window.__llHoldSelectionPlanRequests = false;
     window.__llHoldFetchWordsRequests = false;
     window.__llHoldFlashcardInitRequests = false;
     window.__confettiCalls = 0;
     window.confetti = function () {
       window.__confettiCalls += 1;
+    };
+    window.LLFlashcards = {
+      Main: {
+        appendBoundedSelectionChunk(categoryNames) {
+          const flashData = window.llToolsFlashcardsData || {};
+          window.__llBoundedSessionAppends.push({
+            categoryNames: Array.isArray(categoryNames) ? categoryNames.slice() : [],
+            sessionWordIds: Array.isArray(flashData.sessionWordIds)
+              ? flashData.sessionWordIds.slice()
+              : [],
+            logicalSessionWordIds: Array.isArray(flashData.logicalSessionWordIds)
+              ? flashData.logicalSessionWordIds.slice()
+              : []
+          });
+          return Promise.resolve({ success: true });
+        }
+      }
     };
     window.initFlashcardWidget = function (categoryNames, mode) {
       const launch = {
@@ -2290,7 +2308,36 @@ test('progress selections over 1,500 words bound Listen Gender and Self Check st
     expect(state.launchSessionWordIds).toEqual(allMatchingIds.slice(0, 15));
     expect(state.launchSource).toBe('wordset_progress_bounded_start');
     expect(state.chunked).toBeTruthy();
-    expect(state.continuationType).toBe('undefined');
+    expect(state.continuationType).toBe(mode === 'listening' ? 'function' : 'undefined');
+
+    if (mode === 'listening') {
+      const continuationResult = await page.evaluate(async () => {
+        const flashData = window.llToolsFlashcardsData || {};
+        const continuation = flashData.boundedSessionContinuation || flashData.bounded_session_continuation;
+        const outcome = await continuation();
+        const secondHydration = window.__llFetchWordsRequests[1] || {};
+        const append = window.__llBoundedSessionAppends[0] || {};
+        const parseIds = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
+          .map((item) => Number(item) || 0)
+          .filter(Boolean);
+        return {
+          outcome,
+          hydrationCandidateIds: parseIds((secondHydration.request || {}).candidate_word_ids),
+          hydrationRequestCount: window.__llFetchWordsRequests.length,
+          appendCount: window.__llBoundedSessionAppends.length,
+          appendSessionWordIds: Array.isArray(append.sessionWordIds) ? append.sessionWordIds : [],
+          appendLogicalSessionWordIds: Array.isArray(append.logicalSessionWordIds)
+            ? append.logicalSessionWordIds
+            : []
+        };
+      });
+      expect(continuationResult.outcome).toEqual({ success: true, index: 1, chunk_count: state.chunkCount });
+      expect(continuationResult.hydrationCandidateIds).toEqual(allMatchingIds.slice(15, 30));
+      expect(continuationResult.hydrationRequestCount).toBe(2);
+      expect(continuationResult.appendCount).toBe(1);
+      expect(continuationResult.appendSessionWordIds).toEqual(allMatchingIds.slice(15, 30));
+      expect(continuationResult.appendLogicalSessionWordIds).toEqual(allMatchingIds);
+    }
     await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
     expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);

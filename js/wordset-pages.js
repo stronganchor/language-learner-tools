@@ -15706,7 +15706,7 @@
     function createBoundedSessionContinuation(session) {
         return function () {
             if (chunkSession !== session || !session || !session.continuous) {
-                return Promise.reject(new Error('The bounded practice session is no longer active.'));
+                return Promise.reject(new Error('The bounded quiz session is no longer active.'));
             }
             if (session.pending_promise && typeof session.pending_promise.then === 'function') {
                 return session.pending_promise;
@@ -15716,7 +15716,7 @@
             const nextEntry = getChunkSessionEntry(session, nextIndex);
             if (!nextEntry) {
                 clearBoundedSessionContinuation(session);
-                return Promise.reject(new Error('The next bounded practice batch is unavailable.'));
+                return Promise.reject(new Error('The next bounded quiz batch is unavailable.'));
             }
 
             const continuationLaunchToken = beginFlashcardLaunch();
@@ -15730,7 +15730,7 @@
                 ) {
                     delete session.pending_index;
                     delete session.pending_promise;
-                    throw new Error('The bounded practice continuation was canceled.');
+                    throw new Error('The bounded quiz continuation was canceled.');
                 }
                 return new Promise(function (resolve, reject) {
                     launchFlashcards(session.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
@@ -15757,7 +15757,7 @@
                         },
                         onLaunchCommitted: function () {
                             if (chunkSession !== session || session.pending_index !== nextIndex) {
-                                reject(new Error('The bounded practice continuation became stale.'));
+                                reject(new Error('The bounded quiz continuation became stale.'));
                                 return;
                             }
                             session.index = nextIndex;
@@ -15777,14 +15777,14 @@
                                 delete session.pending_index;
                                 delete session.pending_promise;
                             }
-                            reject(new Error('The bounded practice continuation failed to load.'));
+                            reject(new Error('The bounded quiz continuation failed to load.'));
                         },
                         onLaunchCanceled: function () {
                             if (session.pending_index === nextIndex) {
                                 delete session.pending_index;
                                 delete session.pending_promise;
                             }
-                            reject(new Error('The bounded practice continuation was canceled.'));
+                            reject(new Error('The bounded quiz continuation was canceled.'));
                         }
                     });
                 });
@@ -15815,9 +15815,10 @@
             requestTimeoutMs: opts.requestTimeoutMs || activeSession.request_timeout_ms,
             chunked: true,
             sessionStarMode: activeSession.star_mode || 'normal',
-            randomizeSessionCategoryOrder: true,
+            randomizeSessionCategoryOrder: activeSession.mode === 'practice',
             allowSessionCategoryDisplay: true,
             skipCompatibilityFilter: true,
+            preserveCategoryOrder: activeSession.mode === 'listening',
             categoryLabelOverride: firstEntry.category_label_override || activeSession.category_label_override,
             details: firstEntry.details,
             launchUi: opts.launchUi,
@@ -16059,7 +16060,7 @@
                 category_label_override: categoryLabelOverride,
                 request_timeout_ms: opts.requestTimeoutMs,
                 bounded_selection_plan: true,
-                continuous: normalizedMode === 'practice'
+                continuous: normalizedMode === 'practice' || normalizedMode === 'listening'
             };
             const activeSession = chunkSession;
             if (activeSession.continuous) {
@@ -17568,7 +17569,7 @@
                     });
                 });
 
-                if (hasMultipleChunks && normalizedMode === 'practice') {
+                if (hasMultipleChunks && (normalizedMode === 'practice' || normalizedMode === 'listening')) {
                     chunkSession = {
                         mode: normalizedMode,
                         chunks: planChunks,

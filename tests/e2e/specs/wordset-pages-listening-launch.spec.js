@@ -54,6 +54,7 @@ function buildWordsetMarkup() {
         <button type="button" data-ll-wordset-selection-mode data-mode="practice">Selection Practice</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="learning">Selection Learn</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="listening">Selection Listen</button>
+        <button type="button" data-ll-wordset-selection-mode data-mode="self-check">Selection Self Check</button>
         <button type="button" data-ll-wordset-selection-clear>Clear</button>
       </div>
     </div>
@@ -2498,7 +2499,7 @@ test('bounded candidate hydration keeps retrying while its materialized option p
   expect(requests.actions.every((action) => action === 'll_get_words_by_category')).toBeTruthy();
 });
 
-test('bounded non-practice sessions retain explicit next-chunk navigation', async ({ page }) => {
+test('bounded Listen sessions expose serial continuation and append the next chunk', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
     mode: 'listening'
@@ -2522,26 +2523,37 @@ test('bounded non-practice sessions retain explicit next-chunk navigation', asyn
   expect(initial.launch.mode).toBe('listening');
   expect(initial.launch.source).toBe('wordset_chunk_start');
   expect(initial.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
-  expect(initial.continuationType).toBe('undefined');
+  expect(initial.launch.logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(initial.continuationType).toBe('function');
 
   await page.evaluate(() => {
     window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
   });
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
-  const nextLaunch = await page.evaluate(() => window.__llLaunches[1]);
-  expect(nextLaunch.mode).toBe('listening');
-  expect(nextLaunch.source).toBe('wordset_chunk_continue');
-  expect(nextLaunch.sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.callable).toBeTruthy();
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+
+  const appended = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(appended.launches).toHaveLength(1);
+  expect(appended.appends).toHaveLength(1);
+  expect(appended.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  expect(appended.appends[0].logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(appended.continuationType).toBe('undefined');
 });
 
-test('non-continuous result replacements cancel Repeat and Continue and allow guard re-entry', async ({ page }) => {
+test('non-continuous Self Check result replacements cancel Repeat and Continue and allow guard re-entry', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
-    mode: 'listening'
+    mode: 'self-check'
   });
   await mountWordsetPage(page, {
     isLoggedIn: true,
@@ -2552,7 +2564,7 @@ test('non-continuous result replacements cancel Repeat and Continue and allow gu
 
   await page.locator('[data-ll-wordset-select-all]').click();
   await page.locator('[data-ll-wordset-selection-priority-only]').check();
-  await page.locator('[data-ll-wordset-selection-mode][data-mode="listening"]').click();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="self-check"]').click();
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
   expect(await page.evaluate(() => window.__llLaunches[0].sessionWordIds))
     .toEqual(fixture.firstChunkWordIds);
@@ -2566,11 +2578,11 @@ test('non-continuous result replacements cancel Repeat and Continue and allow gu
   // supersedes Repeat before its native promise can settle, without discarding
   // this chunk session.
   await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-opened', [{ mode: 'listening' }]);
+    window.jQuery(document).trigger('lltools:flashcard-opened', [{ mode: 'self-check' }]);
     window.__llPublicCategoryDelayMs = 10000;
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
     window.document.querySelector('#ll-study-results-same-chunk').click();
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
     window.document.querySelector('#ll-study-results-next-chunk').click();
   });
   await expect.poll(async () => page.evaluate(() => ({
@@ -2583,7 +2595,7 @@ test('non-continuous result replacements cancel Repeat and Continue and allow gu
   // cleared repeat_pending. It also aborts the held Continue; a final Continue
   // then proves pending_index cleared and becomes the newest committed launch.
   await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
   });
   await expect(repeatButton).toBeEnabled();
   await repeatButton.click();
@@ -2595,7 +2607,7 @@ test('non-continuous result replacements cancel Repeat and Continue and allow gu
 
   await page.evaluate(() => {
     window.__llPublicCategoryDelayMs = 0;
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'listening' }]);
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
   });
   await expect(continueButton).toBeEnabled();
   await continueButton.click();
@@ -2790,7 +2802,7 @@ test('bounded continuation advances only after append acceptance and keeps a fai
     samePromise: true,
     outcomes: [{
       status: 'rejected',
-      message: 'The bounded practice continuation failed to load.'
+      message: 'The bounded quiz continuation failed to load.'
     }]
   });
 
@@ -2882,7 +2894,7 @@ test('a newer selection cancels a same-turn bounded continuation before network 
   });
   expect(continuationOutcome).toEqual({
     status: 'rejected',
-    message: 'The bounded practice continuation was canceled.'
+    message: 'The bounded quiz continuation was canceled.'
   });
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
 
@@ -2931,7 +2943,7 @@ test('an old bounded continuation invoked after a newer selection cannot replace
   });
   expect(oldContinuationOutcome).toEqual({
     status: 'rejected',
-    message: 'The bounded practice session is no longer active.'
+    message: 'The bounded quiz session is no longer active.'
   });
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
 
@@ -2980,7 +2992,7 @@ test('closing a logical session rejects a queued bounded append before hydration
   });
   expect(closedOutcome).toEqual({
     status: 'rejected',
-    message: 'The bounded practice continuation was canceled.'
+    message: 'The bounded quiz continuation was canceled.'
   });
 
   const result = await page.evaluate(() => ({
@@ -3094,7 +3106,7 @@ test('partial bounded hydration fails closed and refetches the same batch on con
     samePromise: true,
     outcomes: [{
       status: 'rejected',
-      message: 'The bounded practice continuation failed to load.'
+      message: 'The bounded quiz continuation failed to load.'
     }]
   });
 

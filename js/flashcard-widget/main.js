@@ -5264,29 +5264,30 @@
         const names = normalizeCategoryNameList(categoryNames);
         const data = root.llToolsFlashcardsData || {};
         const currentSession = __LLSession;
+        const isListeningContinuation = !!State.isListeningMode;
 
-        if (!State.widgetActive || State.isLearningMode || State.isListeningMode || State.isGenderMode || State.isSelfCheckMode) {
-            return Promise.reject(new Error('A bounded practice continuation is not active.'));
+        if (!State.widgetActive || State.isLearningMode || State.isGenderMode || State.isSelfCheckMode) {
+            return Promise.reject(new Error('A bounded quiz continuation is not active.'));
         }
         if (!names.length || !loader || typeof loader.consumeBoundedPreloadedCategoryData !== 'function') {
-            return Promise.reject(new Error('The bounded practice continuation data is unavailable.'));
+            return Promise.reject(new Error('The bounded quiz continuation data is unavailable.'));
         }
 
         return Promise.resolve(loader.consumeBoundedPreloadedCategoryData(names)).then(function (result) {
             if (currentSession !== __LLSession || !State.widgetActive) {
-                const staleError = new Error('The bounded practice continuation is stale.');
+                const staleError = new Error('The bounded quiz continuation is stale.');
                 staleError.code = 'll_flashcard_stale_continuation';
                 throw staleError;
             }
             if (!result || result.success !== true) {
-                throw new Error('The bounded practice continuation was not accepted.');
+                throw new Error('The bounded quiz continuation was not accepted.');
             }
 
             const availableNames = names.filter(function (name) {
                 return State.wordsByCategory && Array.isArray(State.wordsByCategory[name]) && State.wordsByCategory[name].length > 0;
             });
             if (!availableNames.length) {
-                throw new Error('The bounded practice continuation has no playable words.');
+                throw new Error('The bounded quiz continuation has no playable words.');
             }
 
             State.completedCategories = State.completedCategories || {};
@@ -5314,12 +5315,27 @@
             State.currentCategoryRoundCount = 0;
             try { Dom.updateCategoryNameDisplay(State.currentCategoryName); } catch (_) { /* no-op */ }
             State.isFirstRound = false;
+
+            if (isListeningContinuation) {
+                const listening = root.LLFlashcards && root.LLFlashcards.Modes
+                    ? root.LLFlashcards.Modes.Listening
+                    : null;
+                if (!listening || typeof listening.appendBoundedSelectionChunk !== 'function') {
+                    throw new Error('The bounded listening continuation is unavailable.');
+                }
+                if (listening.appendBoundedSelectionChunk(availableNames) !== true) {
+                    throw new Error('The bounded listening continuation has no playable words.');
+                }
+            }
+
             State.totalWordCount = Math.max(
                 State.totalWordCount || 0,
                 parseInt(data.logicalSessionTotal || data.logical_session_total, 10) || 0
             );
             root.categoryNames = State.categoryNames;
-            updatePracticeModeProgress();
+            if (!isListeningContinuation) {
+                updatePracticeModeProgress();
+            }
 
             return {
                 success: true,
@@ -5339,9 +5355,9 @@
         }
 
         const currentSession = __LLSession;
-        const movedToLoading = State.transitionTo(STATES.LOADING, 'Loading bounded practice continuation');
+        const movedToLoading = State.transitionTo(STATES.LOADING, 'Loading bounded quiz continuation');
         if (!movedToLoading) {
-            State.forceTransitionTo(STATES.LOADING, 'Forcing bounded practice continuation load');
+            State.forceTransitionTo(STATES.LOADING, 'Forcing bounded quiz continuation load');
         }
         Dom.showLoading();
 
@@ -5352,11 +5368,11 @@
                 return;
             }
             if (!result || result.success !== true) {
-                throw new Error('The bounded practice continuation did not load.');
+                throw new Error('The bounded quiz continuation did not load.');
             }
             const ready = State.transitionTo(STATES.QUIZ_READY, 'Bounded practice continuation ready');
             if (!ready) {
-                State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded practice continuation ready');
+                State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded quiz continuation ready');
             }
             logicalSessionContinuationPromise = null;
             $('#ll-tools-mode-switcher-wrap').show();
@@ -5366,7 +5382,7 @@
                 logicalSessionContinuationPromise = null;
                 return;
             }
-            console.error('Failed to continue bounded practice session:', error);
+            console.error('Failed to continue bounded quiz session:', error);
             logicalSessionContinuationPromise = null;
             showLogicalSessionContinuationError();
         });
