@@ -136,8 +136,56 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
         $this->assertSame((string) $futureTimeout, get_option('_transient_timeout_' . $key));
     }
 
+    public function test_direct_lease_cleanup_preserves_takeover_and_deletes_crashed_expiry(): void
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_expired_transient_maintenance_is_direct_db_lease(
+            'll_ap_delete_0123456789abcdef01234567_1'
+        ));
+        $this->assertFalse(ll_tools_expired_transient_maintenance_is_direct_db_lease(
+            'll_ap_delete_receipt_0123456789abcdef0123456789abcdef'
+        ));
+
+        $key = 'll_tools_vocab_grid_lock_' . $this->uniqueSuffix('takeover');
+        $oldTimeout = time() - YEAR_IN_SECONDS;
+        $cutoff = time() - 5 * MINUTE_IN_SECONDS;
+        $this->addTransientRows($key, ($cutoff - 1) . '|expired-owner', $oldTimeout);
+
+        $candidates = ll_tools_expired_transient_maintenance_select_candidates(
+            $cutoff,
+            200,
+            array_values(ll_tools_expired_transient_maintenance_direct_db_namespaces())
+        );
+        $candidate = $this->findCandidate($candidates, $key);
+        $this->assertNotNull($candidate);
+
+        $successorValue = (time() + HOUR_IN_SECONDS) . '|successor-owner';
+        $updated = $wpdb->update(
+            $wpdb->options,
+            ['option_value' => $successorValue],
+            ['option_name' => '_transient_' . $key],
+            ['%s'],
+            ['%s']
+        );
+        $this->assertSame(1, $updated);
+        wp_cache_delete('_transient_' . $key, 'options');
+
+        $preserved = ll_tools_expired_transient_maintenance_delete_candidate((array) $candidate, $cutoff);
+        $this->assertFalse($preserved['deleted']);
+        $this->assertSame($successorValue, get_option('_transient_' . $key));
+        $this->assertSame((string) $oldTimeout, get_option('_transient_timeout_' . $key));
+
+        update_option('_transient_' . $key, ($cutoff - 1) . '|crashed-owner', false);
+        $deleted = ll_tools_expired_transient_maintenance_delete_candidate((array) $candidate, $cutoff);
+        $this->assertTrue($deleted['deleted']);
+        $this->assertFalse(get_option('_transient_' . $key, false));
+        $this->assertFalse(get_option('_transient_timeout_' . $key, false));
+    }
+
     public function test_batch_limit_is_hard_capped_and_a_run_processes_only_the_configured_batch(): void
     {
+        wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);
         $this->addFilter('ll_tools_expired_transient_maintenance_batch_limit', static fn (): int => 999);
         $this->assertSame(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HARD_BATCH_LIMIT, ll_tools_expired_transient_maintenance_batch_limit());
         $this->removeAllFilters();
@@ -151,7 +199,7 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
         $this->removeAllFilters();
 
         $keys = [];
-        for ($index = 1; $index <= 3; $index++) {
+        for ($index = 1; $index <= 4; $index++) {
             $key = 'll_tools_aspect_stats_' . $this->uniqueSuffix('cap_' . $index);
             $keys[] = $key;
             $this->addTransientRows($key, 'value-' . $index, $index);
@@ -165,13 +213,25 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
         $this->assertSame(2, $telemetry['selected_count']);
         $this->assertSame(2, $telemetry['processed_count']);
         $this->assertSame(2, $telemetry['deleted_transient_count']);
+        $this->assertSame(1, $telemetry['continuation_scheduled_count']);
+        $continuationTimestamp = wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);
+        $this->assertIsInt($continuationTimestamp);
         $remainingTimeouts = 0;
         foreach ($keys as $key) {
             if (get_option('_transient_timeout_' . $key, false) !== false) {
                 $remainingTimeouts++;
             }
         }
-        $this->assertSame(1, $remainingTimeouts);
+        $this->assertSame(2, $remainingTimeouts);
+
+        $secondTelemetry = ll_tools_run_expired_transient_maintenance();
+        $this->assertSame(2, $secondTelemetry['deleted_transient_count']);
+        $this->assertSame(0, $secondTelemetry['continuation_scheduled_count']);
+        $this->assertSame(
+            $continuationTimestamp,
+            wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK)
+        );
+        wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);
     }
 
     public function test_active_lock_skips_work_and_stale_lock_release_cannot_remove_successor(): void
@@ -204,16 +264,21 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
         $this->assertFalse(get_option(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_LOCK_OPTION, false));
     }
 
-    public function test_external_object_cache_bypasses_database_cleanup(): void
+    public function test_external_object_cache_cleans_direct_guard_rows_but_bypasses_general_cache_rows(): void
     {
         $key = 'll_vl_grid_' . $this->uniqueSuffix('external_cache');
+        $guardKey = 'll_tools_login_attempt_' . $this->uniqueSuffix('external_guard');
         $this->addTransientRows($key, 'external-cache-value', time() - HOUR_IN_SECONDS);
+        $this->addTransientRows($guardKey, '1', time() - HOUR_IN_SECONDS);
         wp_using_ext_object_cache(true);
 
         $telemetry = ll_tools_run_expired_transient_maintenance();
 
         $this->assertSame(1, $telemetry['external_cache_bypass_count']);
-        $this->assertSame(0, $telemetry['selected_count']);
+        $this->assertSame(1, $telemetry['selected_count']);
+        $this->assertSame(1, $telemetry['deleted_transient_count']);
+        $this->assertFalse(get_option('_transient_' . $guardKey, false));
+        $this->assertFalse(get_option('_transient_timeout_' . $guardKey, false));
         $this->assertSame('external-cache-value', get_option('_transient_' . $key));
         $this->assertNotFalse(get_option('_transient_timeout_' . $key, false));
     }
@@ -221,6 +286,7 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
     public function test_schedule_is_hourly_idempotent_and_clearable(): void
     {
         wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK);
+        wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);
         $this->assertFalse(wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK));
 
         ll_tools_schedule_expired_transient_maintenance();
@@ -233,6 +299,7 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
 
         ll_tools_clear_expired_transient_maintenance_schedule();
         $this->assertFalse(wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK));
 
         // Restore the normal plugin runtime state for any later integration tests.
         ll_tools_schedule_expired_transient_maintenance();

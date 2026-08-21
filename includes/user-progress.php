@@ -2737,6 +2737,36 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
     return 0;
 }
 
+function ll_tools_user_progress_event_payload_byte_limit(): int {
+    $limit = (int) apply_filters('ll_tools_user_progress_event_payload_byte_limit', 64 * 1024);
+    return max(1024, min(256 * 1024, $limit));
+}
+
+function ll_tools_user_progress_event_payload_node_limit(): int {
+    $default = max(512, ll_tools_user_progress_session_category_limit() + 128);
+    $limit = (int) apply_filters('ll_tools_user_progress_event_payload_node_limit', $default);
+    return max(32, min(2000, $limit));
+}
+
+/**
+ * Bound both the parsed payload structure and the exact JSON stored in the
+ * event log. The second check accounts for JSON escape expansion and must be
+ * repeated after server-side normalization/enrichment.
+ */
+function ll_tools_user_progress_event_payload_fits_budget(array $payload): bool {
+    $byte_limit = ll_tools_user_progress_event_payload_byte_limit();
+    if (!ll_tools_user_study_request_value_fits_budget(
+        $payload,
+        $byte_limit,
+        ll_tools_user_progress_event_payload_node_limit()
+    )) {
+        return false;
+    }
+
+    $encoded = wp_json_encode($payload);
+    return is_string($encoded) && strlen($encoded) <= $byte_limit;
+}
+
 function ll_tools_sanitize_progress_event(array $raw): ?array {
     $type = isset($raw['event_type']) ? (string) $raw['event_type'] : (string) ($raw['type'] ?? '');
     $type = strtolower(trim($type));
@@ -2763,6 +2793,9 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     $had_wrong_before = filter_var(($raw['had_wrong_before'] ?? false), FILTER_VALIDATE_BOOLEAN);
 
     $payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
+    if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
+        return null;
+    }
     if ($type === 'mode_session_complete') {
         $payload['category_ids'] = array_slice(
             array_values(array_unique(array_filter(
@@ -2922,6 +2955,10 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
 
     if (($type === 'word_outcome' || $type === 'word_exposure') && $word_id <= 0 && $prompt_card_id <= 0) {
+        return null;
+    }
+
+    if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
         return null;
     }
 

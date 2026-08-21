@@ -810,14 +810,25 @@ if (!function_exists('ll_tools_teacher_class_user_option_label')) {
 
 if (!function_exists('ll_tools_teacher_class_practice_result_display_data')) {
     function ll_tools_teacher_class_practice_result_display_data(array $student_row): array {
+        $query_failed = !empty($student_row['practice_query_failed']);
         $display = [
             'score_label' => '',
             'date_label' => '',
             'datetime' => '',
             'sort_value' => '',
             'attempts_30d' => max(0, (int) ($student_row['practice_attempts_30d'] ?? 0)),
+            'attempts_sort_value' => '',
             'attempts_30d_label' => '',
+            'query_failed' => $query_failed,
+            'unavailable_label' => '',
         ];
+        if ($query_failed) {
+            $display['attempts_30d_label'] = __('Unavailable', 'll-tools-text-domain');
+            $display['unavailable_label'] = __('Practice data is temporarily unavailable.', 'll-tools-text-domain');
+            return $display;
+        }
+
+        $display['attempts_sort_value'] = (string) $display['attempts_30d'];
         $display['attempts_30d_label'] = !empty($student_row['practice_attempts_30d_truncated'])
             ? sprintf(
                 /* translators: %d: minimum number of practice attempts */
@@ -900,7 +911,9 @@ if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
         $display = ll_tools_teacher_class_practice_result_display_data($student_row);
         ?>
         <td data-sort-value="<?php echo esc_attr((string) ($display['sort_value'] ?? '')); ?>">
-            <?php if (!empty($display['score_label'])) : ?>
+            <?php if (!empty($display['query_failed'])) : ?>
+                <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr((string) ($display['unavailable_label'] ?? '')); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '')); ?></span>
+            <?php elseif (!empty($display['score_label'])) : ?>
                 <span class="ll-teacher-classes__practice-result">
                     <strong class="ll-teacher-classes__practice-score"><?php echo esc_html((string) $display['score_label']); ?></strong>
                     <?php if (!empty($display['date_label'])) : ?>
@@ -911,7 +924,13 @@ if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
                 <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr__('No practice result', 'll-tools-text-domain'); ?>">&mdash;</span>
             <?php endif; ?>
         </td>
-        <td data-sort-value="<?php echo esc_attr((string) ($display['attempts_30d'] ?? 0)); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '0')); ?></td>
+        <td data-sort-value="<?php echo esc_attr((string) ($display['attempts_sort_value'] ?? '')); ?>">
+            <?php if (!empty($display['query_failed'])) : ?>
+                <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr((string) ($display['unavailable_label'] ?? '')); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '')); ?></span>
+            <?php else : ?>
+                <?php echo esc_html((string) ($display['attempts_30d_label'] ?? '0')); ?>
+            <?php endif; ?>
+        </td>
         <?php
     }
 }
@@ -988,6 +1007,7 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
                     : null,
                 'practice_attempts_30d' => max(0, (int) ($practice_summary['attempts_30d'] ?? 0)),
                 'practice_attempts_30d_truncated' => !empty($practice_summary['attempts_30d_truncated']),
+                'practice_query_failed' => !empty($practice_summary['query_failed']),
                 'last_activity' => function_exists('ll_tools_user_progress_report_last_activity')
                     ? ll_tools_user_progress_report_last_activity($row_stats)
                     : '',

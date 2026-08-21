@@ -1062,6 +1062,44 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_lazy_card_raw_id_parser_rejects_oversized_input_before_id_parsing(): void
+    {
+        $oversized = implode(',', range(1, 501));
+        $this->assertWPError(ll_tools_wordset_page_parse_lazy_cards_requested_ids($oversized));
+        $this->assertWPError(ll_tools_wordset_page_parse_lazy_cards_requested_ids(array_fill(0, 501, '1')));
+        $this->assertSame([1, 2, 3], ll_tools_wordset_page_parse_lazy_cards_requested_ids('3,2,1'));
+    }
+
+    public function test_lazy_card_cache_lock_release_preserves_successor_owner(): void
+    {
+        $args = [
+            'mode' => 'offset',
+            'token' => 'shared_' . str_repeat('a', 32),
+            'wordset_id' => 17,
+            'preview_limit' => 2,
+            'offset' => 0,
+            'count' => 2,
+            'category_ids' => [],
+            'content_ids' => [],
+        ];
+        $cache_key = ll_tools_wordset_page_lazy_cards_ajax_cache_key($args);
+        ll_tools_public_ajax_reset_client_leases('ll_tools_wsp_lazy_lock_', $cache_key);
+
+        try {
+            $this->assertTrue(ll_tools_wordset_page_acquire_lazy_cards_ajax_cache_lock($args, 30));
+            $option_name = ll_tools_wordset_page_lazy_cards_ajax_cache_lock_option($args);
+            $successor_value = (time() + 30) . '|successor-owner';
+            update_option($option_name, $successor_value, false);
+
+            ll_tools_wordset_page_release_lazy_cards_ajax_cache_lock($args);
+
+            $this->assertSame($successor_value, get_option($option_name));
+        } finally {
+            unset($GLOBALS['ll_tools_wordset_page_lazy_cards_ajax_cache_leases'][$cache_key]);
+            ll_tools_public_ajax_reset_client_leases('ll_tools_wsp_lazy_lock_', $cache_key);
+        }
+    }
+
     public function test_guest_ajax_caps_requested_id_lists_before_hydration(): void
     {
         $fixture = $this->createWordsetFixture(10);

@@ -41,6 +41,31 @@ and production setup have been tested.
 See `docs/GOOGLE_CLASSROOM_SETUP.md` for the connector's deployment boundary
 and remaining acceptance gates.
 
+### Native LMS REST route inventory
+
+The Phase 2 foundation registers these cookie-authenticated routes under
+`/wp-json/ll-tools/v1`. They are native Wordboat assignment and attempt APIs;
+they are not LTI endpoints and do not by themselves provide an external LMS
+launch or grade-passback integration.
+
+| Method and route | Authorized use |
+| --- | --- |
+| `POST /lms/assignments` | A teacher creates a bounded assignment draft for a class they may manage. |
+| `GET /lms/classes/{class_id}/assignments` | A teacher lists assignments for a class they may manage. |
+| `POST /lms/assignments/{assignment_uuid}/publish` | A teacher publishes an owned assignment revision. |
+| `POST /lms/assignments/{assignment_uuid}/archive` | A teacher archives an owned assignment. |
+| `POST /lms/assignments/{assignment_uuid}/attempts` | A current class learner starts an allowed attempt. |
+| `POST /lms/attempts/{attempt_uuid}/answers` | The attempt owner submits one bounded closed response. |
+| `POST /lms/attempts/{attempt_uuid}/finalize` | The attempt owner finalizes the attempt for server-side scoring. |
+| `GET /lms/attempts/{attempt_uuid}` | The attempt owner reads the bounded attempt and selected grade. |
+
+The intended native browser contract uses logged-in WordPress REST cookie
+authentication with its REST nonce, and every route has a registered permission
+callback. Teacher routes enforce class-management ownership; learner routes
+require the current logged-in learner and assignment/attempt eligibility. These
+routes must not be documented as anonymous, custom bearer-token, or
+provider-ready interfaces.
+
 ## Existing foundation
 
 The plugin already has useful building blocks:
@@ -58,9 +83,10 @@ The plugin already has useful building blocks:
 - Detailed progress events participate in WordPress personal-data export and
   erasure and have configurable retention.
 
-The current missing contract is the score. The browser calculates and displays
-the Practice result, but the completion event currently retains only mode and
-category context.
+The original missing contract was the score. Phase 1 now stores the bounded
+canonical Practice result in the idempotent completion event. It remains
+learner-reported formative data, not a server-verified grade or permanent class
+assignment record.
 
 ## Phase 1: native Practice results
 
@@ -133,10 +159,19 @@ class roster, the initial view shows the latest Practice score and recorded
 time plus a 30-day attempt count, all scoped to the selected class wordset.
 
 Queries must remain bounded and use the existing user/wordset/time indexes.
-Do not hydrate the complete event history or every learner in a large class in
-one request. If CSV export is added, it needs the same class ownership or
-administrator capability check, a nonce, bounded/keyset batches, and
-spreadsheet-formula escaping for learner-controlled cells.
+Only the already-paged learner roster may be queried. The default report reads
+two learners per UNION query, fetches at most 500 accepted rows plus one
+truncation sentinel per learner, and excludes event payloads above 16 KiB in
+SQL. The batch automatically shrinks when the configured scan depth would
+exceed the approximately 24 MiB aggregate-query budget. A database failure is
+not zero attempts or no data: it propagates as `query_failed`, and both Practice
+cells render translated `Unavailable` values with empty sort keys. Do not
+hydrate the complete event history or every learner in a large class in one
+request.
+
+If CSV export is added, it needs the same class ownership or administrator
+capability check, a nonce, bounded/keyset batches, and spreadsheet-formula
+escaping for learner-controlled cells.
 
 Email is not the primary store. If requested later, prefer an opt-in daily or
 weekly teacher digest generated from a durable, deduplicated delivery queue.
@@ -448,12 +483,27 @@ assumption that protocol conformance alone supplies compliance.
 
 ### Automated coverage
 
-Add focused tests for:
+Current local automated coverage includes `UserProgressPracticeResultTest`, the
+provider-neutral assignment/delivery/privacy suites,
+`GoogleClassroomFoundationTest`, `teacher-classes-frontend.spec.js`, and
+`google-classroom-admin-ui.spec.js`. The Google browser fixture exercises safe
+unconfigured and locally mocked connected states without contacting Google; it
+is not OAuth, Marketplace, CourseWork-write, or grade-passback proof.
+
+Maintain focused tests for the implemented contracts:
 
 - Phase 1 result creation, sanitization, omission, idempotency, access control,
-  bounded report queries, export/erasure, and retention;
+  adaptive bounded report queries, explicit query-failure UI, export/erasure,
+  and retention;
 - assignment revision immutability, attempt authorization, server score
   calculation, finalization idempotency, and first/latest/best selection;
+- OAuth state/PKCE one-time use, bounded connection/course reads, encrypted
+  credential storage, disabled-write gates, and safe local admin states;
+- outbox crash recovery, exact-owner leases, deduplication, stale-revision
+  suppression, and an older retry never overwriting a newer grade.
+
+Add the following only with the corresponding future protocol phase:
+
 - OIDC state/nonce expiry and one-time use;
 - valid and invalid JWT signatures, issuer/audience/deployment claims, clock
   boundaries, unknown/rotated `kid`, PII-free launches, and algorithm attacks;
@@ -461,8 +511,6 @@ Add focused tests for:
   subject, context, or resource-link values;
 - AGS token acquisition, scope restriction, score body/media type, timeouts,
   `Retry-After`, redaction, and permanent failures;
-- outbox crash recovery, exact-owner leases, deduplication, stale-revision
-  suppression, and an older retry never overwriting a newer grade;
 - iframe and new-window launches, cookie restrictions, and accessible failure
   recovery;
 - Deep Linking signatures, assignment/line-item declarations, and course-copy

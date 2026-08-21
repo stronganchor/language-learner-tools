@@ -371,6 +371,41 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertSame('johndoe1', ll_tools_login_window_available_username_from_email('john.doe@example.org'));
     }
 
+    public function test_username_suggestion_checks_a_bounded_candidate_set_in_one_query(): void
+    {
+        global $wpdb;
+
+        self::factory()->user->create([
+            'user_login' => 'boundedname',
+            'user_email' => 'bounded-name@example.org',
+        ]);
+        $queries = [];
+        $capture = static function (string $query) use (&$queries, $wpdb): string {
+            if (strpos($query, "SELECT user_login FROM {$wpdb->users} WHERE user_login IN") !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $suggestion = ll_tools_login_window_available_username('boundedname');
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame('boundedname1', $suggestion);
+        $this->assertCount(1, $queries);
+        $this->assertLessThanOrEqual(128, substr_count($queries[0], ',') + 1);
+    }
+
+    public function test_authentication_byte_bounds_allow_reasonable_long_passwords_before_hashing(): void
+    {
+        $this->assertTrue(ll_tools_login_window_auth_input_within_byte_bounds('learner@example.org', str_repeat('p', 4096)));
+        $this->assertFalse(ll_tools_login_window_auth_input_within_byte_bounds('learner@example.org', str_repeat('p', 4097)));
+        $this->assertFalse(ll_tools_login_window_auth_input_within_byte_bounds(str_repeat('i', 321), 'reasonable-password'));
+    }
+
     public function test_registration_email_validation_rejects_addresses_that_only_become_valid_after_sanitization(): void
     {
         $validation = ll_tools_login_window_validate_registration_email(
@@ -446,6 +481,109 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             ll_tools_login_window_reset_registration_attempts($ip);
             remove_filter('ll_tools_registration_ip_attempt_limit', $limit_filter);
             remove_filter('ll_tools_registration_ip_attempt_window', $window_filter);
+        }
+    }
+
+    public function test_disabled_registration_reuses_stable_feedback_for_repeated_posts(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.126';
+
+        $first_redirect = $this->runRegistrationRequest([
+            '__registration_enabled' => false,
+        ]);
+        $second_redirect = $this->runRegistrationRequest([
+            '__registration_enabled' => false,
+        ]);
+
+        $first_query = [];
+        $second_query = [];
+        parse_str((string) wp_parse_url($first_redirect, PHP_URL_QUERY), $first_query);
+        parse_str((string) wp_parse_url($second_redirect, PHP_URL_QUERY), $second_query);
+        $first_token = ll_tools_login_window_sanitize_feedback_token($first_query['ll_tools_auth_feedback'] ?? '');
+        $second_token = ll_tools_login_window_sanitize_feedback_token($second_query['ll_tools_auth_feedback'] ?? '');
+
+        $this->assertNotSame('', $first_token);
+        $this->assertSame($first_token, $second_token);
+
+        $payload = get_transient(ll_tools_login_window_feedback_storage_key($first_token));
+        $this->assertIsArray($payload);
+        $this->assertSame('register', (string) ($payload['form'] ?? ''));
+        $this->assertSame(
+            ['New account registration is currently disabled.'],
+            $payload['messages'] ?? []
+        );
+    }
+
+    public function test_registration_email_validation_matches_the_database_field_limit_before_lookup(): void
+    {
+        global $wpdb;
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries, $wpdb): string {
+            if (stripos($query, (string) $wpdb->users) !== false && stripos($query, 'user_email') !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $validation = ll_tools_login_window_validate_registration_email(
+                str_repeat('a', 89) . '@example.org'
+            );
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame(101, strlen(str_repeat('a', 89) . '@example.org'));
+        $this->assertSame('', $validation['email']);
+        $this->assertSame(['Please enter a valid email address.'], $validation['errors']);
+        $this->assertSame([], $queries);
+    }
+
+    public function test_registration_bounds_raw_username_and_email_before_database_lookups(): void
+    {
+        global $wpdb;
+
+        $oversized_username = 'oversized-user-' . str_repeat('u', 1024 * 1024);
+        $oversized_email = str_repeat('e', 1024 * 1024) . '@example.org';
+        $username_queries = [];
+        $email_queries = [];
+        $capture = static function (string $query) use (&$username_queries, &$email_queries, $wpdb): string {
+            if (stripos($query, (string) $wpdb->users) === false) {
+                return $query;
+            }
+            if (stripos($query, 'user_login') !== false) {
+                $username_queries[] = $query;
+            }
+            if (stripos($query, 'user_email') !== false) {
+                $email_queries[] = $query;
+            }
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $username_redirect = $this->runRegistrationRequest([
+                'user_login' => $oversized_username,
+                'user_email' => 'bounded-raw-input@example.org',
+            ]);
+            $username_payload = $this->getFeedbackPayloadFromRedirect($username_redirect);
+            $this->assertContains('That username is not valid.', $username_payload['messages']);
+            $this->assertSame('', (string) ($username_payload['prefill']['username'] ?? ''));
+            $this->assertSame([], $username_queries);
+
+            $email_queries = [];
+            $email_redirect = $this->runRegistrationRequest([
+                'user_login' => 'boundedrawinput',
+                'user_email' => $oversized_email,
+            ]);
+            $email_payload = $this->getFeedbackPayloadFromRedirect($email_redirect);
+            $this->assertContains('Please enter a valid email address.', $email_payload['messages']);
+            $this->assertSame('', (string) ($email_payload['prefill']['email'] ?? ''));
+            $this->assertSame([], $email_queries);
+        } finally {
+            remove_filter('query', $capture);
         }
     }
 
@@ -618,8 +756,11 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
     private function runRegistrationRequest(array $overrides = []): string
     {
-        update_option('ll_allow_learner_self_registration', 1);
-        update_option('users_can_register', 1);
+        $registration_enabled = !array_key_exists('__registration_enabled', $overrides)
+            || (bool) $overrides['__registration_enabled'];
+        unset($overrides['__registration_enabled']);
+        update_option('ll_allow_learner_self_registration', $registration_enabled ? 1 : 0);
+        update_option('users_can_register', $registration_enabled ? 1 : 0);
 
         $left = 2;
         $right = 3;

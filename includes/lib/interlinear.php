@@ -1013,31 +1013,108 @@ function ll_tools_get_text_document_review_note(int $lesson_id, string $note_key
     return is_scalar($note) ? trim((string) $note) : '';
 }
 
-function ll_tools_set_text_document_review_note(int $lesson_id, string $note_key, string $note): string {
-    if ($lesson_id <= 0) {
-        return '';
-    }
-
-    $note_key = ll_tools_text_document_normalize_review_note_key($note_key);
-    $note = function_exists('ll_tools_sanitize_internal_review_note')
+function ll_tools_sanitize_text_document_review_note(string $note): string {
+    return function_exists('ll_tools_sanitize_internal_review_note')
         ? ll_tools_sanitize_internal_review_note($note)
         : trim(sanitize_textarea_field($note));
+}
 
-    $notes = ll_tools_get_text_document_review_notes($lesson_id);
-    if ($note === '') {
-        unset($notes[$note_key]);
-    } else {
-        $notes[$note_key] = $note;
+/**
+ * Atomically update one review-note key without overwriting concurrent changes
+ * to the other keys stored in the shared post-meta array.
+ *
+ * When $expected_note is provided, a same-key update from another editor is
+ * returned as a conflict instead of being silently overwritten.
+ *
+ * @return array{note:string,changed:bool}|WP_Error
+ */
+function ll_tools_compare_and_set_text_document_review_note(
+    int $lesson_id,
+    string $note_key,
+    string $note,
+    ?string $expected_note = null
+) {
+    if ($lesson_id <= 0) {
+        return new WP_Error(
+            'll_tools_text_document_review_note_invalid_lesson',
+            __('Unable to save the review note.', 'll-tools-text-domain'),
+            ['status' => 400, 'note' => '']
+        );
     }
 
-    if (empty($notes)) {
-        delete_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key());
-    } else {
-        ksort($notes, SORT_NATURAL);
-        update_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key(), $notes);
+    $meta_key = ll_tools_text_document_review_notes_meta_key();
+    $note_key = ll_tools_text_document_normalize_review_note_key($note_key);
+    $note = ll_tools_sanitize_text_document_review_note($note);
+    $expected_note = $expected_note === null
+        ? null
+        : ll_tools_sanitize_text_document_review_note($expected_note);
+    $max_attempts = (int) apply_filters('ll_tools_text_document_review_note_cas_attempts', 5, $lesson_id, $note_key);
+    $max_attempts = max(1, min(20, $max_attempts));
+
+    for ($attempt = 0; $attempt < $max_attempts; $attempt++) {
+        $meta_exists = metadata_exists('post', $lesson_id, $meta_key);
+        $raw_notes = $meta_exists ? get_post_meta($lesson_id, $meta_key, true) : [];
+        $notes = is_array($raw_notes) ? $raw_notes : [];
+        $current_note = isset($notes[$note_key]) && is_scalar($notes[$note_key])
+            ? trim((string) $notes[$note_key])
+            : '';
+
+        // A response can be lost after an earlier request committed. Treat an
+        // exact retry as success before applying the stale-base conflict guard
+        // so the same desired value remains safely idempotent.
+        if ($current_note === $note) {
+            return ['note' => $note, 'changed' => false];
+        }
+
+        if ($expected_note !== null && $current_note !== $expected_note) {
+            return new WP_Error(
+                'll_tools_text_document_review_note_conflict',
+                __('This review note changed elsewhere. Copy your unsaved text if needed, then reload the page to review the saved note.', 'll-tools-text-domain'),
+                ['status' => 409, 'note' => $current_note]
+            );
+        }
+
+        $next_notes = $notes;
+        if ($note === '') {
+            unset($next_notes[$note_key]);
+        } else {
+            $next_notes[$note_key] = $note;
+        }
+        if (!empty($next_notes)) {
+            ksort($next_notes, SORT_NATURAL);
+        }
+
+        if (!$meta_exists) {
+            if (empty($next_notes)) {
+                return ['note' => '', 'changed' => false];
+            }
+            $changed = add_post_meta($lesson_id, $meta_key, $next_notes, true);
+        } elseif (empty($next_notes)) {
+            $changed = delete_post_meta($lesson_id, $meta_key, $raw_notes);
+        } else {
+            $changed = update_post_meta($lesson_id, $meta_key, $next_notes, $raw_notes);
+        }
+
+        if ($changed) {
+            $saved_note = ll_tools_get_text_document_review_note($lesson_id, $note_key);
+            if ($saved_note === $note) {
+                return ['note' => $saved_note, 'changed' => true];
+            }
+        }
     }
 
-    return $note;
+    return new WP_Error(
+        'll_tools_text_document_review_note_write_failed',
+        __('Unable to save the review note.', 'll-tools-text-domain'),
+        ['status' => 500, 'note' => ll_tools_get_text_document_review_note($lesson_id, $note_key)]
+    );
+}
+
+function ll_tools_set_text_document_review_note(int $lesson_id, string $note_key, string $note): string {
+    $result = ll_tools_compare_and_set_text_document_review_note($lesson_id, $note_key, $note);
+    return is_wp_error($result)
+        ? ll_tools_get_text_document_review_note($lesson_id, $note_key)
+        : (string) ($result['note'] ?? '');
 }
 
 function ll_tools_text_document_render_review_note_field(int $lesson_id, string $note_key, string $label = ''): string {
@@ -1097,7 +1174,23 @@ function ll_tools_save_text_document_review_note_ajax_handler(): void {
         ], 403);
     }
 
-    $saved_note = ll_tools_set_text_document_review_note($lesson_id, $note_key, $note);
+    $has_expected_note = array_key_exists('base_note', $_POST);
+    $expected_note = $has_expected_note ? (string) wp_unslash((string) $_POST['base_note']) : null;
+    $result = ll_tools_compare_and_set_text_document_review_note($lesson_id, $note_key, $note, $expected_note);
+    if (is_wp_error($result)) {
+        $error_data = $result->get_error_data();
+        $error_data = is_array($error_data) ? $error_data : [];
+        $status = max(400, min(599, (int) ($error_data['status'] ?? 500)));
+        wp_send_json_error([
+            'code' => $result->get_error_code(),
+            'message' => $result->get_error_message(),
+            'note' => isset($error_data['note']) && is_scalar($error_data['note'])
+                ? (string) $error_data['note']
+                : ll_tools_get_text_document_review_note($lesson_id, $note_key),
+        ], $status);
+    }
+
+    $saved_note = (string) ($result['note'] ?? '');
     wp_send_json_success([
         'lesson_id' => $lesson_id,
         'note_key' => $note_key,

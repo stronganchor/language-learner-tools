@@ -458,9 +458,94 @@ if (!function_exists('ll_tools_login_window_feedback_storage_key')) {
 
 if (!function_exists('ll_tools_login_window_sanitize_feedback_token')) {
     function ll_tools_login_window_sanitize_feedback_token($token): string {
+        if (!is_scalar($token)) {
+            return '';
+        }
+        $token = (string) $token;
+        if ($token === '' || strlen($token) > 64) {
+            return '';
+        }
         $token = strtolower((string) $token);
-        $token = preg_replace('/[^a-z0-9]/', '', $token);
-        return substr((string) $token, 0, 40);
+        return preg_match('/^[a-z0-9]{1,40}$/D', $token) ? $token : '';
+    }
+}
+
+if (!function_exists('ll_tools_login_window_limit_feedback_text')) {
+    function ll_tools_login_window_limit_feedback_text($value, int $max_bytes): string {
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        $max_bytes = max(1, min(4096, $max_bytes));
+        $value = wp_check_invalid_utf8((string) $value, true);
+        if (strlen($value) <= $max_bytes) {
+            return $value;
+        }
+        if (function_exists('mb_strcut')) {
+            return (string) mb_strcut($value, 0, $max_bytes, 'UTF-8');
+        }
+
+        return wp_check_invalid_utf8(substr($value, 0, $max_bytes), true);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_normalize_feedback')) {
+    /**
+     * Keep short-lived redirect feedback small and limited to the fields the
+     * login window actually renders. This is a storage boundary: callers may
+     * pass values copied from a public request or from an upstream WP_Error.
+     */
+    function ll_tools_login_window_normalize_feedback(array $feedback): array {
+        $type = sanitize_key((string) ($feedback['type'] ?? 'error'));
+        $form = sanitize_key((string) ($feedback['form'] ?? 'login'));
+        $type = in_array($type, ['error', 'success', 'notice'], true) ? $type : 'error';
+        $form = in_array($form, ['login', 'register'], true) ? $form : 'login';
+
+        $messages = [];
+        foreach (array_slice((array) ($feedback['messages'] ?? []), 0, 8) as $message) {
+            $message = trim(ll_tools_login_window_limit_feedback_text($message, 512));
+            if ($message !== '' && !in_array($message, $messages, true)) {
+                $messages[] = $message;
+            }
+        }
+
+        $raw_prefill = isset($feedback['prefill']) && is_array($feedback['prefill'])
+            ? $feedback['prefill']
+            : [];
+        $prefill = [];
+        if (array_key_exists('login_identifier', $raw_prefill)) {
+            $prefill['login_identifier'] = trim(ll_tools_login_window_limit_feedback_text(
+                $raw_prefill['login_identifier'],
+                320
+            ));
+        }
+        if (array_key_exists('username', $raw_prefill)) {
+            $prefill['username'] = sanitize_user(
+                ll_tools_login_window_limit_feedback_text($raw_prefill['username'], 60),
+                true
+            );
+        }
+        if (array_key_exists('email', $raw_prefill)) {
+            $prefill['email'] = sanitize_email(
+                ll_tools_login_window_limit_feedback_text($raw_prefill['email'], 320)
+            );
+        }
+        foreach (['login_remember', 'register_remember', 'username_is_custom'] as $flag) {
+            if (array_key_exists($flag, $raw_prefill)) {
+                $prefill[$flag] = (string) $raw_prefill[$flag] === '1' ? '1' : '0';
+            }
+        }
+
+        $normalized = [
+            'type' => $type,
+            'form' => $form,
+            'messages' => $messages,
+        ];
+        if ($prefill !== []) {
+            $normalized['prefill'] = $prefill;
+        }
+
+        return $normalized;
     }
 }
 
@@ -471,8 +556,95 @@ if (!function_exists('ll_tools_login_window_store_feedback')) {
             return '';
         }
 
-        set_transient(ll_tools_login_window_feedback_storage_key($token), $feedback, 10 * MINUTE_IN_SECONDS);
+        set_transient(
+            ll_tools_login_window_feedback_storage_key($token),
+            ll_tools_login_window_normalize_feedback($feedback),
+            10 * MINUTE_IN_SECONDS
+        );
         return $token;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_append_stable_feedback_to_url')) {
+    /**
+     * Reuse one small feedback transient per public-client scope/form/locale
+     * and time window. Repeated rejected posts cannot create an unbounded
+     * stream of random transient rows.
+     */
+    function ll_tools_login_window_append_stable_feedback_to_url(
+        string $url,
+        array $feedback,
+        string $form,
+        string $scope,
+        string $ip,
+        int $window
+    ): string {
+        $form = $form === 'register' ? 'register' : 'login';
+        $scope = sanitize_key($scope);
+        if ($scope === '') {
+            $scope = 'public_feedback';
+        }
+        $window = max(MINUTE_IN_SECONDS, $window);
+        $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
+        $bucket = (int) floor(time() / $window);
+        $token = substr(hash_hmac(
+            'sha256',
+            $scope . '|' . $form . '|' . trim($ip) . '|' . sanitize_key((string) $locale) . '|' . $bucket,
+            wp_salt('nonce')
+        ), 0, 32);
+        $token = ll_tools_login_window_sanitize_feedback_token($token);
+        if ($token === '') {
+            return ll_tools_get_frontend_auth_url($url, $form);
+        }
+
+        $storage_key = ll_tools_login_window_feedback_storage_key($token);
+        $stored_feedback = get_transient($storage_key);
+        if (!is_array($stored_feedback) || empty($stored_feedback['_ll_tools_stable'])) {
+            $feedback['form'] = $form;
+            $feedback = ll_tools_login_window_normalize_feedback($feedback);
+            // Stable feedback tokens are intentionally shared by rejected
+            // requests in the same public-client window. Keep the generic
+            // payload available for every outstanding redirect until expiry.
+            $feedback['_ll_tools_stable'] = true;
+            set_transient(
+                $storage_key,
+                $feedback,
+                $window + MINUTE_IN_SECONDS
+            );
+        }
+
+        return (string) add_query_arg(
+            'll_tools_auth_feedback',
+            $token,
+            ll_tools_get_frontend_auth_url($url, $form)
+        );
+    }
+}
+
+if (!function_exists('ll_tools_login_window_append_rate_limit_feedback_to_url')) {
+    function ll_tools_login_window_append_rate_limit_feedback_to_url(
+        string $url,
+        string $form,
+        string $ip,
+        int $window
+    ): string {
+        $form = $form === 'register' ? 'register' : 'login';
+        $message = $form === 'register'
+            ? ll_tools_login_window_registration_rate_limit_message()
+            : ll_tools_login_window_login_rate_limit_message();
+
+        return ll_tools_login_window_append_stable_feedback_to_url(
+            $url,
+            [
+                'type' => 'error',
+                'form' => $form,
+                'messages' => [$message],
+            ],
+            $form,
+            'rate_limit',
+            $ip,
+            $window
+        );
     }
 }
 
@@ -498,10 +670,15 @@ if (!function_exists('ll_tools_login_window_consume_feedback_from_request')) {
 
         $key = ll_tools_login_window_feedback_storage_key($token);
         $payload = get_transient($key);
-        delete_transient($key);
 
         if (!is_array($payload)) {
             return [];
+        }
+
+        $is_stable = !empty($payload['_ll_tools_stable']);
+        unset($payload['_ll_tools_stable']);
+        if (!$is_stable) {
+            delete_transient($key);
         }
 
         return $payload;
@@ -550,7 +727,11 @@ add_filter('auth_cookie_expiration', 'll_tools_login_window_remember_cookie_expi
 
 if (!function_exists('ll_tools_login_window_trimmed_identifier')) {
     function ll_tools_login_window_trimmed_identifier($value): string {
-        return trim(sanitize_text_field(wp_unslash((string) $value)));
+        $value = (string) wp_unslash((string) $value);
+        if (strlen($value) > 4096) {
+            $value = substr($value, 0, 4096);
+        }
+        return trim(sanitize_text_field($value));
     }
 }
 
@@ -589,21 +770,50 @@ if (!function_exists('ll_tools_login_window_username_candidate')) {
 
 if (!function_exists('ll_tools_login_window_available_username')) {
     function ll_tools_login_window_available_username(string $seed): string {
+        global $wpdb;
+
         $base = sanitize_user($seed, true);
         if ($base === '') {
             $base = 'u';
         }
 
-        $suffix = 0;
-        while ($suffix < 5000) {
+        $candidate_count = (int) apply_filters('ll_tools_login_window_username_candidate_count', 64);
+        $candidate_count = max(8, min(128, $candidate_count));
+        $candidates = [];
+        for ($suffix = 0; $suffix < $candidate_count; $suffix++) {
             $candidate = ll_tools_login_window_username_candidate($base, $suffix);
-            if ($candidate !== '' && validate_username($candidate) && !username_exists($candidate)) {
-                return $candidate;
+            if ($candidate !== '' && validate_username($candidate)) {
+                $candidates[] = $candidate;
             }
-            $suffix++;
+        }
+        $candidates = array_values(array_unique($candidates));
+
+        if (!empty($candidates)) {
+            $placeholders = implode(', ', array_fill(0, count($candidates), '%s'));
+            $occupied = $wpdb->get_col($wpdb->prepare(
+                "SELECT user_login FROM {$wpdb->users} WHERE user_login IN ({$placeholders})",
+                ...$candidates
+            ));
+            $occupied_lookup = array_fill_keys(array_map('strtolower', array_map('strval', (array) $occupied)), true);
+            foreach ($candidates as $candidate) {
+                if (!isset($occupied_lookup[strtolower($candidate)])) {
+                    return $candidate;
+                }
+            }
         }
 
-        return ll_tools_login_window_username_candidate($base, wp_rand(5001, 9999));
+        return ll_tools_login_window_username_candidate($base, wp_rand($candidate_count, 999999));
+    }
+}
+
+if (!function_exists('ll_tools_login_window_auth_input_within_byte_bounds')) {
+    function ll_tools_login_window_auth_input_within_byte_bounds(string $identifier, string $password): bool {
+        $identifier_max = (int) apply_filters('ll_tools_login_window_identifier_max_bytes', 320);
+        $password_max = (int) apply_filters('ll_tools_login_window_password_max_bytes', 4096);
+        $identifier_max = max(64, min(4096, $identifier_max));
+        $password_max = max(1024, min(64 * 1024, $password_max));
+
+        return strlen($identifier) <= $identifier_max && strlen($password) <= $password_max;
     }
 }
 
@@ -681,6 +891,12 @@ if (!function_exists('ll_tools_login_window_registration_attempt_key')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_registration_counter_prefix')) {
+    function ll_tools_login_window_registration_counter_prefix(): string {
+        return 'll_tools_reg_attempt_';
+    }
+}
+
 if (!function_exists('ll_tools_login_window_get_registration_rate_limit_status')) {
     function ll_tools_login_window_get_registration_rate_limit_status(string $ip = ''): array {
         if ($ip === '') {
@@ -698,7 +914,13 @@ if (!function_exists('ll_tools_login_window_get_registration_rate_limit_status')
             ];
         }
 
-        $attempts = (int) get_transient(ll_tools_login_window_registration_attempt_key($ip));
+        $counter = ll_tools_public_ajax_counter_status(
+            ll_tools_login_window_registration_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        $attempts = (int) ($counter['count'] ?? 0);
 
         return [
             'limited' => ($attempts >= $config['limit']),
@@ -710,21 +932,40 @@ if (!function_exists('ll_tools_login_window_get_registration_rate_limit_status')
     }
 }
 
+if (!function_exists('ll_tools_login_window_reserve_registration_attempt')) {
+    function ll_tools_login_window_reserve_registration_attempt(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_registration_attempt_limit_config();
+        $reservation = ll_tools_public_ajax_reserve_counter(
+            ll_tools_login_window_registration_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        if (!empty($reservation['allowed']) && !empty($reservation['reserved'])) {
+            ll_tools_login_window_track_rate_limit_attempt(
+                'registration',
+                $ip,
+                (int) ($reservation['count'] ?? 0),
+                (int) $config['limit'],
+                (int) $config['window']
+            );
+        }
+
+        return $reservation;
+    }
+}
+
 if (!function_exists('ll_tools_login_window_record_registration_attempt')) {
     function ll_tools_login_window_record_registration_attempt(string $ip = ''): void {
         if ($ip === '') {
             $ip = ll_tools_login_window_get_client_ip();
         }
 
-        $config = ll_tools_login_window_registration_attempt_limit_config();
-        if ($ip === '' || $config['limit'] <= 0) {
-            return;
-        }
-
-        $key = ll_tools_login_window_registration_attempt_key($ip);
-        $attempts = (int) get_transient($key);
-        set_transient($key, $attempts + 1, $config['window']);
-        ll_tools_login_window_track_rate_limit_attempt('registration', $ip, $attempts + 1, $config['limit'], $config['window']);
+        ll_tools_login_window_reserve_registration_attempt($ip);
     }
 }
 
@@ -738,6 +979,7 @@ if (!function_exists('ll_tools_login_window_reset_registration_attempts')) {
             return;
         }
 
+        ll_tools_public_ajax_reset_counter(ll_tools_login_window_registration_counter_prefix(), $ip);
         delete_transient(ll_tools_login_window_registration_attempt_key($ip));
         ll_tools_login_window_forget_rate_limit_ip('registration', $ip);
     }
@@ -758,6 +1000,12 @@ if (!function_exists('ll_tools_login_window_username_suggestion_attempt_key')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_username_suggestion_counter_prefix')) {
+    function ll_tools_login_window_username_suggestion_counter_prefix(): string {
+        return 'll_tools_user_suggest_';
+    }
+}
+
 if (!function_exists('ll_tools_login_window_get_username_suggestion_rate_limit_status')) {
     function ll_tools_login_window_get_username_suggestion_rate_limit_status(string $ip = ''): array {
         if ($ip === '') {
@@ -775,7 +1023,13 @@ if (!function_exists('ll_tools_login_window_get_username_suggestion_rate_limit_s
             ];
         }
 
-        $attempts = (int) get_transient(ll_tools_login_window_username_suggestion_attempt_key($ip));
+        $counter = ll_tools_public_ajax_counter_status(
+            ll_tools_login_window_username_suggestion_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        $attempts = (int) ($counter['count'] ?? 0);
 
         return [
             'limited' => ($attempts >= $config['limit']),
@@ -787,21 +1041,40 @@ if (!function_exists('ll_tools_login_window_get_username_suggestion_rate_limit_s
     }
 }
 
+if (!function_exists('ll_tools_login_window_reserve_username_suggestion_attempt')) {
+    function ll_tools_login_window_reserve_username_suggestion_attempt(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_username_suggestion_attempt_limit_config();
+        $reservation = ll_tools_public_ajax_reserve_counter(
+            ll_tools_login_window_username_suggestion_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        if (!empty($reservation['allowed']) && !empty($reservation['reserved'])) {
+            ll_tools_login_window_track_rate_limit_attempt(
+                'username_suggestion',
+                $ip,
+                (int) ($reservation['count'] ?? 0),
+                (int) $config['limit'],
+                (int) $config['window']
+            );
+        }
+
+        return $reservation;
+    }
+}
+
 if (!function_exists('ll_tools_login_window_record_username_suggestion_attempt')) {
     function ll_tools_login_window_record_username_suggestion_attempt(string $ip = ''): void {
         if ($ip === '') {
             $ip = ll_tools_login_window_get_client_ip();
         }
 
-        $config = ll_tools_login_window_username_suggestion_attempt_limit_config();
-        if ($ip === '' || $config['limit'] <= 0) {
-            return;
-        }
-
-        $key = ll_tools_login_window_username_suggestion_attempt_key($ip);
-        $attempts = (int) get_transient($key);
-        set_transient($key, $attempts + 1, $config['window']);
-        ll_tools_login_window_track_rate_limit_attempt('username_suggestion', $ip, $attempts + 1, $config['limit'], $config['window']);
+        ll_tools_login_window_reserve_username_suggestion_attempt($ip);
     }
 }
 
@@ -815,6 +1088,7 @@ if (!function_exists('ll_tools_login_window_reset_username_suggestion_attempts')
             return;
         }
 
+        ll_tools_public_ajax_reset_counter(ll_tools_login_window_username_suggestion_counter_prefix(), $ip);
         delete_transient(ll_tools_login_window_username_suggestion_attempt_key($ip));
         ll_tools_login_window_forget_rate_limit_ip('username_suggestion', $ip);
     }
@@ -924,6 +1198,15 @@ if (!function_exists('ll_tools_login_window_email_has_template_tokens')) {
 
 if (!function_exists('ll_tools_login_window_validate_registration_email')) {
     function ll_tools_login_window_validate_registration_email($value, bool $check_existing = true): array {
+        if (!is_scalar($value) || strlen((string) $value) > 100) {
+            return [
+                'raw_email' => '',
+                'email' => '',
+                'errors' => [__('Please enter a valid email address.', 'll-tools-text-domain')],
+                'is_blocked' => false,
+            ];
+        }
+
         $raw_email = ll_tools_login_window_normalize_registration_email_input($value);
         $email = sanitize_email($raw_email);
         $errors = [];
@@ -1070,6 +1353,12 @@ if (!function_exists('ll_tools_login_window_login_attempt_key')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_login_counter_prefix')) {
+    function ll_tools_login_window_login_counter_prefix(): string {
+        return 'll_tools_login_attempt_';
+    }
+}
+
 if (!function_exists('ll_tools_login_window_get_login_rate_limit_status')) {
     function ll_tools_login_window_get_login_rate_limit_status(string $ip = ''): array {
         if ($ip === '') {
@@ -1087,7 +1376,13 @@ if (!function_exists('ll_tools_login_window_get_login_rate_limit_status')) {
             ];
         }
 
-        $attempts = (int) get_transient(ll_tools_login_window_login_attempt_key($ip));
+        $counter = ll_tools_public_ajax_counter_status(
+            ll_tools_login_window_login_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        $attempts = (int) ($counter['count'] ?? 0);
 
         return [
             'limited' => ($attempts >= $config['limit']),
@@ -1099,21 +1394,64 @@ if (!function_exists('ll_tools_login_window_get_login_rate_limit_status')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_reserve_login_attempt')) {
+    function ll_tools_login_window_reserve_login_attempt(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_login_attempt_limit_config();
+        $reservation = ll_tools_public_ajax_reserve_counter(
+            ll_tools_login_window_login_counter_prefix(),
+            $ip,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+        if (!empty($reservation['allowed']) && !empty($reservation['reserved'])) {
+            ll_tools_login_window_track_rate_limit_attempt(
+                'login',
+                $ip,
+                (int) ($reservation['count'] ?? 0),
+                (int) $config['limit'],
+                (int) $config['window']
+            );
+        }
+
+        return $reservation;
+    }
+}
+
+if (!function_exists('ll_tools_login_window_refund_login_attempt')) {
+    function ll_tools_login_window_refund_login_attempt(array $reservation, string $ip): void {
+        if (!ll_tools_public_ajax_refund_counter($reservation) || $ip === '') {
+            return;
+        }
+
+        $config = ll_tools_login_window_login_attempt_limit_config();
+        $status = ll_tools_login_window_get_login_rate_limit_status($ip);
+        $attempts = (int) ($status['attempts'] ?? 0);
+        if ($attempts <= 0) {
+            ll_tools_login_window_forget_rate_limit_ip('login', $ip);
+            return;
+        }
+
+        ll_tools_login_window_track_rate_limit_attempt(
+            'login',
+            $ip,
+            $attempts,
+            (int) $config['limit'],
+            (int) $config['window']
+        );
+    }
+}
+
 if (!function_exists('ll_tools_login_window_record_login_attempt')) {
     function ll_tools_login_window_record_login_attempt(string $ip = ''): void {
         if ($ip === '') {
             $ip = ll_tools_login_window_get_client_ip();
         }
 
-        $config = ll_tools_login_window_login_attempt_limit_config();
-        if ($ip === '' || $config['limit'] <= 0) {
-            return;
-        }
-
-        $key = ll_tools_login_window_login_attempt_key($ip);
-        $attempts = (int) get_transient($key);
-        set_transient($key, $attempts + 1, $config['window']);
-        ll_tools_login_window_track_rate_limit_attempt('login', $ip, $attempts + 1, $config['limit'], $config['window']);
+        ll_tools_login_window_reserve_login_attempt($ip);
     }
 }
 
@@ -1127,6 +1465,7 @@ if (!function_exists('ll_tools_login_window_reset_login_attempts')) {
             return;
         }
 
+        ll_tools_public_ajax_reset_counter(ll_tools_login_window_login_counter_prefix(), $ip);
         delete_transient(ll_tools_login_window_login_attempt_key($ip));
         ll_tools_login_window_forget_rate_limit_ip('login', $ip);
     }
@@ -1738,11 +2077,18 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
 
         $nonce = isset($_POST['ll_tools_login_nonce']) ? wp_unslash((string) $_POST['ll_tools_login_nonce']) : '';
         if (!wp_verify_nonce($nonce, 'll_tools_login')) {
-            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
-                'type' => 'error',
-                'form' => 'login',
-                'messages' => [__('Login security check failed. Please try again.', 'll-tools-text-domain')],
-            ], 'login');
+            $redirect_to = ll_tools_login_window_append_stable_feedback_to_url(
+                $redirect_to,
+                [
+                    'type' => 'error',
+                    'form' => 'login',
+                    'messages' => [__('Login security check failed. Please try again.', 'll-tools-text-domain')],
+                ],
+                'login',
+                'nonce_failure',
+                ll_tools_login_window_get_client_ip(),
+                10 * MINUTE_IN_SECONDS
+            );
             wp_safe_redirect($redirect_to);
             exit;
         }
@@ -1752,17 +2098,15 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
         $password = isset($_POST['pwd']) ? (string) wp_unslash($_POST['pwd']) : '';
         $remember = !empty($_POST['rememberme']);
 
-        $rate_limit_status = ll_tools_login_window_get_login_rate_limit_status($request_ip);
-        if (!empty($rate_limit_status['limited'])) {
-            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
-                'type' => 'error',
-                'form' => 'login',
-                'messages' => [ll_tools_login_window_login_rate_limit_message()],
-                'prefill' => [
-                    'login_identifier' => $identifier,
-                    'login_remember' => $remember ? '1' : '0',
-                ],
-            ], 'login');
+        $login_reservation = ll_tools_login_window_reserve_login_attempt($request_ip);
+        if (empty($login_reservation['allowed'])) {
+            $rate_config = ll_tools_login_window_login_attempt_limit_config();
+            $redirect_to = ll_tools_login_window_append_rate_limit_feedback_to_url(
+                $redirect_to,
+                'login',
+                $request_ip,
+                (int) ($rate_config['window'] ?? (10 * MINUTE_IN_SECONDS))
+            );
             wp_safe_redirect($redirect_to);
             exit;
         }
@@ -1773,6 +2117,9 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
         }
         if ($password === '') {
             $errors[] = __('Please enter your password.', 'll-tools-text-domain');
+        }
+        if (!ll_tools_login_window_auth_input_within_byte_bounds($identifier, $password)) {
+            $errors[] = __('The username, email, or password you entered is incorrect.', 'll-tools-text-domain');
         }
 
         if (!empty($errors)) {
@@ -1785,7 +2132,6 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                     'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
-            ll_tools_login_window_record_login_attempt($request_ip);
             wp_safe_redirect($redirect_to);
             exit;
         }
@@ -1808,11 +2154,11 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                     'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
-            ll_tools_login_window_record_login_attempt($request_ip);
             wp_safe_redirect($redirect_to);
             exit;
         }
 
+        ll_tools_login_window_refund_login_attempt($login_reservation, $request_ip);
         $requested_redirect = ll_tools_get_valid_login_redirect_request($raw_redirect);
         $final_redirect = apply_filters(
             'login_redirect',
@@ -1882,43 +2228,60 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         }
 
         if (!ll_tools_is_learner_self_registration_available()) {
-            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
-                'type' => 'error',
-                'form' => 'register',
-                'messages' => [__('New account registration is currently disabled.', 'll-tools-text-domain')],
-            ], 'register');
+            $redirect_to = ll_tools_login_window_append_stable_feedback_to_url(
+                $redirect_to,
+                [
+                    'type' => 'error',
+                    'form' => 'register',
+                    'messages' => [__('New account registration is currently disabled.', 'll-tools-text-domain')],
+                ],
+                'register',
+                'registration_disabled',
+                ll_tools_login_window_get_client_ip(),
+                10 * MINUTE_IN_SECONDS
+            );
             wp_safe_redirect($redirect_to);
             exit;
         }
 
         $nonce = isset($_POST['ll_tools_register_learner_nonce']) ? wp_unslash((string) $_POST['ll_tools_register_learner_nonce']) : '';
         if (!wp_verify_nonce($nonce, 'll_tools_register_learner')) {
-            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
-                'type' => 'error',
-                'form' => 'register',
-                'messages' => [__('Registration security check failed. Please try again.', 'll-tools-text-domain')],
-            ], 'register');
+            $redirect_to = ll_tools_login_window_append_stable_feedback_to_url(
+                $redirect_to,
+                [
+                    'type' => 'error',
+                    'form' => 'register',
+                    'messages' => [__('Registration security check failed. Please try again.', 'll-tools-text-domain')],
+                ],
+                'register',
+                'nonce_failure',
+                ll_tools_login_window_get_client_ip(),
+                10 * MINUTE_IN_SECONDS
+            );
             wp_safe_redirect($redirect_to);
             exit;
         }
 
         $request_ip = ll_tools_login_window_get_client_ip();
-        $rate_limit_status = ll_tools_login_window_get_registration_rate_limit_status($request_ip);
-        if (!empty($rate_limit_status['limited'])) {
-            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
-                'type' => 'error',
-                'form' => 'register',
-                'messages' => [ll_tools_login_window_registration_rate_limit_message()],
-            ], 'register');
+        $registration_reservation = ll_tools_login_window_reserve_registration_attempt($request_ip);
+        if (empty($registration_reservation['allowed'])) {
+            $rate_config = ll_tools_login_window_registration_attempt_limit_config();
+            $redirect_to = ll_tools_login_window_append_rate_limit_feedback_to_url(
+                $redirect_to,
+                'register',
+                $request_ip,
+                (int) ($rate_config['window'] ?? HOUR_IN_SECONDS)
+            );
             wp_safe_redirect($redirect_to);
             exit;
         }
-        ll_tools_login_window_record_registration_attempt($request_ip);
-
         $email_validation = ll_tools_login_window_validate_registration_email($_POST['user_email'] ?? '');
         $email = $email_validation['email'];
-        $raw_username = isset($_POST['user_login'])
-            ? sanitize_user(wp_unslash((string) $_POST['user_login']), true)
+        $submitted_username = $_POST['user_login'] ?? '';
+        $username_input_is_bounded = is_scalar($submitted_username)
+            && strlen((string) $submitted_username) <= 60;
+        $raw_username = $username_input_is_bounded
+            ? sanitize_user(wp_unslash((string) $submitted_username), true)
             : '';
         $password = isset($_POST['user_pass'])
             ? (string) wp_unslash($_POST['user_pass'])
@@ -1938,7 +2301,7 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         }
 
         $username = $raw_username;
-        if ($email !== '') {
+        if ($username_input_is_bounded && $email !== '') {
             if ($username === '') {
                 $username = ll_tools_login_window_available_username_from_email($email);
             } elseif (!$username_is_custom && (!validate_username($username) || username_exists($username))) {
@@ -1946,7 +2309,9 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
             }
         }
 
-        if ($username === '') {
+        if (!$username_input_is_bounded) {
+            $errors[] = __('That username is not valid.', 'll-tools-text-domain');
+        } elseif ($username === '') {
             $errors[] = __('Please choose a username.', 'll-tools-text-domain');
         } elseif (!validate_username($username)) {
             $errors[] = __('That username is not valid.', 'll-tools-text-domain');
@@ -1958,6 +2323,8 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
             $errors[] = __('Please enter a password.', 'll-tools-text-domain');
         } elseif (strlen($password) < 8) {
             $errors[] = __('Use at least 8 characters for your password.', 'll-tools-text-domain');
+        } elseif (!ll_tools_login_window_auth_input_within_byte_bounds($username !== '' ? $username : $email, $password)) {
+            $errors[] = __('Unable to create the account right now.', 'll-tools-text-domain');
         }
 
         if (!empty($errors)) {
@@ -2081,10 +2448,10 @@ if (!function_exists('ll_tools_login_window_username_suggestion_ajax')) {
         }
 
         $request_ip = ll_tools_login_window_get_client_ip();
-        if (!empty(ll_tools_login_window_get_username_suggestion_rate_limit_status($request_ip)['limited'])) {
+        $suggestion_reservation = ll_tools_login_window_reserve_username_suggestion_attempt($request_ip);
+        if (empty($suggestion_reservation['allowed'])) {
             wp_send_json_error(['message' => ll_tools_login_window_registration_rate_limit_message()], 429);
         }
-        ll_tools_login_window_record_username_suggestion_attempt($request_ip);
 
         $email_validation = ll_tools_login_window_validate_registration_email($_POST['email'] ?? '', false);
         if (!empty($email_validation['errors'])) {

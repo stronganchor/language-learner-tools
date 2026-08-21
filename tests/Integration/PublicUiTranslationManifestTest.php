@@ -2,11 +2,31 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/scripts/check-public-i18n.php';
+require_once dirname(__DIR__, 2) . '/scripts/check-i18n-source-pot.php';
 require_once dirname(__DIR__, 2) . '/scripts/filter-po-runtime-translations.php';
 require_once dirname(__DIR__, 2) . '/scripts/translate-public-i18n-deepl.php';
 
 final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
 {
+    public function test_checked_in_pot_matches_current_source_gettext_keys(): void
+    {
+        $comparison = ll_tools_i18n_compare_source_to_checked_pot($this->pluginRoot());
+        $missing = array_map('ll_tools_i18n_source_pot_entry_label', $comparison['missing']);
+        $stale = array_map('ll_tools_i18n_source_pot_entry_label', $comparison['stale']);
+
+        $this->assertTrue(
+            $comparison['ok'],
+            sprintf(
+                "Refresh the checked-in POT from source (missing: %d; stale: %d).\nMissing:\n%s\nStale:\n%s",
+                count($missing),
+                count($stale),
+                implode("\n", array_slice($missing, 0, 10)),
+                implode("\n", array_slice($stale, 0, 10))
+            )
+        );
+        $this->assertSame($comparison['generated_count'], $comparison['checked_count']);
+    }
+
     public function test_manifest_matches_current_public_pot_selection(): void
     {
         $root = $this->pluginRoot();
@@ -254,6 +274,50 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
                 );
             }
         }
+    }
+
+    public function test_turkish_catalog_keeps_reviewed_semantic_and_placeholder_corrections(): void
+    {
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $this->pluginRoot() . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $translations = [];
+        $plural_translations = [];
+        foreach ($entries as $entry) {
+            $msgid = (string) ($entry['msgid'] ?? '');
+            if ($msgid === '') {
+                continue;
+            }
+            $translations[$msgid] = (string) ($entry['msgstr'][0] ?? '');
+            $plural_translations[$msgid] = array_values(array_map('strval', (array) ($entry['msgstr'] ?? [])));
+        }
+
+        $expected = [
+            'Could not link word "%1$s" to source word image "%2$s".' => '"%1$s" kelimesi "%2$s" kaynak kelime görseline bağlanamadı.',
+            'Failed to create word "%s": %s' => '"%s" kelimesi oluşturulamadı: %s',
+            'Failed to update audio "%1$s" for word "%2$s": %3$s' => '"%2$s" kelimesi için "%1$s" sesi güncellenemedi: %3$s',
+            'Failed to update word "%s": %s' => '"%s" kelimesi güncellenemedi: %s',
+            'Insufficient permissions to edit the parent word.' => 'Üst kelimeyi düzenlemek için yeterli izin yok.',
+            'Leave blank to copy the current title to the new word.' => 'Geçerli başlığı yeni kelimeye kopyalamak için boş bırak.',
+            'Missing required data' => 'Gerekli veriler eksik',
+            'Move All to New Word' => 'Tümünü Yeni Kelimeye Taşı',
+            'No missing items in this category.' => 'Bu kategoride eksik öğe yok.',
+            'No new items created.' => 'Yeni öğe oluşturulmadı.',
+            'Remove "%s" from this batch? It will remain unprocessed.' => '"%s" başlıklı ses kaydını bu toplu işlemden çıkarmak istiyor musun? İşlenmeden kalacak.',
+            'Select a category from the left to preview crops and white-padding updates.' => 'Kırpmaları ve beyaz dolgu güncellemelerini önizlemek için soldan bir kategori seç.',
+            'Split "%s" into two word posts by choosing which recordings move to the new word.' => '"%s" başlıklı kelimeyi iki kelime gönderisine bölmek için yeni kelimeye taşınacak ses kayıtlarını seç.',
+            'Split Word & Return to Audio Processor' => 'Kelimeyi Böl ve Ses İşlemcisine Dön',
+            'The word "%1$s" was created but could not be assigned to the category: %2$s' => '"%1$s" kelimesi oluşturuldu ancak şu kategoriye atanamadı: %2$s',
+            'The word "%1$s" was created but could not be assigned to the word set: %2$s' => '"%1$s" kelimesi oluşturuldu ancak kelime setine atanamadı: %2$s',
+            'Row %d: the recording does not belong to the specified word.' => 'Satır %d: kayıt belirtilen kelimeye ait değil.',
+            'No match yet.' => 'Henüz eşleşme yok.',
+            'This game shows a picture or prompt text, listens for the learner to say the word, runs STT, and compares the result to the chosen target.' => 'Bu oyun bir resim veya metin gösterir, öğrencinin kelimeyi söylemesini dinler, STT\'yi çalıştırır ve sonucu seçilen hedefle karşılaştırır.',
+        ];
+        foreach ($expected as $msgid => $translation) {
+            $this->assertSame($translation, $translations[$msgid] ?? null, $msgid);
+        }
+
+        $this->assertSame(['%s öğe', '%s öğe'], $plural_translations['%s item'] ?? []);
     }
 
     public function test_turkish_catalog_keeps_reviewed_informal_public_copy(): void

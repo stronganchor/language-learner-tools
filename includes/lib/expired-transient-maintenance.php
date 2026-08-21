@@ -4,6 +4,12 @@ if (!defined('WPINC')) { die; }
 if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK')) {
     define('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK', 'll_tools_expired_transient_maintenance_event');
 }
+if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK')) {
+    define(
+        'LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK',
+        'll_tools_expired_transient_maintenance_continuation'
+    );
+}
 if (!defined('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_LOCK_OPTION')) {
     define('LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_LOCK_OPTION', '_ll_tools_expired_transient_maintenance_lock');
 }
@@ -30,6 +36,73 @@ if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK')) {
 }
 
 /**
+ * Prefixes written directly to wp_options by the atomic public guard helper.
+ *
+ * These rows exist even with an external object cache, so LL Tools must clean
+ * them itself instead of relying on WordPress transient garbage collection.
+ *
+ * @return array<string,string> Namespace => transient-key prefix.
+ */
+function ll_tools_expired_transient_maintenance_direct_db_namespaces(): array {
+    return [
+        'audio-delete-lock' => 'll_ap_delete_',
+        'dictionary-client-inflight' => 'll_dict_live_search_inflight_',
+        'dictionary-rate-limit' => 'll_dict_live_search_rl_',
+        'flashcard-ajax-client-inflight' => 'll_fc_ajax_inflight_',
+        'flashcard-ajax-build-lock' => 'll_fc_ajax_build_',
+        'flashcard-ajax-rate-limit' => 'll_fc_ajax_throttle_',
+        'flashcard-payload-rate-limit' => 'll_fc_payload_throttle_',
+        'wordset-lazy-build-lock' => 'll_tools_wsp_lazy_lock_',
+        'wordset-lazy-rate-limit' => 'll_tools_wsp_lazy_miss_',
+        'vocab-grid-build-lock' => 'll_tools_vocab_grid_lock_',
+        'vocab-grid-order-lock' => 'll_tools_vocab_order_lock_',
+        'vocab-grid-rate-limit' => 'll_tools_vocab_grid_miss_',
+        'wordset-button-status-rate-limit' => 'll_ws_btn_status_rl_',
+        'wordset-button-worker-lock' => 'll_ws_btn_worker_',
+        'registration-rate-limit' => 'll_tools_reg_attempt_',
+        'username-rate-limit' => 'll_tools_user_suggest_',
+        'login-rate-limit' => 'll_tools_login_attempt_',
+        'rest-basic-auth-rate-limit' => 'll_tools_rest_basic_fail_',
+        'rest-basic-auth-peer-rate-limit' => 'll_tools_rest_basic_peer_',
+        'offline-login-rate-limit' => 'll_tools_offline_login_',
+        'offline-sync-rate-limit' => 'll_tools_off_sync_',
+    ];
+}
+
+/**
+ * Direct guard prefixes whose value embeds its own expiry as `timestamp|token`.
+ *
+ * @return array<int,string>
+ */
+function ll_tools_expired_transient_maintenance_direct_db_lease_prefixes(): array {
+    return [
+        'll_ap_delete_',
+        'll_dict_live_search_inflight_',
+        'll_fc_ajax_inflight_',
+        'll_fc_ajax_build_',
+        'll_tools_wsp_lazy_lock_',
+        'll_tools_vocab_grid_lock_',
+        'll_tools_vocab_order_lock_',
+    ];
+}
+
+function ll_tools_expired_transient_maintenance_is_direct_db_lease(string $transient_key): bool {
+    // Audio deletion receipts share the broader ll_ap_delete_ namespace but
+    // are ordinary serialized transients, not timestamp|token lease rows.
+    if (strpos($transient_key, 'll_ap_delete_receipt_') === 0) {
+        return false;
+    }
+
+    foreach (ll_tools_expired_transient_maintenance_direct_db_lease_prefixes() as $prefix) {
+        if (strpos($transient_key, $prefix) === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Exact transient-key prefixes owned by bounded LL Tools caches/rate limits.
  *
  * Operational state such as import previews, notices, migration cursors,
@@ -40,7 +113,7 @@ if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK')) {
  * @return array<string,string> Namespace => transient-key prefix.
  */
 function ll_tools_expired_transient_maintenance_namespaces(): array {
-    return [
+    return ll_tools_expired_transient_maintenance_direct_db_namespaces() + [
         'dictionary-client-inflight' => 'll_dict_live_search_inflight_',
         'dictionary-rate-limit' => 'll_dict_live_search_rl_',
         'dictionary-cache' => 'll_dict_',
@@ -139,6 +212,7 @@ function ll_tools_expired_transient_maintenance_empty_telemetry(): array {
         'deleted_value_bytes' => 0,
         'deleted_timeout_bytes' => 0,
         'wall_time_stop_count' => 0,
+        'continuation_scheduled_count' => 0,
         'namespaces' => [],
     ];
 }
@@ -228,7 +302,11 @@ function ll_tools_expired_transient_maintenance_release_lock(string $payload): v
  *
  * @return array<int,array<string,mixed>>
  */
-function ll_tools_expired_transient_maintenance_select_candidates(int $cutoff, int $limit): array {
+function ll_tools_expired_transient_maintenance_select_candidates(
+    int $cutoff,
+    int $limit,
+    array $allowed_prefixes = []
+): array {
     global $wpdb;
 
     if (!($wpdb instanceof wpdb)) {
@@ -241,7 +319,10 @@ function ll_tools_expired_transient_maintenance_select_candidates(int $cutoff, i
     $prefix_clauses = [];
     $params = [$value_prefix, $timeout_prefix];
 
-    foreach (array_values(array_unique(ll_tools_expired_transient_maintenance_namespaces())) as $prefix) {
+    $prefixes = !empty($allowed_prefixes)
+        ? $allowed_prefixes
+        : array_values(ll_tools_expired_transient_maintenance_namespaces());
+    foreach (array_values(array_unique(array_map('strval', $prefixes))) as $prefix) {
         $prefix_clauses[] = 'timeout_row.option_name LIKE %s';
         $params[] = $wpdb->esc_like($timeout_prefix . $prefix) . '%';
     }
@@ -336,21 +417,37 @@ function ll_tools_expired_transient_maintenance_delete_candidate(array $candidat
         return $result;
     }
 
-    $deleted_rows = $wpdb->query($wpdb->prepare(
-        "DELETE timeout_row, value_row
-         FROM {$wpdb->options} AS timeout_row
-         LEFT JOIN {$wpdb->options} AS value_row ON value_row.option_name = %s
-         WHERE timeout_row.option_id = %d
-           AND timeout_row.option_name = %s
-           AND timeout_row.option_value = %s
-           AND timeout_row.option_value REGEXP '^[0-9]+$'
-           AND CAST(timeout_row.option_value AS UNSIGNED) <= %d",
+    $sql = "DELETE timeout_row, value_row
+            FROM {$wpdb->options} AS timeout_row
+            LEFT JOIN {$wpdb->options} AS value_row ON value_row.option_name = %s
+            WHERE timeout_row.option_id = %d
+              AND timeout_row.option_name = %s
+              AND timeout_row.option_value = %s
+              AND timeout_row.option_value REGEXP '^[0-9]+$'
+              AND CAST(timeout_row.option_value AS UNSIGNED) <= %d";
+    $params = [
         $value_option_name,
         $timeout_option_id,
         $timeout_option_name,
         $timeout_value,
-        max(0, $cutoff)
-    ));
+        max(0, $cutoff),
+    ];
+    if (ll_tools_expired_transient_maintenance_is_direct_db_lease($transient_key)) {
+        // A lease takeover updates the embedded expiry before refreshing the
+        // separate timeout row. Rechecking both prevents maintenance from
+        // deleting the new owner in that narrow window, while still removing
+        // genuinely crashed expired leases and timeout-only rows.
+        $sql .= " AND (
+                    value_row.option_id IS NULL
+                    OR (
+                        value_row.option_value REGEXP '^[0-9]+[|]'
+                        AND CAST(SUBSTRING_INDEX(value_row.option_value, '|', 1) AS UNSIGNED) <= %d
+                    )
+                  )";
+        $params[] = max(0, $cutoff);
+    }
+    $prepared = call_user_func_array([$wpdb, 'prepare'], array_merge([$sql], $params));
+    $deleted_rows = $wpdb->query($prepared);
     $deleted_rows = max(0, (int) $deleted_rows);
     if ($deleted_rows < 1) {
         return $result;
@@ -366,10 +463,12 @@ function ll_tools_expired_transient_maintenance_delete_candidate(array $candidat
 
 function ll_tools_run_expired_transient_maintenance(): array {
     $telemetry = ll_tools_expired_transient_maintenance_empty_telemetry();
-    if (wp_using_ext_object_cache()) {
+    $using_external_cache = wp_using_ext_object_cache();
+    if ($using_external_cache) {
+        // General cache transients live in the external cache and need no DB
+        // scan. Direct atomic guard rows still live in wp_options and must be
+        // processed below.
         $telemetry['external_cache_bypass_count'] = 1;
-        do_action('ll_tools_expired_transient_maintenance_telemetry', $telemetry);
-        return $telemetry;
     }
 
     $lock_payload = ll_tools_expired_transient_maintenance_acquire_lock();
@@ -384,9 +483,13 @@ function ll_tools_run_expired_transient_maintenance(): array {
     $cutoff = time() - ll_tools_expired_transient_maintenance_grace_seconds();
 
     try {
+        $batch_limit = ll_tools_expired_transient_maintenance_batch_limit();
         $candidates = ll_tools_expired_transient_maintenance_select_candidates(
             $cutoff,
-            ll_tools_expired_transient_maintenance_batch_limit()
+            $batch_limit,
+            $using_external_cache
+                ? array_values(ll_tools_expired_transient_maintenance_direct_db_namespaces())
+                : []
         );
         $telemetry['selected_count'] = count($candidates);
 
@@ -433,6 +536,17 @@ function ll_tools_run_expired_transient_maintenance(): array {
         ll_tools_expired_transient_maintenance_release_lock($lock_payload);
     }
 
+    if (
+        ($telemetry['selected_count'] >= $batch_limit || !empty($telemetry['wall_time_stop_count']))
+        && wp_next_scheduled(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK) === false
+        && wp_schedule_single_event(
+            time() + MINUTE_IN_SECONDS,
+            LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK
+        )
+    ) {
+        $telemetry['continuation_scheduled_count'] = 1;
+    }
+
     ksort($telemetry['namespaces'], SORT_STRING);
     do_action('ll_tools_expired_transient_maintenance_telemetry', $telemetry);
     return $telemetry;
@@ -446,6 +560,7 @@ function ll_tools_schedule_expired_transient_maintenance(): void {
 
 function ll_tools_clear_expired_transient_maintenance_schedule(): void {
     wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK);
+    wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);
 }
 
 function ll_tools_schedule_media_proxy_cache_maintenance_for_current_site(): void {
@@ -532,6 +647,7 @@ function ll_tools_clear_media_proxy_cache_maintenance_schedule(bool $network_wid
 
 add_action('init', 'll_tools_schedule_expired_transient_maintenance', 30);
 add_action(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_HOOK, 'll_tools_run_expired_transient_maintenance');
+add_action(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK, 'll_tools_run_expired_transient_maintenance');
 add_action('init', 'll_tools_schedule_media_proxy_cache_maintenance', 31);
 add_action(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_HOOK, 'll_tools_run_media_proxy_cache_maintenance');
 add_action(LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK, 'll_tools_run_media_proxy_cache_maintenance');

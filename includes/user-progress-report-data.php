@@ -1,6 +1,37 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+if (!function_exists('ll_tools_user_progress_report_practice_result_payload_byte_limit')) {
+    /**
+     * Maximum stored event payload that the teacher Practice report will hydrate.
+     */
+    function ll_tools_user_progress_report_practice_result_payload_byte_limit(): int {
+        return 16 * 1024;
+    }
+}
+
+if (!function_exists('ll_tools_user_progress_report_practice_result_query_batch_size')) {
+    /**
+     * Derive a bounded learner batch from the configured scan depth.
+     *
+     * The estimate includes the complete accepted payload plus approximately
+     * 1 KiB for the other selected columns and result-row bookkeeping. Keeping
+     * the aggregate response near 24 MiB prevents a high scan-limit filter from
+     * multiplying the per-query hydration cost by the configured batch size.
+     */
+    function ll_tools_user_progress_report_practice_result_query_batch_size(int $scan_limit): int {
+        $configured_batch_size = (int) apply_filters('ll_tools_user_progress_report_practice_result_query_batch_size', 2);
+        $configured_batch_size = max(1, min(5, $configured_batch_size));
+
+        $query_limit = max(1, $scan_limit + 1);
+        $estimated_row_bytes = ll_tools_user_progress_report_practice_result_payload_byte_limit() + 1024;
+        $aggregate_query_byte_budget = 24 * 1024 * 1024;
+        $budget_batch_size = (int) floor($aggregate_query_byte_budget / ($query_limit * $estimated_row_bytes));
+
+        return max(1, min($configured_batch_size, $budget_batch_size));
+    }
+}
+
 if (!function_exists('ll_tools_user_progress_report_parse_practice_result')) {
     /**
      * Parse the canonical, learner-facing Practice result stored in an event payload.
@@ -8,7 +39,11 @@ if (!function_exists('ll_tools_user_progress_report_parse_practice_result')) {
      * @return array|null
      */
     function ll_tools_user_progress_report_parse_practice_result($payload_json): ?array {
-        if (!is_string($payload_json) || $payload_json === '' || strlen($payload_json) > (64 * 1024)) {
+        if (
+            !is_string($payload_json)
+            || $payload_json === ''
+            || strlen($payload_json) > ll_tools_user_progress_report_practice_result_payload_byte_limit()
+        ) {
             return null;
         }
 
@@ -62,8 +97,9 @@ if (!function_exists('ll_tools_user_progress_report_practice_results_for_users')
     /**
      * Return bounded Practice-result summaries for an already-paged learner list.
      *
-     * Each learner query uses the event ledger's user/wordset/created index and a
-     * hard row ceiling. A trailing "+" can be shown when unusually dense recent
+     * Bounded UNION batches retain the event ledger's user/wordset/created index
+     * and the per-learner hard row ceiling without issuing one round trip for
+     * every learner. A trailing "+" can be shown when unusually dense recent
      * activity reaches that ceiling, rather than hydrating an unbounded history.
      */
     function ll_tools_user_progress_report_practice_results_for_users(array $user_ids, int $wordset_id): array {
@@ -79,6 +115,8 @@ if (!function_exists('ll_tools_user_progress_report_practice_results_for_users')
         $scan_limit = (int) apply_filters('ll_tools_user_progress_report_practice_result_scan_limit', 500);
         $scan_limit = max(25, min(1000, $scan_limit));
         $query_limit = $scan_limit + 1;
+        $query_batch_size = ll_tools_user_progress_report_practice_result_query_batch_size($scan_limit);
+        $payload_byte_limit = ll_tools_user_progress_report_practice_result_payload_byte_limit();
         $cutoff_30d = gmdate('Y-m-d H:i:s', time() - (30 * DAY_IN_SECONDS));
         $events_table = ll_tools_user_progress_table_names()['events'];
         $summaries = [];
@@ -88,64 +126,95 @@ if (!function_exists('ll_tools_user_progress_report_practice_results_for_users')
                 'latest_result' => null,
                 'attempts_30d' => 0,
                 'attempts_30d_truncated' => false,
+                'query_failed' => false,
             ];
+        }
 
-            $rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT id, payload_json, created_at
+        foreach (array_chunk($user_ids, $query_batch_size) as $user_batch) {
+            $query_parts = [];
+            foreach ($user_batch as $user_id) {
+                $query_parts[] = $wpdb->prepare(
+                    "(SELECT user_id, id, payload_json, created_at
                     FROM {$events_table}
                     WHERE user_id = %d
                         AND wordset_id = %d
                         AND event_type = %s
                         AND mode = %s
                         AND payload_json IS NOT NULL
+                        AND OCTET_LENGTH(payload_json) <= %d
                     ORDER BY created_at DESC, id DESC
-                    LIMIT %d",
+                    LIMIT %d)",
                     $user_id,
                     $wordset_id,
                     'mode_session_complete',
                     'practice',
+                    $payload_byte_limit,
                     $query_limit
-                ),
+                );
+            }
+
+            $wpdb->last_error = '';
+            $rows = $wpdb->get_results(
+                implode(" UNION ALL\n", $query_parts) . ' ORDER BY user_id ASC, created_at DESC, id DESC',
                 ARRAY_A
             );
-            if (!is_array($rows) || empty($rows)) {
+            if (!is_array($rows) || (string) $wpdb->last_error !== '') {
+                foreach ($user_batch as $user_id) {
+                    $summaries[$user_id]['query_failed'] = true;
+                }
+                continue;
+            }
+            if (empty($rows)) {
                 continue;
             }
 
-            $has_more = count($rows) > $scan_limit;
-            $overflow_row = $has_more ? $rows[$scan_limit] : null;
-            $rows = array_slice($rows, 0, $scan_limit);
-
+            $rows_by_user = array_fill_keys($user_batch, []);
             foreach ($rows as $row) {
                 if (!is_array($row)) {
                     continue;
                 }
-
-                $result = ll_tools_user_progress_report_parse_practice_result($row['payload_json'] ?? null);
-                if ($result === null) {
-                    continue;
-                }
-
-                $created_at = isset($row['created_at']) ? (string) $row['created_at'] : '';
-                if ($summaries[$user_id]['latest_result'] === null) {
-                    $result['event_id'] = max(0, (int) ($row['id'] ?? 0));
-                    $result['created_at'] = $created_at;
-                    $summaries[$user_id]['latest_result'] = $result;
-                }
-
-                if ($created_at !== '' && strcmp($created_at, $cutoff_30d) >= 0) {
-                    $summaries[$user_id]['attempts_30d']++;
+                $row_user_id = max(0, (int) ($row['user_id'] ?? 0));
+                if (isset($rows_by_user[$row_user_id])) {
+                    $rows_by_user[$row_user_id][] = $row;
                 }
             }
 
-            if (
-                $has_more
-                && is_array($overflow_row)
-                && isset($overflow_row['created_at'])
-                && strcmp((string) $overflow_row['created_at'], $cutoff_30d) >= 0
-            ) {
-                $summaries[$user_id]['attempts_30d_truncated'] = true;
+            foreach ($user_batch as $user_id) {
+                $user_rows = (array) ($rows_by_user[$user_id] ?? []);
+                $has_more = count($user_rows) > $scan_limit;
+                $overflow_row = $has_more ? $user_rows[$scan_limit] : null;
+                $user_rows = array_slice($user_rows, 0, $scan_limit);
+
+                foreach ($user_rows as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+
+                    $result = ll_tools_user_progress_report_parse_practice_result($row['payload_json'] ?? null);
+                    if ($result === null) {
+                        continue;
+                    }
+
+                    $created_at = isset($row['created_at']) ? (string) $row['created_at'] : '';
+                    if ($summaries[$user_id]['latest_result'] === null) {
+                        $result['event_id'] = max(0, (int) ($row['id'] ?? 0));
+                        $result['created_at'] = $created_at;
+                        $summaries[$user_id]['latest_result'] = $result;
+                    }
+
+                    if ($created_at !== '' && strcmp($created_at, $cutoff_30d) >= 0) {
+                        $summaries[$user_id]['attempts_30d']++;
+                    }
+                }
+
+                if (
+                    $has_more
+                    && is_array($overflow_row)
+                    && isset($overflow_row['created_at'])
+                    && strcmp((string) $overflow_row['created_at'], $cutoff_30d) >= 0
+                ) {
+                    $summaries[$user_id]['attempts_30d_truncated'] = true;
+                }
             }
         }
 

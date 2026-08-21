@@ -11,6 +11,29 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         $this->assertSame(10 * MINUTE_IN_SECONDS, (int) $config['window']);
     }
 
+    public function test_frontend_login_admission_reserves_capacity_atomically(): void
+    {
+        $ip = '203.0.113.29';
+        $limit = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_login_ip_attempt_limit', $limit);
+
+        try {
+            ll_tools_login_window_reset_login_attempts($ip);
+            $first = ll_tools_login_window_reserve_login_attempt($ip);
+            $blocked = ll_tools_login_window_reserve_login_attempt($ip);
+
+            $this->assertTrue($first['allowed']);
+            $this->assertFalse($blocked['allowed']);
+            $this->assertSame(1, $blocked['count']);
+            $this->assertSame(1, ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+        } finally {
+            ll_tools_login_window_reset_login_attempts($ip);
+            remove_filter('ll_tools_login_ip_attempt_limit', $limit);
+        }
+    }
+
     public function test_rendered_auth_forms_carry_signed_frontend_locale(): void
     {
         update_option('users_can_register', 1);
@@ -85,6 +108,131 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
             ll_tools_login_window_reset_login_attempts($ip);
             remove_filter('ll_tools_login_ip_attempt_limit', $limit_filter);
             remove_filter('ll_tools_login_ip_attempt_window', $window_filter);
+        }
+    }
+
+    public function test_rate_limited_login_reuses_bounded_feedback_without_persisting_submitted_identifier(): void
+    {
+        $ip = '203.0.113.30';
+        $limit = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_login_ip_attempt_limit', $limit);
+
+        try {
+            ll_tools_login_window_reset_login_attempts($ip);
+            $this->runLoginRequest($ip, ['log' => 'bounded@example.org', 'pwd' => '']);
+
+            $oversized_identifier = str_repeat('x', 20000);
+            $first_blocked = $this->runLoginRequest($ip, ['log' => $oversized_identifier, 'pwd' => 'anything']);
+            $second_blocked = $this->runLoginRequest($ip, ['log' => $oversized_identifier, 'pwd' => 'anything']);
+
+            $first_token = $this->feedbackTokenFromRedirect($first_blocked);
+            $second_token = $this->feedbackTokenFromRedirect($second_blocked);
+            $this->assertSame($first_token, $second_token);
+
+            $payload = get_transient(ll_tools_login_window_feedback_storage_key($first_token));
+            $this->assertIsArray($payload);
+            $this->assertArrayNotHasKey('prefill', $payload);
+            $this->assertSame([ll_tools_login_window_login_rate_limit_message()], $payload['messages']);
+        } finally {
+            if (isset($first_token) && $first_token !== '') {
+                delete_transient(ll_tools_login_window_feedback_storage_key($first_token));
+            }
+            ll_tools_login_window_reset_login_attempts($ip);
+            remove_filter('ll_tools_login_ip_attempt_limit', $limit);
+        }
+    }
+
+    public function test_feedback_storage_bounds_public_and_upstream_values(): void
+    {
+        $token = ll_tools_login_window_store_feedback([
+            'type' => 'error',
+            'form' => 'login',
+            'messages' => array_fill(0, 20, str_repeat('m', 2000)),
+            'prefill' => [
+                'login_identifier' => str_repeat('i', 2000),
+                'unknown' => str_repeat('u', 2000),
+            ],
+            'unknown' => str_repeat('x', 2000),
+        ]);
+
+        try {
+            $payload = get_transient(ll_tools_login_window_feedback_storage_key($token));
+            $this->assertIsArray($payload);
+            $this->assertCount(1, $payload['messages']);
+            $this->assertSame(512, strlen((string) $payload['messages'][0]));
+            $this->assertSame(320, strlen((string) ($payload['prefill']['login_identifier'] ?? '')));
+            $this->assertArrayNotHasKey('unknown', $payload);
+            $this->assertArrayNotHasKey('unknown', $payload['prefill']);
+        } finally {
+            delete_transient(ll_tools_login_window_feedback_storage_key($token));
+        }
+    }
+
+    public function test_feedback_token_is_bounded_before_public_input_normalization(): void
+    {
+        $this->assertSame('abc123', ll_tools_login_window_sanitize_feedback_token('AbC123'));
+        $this->assertSame('', ll_tools_login_window_sanitize_feedback_token('abc-123'));
+        $this->assertSame('', ll_tools_login_window_sanitize_feedback_token(str_repeat('a', 65)));
+        $this->assertSame('', ll_tools_login_window_sanitize_feedback_token(str_repeat('a', 1024 * 1024)));
+        $this->assertSame('', ll_tools_login_window_sanitize_feedback_token(['abc123']));
+    }
+
+    public function test_invalid_login_nonce_reuses_one_bounded_feedback_transient(): void
+    {
+        $ip = '203.0.113.31';
+        $previous_get = $_GET;
+        $first = $this->runLoginRequest($ip, ['ll_tools_login_nonce' => 'invalid']);
+        $second = $this->runLoginRequest($ip, ['ll_tools_login_nonce' => 'invalid']);
+        $first_token = $this->feedbackTokenFromRedirect($first);
+        $second_token = $this->feedbackTokenFromRedirect($second);
+
+        try {
+            $this->assertSame($first_token, $second_token);
+            $payload = get_transient(ll_tools_login_window_feedback_storage_key($first_token));
+            $this->assertIsArray($payload);
+            $this->assertSame(
+                ['Login security check failed. Please try again.'],
+                $payload['messages']
+            );
+            $_GET['ll_tools_auth_feedback'] = $first_token;
+            $first_consumed = ll_tools_login_window_consume_feedback_from_request();
+            $second_consumed = ll_tools_login_window_consume_feedback_from_request();
+            $this->assertSame($first_consumed, $second_consumed);
+            $this->assertArrayNotHasKey('_ll_tools_stable', $first_consumed);
+            $this->assertSame(
+                ['Login security check failed. Please try again.'],
+                $second_consumed['messages'] ?? []
+            );
+            $this->assertIsArray(get_transient(ll_tools_login_window_feedback_storage_key($first_token)));
+            $this->assertSame(0, ll_tools_login_window_get_login_rate_limit_status($ip)['attempts']);
+        } finally {
+            $_GET = $previous_get;
+            delete_transient(ll_tools_login_window_feedback_storage_key($first_token));
+        }
+    }
+
+    public function test_random_feedback_tokens_remain_one_time_use(): void
+    {
+        $previous_get = $_GET;
+        $token = ll_tools_login_window_store_feedback([
+            'type' => 'error',
+            'form' => 'login',
+            'messages' => ['One-time feedback'],
+        ]);
+
+        try {
+            $_GET['ll_tools_auth_feedback'] = $token;
+            $this->assertSame(
+                ['One-time feedback'],
+                ll_tools_login_window_consume_feedback_from_request()['messages'] ?? []
+            );
+            $this->assertSame([], ll_tools_login_window_consume_feedback_from_request());
+            $this->assertFalse(get_transient(ll_tools_login_window_feedback_storage_key($token)));
+        } finally {
+            $_GET = $previous_get;
+            delete_transient(ll_tools_login_window_feedback_storage_key($token));
         }
     }
 
@@ -376,17 +524,21 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
 
     private function getFeedbackPayloadFromRedirect(string $url): array
     {
-        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
-        $args = [];
-        parse_str($query, $args);
-
-        $token = ll_tools_login_window_sanitize_feedback_token($args['ll_tools_auth_feedback'] ?? '');
+        $token = $this->feedbackTokenFromRedirect($url);
         $this->assertNotSame('', $token);
 
         $payload = get_transient(ll_tools_login_window_feedback_storage_key($token));
         $this->assertIsArray($payload);
 
         return $payload;
+    }
+
+    private function feedbackTokenFromRedirect(string $url): string
+    {
+        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+        $args = [];
+        parse_str($query, $args);
+        return ll_tools_login_window_sanitize_feedback_token($args['ll_tools_auth_feedback'] ?? '');
     }
 
     private function reloadPluginTextdomainForCurrentLocale(): void

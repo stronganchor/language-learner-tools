@@ -84,3 +84,39 @@ button.ll-quiz-page-link.ll-quiz-page-trigger {
 .ll-quiz-pages-go:hover {
     background: #f0f0f0;
 }
+
+.ll-quiz-pages-catalog-status {
+    align-items: center;
+    background: #f7fafc;
+    border: 1px solid #d8e2ec;
+    border-radius: 8px;
+    color: #334155;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 12px 14px;
+}
+
+.ll-quiz-pages-catalog-retry {
+    appearance: none;
+    background: #1d4d99;
+    border: 1px solid #1d4d99;
+    border-radius: 5px;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    padding: 7px 11px;
+}
+
+.ll-quiz-pages-catalog-retry:hover {
+    background: #153d7d;
+}
+
+.ll-quiz-pages-catalog-retry:focus-visible {
+    outline: 3px solid #1d4d99;
+    outline-offset: 2px;
+}

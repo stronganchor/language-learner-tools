@@ -211,7 +211,17 @@ test('public content lesson index exposes accessible cards and clean two-way pag
   expect(Array.from(previousUrl.searchParams.keys())).toEqual([]);
 
   await previousLink.click();
-  await expect(page).toHaveURL(new RegExp(`${fixture.lessonIndexPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+  const expectedIndexPath = new URL(fixture.lessonIndexPath, page.url()).pathname.replace(/\/$/, '');
+  await expect.poll(() => {
+    const currentUrl = new URL(page.url());
+    return {
+      pathname: currentUrl.pathname.replace(/\/$/, ''),
+      search: currentUrl.search
+    };
+  }).toEqual({
+    pathname: expectedIndexPath,
+    search: ''
+  });
   await expect(index).toHaveAttribute('data-page', '1');
   await expect(index.locator('.ll-content-lesson-index__title')).toHaveText(
     fixture.lessonIndexLessonTitles[0]

@@ -41,6 +41,58 @@ final class PublicAjaxResourceGuardTest extends LL_Tools_TestCase
         $this->assertStringContainsString('<= 3', $updates[0]);
     }
 
+    public function test_atomic_counter_status_and_refund_preserve_other_reservations(): void
+    {
+        $prefix = 'll_tools_test_ajax_refund_';
+        $identifier = '203.0.113.84';
+        $now = 2000000000;
+
+        ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        try {
+            $failure = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 3, 60, 1, $now);
+            $success = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 3, 60, 1, $now);
+
+            $this->assertTrue(ll_tools_public_ajax_refund_counter($success));
+            $status = ll_tools_public_ajax_counter_status($prefix, $identifier, 3, 60, 1, $now);
+
+            $this->assertTrue($failure['reserved']);
+            $this->assertSame(1, $status['count']);
+            $this->assertTrue($status['allowed']);
+        } finally {
+            ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        }
+    }
+
+    public function test_delayed_previous_bucket_cannot_delete_the_active_next_bucket(): void
+    {
+        $prefix = 'll_tools_test_ajax_boundary_';
+        $identifier = '203.0.113.85';
+        $window = 60;
+        $previous_now = 6000;
+        $next_now = $previous_now + $window;
+
+        ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        try {
+            $next = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 3, $window, 1, $next_now);
+            $previous = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 3, $window, 1, $previous_now);
+            $next_names = ll_tools_public_ajax_counter_option_names($prefix, $identifier, $window, $next_now);
+
+            $this->assertTrue($next['allowed']);
+            $this->assertTrue($previous['allowed']);
+            $this->assertSame('1', get_option($next_names['value']));
+            $this->assertSame(1, ll_tools_public_ajax_counter_status(
+                $prefix,
+                $identifier,
+                3,
+                $window,
+                1,
+                $next_now
+            )['count']);
+        } finally {
+            ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        }
+    }
+
     public function test_client_leases_bound_distinct_request_keys_and_release_exact_slots(): void
     {
         $prefix = 'll_tools_test_ajax_inflight_';
@@ -59,11 +111,40 @@ final class PublicAjaxResourceGuardTest extends LL_Tools_TestCase
             $this->assertSame(30, $blocked['retry_after']);
 
             ll_tools_public_ajax_release_client_lease($first);
+            $this->assertFalse(get_option((string) $first['option_name'], false));
+            $this->assertFalse(get_option((string) $first['timeout_option_name'], false));
             $replacement = ll_tools_public_ajax_acquire_client_lease($prefix, $identifier, 2, 30, $now);
             $this->assertTrue($replacement['acquired']);
+            $this->assertSame(
+                (string) $replacement['lease_value'],
+                (string) get_option((string) $replacement['option_name'])
+            );
 
             ll_tools_public_ajax_release_client_lease($second);
             ll_tools_public_ajax_release_client_lease($replacement);
+        } finally {
+            ll_tools_public_ajax_reset_client_leases($prefix, $identifier);
+        }
+    }
+
+    public function test_client_lease_release_cannot_delete_a_successor_owner(): void
+    {
+        $prefix = 'll_tools_test_ajax_owner_';
+        $identifier = 'shared-cache-key';
+        $lease = ll_tools_public_ajax_acquire_client_lease($prefix, $identifier, 1, 30);
+        $this->assertTrue($lease['acquired']);
+
+        $option_name = (string) ($lease['option_name'] ?? '');
+        $timeout_option_name = (string) ($lease['timeout_option_name'] ?? '');
+        $successor_value = (time() + 30) . '|successor-owner';
+        $successor_timeout = (string) (time() + 30);
+        update_option($option_name, $successor_value, false);
+        update_option($timeout_option_name, $successor_timeout, false);
+
+        try {
+            ll_tools_public_ajax_release_client_lease($lease);
+            $this->assertSame($successor_value, get_option($option_name));
+            $this->assertSame($successor_timeout, get_option($timeout_option_name));
         } finally {
             ll_tools_public_ajax_reset_client_leases($prefix, $identifier);
         }

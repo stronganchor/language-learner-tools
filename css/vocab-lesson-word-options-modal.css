@@ -9,7 +9,11 @@
   background: rgba(31, 107, 92, 0.16) !important;
   border-color: rgba(31, 107, 92, 0.3) !important;
   color: #123d35 !important;
-  outline: none;
+}
+
+.ll-vocab-lesson-page .ll-vocab-lesson-word-options-trigger:focus-visible {
+  outline: 3px solid #1f6b5c !important;
+  outline-offset: 2px;
 }
 
 .ll-vocab-lesson-word-options-trigger__icon {
@@ -166,7 +170,8 @@
   border-color: rgba(46, 42, 36, 0.16) !important;
   box-shadow: 0 10px 20px rgba(46, 42, 36, 0.14) !important;
   color: #1f1a15 !important;
-  outline: none;
+  outline: 3px solid #1f6b5c !important;
+  outline-offset: 2px;
   transform: translateY(-1px);
 }
 
@@ -206,6 +211,10 @@
   width: 100%;
 }
 
+.ll-vocab-lesson-word-options-modal__frame[hidden] {
+  display: none;
+}
+
 .ll-vocab-lesson-word-options-modal__loading {
   align-items: center;
   background: #ffffff;
@@ -224,6 +233,70 @@
 
 .ll-vocab-lesson-word-options-modal__loading[hidden] {
   display: none;
+}
+
+.ll-vocab-lesson-word-options-modal__error {
+  background: #fff;
+  border: 1px solid #d8b4b4;
+  border-radius: 8px;
+  color: #5d2626;
+  left: 50%;
+  max-width: min(440px, calc(100% - 32px));
+  padding: 22px;
+  position: absolute;
+  text-align: center;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.ll-vocab-lesson-word-options-modal__error[hidden] {
+  display: none;
+}
+
+.ll-vocab-lesson-word-options-modal__error-message {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+.ll-vocab-lesson-word-options-modal__error-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.ll-vocab-lesson-word-options-modal__retry,
+.ll-vocab-lesson-word-options-modal__direct-open {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border: 1px solid #1f6b5c !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  font: inherit !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  text-decoration: none !important;
+}
+
+.ll-vocab-lesson-word-options-modal__retry {
+  background: #1f6b5c !important;
+  color: #fff !important;
+}
+
+.ll-vocab-lesson-word-options-modal__direct-open {
+  background: #fff !important;
+  color: #174f44 !important;
+}
+
+.ll-vocab-lesson-word-options-modal__retry:focus-visible,
+.ll-vocab-lesson-word-options-modal__direct-open:focus-visible {
+  outline: 3px solid #1f6b5c !important;
+  outline-offset: 2px;
 }
 
 .ll-vocab-lesson-word-options-modal__loading-dot {

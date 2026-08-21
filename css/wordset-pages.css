@@ -11074,10 +11074,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-teacher-classes__sort-button:hover,
-.ll-teacher-classes__sort-button:focus,
+.ll-teacher-classes__sort-button:focus {
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+}
+
+.ll-teacher-classes__sort-button:focus:not(:focus-visible) {
+    outline: none;
+}
+
 .ll-teacher-classes__sort-button:focus-visible {
     color: var(--ll-wp-pill-blue-text, #1d4d99);
-    outline: none;
+    border-radius: 0.18rem;
+    outline: 3px solid var(--ll-wp-pill-blue-text, #1d4d99);
+    outline-offset: 3px;
 }
 
 .ll-teacher-classes__sort-indicator {

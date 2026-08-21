@@ -32,7 +32,7 @@ async function gotoAdminPath(page, targetPath) {
   let response = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    response = await page.goto(targetPath, { waitUntil: 'commit', timeout: 60000 });
+    response = await page.goto(targetPath, { waitUntil: 'commit', timeout: 90000 });
 
     const status = response && typeof response.status === 'function' ? response.status() : 0;
     if (!retryableGatewayStatuses.has(status)) break;

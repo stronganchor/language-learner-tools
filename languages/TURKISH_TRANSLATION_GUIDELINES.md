@@ -61,9 +61,14 @@ Run these searches before finishing a translation pass:
 ```bash
 rg -n 'hesabınız|şifreniz|izniniz|yapın|misiniz|musunuz|unuz|ünüz' languages/ll-tools-text-domain-tr_TR.po
 rg -n 'kelime kümes|sözcük kümes|[Ss]özcük [Tt]ür|kelime görünt|\bSınav\b|\bsınav\b|msgstr "Word Audio"|Flashcard Görüntü|Müdür|sümüklü|İmzalandı|[Hh]oparlör|[Öö]zgeçmişi dışa aktar|\{sayfa\}' languages/ll-tools-text-domain-tr_TR.po
+rg -n '\b(?:bulun|kullanın|tutun|ekleyin|yenileyin|yapıştırın|belirleyin)\b|\bsözcük\b' languages/ll-tools-text-domain-tr_TR.po
 ```
 
-Manually review matches. Some hits may be false positives, but these searches catch most tone/glossary regressions quickly.
+Manually review matches against the corresponding English `msgid`. These are a
+candidate queue, not safe global replacements: an English source can address
+multiple people, and `sınav` is correct when the source really means an exam
+(for example, “not verified exam grades”). Passive prompts such as `silinsin
+mi?` are not automatically formal-address defects.
 
 ## Rebuild Locale Files
 

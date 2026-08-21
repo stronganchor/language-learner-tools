@@ -3626,6 +3626,21 @@ msgstr "Si è verificato un errore. Riprova, per favore."
 msgid "Refresh"
 msgstr "Aggiorna"
 
+#. ll-tools-public-key: fa38f80b2a6f042e627153f8df2c5067403b55e7
+#: includes/shortcodes/quiz-pages-shortcodes.php:2384
+msgid "The quiz loading request timed out."
+msgstr "La richiesta di caricamento del quiz è scaduta."
+
+#. ll-tools-public-key: 620d377f124108ef38b2376bfae34a32ae9a03b7
+#: includes/shortcodes/quiz-pages-shortcodes.php:2385
+msgid "The quiz could not be loaded yet."
+msgstr "Non è stato ancora possibile caricare il quiz."
+
+#. ll-tools-public-key: 4665081de99b0314141ba440c0a381132e9b1a5a
+#: includes/shortcodes/quiz-pages-shortcodes.php:2386
+msgid "Quiz loading is taking longer than expected."
+msgstr "Il caricamento del quiz sta richiedendo più tempo del previsto."
+
 #. ll-tools-public-key: 04b31b0797f42f13bd59554485ccb7eda53417b0
 #: includes/shortcodes/quiz-pages-shortcodes.php:3299
 msgid "No quizzes found."

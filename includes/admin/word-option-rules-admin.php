@@ -1824,7 +1824,7 @@ function ll_render_word_option_rules_admin_page() {
     if ($is_iframe) {
         $wrap_class .= ' ll-tools-word-options--iframe';
     }
-    echo '<div class="' . esc_attr($wrap_class) . '">';
+    echo '<div class="' . esc_attr($wrap_class) . '" data-ll-word-options-ready="1">';
 
     if ($is_iframe) {
         echo '<div class="ll-tools-word-options-hero">';

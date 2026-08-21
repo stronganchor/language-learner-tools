@@ -1,27 +1,115 @@
 # Maintenance Backlog
 
-Updated August 12, 2026 after revalidating the July 31 audit against the current
-repository and fixing every still-actionable item. The August 12 work moves
-schema repair and legacy IPA cleanup out of public request work, rejects
-oversized study payloads before decoding/hydration, completes word-editor and
-recorder dialog behavior, centralizes invitation and multisite registration
-contracts, corrects flat-category copy, and strengthens translation and
-compatibility coverage.
+Updated August 21, 2026 after the weekly review and focused maintenance
+follow-ups for plugin 6.7.26. The current pass adds atomic public admission,
+bounded auth and event/report inputs, recoverable asynchronous UI, compare-and-set review-note
+autosave, idempotent Audio Processor deletion, a non-mutating source-to-POT
+freshness gate, native LMS REST documentation, and broader WordPress-backed
+browser coverage. Final full-suite and post-freeze catalog validation is
+complete locally: the standard PHPUnit suite, all eight serial Playwright
+shards, source/POT freshness, core catalogs, and active public-locale parity
+are accounted below. No live-site or real-provider check was run.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## Current Short List
 
-The active maintenance list is narrowed to changes that need product,
-compatibility, storage, live evidence, or human-language judgment. Remaining
-work is native review of machine-assisted German and residual Turkish
-admin/formal copy, any future decision to remove externally callable
-compatibility helpers, and a durable lesson-map materializer only if production
-measurements justify replacing the winning cold full scan. Keep new
-performance work evidence-led and scoped to a measured growth dimension.
+The active maintenance list is narrowed to work that needs product,
+compatibility, schema/backfill, live evidence, credentials, or human-language
+judgment:
+
+- Native review of machine-assisted German and residual Turkish admin/formal
+  copy. Automated completeness and curated high-confidence regressions do not
+  establish native fluency across the full catalogs.
+- Real Google OAuth/provider sandbox acceptance. The local browser fixture now
+  covers safe unconfigured and mocked connected states, but no local test can
+  authorize Marketplace, CourseWork, or grade-passback claims.
+- A decision on whether legacy progress-event extension keys should be replaced
+  by strict per-event allowlists. Current exact byte/node/depth bounds preserve
+  compatibility; narrowing accepted keys needs producer/external-client review.
+- A normalized teacher-class membership table only if measured class size,
+  deserialization cost, or assignment latency justifies a dual-write/backfill
+  migration.
+- Route/module splitting only after profiling identifies a real runtime or
+  ownership problem; line count alone is not page-load evidence.
+- Any future removal of externally callable compatibility helpers, plus a
+  durable lesson-map materializer only if production measurements justify
+  replacing the winning cold full scan.
+
+Keep performance work evidence-led and scoped to a measured growth dimension.
+The local Google Classroom and authorized-private-wordset browser gaps are now
+closed with controlled fixtures; live provider/site assertions remain outside
+the normal regression suite.
+
+### Current verification inventory (August 21)
+
+- `PublicUiTranslationManifestTest` now includes a database-free canonical
+  source/POT key comparison backed by a temporary WP-CLI extraction. The
+  standalone command is `php scripts/check-i18n-source-pot.php`; it must be
+  green after the catalog refresh and before catalog-count or locale-coverage
+  checks are accepted. The source-frozen POT and complete Turkish/German core
+  catalogs contain 6,278 canonical keys each; the active public manifest and
+  all eight active tier-2 locales pass 796/796, with 1,119 expected compiled
+  public entries per locale.
+- The maintenance browser contract owns both automation REST documentation and
+  all eight routes registered by `includes/api/lms-rest.php`.
+- The WordPress-backed teacher Classes invite scenario covers latest Practice
+  score/date, 30-day attempt counts, dynamic column indexes, descending order,
+  `aria-sort`, and focus retention. It requires the serial Local Playwright
+  environment and admin credentials.
+- Final Playwright discovery lists **692 tests in 108 files**. Eight serial
+  shards accounted for every case: 688 passed on their initial shard, one
+  opt-in seeded performance benchmark skipped as expected, and three concrete
+  failures were corrected and passed focused reruns. The route normalization,
+  cache-warming Retry, and teacher-login/cleanup corrections therefore produce
+  a final accounting of 691 passing cases plus one expected skip.
+- Final PHPUnit result: **2,285 tests, 58,726 assertions, 8 expected skips** in
+  11 minutes 30 seconds. The standard complete suite exited successfully.
 
 ## Recently Closed
+
+- August 21 documentation, localization-contract, and teacher-report coverage:
+  source gettext keys are compared with the checked-in POT without regenerating
+  repository catalogs; the REST documentation contract now includes the eight
+  native LMS assignment/attempt routes and their cookie-authenticated ownership
+  boundary. The teacher Classes browser fixture now records canonical
+  `mode_session_complete` Practice results and verifies the two new report
+  columns. Its sort assertions resolve each header's live `cellIndex`, closing
+  the stale hard-coded index failure introduced when the Practice columns were
+  inserted, and also cover sort state plus retained button focus.
+
+- August 21 public admission and auth resource protection: shared counters use
+  atomic fixed-window reservations and exact-unit refunds; public login,
+  registration, username suggestions, offline login/sync, lazy cards, and vocab
+  grids bound raw inputs before expensive parsing, hashing, or queries. Generic
+  rejected-request feedback reuses a bounded stable token while ordinary
+  feedback remains one-shot.
+
+- August 21 progress/report protection: event payloads enforce exact encoded
+  byte, dynamic node, and depth budgets before and after enrichment while still
+  supporting the 1,000-category session contract. Teacher Practice reporting
+  replaces per-learner query round trips with adaptive bounded UNION batches,
+  excludes payloads above 16 KiB, keeps the aggregate query near 24 MiB, and
+  shows translated unavailable cells when a query fails instead of false zeroes.
+
+- August 21 asynchronous recovery and autosave integrity: content completion,
+  quiz-catalog warming, the Word Options modal, and other unavoidable waits now
+  settle into translated Retry/error states with generation fences and focus
+  recovery. Text-document review notes use one-flight/latest-queued browser
+  saves and server compare-and-set retries so concurrent edits cannot silently
+  overwrite each other.
+
+- August 21 Audio Processor deletion: processing and deleting share one mutex;
+  bulk work uses bounded concurrency and deadlines; the server uses user-scoped
+  pending/deleted receipts plus exact-owner leases, deletes the post before
+  unlinking files, preserves a vetoed live recording, and makes a retry
+  idempotent.
+
+- August 21 browser gap closure: local WordPress-backed fixtures now cover the
+  Google Classroom unconfigured/mocked-connected admin states and private
+  wordset access through assigned-manager lazy hydration, unassigned-user 404,
+  and anonymous 404. They intentionally make no live-provider claim.
 
 - August 12 schema, migration, and study-request protection:
   offline-session, learner-progress, dictionary, wordset-category-search, and
@@ -496,6 +584,19 @@ performance work evidence-led and scoped to a measured growth dimension.
   taxonomy admin queues a notice and continues; unify it only after choosing an
   explicit mutation/error policy. Smaller game/font settings duplication is a
   low-risk future cleanup.
+- Earlier audit item 3 meant the Teacher Practice report-query scaling risk.
+  The report no longer issues one event-history query per
+  learner or accepts large event payloads into each batch. It now queries only
+  the already-paged roster with adaptive UNION batches, a 500+1 row sentinel,
+  a 16 KiB payload filter, and an approximately 24 MiB aggregate-query budget.
+  That is the bounded solution for the current Classes page, so no product or
+  schema decision is needed now. The remaining rows-examined risk is that the
+  existing `(user_id, wordset_id, created_at)` index cannot seek directly on
+  the later `event_type`, `mode`, and payload-size filters. If production
+  latency becomes material, capture `EXPLAIN`, row cardinality, and request
+  timing first; use that evidence to choose an online composite index or a
+  durable Practice summary. Either choice adds schema, backfill, invalidation,
+  and rollback work and should not be made from local file size alone.
 - Teacher-class membership remains duplicated in serialized class/user meta.
   Large classes still deserialize the complete member-ID array for counts and
   pass it to assignment exclusion before bounded progress hydration. A future
@@ -503,6 +604,11 @@ performance work evidence-led and scoped to a measured growth dimension.
   keyset progress/assignment queries while preserving a tested dual-write,
   backfill, and rollback window; do not replace the bounded admin path with a
   full progress scan to recover class-wide page metrics.
+- Audio Processor deletion captures paths before deleting the post, but an
+  unlink failure after a successful post deletion can still leave an orphaned
+  file. Keep that rare cleanup out of the interactive request unless it is
+  observed in operation; if needed, add a bounded uploads audit/cleanup job with
+  dry-run and explicit path-scope verification.
 - Offline app service-worker/install behavior is still a future coverage item
   only if a browser PWA/service-worker runtime is added; the current offline app
   path is a local-first web/APK shell and does not register a service worker.
@@ -547,12 +653,30 @@ performance work evidence-led and scoped to a measured growth dimension.
      `/learn/<wordset>/...`, with old root pretty URLs preserved through narrow
      redirects.
 
-2. Split the largest modules along existing ownership boundaries.
-   - `includes/pages/wordset-pages.php` (roughly 27k lines as measured July 17, 2026): routing, teacher classes, settings, render helpers, analytics payloads, games launch, and mixed-grid rendering are packed together.
-   - `includes/admin/export-import.php` (roughly 16.6k lines as measured July 17, 2026): import preview, undo, export, offline-ish payload work, and admin rendering should become smaller services/controllers.
-   - `includes/shortcodes/word-grid-shortcode.php` (roughly 11.3k lines as measured July 17, 2026): rendering, inline edit handling, media selection, REST/AJAX helpers, and lesson-grid behavior need clearer boundaries.
-   - `includes/shortcodes/audio-recording-shortcode.php` (roughly 10.2k lines as measured July 17, 2026): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
-   - `js/wordset-pages.js` and `js/wordset-games.js` are both large enough to make targeted game/page work riskier than it needs to be.
+2. Earlier audit item 11 meant profiling large modules before deciding whether
+   to split them; it did not ask for an immediate rewrite. Profile, then split
+   the largest modules along existing ownership boundaries.
+   - No split decision is needed now. First capture representative route asset,
+     parse/execute, and request profiles; only then decide whether a split is
+     justified and which ownership boundary should move.
+   - File size is a maintainability signal, not evidence that a bundle or PHP
+     include is slowing a specific page. Before splitting, capture route-level
+     enqueued assets, transfer size, parse/execute cost, request duration, and
+     the ownership/dependency graph for WordPress handles and localized globals.
+   - `includes/pages/wordset-pages.php` combines routing, teacher classes,
+     settings, render helpers, analytics payloads, game launch, and mixed-grid
+     rendering.
+   - `includes/admin/export-import.php` combines import preview, undo, export,
+     offline payload work, jobs, and admin rendering.
+   - `includes/shortcodes/word-grid-shortcode.php` combines rendering, inline
+     editing, media selection, REST/AJAX helpers, and lesson-grid behavior.
+   - `includes/shortcodes/audio-recording-shortcode.php` combines recorder UI,
+     queue construction, uploads, prompt-card handling, and translation helpers.
+   - `js/wordset-pages.js` and `js/wordset-games.js` should be split only at a
+     measured route-cost or clear ownership boundary. Preserve handle names,
+     dependencies, localized data ownership, and route-level browser behavior;
+     verify that a split does not turn one request into duplicate downloads or
+     initialization.
 
 3. Continue the tier-2 public UI translation rollout deliberately.
    - Run a QA pass over `languages/tier2-public-ui-strings.json` to reduce the

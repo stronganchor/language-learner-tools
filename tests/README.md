@@ -161,14 +161,17 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 For the database-free core full-catalog locale gates, run:
 
 ```bash
+php scripts/check-i18n-source-pot.php
 php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
 php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --details --json
 ```
 
-This treats missing, blank, partial, fuzzy, stale, duplicate, structurally
-invalid, or uncompiled current POT entries as failures. It compares compiled
-MO and PHP messages with each PO; `PublicUiTranslationManifestTest.php` also
-verifies that every active entry for each locale configured under
+The source-POT guard asks WP-CLI to extract into the system temporary directory
+and compares canonical context/msgid/plural keys without changing `languages/`.
+The locale checks treat missing, blank, partial, fuzzy, stale, duplicate,
+structurally invalid, or uncompiled current POT entries as failures. They
+compare compiled MO and PHP messages with each PO;
+`PublicUiTranslationManifestTest.php` also verifies that every active entry for each locale configured under
 `core_full_locales` in `languages/tier2-public-ui-sources.php` reaches the
 compiled runtime catalog.
 
@@ -250,7 +253,7 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Legacy Word Images fixer batching, durable cursor readback, and scan-free page rendering.
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
-- Teacher-class integration coverage observes the legacy admin query shapes, proving bounded plus-one class/account pages, deterministic ID tie-breakers, globally ordered bounded learner-progress hydration, empty/stale-page normalization, continuation links, and redirect-state preservation.
+- Teacher-class integration coverage observes the legacy admin query shapes, proving bounded plus-one class/account pages, deterministic ID tie-breakers, globally ordered bounded learner-progress hydration, empty/stale-page normalization, continuation links, and redirect-state preservation. `UserProgressPracticeResultTest` separately proves canonical formative result storage, the 16 KiB SQL payload guard, the default 500+1 per-learner scan, adaptive two-to-one learner batching under the approximately 24 MiB query budget, and `query_failed` propagation to translated unavailable cells rather than false zero data.
 - `LmsAssignmentFoundationTest` covers exact InnoDB schema/readiness and public schedule-only admission, bounded private manifests, immutable publication, class owner/member/window/attempt fences, idempotent first answers and finalization, server-derived scoring, first/latest/best grade selection, real-commit versus nested-savepoint delivery scheduling, and bounded privacy export/erasure.
 - `LmsGradeDeliveryTest` covers strict adapter and hash-only mapping contracts, no-destination finalization, deduplicated/corrected-grade enqueue, exact-owner leases and takeover, stale-grade suppression, bounded retry/`Retry-After`, diagnostic redaction and response-body rejection, repair/runtime rescheduling, the twenty-row worker cap, neutral exports, and no-network erasure that preserves live-leased audit rows.
 - `GoogleClassroomFoundationTest` uses mocked fixed-origin HTTP only. It covers authenticated credential envelopes, one-use OAuth state/PKCE, least-privilege scope and redirect checks, scheduled bounded OAuth-state retention, owned encrypted connections, account-deletion fencing, bounded active-course pagination, exact disconnect/privacy behavior, disabled writes, database-authoritative DRAFT CourseWork/readback, unambiguous submissions, and forged/stale-grade rejection before `draftGrade` PATCH.
@@ -264,6 +267,14 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   overlay, speaker-ID redaction, quiz-eligible option-pool refill past earlier
   invalid rows (including canonical prompt-card answers), completed-generation
   fallback after a fast-window underfill, and cache-hit bypass behavior.
+- `LoginWindowLoginTest`, `LoginWindowRegistrationTest`, and
+  `OfflineAppSyncTest` cover the same fixed-window atomic admission contract for
+  public authentication/sync, exact-reservation refunds, raw byte bounds before
+  password hashing or registration lookup, one bounded username-collision
+  query, stable generic rejected-request feedback, one-shot ordinary feedback,
+  and bounded normalized redirect payloads. Lazy-card and vocab-grid integration
+  coverage protects their dual-scope cold-miss reservations and exact-owner
+  build leases.
 - `AutomationRestApiTest` covers aggregate report-summary counts plus bounded review-note and cross-post-type interlinear pagination; interlinear list payloads are omitted by default while exact-lesson reads retain the payload-on default.
 - `RestPasswordAuthAdmissionTest` covers coarse direct-peer plus peer/login raw-password admission, rotating-login resistance, generic failures, successful reservation refunds, and cleanup namespace registration.
 - `PublicStaticCacheTest` verifies front-end login/register/feedback query presence bypasses both warm public-cache reads and cold captures, emits a private `no-store` policy, preserves the ordinary baseline cache, and keeps the plain anonymous wordset route cacheable.
@@ -271,11 +282,16 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `MediaProxyFallbackCacheTest` covers bounded disk fallback storage, stale/contended service, failure backoff, exact-owner publishing, cache pruning, and attachment/scheduled cleanup.
 - `UserProgressRetentionTest` covers primary-key-bounded activity-retention batches, fixed high-water generations that cannot be starved by continuous inserts, advisory-lock overlap exclusion, cursor/continuation progress, preservation and later revisiting of fresh rows, ceiling/candidate read-error fail-closed behavior, deactivation cleanup, and the hard batch cap.
 - `UserProgressSchemaTest` and `UserProgressAtomicityTest` cover full progress-table column/index verification and repair, current installed/verified marker publication, marker-only runtime admission without repeated schema inspection, InnoDB preflight, and transactionally atomic ledger/derived writes. A failed full-width event-UUID index repair must leave the markers unpublished and block batch, server, and offline event mutations with retryable `progress_schema_unavailable` state while state-only offline sync remains available.
+- `UserProgressEventPayloadGuardTest` covers the exact encoded 64 KiB limit,
+  depth and dynamic node ceilings, JSON escape expansion/non-finite values,
+  post-enrichment rechecks, and a supported 1,000-category Practice completion
+  payload.
 - `ExampleSentenceMigrationBatchTest` covers durable word/recording keyset batches under one hard work budget, cursor advancement only after a word completes, continuation/completion publication, and source-read retry without cursor loss; `ExampleSentenceMigrationCapabilityTest` keeps automatic startup restricted to administrators.
 - `WordsetPageInactiveCategoryCardsTest` covers persisted preview cursors, same-item retry, bounded continuation, contention, and exact-owner lease renewal/release; `WordsetPageWarmLessonMapTest` covers single-owner rebuilds and immediate last-known-good service.
 - `FlashcardShellRendererTest` and `QuizPagePostTypeTest` cover shared/standalone dialog semantics and translated iframe recovery configuration.
-- `SecurityHardeningRegressionTest` covers the hosted-STT pre-read and bounded-read audio-size ceiling, and `AudioProcessorQueuePaginationTest` covers signed user/tab keyset cursors with the legacy direct deep-page fallback.
-- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export/archive boundary checks, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
+- `SecurityHardeningRegressionTest` covers the hosted-STT pre-read and bounded-read audio-size ceiling plus Audio Processor delete veto preservation, user-scoped idempotent receipts, pending-receipt recovery, exact-owner lease takeover/release, and post-first/file-second deletion ordering. `AudioProcessorQueuePaginationTest` covers signed user/tab keyset cursors with the legacy direct deep-page fallback.
+- `InternalReviewNotesTest` covers bounded compare-and-set retries, same-key conflict detection, different-key preservation, idempotent retries, and failed-write readback for text-document review notes.
+- Additional integration tests cover prompt cards, content lessons, teacher classes, wordset games availability and pool filtering, shared flashcard shell rendering, audio credit grid cache batching/stale-lock fallback, image copyright grid privacy/resource guards, import/export/archive boundary checks, media proxy behavior, user progress recommendations, wordset progress reset actions, and more.
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -305,7 +321,9 @@ expanded the suite; the July 10, 2026 full discovery listed 390 tests in 90
 files, the July 17 discovery listed 436 tests in 95 files, the July 24
 discovery listed 453 tests in 95 files, and a July 31, 2026 no-install
 discovery lists 479 tests in 97 spec files. The August 6 release audit
-exercised 597 tests.
+exercised 597 tests. The August 21 source-frozen discovery listed 692 tests in
+108 files; the final accounting was 691 passing cases and one expected opt-in
+performance skip, including focused green reruns for three corrected failures.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
@@ -369,6 +387,8 @@ Representative E2E coverage areas:
     playable, and prompt-audio selection uses helpers loaded after the module.
 - `tests/e2e/specs/flashcard-category-catalog-pagination.spec.js`
   - Verifies the standalone category picker fetches later catalog pages only after Load more, sends the continuation offset and wordset scope, preserves checked categories, and hides the control at the end.
+- `tests/e2e/specs/quiz-pages-catalog-warmup.spec.js`
+  - Verifies cold quiz catalogs continue through bounded asynchronous batches, can progress beyond twelve batches, and convert a stalled request into translated Retry state whose replacement generation fences the stale response.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
   - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, hide empty captions cleanly, and stay inside small embedded iframe viewports without shrinking large iframe/desktop cards; white prompt images retain a visible shadow boundary on mobile and desktop.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
@@ -395,6 +415,8 @@ Representative E2E coverage areas:
   - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, exercises the sync panel sign-in/login-failure/manual-sync/sync-failure/disconnect flow against a fake progress tracker, and applies remote sync snapshots to selected categories, progress sorting, next recommendations, and synced study preferences.
 - `tests/e2e/specs/offline-app-sync-error-wp.spec.js`
   - Seeds a real WordPress offline-app bundle, signs in through `ll_tools_offline_app_login`, forces one WordPress `ll_tools_offline_app_sync` conflict response, and verifies local pending progress, sane connected state, and manual retry through the real sync handler. This closes the former WordPress-backed sync error-fixture gap; only genuinely new server conflict semantics need new cases.
+- `tests/e2e/specs/google-classroom-admin-ui.spec.js`
+  - Uses a local WordPress-backed fixture to verify safe unconfigured and locally mocked connected states, configuration-only secrets, bounded active-course presentation, write controls remaining unavailable, same-origin form actions, redacted failures, and zero browser requests to Google provider hosts. It is not live OAuth or grade-passback proof.
 - `tests/e2e/specs/practice-option-constraints.spec.js`
   - Verifies Practice mode answer option counts/constraints across category setups, that failed round-local image distractors can be excluded while a healthy reserve is selected from the expanded hydrated pool, and that option preloads skip prompt-only distractor media while retaining audio/image media required by the answer type.
 - `tests/e2e/specs/quiz-launch-config.spec.js`
@@ -426,6 +448,8 @@ Representative E2E coverage areas:
   - Verifies main wordset category search uses the durable tokenized async word/translation lookup while keeping provisional local/category-shell matches visible and usable throughout the 120-second bounded preparation retry, exposing an explicit error/Retry state instead of a false empty result, using a pathname-only one-shot recovery reload whose marker is stripped after the fresh page loads, stopping irrelevant warming when a visible result navigates, pausing it while a result quiz owns the popup loader, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
+- `tests/e2e/specs/private-wordset-access-wp.spec.js`
+  - Seeds a private wordset with enough categories to require lazy hydration, proves the assigned manager receives the route and complete bounded card set, and proves an unassigned user plus an anonymous visitor receive a 404 without issuing the private lazy-card request.
 - `tests/e2e/specs/wordset-page-progress-loading.spec.js`
   - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial Practice continuation. A separate 1,505-ID regression requires Listen, Gender, and Self Check to use that same bounded first-chunk startup; Listen and Self Check append verified chunks into uninterrupted sessions, while Gender carries homogeneous level metadata, pauses after Level 1, and permits automatic Level 2/3 continuation. Learning also proves first-chunk-only startup with explicit results-stage continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
@@ -438,14 +462,20 @@ Representative E2E coverage areas:
   - Verifies a limited `audio_recorder` user can upload prompt-card prompt audio through the real WordPress AJAX handler, stores the prompt-audio attachment, and cannot upload to an inaccessible prompt card.
 - `tests/e2e/specs/audio-processor-queue-pagination.spec.js`
   - Verifies Audio Processor tabs load bounded queue pages lazily through returned keyset cursors, preserve page-local selection and tab-specific cursor state, restore a processed recording's return page, and choose the first non-empty work tab when the default queue is empty.
+- `tests/e2e/specs/audio-processor-delete-all.spec.js`
+  - Verifies bulk review deletion caps concurrency, keeps only failed recordings selected for Retry, applies request deadlines, publishes accessible busy/status state, and shares one deletion mutex with individual deletion and in-flight audio processing.
 - `tests/e2e/specs/audio-upload-speaker-search.spec.js`
   - Verifies bulk audio upload searches a bounded manager-visible speaker endpoint and exposes selected, empty, and request-error states without preloading every account.
 - `tests/e2e/specs/content-lesson-route-media.spec.js`
   - Verifies a local WordPress-backed content lesson route plays a real uploaded WAV with range support and finite duration, seeks from a transcript cue, and renders notes plus its related vocab lesson link. The same fixture verifies a corpus collection page and reader, public content-index pagination/accessibility, ranked numeric order/translations/pagination, and a retained-shadow permanent redirect.
 - `tests/e2e/specs/content-lesson-progress.spec.js`
-  - Verifies completion autosave sends one canonical request, exposes saving/saved accessible state, updates the completion control only after success, and preserves the prior state when saving fails.
+  - Verifies completion autosave sends one canonical request, exposes saving/saved accessible state, updates the completion control only after success, preserves the prior state when saving fails, and turns a timeout into explicit Retry while fencing the stale attempt.
 - `tests/e2e/specs/teacher-classes-frontend.spec.js`
-  - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, progress-table sorting, and learner removal, plus legacy wp-admin class/account search and redirect-state preservation through deletion.
+  - Verifies frontend teacher-class workflows including teacher-role create/delete, selected-class redirects, signup invite registration, admin assignment of an existing learner, Practice score/date and 30-day-attempt rendering, dynamic-column progress sorting with `aria-sort` and retained focus, learner removal, and legacy wp-admin class/account search/redirect-state preservation.
+- `tests/e2e/specs/teacher-sort-focus-visible.spec.js`
+  - Verifies sortable teacher headers retain an explicit keyboard-visible focus indicator under hostile theme styles.
+- `tests/e2e/specs/text-document-review-notes-autosave.spec.js`
+  - Verifies one-flight/latest-queued autosave, saved-value CAS bases, server-normalization reconciliation without a save loop, timeout/late-response fencing, and visible same-key conflicts without automatic overwrite.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
   - Verifies marking a transcription as reviewed updates the row in place without refreshing the filtered result list out from under the current admin session; review responses preserve text/IPA typed after the request began; duplicate word-note editors serialize latest-value-wins autosaves; and dirty rows display the detached editor loading shell immediately, save once before fetching, advance their saved baseline cleanly, and release a timed-out prepared shell without aborting or duplicating the ambiguous save.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
@@ -454,10 +484,14 @@ Representative E2E coverage areas:
   - Verifies the vocab lesson word editor keeps its save/cancel footer visible while the form body scrolls on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
   - Verifies ordinary deferred lesson shells expose image-sized shimmer cards before hydration, enforce the AJAX timeout, hydrate legacy grids, and serially append prepared large-lesson pages without overlapping requests. Staff cards open the detached word editor only after word or recording edit actions, and hidden feedback stays hidden under theme overrides. PHP integration coverage verifies bounded public/staff order preparation, signed cursor pages, manual order, staff draft/hidden-card preservation, page boundaries, lightweight admin cards, and the initial large-count DOM ceiling.
+- `tests/e2e/specs/vocab-lesson-word-options-modal.spec.js`
+  - Verifies the Word Options iframe modal traps focus, isolates/restores page state, requires the same-origin editor readiness marker, and exposes translated deadline, Retry, and direct-open recovery instead of spinning forever.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
 - `tests/e2e/specs/maintenance-doc-contracts.spec.js`
   - Verifies source/docs contracts that are cheap to check in the Playwright runner, including registered public shortcodes being documented in `README.md`, `CODEBASE_ARCHITECTURE.md` matching direct bootstrap include order, high-confidence hardcoded UI-string contexts using WordPress i18n wrappers, wordset-games public JS avoiding duplicated English `i18n` fallback strings, and Turkish PO high-risk glossary/tone checks.
+- `tests/e2e/specs/frontend-recovery-localization-wiring.spec.js`
+  - Verifies new frontend timeout/retry/status copy is wired through WordPress localization and every audio fallback key has a server-side gettext source.
 - Known E2E coverage gaps still worth adding:
   - Prompt-card recorder remaining gaps are real browser microphone permission permutations and future data-contract changes. The local WordPress-backed queue fixture, limited-recorder real upload regression, self-contained prompt-card upload/advance regression, prompt-card quiz payload coverage, and lesson-grid browser coverage are already represented.
   - Real browser permission-prompt permutations and live hosted API behavior under real credentials/latency beyond the mocked Speaking Practice microphone-denial, record/transcribe/score, and hosted transcribe/score failure flows.

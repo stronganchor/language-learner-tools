@@ -818,6 +818,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $first_login_data = is_array($first_login['data'] ?? null) ? $first_login['data'] : [];
             $this->assertNotSame('', (string) ($first_login_data['auth_token'] ?? ''));
             $this->assertSame($user_id, (int) (($first_login_data['user'] ?? [])['id'] ?? 0));
+            $this->assertSame(0, (int) ll_tools_offline_app_get_login_rate_limit_status($ip)['attempts']);
 
             $_POST = [
                 'identifier' => $username,
@@ -837,13 +838,13 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $this->assertFalse((bool) ($second_login['success'] ?? true));
             $this->assertSame('Invalid login.', (string) (($second_login['data'] ?? [])['message'] ?? ''));
             $limited_status = ll_tools_offline_app_get_login_rate_limit_status($ip);
-            $this->assertTrue((bool) ($limited_status['limited'] ?? false));
-            $this->assertSame(2, (int) ($limited_status['attempts'] ?? 0));
+            $this->assertFalse((bool) ($limited_status['limited'] ?? true));
+            $this->assertSame(1, (int) ($limited_status['attempts'] ?? 0));
             $this->assertSame(2, (int) ($limited_status['limit'] ?? 0));
 
             $_POST = [
                 'identifier' => $username,
-                'password' => $password,
+                'password' => 'wrong-password-again',
             ];
             $_REQUEST = $_POST;
 
@@ -857,9 +858,28 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             }
 
             $this->assertFalse((bool) ($third_login['success'] ?? true));
+            $this->assertSame('Invalid login.', (string) (($third_login['data'] ?? [])['message'] ?? ''));
+            $this->assertSame(2, (int) ll_tools_offline_app_get_login_rate_limit_status($ip)['attempts']);
+
+            $_POST = [
+                'identifier' => $username,
+                'password' => $password,
+            ];
+            $_REQUEST = $_POST;
+
+            try {
+                $blocked_login = $this->run_json_endpoint(static function (): void {
+                    ll_tools_offline_app_login_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertFalse((bool) ($blocked_login['success'] ?? true));
             $this->assertSame(
                 'Too many login attempts. Please try again in a few minutes.',
-                (string) (($third_login['data'] ?? [])['message'] ?? '')
+                (string) (($blocked_login['data'] ?? [])['message'] ?? '')
             );
         } finally {
             ll_tools_offline_app_reset_login_attempts($ip);
@@ -984,6 +1004,59 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             } else {
                 $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
             }
+        }
+    }
+
+    public function test_offline_sync_refunds_token_reservation_when_ip_admission_fails(): void
+    {
+        $ip = '198.51.100.29';
+        $first_token = 'llapp.1.first.token';
+        $second_token = 'llapp.1.second.token';
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 10;
+            $config['resource_unit_limit'] = 100;
+            $config['ip_request_limit'] = 1;
+            $config['ip_resource_unit_limit'] = 100;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        try {
+            ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
+            ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+
+            $first = ll_tools_offline_app_check_sync_throttle($first_token, 1, true, $ip);
+            $blocked = ll_tools_offline_app_check_sync_throttle($second_token, 1, true, $ip);
+            $second_status = ll_tools_offline_app_get_sync_throttle_status($second_token, 1, $ip);
+
+            $this->assertFalse($first['limited']);
+            $this->assertTrue($blocked['limited']);
+            $this->assertSame('ip', $blocked['scope']);
+            $this->assertSame(0, (int) (($second_status['token'] ?? [])['requests'] ?? -1));
+            $this->assertSame(0, (int) (($second_status['token'] ?? [])['resource_units'] ?? -1));
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
+            ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+        }
+    }
+
+    public function test_offline_auth_tokens_are_byte_bounded_before_validation_or_throttle_hashing(): void
+    {
+        $valid_shape = 'llapp.1.' . str_repeat('a', 32) . '.' . str_repeat('B', 64);
+        $oversized = str_repeat('x', ll_tools_offline_app_auth_token_max_bytes() + 1);
+
+        $this->assertSame($valid_shape, ll_tools_offline_app_normalize_auth_token($valid_shape));
+        $this->assertSame('', ll_tools_offline_app_normalize_auth_token($oversized));
+        $this->assertSame('', ll_tools_offline_app_sync_token_identifier($oversized));
+        $this->assertNull(ll_tools_offline_app_authenticate_token($oversized, false));
+
+        $previous_post = $_POST;
+        try {
+            $_POST = ['auth_token' => $oversized];
+            $this->assertSame('', ll_tools_offline_app_request_auth_token());
+        } finally {
+            $_POST = $previous_post;
         }
     }
 
