@@ -122,7 +122,7 @@ msgid "%1$s | %2$s"
 msgstr "%1$s | %2$s"
 
 #. translators: 1: Admin page title, 2: Site name
-#: includes/admin/admin-dashboard-menu.php:1156
+#: includes/admin/admin-dashboard-menu.php:1158
 #, php-format
 msgid "%1$s ‹ %2$s — WordPress"
 msgstr "%1$s ‹ %2$s — WordPress"
@@ -495,6 +495,7 @@ msgstr "Seviye 1'de hızlı bir gözden geçirme döngüsü yardımcı olacaktı
 msgid "Action"
 msgstr "Eylem"
 
+#: includes/admin/google-classroom-integration.php:282
 #: includes/admin/missing-audio-admin-page.php:638
 #: includes/admin/missing-audio-admin-page.php:941
 #: includes/admin/orphan-media-admin.php:1826
@@ -517,7 +518,7 @@ msgstr "Ekle"
 msgid "Add %s"
 msgstr "%s ekle"
 
-#: includes/admin/admin-dashboard-menu.php:353
+#: includes/admin/admin-dashboard-menu.php:355
 msgid "Add and edit vocabulary entries, meanings, and metadata."
 msgstr "Kelime girişleri, anlamlar ve meta veriler ekle ve düzenle."
 
@@ -585,7 +586,7 @@ msgstr "Semboller ekle"
 msgid "Additional gender color"
 msgstr "Ek cinsiyet rengi"
 
-#: includes/admin/admin-dashboard-menu.php:420
+#: includes/admin/admin-dashboard-menu.php:422
 msgid "Administration"
 msgstr "Yönetim"
 
@@ -593,7 +594,7 @@ msgstr "Yönetim"
 msgid "Advance to the next gender level with the same words."
 msgstr "Aynı kelimelerle bir sonraki cinsiyet seviyesine geç."
 
-#: includes/admin/admin-dashboard-menu.php:960
+#: includes/admin/admin-dashboard-menu.php:962
 #: includes/pages/wordset-pages.php:14113
 msgid "Advanced"
 msgstr "Gelişmiş"
@@ -832,8 +833,8 @@ msgstr "Bu kayıt türünü silmek istediğinden emin misin? Bu işlem geri alı
 msgid "Ascending"
 msgstr "Yükselen"
 
-#: includes/admin/admin-dashboard-menu.php:176
-#: includes/admin/admin-dashboard-menu.php:686
+#: includes/admin/admin-dashboard-menu.php:178
+#: includes/admin/admin-dashboard-menu.php:688
 #: includes/admin/api/assemblyai-api.php:19
 #: includes/admin/api/assemblyai-api.php:20
 #: includes/admin/api/assemblyai-api.php:46
@@ -975,8 +976,8 @@ msgstr "Ses başarıyla işlendi ve yayınlandı"
 msgid "Audio processing failed. You can upload the raw recording instead."
 msgstr "Ses işleme başarısız oldu. Bunun yerine ham kaydı yükleyebilirsin."
 
-#: includes/admin/admin-dashboard-menu.php:155
-#: includes/admin/admin-dashboard-menu.php:466
+#: includes/admin/admin-dashboard-menu.php:156
+#: includes/admin/admin-dashboard-menu.php:468
 #: includes/admin/audio-processor-admin.php:1343
 #: includes/admin/audio-processor-admin.php:1875
 msgid "Audio Processor"
@@ -1048,8 +1049,8 @@ msgstr "Ses yükleme doğrulaması kullanılamıyor"
 msgid "Audio ↔ Image Matcher"
 msgstr "Ses ↔ Görüntü Eşleştirici"
 
-#: includes/admin/admin-dashboard-menu.php:156
-#: includes/admin/admin-dashboard-menu.php:475
+#: includes/admin/admin-dashboard-menu.php:157
+#: includes/admin/admin-dashboard-menu.php:477
 msgid "Audio/Image Matcher"
 msgstr "Ses/Görüntü Eşleştirici"
 
@@ -1176,8 +1177,8 @@ msgstr "Toplu İçe Aktarma"
 msgid "Bulk import assumes text-to-text (prompt -> translation, answer -> word title) and publishes items by default."
 msgstr "Toplu içe aktarma metinden metne çalışır (soru -> çeviri, cevap -> kelime başlığı) ve öğeleri varsayılan olarak yayınlar."
 
-#: includes/admin/admin-dashboard-menu.php:161
-#: includes/admin/admin-dashboard-menu.php:520
+#: includes/admin/admin-dashboard-menu.php:162
+#: includes/admin/admin-dashboard-menu.php:522
 msgid "Bulk Translations"
 msgstr "Toplu Çeviriler"
 
@@ -1185,8 +1186,8 @@ msgstr "Toplu Çeviriler"
 msgid "Bulk upload audio files and create or match draft words in this word set."
 msgstr "Ses dosyalarını toplu olarak yükle ve bu kelime setinde taslak kelimeler oluştur veya eşleştir."
 
-#: includes/admin/admin-dashboard-menu.php:158
-#: includes/admin/admin-dashboard-menu.php:493
+#: includes/admin/admin-dashboard-menu.php:159
+#: includes/admin/admin-dashboard-menu.php:495
 msgid "Bulk Word Import"
 msgstr "Toplu Kelime İçe Aktarma"
 
@@ -1316,9 +1317,9 @@ msgstr "Kategoriler: %d"
 #: includes/pages/wordset-pages.php:26256
 #: includes/pages/wordset-pages.php:26264
 #: includes/post-types/prompt-card-post-type.php:1352
-#: includes/privacy.php:642
-#: includes/privacy.php:731
-#: includes/privacy.php:813
+#: includes/privacy.php:848
+#: includes/privacy.php:937
+#: includes/privacy.php:1019
 #: includes/shortcodes/audio-recording-shortcode.php:1822
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
@@ -1428,7 +1429,7 @@ msgstr "Bir konuşma parçası seç."
 msgid "Choose a plurality option."
 msgstr "Çoğunluk seçeneğini seç."
 
-#: includes/admin/admin-dashboard-menu.php:945
+#: includes/admin/admin-dashboard-menu.php:947
 msgid "Choose a tool below to run a workflow. Each card includes a quick summary to help you find the right utility at a glance."
 msgstr "Bir iş akışı çalıştırmak için aşağıdan bir araç seç. Her kart, bir bakışta doğru yardımcı programı bulmanıza yardımcı olacak hızlı bir özet içerir."
 
@@ -1594,11 +1595,11 @@ msgstr "Hatalarla tamamlandı"
 msgid "Completed with errors: %1$d saved, %2$d failed."
 msgstr "Hatalarla tamamlandı: %1$d kaydedildi, %2$d başarısız oldu."
 
-#: includes/admin/admin-dashboard-menu.php:961
+#: includes/admin/admin-dashboard-menu.php:963
 msgid "Configuration and taxonomy pages used for setup and maintenance."
 msgstr "Kurulum ve bakım için kullanılan yapılandırma ve taksonomi sayfaları."
 
-#: includes/admin/admin-dashboard-menu.php:402
+#: includes/admin/admin-dashboard-menu.php:404
 msgid "Configure global plugin behavior, languages, and operational defaults."
 msgstr "Genel eklenti davranışını, dilleri ve varsayılan çalışma ayarlarını yapılandır."
 
@@ -1619,12 +1620,12 @@ msgstr "İçe Aktarmayı Onayla"
 msgid "Confirm Import Target"
 msgstr "İçe Aktarma Hedefini Onayla"
 
-#: includes/admin/admin-dashboard-menu.php:414
+#: includes/admin/admin-dashboard-menu.php:416
 #: includes/pages/wordset-editor.php:876
 msgid "Content"
 msgstr "İçerik"
 
-#: includes/admin/admin-dashboard-menu.php:954
+#: includes/admin/admin-dashboard-menu.php:956
 msgid "Content Admin"
 msgstr "İçerik Yöneticisi"
 
@@ -1646,7 +1647,7 @@ msgstr "Devam et"
 msgid "Continue Learning"
 msgstr "Öğrenmeye Devam Et"
 
-#: includes/admin/admin-dashboard-menu.php:593
+#: includes/admin/admin-dashboard-menu.php:595
 msgid "Control grouped options and blocked pairs for quiz wrong answers."
 msgstr "Quiz yanlış cevapları için gruplanmış seçenekleri ve engellenmiş çiftleri kontrol et."
 
@@ -1895,7 +1896,7 @@ msgstr "Hesap oluştur"
 msgid "Create and link new dictionary entry"
 msgstr "Yeni sözlük girdisi oluşturma ve bağlama"
 
-#: includes/admin/admin-dashboard-menu.php:339
+#: includes/admin/admin-dashboard-menu.php:341
 msgid "Create and organize categories used to build quizzes and pages."
 msgstr "Quizler ve sayfalar oluşturmak için kullanılan kategorileri oluştur ve düzenle."
 
@@ -1909,7 +1910,7 @@ msgstr "Editör Hub Sayfası Oluşturma"
 msgid "Create learner account"
 msgstr "Öğrenci hesabı oluştur"
 
-#: includes/admin/admin-dashboard-menu.php:494
+#: includes/admin/admin-dashboard-menu.php:496
 msgid "Create many draft word posts at once from pasted text."
 msgstr "Yapıştırılan metinden aynı anda birçok taslak kelime gönderisi oluştur."
 
@@ -2030,7 +2031,7 @@ msgstr "Döngü algılandı"
 msgid "cycle detected"
 msgstr "döngü algılandı"
 
-#: includes/admin/admin-dashboard-menu.php:949
+#: includes/admin/admin-dashboard-menu.php:951
 msgid "Daily operational tools for processing content, media, and quiz behavior."
 msgstr "İçerik, medya ve quiz davranışını işlemek için günlük operasyonel araçlar."
 
@@ -2040,8 +2041,8 @@ msgstr "İçerik, medya ve quiz davranışını işlemek için günlük operasyo
 msgid "Date"
 msgstr "Tarih"
 
-#: includes/admin/admin-dashboard-menu.php:175
-#: includes/admin/admin-dashboard-menu.php:677
+#: includes/admin/admin-dashboard-menu.php:177
+#: includes/admin/admin-dashboard-menu.php:679
 #: includes/admin/api/deepl-api.php:23
 #: includes/admin/api/deepl-api.php:24
 #: includes/admin/api/deepl-api.php:50
@@ -2084,7 +2085,7 @@ msgstr "Varsayılan olarak site adıdır."
 msgid "Defaults to the word set name."
 msgstr "Varsayılan olarak kelime seti adını kullanır."
 
-#: includes/admin/admin-dashboard-menu.php:667
+#: includes/admin/admin-dashboard-menu.php:669
 msgid "Define recording type labels used by recording and export workflows."
 msgstr "Kayıt ve dışa aktarma iş akışları tarafından kullanılan kayıt türü etiketlerini tanımla."
 
@@ -2185,7 +2186,7 @@ msgstr "İstenen Kayıt Türleri"
 msgid "Desired recording types"
 msgstr "İstenen kayıt türleri"
 
-#: includes/admin/admin-dashboard-menu.php:602
+#: includes/admin/admin-dashboard-menu.php:604
 msgid "Detect category image ratio mismatches and apply guided fixed-ratio crops."
 msgstr "Kategori görüntü oranı uyumsuzluklarını tespit et ve kılavuzlu sabit oranlı kırpmalar uygula."
 
@@ -2209,9 +2210,9 @@ msgstr "Dev (test)"
 msgid "Dialect"
 msgstr "Lehçe"
 
-#: includes/admin/admin-dashboard-menu.php:373
-#: includes/admin/admin-dashboard-menu.php:834
-#: includes/admin/admin-dashboard-menu.php:835
+#: includes/admin/admin-dashboard-menu.php:375
+#: includes/admin/admin-dashboard-menu.php:836
+#: includes/admin/admin-dashboard-menu.php:837
 #: includes/post-types/dictionary-entry-post-type.php:703
 #: includes/post-types/dictionary-entry-post-type.php:712
 #: includes/post-types/dictionary-entry-post-type.php:716
@@ -2281,7 +2282,7 @@ msgstr "devre dışı"
 msgid "Down"
 msgstr "Aşağı"
 
-#: includes/admin/admin-dashboard-menu.php:539
+#: includes/admin/admin-dashboard-menu.php:541
 msgid "Download category bundles and CSV text exports for transfer or backup."
 msgstr "Aktarım veya yedekleme için kategori paketlerini ve CSV metin dışa aktarımlarını indir."
 
@@ -2364,7 +2365,7 @@ msgstr "Ses Kaydını Düzenle"
 msgid "Edit Dictionary Entry"
 msgstr "Sözlük Girdisini Düzenle"
 
-#: includes/admin/admin-dashboard-menu.php:640
+#: includes/admin/admin-dashboard-menu.php:642
 msgid "Edit lesson post content and ordering used for vocab lesson pages."
 msgstr "Kelime dersi sayfaları için kullanılan ders gönderisi içeriğini ve sıralamasını düzenle."
 
@@ -2419,10 +2420,10 @@ msgstr "Editör Merkezi"
 msgid "Editor Hub Page Created!"
 msgstr "Editör Merkezi Sayfası Oluşturuldu!"
 
-#: includes/admin/teacher-classes-page.php:1022
+#: includes/admin/teacher-classes-page.php:1025
 #: includes/admin/user-progress-report.php:830
 #: includes/login-window.php:2439
-#: includes/pages/wordset-pages.php:13035
+#: includes/pages/wordset-pages.php:13036
 msgid "Email"
 msgstr "E-posta"
 
@@ -2468,7 +2469,7 @@ msgid "Enable verb tense tags for this word set."
 msgstr "Bu kelime seti için fiil zaman etiketlerini etkinleştir."
 
 #: includes/pages/wordset-pages.php:24097
-#: includes/privacy.php:534
+#: includes/privacy.php:740
 msgid "Enabled modes"
 msgstr "Etkin modlar"
 
@@ -2618,8 +2619,8 @@ msgstr "Mevcut Kayıt Türleri"
 msgid "Existing Target Category"
 msgstr "Mevcut Hedef Kategorisi"
 
-#: includes/admin/admin-dashboard-menu.php:162
-#: includes/admin/admin-dashboard-menu.php:538
+#: includes/admin/admin-dashboard-menu.php:163
+#: includes/admin/admin-dashboard-menu.php:540
 #: includes/admin/export-import.php:4123
 #: includes/admin/word-option-rules-admin.php:2600
 msgid "Export"
@@ -2931,7 +2932,7 @@ msgstr "Kelime listesindeki gönderi kimliğini bulun. Yalnızca sayısal kimli�
 msgid "Find word images that need WebP optimization because they are non-WebP or oversized for quiz use. Optimize individually or run a batched bulk pass with progress tracking."
 msgstr "WebP olmayan veya quiz kullanımı için büyük boyutlu oldukları için WebP optimizasyonuna ihtiyaç duyan kelime görsellerini bul. Tek tek optimize et veya ilerleme takibi ile toplu bir toplu geçiş çalıştır."
 
-#: includes/admin/admin-dashboard-menu.php:485
+#: includes/admin/admin-dashboard-menu.php:487
 msgid "Find words without audio and resolve gaps in recording coverage."
 msgstr "Sesi olmayan kelimeleri bul ve kayıt kapsamındaki boşlukları gider."
 
@@ -2939,8 +2940,8 @@ msgstr "Sesi olmayan kelimeleri bul ve kayıt kapsamındaki boşlukları gider."
 msgid "Fine-tune which lesson words stay together as distractors and which pairs must stay apart."
 msgstr "Hangi ders kelimelerinin çeldirici olarak bir arada kalacağını ve hangi çiftlerin ayrı kalması gerektiğini ince ayarla."
 
-#: includes/admin/admin-dashboard-menu.php:172
-#: includes/admin/admin-dashboard-menu.php:619
+#: includes/admin/admin-dashboard-menu.php:173
+#: includes/admin/admin-dashboard-menu.php:621
 msgid "Fix Word Images"
 msgstr "Kelime Görsellerini Düzeltme"
 
@@ -2948,7 +2949,7 @@ msgstr "Kelime Görsellerini Düzeltme"
 msgid "Fix Word Images (Legacy Cleanup)"
 msgstr "Kelime Görsellerini Düzeltme (Eski Temizleme)"
 
-#: includes/admin/admin-dashboard-menu.php:611
+#: includes/admin/admin-dashboard-menu.php:613
 msgid "Flag oversized or non-WebP word images and batch-optimize them with progress tracking."
 msgstr "Büyük boyutlu veya WebP olmayan kelime görsellerini işaretle ve ilerleme takibi ile bunları toplu olarak optimize et."
 
@@ -3109,7 +3110,7 @@ msgstr "Cinsiyet Turu Tamamlandı"
 msgid "Generate lesson pages"
 msgstr "Ders sayfaları oluştur"
 
-#: includes/admin/admin-dashboard-menu.php:521
+#: includes/admin/admin-dashboard-menu.php:523
 msgid "Generate translations in bulk using your configured translation services."
 msgstr "Yapılandırılmış çeviri hizmetlerini kullanarak toplu olarak çeviriler oluştur."
 
@@ -3175,11 +3176,11 @@ msgstr "Birlikte kullanılan kelime grupları"
 msgid "Guest"
 msgstr "Misafir"
 
-#: includes/admin/teacher-classes-page.php:1026
+#: includes/admin/teacher-classes-page.php:1031
 #: includes/admin/user-progress-report.php:840
 #: includes/admin/user-progress-report.php:1007
 #: includes/pages/wordset-pages.php:12924
-#: includes/pages/wordset-pages.php:13059
+#: includes/pages/wordset-pages.php:13061
 #: includes/pages/wordset-pages.php:13476
 #: includes/pages/wordset-pages.php:24803
 #: includes/pages/wordset-pages.php:25895
@@ -3334,7 +3335,7 @@ msgstr "Hiçbiri seçilmezse, bu kategori için kayıt devre dışı bırakılı
 msgid "Image"
 msgstr "Resim"
 
-#: includes/admin/admin-dashboard-menu.php:169
+#: includes/admin/admin-dashboard-menu.php:170
 #: includes/admin/audio-processor-admin.php:1901
 #: includes/admin/image-aspect-normalizer-admin.php:129
 msgid "Image Aspect Normalizer"
@@ -3400,8 +3401,8 @@ msgstr[1] "Görüntülerin %d kategorilerinde en boy oranının normalleştirilm
 msgid "Images needing updates"
 msgstr "Güncellenmesi gereken görüntüler"
 
-#: includes/admin/admin-dashboard-menu.php:163
-#: includes/admin/admin-dashboard-menu.php:547
+#: includes/admin/admin-dashboard-menu.php:164
+#: includes/admin/admin-dashboard-menu.php:549
 #: includes/admin/export-import.php:4422
 #: includes/admin/word-option-rules-admin.php:2612
 #: includes/pages/wordset-pages.php:14116
@@ -3786,12 +3787,12 @@ msgstr "Geçersiz gönderi kimliği"
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
 #: includes/user-progress.php:1807
-#: includes/user-progress.php:11995
-#: includes/user-progress.php:12313
-#: includes/user-progress.php:12323
-#: includes/user-progress.php:12345
-#: includes/user-progress.php:12354
-#: includes/user-progress.php:12357
+#: includes/user-progress.php:12053
+#: includes/user-progress.php:12371
+#: includes/user-progress.php:12381
+#: includes/user-progress.php:12403
+#: includes/user-progress.php:12412
+#: includes/user-progress.php:12415
 msgid "Invalid request."
 msgstr "Geçersiz istek."
 
@@ -3947,7 +3948,7 @@ msgstr "Dil Kimliği"
 
 #. Plugin Name of the plugin
 #: language-learner-tools.php
-#: includes/privacy.php:994
+#: includes/privacy.php:1943
 msgid "Language Learner Tools"
 msgstr "Dil Eğitimi Araçları"
 
@@ -3974,16 +3975,16 @@ msgstr "Language Learner Tools - Kelime Seçeneği Kuralları"
 msgid "Language Learner Tools update available: version %s."
 msgstr "Language Learner Tools güncellemesi mevcut: sürüm %s."
 
-#: includes/admin/admin-dashboard-menu.php:152
-#: includes/admin/admin-dashboard-menu.php:320
-#: includes/admin/admin-dashboard-menu.php:410
-#: includes/admin/admin-dashboard-menu.php:756
+#: includes/admin/admin-dashboard-menu.php:153
+#: includes/admin/admin-dashboard-menu.php:322
+#: includes/admin/admin-dashboard-menu.php:412
+#: includes/admin/admin-dashboard-menu.php:758
 #: includes/admin/settings.php:26
 msgid "Language Learning Tools"
 msgstr "Dil Öğrenme Araçları"
 
-#: includes/admin/admin-dashboard-menu.php:154
-#: includes/admin/admin-dashboard-menu.php:842
+#: includes/admin/admin-dashboard-menu.php:155
+#: includes/admin/admin-dashboard-menu.php:844
 #: includes/admin/settings.php:25
 #: includes/admin/settings.php:348
 msgid "Language Learning Tools Settings"
@@ -4016,7 +4017,7 @@ msgstr "Büyük dosyalar:"
 msgid "Large import warning thresholds: %1$s media files or %2$s of media."
 msgstr "Büyük içe aktarma uyarı eşikleri: %1$s medya dosyası veya %2$s medya."
 
-#: includes/pages/wordset-pages.php:13065
+#: includes/pages/wordset-pages.php:13067
 #: includes/pages/wordset-pages.php:25916
 #: includes/pages/wordset-pages.php:25943
 #: includes/pages/wordset-pages.php:26193
@@ -4071,9 +4072,9 @@ msgstr "Öğrenilmiş"
 msgid "Learned words"
 msgstr "Öğrenilen kelimeler"
 
-#: includes/admin/teacher-classes-page.php:1021
+#: includes/admin/teacher-classes-page.php:1024
 #: includes/admin/user-progress-report.php:829
-#: includes/pages/wordset-pages.php:13029
+#: includes/pages/wordset-pages.php:13030
 #: includes/user-roles/learner-role.php:13
 msgid "Learner"
 msgstr "Öğrenci"
@@ -4309,8 +4310,8 @@ msgstr "LL Görüntüleri Normalleştirme"
 msgid "LL Optimize Images (WebP)"
 msgstr "LL Görüntüleri Optimize Et (WebP)"
 
-#: includes/admin/admin-dashboard-menu.php:173
-#: includes/admin/admin-dashboard-menu.php:666
+#: includes/admin/admin-dashboard-menu.php:174
+#: includes/admin/admin-dashboard-menu.php:668
 #: includes/admin/recording-types-admin.php:12
 msgid "LL Recording Types"
 msgstr "Kayıt türleri"
@@ -4347,17 +4348,17 @@ msgstr "LL Tools Dışa Aktarma / İçe Aktarma"
 msgid "LL Tools Import"
 msgstr "LL Tools İçe Aktarma"
 
-#: includes/admin/admin-dashboard-menu.php:177
-#: includes/admin/admin-dashboard-menu.php:695
+#: includes/admin/admin-dashboard-menu.php:179
+#: includes/admin/admin-dashboard-menu.php:697
 #: includes/taxonomies/language-taxonomy.php:239
 msgid "LL Tools Languages"
 msgstr "LL Tools Diller"
 
 #: includes/admin/admin-dashboard-menu.php:43
-#: includes/admin/admin-dashboard-menu.php:153
-#: includes/admin/admin-dashboard-menu.php:766
-#: includes/admin/admin-dashboard-menu.php:851
-#: includes/admin/admin-dashboard-menu.php:944
+#: includes/admin/admin-dashboard-menu.php:154
+#: includes/admin/admin-dashboard-menu.php:768
+#: includes/admin/admin-dashboard-menu.php:853
+#: includes/admin/admin-dashboard-menu.php:946
 msgid "LL Tools Utilities"
 msgstr "LL Tools Yardımcı Programlar"
 
@@ -4381,8 +4382,8 @@ msgstr "Kelimeleri yükle"
 #: includes/admin/image-aspect-normalizer-admin.php:138
 #: includes/admin/offline-app-export.php:920
 #: includes/shortcodes/flashcard-widget.php:717
-#: includes/shortcodes/wordset-buttons-shortcode.php:2123
-#: includes/shortcodes/wordset-buttons-shortcode.php:2143
+#: includes/shortcodes/wordset-buttons-shortcode.php:2154
+#: includes/shortcodes/wordset-buttons-shortcode.php:2174
 msgid "Loading categories..."
 msgstr "Kategoriler yükleniyor..."
 
@@ -4459,13 +4460,13 @@ msgstr "Oturumu kapat"
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:10804
-#: includes/user-progress.php:10845
-#: includes/user-progress.php:10863
-#: includes/user-progress.php:11000
-#: includes/user-progress.php:11024
-#: includes/user-progress.php:12304
-#: includes/user-progress.php:12390
+#: includes/user-progress.php:10862
+#: includes/user-progress.php:10903
+#: includes/user-progress.php:10921
+#: includes/user-progress.php:11058
+#: includes/user-progress.php:11082
+#: includes/user-progress.php:12362
+#: includes/user-progress.php:12448
 #: includes/user-study.php:1369
 #: includes/user-study.php:1407
 #: includes/user-study.php:1471
@@ -4484,7 +4485,7 @@ msgstr "Verimli görünüyor"
 msgid "Loudness"
 msgstr "Ses Yüksekliği"
 
-#: includes/admin/admin-dashboard-menu.php:955
+#: includes/admin/admin-dashboard-menu.php:957
 msgid "Lower-frequency admin pages for lesson and taxonomy maintenance."
 msgstr "Ders ve taksonomi bakımı için daha düşük frekanslı yönetici sayfaları."
 
@@ -4496,11 +4497,11 @@ msgstr "Makro Dil"
 msgid "Main (stable)"
 msgstr "Ana (sabit)"
 
-#: includes/admin/admin-dashboard-menu.php:374
+#: includes/admin/admin-dashboard-menu.php:376
 msgid "Maintain dictionary-style reference entries and supporting details."
 msgstr "Sözlük tarzı referans girişlerini ve destekleyici ayrıntıları muhafaza et."
 
-#: includes/admin/admin-dashboard-menu.php:658
+#: includes/admin/admin-dashboard-menu.php:660
 msgid "Maintain part-of-speech taxonomy values used on word entries."
 msgstr "Kelime girişlerinde kullanılan konuşma parçası taksonomisi değerlerini koru."
 
@@ -4510,15 +4511,15 @@ msgstr "Kelime girişlerinde kullanılan konuşma parçası taksonomisi değerle
 msgid "Manage %s"
 msgstr "Yönet %s"
 
-#: includes/admin/admin-dashboard-menu.php:360
+#: includes/admin/admin-dashboard-menu.php:362
 msgid "Manage image records linked to vocabulary words."
 msgstr "Kelime görselleriyle bağlantılı kayıtları yönet."
 
-#: includes/admin/admin-dashboard-menu.php:696
+#: includes/admin/admin-dashboard-menu.php:698
 msgid "Manage language taxonomy options and plugin language metadata."
 msgstr "Dil taksonomisi seçeneklerini ve eklenti dili meta verilerini yönet."
 
-#: includes/admin/admin-dashboard-menu.php:332
+#: includes/admin/admin-dashboard-menu.php:334
 msgid "Manage the main set grouping for words and quiz filters."
 msgstr "Kelimeler ve quiz filtreleri için ana set gruplamasını yönet."
 
@@ -4583,7 +4584,7 @@ msgstr "Orijinal kelime yerine çeviriye dayalı görüntüleri eşleştir"
 msgid "Match to existing word posts instead of creating new ones"
 msgstr "Yeni kelime oluşturmak yerine mevcut kelime gönderileriyle eşleştir"
 
-#: includes/admin/admin-dashboard-menu.php:476
+#: includes/admin/admin-dashboard-menu.php:478
 msgid "Match uploaded audio and images to the correct words and categories."
 msgstr "Yüklenen ses ve görüntüleri doğru kelime ve kategorilerle eşleştir."
 
@@ -4650,8 +4651,8 @@ msgstr "Eski metayı taşı (word_english_meaning'den word_translation'a)"
 msgid "Missing"
 msgstr "Kayıp"
 
-#: includes/admin/admin-dashboard-menu.php:157
-#: includes/admin/admin-dashboard-menu.php:484
+#: includes/admin/admin-dashboard-menu.php:158
+#: includes/admin/admin-dashboard-menu.php:486
 msgid "Missing Audio"
 msgstr "Eksik Ses"
 
@@ -4929,7 +4930,7 @@ msgstr "Yeni kelimeler"
 #: includes/pages/content-lesson-pages.php:1143
 #: includes/pages/wordset-pages.php:12746
 #: includes/pages/wordset-pages.php:12877
-#: includes/pages/wordset-pages.php:13121
+#: includes/pages/wordset-pages.php:13124
 #: includes/pages/wordset-pages.php:13354
 #: includes/pages/wordset-pages.php:13388
 #: includes/pages/wordset-pages.php:17223
@@ -4956,6 +4957,7 @@ msgid "Next Set"
 msgstr "Sonraki Set"
 
 #: includes/admin/site-sync-admin.php:1146
+#: includes/lms/assignments.php:2049
 #: includes/post-types/words-post-type.php:2274
 #: includes/privacy.php:389
 msgid "No"
@@ -5175,12 +5177,12 @@ msgid "No quiz pages are available yet."
 msgstr "Henüz quiz sayfası bulunmamaktadır."
 
 #: includes/pages/wordset-pages.php:25867
-#: includes/user-progress.php:11556
-#: includes/user-progress.php:11645
-#: includes/user-progress.php:12030
-#: includes/user-progress.php:12057
-#: includes/user-progress.php:12080
-#: includes/user-progress.php:12239
+#: includes/user-progress.php:11614
+#: includes/user-progress.php:11703
+#: includes/user-progress.php:12088
+#: includes/user-progress.php:12115
+#: includes/user-progress.php:12138
+#: includes/user-progress.php:12297
 msgid "No quiz words are available for this selection."
 msgstr "Bu seçim için hiçbir quiz kelimesi mevcut değildir."
 
@@ -5261,7 +5263,7 @@ msgstr "Bu seçim için yıldızlı kelime bulunmamaktadır."
 msgid "No text-based answer option labels were found in this word set yet. Add words to a text-based quiz category to preview real examples here."
 msgstr "Bu kelime setinde henüz metin tabanlı cevap seçeneği etiketi bulunamadı. Gerçek örnekleri burada önizlemek için metin tabanlı bir quiz kategorisine kelime ekle."
 
-#: includes/admin/admin-dashboard-menu.php:929
+#: includes/admin/admin-dashboard-menu.php:931
 msgid "No tools are available with your current permissions."
 msgstr "Mevcut izinlerinle hiçbir araç kullanılamaz."
 
@@ -5378,7 +5380,7 @@ msgstr "Hiçbiri"
 msgid "Normal (400)"
 msgstr "Normal (400)"
 
-#: includes/admin/admin-dashboard-menu.php:601
+#: includes/admin/admin-dashboard-menu.php:603
 msgid "Normalize Image Ratios"
 msgstr "Görüntü Oranlarını Normalleştirme"
 
@@ -5492,7 +5494,7 @@ msgstr "Tüm İşaretlenenleri Optimize Et"
 msgid "Optimize Image"
 msgstr "Görüntüyü Optimize Et"
 
-#: includes/admin/admin-dashboard-menu.php:610
+#: includes/admin/admin-dashboard-menu.php:612
 msgid "Optimize Images (WebP)"
 msgstr "Görüntüleri Optimize Etme (WebP)"
 
@@ -5613,9 +5615,9 @@ msgstr "Büyük boyutlu WebP eşiği: %1$s (animasyonlu WebP: %2$s)"
 msgid "Oversized WebP threshold: %s"
 msgstr "Büyük boyutlu WebP eşiği: %s"
 
-#: includes/admin/admin-dashboard-menu.php:778
-#: includes/admin/admin-dashboard-menu.php:781
-#: includes/admin/admin-dashboard-menu.php:852
+#: includes/admin/admin-dashboard-menu.php:780
+#: includes/admin/admin-dashboard-menu.php:783
+#: includes/admin/admin-dashboard-menu.php:854
 msgid "Overview"
 msgstr "Genel Bakış"
 
@@ -5666,7 +5668,7 @@ msgstr "Konuşma Parçası"
 msgid "Part of speech"
 msgstr "Konuşma parçası"
 
-#: includes/admin/admin-dashboard-menu.php:657
+#: includes/admin/admin-dashboard-menu.php:659
 #: includes/taxonomies/part-of-speech-taxonomy.php:8
 msgid "Parts of Speech"
 msgstr "Konuşma Parçaları"
@@ -6081,7 +6083,7 @@ msgstr "Önizleme"
 msgid "Preview an import first, then confirm to apply it."
 msgstr "Bir içe aktarmayı önce önizle, ardından uygulamak için onaylayın."
 
-#: includes/admin/admin-dashboard-menu.php:548
+#: includes/admin/admin-dashboard-menu.php:550
 msgid "Preview and import zip bundles into local categories, words, and audio."
 msgstr "Zip paketlerini önizle ve yerel kategorilere, kelimelere ve seslere aktar."
 
@@ -6157,7 +6159,7 @@ msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 ra
 #: includes/pages/content-lesson-pages.php:1142
 #: includes/pages/wordset-pages.php:12742
 #: includes/pages/wordset-pages.php:12873
-#: includes/pages/wordset-pages.php:13117
+#: includes/pages/wordset-pages.php:13120
 #: includes/pages/wordset-pages.php:17217
 #: includes/pages/wordset-pages.php:22545
 #: includes/pages/wordset-pages.php:22820
@@ -6174,7 +6176,7 @@ msgstr "Önceki"
 msgid "Previous letter"
 msgstr "Önceki harf"
 
-#: includes/admin/admin-dashboard-menu.php:415
+#: includes/admin/admin-dashboard-menu.php:417
 msgid "Primary content management pages for vocabulary, media, and dictionary data."
 msgstr "Kelime, medya ve sözlük verileri için birincil içerik yönetimi sayfaları."
 
@@ -6558,13 +6560,13 @@ msgstr "Yeniden eşleştirme modu (önceden eşleştirilmiş kelimeleri içerir)
 
 #: includes/admin/audio-processor-admin.php:185
 #: includes/admin/ipa-keyboard-admin.php:500
-#: includes/admin/teacher-classes-page.php:1028
-#: includes/admin/teacher-classes-page.php:1061
+#: includes/admin/teacher-classes-page.php:1033
+#: includes/admin/teacher-classes-page.php:1082
 #: includes/admin/word-option-rules-admin.php:290
 #: includes/admin/word-option-rules-admin.php:2266
 #: includes/admin/word-option-rules-admin.php:2447
-#: includes/pages/wordset-pages.php:13069
-#: includes/pages/wordset-pages.php:13104
+#: includes/pages/wordset-pages.php:13071
+#: includes/pages/wordset-pages.php:13107
 msgid "Remove"
 msgstr "Kaldırmak"
 
@@ -6606,7 +6608,7 @@ msgstr "Ses artık word_audio alt dosyalarında saklandığı için word_audio_f
 msgid "Reorder list"
 msgstr "Yeniden sıralama listesi"
 
-#: includes/admin/admin-dashboard-menu.php:620
+#: includes/admin/admin-dashboard-menu.php:622
 msgid "Repair legacy image links and recreate missing word image posts."
 msgstr "Eski resim bağlantılarını onar ve eksik kelime görseli gönderilerini yeniden oluştur."
 
@@ -6693,7 +6695,7 @@ msgstr "Sonuç"
 msgid "Retry"
 msgstr "Yeniden Dene"
 
-#: includes/admin/admin-dashboard-menu.php:367
+#: includes/admin/admin-dashboard-menu.php:369
 msgid "Review and edit published audio posts used across the site."
 msgstr "Site genelinde kullanılan yayınlanmış sesli gönderileri gözden geçir ve düzenle."
 
@@ -6706,7 +6708,7 @@ msgstr "Kayıtları gözden geçir ve işle:"
 msgid "Review Processed Audio"
 msgstr "İşlenmiş Sesi İncele"
 
-#: includes/admin/admin-dashboard-menu.php:467
+#: includes/admin/admin-dashboard-menu.php:469
 msgid "Review queued recordings, clean audio, and publish approved files."
 msgstr "Kuyruğa alınmış kayıtları incele, sesleri temizle ve onaylanmış dosyaları yayınla."
 
@@ -7078,7 +7080,7 @@ msgid "Select at least one category to export."
 msgstr "Dışa aktarmak için en az bir kategori seç."
 
 #: includes/pages/wordset-pages.php:25866
-#: includes/user-progress.php:12015
+#: includes/user-progress.php:12073
 msgid "Select at least one category."
 msgstr "En az bir kategori seç."
 
@@ -7204,11 +7206,11 @@ msgstr "Sunucu geçersiz yanıt biçimi döndürdü"
 msgid "Server zip: %s"
 msgstr "Sunucu zipi: %s"
 
-#: includes/admin/admin-dashboard-menu.php:687
+#: includes/admin/admin-dashboard-menu.php:689
 msgid "Set and update AssemblyAI credentials for transcription workflows."
 msgstr "Transkripsiyon iş akışları için AssemblyAI kimlik bilgilerini ayarla ve güncelle."
 
-#: includes/admin/admin-dashboard-menu.php:678
+#: includes/admin/admin-dashboard-menu.php:680
 msgid "Set and update DeepL credentials for automated translation tasks."
 msgstr "Otomatik çeviri görevleri için DeepL kimlik bilgilerini ayarla ve güncelle."
 
@@ -7234,14 +7236,14 @@ msgstr "Kayıt Türlerini Ayarlama"
 msgid "Set:"
 msgstr "Set:"
 
-#: includes/admin/admin-dashboard-menu.php:401
-#: includes/admin/admin-dashboard-menu.php:843
+#: includes/admin/admin-dashboard-menu.php:403
+#: includes/admin/admin-dashboard-menu.php:845
 #: includes/pages/wordset-pages.php:14140
-#: language-learner-tools.php:1116
+#: language-learner-tools.php:1150
 msgid "Settings"
 msgstr "Ayarlar"
 
-#: includes/admin/admin-dashboard-menu.php:321
+#: includes/admin/admin-dashboard-menu.php:323
 msgid "Settings page is unavailable."
 msgstr "Ayarlar sayfası kullanılamıyor."
 
@@ -7478,9 +7480,9 @@ msgstr "Bazı kelimelerin tekrar bağlam desteğine ihtiyacı vardır."
 #: includes/shortcodes/flashcard-widget.php:713
 #: includes/shortcodes/flashcard-widget.php:718
 #: includes/shortcodes/flashcard-widget.php:720
-#: includes/shortcodes/wordset-buttons-shortcode.php:2473
-#: includes/shortcodes/wordset-buttons-shortcode.php:2510
-#: includes/shortcodes/wordset-buttons-shortcode.php:2524
+#: includes/shortcodes/wordset-buttons-shortcode.php:2504
+#: includes/shortcodes/wordset-buttons-shortcode.php:2541
+#: includes/shortcodes/wordset-buttons-shortcode.php:2555
 msgid "Something went wrong"
 msgstr "Bir şeyler ters gitti"
 
@@ -7488,11 +7490,11 @@ msgstr "Bir şeyler ters gitti"
 #: includes/pages/wordset-pages.php:25874
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:12044
-#: includes/user-progress.php:12070
+#: includes/user-progress.php:12102
 #: includes/user-progress.php:12128
-#: includes/user-progress.php:12286
-#: includes/user-progress.php:12458
+#: includes/user-progress.php:12186
+#: includes/user-progress.php:12344
+#: includes/user-progress.php:12516
 msgid "Something went wrong. Please try again."
 msgstr "Bir şeyler yanlış gitti. Lütfen tekrar dene."
 
@@ -7653,12 +7655,13 @@ msgstr "Görüntü için yükleme başlatılıyor:"
 #: includes/admin/ipa-keyboard-admin.php:595
 #: includes/admin/split-word-admin.php:396
 #: includes/admin/user-progress-report.php:1065
+#: includes/lms/assignments.php:2039
 #: includes/pages/wordset-editor.php:4506
 #: includes/pages/wordset-pages.php:25914
 #: includes/pages/wordset-pages.php:26294
 #: includes/pages/wordset-pages.php:26302
-#: includes/privacy.php:648
-#: includes/privacy.php:737
+#: includes/privacy.php:854
+#: includes/privacy.php:943
 msgid "Status"
 msgstr "Durum"
 
@@ -8683,7 +8686,7 @@ msgstr "Yalnızca metin quizleri için metin seçeneklerini kullan (ses/görünt
 msgid "Use the same label for words that should be used together for wrong answers. Leave blank to keep a word ungrouped."
 msgstr "Yanlış cevaplar için birlikte kullanılması gereken kelimeler için aynı etiketi kullan. Bir kelimeyi gruplanmamış halde tutmak için boş bırak."
 
-#: includes/admin/admin-dashboard-menu.php:411
+#: includes/admin/admin-dashboard-menu.php:413
 msgid "Use this dashboard to jump to each main area of the plugin. Tools opens workflow utilities; Settings controls global behavior."
 msgstr "Eklentinin her bir ana alanına atlamak için bu panoyu kullan. Araçlar iş akışı yardımcı programlarını açar; Ayarlar genel davranışı kontrol eder."
 
@@ -8715,7 +8718,7 @@ msgstr "Kullanıcı bulunamadı"
 msgid "Username"
 msgstr "Kullanıcı Adı"
 
-#: includes/admin/admin-dashboard-menu.php:421
+#: includes/admin/admin-dashboard-menu.php:423
 msgid "Utility and configuration pages used less frequently."
 msgstr "Yardımcı program ve yapılandırma sayfaları daha az kullanılır."
 
@@ -8836,7 +8839,7 @@ msgstr "Kelime Dersi Ayarları"
 msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr "Kelime dersi senkronizasyonu tamamlandı. %d oluşturuldu, %d güncellendi, %d kaldırıldı."
 
-#: includes/admin/admin-dashboard-menu.php:639
+#: includes/admin/admin-dashboard-menu.php:641
 #: includes/lib/ai-crawler-support.php:1400
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
@@ -8864,7 +8867,7 @@ msgstr "WebP / Boyut"
 msgid "WebP encoding is not available on this server. The queue can still be reviewed, but optimization is disabled."
 msgstr "WebP kodlaması bu sunucuda kullanılamıyor. Kuyruk hala incelenebilir, ancak optimizasyon devre dışıdır."
 
-#: includes/admin/admin-dashboard-menu.php:170
+#: includes/admin/admin-dashboard-menu.php:171
 #: includes/admin/audio-processor-admin.php:1932
 #: includes/admin/image-webp-optimizer-admin.php:1708
 msgid "WebP Image Optimizer"
@@ -8911,8 +8914,8 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/pages/wordset-pages.php:27939
 #: includes/post-types/word-audio-post-type.php:113
 #: includes/post-types/words-post-type.php:22
-#: includes/privacy.php:640
-#: includes/privacy.php:809
+#: includes/privacy.php:846
+#: includes/privacy.php:1015
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/editor-hub-shortcode.php:1052
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
@@ -8939,9 +8942,9 @@ msgstr "Kelime #%d"
 msgid "Word A"
 msgstr "Kelime A"
 
-#: includes/admin/admin-dashboard-menu.php:366
-#: includes/admin/admin-dashboard-menu.php:826
-#: includes/admin/admin-dashboard-menu.php:827
+#: includes/admin/admin-dashboard-menu.php:368
+#: includes/admin/admin-dashboard-menu.php:828
+#: includes/admin/admin-dashboard-menu.php:829
 #: includes/admin/orphan-media-admin.php:853
 #: includes/post-types/word-audio-post-type.php:11
 msgid "Word Audio"
@@ -8955,9 +8958,9 @@ msgstr "Kelime B"
 msgid "Word cannot be empty."
 msgstr "Kelime boş olamaz."
 
-#: includes/admin/admin-dashboard-menu.php:338
-#: includes/admin/admin-dashboard-menu.php:794
-#: includes/admin/admin-dashboard-menu.php:795
+#: includes/admin/admin-dashboard-menu.php:340
+#: includes/admin/admin-dashboard-menu.php:796
+#: includes/admin/admin-dashboard-menu.php:797
 #: includes/taxonomies/word-category-taxonomy.php:906
 #: includes/taxonomies/word-category-taxonomy.php:911
 msgid "Word Categories"
@@ -8999,9 +9002,9 @@ msgstr "kelime görseli"
 msgid "Word image not found."
 msgstr "Kelime görseli bulunamadı."
 
-#: includes/admin/admin-dashboard-menu.php:359
-#: includes/admin/admin-dashboard-menu.php:818
-#: includes/admin/admin-dashboard-menu.php:819
+#: includes/admin/admin-dashboard-menu.php:361
+#: includes/admin/admin-dashboard-menu.php:820
+#: includes/admin/admin-dashboard-menu.php:821
 #: includes/admin/bulk-translation-admin.php:148
 #: includes/admin/image-aspect-normalizer-admin.php:112
 #: includes/post-types/word-image-post-type.php:7
@@ -9020,8 +9023,8 @@ msgstr "Kelime görselleri güncellendi: %d"
 msgid "Word images: %d"
 msgstr "Kelime görselleri: %d"
 
-#: includes/admin/admin-dashboard-menu.php:168
-#: includes/admin/admin-dashboard-menu.php:592
+#: includes/admin/admin-dashboard-menu.php:169
+#: includes/admin/admin-dashboard-menu.php:594
 #: includes/admin/word-option-rules-admin.php:9
 #: includes/admin/word-option-rules-admin.php:1832
 #: includes/admin/word-option-rules-admin.php:1844
@@ -9071,10 +9074,10 @@ msgstr "Kelime Seti"
 #: includes/admin/word-option-rules-admin.php:1880
 #: includes/pages/wordset-pages.php:12775
 #: includes/post-types/content-lesson-post-type.php:1930
-#: includes/privacy.php:458
-#: includes/privacy.php:644
-#: includes/privacy.php:733
-#: includes/privacy.php:815
+#: includes/privacy.php:470
+#: includes/privacy.php:850
+#: includes/privacy.php:939
+#: includes/privacy.php:1021
 #: includes/shortcodes/audio-recording-shortcode.php:1668
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:131
@@ -9109,9 +9112,9 @@ msgstr "Kelime seti görünürlüğü"
 msgid "Word Set:"
 msgstr "Kelime Seti:"
 
-#: includes/admin/admin-dashboard-menu.php:331
-#: includes/admin/admin-dashboard-menu.php:786
-#: includes/admin/admin-dashboard-menu.php:787
+#: includes/admin/admin-dashboard-menu.php:333
+#: includes/admin/admin-dashboard-menu.php:788
+#: includes/admin/admin-dashboard-menu.php:789
 #: includes/admin/uploads/upload-scope.php:83
 #: includes/taxonomies/wordset-taxonomy.php:1405
 #: includes/taxonomies/wordset-taxonomy.php:1422
@@ -9159,9 +9162,9 @@ msgstr "Kelime yeniden görünür yapıldı."
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr "Kelime yönetimi, ses/görüntü yüklemeleri, kullanıma hazır bilgi kartı quizleri ve gömülebilir alıştırma sayfaları ile dil öğrenmeye yönelik kelime içeriği oluşturmaya yönelik WordPress araçları."
 
-#: includes/admin/admin-dashboard-menu.php:352
-#: includes/admin/admin-dashboard-menu.php:810
-#: includes/admin/admin-dashboard-menu.php:811
+#: includes/admin/admin-dashboard-menu.php:354
+#: includes/admin/admin-dashboard-menu.php:812
+#: includes/admin/admin-dashboard-menu.php:813
 #: includes/admin/audio-processor-admin.php:1961
 #: includes/admin/bulk-translation-admin.php:147
 #: includes/admin/image-aspect-normalizer-admin.php:111
@@ -9199,7 +9202,7 @@ msgstr "Kelimeler: %d"
 msgid "Wordset"
 msgstr "Kelime Seti"
 
-#: includes/admin/admin-dashboard-menu.php:948
+#: includes/admin/admin-dashboard-menu.php:950
 msgid "Workflows"
 msgstr "İş Akışları"
 
@@ -9227,6 +9230,7 @@ msgid "Wrong answer options (one per line)"
 msgstr "Yanlış cevap seçenekleri (her satır için bir tane)"
 
 #: includes/admin/site-sync-admin.php:1146
+#: includes/lms/assignments.php:2048
 #: includes/post-types/words-post-type.php:2273
 #: includes/privacy.php:389
 msgid "Yes"
@@ -9261,8 +9265,8 @@ msgstr "Editör Merkezi'ne erişim iznin yok."
 msgid "You do not have permission to access LL Tools import preview media."
 msgstr "LL Tools içe aktarma önizleme ortamına erişim iznin yok."
 
-#: includes/admin/admin-dashboard-menu.php:326
-#: includes/admin/admin-dashboard-menu.php:935
+#: includes/admin/admin-dashboard-menu.php:328
+#: includes/admin/admin-dashboard-menu.php:937
 #: includes/admin/duplicate-category-words-admin.php:576
 #: includes/admin/image-aspect-normalizer-admin.php:125
 #: includes/admin/image-webp-optimizer-admin.php:1692
@@ -9765,45 +9769,45 @@ msgstr "Doğrudan medya URL'sini buraya yapıştır."
 msgid "LL Tools"
 msgstr "LL Tools"
 
-#: includes/admin/admin-dashboard-menu.php:159
-#: includes/admin/admin-dashboard-menu.php:502
+#: includes/admin/admin-dashboard-menu.php:160
+#: includes/admin/admin-dashboard-menu.php:504
 msgid "Dictionary Manager"
 msgstr "Sözlük Yöneticisi"
 
-#: includes/admin/admin-dashboard-menu.php:160
-#: includes/admin/admin-dashboard-menu.php:511
+#: includes/admin/admin-dashboard-menu.php:161
+#: includes/admin/admin-dashboard-menu.php:513
 #: includes/admin/dictionary-import-admin.php:2921
 msgid "Dictionary Sources"
 msgstr "Sözlük Kaynakları"
 
-#: includes/admin/admin-dashboard-menu.php:165
-#: includes/admin/admin-dashboard-menu.php:565
+#: includes/admin/admin-dashboard-menu.php:166
+#: includes/admin/admin-dashboard-menu.php:567
 #: includes/pages/wordset-pages.php:14179
 msgid "Offline App Export"
 msgstr "Çevrimdışı Uygulama Dışa Aktarma"
 
-#: includes/admin/admin-dashboard-menu.php:167
-#: includes/admin/admin-dashboard-menu.php:583
+#: includes/admin/admin-dashboard-menu.php:168
+#: includes/admin/admin-dashboard-menu.php:585
 #: includes/admin/ipa-keyboard-admin.php:12
 #: includes/admin/ipa-keyboard-admin.php:624
 msgid "Transcription Manager"
 msgstr "Transkripsiyon Yöneticisi"
 
-#: includes/admin/admin-dashboard-menu.php:171
+#: includes/admin/admin-dashboard-menu.php:172
 #: includes/admin/orphan-media-admin.php:1242
 msgid "Orphaned Media"
 msgstr "Yetim Medya"
 
-#: includes/admin/admin-dashboard-menu.php:174
-#: includes/admin/admin-dashboard-menu.php:529
+#: includes/admin/admin-dashboard-menu.php:175
+#: includes/admin/admin-dashboard-menu.php:531
 #: includes/admin/user-progress-report.php:30
 #: includes/admin/user-progress-report.php:31
 #: includes/admin/user-progress-report.php:729
 msgid "Learner Progress"
 msgstr "Öğrenci İlerlemesi"
 
-#: includes/admin/admin-dashboard-menu.php:181
-#: includes/admin/admin-dashboard-menu.php:383
+#: includes/admin/admin-dashboard-menu.php:183
+#: includes/admin/admin-dashboard-menu.php:385
 #: includes/admin/teacher-classes-page.php:36
 #: includes/admin/teacher-classes-page.php:37
 #: includes/admin/teacher-classes-page.php:669
@@ -9815,35 +9819,35 @@ msgstr "Öğrenci İlerlemesi"
 msgid "Classes"
 msgstr "Sınıflar"
 
-#: includes/admin/admin-dashboard-menu.php:384
+#: includes/admin/admin-dashboard-menu.php:386
 msgid "Create teacher classes, invite learners, and review student progress."
 msgstr "Öğretmen sınıfları oluştur, öğrencileri davet et ve öğrenci ilerlemesini incele."
 
-#: includes/admin/admin-dashboard-menu.php:395
+#: includes/admin/admin-dashboard-menu.php:397
 msgid "Open the utilities menu for import/export, processing, and maintenance workflows."
 msgstr "İçe/dışa aktarma, işleme ve bakım iş akışları için yardımcı programlar menüsünü açın."
 
-#: includes/admin/admin-dashboard-menu.php:503
+#: includes/admin/admin-dashboard-menu.php:505
 msgid "Import TSV dictionaries or export and restore whole-site dictionary snapshots."
 msgstr "TSV sözlüklerini içe aktarın veya tüm site sözlüğünün anlık görüntülerini dışa aktarın ve geri yükleyin."
 
-#: includes/admin/admin-dashboard-menu.php:512
+#: includes/admin/admin-dashboard-menu.php:514
 msgid "Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries."
 msgstr "Yeniden kullanılabilir kaynak etiketlerini, atıf metnini, kaynak sayfa URL'lerini ve sözlük girdileri tarafından kullanılan varsayılan lehçeleri koruyun."
 
-#: includes/admin/admin-dashboard-menu.php:530
+#: includes/admin/admin-dashboard-menu.php:532
 msgid "Review learner activity and progress summaries by word set."
 msgstr "Öğrenci etkinliğini ve ilerleme özetlerini kelime setine göre inceleyin."
 
-#: includes/admin/admin-dashboard-menu.php:566
+#: includes/admin/admin-dashboard-menu.php:568
 msgid "Build a one-wordset offline quiz bundle that can be turned into an Android APK."
 msgstr "Android APK’sına dönüştürülebilecek tek kelime setli bir çevrimdışı quiz paketi oluşturun."
 
-#: includes/admin/admin-dashboard-menu.php:584
+#: includes/admin/admin-dashboard-menu.php:586
 msgid "Review transcriptions by word set, search recordings, and catch likely IPA issues."
 msgstr "Transkripsiyonları kelime setine göre inceleyin, kayıtları arayın ve olası IPA sorunlarını yakalayın."
 
-#: includes/admin/admin-dashboard-menu.php:630
+#: includes/admin/admin-dashboard-menu.php:632
 #: includes/pages/wordset-pages.php:24181
 #: includes/post-types/content-lesson-post-type.php:64
 #: includes/post-types/content-lesson-post-type.php:73
@@ -9851,7 +9855,7 @@ msgstr "Transkripsiyonları kelime setine göre inceleyin, kayıtları arayın v
 msgid "Content Lessons"
 msgstr "İçerik Dersleri"
 
-#: includes/admin/admin-dashboard-menu.php:631
+#: includes/admin/admin-dashboard-menu.php:633
 msgid "Edit main audio/video lessons and synced transcript content."
 msgstr "Ana ses/video derslerini ve senkronize edilmiş transkript içeriğini düzenleyin."
 
@@ -12893,6 +12897,7 @@ msgstr "%s olarak bağlanıldı"
 msgid "Connect account"
 msgstr "Hesabı bağla"
 
+#: includes/admin/google-classroom-integration.php:304
 #: includes/admin/offline-app-export.php:2843
 #: includes/admin/offline-app-export.php:3586
 msgid "Disconnect"
@@ -13409,8 +13414,8 @@ msgid "LL Prompt Audio Queue"
 msgstr "LL Soru Sesi Kuyruğu"
 
 #: includes/admin/prompt-audio-import-admin.php:124
-#: includes/privacy.php:726
-#: includes/privacy.php:811
+#: includes/privacy.php:932
+#: includes/privacy.php:1017
 msgid "Prompt card"
 msgstr "Soru kartı"
 
@@ -13697,7 +13702,7 @@ msgstr "Her sınıf yalnızca bir kelime seti için ilerlemeyi izler."
 #: includes/admin/teacher-classes-page.php:834
 #: includes/admin/teacher-classes-page.php:901
 #: includes/pages/wordset-pages.php:12786
-#: includes/privacy.php:459
+#: includes/privacy.php:471
 #: includes/user-roles/teacher-role.php:36
 msgid "Teacher"
 msgstr "Öğretmen"
@@ -13721,7 +13726,7 @@ msgid "Your classes"
 msgstr "Sınıflarınız"
 
 #: includes/admin/teacher-classes-page.php:831
-#: includes/privacy.php:456
+#: includes/privacy.php:468
 #: includes/teacher-classes.php:27
 msgid "Class"
 msgstr "Sınıf"
@@ -13767,6 +13772,7 @@ msgstr "Ustalaşmış kelimeler"
 msgid "Signup link"
 msgstr "Kayıt bağlantısı"
 
+#: includes/admin/google-classroom-integration.php:267
 #: includes/admin/teacher-classes-page.php:922
 #: includes/pages/wordset-pages.php:25481
 #: includes/pages/wordset-pages.php:25492
@@ -13859,41 +13865,41 @@ msgstr "Bu bağlantıyı henüz hesabı olmayan bir öğrenciyle paylaşın. Bu 
 msgid "Student progress"
 msgstr "Öğrenci ilerlemesi"
 
-#: includes/admin/teacher-classes-page.php:1023
+#: includes/admin/teacher-classes-page.php:1028
 #: includes/admin/user-progress-report.php:834
 msgid "30d Rounds"
 msgstr "30 günlük Turlar"
 
-#: includes/admin/teacher-classes-page.php:1024
+#: includes/admin/teacher-classes-page.php:1029
 #: includes/admin/user-progress-report.php:838
 #: includes/admin/user-progress-report.php:999
 #: includes/admin/user-progress-report.php:1030
 #: includes/pages/wordset-pages.php:12916
-#: includes/pages/wordset-pages.php:13047
+#: includes/pages/wordset-pages.php:13049
 msgid "Studied"
 msgstr "okudu"
 
-#: includes/admin/teacher-classes-page.php:1025
+#: includes/admin/teacher-classes-page.php:1030
 #: includes/admin/user-progress-report.php:839
 #: includes/admin/user-progress-report.php:1001
 #: includes/admin/user-progress-report.php:1031
 #: includes/pages/wordset-pages.php:12920
-#: includes/pages/wordset-pages.php:13053
+#: includes/pages/wordset-pages.php:13055
 msgid "Mastered"
 msgstr "Ustalaşmış"
 
-#: includes/admin/teacher-classes-page.php:1027
+#: includes/admin/teacher-classes-page.php:1032
 #: includes/admin/user-progress-report.php:841
 msgid "Last Activity (UTC)"
 msgstr "Son Etkinlik (UTC)"
 
-#: includes/admin/teacher-classes-page.php:1034
-#: includes/pages/wordset-pages.php:13020
+#: includes/admin/teacher-classes-page.php:1039
+#: includes/pages/wordset-pages.php:13021
 msgid "No learners have joined this class yet."
 msgstr "Henüz bu sınıfa hiçbir öğrenci katılmadı."
 
-#: includes/admin/teacher-classes-page.php:1054
-#: includes/pages/wordset-pages.php:13097
+#: includes/admin/teacher-classes-page.php:1075
+#: includes/pages/wordset-pages.php:13100
 #, php-format
 msgid "Remove %s from this class?"
 msgstr "%s bu sınıftan çıkarılsın mı?"
@@ -16177,7 +16183,7 @@ msgstr "Davetleri ve öğrenci ilerlemesini görmek için bir sınıf seç."
 
 #. translators: %s: teacher display name
 #: includes/pages/wordset-pages.php:12897
-#: includes/teacher-classes.php:1353
+#: includes/teacher-classes.php:1489
 #, php-format
 msgid "Teacher: %s"
 msgstr "Öğretmen: %s"
@@ -16203,7 +16209,7 @@ msgstr "Bu bağlantıdan oluşturulan yeni öğrenci hesapları sınıfa otomati
 msgid "Copy link"
 msgstr "Bağlantıyı kopyala"
 
-#: includes/pages/wordset-pages.php:13041
+#: includes/pages/wordset-pages.php:13043
 msgid "30d"
 msgstr "30 gün"
 
@@ -16402,9 +16408,9 @@ msgid "Correct"
 msgstr "Doğru"
 
 #: includes/pages/wordset-pages.php:13381
-#: includes/shortcodes/wordset-buttons-shortcode.php:2474
-#: includes/shortcodes/wordset-buttons-shortcode.php:2511
-#: includes/shortcodes/wordset-buttons-shortcode.php:2525
+#: includes/shortcodes/wordset-buttons-shortcode.php:2505
+#: includes/shortcodes/wordset-buttons-shortcode.php:2542
+#: includes/shortcodes/wordset-buttons-shortcode.php:2556
 msgid "Try again"
 msgstr "Tekrar dene"
 
@@ -17470,6 +17476,7 @@ msgstr[1] "%d resim"
 msgid "No template content yet"
 msgstr "Henüz şablon içeriği yok"
 
+#: includes/admin/google-classroom-integration.php:267
 #: includes/pages/wordset-pages.php:25435
 #: includes/pages/wordset-pages.php:25436
 msgid "Not ready"
@@ -17556,7 +17563,7 @@ msgid "Last practiced"
 msgstr "Son çalışılan"
 
 #: includes/pages/wordset-pages.php:25955
-#: includes/privacy.php:664
+#: includes/privacy.php:870
 #: includes/shortcodes/flashcard-widget.php:684
 msgid "Gender progress"
 msgstr "Cinsiyet ilerlemesi"
@@ -17973,7 +17980,7 @@ msgid "Assign this card to the lesson category and wordset using the taxonomy bo
 msgstr "Kenar çubuğundaki sınıflandırma kutularını kullanarak bu kartı ders kategorisine ve kelime setine atayın. Soru tarafı burada tanımlanır; cevap seçenekleri hâlâ normal kelimelerden ve onların kayıtlarından gelir."
 
 #: includes/post-types/prompt-card-post-type.php:1159
-#: includes/privacy.php:727
+#: includes/privacy.php:933
 msgid "Prompt text"
 msgstr "Soru metni"
 
@@ -18002,7 +18009,7 @@ msgid "Pick the existing word whose image should be shown for this card. Leave e
 msgstr "Bu kart için resminin gösterilmesi gereken mevcut kelimeyi seçin. Doğru cevap kelimesi resmine geri dönmek için boş bırakın."
 
 #: includes/post-types/prompt-card-post-type.php:1193
-#: includes/privacy.php:728
+#: includes/privacy.php:934
 msgid "Correct answer word ID"
 msgstr "Doğru cevap kelime kimliği"
 
@@ -18198,10 +18205,6 @@ msgstr "Yayınlanması Engellendi:"
 msgid "Learner Progress Privacy:"
 msgstr "Öğrenci İlerleme Durumu Gizliliği:"
 
-#: includes/privacy.php:86
-msgid "LL Tools treats logged-in study progress as core account functionality. No separate consent checkbox is shown for this core feature. Personal learner analytics should be limited to administrators, documented in the site privacy policy, and handled through WordPress export/erase tools."
-msgstr "LL Tools, oturum açılarak yapılan çalışma ilerlemesini temel hesap işlevi olarak ele alır. Bu temel özellik için ayrı bir izin onay kutusu gösterilmemiştir. Kişisel öğrenci analizleri yöneticilerle sınırlı olmalı, site gizlilik politikasında belgelenmeli ve WordPress dışa aktarma/silme araçları aracılığıyla işlenmelidir."
-
 #: includes/privacy.php:91
 msgid "Detailed Activity Retention (days):"
 msgstr "Ayrıntılı Etkinlik Tutma (gün):"
@@ -18211,286 +18214,281 @@ msgid "Detailed activity log rows are deleted automatically after this many days
 msgstr "Ayrıntılı etkinlik günlüğü satırları bu kadar gün sonra otomatik olarak silinir. Özet ilerleme satırları, kullanıcı hesabı silinene veya site öğrencinin kişisel verilerini silene kadar kalır."
 
 #: includes/privacy.php:406
-#: includes/privacy.php:516
+#: includes/privacy.php:722
 msgid "LL Tools Study Settings"
 msgstr "LL Tools Çalışma Ayarları"
 
 #: includes/privacy.php:410
-#: includes/privacy.php:636
+#: includes/privacy.php:842
 msgid "LL Tools Study Progress"
 msgstr "LL Tools Çalışma İlerlemesi"
 
 #: includes/privacy.php:414
-#: includes/privacy.php:722
+#: includes/privacy.php:928
 msgid "LL Tools Prompt Card Progress"
 msgstr "LL Tools Soru Kartı İlerlemesi"
 
 #: includes/privacy.php:418
-#: includes/privacy.php:802
+#: includes/privacy.php:1008
 msgid "LL Tools Study Activity"
 msgstr "LL Tools Çalışma Etkinliği"
 
 #: includes/privacy.php:422
-#: includes/privacy.php:858
+#: includes/privacy.php:1064
 msgid "LL Tools Offline Sessions"
 msgstr "LL Tools Çevrimdışı Oturumları"
 
-#: includes/privacy.php:519
+#: includes/privacy.php:725
 msgid "Selected word set ID"
 msgstr "Seçilen kelime seti kimliği"
 
-#: includes/privacy.php:520
+#: includes/privacy.php:726
 msgid "Selected word set"
 msgstr "Seçilen kelime seti"
 
-#: includes/privacy.php:521
+#: includes/privacy.php:727
 msgid "Selected category IDs"
 msgstr "Seçilen kategori kimlikleri"
 
-#: includes/privacy.php:522
+#: includes/privacy.php:728
 msgid "Starred word IDs"
 msgstr "Yıldızlı kelime kimlikleri"
 
-#: includes/privacy.php:523
+#: includes/privacy.php:729
 msgid "Fast transitions enabled"
 msgstr "Hızlı geçişler etkinleştirildi"
 
-#: includes/privacy.php:531
+#: includes/privacy.php:737
 msgid "LL Tools Study Goals"
 msgstr "LL Tools Çalışma Hedefleri"
 
-#: includes/privacy.php:535
+#: includes/privacy.php:741
 msgid "Ignored category IDs"
 msgstr "Yoksayılan kategori kimlikleri"
 
-#: includes/privacy.php:536
+#: includes/privacy.php:742
 msgid "Preferred word set IDs"
 msgstr "Tercih edilen kelime seti kimlikleri"
 
-#: includes/privacy.php:537
+#: includes/privacy.php:743
 msgid "Placement-known category IDs"
 msgstr "Yerleşim tarafından bilinen kategori kimlikleri"
 
-#: includes/privacy.php:538
+#: includes/privacy.php:744
 msgid "Daily new-word target"
 msgstr "Günlük yeni kelime hedefi"
 
-#: includes/privacy.php:539
+#: includes/privacy.php:745
 msgid "Priority focus"
 msgstr "Öncelik odağı"
 
-#: includes/privacy.php:547
+#: includes/privacy.php:753
 msgid "LL Tools Category Progress"
 msgstr "LL Tools Kategori İlerlemesi"
 
-#: includes/privacy.php:550
+#: includes/privacy.php:756
 msgid "Category progress"
 msgstr "Kategori ilerlemesi"
 
-#: includes/privacy.php:580
+#: includes/privacy.php:786
 msgid "LL Tools Recommendation State"
 msgstr "LL Tools Öneri Durumu"
 
-#: includes/privacy.php:583
+#: includes/privacy.php:789
 msgid "Recommendation queue"
 msgstr "Öneri kuyruğu"
 
-#: includes/privacy.php:584
+#: includes/privacy.php:790
 msgid "Last recommendation"
 msgstr "Son öneri"
 
-#: includes/privacy.php:585
+#: includes/privacy.php:791
 msgid "Dismissed recommendation signatures"
 msgstr "Reddedilen öneri imzaları"
 
-#: includes/privacy.php:586
+#: includes/privacy.php:792
 msgid "Recommendation deferrals"
 msgstr "Öneri ertelemeleri"
 
-#: includes/privacy.php:639
-#: includes/privacy.php:808
+#: includes/privacy.php:845
+#: includes/privacy.php:1014
 msgid "Word ID"
 msgstr "Kelime Kimliği"
 
-#: includes/privacy.php:641
-#: includes/privacy.php:730
-#: includes/privacy.php:812
+#: includes/privacy.php:847
+#: includes/privacy.php:936
+#: includes/privacy.php:1018
 msgid "Category ID"
 msgstr "Kategori Kimliği"
 
-#: includes/privacy.php:457
-#: includes/privacy.php:643
-#: includes/privacy.php:732
-#: includes/privacy.php:814
+#: includes/privacy.php:469
+#: includes/privacy.php:849
+#: includes/privacy.php:938
+#: includes/privacy.php:1020
 msgid "Word set ID"
 msgstr "Kelime seti kimliği"
 
-#: includes/privacy.php:645
-#: includes/privacy.php:734
+#: includes/privacy.php:851
+#: includes/privacy.php:940
 msgid "First seen at (UTC)"
 msgstr "İlk kez (UTC) görüldü"
 
-#: includes/privacy.php:646
-#: includes/privacy.php:735
+#: includes/privacy.php:852
+#: includes/privacy.php:941
 msgid "Last seen at (UTC)"
 msgstr "Son görülme tarihi (UTC)"
 
-#: includes/privacy.php:647
-#: includes/privacy.php:736
+#: includes/privacy.php:853
+#: includes/privacy.php:942
 msgid "Last mode"
 msgstr "Son mod"
 
-#: includes/privacy.php:649
+#: includes/privacy.php:855
 msgid "Difficulty score"
 msgstr "Zorluk puanı"
 
-#: includes/privacy.php:650
+#: includes/privacy.php:856
 msgid "Total coverage"
 msgstr "Toplam kapsam"
 
-#: includes/privacy.php:651
+#: includes/privacy.php:857
 msgid "Learning coverage"
 msgstr "Öğrenme kapsamı"
 
-#: includes/privacy.php:652
+#: includes/privacy.php:858
 msgid "Practice coverage"
 msgstr "Uygulama kapsamı"
 
-#: includes/privacy.php:653
+#: includes/privacy.php:859
 msgid "Listening coverage"
 msgstr "Dinleme kapsamı"
 
-#: includes/privacy.php:654
+#: includes/privacy.php:860
 msgid "Gender coverage"
 msgstr "Cinsiyet kapsamı"
 
-#: includes/privacy.php:655
+#: includes/privacy.php:861
 msgid "Self-check coverage"
 msgstr "Kendi kendine kontrol kapsamı"
 
-#: includes/privacy.php:656
-#: includes/privacy.php:739
+#: includes/privacy.php:862
+#: includes/privacy.php:945
 msgid "Correct on first try"
 msgstr "İlk denemede doğru"
 
-#: includes/privacy.php:657
-#: includes/privacy.php:740
+#: includes/privacy.php:863
+#: includes/privacy.php:946
 msgid "Correct after retry"
 msgstr "Tekrar denedikten sonra düzeltin"
 
-#: includes/privacy.php:658
-#: includes/privacy.php:741
+#: includes/privacy.php:864
+#: includes/privacy.php:947
 msgid "Incorrect answers"
 msgstr "Yanlış cevaplar"
 
-#: includes/privacy.php:659
+#: includes/privacy.php:865
 msgid "Lapse count"
 msgstr "Zaman aşımı sayısı"
 
-#: includes/privacy.php:660
-#: includes/privacy.php:742
+#: includes/privacy.php:866
+#: includes/privacy.php:948
 msgid "Current streak"
 msgstr "Mevcut seri"
 
-#: includes/privacy.php:661
+#: includes/privacy.php:867
 msgid "Stage"
 msgstr "Sahne"
 
-#: includes/privacy.php:662
+#: includes/privacy.php:868
 msgid "Due at (UTC)"
 msgstr "Son teslim tarihi (UTC)"
 
-#: includes/privacy.php:663
-#: includes/privacy.php:743
+#: includes/privacy.php:869
+#: includes/privacy.php:949
 msgid "Mastery unlocked"
 msgstr "Ustalığın kilidi açıldı"
 
-#: includes/privacy.php:665
+#: includes/privacy.php:871
 msgid "Required practice recording types"
 msgstr "Gerekli pratik kayıt türleri"
 
-#: includes/privacy.php:666
+#: includes/privacy.php:872
 msgid "Correct practice recording types"
 msgstr "Doğru pratik kayıt türleri"
 
-#: includes/privacy.php:725
-#: includes/privacy.php:810
+#: includes/privacy.php:931
+#: includes/privacy.php:1016
 msgid "Prompt card ID"
 msgstr "Soru kartı kimliği"
 
-#: includes/privacy.php:729
+#: includes/privacy.php:935
 msgid "Correct answer word"
 msgstr "Doğru cevap kelimesi"
 
-#: includes/privacy.php:738
+#: includes/privacy.php:944
 msgid "Exposure total"
 msgstr "Toplam maruz kalma"
 
-#: includes/privacy.php:805
+#: includes/privacy.php:1011
 msgid "Recorded at (UTC)"
 msgstr "(UTC) tarihinde kaydedildi"
 
-#: includes/privacy.php:806
+#: includes/privacy.php:1012
 msgid "Event type"
 msgstr "Etkinlik türü"
 
-#: includes/privacy.php:807
+#: includes/privacy.php:1013
 msgid "Mode"
 msgstr "Mod"
 
-#: includes/privacy.php:816
+#: includes/privacy.php:1022
 msgid "Correct result"
 msgstr "Doğru sonuç"
 
-#: includes/privacy.php:817
+#: includes/privacy.php:1023
 msgid "Had wrong answer before success"
 msgstr "Başarıdan önce yanlış cevap vardı"
 
-#: includes/privacy.php:818
+#: includes/privacy.php:1024
 msgid "Payload"
 msgstr "Yük"
 
-#: includes/privacy.php:861
+#: includes/privacy.php:1067
 msgid "Session key"
 msgstr "Oturum anahtarı"
 
-#: includes/privacy.php:862
+#: includes/privacy.php:540
+#: includes/privacy.php:1068
 msgid "Created at (UTC)"
 msgstr "(UTC) tarihinde oluşturuldu"
 
-#: includes/privacy.php:863
+#: includes/privacy.php:1069
 msgid "Last used at (UTC)"
 msgstr "Son kullanım tarihi (UTC)"
 
-#: includes/privacy.php:864
+#: includes/privacy.php:1070
 msgid "Expires at (UTC)"
 msgstr "(UTC) itibarıyla sona eriyor"
 
-#: includes/privacy.php:865
+#: includes/privacy.php:1071
 msgid "Device identifier"
 msgstr "Cihaz tanımlayıcı"
 
-#: includes/privacy.php:866
+#: includes/privacy.php:1072
 msgid "Profile identifier"
 msgstr "Profil tanımlayıcı"
 
-#: includes/privacy.php:943
+#: includes/privacy.php:1149
 msgid "LL Tools Study Data"
 msgstr "LL Tools Çalışma Verileri"
 
-#: includes/privacy.php:983
+#: includes/privacy.php:1932
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr "LL Tools öğrenci ilerleme özelliklerini kullanan siteler için önerilen metin."
 
-#: includes/privacy.php:985
+#: includes/privacy.php:1934
 msgid "Suggested Text:"
 msgstr "Önerilen Metin:"
-
-#. translators: %d: retention days
-#: includes/privacy.php:988
-#, php-format
-msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, and let site administrators review learner progress when needed for site operations. Detailed activity log entries are kept for %d days. Summary progress data remains until your account is deleted or the site erases your LL Tools personal data. You can request an export or erasure of this data through the site’s privacy request tools."
-msgstr "Oturum açmışken LL Tools’u kullandığında bu site çalışma ilerlemeni, öğrenme tercihlerini, seçilen kelime setini/kategorileri, yıldızlı kelimeleri, çalışılan kelimeler için ilerleme özetlerini ve quiz gösterimleri ile sonuçları gibi ayrıntılı etkinlik geçmişini saklar. Çevrimdışı senkronizasyon özelliğini kullanırsan site, bu senkronizasyonun çalışması için gereken sınırlı çevrimdışı oturum cihaz/profil tanımlayıcılarını da saklar. Bu bilgiler ilerlemeni kaydetmek, sonraki çalışma önerilerini kişiselleştirmek, oturumlar arasında çalışma durumunu geri yüklemek, çevrimdışı çalışma etkinliğini hesabınla eşitlemek ve site işlemleri için gerektiğinde site yöneticilerinin öğrenci ilerlemesini incelemesini sağlamak amacıyla kullanılır. Ayrıntılı etkinlik günlüğü kayıtları %d gün boyunca saklanır. Özet ilerleme verileri, hesabın silinene veya site LL Tools kişisel verilerini silene kadar kalır. Bu verilerin dışa aktarılmasını veya silinmesini sitenin gizlilik isteği araçları üzerinden talep edebilirsin."
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:374
 msgid "Credit"
@@ -19556,7 +19554,7 @@ msgid "Local transcript missing"
 msgstr "Yerel transkript eksik"
 
 #. translators: %d: number of lesson pages in the word set.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1976
+#: includes/shortcodes/wordset-buttons-shortcode.php:2007
 #, php-format
 msgid "%d lesson"
 msgid_plural "%d lessons"
@@ -19565,8 +19563,8 @@ msgstr[1] "%d ders"
 
 #. translators: 1: word set name, 2: word set privacy label.
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1984
-#: includes/shortcodes/wordset-buttons-shortcode.php:1999
+#: includes/shortcodes/wordset-buttons-shortcode.php:2015
+#: includes/shortcodes/wordset-buttons-shortcode.php:2030
 #, php-format
 msgid "%1$s, %2$s"
 msgstr "%1$s, %2$s"
@@ -19730,8 +19728,8 @@ msgstr "Geçerli bir öğretmen hesabı seç."
 #: includes/teacher-classes.php:378
 #: includes/teacher-classes.php:564
 #: includes/teacher-classes.php:594
-#: includes/teacher-classes.php:687
-#: includes/teacher-classes.php:1043
+#: includes/teacher-classes.php:704
+#: includes/teacher-classes.php:1179
 msgid "This class no longer exists."
 msgstr "Bu sınıf artık mevcut değil."
 
@@ -19748,90 +19746,90 @@ msgstr "Bir sınıfa yalnızca öğrenci hesapları manuel olarak eklenebilir."
 msgid "The learner could not be added to the class."
 msgstr "Öğrenci sınıfa eklenemedi."
 
-#: includes/teacher-classes.php:714
+#: includes/teacher-classes.php:731
 msgid "The class could not be deleted."
 msgstr "Sınıf silinemedi."
 
-#: includes/teacher-classes.php:1018
-#: includes/teacher-classes.php:1024
-#: includes/teacher-classes.php:1029
-#: includes/teacher-classes.php:1034
-#: includes/teacher-classes.php:1046
-#: includes/teacher-classes.php:1049
+#: includes/teacher-classes.php:1154
+#: includes/teacher-classes.php:1160
+#: includes/teacher-classes.php:1165
+#: includes/teacher-classes.php:1170
+#: includes/teacher-classes.php:1182
+#: includes/teacher-classes.php:1185
 msgid "This class invitation link is invalid."
 msgstr "Bu sınıf daveti bağlantısı geçersiz."
 
-#: includes/teacher-classes.php:1052
+#: includes/teacher-classes.php:1188
 msgid "This class invitation link has expired."
 msgstr "Bu sınıf daveti bağlantısının süresi doldu."
 
-#: includes/teacher-classes.php:1169
+#: includes/teacher-classes.php:1305
 msgid "Please sign in with a valid learner account."
 msgstr "Lütfen geçerli bir öğrenci hesabıyla oturum aç."
 
-#: includes/teacher-classes.php:1174
+#: includes/teacher-classes.php:1310
 msgid "This invitation is only for learner accounts."
 msgstr "Bu davetiye yalnızca öğrenci hesapları içindir."
 
-#: includes/teacher-classes.php:1179
+#: includes/teacher-classes.php:1315
 msgid "Please sign in with the invited learner email address."
 msgstr "Lütfen davet edilen öğrencinin e-posta adresiyle oturum aç."
 
-#: includes/teacher-classes.php:1319
+#: includes/teacher-classes.php:1455
 msgid "Enter the email address of an existing learner account."
 msgstr "Mevcut bir öğrenci hesabının e-posta adresini gir."
 
-#: includes/teacher-classes.php:1324
+#: includes/teacher-classes.php:1460
 msgid "The class invitation link could not be generated."
 msgstr "Sınıf daveti bağlantısı oluşturulamadı."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1337
+#: includes/teacher-classes.php:1473
 #, php-format
 msgid "Invitation to join %s"
 msgstr "Katılım daveti: %s"
 
 #. translators: %1$s: site name, %2$s: class name
-#: includes/teacher-classes.php:1344
+#: includes/teacher-classes.php:1480
 #, php-format
 msgid "You have been invited on %1$s to join the class \"%2$s\"."
 msgstr "%1$s tarihinde \"%2$s\" sınıfına katılmaya davet edildiniz."
 
-#: includes/teacher-classes.php:1359
+#: includes/teacher-classes.php:1495
 msgid "Open this link and sign in with your learner account to join the class:"
 msgstr "Bu bağlantıyı aç ve sınıfa katılmak için öğrenci hesabınla oturum aç:"
 
-#: includes/teacher-classes.php:1378
+#: includes/teacher-classes.php:1514
 msgid "The invitation email could not be sent."
 msgstr "Davet e-postası gönderilemedi."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1423
+#: includes/teacher-classes.php:1559
 #, php-format
 msgid "Create a learner account to join %s."
 msgstr "%s sınıfına katılmak için bir öğrenci hesabı oluştur."
 
-#: includes/teacher-classes.php:1424
-#: includes/teacher-classes.php:1429
-#: includes/teacher-classes.php:1449
-#: includes/teacher-classes.php:1454
+#: includes/teacher-classes.php:1560
+#: includes/teacher-classes.php:1565
+#: includes/teacher-classes.php:1585
+#: includes/teacher-classes.php:1590
 msgid "this class"
 msgstr "bu sınıf"
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1428
+#: includes/teacher-classes.php:1564
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
 msgstr "%s sınıfına katılmak için davet edilen öğrenci hesabıyla oturum aç."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1448
+#: includes/teacher-classes.php:1584
 #, php-format
 msgid "You are already a member of %s."
 msgstr "Zaten %s üyesisiniz."
 
 #. translators: %s: class name
-#: includes/teacher-classes.php:1453
+#: includes/teacher-classes.php:1589
 #, php-format
 msgid "You joined %s."
 msgstr "Katıldınız: %s."
@@ -22091,6 +22089,7 @@ msgstr "Çakışmalar"
 msgid "Conflicts: %d"
 msgstr "Çakışmalar: %d"
 
+#: includes/admin/google-classroom-integration.php:272
 #: includes/admin/login-blocks-admin.php:248
 #: includes/admin/site-sync-admin.php:2188
 msgid "Connection"
@@ -22778,7 +22777,7 @@ msgstr "Veya yeni kategori"
 msgid "Published but hidden. Reason: missing audio."
 msgstr "Yayınlandı ama gizli. Neden: ses kaydı eksik."
 
-#: includes/admin/admin-dashboard-menu.php:557
+#: includes/admin/admin-dashboard-menu.php:559
 msgid "Pull a live word set into staging, preview local transcription changes, and push clean updates back to live."
 msgstr "Canlı kelime setini staging'e pull et, yerel transkripsiyon değişikliklerini önizle ve temiz güncellemeleri canlıya geri push et."
 
@@ -22856,8 +22855,8 @@ msgstr "Söyle:"
 msgid "Shows the recorder the audio processing review step for trimming, noise reduction, and loudness before the recording is saved."
 msgstr "Kayıt kaydedilmeden önce ses kaydediciye kırpma, gürültü azaltma ve ses yüksekliği için ses işleme inceleme adımını gösterir."
 
-#: includes/admin/admin-dashboard-menu.php:164
-#: includes/admin/admin-dashboard-menu.php:556
+#: includes/admin/admin-dashboard-menu.php:165
+#: includes/admin/admin-dashboard-menu.php:558
 msgid "Site Sync"
 msgstr "Site Sync"
 
@@ -23139,12 +23138,12 @@ msgstr "Set"
 msgid "Hide word titles by default when no wordset recorder-text setting applies"
 msgstr "Kelime seti kaydedici metni ayarı yokken kelime başlıklarını varsayılan olarak gizle"
 
-#: includes/shortcodes/wordset-buttons-shortcode.php:1979
+#: includes/shortcodes/wordset-buttons-shortcode.php:2010
 msgid "Private word set"
 msgstr "Özel kelime seti"
 
 #. translators: 1: word set name, 2: lesson count label.
-#: includes/shortcodes/wordset-buttons-shortcode.php:1993
+#: includes/shortcodes/wordset-buttons-shortcode.php:2024
 #, php-format
 msgid "%1$s, private word set, %2$s"
 msgstr "%1$s, özel kelime seti, %2$s"
@@ -23165,15 +23164,15 @@ msgstr "Giriş"
 msgid "Sign-up"
 msgstr "Kayıt"
 
-#: includes/admin/admin-dashboard-menu.php:166
-#: includes/admin/admin-dashboard-menu.php:574
+#: includes/admin/admin-dashboard-menu.php:167
+#: includes/admin/admin-dashboard-menu.php:576
 #: includes/admin/login-blocks-admin.php:40
 #: includes/admin/login-blocks-admin.php:41
 #: includes/admin/login-blocks-admin.php:181
 msgid "Login Blocks"
 msgstr "Giriş engelleri"
 
-#: includes/admin/admin-dashboard-menu.php:575
+#: includes/admin/admin-dashboard-menu.php:577
 msgid "Release frontend login and sign-up rate-limit blocks for a connection."
 msgstr "Bir bağlantı için ön uç giriş ve kayıt hız sınırı engellerini kaldır."
 
@@ -24466,10 +24465,10 @@ msgstr "Cümle içinde"
 msgid "Secondary"
 msgstr "İkincil"
 
-#: includes/admin/admin-dashboard-menu.php:345
-#: includes/admin/admin-dashboard-menu.php:648
-#: includes/admin/admin-dashboard-menu.php:802
-#: includes/admin/admin-dashboard-menu.php:803
+#: includes/admin/admin-dashboard-menu.php:347
+#: includes/admin/admin-dashboard-menu.php:650
+#: includes/admin/admin-dashboard-menu.php:804
+#: includes/admin/admin-dashboard-menu.php:805
 #: includes/pages/quiz-pages.php:36
 #: includes/pages/quiz-pages.php:38
 #: includes/pages/quiz-pages.php:45
@@ -24477,11 +24476,11 @@ msgstr "İkincil"
 msgid "Quiz Pages"
 msgstr "Quiz Sayfaları"
 
-#: includes/admin/admin-dashboard-menu.php:346
+#: includes/admin/admin-dashboard-menu.php:348
 msgid "Review generated public quiz pages without mixing them into normal Pages."
 msgstr "Oluşturulan herkese açık quiz sayfalarını, normal Sayfalarla karıştırmadan incele."
 
-#: includes/admin/admin-dashboard-menu.php:649
+#: includes/admin/admin-dashboard-menu.php:651
 msgid "Review generated quiz pages and open their public URLs without editing normal Pages."
 msgstr "Oluşturulan quiz sayfalarını incele ve normal Sayfaları düzenlemeden herkese açık URL'lerini aç."
 
@@ -25248,11 +25247,11 @@ msgid "Creating page..."
 msgstr "Sayfa oluşturuluyor..."
 
 #: includes/privacy.php:426
-#: includes/privacy.php:452
+#: includes/privacy.php:464
 msgid "LL Tools Class Memberships"
 msgstr "LL Tools Sınıf Üyelikleri"
 
-#: includes/privacy.php:455
+#: includes/privacy.php:467
 msgid "Class ID"
 msgstr "Sınıf kimliği"
 
@@ -26334,8 +26333,8 @@ msgstr "Sayfada ustalaşılan kelimeler"
 msgid "Page hard"
 msgstr "Sayfadaki zor kelimeler"
 
-#: includes/admin/teacher-classes-page.php:1075
-#: includes/pages/wordset-pages.php:13115
+#: includes/admin/teacher-classes-page.php:1096
+#: includes/pages/wordset-pages.php:13118
 msgid "Learner progress"
 msgstr "Öğrencinin ilerlemesi"
 
@@ -26817,7 +26816,7 @@ msgstr "Herhangi bir kuyruk kategorisi talep edilmedi."
 #: includes/admin/audio-processor-admin.php:203
 #: includes/pages/wordset-pages.php:12744
 #: includes/pages/wordset-pages.php:12875
-#: includes/pages/wordset-pages.php:13119
+#: includes/pages/wordset-pages.php:13122
 #: includes/pages/wordset-pages.php:22552
 #: includes/shortcodes/content-lesson-index-shortcode.php:546
 #: includes/shortcodes/content-lesson-index-shortcode.php:715
@@ -26825,7 +26824,7 @@ msgstr "Herhangi bir kuyruk kategorisi talep edilmedi."
 msgid "Page %d"
 msgstr "Sayfa %d"
 
-#: includes/pages/wordset-pages.php:13020
+#: includes/pages/wordset-pages.php:13021
 msgid "No learners are available on this page."
 msgstr "Bu sayfada öğrenci yok."
 
@@ -27639,9 +27638,9 @@ msgstr "Bu dersin ilerlemesini güncelleyemezsin."
 #: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1296
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
-#: includes/user-progress.php:3387
-#: includes/user-progress.php:3413
-#: includes/user-progress.php:3609
+#: includes/user-progress.php:3445
+#: includes/user-progress.php:3471
+#: includes/user-progress.php:3667
 msgid "Lesson progress could not be saved."
 msgstr "Ders ilerlemesi kaydedilemedi."
 
@@ -27832,11 +27831,11 @@ msgstr "Bir makale, ses veya video dersi oluştur ve uygun kelime setiyle öğre
 msgid "Use Article for a text-first lesson with no media player. Corpus text remains reserved for editions, translations, and linguist-facing interlinear payloads."
 msgstr "Medya oynatıcısı olmayan, metin ağırlıklı bir ders için Makale'yi kullan. Derlem metni; edisyonlar, çeviriler ve dilbilimcilere yönelik satırlar arası içerikler için ayrılmıştır."
 
-#: includes/privacy.php:571
+#: includes/privacy.php:777
 msgid "LL Tools Content Lesson Progress"
 msgstr "LL Tools İçerik Dersi İlerlemesi"
 
-#: includes/privacy.php:559
+#: includes/privacy.php:765
 msgid "Completed content lesson IDs"
 msgstr "Tamamlanan içerik dersi kimlikleri"
 
@@ -28024,7 +28023,7 @@ msgstr "Sıralı kelime ses ayrıntıları eksiksiz yüklenemedi."
 msgid "User %d canonical completion data is at the configured safe limit and could not accept migrated lessons."
 msgstr "%d numaralı kullanıcının kanonik tamamlama verileri, yapılandırılmış güvenli sınıra ulaştığı için aktarılan dersleri kabul edemedi."
 
-#: includes/privacy.php:565
+#: includes/privacy.php:771
 msgid "Legacy completed lesson data"
 msgstr "Eski tamamlanan ders verileri"
 
@@ -28413,3 +28412,1166 @@ msgstr "Şablon paketleri, paketteki görünürlük ayarından bağımsız olara
 #: includes/admin/export-import.php:14532
 msgid "The incomplete word set was retained privately; use Undo Import to remove it."
 msgstr "Tamamlanmamış kelime seti gizli olarak korundu; kaldırmak için İçe Aktarmayı Geri Al'ı kullan."
+
+#: includes/admin/admin-dashboard-menu.php:176
+#: includes/admin/google-classroom-integration.php:46
+#: includes/admin/google-classroom-integration.php:47
+#: includes/admin/google-classroom-integration.php:246
+msgid "Google Classroom"
+msgstr "Google Classroom"
+
+#: includes/admin/google-classroom-integration.php:60
+msgid "Google Classroom was connected."
+msgstr "Google Classroom bağlandı."
+
+#: includes/admin/google-classroom-integration.php:61
+msgid "The local Google Classroom connection was removed."
+msgstr "Yerel Google Classroom bağlantısı kaldırıldı."
+
+#: includes/admin/google-classroom-integration.php:62
+msgid "The local connection was removed, but Google could not confirm remote revocation. You can also remove access in your Google Account."
+msgstr "Yerel bağlantı kaldırıldı ancak Google, uzaktaki yetkinin iptal edildiğini doğrulayamadı. Erişimi Google Hesabından da kaldırabilirsin."
+
+#: includes/admin/google-classroom-integration.php:63
+msgid "Google Classroom authorization was not completed."
+msgstr "Google Classroom yetkilendirmesi tamamlanmadı."
+
+#: includes/admin/google-classroom-integration.php:64
+msgid "Google Classroom authorization could not be verified. Please try again."
+msgstr "Google Classroom yetkilendirmesi doğrulanamadı. Lütfen yeniden dene."
+
+#: includes/admin/google-classroom-integration.php:65
+msgid "Google Classroom is not configured on this site."
+msgstr "Google Classroom bu sitede yapılandırılmamış."
+
+#: includes/admin/google-classroom-integration.php:66
+msgid "The Google Classroom connection could not be removed."
+msgstr "Google Classroom bağlantısı kaldırılamadı."
+
+#: includes/admin/google-classroom-integration.php:86
+#: includes/admin/google-classroom-integration.php:199
+msgid "You are not allowed to manage Google Classroom connections."
+msgstr "Google Classroom bağlantılarını yönetme iznin yok."
+
+#: includes/admin/google-classroom-integration.php:87
+#: includes/admin/google-classroom-integration.php:200
+msgid "Access denied"
+msgstr "Erişim reddedildi"
+
+#: includes/admin/google-classroom-integration.php:231
+msgid "Connect Google Classroom before listing courses."
+msgstr "Dersleri listelemeden önce Google Classroom'u bağla."
+
+#: includes/admin/google-classroom-integration.php:239
+msgid "Active courses could not be loaded from Google Classroom."
+msgstr "Etkin dersler Google Classroom'dan yüklenemedi."
+
+#: includes/admin/google-classroom-integration.php:249
+msgid "Configuration"
+msgstr "Yapılandırma"
+
+#: includes/admin/google-classroom-integration.php:250
+msgid "OAuth credentials and the encryption key must be supplied by site configuration. They are never stored or entered on this page."
+msgstr "OAuth kimlik bilgileri ve şifreleme anahtarı site yapılandırmasında sağlanmalıdır. Bu bilgiler bu sayfaya girilmez ve burada saklanmaz."
+
+#: includes/admin/google-classroom-integration.php:254
+msgid "Authorized redirect URI"
+msgstr "Yetkilendirilmiş yönlendirme URI'si"
+
+#: includes/admin/google-classroom-integration.php:258
+msgid "Client ID"
+msgstr "İstemci kimliği"
+
+#: includes/admin/google-classroom-integration.php:259
+msgid "Client secret"
+msgstr "İstemci gizli anahtarı"
+
+#: includes/admin/google-classroom-integration.php:260
+msgid "Credential encryption"
+msgstr "Kimlik bilgisi şifrelemesi"
+
+#: includes/admin/google-classroom-integration.php:261
+msgid "Database schema"
+msgstr "Veritabanı şeması"
+
+#: includes/admin/google-classroom-integration.php:274
+#: includes/lms/google-classroom.php:1776
+#: includes/lms/google-classroom.php:1782
+msgid "Google Classroom connections could not be loaded."
+msgstr "Google Classroom bağlantıları yüklenemedi."
+
+#: includes/admin/google-classroom-integration.php:276
+msgid "No Google Classroom account is connected."
+msgstr "Bağlı Google Classroom hesabı yok."
+
+#: includes/admin/google-classroom-integration.php:278
+msgid "Courses are requested from Google only when you use a button below. Up to 50 active courses are shown for that exact account."
+msgstr "Dersler yalnızca aşağıdaki düğmeyi kullandığında Google'dan istenir. Bu hesap için en fazla 50 etkin ders gösterilir."
+
+#: includes/admin/google-classroom-integration.php:280
+msgid "Google account"
+msgstr "Google hesabı"
+
+#: includes/admin/google-classroom-integration.php:281
+msgid "Connected since"
+msgstr "Bağlantı tarihi"
+
+#: includes/admin/google-classroom-integration.php:291
+msgid "Connected Google account"
+msgstr "Bağlı Google hesabı"
+
+#: includes/admin/google-classroom-integration.php:298
+msgid "Load active courses"
+msgstr "Etkin dersleri yükle"
+
+#: includes/admin/google-classroom-integration.php:313
+msgid "Connect Google Classroom"
+msgstr "Google Classroom'u bağla"
+
+#: includes/admin/google-classroom-integration.php:313
+msgid "Connect another Google account"
+msgstr "Başka bir Google hesabı bağla"
+
+#: includes/admin/google-classroom-integration.php:320
+msgid "Active courses"
+msgstr "Etkin dersler"
+
+#: includes/admin/google-classroom-integration.php:322
+msgid "No active courses were returned."
+msgstr "Etkin ders bulunamadı."
+
+#: includes/admin/google-classroom-integration.php:325
+msgid "Course"
+msgstr "Ders"
+
+#: includes/admin/google-classroom-integration.php:326
+msgid "Section"
+msgstr "Bölüm"
+
+#: includes/admin/google-classroom-integration.php:327
+msgid "Google course ID"
+msgstr "Google ders kimliği"
+
+#: includes/admin/google-classroom-integration.php:340
+msgid "Grade writes"
+msgstr "Not yazma işlemleri"
+
+#: includes/admin/google-classroom-integration.php:341
+msgid "CourseWork and grade writes are not available on this page. They remain disabled until server-verified assignments and attempts are ready for production."
+msgstr "CourseWork ve not yazma işlemleri bu sayfada kullanılamaz. Sunucu tarafından doğrulanan ödevler ve denemeler üretime hazır olana kadar devre dışı kalırlar."
+
+#: includes/admin/teacher-classes-page.php:1019
+#: includes/teacher-classes.php:873
+msgid "Latest practice shows the number of distinct words answered correctly on the first try. These formative results support learning and are not verified exam grades."
+msgstr "Son alıştırma, ilk denemede doğru yanıtlanan farklı kelime sayısını gösterir. Bu gelişim odaklı sonuçlar öğrenmeyi destekler; doğrulanmış sınav notları değildir."
+
+#: includes/admin/teacher-classes-page.php:1026
+#: includes/teacher-classes.php:884
+msgid "Latest practice"
+msgstr "Son alıştırma"
+
+#: includes/admin/teacher-classes-page.php:1027
+#: includes/teacher-classes.php:890
+msgid "30d attempts"
+msgstr "30 günlük denemeler"
+
+#: includes/admin/teacher-classes-page.php:1065
+#: includes/teacher-classes.php:911
+msgid "No practice result"
+msgstr "Alıştırma sonucu yok"
+
+#: includes/api/lms-rest.php:17
+msgid "Sign in to use assignments."
+msgstr "Ödevleri kullanmak için giriş yap."
+
+#: includes/api/lms-rest.php:38
+msgid "You cannot manage assignments."
+msgstr "Ödevleri yönetemezsin."
+
+#: includes/api/lms-rest.php:51
+#: includes/api/lms-rest.php:71
+msgid "The assignment request is too large."
+msgstr "Ödev isteği çok büyük."
+
+#: includes/api/lms-rest.php:63
+msgid "The assignment request must be a JSON object."
+msgstr "Ödev isteği bir JSON nesnesi olmalıdır."
+
+#: includes/api/lms-rest.php:78
+msgid "The assignment request body is required."
+msgstr "Ödev isteğinin gövdesi gereklidir."
+
+#: includes/api/lms-rest.php:86
+msgid "The assignment request contains an unsupported field."
+msgstr "Ödev isteği desteklenmeyen bir alan içeriyor."
+
+#: includes/api/lms-rest.php:152
+#: includes/lms/assignments.php:1480
+msgid "The assignment was not found."
+msgstr "Ödev bulunamadı."
+
+#: includes/api/lms-rest.php:176
+msgid "The assignment could not be read after it was saved."
+msgstr "Ödev kaydedildikten sonra okunamadı."
+
+#: includes/api/lms-rest.php:217
+msgid "The publish request must be empty."
+msgstr "Yayınlama isteği boş olmalıdır."
+
+#: includes/api/lms-rest.php:237
+msgid "The archive request must be empty."
+msgstr "Arşivleme isteği boş olmalıdır."
+
+#: includes/api/lms-rest.php:257
+msgid "The attempt start request must be empty."
+msgstr "Deneme başlatma isteği boş olmalıdır."
+
+#: includes/api/lms-rest.php:273
+#: includes/lms/assignments.php:1519
+msgid "The assignment answer is invalid."
+msgstr "Ödev yanıtı geçersiz."
+
+#: includes/api/lms-rest.php:294
+msgid "The server calculates the assignment score; the finalize request must be empty."
+msgstr "Ödev puanını sunucu hesaplar; tamamlama isteği boş olmalıdır."
+
+#: includes/api/lms-rest.php:307
+#: includes/lms/assignments.php:1645
+#: includes/lms/assignments.php:1946
+msgid "The assignment attempt was not found."
+msgstr "Ödev denemesi bulunamadı."
+
+#: includes/lms/assignments.php:495
+msgid "The assignment manifest is invalid."
+msgstr "Ödev manifesti geçersiz."
+
+#: includes/lms/assignments.php:499
+#: includes/lms/assignments.php:575
+#: includes/lms/assignments.php:682
+msgid "The assignment manifest is too large."
+msgstr "Ödev manifesti çok büyük."
+
+#: includes/lms/assignments.php:502
+msgid "The assignment manifest version is not supported."
+msgstr "Ödev manifesti sürümü desteklenmiyor."
+
+#: includes/lms/assignments.php:505
+msgid "Only closed-response assignments are supported."
+msgstr "Yalnızca kapalı yanıtlı ödevler desteklenir."
+
+#. translators: 1: minimum questions, 2: maximum questions
+#: includes/lms/assignments.php:515
+msgid "Assignments must contain between %1$d and %2$d questions."
+msgstr "Ödevler %1$d ile %2$d arasında soru içermelidir."
+
+#: includes/lms/assignments.php:526
+msgid "An assignment question is invalid."
+msgstr "Bir ödev sorusu geçersiz."
+
+#: includes/lms/assignments.php:530
+msgid "Assignment question keys must be unique and URL-safe."
+msgstr "Ödev sorularının anahtarları benzersiz ve URL için güvenli olmalıdır."
+
+#: includes/lms/assignments.php:536
+msgid "Each assignment question must have between 2 and 20 choices."
+msgstr "Her ödev sorusu 2 ile 20 arasında seçenek içermelidir."
+
+#: includes/lms/assignments.php:544
+msgid "An assignment choice is invalid."
+msgstr "Bir ödev seçeneği geçersiz."
+
+#: includes/lms/assignments.php:548
+msgid "Assignment choice keys and correctness values are invalid."
+msgstr "Ödev seçeneği anahtarları veya doğruluk değerleri geçersiz."
+
+#: includes/lms/assignments.php:559
+msgid "Each assignment question must have exactly one correct choice."
+msgstr "Her ödev sorusunda tam olarak bir doğru seçenek bulunmalıdır."
+
+#: includes/lms/assignments.php:607
+#: includes/lms/assignments.php:617
+msgid "The assignment date is invalid."
+msgstr "Ödev tarihi geçersiz."
+
+#: includes/lms/assignments.php:625
+#: includes/lms/assignments.php:629
+msgid "The assignment points value is invalid."
+msgstr "Ödev puanı geçersiz."
+
+#: includes/lms/assignments.php:652
+#: includes/lms/assignments.php:656
+msgid "The assignment attempt limit must be between 1 and 100."
+msgstr "Ödev deneme sınırı 1 ile 100 arasında olmalıdır."
+
+#: includes/lms/assignments.php:661
+#: includes/lms/assignments.php:665
+msgid "The assignment grading policy is invalid."
+msgstr "Ödev notlandırma ilkesi geçersiz."
+
+#: includes/lms/assignments.php:677
+msgid "The assignment due date must be after its availability date."
+msgstr "Ödevin son teslim tarihi kullanılabilirlik tarihinden sonra olmalıdır."
+
+#: includes/lms/assignments.php:701
+msgid "Assignments are temporarily unavailable while storage is being prepared."
+msgstr "Depolama hazırlanırken ödevler geçici olarak kullanılamaz."
+
+#: includes/lms/assignments.php:898
+#: includes/lms/assignments.php:905
+#: includes/lms/assignments.php:909
+msgid "The stored assignment manifest is unavailable."
+msgstr "Saklanan ödev manifesti kullanılamıyor."
+
+#: includes/lms/assignments.php:901
+#: includes/lms/assignments.php:928
+msgid "The stored assignment manifest failed verification."
+msgstr "Saklanan ödev manifesti doğrulanamadı."
+
+#: includes/lms/assignments.php:959
+msgid "The assignment revision could not be saved."
+msgstr "Ödev revizyonu kaydedilemedi."
+
+#: includes/lms/assignments.php:977
+msgid "You cannot create assignments for this class."
+msgstr "Bu sınıf için ödev oluşturamazsın."
+
+#: includes/lms/assignments.php:980
+msgid "The assignment class is unavailable."
+msgstr "Ödevin sınıfı kullanılamıyor."
+
+#: includes/lms/assignments.php:984
+msgid "The class word set is unavailable."
+msgstr "Sınıfın kelime seti kullanılamıyor."
+
+#: includes/lms/assignments.php:987
+#: includes/lms/assignments.php:991
+msgid "Enter an assignment title no longer than 191 characters."
+msgstr "En fazla 191 karakterlik bir ödev başlığı gir."
+
+#: includes/lms/assignments.php:1000
+#: includes/lms/assignments.php:1047
+#: includes/lms/assignments.php:1070
+#: includes/lms/assignments.php:1106
+msgid "The assignment could not be saved right now."
+msgstr "Ödev şu anda kaydedilemedi."
+
+#: includes/lms/assignments.php:1061
+msgid "You cannot edit this assignment."
+msgstr "Bu ödevi düzenleyemezsin."
+
+#: includes/lms/assignments.php:1103
+msgid "Published and archived assignment revisions cannot be changed."
+msgstr "Yayınlanmış veya arşivlenmiş ödev revizyonları değiştirilemez."
+
+#: includes/lms/assignments.php:1119
+msgid "You cannot publish this assignment."
+msgstr "Bu ödevi yayınlayamazsın."
+
+#: includes/lms/assignments.php:1125
+#: includes/lms/assignments.php:1168
+msgid "Only draft assignments can be published."
+msgstr "Yalnızca taslak ödevler yayınlanabilir."
+
+#: includes/lms/assignments.php:1130
+msgid "The assignment revision is unavailable."
+msgstr "Ödev revizyonu kullanılamıyor."
+
+#: includes/lms/assignments.php:1135
+#: includes/lms/assignments.php:1171
+msgid "The assignment could not be published right now."
+msgstr "Ödev şu anda yayınlanamadı."
+
+#: includes/lms/assignments.php:1184
+msgid "You cannot archive this assignment."
+msgstr "Bu ödevi arşivleyemezsin."
+
+#: includes/lms/assignments.php:1196
+msgid "The assignment could not be archived."
+msgstr "Ödev arşivlenemedi."
+
+#: includes/lms/assignments.php:1208
+msgid "You cannot view assignments for this class."
+msgstr "Bu sınıfın ödevlerini görüntüleyemezsin."
+
+#: includes/lms/assignments.php:1214
+msgid "The assignment status filter is invalid."
+msgstr "Ödev durumu filtresi geçersiz."
+
+#: includes/lms/assignments.php:1336
+#: includes/lms/assignments.php:1481
+#: includes/lms/assignments.php:1647
+#: includes/lms/assignments.php:1948
+msgid "This assignment is not published."
+msgstr "Bu ödev yayınlanmamış."
+
+#: includes/lms/assignments.php:1344
+msgid "The assignment window is unavailable."
+msgstr "Ödev erişim aralığı kullanılamıyor."
+
+#: includes/lms/assignments.php:1347
+#: includes/lms/assignments.php:1483
+#: includes/lms/assignments.php:1649
+#: includes/lms/assignments.php:1950
+msgid "This assignment is not available yet."
+msgstr "Bu ödev henüz kullanılamıyor."
+
+#: includes/lms/assignments.php:1350
+#: includes/lms/assignments.php:1484
+#: includes/lms/assignments.php:1650
+#: includes/lms/assignments.php:1951
+msgid "This assignment is closed."
+msgstr "Bu ödev kapanmış."
+
+#: includes/lms/assignments.php:1378
+msgid "Sign in to start this assignment."
+msgstr "Bu ödevi başlatmak için giriş yap."
+
+#: includes/lms/assignments.php:1383
+#: includes/lms/assignments.php:1491
+msgid "The assignment could not be started right now."
+msgstr "Ödev şu anda başlatılamadı."
+
+#: includes/lms/assignments.php:1482
+#: includes/lms/assignments.php:1648
+#: includes/lms/assignments.php:1949
+msgid "You are not a current member of this class."
+msgstr "Şu anda bu sınıfın üyesi değilsin."
+
+#: includes/lms/assignments.php:1485
+msgid "You have reached the attempt limit for this assignment."
+msgstr "Bu ödevin deneme sınırına ulaştın."
+
+#: includes/lms/assignments.php:1488
+msgid "The assignment could not be started."
+msgstr "Ödev başlatılamadı."
+
+#: includes/lms/assignments.php:1524
+#: includes/lms/assignments.php:1661
+msgid "The answer could not be saved right now."
+msgstr "Yanıt şu anda kaydedilemedi."
+
+#: includes/lms/assignments.php:1646
+msgid "This assignment attempt is already finalized."
+msgstr "Bu ödev denemesi zaten tamamlanmış."
+
+#: includes/lms/assignments.php:1651
+#: includes/lms/assignments.php:1952
+msgid "This assignment attempt has expired."
+msgstr "Bu ödev denemesinin süresi dolmuş."
+
+#: includes/lms/assignments.php:1652
+msgid "The assignment item was not found."
+msgstr "Ödev öğesi bulunamadı."
+
+#: includes/lms/assignments.php:1653
+msgid "The assignment option was not found."
+msgstr "Ödev seçeneği bulunamadı."
+
+#: includes/lms/assignments.php:1654
+msgid "That answer identifier was already used for different answer data."
+msgstr "Bu yanıt tanımlayıcısı daha önce farklı yanıt verileri için kullanılmış."
+
+#: includes/lms/assignments.php:1655
+msgid "This assignment item has already been answered."
+msgstr "Bu ödev öğesi zaten yanıtlanmış."
+
+#: includes/lms/assignments.php:1658
+msgid "The answer could not be saved."
+msgstr "Yanıt kaydedilemedi."
+
+#: includes/lms/assignments.php:1714
+msgid "The assignment attempt is invalid."
+msgstr "Ödev denemesi geçersiz."
+
+#: includes/lms/assignments.php:1719
+#: includes/lms/assignments.php:1958
+msgid "The assignment could not be finalized right now."
+msgstr "Ödev şu anda tamamlanamadı."
+
+#: includes/lms/assignments.php:1947
+msgid "This assignment attempt is unavailable."
+msgstr "Bu ödev denemesi kullanılamıyor."
+
+#: includes/lms/assignments.php:1955
+msgid "The assignment could not be finalized."
+msgstr "Ödev tamamlanamadı."
+
+#: includes/lms/assignments.php:1972
+#: includes/lms/assignments.php:2084
+msgid "The assignment learner is invalid."
+msgstr "Ödev öğrencisi geçersiz."
+
+#: includes/lms/assignments.php:2003
+#: includes/lms/assignments.php:2022
+msgid "Assignment data could not be exported."
+msgstr "Ödev verileri dışa aktarılamadı."
+
+#: includes/lms/assignments.php:2036
+msgid "Assignment"
+msgstr "Ödev"
+
+#: includes/lms/assignments.php:2037
+msgid "Assignment revision"
+msgstr "Ödev revizyonu"
+
+#: includes/lms/assignments.php:2038
+msgid "Attempt number"
+msgstr "Deneme numarası"
+
+#: includes/lms/assignments.php:2040
+#: includes/privacy.php:534
+msgid "Score"
+msgstr "Skor"
+
+#: includes/lms/assignments.php:2041
+#: includes/privacy.php:535
+msgid "Points"
+msgstr "Puanlar"
+
+#: includes/lms/assignments.php:2042
+msgid "Started at"
+msgstr "Başlama zamanı"
+
+#: includes/lms/assignments.php:2043
+msgid "Expires at"
+msgstr "Sona erme zamanı"
+
+#: includes/lms/assignments.php:2044
+msgid "Finalized at"
+msgstr "Tamamlanma zamanı"
+
+#: includes/lms/assignments.php:2046
+msgid "Selected grade"
+msgstr "Seçilen not"
+
+#: includes/lms/assignments.php:2051
+#: includes/privacy.php:533
+msgid "Grade revision"
+msgstr "Not revizyonu"
+
+#. translators: %s is the stable assignment item key.
+#: includes/lms/assignments.php:2057
+msgid "Response to %s"
+msgstr "%s için yanıt"
+
+#: includes/lms/assignments.php:2065
+#: includes/privacy.php:430
+msgid "LL Tools Assignments"
+msgstr "LL Tools Ödevleri"
+
+#: includes/lms/assignments.php:2094
+#: includes/lms/assignments.php:2220
+msgid "Assignment data could not be erased right now."
+msgstr "Ödev verileri şu anda silinemedi."
+
+#: includes/lms/credential-store.php:63
+msgid "The LMS credential encryption key is not configured."
+msgstr "LMS kimlik bilgisi şifreleme anahtarı yapılandırılmamış."
+
+#: includes/lms/credential-store.php:81
+msgid "The LMS credential encryption key must contain exactly 32 bytes."
+msgstr "LMS kimlik bilgisi şifreleme anahtarı tam olarak 32 bayt içermelidir."
+
+#: includes/lms/credential-store.php:122
+msgid "The stored integration credential could not be authenticated."
+msgstr "Saklanan entegrasyon kimlik bilgisi doğrulanamadı."
+
+#: includes/lms/credential-store.php:135
+msgid "The integration credential payload is invalid."
+msgstr "Entegrasyon kimlik bilgisi yükü geçersiz."
+
+#: includes/lms/credential-store.php:186
+msgid "Authenticated credential encryption is unavailable on this server."
+msgstr "Kimliği doğrulanmış kimlik bilgisi şifrelemesi bu sunucuda kullanılamıyor."
+
+#: includes/lms/credential-store.php:199
+msgid "The integration credential could not be encrypted."
+msgstr "Entegrasyon kimlik bilgisi şifrelenemedi."
+
+#: includes/lms/google-classroom.php:807
+msgid "The Google Classroom request target was rejected."
+msgstr "Google Classroom istek hedefi reddedildi."
+
+#: includes/lms/google-classroom.php:834
+msgid "Google Classroom is temporarily unavailable."
+msgstr "Google Classroom geçici olarak kullanılamıyor."
+
+#: includes/lms/google-classroom.php:859
+msgid "Google Classroom rejected the request."
+msgstr "Google Classroom isteği reddetti."
+
+#: includes/lms/google-classroom.php:872
+msgid "Google Classroom returned an invalid response."
+msgstr "Google Classroom geçersiz bir yanıt döndürdü."
+
+#: includes/lms/google-classroom.php:925
+msgid "The Google account identifier is invalid."
+msgstr "Google hesabı tanımlayıcısı geçersiz."
+
+#: includes/lms/google-classroom.php:1021
+#: includes/lms/google-classroom.php:1308
+#: includes/lms/google-classroom.php:1356
+msgid "Google Classroom is not configured."
+msgstr "Google Classroom yapılandırılmamış."
+
+#: includes/lms/google-classroom.php:1031
+#: includes/lms/google-classroom.php:1060
+#: includes/lms/google-classroom.php:1126
+#: includes/lms/google-classroom.php:1147
+msgid "Google Classroom authorization could not be started."
+msgstr "Google Classroom yetkilendirmesi başlatılamadı."
+
+#: includes/lms/google-classroom.php:1120
+msgid "Too many Google Classroom authorization attempts are still active. Complete or wait for an existing attempt before trying again."
+msgstr "Hâlâ çok fazla Google Classroom yetkilendirme denemesi etkin. Yeniden denemeden önce mevcut bir denemeyi tamamla veya sona ermesini bekle."
+
+#: includes/lms/google-classroom.php:1179
+#: includes/lms/google-classroom.php:1196
+#: includes/lms/google-classroom.php:1211
+#: includes/lms/google-classroom.php:1219
+#: includes/lms/google-classroom.php:1229
+msgid "The Google authorization session is invalid or expired."
+msgstr "Google yetkilendirme oturumu geçersiz veya süresi dolmuş."
+
+#: includes/lms/google-classroom.php:1285
+msgid "Google did not return a usable authorization grant."
+msgstr "Google kullanılabilir bir yetkilendirme izni döndürmedi."
+
+#: includes/lms/google-classroom.php:1317
+msgid "The Google authorization response is invalid."
+msgstr "Google yetkilendirme yanıtı geçersiz."
+
+#: includes/lms/google-classroom.php:1344
+msgid "Google did not confirm the granted Classroom permissions."
+msgstr "Google, verilen Classroom izinlerini doğrulamadı."
+
+#: includes/lms/google-classroom.php:1361
+msgid "The stored Google authorization is incomplete."
+msgstr "Saklanan Google yetkilendirmesi eksik."
+
+#: includes/lms/google-classroom.php:1395
+msgid "The Google access token is invalid."
+msgstr "Google erişim belirteci geçersiz."
+
+#: includes/lms/google-classroom.php:1408
+msgid "Google did not return a verified account profile."
+msgstr "Google doğrulanmış bir hesap profili döndürmedi."
+
+#: includes/lms/google-classroom.php:1445
+#: includes/lms/google-classroom.php:1458
+#: includes/lms/google-classroom.php:1469
+#: includes/lms/google-classroom.php:1476
+#: includes/lms/google-classroom.php:1594
+msgid "The Google Classroom connection could not be saved."
+msgstr "Google Classroom bağlantısı kaydedilemedi."
+
+#: includes/lms/google-classroom.php:1590
+msgid "This teacher has reached the Google Classroom account limit."
+msgstr "Bu öğretmen Google Classroom hesap sınırına ulaştı."
+
+#: includes/lms/google-classroom.php:1617
+#: includes/lms/google-classroom.php:1626
+#: includes/lms/google-classroom.php:1700
+#: includes/lms/google-classroom.php:1713
+#: includes/lms/google-classroom.php:1763
+#: includes/lms/google-classroom.php:1798
+#: includes/lms/google-classroom.php:1808
+msgid "The Google Classroom connection was not found."
+msgstr "Google Classroom bağlantısı bulunamadı."
+
+#: includes/lms/google-classroom.php:1648
+#: includes/lms/google-classroom.php:1652
+msgid "The stored Google Classroom connection is invalid."
+msgstr "Saklanan Google Classroom bağlantısı geçersiz."
+
+#: includes/lms/google-classroom.php:2023
+msgid "The local Google Classroom connection could not be removed."
+msgstr "Yerel Google Classroom bağlantısı kaldırılamadı."
+
+#: includes/lms/google-classroom.php:2074
+#: includes/lms/google-classroom.php:2079
+#: includes/lms/google-classroom.php:2082
+#: includes/lms/google-classroom.php:2098
+msgid "The Google Classroom request is invalid."
+msgstr "Google Classroom isteği geçersiz."
+
+#: includes/lms/google-classroom.php:2160
+msgid "Google Classroom returned an invalid course list."
+msgstr "Google Classroom geçersiz bir ders listesi döndürdü."
+
+#: includes/lms/google-classroom.php:2163
+#: includes/lms/google-classroom.php:2183
+msgid "Google Classroom returned an invalid course page sequence."
+msgstr "Google Classroom geçersiz bir ders sayfası sırası döndürdü."
+
+#: includes/lms/google-classroom.php:2255
+msgid "The Google Classroom assignment identifier is invalid."
+msgstr "Google Classroom ödev tanımlayıcısı geçersiz."
+
+#: includes/lms/google-classroom.php:2267
+msgid "Google Classroom returned a different assignment."
+msgstr "Google Classroom farklı bir ödev döndürdü."
+
+#: includes/lms/google-classroom.php:2320
+#: includes/lms/google-classroom.php:2334
+#: includes/lms/google-classroom.php:2349
+#: includes/lms/google-classroom.php:2355
+#: includes/lms/google-classroom.php:2389
+msgid "The server-authoritative assignment is invalid."
+msgstr "Sunucunun belirlediği ödev geçersiz."
+
+#: includes/lms/google-classroom.php:2384
+#: includes/lms/google-classroom.php:2443
+#: includes/lms/google-classroom.php:2719
+#: includes/lms/google-classroom.php:2805
+msgid "Google Classroom grade writes are not enabled."
+msgstr "Google Classroom not yazma işlemleri etkin değil."
+
+#: includes/lms/google-classroom.php:2410
+#: includes/lms/google-classroom.php:2426
+msgid "Google Classroom did not confirm the draft assignment."
+msgstr "Google Classroom taslak ödevi doğrulamadı."
+
+#: includes/lms/google-classroom.php:2450
+#: includes/lms/google-classroom.php:2812
+msgid "Google Classroom grade permission has not been granted."
+msgstr "Google Classroom not izni verilmemiş."
+
+#: includes/lms/google-classroom.php:2507
+msgid "The Google Classroom submission mapping is invalid."
+msgstr "Google Classroom ödev teslimi eşlemesi geçersiz."
+
+#: includes/lms/google-classroom.php:2524
+msgid "Google Classroom did not return exactly one matching submission."
+msgstr "Google Classroom tam olarak bir eşleşen ödev teslimi döndürmedi."
+
+#: includes/lms/google-classroom.php:2533
+msgid "Google Classroom returned a different submission."
+msgstr "Google Classroom farklı bir ödev teslimi döndürdü."
+
+#: includes/lms/google-classroom.php:2593
+#: includes/lms/google-classroom.php:2597
+#: includes/lms/google-classroom.php:2617
+#: includes/lms/google-classroom.php:2655
+#: includes/lms/google-classroom.php:2735
+msgid "The server-authoritative grade is invalid."
+msgstr "Sunucunun belirlediği not geçersiz."
+
+#: includes/lms/google-classroom.php:2692
+msgid "The selected assignment grade changed before it could be sent."
+msgstr "Seçilen ödev notu gönderilmeden önce değişti."
+
+#: includes/lms/google-classroom.php:2696
+msgid "Google Classroom requires a whole-number assignment maximum."
+msgstr "Google Classroom ödev azami puanının tam sayı olmasını gerektirir."
+
+#: includes/lms/google-classroom.php:2746
+msgid "The Google Classroom assignment does not match the selected grade."
+msgstr "Google Classroom ödevi seçilen notla eşleşmiyor."
+
+#: includes/lms/google-classroom.php:2760
+msgid "The Google Classroom submission does not match the selected learner."
+msgstr "Google Classroom ödev teslimi seçilen öğrenciyle eşleşmiyor."
+
+#: includes/lms/google-classroom.php:2785
+msgid "Google Classroom did not confirm the draft grade."
+msgstr "Google Classroom taslak notu doğrulamadı."
+
+#: includes/lms/grade-delivery.php:450
+msgid "External grade delivery is temporarily unavailable while storage is being prepared."
+msgstr "Depolama hazırlanırken harici not aktarımı geçici olarak kullanılamaz."
+
+#: includes/lms/grade-delivery.php:483
+msgid "The grade delivery adapter identifier is invalid."
+msgstr "Not aktarım adaptörünün tanımlayıcısı geçersiz."
+
+#: includes/lms/grade-delivery.php:491
+#: includes/lms/grade-delivery.php:495
+msgid "The grade delivery adapter contract is invalid."
+msgstr "Not aktarım adaptörünün sözleşmesi geçersiz."
+
+#: includes/lms/grade-delivery.php:503
+msgid "The grade delivery adapter is already registered."
+msgstr "Not aktarım adaptörü zaten kayıtlı."
+
+#: includes/lms/grade-delivery.php:506
+msgid "Too many grade delivery adapters are registered."
+msgstr "Çok fazla not aktarım adaptörü kayıtlı."
+
+#: includes/lms/grade-delivery.php:532
+msgid "The grade delivery adapter is not available."
+msgstr "Not aktarım adaptörü kullanılamıyor."
+
+#: includes/lms/grade-delivery.php:537
+#: includes/lms/grade-delivery.php:543
+msgid "The external grade mapping could not be validated."
+msgstr "Harici not eşlemesi doğrulanamadı."
+
+#: includes/lms/grade-delivery.php:596
+#: includes/lms/grade-delivery.php:610
+#: includes/lms/grade-delivery.php:635
+msgid "The external identity mapping is invalid."
+msgstr "Harici kimlik eşlemesi geçersiz."
+
+#: includes/lms/grade-delivery.php:631
+#: includes/lms/grade-delivery.php:663
+msgid "The external identity is already mapped differently."
+msgstr "Harici kimlik zaten farklı biçimde eşlenmiş."
+
+#: includes/lms/grade-delivery.php:676
+#: includes/lms/grade-delivery.php:953
+#: includes/lms/grade-delivery.php:1633
+msgid "Assignments are temporarily unavailable."
+msgstr "Ödevler geçici olarak kullanılamıyor."
+
+#: includes/lms/grade-delivery.php:679
+#: includes/lms/grade-delivery.php:695
+msgid "The external grade destination mapping is invalid."
+msgstr "Harici not hedefi eşlemesi geçersiz."
+
+#: includes/lms/grade-delivery.php:705
+msgid "The grade destination does not match an exact assignment revision."
+msgstr "Not hedefi tam bir ödev revizyonuyla eşleşmiyor."
+
+#: includes/lms/grade-delivery.php:727
+#: includes/lms/grade-delivery.php:768
+msgid "The external grade destination is already mapped differently."
+msgstr "Harici not hedefi zaten farklı biçimde eşlenmiş."
+
+#: includes/lms/grade-delivery.php:736
+#: includes/lms/grade-delivery.php:1000
+msgid "This assignment has too many external grade destinations."
+msgstr "Bu ödevin çok fazla harici not hedefi var."
+
+#: includes/lms/grade-delivery.php:779
+#: includes/lms/grade-delivery.php:793
+#: includes/lms/grade-delivery.php:845
+msgid "The external grade recipient mapping is invalid."
+msgstr "Harici not alıcısı eşlemesi geçersiz."
+
+#: includes/lms/grade-delivery.php:806
+msgid "The external grade recipient mapping is incomplete."
+msgstr "Harici not alıcısı eşlemesi eksik."
+
+#: includes/lms/grade-delivery.php:813
+msgid "The external grade recipient does not match the destination scope."
+msgstr "Harici not alıcısı hedef kapsamıyla eşleşmiyor."
+
+#: includes/lms/grade-delivery.php:842
+#: includes/lms/grade-delivery.php:873
+msgid "The external grade recipient is already mapped differently."
+msgstr "Harici not alıcısı zaten farklı biçimde eşlenmiş."
+
+#: includes/lms/grade-delivery.php:879
+msgid "The selected assignment grade does not exist."
+msgstr "Seçilen ödev notu mevcut değil."
+
+#: includes/lms/grade-delivery.php:883
+msgid "The selected assignment grade changed before delivery could be queued."
+msgstr "Aktarım kuyruğa alınmadan önce seçilen ödev notu değişti."
+
+#: includes/lms/grade-delivery.php:888
+#: includes/lms/grade-delivery.php:897
+#: includes/lms/grade-delivery.php:901
+#: includes/lms/grade-delivery.php:914
+msgid "The selected assignment grade is invalid."
+msgstr "Seçilen ödev notu geçersiz."
+
+#: includes/lms/grade-delivery.php:961
+msgid "The selected assignment grade key is invalid."
+msgstr "Seçilen ödev notunun anahtarı geçersiz."
+
+#: includes/lms/grade-delivery.php:976
+#: includes/lms/grade-delivery.php:1651
+msgid "The selected assignment grade could not be read."
+msgstr "Seçilen ödev notu okunamadı."
+
+#: includes/lms/grade-delivery.php:997
+msgid "External grade destinations could not be read."
+msgstr "Harici not hedefleri okunamadı."
+
+#: includes/lms/grade-delivery.php:1012
+msgid "An external grade destination is invalid."
+msgstr "Bir harici not hedefi geçersiz."
+
+#: includes/lms/grade-delivery.php:1032
+msgid "An older grade revision cannot replace a newer queued grade."
+msgstr "Daha eski bir not revizyonu, kuyruktaki daha yeni bir notun yerini alamaz."
+
+#: includes/lms/grade-delivery.php:1047
+msgid "An older external grade delivery could not be superseded."
+msgstr "Daha eski harici not aktarımının yerine yenisi geçirilemedi."
+
+#: includes/lms/grade-delivery.php:1069
+msgid "The external grade delivery key conflicts with another delivery."
+msgstr "Harici not aktarımı anahtarı başka bir aktarımla çakışıyor."
+
+#: includes/lms/grade-delivery.php:1116
+msgid "The external grade delivery could not be queued."
+msgstr "Harici not aktarımı kuyruğa alınamadı."
+
+#: includes/lms/grade-delivery.php:1179
+msgid "The grade delivery lease is invalid."
+msgstr "Not aktarımı kilidi geçersiz."
+
+#: includes/lms/grade-delivery.php:1191
+#: includes/lms/grade-delivery.php:1268
+msgid "A grade delivery could not be claimed."
+msgstr "Bir not aktarımı sahiplenilemedi."
+
+#: includes/lms/grade-delivery.php:1557
+msgid "The grade delivery outcome is invalid."
+msgstr "Not aktarımı sonucu geçersiz."
+
+#: includes/lms/grade-delivery.php:1625
+msgid "The grade delivery lease is no longer owned by this worker."
+msgstr "Not aktarımı kilidi artık bu işleyiciye ait değil."
+
+#: includes/lms/grade-delivery.php:1654
+msgid "The selected assignment grade no longer exists."
+msgstr "Seçilen ödev notu artık mevcut değil."
+
+#: includes/lms/grade-delivery.php:1670
+msgid "The queued grade snapshot does not match its selected grade revision."
+msgstr "Kuyruktaki not anlık görüntüsü, seçilen not revizyonuyla eşleşmiyor."
+
+#: includes/lms/grade-delivery.php:1689
+#: includes/lms/grade-delivery.php:1696
+msgid "The external grade mapping no longer exists."
+msgstr "Harici not eşlemesi artık mevcut değil."
+
+#: includes/lms/grade-delivery.php:1711
+msgid "The external grade mapping does not match the queued grade scope."
+msgstr "Harici not eşlemesi kuyruktaki not kapsamıyla eşleşmiyor."
+
+#: includes/lms/grade-delivery.php:1961
+#: includes/lms/grade-delivery.php:2111
+msgid "The grade delivery user is invalid."
+msgstr "Not aktarımı kullanıcısı geçersiz."
+
+#: includes/lms/grade-delivery.php:1984
+#: includes/lms/grade-delivery.php:2067
+msgid "External grade delivery data could not be exported."
+msgstr "Harici not aktarımı verileri dışa aktarılamadı."
+
+#: includes/lms/grade-delivery.php:2042
+msgid "The grade delivery export page is invalid."
+msgstr "Not aktarımı dışa aktarma sayfası geçersiz."
+
+#: includes/lms/grade-delivery.php:2047
+msgid "The grade delivery export page exceeds the supported bound."
+msgstr "Not aktarımı dışa aktarma sayfası desteklenen sınırı aşıyor."
+
+#: includes/lms/grade-delivery.php:2121
+#: includes/lms/grade-delivery.php:2132
+#: includes/lms/grade-delivery.php:2204
+msgid "External grade delivery data could not be erased."
+msgstr "Harici not aktarımı verileri silinemedi."
+
+#: includes/lms/grade-delivery.php:2162
+msgid "An external grade delivery is currently in progress. Retry erasure after it finishes."
+msgstr "Şu anda harici bir not aktarımı sürüyor. Tamamlandıktan sonra silmeyi yeniden dene."
+
+#: includes/privacy.php:86
+msgid "LL Tools treats logged-in study progress as core account functionality. No separate consent checkbox is shown for this core feature. Personal learner analytics, formative practice results, server-scored assignment attempts, selected grades, and configured LMS delivery records should be limited to administrators and the learner's assigned teachers, documented in the site privacy policy, and handled through WordPress export/erase tools. Teacher-authorized Google Classroom connections are stored locally only when that connector is configured."
+msgstr "LL Tools, oturum açılmış çalışma ilerlemesini temel hesap işlevi olarak ele alır. Bu temel özellik için ayrı bir onay kutusu gösterilmez. Kişisel öğrenci analizleri, gelişim amaçlı alıştırma sonuçları, sunucunun puanladığı ödev denemeleri, seçilen notlar ve yapılandırılmış LMS aktarım kayıtları yalnızca yöneticilerle ve öğrenciye atanmış öğretmenlerle sınırlandırılmalı, site gizlilik politikasında belgelenmeli ve WordPress dışa aktarma/silme araçlarıyla yönetilmelidir. Öğretmenin yetkilendirdiği Google Classroom bağlantıları yalnızca ilgili bağlayıcı yapılandırıldığında yerel olarak saklanır."
+
+#: includes/privacy.php:434
+#: includes/privacy.php:527
+#: includes/privacy.php:552
+msgid "LL Tools External Grade Deliveries"
+msgstr "LL Tools Harici Not Aktarımları"
+
+#: includes/privacy.php:438
+#: includes/privacy.php:622
+#: includes/privacy.php:659
+msgid "LL Tools Google Classroom Connections"
+msgstr "LL Tools Google Classroom Bağlantıları"
+
+#: includes/privacy.php:489
+msgid "Assignment data is temporarily unavailable for export."
+msgstr "Ödev verileri dışa aktarma için geçici olarak kullanılamıyor."
+
+#: includes/privacy.php:512
+msgid "External grade delivery data is temporarily unavailable for export."
+msgstr "Harici not aktarımı verileri dışa aktarma için geçici olarak kullanılamıyor."
+
+#: includes/privacy.php:530
+msgid "Provider adapter"
+msgstr "Sağlayıcı adaptörü"
+
+#: includes/privacy.php:531
+msgid "Assignment ID"
+msgstr "Ödev kimliği"
+
+#: includes/privacy.php:532
+msgid "Assignment revision ID"
+msgstr "Ödev revizyonu kimliği"
+
+#: includes/privacy.php:536
+msgid "Delivery status"
+msgstr "Aktarım durumu"
+
+#: includes/privacy.php:537
+msgid "Delivery attempts"
+msgstr "Aktarım denemeleri"
+
+#: includes/privacy.php:538
+msgid "Last HTTP status"
+msgstr "Son HTTP durumu"
+
+#: includes/privacy.php:539
+msgid "Last error code"
+msgstr "Son hata kodu"
+
+#: includes/privacy.php:541
+#: includes/privacy.php:633
+msgid "Updated at (UTC)"
+msgstr "Güncelleme zamanı (UTC)"
+
+#: includes/privacy.php:542
+msgid "Delivered at (UTC)"
+msgstr "Aktarım zamanı (UTC)"
+
+#: includes/privacy.php:543
+msgid "Superseded at (UTC)"
+msgstr "Yerine yenisinin geçme zamanı (UTC)"
+
+#: includes/privacy.php:555
+msgid "External identity mappings"
+msgstr "Harici kimlik eşlemeleri"
+
+#: includes/privacy.php:556
+msgid "Grade recipient mappings"
+msgstr "Not alıcısı eşlemeleri"
+
+#: includes/privacy.php:580
+msgid "Google Classroom connection data is temporarily unavailable for export."
+msgstr "Google Classroom bağlantı verileri dışa aktarma için geçici olarak kullanılamıyor."
+
+#: includes/privacy.php:597
+#: includes/privacy.php:608
+#: includes/privacy.php:617
+#: includes/privacy.php:653
+msgid "Google Classroom connection data could not be exported."
+msgstr "Google Classroom bağlantı verileri dışa aktarılamadı."
+
+#: includes/privacy.php:625
+msgid "Provider"
+msgstr "Sağlayıcı"
+
+#: includes/privacy.php:626
+msgid "Connection status"
+msgstr "Bağlantı durumu"
+
+#: includes/privacy.php:627
+msgid "Google account email"
+msgstr "Google hesabı e-posta adresi"
+
+#: includes/privacy.php:628
+msgid "Google account name"
+msgstr "Google hesabı adı"
+
+#: includes/privacy.php:629
+msgid "Google Workspace domain"
+msgstr "Google Workspace alan adı"
+
+#: includes/privacy.php:630
+msgid "Google email verified"
+msgstr "Google e-posta adresi doğrulandı"
+
+#: includes/privacy.php:631
+msgid "Authorized scopes"
+msgstr "Yetkilendirilmiş kapsamlar"
+
+#: includes/privacy.php:632
+msgid "Connected at (UTC)"
+msgstr "Bağlanma zamanı (UTC)"
+
+#: includes/privacy.php:634
+msgid "Disconnected at (UTC)"
+msgstr "Bağlantı kesme zamanı (UTC)"
+
+#: includes/privacy.php:662
+msgid "Stored authorization attempts"
+msgstr "Saklanan yetkilendirme denemeleri"
+
+#: includes/privacy.php:663
+msgid "Consumed authorization attempts"
+msgstr "Kullanılmış yetkilendirme denemeleri"
+
+#: includes/privacy.php:664
+msgid "Oldest authorization attempt (UTC)"
+msgstr "En eski yetkilendirme denemesi (UTC)"
+
+#: includes/privacy.php:665
+msgid "Latest authorization expiry (UTC)"
+msgstr "En son yetkilendirme sona erme zamanı (UTC)"
+
+#: includes/privacy.php:1178
+msgid "LL Tools data could not be fenced for erasure because another pass is active or storage is temporarily unavailable."
+msgstr "Başka bir geçiş etkin olduğu veya depolama geçici olarak kullanılamadığı için LL Tools verileri silme işlemine karşı kilitlenemedi."
+
+#: includes/privacy.php:1189
+msgid "LL Tools data erasure stopped and the account write fence could not be released. The fence will expire automatically."
+msgstr "LL Tools veri silme işlemi durdu ve hesap yazma kilidi bırakılamadı. Kilidin süresi otomatik olarak dolacak."
+
+#: includes/privacy.php:1203
+msgid "External grade delivery data is temporarily unavailable for erasure. No external system was changed."
+msgstr "Harici not aktarımı verileri silme için geçici olarak kullanılamıyor. Hiçbir harici sistem değiştirilmedi."
+
+#: includes/privacy.php:1215
+#: includes/privacy.php:1243
+msgid "LL Tools data erasure paused, but its account write fence could not be renewed."
+msgstr "LL Tools veri silme işlemi duraklatıldı ancak hesap yazma kilidi yenilenemedi."
+
+#: includes/privacy.php:1221
+msgid "Additional local external-grade records remain for the next bounded erasure pass. No external system was changed."
+msgstr "Bir sonraki sınırlı silme geçişi için ek yerel harici not kayıtları kaldı. Hiçbir harici sistem değiştirilmedi."
+
+#: includes/privacy.php:1231
+msgid "Assignment attempt data is temporarily unavailable for erasure."
+msgstr "Ödev denemesi verileri silme için geçici olarak kullanılamıyor."
+
+#: includes/privacy.php:1249
+msgid "Additional assignment attempt records remain for the next bounded erasure pass."
+msgstr "Bir sonraki sınırlı silme geçişi için ek ödev denemesi kayıtları kaldı."
+
+#: includes/privacy.php:1259
+msgid "Google Classroom connection data is temporarily unavailable for erasure. No request was sent to Google."
+msgstr "Google Classroom bağlantı verileri silme için geçici olarak kullanılamıyor. Google'a istek gönderilmedi."
+
+#: includes/privacy.php:1274
+#: includes/privacy.php:1280
+msgid "The local Google Classroom connection could not be erased. No request was sent to Google."
+msgstr "Yerel Google Classroom bağlantısı silinemedi. Google'a istek gönderilmedi."
+
+#: includes/privacy.php:1285
+msgid "Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account."
+msgstr "Yerel Google Classroom kimlik bilgileri silindi. Gizlilik silme işlemi notları değiştirmedi veya Google erişimini iptal etmedi; kullanıcı uygulamanın yetkisini Google Hesabından ayrıca kaldırabilir."
+
+#: includes/privacy.php:1293
+msgid "LL Tools data was erased, but the account write fence could not be released."
+msgstr "LL Tools verileri silindi ancak hesap yazma kilidi bırakılamadı."
+
+#. translators: %d: retention days
+#: includes/privacy.php:1937
+msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. When your teacher uses official LL Tools assignments, the site stores the frozen assignment revision, your attempts and responses, the server-calculated score, and the selected grade. If an LMS connector is configured and explicitly mapped, the site also stores hashed external identity/resource mappings and a delivery audit needed to send or correct that selected grade. A teacher who connects Google Classroom authorizes this site to retain an encrypted refresh credential and limited account details for that connection; access tokens are short lived and are not stored. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, let site administrators and assigned teachers review learner work, and deliver an authorized official assignment grade to the configured learning system. Detailed activity log entries are kept for %d days. Summary progress and official assignment data remain until your account is deleted, the connection is removed, or the site erases your LL Tools personal data according to its education-record retention policy. Local privacy erasure does not silently alter or delete a grade already held by an external LMS. You can request an export or erasure of local data through the site’s privacy request tools."
+msgstr "Oturum açmışken LL Tools'u kullandığında bu site çalışma ilerlemeni, öğrenme tercihlerini, seçtiğin kelime setini/kategorileri, yıldızladığın kelimeleri, çalıştığın kelimelere ilişkin ilerleme özetlerini, gelişim amaçlı alıştırma sonuçlarını ve quiz gösterimleri ile sonuçları gibi ayrıntılı etkinlik geçmişini saklar. Çevrimdışı eşitleme özelliğini kullanırsan site, eşitlemenin çalışması için gereken sınırlı çevrimdışı oturum cihaz/profil tanımlayıcılarını da saklar. Öğretmenin resmi LL Tools ödevlerini kullandığında site, sabitlenmiş ödev revizyonunu, denemelerini ve yanıtlarını, sunucunun hesapladığı puanı ve seçilen notu saklar. Bir LMS bağlayıcısı yapılandırılıp açıkça eşlenirse site, seçilen notu göndermek veya düzeltmek için gereken özetlenmiş harici kimlik/kaynak eşlemelerini ve aktarım denetim kaydını da saklar. Google Classroom'a bağlanan bir öğretmen, bu bağlantı için şifrelenmiş yenileme kimlik bilgisinin ve sınırlı hesap ayrıntılarının sitede tutulmasına izin verir; erişim belirteçleri kısa ömürlüdür ve saklanmaz. Bu bilgiler ilerlemeni kaydetmek, sonraki çalışma önerilerini kişiselleştirmek, çalışma durumunu oturumlar arasında geri yüklemek, çevrimdışı çalışma etkinliğini hesabınla eşitlemek, site yöneticilerinin ve sana atanmış öğretmenlerin öğrenci çalışmasını incelemesini sağlamak ve yetkilendirilmiş resmi ödev notunu yapılandırılmış öğrenim sistemine aktarmak için kullanılır. Ayrıntılı etkinlik günlüğü kayıtları %d gün saklanır. Özet ilerleme ve resmi ödev verileri; hesabın silinene, bağlantı kaldırılana veya site eğitim kaydı saklama politikasına göre LL Tools kişisel verilerini silene kadar kalır. Yerel gizlilik silme işlemi, harici bir LMS'de bulunan notu sessizce değiştirmez veya silmez. Yerel verilerinin dışa aktarılmasını veya silinmesini sitenin gizlilik isteği araçları üzerinden talep edebilirsin."
+
+#. translators: %d: minimum number of practice attempts
+#: includes/teacher-classes.php:824
+msgctxt "minimum practice attempt count"
+msgid "%d+"
+msgstr "%d+"
+
+#. translators: 1: correct words, 2: total words, 3: percentage
+#: includes/teacher-classes.php:848
+msgctxt "practice result score"
+msgid "%1$d / %2$d (%3$s%%)"
+msgstr "%1$d / %2$d (%3$s%%)"
+
+#. translators: %s: UTC date and time
+#: includes/teacher-classes.php:860
+msgid "Recorded %s UTC"
+msgstr "%s UTC'de kaydedildi"
