@@ -6519,13 +6519,13 @@
             opts.onLaunchCleanupReady(launchUiCleanup);
         }
 
-        const needsBoundedPracticePlan = normalizedMode === 'practice' && (
+        const needsBoundedSelectionPlan = normalizedMode !== 'learning' && (
             initialSessionWordIds.length > CHUNK_SIZE
             || initialLaunchPlan.categoryIds.length > 8
         );
         const needsBoundedLearningPlan = normalizedMode === 'learning';
         if (
-            (needsBoundedPracticePlan || needsBoundedLearningPlan)
+            (needsBoundedSelectionPlan || needsBoundedLearningPlan)
             && isLoggedIn
             && ajaxUrl
             && nonce
@@ -6544,6 +6544,7 @@
                     return;
                 }
                 const launchOptions = {
+                    mode: normalizedMode,
                     categoryIds: initialLaunchPlan.categoryIds,
                     candidateWordIds: initialSessionWordIds,
                     minimumWordCount: needsBoundedLearningPlan ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
@@ -6576,7 +6577,7 @@
                 if (needsBoundedLearningPlan) {
                     launchBoundedLearningSelectionPlan(serverPlan, launchOptions);
                 } else {
-                    launchBoundedPracticeSelectionPlan(serverPlan, launchOptions);
+                    launchBoundedSelectionPlan(serverPlan, launchOptions);
                 }
             }).fail(function () {
                 if (!isLaunchCurrent()) {
@@ -16004,8 +16005,11 @@
         };
     }
 
-    function launchBoundedPracticeSelectionPlan(serverPlan, options) {
+    function launchBoundedSelectionPlan(serverPlan, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const normalizedMode = normalizeMode(
+            opts.mode || (serverPlan && serverPlan.mode) || 'practice'
+        ) || 'practice';
         const selectedIds = uniqueIntList(opts.categoryIds || opts.category_ids || []);
         const minimumWordCount = Math.max(1, parseInt(opts.minimumWordCount, 10) || 1);
         const launchDetails = (opts.details && typeof opts.details === 'object')
@@ -16044,7 +16048,7 @@
         const firstEntry = planChunks[0];
         if (planChunks.length > 1) {
             chunkSession = {
-                mode: 'practice',
+                mode: normalizedMode,
                 chunks: planChunks,
                 index: 0,
                 matched_count: logicalSessionWordIds.length,
@@ -16055,15 +16059,54 @@
                 category_label_override: categoryLabelOverride,
                 request_timeout_ms: opts.requestTimeoutMs,
                 bounded_selection_plan: true,
-                continuous: true
+                continuous: normalizedMode === 'practice'
             };
             const activeSession = chunkSession;
-            launchContinuousChunkSession(activeSession, {
+            if (activeSession.continuous) {
+                launchContinuousChunkSession(activeSession, {
+                    source: source,
+                    requestTimeoutMs: opts.requestTimeoutMs,
+                    launchUi: opts.launchUi,
+                    launchUiCleanup: opts.launchUiCleanup,
+                    launchToken: opts.launchToken,
+                    isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
+                    onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
+                    onLaunchCommitted: function () {
+                        if (typeof opts.onLaunchCommitted === 'function') {
+                            opts.onLaunchCommitted();
+                        }
+                    },
+                    onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null,
+                    onLaunchFailure: function () {
+                        if (chunkSession === activeSession) {
+                            chunkSession = null;
+                        }
+                        if (typeof opts.onLaunchFailure === 'function') {
+                            opts.onLaunchFailure();
+                        }
+                    },
+                    onLaunchCanceled: typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null
+                });
+                return true;
+            }
+
+            launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
                 source: source,
                 requestTimeoutMs: opts.requestTimeoutMs,
+                chunked: true,
+                sessionStarMode: 'normal',
+                randomizeSessionCategoryOrder: false,
+                allowSessionCategoryDisplay: true,
+                skipCompatibilityFilter: true,
+                preserveCategoryOrder: true,
+                categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
+                details: firstEntry.details,
                 launchUi: opts.launchUi,
                 launchUiCleanup: opts.launchUiCleanup,
                 launchToken: opts.launchToken,
+                boundedSelectionPlan: true,
+                rejectOnLoadFailure: true,
+                suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
                 onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
                 onLaunchCommitted: function () {
@@ -16086,14 +16129,15 @@
         }
 
         chunkSession = null;
-        launchFlashcards('practice', firstEntry.category_ids, firstEntry.session_word_ids, {
+        launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
             source: source,
             requestTimeoutMs: opts.requestTimeoutMs,
             chunked: false,
             sessionStarMode: 'normal',
-            randomizeSessionCategoryOrder: true,
+            randomizeSessionCategoryOrder: normalizedMode === 'practice',
             allowSessionCategoryDisplay: true,
             skipCompatibilityFilter: true,
+            preserveCategoryOrder: normalizedMode !== 'practice',
             categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
             details: firstEntry.details,
             launchUi: opts.launchUi,
@@ -16102,8 +16146,8 @@
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
-            logicalSessionWordIds: logicalSessionWordIds,
-            logicalSessionCategoryIds: logicalSessionCategoryIds,
+            logicalSessionWordIds: normalizedMode === 'practice' ? logicalSessionWordIds : firstEntry.session_word_ids,
+            logicalSessionCategoryIds: normalizedMode === 'practice' ? logicalSessionCategoryIds : firstEntry.category_ids,
             onLaunchFailure: function () {
                 if (typeof opts.onLaunchFailure === 'function') {
                     opts.onLaunchFailure();

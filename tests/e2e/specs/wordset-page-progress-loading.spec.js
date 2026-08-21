@@ -305,6 +305,8 @@ function buildProgressPageMarkup() {
             <button type="button" data-ll-wordset-progress-selection-mode data-mode="learning">Learn</button>
             <button type="button" data-ll-wordset-progress-selection-mode data-mode="practice">Practice</button>
             <button type="button" data-ll-wordset-progress-selection-mode data-mode="listening">Listen</button>
+            <button type="button" data-ll-wordset-progress-selection-mode data-mode="gender">Gender</button>
+            <button type="button" data-ll-wordset-progress-selection-mode data-mode="self-check">Self check</button>
             <button type="button" data-ll-wordset-progress-selection-clear>Clear</button>
           </div>
         </div>
@@ -367,7 +369,7 @@ function buildPageConfig(overrides = {}) {
         prompt_type: 'audio',
         option_type: 'image',
         learning_supported: true,
-        gender_supported: false,
+        gender_supported: true,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
         preview: []
@@ -383,7 +385,7 @@ function buildPageConfig(overrides = {}) {
       fast_transitions: false
     },
     goals: {
-      enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+      enabled_modes: ['learning', 'practice', 'listening', 'gender', 'self-check'],
       ignored_category_ids: [],
       preferred_wordset_ids: [77],
       placement_known_category_ids: [],
@@ -401,8 +403,8 @@ function buildPageConfig(overrides = {}) {
     },
     modeUi: {},
     gender: {
-      enabled: false,
-      options: [],
+      enabled: true,
+      options: ['masculine', 'feminine'],
       min_count: 2
     },
     summaryCounts: {
@@ -997,18 +999,18 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
 
   const filteredPayload = buildAnalytics({
     ...summary,
-    words: allMatchingIds.map((id) => buildProgressWords(id, 1, { starredIds: allMatchingIds })[0]),
+    words: allMatchingIds.slice(0, 30).map((id) => buildProgressWords(id, 1, { starredIds: allMatchingIds })[0]),
     wordIds: options.primeSnapshot ? allMatchingIds : [],
     wordsPagination: {
-      enabled: false,
+      enabled: allMatchingIds.length > 30,
       total: allMatchingIds.length,
       unfiltered_total: summary.totalWords,
       filtered: true,
       offset: 0,
-      limit: allMatchingIds.length,
-      loaded: allMatchingIds.length,
-      next_offset: null,
-      has_more: false
+      limit: 30,
+      loaded: Math.min(30, allMatchingIds.length),
+      next_offset: allMatchingIds.length > 30 ? 30 : null,
+      has_more: allMatchingIds.length > 30
     }
   });
   await page.evaluate((payload) => {
@@ -1793,7 +1795,7 @@ test('progress all-filtered launch is single-flight and disables every mode whil
   const activeButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
   const feedback = page.locator('[data-ll-wordset-progress-launch-feedback]');
   await expect(selectionBar).toHaveAttribute('aria-busy', 'true');
-  await expect(modeButtons).toHaveCount(3);
+  await expect(modeButtons).toHaveCount(5);
   await expect.poll(async () => modeButtons.evaluateAll((buttons) => buttons.every((button) => button.disabled))).toBe(true);
   await expect(activeButton).toHaveAttribute('aria-busy', 'true');
   await expect(activeButton).toHaveClass(/is-loading/);
@@ -2236,6 +2238,63 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
   await expectFlashcardLaunchUiOpen(page);
   expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+});
+
+test('progress selections over 1,500 words bound Listen Gender and Self Check startup hydration', async ({ page }) => {
+  const allMatchingIds = Array.from({ length: 1505 }, (_unused, index) => 101 + index);
+
+  for (const mode of ['listening', 'gender', 'self-check']) {
+    await prepareAllFilteredProgressSelection(page, {
+      allMatchingIds,
+      primeSnapshot: true
+    });
+
+    await page.locator(`[data-ll-wordset-progress-selection-mode][data-mode="${mode}"]`).click();
+
+    expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);
+    await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+    await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+    await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+
+    const state = await page.evaluate(() => {
+      const parseIds = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
+        .map((item) => Number(item) || 0)
+        .filter(Boolean);
+      const planEntry = window.__llSelectionPlanRequests[0] || {};
+      const planRequest = planEntry.request || {};
+      const plan = planEntry.plan || {};
+      const hydrationRequest = (window.__llFetchWordsRequests[0] || {}).request || {};
+      const launch = window.__llFlashcardLaunches[0] || {};
+      const flashData = window.llToolsFlashcardsData || {};
+
+      return {
+        planMode: String(planRequest.mode || ''),
+        plannedCandidateIds: parseIds(planRequest.candidate_word_ids),
+        chunkCount: Array.isArray(plan.chunks) ? plan.chunks.length : 0,
+        hydrationCandidateIds: parseIds(hydrationRequest.candidate_word_ids),
+        hydrationRequestCount: window.__llFetchWordsRequests.length,
+        launchMode: String(launch.mode || ''),
+        launchSessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
+        launchSource: launch.lastLaunchPlan ? String(launch.lastLaunchPlan.source || '') : '',
+        chunked: !!(launch.lastLaunchPlan && launch.lastLaunchPlan.chunked),
+        continuationType: typeof (flashData.boundedSessionContinuation || flashData.bounded_session_continuation)
+      };
+    });
+
+    expect(state.planMode).toBe(mode);
+    expect(state.plannedCandidateIds).toEqual(allMatchingIds);
+    expect(state.chunkCount).toBeGreaterThan(1);
+    expect(state.hydrationCandidateIds).toEqual(allMatchingIds.slice(0, 15));
+    expect(state.hydrationRequestCount).toBe(1);
+    expect(state.launchMode).toBe(mode);
+    expect(state.launchSessionWordIds).toEqual(allMatchingIds.slice(0, 15));
+    expect(state.launchSource).toBe('wordset_progress_bounded_start');
+    expect(state.chunked).toBeTruthy();
+    expect(state.continuationType).toBe('undefined');
+    await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+    await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+    expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+  }
 });
 
 test('bounded launch initialization failure closes the shared modal exactly once', async ({ page }) => {
