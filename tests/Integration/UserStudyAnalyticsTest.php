@@ -1590,8 +1590,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             (int) $fixture['wordset_id']
         );
         set_transient($membership_cache_key, [
-            '__ll_user_progress_analytics_word_ids_cache_format' => 1,
+            '__ll_user_progress_analytics_word_ids_cache_format' => 2,
             'word_ids_by_category' => $word_ids_by_category,
+            'direct_word_ids_by_category' => $word_ids_by_category,
         ], HOUR_IN_SECONDS);
         wp_cache_delete($membership_cache_key, 'll_tools_user_progress');
 
@@ -1974,8 +1975,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             $wordset_id
         );
         set_transient($membership_cache_key, [
-            '__ll_user_progress_analytics_word_ids_cache_format' => 1,
+            '__ll_user_progress_analytics_word_ids_cache_format' => 2,
             'word_ids_by_category' => $word_ids_by_category,
+            'direct_word_ids_by_category' => $word_ids_by_category,
         ], HOUR_IN_SECONDS);
         wp_cache_delete($membership_cache_key, 'll_tools_user_progress');
 
@@ -3243,6 +3245,518 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         sort($expected_target_ids);
         sort($planned_target_ids);
         $this->assertSame($expected_target_ids, $planned_target_ids);
+    }
+
+    public function test_learning_selection_chunk_builder_prefers_twelve_but_keeps_an_unsplittable_thirteen_together(): void
+    {
+        $category_payload_lookup = [
+            101 => [
+                'aspect_bucket' => 'no-image',
+                'prompt_type' => 'audio',
+                'option_type' => 'text_translation',
+                'learning_supported' => true,
+            ],
+        ];
+
+        $thirteen_word_ids = range(1001, 1013);
+        $thirteen_chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
+            [101 => $thirteen_word_ids],
+            [101 => $thirteen_word_ids],
+            $category_payload_lookup,
+            15,
+            8,
+            12
+        );
+
+        $this->assertIsArray($thirteen_chunks);
+        $this->assertCount(1, $thirteen_chunks);
+        $this->assertSame($thirteen_word_ids, array_values((array) ($thirteen_chunks[0]['word_ids'] ?? [])));
+
+        $hundred_word_ids = range(2001, 2100);
+        $hundred_chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
+            [101 => $hundred_word_ids],
+            [101 => $hundred_word_ids],
+            $category_payload_lookup,
+            15,
+            8,
+            12
+        );
+
+        $this->assertIsArray($hundred_chunks);
+        $this->assertNotEmpty($hundred_chunks);
+        $planned_word_ids = [];
+        foreach ($hundred_chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $this->assertGreaterThanOrEqual(8, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(12, count($chunk_word_ids));
+            $this->assertSame($chunk_word_ids, array_values(array_map('intval', (array) ($chunk['target_word_ids'] ?? []))));
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+        }
+        sort($planned_word_ids);
+        $this->assertSame($hundred_word_ids, $planned_word_ids);
+    }
+
+    public function test_learning_selection_launch_plan_respects_the_shared_ten_word_transport_cap(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Capped Learning Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Capped Learning',
+            'audio',
+            'text_translation',
+            24
+        );
+
+        $ten_words = static function (): int {
+            return 10;
+        };
+        add_filter('ll_tools_user_study_selection_launch_max_words', $ten_words);
+        try {
+            $plan = ll_tools_build_user_study_selection_launch_plan(
+                $user_id,
+                $wordset_id,
+                [$category['category_id']],
+                '',
+                'learning',
+                $category['word_ids']
+            );
+        } finally {
+            remove_filter('ll_tools_user_study_selection_launch_max_words', $ten_words);
+        }
+
+        $this->assertIsArray($plan);
+        $this->assertSame(10, (int) ($plan['maximum_words'] ?? 0));
+        $this->assertSame(10, (int) ($plan['preferred_maximum_words'] ?? 0));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertNotEmpty($chunks);
+        $planned_target_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $chunk_target_ids = array_values(array_map('intval', (array) ($chunk['target_word_ids'] ?? [])));
+            $this->assertGreaterThanOrEqual(8, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(10, count($chunk_word_ids));
+            $this->assertSame($chunk_word_ids, $chunk_target_ids);
+            $planned_target_ids = array_merge($planned_target_ids, $chunk_target_ids);
+        }
+        $expected_target_ids = array_values(array_map('intval', $category['word_ids']));
+        sort($expected_target_ids);
+        sort($planned_target_ids);
+        $this->assertSame($expected_target_ids, $planned_target_ids);
+    }
+
+    public function test_gender_selection_launch_plan_excludes_prompt_only_answers_but_keeps_direct_noun_targets(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Direct Gender Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_wordset_has_gender', 1);
+        update_term_meta($wordset_id, 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+
+        $selected_category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Direct Gender',
+            'audio',
+            'text_title',
+            5
+        );
+        $direct_word_ids = array_values(array_map('intval', array_slice($selected_category['word_ids'], 0, 2)));
+
+        $support_term = wp_insert_term(
+            'Analytics Prompt-only Gender Support ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertFalse(is_wp_error($support_term));
+        $this->assertIsArray($support_term);
+        $prompt_only_word_id = $this->createWordWithAudio(
+            'Analytics Prompt-only Gender Answer',
+            'Analytics Prompt-only Gender Translation',
+            (int) $support_term['term_id'],
+            $wordset_id,
+            'analytics-prompt-only-gender.mp3'
+        );
+
+        $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        foreach (array_merge($direct_word_ids, [$prompt_only_word_id]) as $word_id) {
+            wp_set_post_terms($word_id, [$noun_term_id], 'part_of_speech', false);
+            update_post_meta($word_id, 'll_grammatical_gender', 'Masculine');
+        }
+        $prompt_card_id = $this->createPromptCardForAnalytics(
+            (int) $selected_category['category_id'],
+            $wordset_id,
+            [
+                'title' => 'Analytics Prompt-only Gender Card',
+                'prompt_text' => 'Choose the prompt-only noun.',
+                'correct_answer_word_id' => $prompt_only_word_id,
+                'wrong_answer_word_ids' => [$direct_word_ids[0]],
+                'track_answer_word_progress' => true,
+            ]
+        );
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [(int) $selected_category['category_id']],
+            '',
+            'gender',
+            array_merge($direct_word_ids, [$prompt_only_word_id])
+        );
+
+        $this->assertGreaterThan(0, $prompt_card_id);
+        $this->assertIsArray($plan);
+        $this->assertSame(2, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(2, (int) ($plan['planned_count'] ?? 0));
+        $planned_word_ids = [];
+        foreach ((array) ($plan['chunks'] ?? []) as $chunk) {
+            $planned_word_ids = array_merge(
+                $planned_word_ids,
+                array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])))
+            );
+        }
+        sort($direct_word_ids);
+        sort($planned_word_ids);
+        $this->assertSame($direct_word_ids, $planned_word_ids);
+        $this->assertNotContains($prompt_only_word_id, $planned_word_ids);
+    }
+
+    public function test_gender_selection_launch_plan_fails_closed_when_wordset_gender_is_disabled(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Disabled Gender Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_wordset_has_gender', 0);
+        update_term_meta($wordset_id, 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Disabled Gender',
+            'audio',
+            'text_title',
+            5
+        );
+        $word_ids = array_values(array_map('intval', $category['word_ids']));
+        $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        foreach ($word_ids as $word_id) {
+            wp_set_post_terms($word_id, [$noun_term_id], 'part_of_speech', false);
+            update_post_meta($word_id, 'll_grammatical_gender', 'Masculine');
+        }
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [(int) $category['category_id']],
+            '',
+            'gender',
+            $word_ids
+        );
+
+        $this->assertIsArray($plan);
+        $this->assertSame(0, (int) ($plan['matched_count'] ?? -1));
+        $this->assertSame(0, (int) ($plan['planned_count'] ?? -1));
+        $this->assertSame([], array_values((array) ($plan['word_ids'] ?? [])));
+        $this->assertSame([], array_values((array) ($plan['chunks'] ?? [])));
+    }
+
+    public function test_self_check_selection_launch_plan_accepts_a_sparse_tail_smaller_than_five_words(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Sparse Self Check Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_ids = [];
+        $candidate_word_ids = [];
+        for ($index = 1; $index <= 9; $index++) {
+            $category = $this->createLearningSelectionCategory(
+                $wordset_id,
+                'Sparse Self Check ' . $index,
+                'audio',
+                'text_title',
+                5
+            );
+            $category_ids[] = (int) $category['category_id'];
+            $candidate_word_ids[] = (int) $category['word_ids'][0];
+        }
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            $category_ids,
+            '',
+            'self-check',
+            $candidate_word_ids
+        );
+
+        $this->assertIsArray($plan);
+        $this->assertSame(9, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(9, (int) ($plan['planned_count'] ?? 0));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertGreaterThan(1, count($chunks));
+        $planned_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+            $this->assertNotEmpty($chunk_word_ids);
+            $this->assertLessThanOrEqual(15, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
+            $planned_word_ids = array_merge($planned_word_ids, $chunk_word_ids);
+        }
+        $tail_word_ids = array_values(array_map('intval', (array) ($chunks[count($chunks) - 1]['word_ids'] ?? [])));
+        $this->assertLessThan(5, count($tail_word_ids));
+        sort($candidate_word_ids);
+        sort($planned_word_ids);
+        $this->assertSame($candidate_word_ids, $planned_word_ids);
+        $this->assertCount(9, array_unique($planned_word_ids));
+    }
+
+    public function test_gender_selection_launch_plan_filters_eligibility_and_uses_persisted_starting_levels(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $wordset = wp_insert_term('Analytics Gender Plan Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_wordset_has_gender', 1);
+        update_term_meta($wordset_id, 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+
+        $category = $this->createLearningSelectionCategory(
+            $wordset_id,
+            'Gender Plan',
+            'audio',
+            'text_title',
+            18
+        );
+        $category_id = (int) $category['category_id'];
+        $word_ids = array_values(array_map('intval', $category['word_ids']));
+        $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $verb_term_id = $this->ensurePartOfSpeechTerm('verb', 'Verb');
+
+        foreach ($word_ids as $word_id) {
+            wp_set_post_terms($word_id, [$noun_term_id], 'part_of_speech', false);
+            update_post_meta($word_id, 'll_grammatical_gender', ($word_id % 2 === 0) ? 'Feminine' : 'Masculine');
+        }
+        wp_set_post_terms($word_ids[16], [$verb_term_id], 'part_of_speech', false);
+        delete_post_meta($word_ids[17], 'll_grammatical_gender');
+
+        $progress_table = ll_tools_user_progress_table_names()['words'];
+        foreach ([2 => array_slice($word_ids, 6, 5), 3 => array_slice($word_ids, 11, 5)] as $level => $level_word_ids) {
+            foreach ($level_word_ids as $word_id) {
+                $this->seedWordProgressRow($user_id, $word_id, $category_id, $wordset_id, []);
+                $updated = $wpdb->update(
+                    $progress_table,
+                    [
+                        'gender_level' => $level,
+                        'gender_seen_total' => 1,
+                        'gender_state_json' => wp_json_encode([
+                            'level' => $level,
+                            'seen_total' => 1,
+                        ]),
+                    ],
+                    [
+                        'user_id' => $user_id,
+                        'word_id' => $word_id,
+                    ],
+                    ['%d', '%d', '%s'],
+                    ['%d', '%d']
+                );
+                $this->assertNotFalse($updated);
+            }
+        }
+
+        $plan = ll_tools_build_user_study_selection_launch_plan(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            '',
+            'gender',
+            $word_ids
+        );
+
+        $this->assertIsArray($plan);
+        $this->assertSame(16, (int) ($plan['matched_count'] ?? 0));
+        $this->assertSame(16, (int) ($plan['planned_count'] ?? 0));
+        $chunks = array_values((array) ($plan['chunks'] ?? []));
+        $this->assertCount(3, $chunks);
+        $this->assertSame([1, 2, 3], array_values(array_map(static function (array $chunk): int {
+            return (int) ($chunk['details']['gender_level'] ?? 0);
+        }, $chunks)));
+        $this->assertEqualsCanonicalizing(array_slice($word_ids, 0, 6), array_values(array_map('intval', (array) ($chunks[0]['word_ids'] ?? []))));
+        $this->assertEqualsCanonicalizing(array_slice($word_ids, 6, 5), array_values(array_map('intval', (array) ($chunks[1]['word_ids'] ?? []))));
+        $this->assertEqualsCanonicalizing(array_slice($word_ids, 11, 5), array_values(array_map('intval', (array) ($chunks[2]['word_ids'] ?? []))));
+        $planned_ids = array_merge(...array_map(static function (array $chunk): array {
+            return array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+        }, $chunks));
+        $this->assertNotContains($word_ids[16], $planned_ids);
+        $this->assertNotContains($word_ids[17], $planned_ids);
+    }
+
+    public function test_gender_selection_chunk_builder_assigns_unseen_words_to_level_one_and_round_robins_levels(): void
+    {
+        $unseen_word_ids = range(1001, 1020);
+        $level_two_word_ids = range(2001, 2030);
+        $level_three_word_ids = range(3001, 3030);
+        $matched_by_category = [
+            101 => $unseen_word_ids,
+            102 => $level_two_word_ids,
+            103 => $level_three_word_ids,
+        ];
+        $gender_progress_rows = [];
+        foreach ($level_two_word_ids as $word_id) {
+            $gender_progress_rows[$word_id] = [
+                'gender_level' => 2,
+                'gender_seen_total' => 1,
+            ];
+        }
+        foreach ($level_three_word_ids as $word_id) {
+            $gender_progress_rows[$word_id] = [
+                'gender_level' => 3,
+                'gender_seen_total' => 1,
+            ];
+        }
+
+        $chunks = ll_tools_build_user_study_gender_selection_launch_chunks(
+            $matched_by_category,
+            $gender_progress_rows
+        );
+
+        $this->assertCount(6, $chunks);
+        $this->assertSame(
+            [1, 2, 3, 1, 2, 3],
+            array_values(array_map(static function (array $chunk): int {
+                return (int) ($chunk['details']['gender_level'] ?? 0);
+            }, $chunks)),
+            'Populated Gender level queues should be consumed in round-robin order.'
+        );
+
+        $expected_level_by_word_id = [];
+        foreach ($unseen_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 1;
+        }
+        foreach ($level_two_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 2;
+        }
+        foreach ($level_three_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 3;
+        }
+
+        $planned_word_ids = [];
+        $seen_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $details = isset($chunk['details']) && is_array($chunk['details'])
+                ? $chunk['details']
+                : [];
+            $level = (int) ($details['gender_level'] ?? 0);
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+
+            $this->assertContains($level, [1, 2, 3]);
+            $this->assertCount(
+                $level === 1 ? 10 : 15,
+                $chunk_word_ids,
+                'Level 1 must use the 10-word cap while Levels 2 and 3 use the 15-word cap.'
+            );
+            $this->assertSame($level > 1, (bool) ($details['gender_auto_continue'] ?? false));
+            foreach ($chunk_word_ids as $word_id) {
+                $this->assertArrayHasKey($word_id, $expected_level_by_word_id);
+                $this->assertSame(
+                    $expected_level_by_word_id[$word_id],
+                    $level,
+                    'Every Gender chunk must contain words from exactly one starting level.'
+                );
+                $this->assertArrayNotHasKey($word_id, $seen_word_ids, 'A matched word must be planned exactly once.');
+                $seen_word_ids[$word_id] = true;
+                $planned_word_ids[] = $word_id;
+            }
+        }
+
+        $expected_word_ids = array_keys($expected_level_by_word_id);
+        sort($expected_word_ids);
+        sort($planned_word_ids);
+        $this->assertSame($expected_word_ids, $planned_word_ids);
+    }
+
+    public function test_gender_selection_chunk_builder_stays_exact_and_bounded_beyond_fifteen_hundred_words(): void
+    {
+        $unseen_word_ids = range(10001, 10503);
+        $level_two_word_ids = range(20001, 20509);
+        $level_three_word_ids = range(30001, 30511);
+        $matched_by_category = [
+            401 => $unseen_word_ids,
+            402 => $level_two_word_ids,
+            403 => $level_three_word_ids,
+        ];
+        $expected_level_by_word_id = [];
+        $gender_progress_rows = [];
+        foreach ($unseen_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 1;
+        }
+        foreach ($level_two_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 2;
+            $gender_progress_rows[$word_id] = [
+                'gender_level' => 2,
+                'gender_seen_total' => 1,
+            ];
+        }
+        foreach ($level_three_word_ids as $word_id) {
+            $expected_level_by_word_id[$word_id] = 3;
+            $gender_progress_rows[$word_id] = [
+                'gender_level' => 3,
+                'gender_seen_total' => 1,
+            ];
+        }
+        $this->assertGreaterThan(1500, count($expected_level_by_word_id));
+
+        $chunks = ll_tools_build_user_study_gender_selection_launch_chunks(
+            $matched_by_category,
+            $gender_progress_rows
+        );
+
+        $this->assertNotEmpty($chunks);
+        $this->assertSame(
+            [1, 2, 3, 1, 2, 3, 1, 2, 3],
+            array_slice(array_values(array_map(static function (array $chunk): int {
+                return (int) ($chunk['details']['gender_level'] ?? 0);
+            }, $chunks)), 0, 9)
+        );
+
+        $planned_word_ids = [];
+        $seen_word_ids = [];
+        foreach ($chunks as $chunk) {
+            $details = isset($chunk['details']) && is_array($chunk['details'])
+                ? $chunk['details']
+                : [];
+            $level = (int) ($details['gender_level'] ?? 0);
+            $chunk_word_ids = array_values(array_map('intval', (array) ($chunk['word_ids'] ?? [])));
+
+            $this->assertContains($level, [1, 2, 3]);
+            $this->assertNotEmpty($chunk_word_ids);
+            $this->assertLessThanOrEqual($level === 1 ? 10 : 15, count($chunk_word_ids));
+            $this->assertLessThanOrEqual(8, count((array) ($chunk['category_ids'] ?? [])));
+            $this->assertSame($level > 1, (bool) ($details['gender_auto_continue'] ?? false));
+            foreach ($chunk_word_ids as $word_id) {
+                $this->assertArrayHasKey($word_id, $expected_level_by_word_id);
+                $this->assertSame($expected_level_by_word_id[$word_id], $level);
+                $this->assertArrayNotHasKey($word_id, $seen_word_ids, 'Large Gender plans must not duplicate words.');
+                $seen_word_ids[$word_id] = true;
+                $planned_word_ids[] = $word_id;
+            }
+        }
+
+        $expected_word_ids = array_keys($expected_level_by_word_id);
+        sort($expected_word_ids);
+        sort($planned_word_ids);
+        $this->assertSame($expected_word_ids, $planned_word_ids);
     }
 
     public function test_selection_launch_chunk_balancing_avoids_a_one_word_tail(): void

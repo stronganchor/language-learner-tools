@@ -436,6 +436,23 @@
         }
     }
 
+    function shouldTrackModeSessionCompletionForProgress() {
+        if (!State || !State.isGenderMode) {
+            return true;
+        }
+
+        const genderMode = root.LLFlashcards && root.LLFlashcards.Modes && root.LLFlashcards.Modes.Gender;
+        if (!genderMode || typeof genderMode.shouldTrackModeSessionCompletion !== 'function') {
+            return true;
+        }
+
+        try {
+            return genderMode.shouldTrackModeSessionCompletion() !== false;
+        } catch (_) {
+            return true;
+        }
+    }
+
     function summarizeCategoryLabel(categoryNames) {
         const list = Array.isArray(categoryNames)
             ? categoryNames.map(name => String(name || '').trim()).filter(Boolean)
@@ -623,7 +640,7 @@
         const State = root.LLFlashcards.State;
         $('#ll-tools-flashcard-quiz-popup, #quiz-results').removeClass('ll-tools-error-state');
         $('#ll-tools-mode-switcher-wrap').hide();
-        if (State && !State.modeSessionCompleteTracked) {
+        if (State && !State.modeSessionCompleteTracked && shouldTrackModeSessionCompletionForProgress()) {
             trackModeSessionCompletionForProgress(getCurrentResultsMode());
             State.modeSessionCompleteTracked = true;
         }

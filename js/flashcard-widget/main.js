@@ -3557,6 +3557,24 @@
             console.warn('Self-check mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
+        if (!preserveGenderPlan) {
+            const flashData = root.llToolsFlashcardsData || {};
+            try { delete flashData.boundedSessionContinuation; } catch (_) { /* no-op */ }
+            try { delete flashData.bounded_session_continuation; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
+            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
+            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
+            root.llToolsFlashcardsData = flashData;
+            try {
+                $(document).trigger('lltools:flashcard-mode-switching', [{ mode: newMode }]);
+            } catch (_) { /* no-op */ }
+            const gender = root.LLFlashcards && root.LLFlashcards.Modes
+                ? root.LLFlashcards.Modes.Gender
+                : null;
+            if (gender && typeof gender.clearBoundedSessionState === 'function') {
+                try { gender.clearBoundedSessionState(); } catch (_) { /* no-op */ }
+            }
+        }
         if (isSelfCheckMode(newMode)) {
             if (triggerSelfCheckFlowFromFlashcard()) {
                 setMenuOpen(false);
@@ -3564,18 +3582,10 @@
             }
             newMode = 'self-check';
         }
-        if (newMode === 'gender' && !isGenderSupportedForCurrentSelection()) {
+        if (newMode === 'gender' && !preserveGenderPlan && !isGenderSupportedForCurrentSelection()) {
             console.warn('Gender mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
-        if (newMode === 'gender' && !preserveGenderPlan) {
-            const flashData = root.llToolsFlashcardsData || {};
-            try { delete flashData.genderSessionPlan; } catch (_) { /* no-op */ }
-            try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
-            try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
-            root.llToolsFlashcardsData = flashData;
-        }
-
         try {
             const tracker = getProgressTracker();
             if (tracker && typeof tracker.flush === 'function') {
@@ -3605,6 +3615,7 @@
         cancelListeningCategoryPrefetch();
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
+        newSession();
         $('#ll-tools-learning-progress').hide().empty();
 
         root.FlashcardAudio.startNewSession().then(function () {
@@ -3716,6 +3727,13 @@
             State.userClickedCorrectAnswer = false;
 
             if (outcome.completed) {
+                if (
+                    typeof modeModule.shouldAutoContinue === 'function'
+                    && modeModule.shouldAutoContinue()
+                    && tryContinueLogicalSession()
+                ) {
+                    return;
+                }
                 State.transitionTo(STATES.SHOWING_RESULTS, 'Gender session complete');
                 Results.showResults();
                 return;
@@ -5265,8 +5283,10 @@
         const data = root.llToolsFlashcardsData || {};
         const currentSession = __LLSession;
         const isListeningContinuation = !!State.isListeningMode;
+        const isSelfCheckContinuation = !!State.isSelfCheckMode;
+        const isGenderContinuation = !!State.isGenderMode;
 
-        if (!State.widgetActive || State.isLearningMode || State.isGenderMode || State.isSelfCheckMode) {
+        if (!State.widgetActive || State.isLearningMode) {
             return Promise.reject(new Error('A bounded quiz continuation is not active.'));
         }
         if (!names.length || !loader || typeof loader.consumeBoundedPreloadedCategoryData !== 'function') {
@@ -5328,12 +5348,36 @@
                 }
             }
 
+            if (isSelfCheckContinuation) {
+                const selfCheck = root.LLFlashcards && root.LLFlashcards.Modes
+                    ? root.LLFlashcards.Modes.SelfCheck
+                    : null;
+                if (!selfCheck || typeof selfCheck.appendBoundedSelectionChunk !== 'function') {
+                    throw new Error('The bounded self-check continuation is unavailable.');
+                }
+                if (selfCheck.appendBoundedSelectionChunk(availableNames) !== true) {
+                    throw new Error('The bounded self-check continuation has no playable words.');
+                }
+            }
+
+            if (isGenderContinuation) {
+                const gender = root.LLFlashcards && root.LLFlashcards.Modes
+                    ? root.LLFlashcards.Modes.Gender
+                    : null;
+                if (!gender || typeof gender.appendBoundedSelectionChunk !== 'function') {
+                    throw new Error('The bounded gender continuation is unavailable.');
+                }
+                if (gender.appendBoundedSelectionChunk(availableNames) !== true) {
+                    throw new Error('The bounded gender continuation has no playable words.');
+                }
+            }
+
             State.totalWordCount = Math.max(
                 State.totalWordCount || 0,
                 parseInt(data.logicalSessionTotal || data.logical_session_total, 10) || 0
             );
             root.categoryNames = State.categoryNames;
-            if (!isListeningContinuation) {
+            if (!isListeningContinuation && !isSelfCheckContinuation && !isGenderContinuation) {
                 updatePracticeModeProgress();
             }
 
@@ -5361,7 +5405,13 @@
         }
         Dom.showLoading();
 
-        logicalSessionContinuationPromise = Promise.resolve().then(function () {
+        let continuationPromise = null;
+        const clearContinuationPromise = function () {
+            if (logicalSessionContinuationPromise === continuationPromise) {
+                logicalSessionContinuationPromise = null;
+            }
+        };
+        continuationPromise = Promise.resolve().then(function () {
             return continuation();
         }).then(function (result) {
             if (currentSession !== __LLSession || !State.widgetActive) {
@@ -5374,18 +5424,19 @@
             if (!ready) {
                 State.forceTransitionTo(STATES.QUIZ_READY, 'Forcing bounded quiz continuation ready');
             }
-            logicalSessionContinuationPromise = null;
+            clearContinuationPromise();
             $('#ll-tools-mode-switcher-wrap').show();
             runQuizRound();
         }).catch(function (error) {
             if (currentSession !== __LLSession || !State.widgetActive) {
-                logicalSessionContinuationPromise = null;
+                clearContinuationPromise();
                 return;
             }
             console.error('Failed to continue bounded quiz session:', error);
-            logicalSessionContinuationPromise = null;
+            clearContinuationPromise();
             showLogicalSessionContinuationError();
         });
+        logicalSessionContinuationPromise = continuationPromise;
 
         return true;
     }
@@ -5635,7 +5686,26 @@
                     console.warn('Self-check mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
-                if (requestedMode === 'gender' && !isGenderSupportedForSelection(requestedCategories)) {
+                const launchFlashData = root.llToolsFlashcardsData || {};
+                const launchGenderPlan = launchFlashData.genderSessionPlan;
+                const hasArmedGenderPlan = !!(
+                    launchFlashData.genderSessionPlanArmed
+                    || launchFlashData.gender_session_plan_armed
+                );
+                const hasExplicitGenderPlan = !!(
+                    hasArmedGenderPlan
+                    && launchGenderPlan
+                    && typeof launchGenderPlan === 'object'
+                    && parseInt(launchGenderPlan.level, 10) >= 1
+                    && parseInt(launchGenderPlan.level, 10) <= 3
+                    && Array.isArray(launchGenderPlan.word_ids)
+                    && launchGenderPlan.word_ids.length > 0
+                );
+                if (
+                    requestedMode === 'gender'
+                    && !hasExplicitGenderPlan
+                    && !isGenderSupportedForSelection(requestedCategories)
+                ) {
                     console.warn('Gender mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
@@ -5902,6 +5972,21 @@
         cancelListeningCategoryPrefetch();
         State.abortAllOperations = true;
         State.clearActiveTimeouts();
+        try {
+            const gender = root.LLFlashcards && root.LLFlashcards.Modes
+                ? root.LLFlashcards.Modes.Gender
+                : null;
+            if (gender && typeof gender.clearBoundedSessionState === 'function') {
+                gender.clearBoundedSessionState();
+            }
+        } catch (_) { /* no-op */ }
+        try {
+            const flashData = root.llToolsFlashcardsData || {};
+            delete flashData.genderSessionPlan;
+            delete flashData.genderSessionPlanArmed;
+            delete flashData.gender_session_plan_armed;
+            root.llToolsFlashcardsData = flashData;
+        } catch (_) { /* no-op */ }
         newSession();
         try { StarManager && StarManager.hide(); } catch (_) { /* no-op */ }
 

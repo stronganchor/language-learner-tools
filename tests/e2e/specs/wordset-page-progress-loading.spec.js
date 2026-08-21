@@ -796,22 +796,55 @@ async function mountProgressPage(page, options = {}) {
       if (action === 'll_user_study_selection_launch_plan') {
         const requestedMode = String(request.mode || 'practice');
         const isLearning = requestedMode === 'learning';
+        const isGender = requestedMode === 'gender';
         const candidateIds = (Array.isArray(request.candidate_word_ids)
           ? request.candidate_word_ids
           : String(request.candidate_word_ids || '').split(','))
           .map((value) => Number(value) || 0)
           .filter((value, index, values) => value > 0 && values.indexOf(value) === index);
         const chunks = [];
-        for (let offset = 0; offset < candidateIds.length; offset += 15) {
-          const chunkWordIds = candidateIds.slice(offset, offset + 15);
-          chunks.push({
-            category_ids: [11],
-            word_ids: chunkWordIds,
-            ...(isLearning ? {
-              target_word_ids: chunkWordIds.slice(),
-              compatibility_key: 'ratio:1_1|audio->image'
-            } : {})
-          });
+        if (isGender) {
+          const levelGroupSize = Math.ceil(candidateIds.length / 3);
+          const chunksByLevel = { 1: [], 2: [], 3: [] };
+          for (let level = 1; level <= 3; level += 1) {
+            const levelWordIds = candidateIds.slice(
+              (level - 1) * levelGroupSize,
+              Math.min(candidateIds.length, level * levelGroupSize)
+            );
+            const chunkSize = level === 1 ? 10 : 15;
+            for (let offset = 0; offset < levelWordIds.length; offset += chunkSize) {
+              chunksByLevel[level].push({
+                category_ids: [11],
+                word_ids: levelWordIds.slice(offset, offset + chunkSize),
+                details: {
+                  gender_level: level,
+                  gender_auto_continue: level > 1
+                }
+              });
+            }
+          }
+          let addedChunk = true;
+          while (addedChunk) {
+            addedChunk = false;
+            for (let level = 1; level <= 3; level += 1) {
+              if (chunksByLevel[level].length) {
+                chunks.push(chunksByLevel[level].shift());
+                addedChunk = true;
+              }
+            }
+          }
+        } else {
+          for (let offset = 0; offset < candidateIds.length; offset += 15) {
+            const chunkWordIds = candidateIds.slice(offset, offset + 15);
+            chunks.push({
+              category_ids: [11],
+              word_ids: chunkWordIds,
+              ...(isLearning ? {
+                target_word_ids: chunkWordIds.slice(),
+                compatibility_key: 'ratio:1_1|audio->image'
+              } : {})
+            });
+          }
         }
         const firstChunk = chunks[0] || null;
         const plan = {
@@ -2204,6 +2237,7 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
     const plan = planEntry.plan || {};
     const hydrationRequest = window.__llFetchWordsRequests[0].request || {};
     const launch = window.__llFlashcardLaunches[0] || {};
+    const flashData = window.llToolsFlashcardsData || {};
     const parseIds = (value) => (Array.isArray(value) ? value : String(value || '').split(','))
       .map((item) => Number(item) || 0)
       .filter(Boolean);
@@ -2220,7 +2254,10 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
       launchMode: String(launch.mode || ''),
       launchSessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
       launchSource: launch.lastLaunchPlan ? String(launch.lastLaunchPlan.source || '') : '',
-      chunked: !!(launch.lastLaunchPlan && launch.lastLaunchPlan.chunked)
+      chunked: !!(launch.lastLaunchPlan && launch.lastLaunchPlan.chunked),
+      continuationType: typeof (
+        flashData.boundedSessionContinuation || flashData.bounded_session_continuation
+      )
     };
   });
 
@@ -2244,11 +2281,13 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
     launchMode: 'learning',
     launchSessionWordIds: allMatchingIds.slice(0, 15),
     launchSource: 'wordset_progress_bounded_start',
-    chunked: true
+    chunked: true,
+    continuationType: 'undefined'
   });
   await page.evaluate(() => window.__resolveFlashcardInitRequest(0));
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llBoundedSessionAppends.length)).toBe(0);
   await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
@@ -2256,9 +2295,10 @@ test('progress all-filtered Learning hydrates and launches only its bounded firs
   await expectFlashcardLaunchUiOpen(page);
   expect(await page.evaluate(() => window.__llFlashcardPopupHideCalls)).toBe(0);
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+
 });
 
-test('progress selections over 1,500 words bound Listen Gender and Self Check startup hydration', async ({ page }) => {
+test('progress selections over 1,500 words keep Listen and Self Check continuous with a level-bounded Gender plan', async ({ page }) => {
   const allMatchingIds = Array.from({ length: 1505 }, (_unused, index) => 101 + index);
 
   for (const mode of ['listening', 'gender', 'self-check']) {
@@ -2288,29 +2328,68 @@ test('progress selections over 1,500 words bound Listen Gender and Self Check st
       return {
         planMode: String(planRequest.mode || ''),
         plannedCandidateIds: parseIds(planRequest.candidate_word_ids),
-        chunkCount: Array.isArray(plan.chunks) ? plan.chunks.length : 0,
+        planChunks: Array.isArray(plan.chunks) ? plan.chunks.map((chunk) => ({
+          wordIds: parseIds(chunk.word_ids),
+          genderLevel: Number(chunk.details && chunk.details.gender_level) || 0,
+          genderAutoContinue: !!(chunk.details && chunk.details.gender_auto_continue)
+        })) : [],
         hydrationCandidateIds: parseIds(hydrationRequest.candidate_word_ids),
         hydrationRequestCount: window.__llFetchWordsRequests.length,
         launchMode: String(launch.mode || ''),
         launchSessionWordIds: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds : [],
+        launchLogicalSessionWordIds: Array.isArray(launch.logicalSessionWordIds)
+          ? launch.logicalSessionWordIds
+          : [],
+        launchGenderLevel: Number(
+          launch.lastLaunchPlan
+          && launch.lastLaunchPlan.details
+          && launch.lastLaunchPlan.details.gender_level
+        ) || 0,
         launchSource: launch.lastLaunchPlan ? String(launch.lastLaunchPlan.source || '') : '',
         chunked: !!(launch.lastLaunchPlan && launch.lastLaunchPlan.chunked),
-        continuationType: typeof (flashData.boundedSessionContinuation || flashData.bounded_session_continuation)
+        continuationType: typeof (
+          flashData.boundedSessionContinuation || flashData.bounded_session_continuation
+        ),
+        appendCount: window.__llBoundedSessionAppends.length
       };
     });
 
     expect(state.planMode).toBe(mode);
     expect(state.plannedCandidateIds).toEqual(allMatchingIds);
-    expect(state.chunkCount).toBeGreaterThan(1);
-    expect(state.hydrationCandidateIds).toEqual(allMatchingIds.slice(0, 15));
+    expect(state.planChunks.length).toBeGreaterThan(1);
+    const plannedWordIds = state.planChunks.flatMap((chunk) => chunk.wordIds);
+    expect(plannedWordIds).toHaveLength(allMatchingIds.length);
+    expect(new Set(plannedWordIds).size).toBe(allMatchingIds.length);
+    expect(plannedWordIds.slice().sort((left, right) => left - right))
+      .toEqual(allMatchingIds.slice().sort((left, right) => left - right));
+    const firstChunkIds = state.planChunks[0].wordIds;
+    expect(state.hydrationCandidateIds).toEqual(firstChunkIds);
     expect(state.hydrationRequestCount).toBe(1);
     expect(state.launchMode).toBe(mode);
-    expect(state.launchSessionWordIds).toEqual(allMatchingIds.slice(0, 15));
+    expect(state.launchSessionWordIds).toEqual(firstChunkIds);
+    expect(state.launchLogicalSessionWordIds).toEqual(plannedWordIds);
     expect(state.launchSource).toBe('wordset_progress_bounded_start');
     expect(state.chunked).toBeTruthy();
-    expect(state.continuationType).toBe(mode === 'listening' ? 'function' : 'undefined');
+    expect(state.continuationType).toBe('function');
+    expect(state.appendCount).toBe(0);
 
-    if (mode === 'listening') {
+    if (mode === 'gender') {
+      const levelGroupSize = Math.ceil(allMatchingIds.length / 3);
+      const expectedLevelForId = (id) => Math.min(
+        3,
+        Math.floor((id - allMatchingIds[0]) / levelGroupSize) + 1
+      );
+      expect(state.planChunks.slice(0, 9).map((chunk) => chunk.genderLevel))
+        .toEqual([1, 2, 3, 1, 2, 3, 1, 2, 3]);
+      for (const chunk of state.planChunks) {
+        expect([1, 2, 3]).toContain(chunk.genderLevel);
+        expect(chunk.wordIds.length).toBeGreaterThan(0);
+        expect(chunk.wordIds.length).toBeLessThanOrEqual(chunk.genderLevel === 1 ? 10 : 15);
+        expect(chunk.genderAutoContinue).toBe(chunk.genderLevel > 1);
+        expect(chunk.wordIds.every((id) => expectedLevelForId(id) === chunk.genderLevel)).toBeTruthy();
+      }
+      expect(state.launchGenderLevel).toBe(1);
+    } else {
       const continuationResult = await page.evaluate(async () => {
         const flashData = window.llToolsFlashcardsData || {};
         const continuation = flashData.boundedSessionContinuation || flashData.bounded_session_continuation;
@@ -2331,11 +2410,16 @@ test('progress selections over 1,500 words bound Listen Gender and Self Check st
             : []
         };
       });
-      expect(continuationResult.outcome).toEqual({ success: true, index: 1, chunk_count: state.chunkCount });
-      expect(continuationResult.hydrationCandidateIds).toEqual(allMatchingIds.slice(15, 30));
+      const secondChunkIds = state.planChunks[1].wordIds;
+      expect(continuationResult.outcome).toEqual({
+        success: true,
+        index: 1,
+        chunk_count: state.planChunks.length
+      });
+      expect(continuationResult.hydrationCandidateIds).toEqual(secondChunkIds);
       expect(continuationResult.hydrationRequestCount).toBe(2);
       expect(continuationResult.appendCount).toBe(1);
-      expect(continuationResult.appendSessionWordIds).toEqual(allMatchingIds.slice(15, 30));
+      expect(continuationResult.appendSessionWordIds).toEqual(secondChunkIds);
       expect(continuationResult.appendLogicalSessionWordIds).toEqual(allMatchingIds);
     }
     await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');

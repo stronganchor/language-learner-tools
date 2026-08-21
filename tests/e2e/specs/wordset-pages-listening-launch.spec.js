@@ -16,6 +16,7 @@ function buildWordsetMarkup() {
         <button type="button" data-ll-wordset-start-mode data-mode="listening">Listen</button>
         <button type="button" data-ll-wordset-start-mode data-mode="gender">Gender</button>
         <button type="button" data-ll-wordset-category-mode data-mode="practice" data-cat-id="11">Cat A Practice</button>
+        <button type="button" data-ll-wordset-category-mode data-mode="learning" data-cat-id="11">Cat A Learn</button>
         <button type="button" data-ll-wordset-select-all>Select all</button>
         <label><input type="checkbox" data-ll-wordset-select value="11" />Cat A</label>
         <label><input type="checkbox" data-ll-wordset-select value="22" />Cat B</label>
@@ -210,6 +211,46 @@ function buildBoundedChunkFixture() {
       nextActivity: null,
       recommendationQueue: []
     }
+  };
+}
+
+function buildBoundedLearningPlan(chunks, compatibilityKey = 'ratio:1_1|audio->image') {
+  const normalizedChunks = (Array.isArray(chunks) ? chunks : []).map((chunk) => {
+    const targetWordIds = Array.isArray(chunk && chunk.target_word_ids)
+      ? chunk.target_word_ids.slice()
+      : [];
+    const sessionWordIds = Array.isArray(chunk && chunk.word_ids)
+      ? chunk.word_ids.slice()
+      : targetWordIds.slice();
+    return {
+      category_ids: Array.isArray(chunk && chunk.category_ids) ? chunk.category_ids.slice() : [],
+      word_ids: sessionWordIds,
+      target_word_ids: targetWordIds,
+      compatibility_key: compatibilityKey
+    };
+  });
+  const firstChunk = normalizedChunks[0] || {
+    category_ids: [],
+    word_ids: [],
+    target_word_ids: [],
+    compatibility_key: compatibilityKey
+  };
+  const allSessionWordIds = normalizedChunks.flatMap((chunk) => chunk.word_ids);
+  const allTargetWordIds = normalizedChunks.flatMap((chunk) => chunk.target_word_ids);
+
+  return {
+    category_ids: firstChunk.category_ids.slice(),
+    word_ids: firstChunk.word_ids.slice(),
+    target_word_ids: firstChunk.target_word_ids.slice(),
+    compatibility_key: firstChunk.compatibility_key,
+    chunks: normalizedChunks,
+    criteria: '',
+    mode: 'learning',
+    matched_count: new Set(allTargetWordIds).size,
+    planned_count: new Set(allSessionWordIds).size,
+    expanded_count: Math.max(0, new Set(allSessionWordIds).size - new Set(allTargetWordIds).size),
+    chunk_count: normalizedChunks.length,
+    truncated: false
   };
 }
 
@@ -568,6 +609,9 @@ async function mountWordsetPage(page, options = {}) {
         mode: String(mode || ''),
         catNames: Array.isArray(catNames) ? catNames.slice() : [],
         sessionWordIds: Array.isArray(flash.sessionWordIds) ? flash.sessionWordIds.slice() : [],
+        targetWordIds: Array.isArray(plan.details && plan.details.target_word_ids)
+          ? plan.details.target_word_ids.slice()
+          : [],
         logicalSessionWordIds: Array.isArray(flash.logicalSessionWordIds)
           ? flash.logicalSessionWordIds.slice()
           : [],
@@ -807,8 +851,15 @@ async function mountWordsetPage(page, options = {}) {
               starredLookup[Number(id) || 0] = true;
             });
             const selectedRows = [];
-            const selectedCategoryIds = [];
             const seenWordIds = {};
+            const candidateLookup = {};
+            String(request.candidate_word_ids || '').split(',').forEach((value) => {
+              const wordId = Number(value) || 0;
+              if (wordId > 0) {
+                candidateLookup[wordId] = true;
+              }
+            });
+            const hasCandidateScope = Object.keys(candidateLookup).length > 0;
             requestedCategoryIds.forEach((categoryId) => {
               const category = (Array.isArray(bootstrap.config.categories) ? bootstrap.config.categories : [])
                 .find((item) => Number(item && item.id) === categoryId);
@@ -816,7 +867,6 @@ async function mountWordsetPage(page, options = {}) {
               const rows = Array.isArray(bootstrap.wordsByCategoryName[categoryName])
                 ? bootstrap.wordsByCategoryName[categoryName]
                 : [];
-              let categoryHasMatch = false;
               rows.forEach((row) => {
                 const wordId = Number(row && row.id) || 0;
                 const status = String((row && row.status) || 'new');
@@ -827,29 +877,56 @@ async function mountWordsetPage(page, options = {}) {
                   || (criteria === 'learned' && (status === 'mastered' || status === 'learned'))
                   || (criteria === 'starred' && !!starredLookup[wordId])
                   || (criteria === 'hard' && status !== 'new' && difficulty >= Number(bootstrap.config.hardWordDifficultyThreshold || 4));
-                if (!wordId || !matches || seenWordIds[wordId] || selectedRows.length >= 15) {
+                if (
+                  !wordId
+                  || !matches
+                  || (hasCandidateScope && !candidateLookup[wordId])
+                  || seenWordIds[wordId]
+                ) {
                   return;
                 }
                 seenWordIds[wordId] = true;
-                selectedRows.push(wordId);
-                categoryHasMatch = true;
+                selectedRows.push({ wordId, categoryId });
               });
-              if (categoryHasMatch) {
-                selectedCategoryIds.push(categoryId);
-              }
             });
+            const requestedMode = String(request.mode || 'practice');
+            const maximumWords = requestedMode === 'gender' ? 10 : 15;
+            const chunkCount = selectedRows.length ? Math.ceil(selectedRows.length / maximumWords) : 0;
+            const baseChunkSize = chunkCount ? Math.floor(selectedRows.length / chunkCount) : 0;
+            const largerChunkCount = chunkCount ? selectedRows.length % chunkCount : 0;
+            const chunks = [];
+            let selectedOffset = 0;
+            for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+              const chunkSize = baseChunkSize + (chunkIndex < largerChunkCount ? 1 : 0);
+              const chunkEntries = selectedRows.slice(selectedOffset, selectedOffset + chunkSize);
+              selectedOffset += chunkSize;
+              const chunkWordIds = chunkEntries.map((entry) => entry.wordId);
+              const chunkCategoryIds = Array.from(new Set(chunkEntries.map((entry) => entry.categoryId)));
+              chunks.push(Object.assign({
+                category_ids: chunkCategoryIds,
+                word_ids: chunkWordIds
+              }, requestedMode === 'gender' ? {
+                details: { gender_level: 1, gender_auto_continue: false }
+              } : {}, requestedMode === 'learning' ? {
+                target_word_ids: chunkWordIds.slice(),
+                compatibility_key: 'ratio:1_1|audio->image'
+              } : {}));
+            }
+            const firstChunk = chunks[0] || { category_ids: [], word_ids: [] };
             plan = {
-              category_ids: selectedCategoryIds,
-              word_ids: selectedRows,
-              chunks: selectedRows.length ? [{
-                category_ids: selectedCategoryIds,
-                word_ids: selectedRows
-              }] : [],
+              category_ids: firstChunk.category_ids.slice(),
+              word_ids: firstChunk.word_ids.slice(),
+              ...(requestedMode === 'learning' ? {
+                target_word_ids: (firstChunk.target_word_ids || []).slice(),
+                compatibility_key: String(firstChunk.compatibility_key || ''),
+                expanded_count: 0
+              } : {}),
+              chunks,
               criteria,
-              mode: String(request.mode || 'practice'),
+              mode: requestedMode,
               matched_count: selectedRows.length,
               planned_count: selectedRows.length,
-              chunk_count: selectedRows.length ? 1 : 0,
+              chunk_count: chunks.length,
               truncated: false
             };
           }
@@ -1212,14 +1289,14 @@ test('a bounded replacement cancels public warming without a stale launch', asyn
     wordsByCategory: fixture.wordsByCategory,
     selectionLaunchPlan: fixture.selectionLaunchPlan,
     configPatch: fixture.configPatch,
-    publicCategoryWarmingResponses: 20,
-    publicCategoryWarmingAction: 'll_get_flashcard_payload_page'
+    publicCategoryDelayMs: 10000
   });
 
   await page.locator('[data-ll-wordset-select-all]').click();
   await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
-  await expect.poll(async () => page.evaluate(() => window.__llPublicCategoryRequests.actions.length)).toBe(1);
+  await expect.poll(async () => page.evaluate(() => window.__llPublicCategoryRequests.active)).toBe(1);
 
+  await page.evaluate(() => { window.__llPublicCategoryDelayMs = 0; });
   await page.locator('[data-ll-wordset-selection-priority-only]').check({ force: true });
   await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click({ force: true });
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
@@ -1233,14 +1310,18 @@ test('a bounded replacement cancels public warming without a stale launch', asyn
       source: launch.source,
       boundedSelectionPlan: launch.boundedSelectionPlan
     })),
+    abortedRequests: window.__llAbortedRequests.slice(),
     alerts: window.__llAlerts.slice()
   }));
-  expect(state.actions.filter((action) => action === 'll_get_flashcard_payload_page')).toHaveLength(1);
-  expect(state.actions.filter((action) => action === 'll_get_words_by_category')).toHaveLength(2);
+  expect(state.actions.filter((action) => action === 'll_get_words_by_category')).toHaveLength(3);
   expect(state.launches).toEqual([{
     mode: 'practice',
-    source: 'wordset_chunk_start',
+    source: 'wordset_selection_bounded_start',
     boundedSelectionPlan: true
+  }]);
+  expect(state.abortedRequests).toEqual([{
+    action: 'll_get_words_by_category',
+    categoryName: 'Cat A'
   }]);
   expect(state.alerts).toEqual([]);
 });
@@ -1286,13 +1367,13 @@ test('closing logged-out practice aborts an active hydration without a late laun
   expect(state.quizPopupVisible).toBeFalsy();
 });
 
-test('closing direct-category practice aborts its active hydration without a late launch', async ({ page }) => {
+test('closing a direct-category quiz aborts its active hydration without a late launch', async ({ page }) => {
   await mountWordsetPage(page, {
     isLoggedIn: false,
     publicCategoryDelayMs: 10000
   });
 
-  await page.locator('[data-ll-wordset-category-mode][data-mode="practice"][data-cat-id="11"]').click();
+  await page.locator('[data-ll-wordset-category-mode][data-mode="learning"][data-cat-id="11"]').click();
   await expect.poll(async () => page.evaluate(() => window.__llPublicCategoryRequests.active)).toBe(1);
 
   await page.locator('#ll-tools-close-flashcard').click();
@@ -1328,7 +1409,8 @@ test('closing a standard-results hydration aborts it without a late follow-up la
     recommendationDelayMs: 1
   });
 
-  await page.locator('[data-ll-wordset-category-mode][data-mode="practice"][data-cat-id="11"]').click();
+  await page.locator('[data-ll-wordset-select][value="11"]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
 
   await page.evaluate(() => {
@@ -1364,7 +1446,7 @@ test('closing a standard-results hydration aborts it without a late follow-up la
   }]);
   expect(state.launches).toEqual([{
     mode: 'practice',
-    source: 'wordset_category_start',
+    source: 'wordset_selection_bounded_start',
     categoryIds: [11]
   }]);
   expect(state.alerts).toEqual([]);
@@ -1732,7 +1814,7 @@ test('practice selection opens loading popup before selected categories finish l
 
     $.post = function (url, request) {
       const action = request && request.action ? String(request.action) : '';
-      if (action === 'll_get_flashcard_payload_page') {
+      if (action === 'll_get_flashcard_payload_page' || action === 'll_get_words_by_category') {
         window.__llFetchWordsCalls += 1;
         window.__llFetchWordsPending += 1;
         const deferred = $.Deferred();
@@ -1741,14 +1823,16 @@ test('practice selection opens loading popup before selected categories finish l
           window.__llFetchWordsPending = Math.max(0, (window.__llFetchWordsPending || 0) - 1);
           deferred.resolve({
             success: true,
-            data: {
-              schema: 1,
-              rows: Array.isArray(wordsByCategory[categoryId])
-                ? wordsByCategory[categoryId]
-                : [],
-              next_cursor: '',
-              complete: true
-            }
+            data: action === 'll_get_flashcard_payload_page'
+              ? {
+                  schema: 1,
+                  rows: Array.isArray(wordsByCategory[categoryId])
+                    ? wordsByCategory[categoryId]
+                    : [],
+                  next_cursor: '',
+                  complete: true
+                }
+              : (Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [])
           });
         };
         if (window.__llReleaseAllFetchWords) {
@@ -1822,7 +1906,7 @@ test('practice selection opens loading popup before selected categories finish l
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
-  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.source).toBe('wordset_selection_bounded_start');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
 });
 
@@ -1859,8 +1943,11 @@ test('logged-in practice top launch falls back to visible categories when recomm
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
-  expect(launch.sessionWordIds).toEqual([]);
-  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.source).toBe('wordset_top_start_fallback');
+  expect(launch.sessionWordIds).toHaveLength(6);
+  expect(launch.categoryIds).toEqual([11, 22, 33]);
+  expect(launch.logicalSessionWordIds).toHaveLength(6);
+  expect(launch.boundedSessionContinuationType).toBe('undefined');
   expect(alerts).toEqual([]);
 });
 
@@ -1932,6 +2019,23 @@ test('gender top launch does not downgrade to practice when queued recommendatio
   await mountWordsetPage(page, {
     isLoggedIn: true,
     wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [33],
+      word_ids: wordsByCategory[33].map((row) => row.id),
+      chunks: [
+        {
+          category_ids: [33],
+          word_ids: wordsByCategory[33].map((row) => row.id),
+          details: { gender_level: 1, gender_auto_continue: false }
+        }
+      ],
+      criteria: '',
+      mode: 'gender',
+      matched_count: wordsByCategory[33].length,
+      planned_count: wordsByCategory[33].length,
+      chunk_count: 1,
+      truncated: false
+    },
     configPatch: {
       categories: [
         {
@@ -2336,7 +2440,7 @@ test('bounded selection continuation coalesces one serial next-batch request', a
 
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
   const initialLaunch = await page.evaluate(() => window.__llLaunches[0]);
-  expect(initialLaunch.source).toBe('wordset_chunk_start');
+  expect(initialLaunch.source).toBe('wordset_selection_bounded_start');
   expect(initialLaunch.categoryDisplayOverride).toBe('In progress words');
   expect(initialLaunch.categoryIds).toEqual([11, 22, 33]);
   expect(initialLaunch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
@@ -2521,7 +2625,7 @@ test('bounded Listen sessions expose serial continuation and append the next chu
     continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
   }));
   expect(initial.launch.mode).toBe('listening');
-  expect(initial.launch.source).toBe('wordset_chunk_start');
+  expect(initial.launch.source).toBe('wordset_selection_bounded_start');
   expect(initial.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
   expect(initial.launch.logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
   expect(initial.continuationType).toBe('function');
@@ -2550,7 +2654,7 @@ test('bounded Listen sessions expose serial continuation and append the next chu
   expect(appended.continuationType).toBe('undefined');
 });
 
-test('non-continuous Self Check result replacements cancel Repeat and Continue and allow guard re-entry', async ({ page }) => {
+test('bounded Self Check sessions append continuously and show results only after the logical scope is exhausted', async ({ page }) => {
   const fixture = buildBoundedChunkFixture();
   fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
     mode: 'self-check'
@@ -2566,85 +2670,209 @@ test('non-continuous Self Check result replacements cancel Repeat and Continue a
   await page.locator('[data-ll-wordset-selection-priority-only]').check();
   await page.locator('[data-ll-wordset-selection-mode][data-mode="self-check"]').click();
   await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
-  expect(await page.evaluate(() => window.__llLaunches[0].sessionWordIds))
-    .toEqual(fixture.firstChunkWordIds);
-
-  const repeatButton = page.locator('#ll-study-results-same-chunk');
-  const continueButton = page.locator('#ll-study-results-next-chunk');
-
-  // Clear the launch selection as the real widget-open event does, then enter
-  // a genuine result state. Repeat reaches async init from the warm candidate
-  // cache. Re-rendering and clicking Continue in the same JavaScript task
-  // supersedes Repeat before its native promise can settle, without discarding
-  // this chunk session.
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-opened', [{ mode: 'self-check' }]);
-    window.__llPublicCategoryDelayMs = 10000;
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
-    window.document.querySelector('#ll-study-results-same-chunk').click();
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
-    window.document.querySelector('#ll-study-results-next-chunk').click();
-  });
-  await expect.poll(async () => page.evaluate(() => ({
-    launches: window.__llLaunches.length,
-    categories: window.__llPublicCategoryRequests.categories.slice(),
-    active: window.__llPublicCategoryRequests.active
-  }))).toEqual({ launches: 2, categories: ['Cat A', 'Cat B', 'Cat B'], active: 1 });
-
-  // Repeat must now be accepted again, proving the canceled first Repeat
-  // cleared repeat_pending. It also aborts the held Continue; a final Continue
-  // then proves pending_index cleared and becomes the newest committed launch.
-  await page.evaluate(() => {
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
-  });
-  await expect(repeatButton).toBeEnabled();
-  await repeatButton.click();
-  await expect.poll(async () => page.evaluate(() => ({
-    launches: window.__llLaunches.length,
-    aborts: window.__llAbortedRequests.length,
-    active: window.__llPublicCategoryRequests.active
-  }))).toEqual({ launches: 3, aborts: 1, active: 0 });
-
-  await page.evaluate(() => {
-    window.__llPublicCategoryDelayMs = 0;
-    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
-  });
-  await expect(continueButton).toBeEnabled();
-  await continueButton.click();
-  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(4);
-
-  const state = await page.evaluate(() => ({
-    categories: window.__llPublicCategoryRequests.categories.slice(),
-    activeRequests: window.__llPublicCategoryRequests.active,
-    abortedRequests: window.__llAbortedRequests.slice(),
-    launches: window.__llLaunches.map((launch) => ({
-      mode: launch.mode,
-      source: launch.source,
-      sessionWordIds: launch.sessionWordIds.slice()
-    })),
-    finalPlan: Object.assign({}, (window.llToolsFlashcardsData || {}).lastLaunchPlan || {}),
-    alerts: window.__llAlerts.slice(),
-    popupVisible: window.jQuery('#ll-tools-flashcard-popup').is(':visible')
+  const initial = await page.evaluate(() => ({
+    launch: window.__llLaunches[0],
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
   }));
-  expect(state.categories).toEqual(['Cat A', 'Cat B', 'Cat B', 'Cat B', 'Cat C']);
-  expect(state.activeRequests).toBe(0);
-  expect(state.abortedRequests).toEqual([{
+  expect(initial.launch.mode).toBe('self-check');
+  expect(initial.launch.source).toBe('wordset_selection_bounded_start');
+  expect(initial.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
+  expect(initial.launch.logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(initial.continuationType).toBe('function');
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'self-check' }]);
+  });
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
+
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.callable).toBeTruthy();
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+
+  const appended = await page.evaluate(() => ({
+    launches: window.__llLaunches.slice(),
+    appends: window.__llBoundedSessionAppends.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
+    alerts: window.__llAlerts.slice()
+  }));
+  expect(appended.launches).toHaveLength(1);
+  expect(appended.appends).toHaveLength(1);
+  expect(appended.appends[0].sessionWordIds).toEqual(fixture.secondChunkWordIds);
+  expect(appended.appends[0].logicalSessionWordIds).toEqual(fixture.allPlannedWordIds);
+  expect(appended.continuationType).toBe('undefined');
+  expect(appended.alerts).toEqual([]);
+});
+
+test('bounded Gender accepts a one-word homogeneous tail after a launchable logical selection', async ({ page }) => {
+  const words = buildCategoryWordRows(11, 6, 'G').map((row) => Object.assign({}, row, {
+    category_id: 11,
+    category_ids: [11],
+    status: 'studied'
+  }));
+  const firstChunkWordIds = words.slice(0, 5).map((row) => row.id);
+  const tailWordIds = words.slice(5).map((row) => row.id);
+  const allWordIds = firstChunkWordIds.concat(tailWordIds);
+  const selectionLaunchPlan = {
+    category_ids: [11],
+    word_ids: firstChunkWordIds,
+    chunks: [
+      {
+        category_ids: [11],
+        word_ids: firstChunkWordIds,
+        details: { gender_level: 2, gender_auto_continue: true }
+      },
+      {
+        category_ids: [11],
+        word_ids: tailWordIds,
+        details: { gender_level: 3, gender_auto_continue: true }
+      }
+    ],
+    criteria: '',
+    mode: 'gender',
+    matched_count: allWordIds.length,
+    planned_count: allWordIds.length,
+    chunk_count: 2,
+    truncated: false
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: { 11: words },
+    selectionLaunchPlan,
+    configPatch: {
+      categories: [{
+        id: 11,
+        slug: 'cat-a',
+        name: 'Cat A',
+        translation: 'Cat A',
+        count: words.length,
+        url: '#',
+        mode: 'image',
+        prompt_type: 'audio',
+        option_type: 'image',
+        learning_supported: true,
+        gender_supported: true,
+        aspect_bucket: 'ratio:1_1',
+        hidden: false,
+        preview: []
+      }],
+      visibleCategoryIds: [11],
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'gender', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: ''
+      },
+      gender: {
+        enabled: true,
+        options: ['masculine', 'feminine'],
+        min_count: 2
+      },
+      nextActivity: {
+        mode: 'gender',
+        category_ids: [11],
+        session_word_ids: allWordIds,
+        type: 'review_chunk',
+        reason_code: 'gender_review',
+        details: {}
+      },
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="gender"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  const initial = await page.evaluate(() => ({
+    launch: window.__llLaunches[0],
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(initial.launch.mode).toBe('gender');
+  expect(initial.launch.source).toBe('wordset_progress_bounded_start');
+  expect(initial.launch.sessionWordIds).toEqual(firstChunkWordIds);
+  expect(initial.launch.logicalSessionWordIds).toEqual(allWordIds);
+  expect(initial.continuationType).toBe('function');
+
+  const continuation = await invokeBoundedSessionContinuation(page);
+  expect(continuation.outcomes).toEqual([{
+    status: 'fulfilled',
+    value: { success: true, index: 1, chunk_count: 2 }
+  }]);
+
+  const appended = await page.evaluate(() => ({
+    appends: window.__llBoundedSessionAppends.slice(),
+    alerts: window.__llAlerts.slice(),
+    continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
+  }));
+  expect(appended.appends).toHaveLength(1);
+  expect(appended.appends[0].sessionWordIds).toEqual(tailWordIds);
+  expect(appended.appends[0].logicalSessionWordIds).toEqual(allWordIds);
+  expect(appended.alerts).toEqual([]);
+  expect(appended.continuationType).toBe('undefined');
+});
+
+test('mode switching aborts an in-flight bounded Self Check continuation', async ({ page }) => {
+  const fixture = buildBoundedChunkFixture();
+  fixture.selectionLaunchPlan = Object.assign({}, fixture.selectionLaunchPlan, {
+    mode: 'self-check'
+  });
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: fixture.wordsByCategory,
+    selectionLaunchPlan: fixture.selectionLaunchPlan,
+    configPatch: fixture.configPatch
+  });
+
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="self-check"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  await page.evaluate(() => {
+    const oldContinuation = (window.llToolsFlashcardsData || {}).boundedSessionContinuation;
+    window.__llPublicCategoryDelayMs = 500;
+    window.__llModeSwitchContinuationOutcome = oldContinuation().then(
+      () => ({ status: 'fulfilled', message: '' }),
+      (error) => ({
+        status: 'rejected',
+        message: String((error && error.message) || error || '')
+      })
+    );
+  });
+  await expect.poll(async () => page.evaluate(() => window.__llPublicCategoryRequests.active)).toBe(1);
+
+  const switched = await page.evaluate(async () => {
+    window.jQuery(document).trigger('lltools:flashcard-mode-switching', [{ mode: 'practice' }]);
+    const outcome = await window.__llModeSwitchContinuationOutcome;
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'practice' }]);
+    return {
+      outcome,
+      continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
+      appends: window.__llBoundedSessionAppends.slice(),
+      requestCategories: window.__llPublicCategoryRequests.categories.slice(),
+      activeRequests: window.__llPublicCategoryRequests.active,
+      abortedRequests: window.__llAbortedRequests.slice()
+    };
+  });
+
+  expect(switched.outcome).toEqual({
+    status: 'rejected',
+    message: 'The bounded quiz continuation was canceled.'
+  });
+  expect(switched.continuationType).toBe('undefined');
+  expect(switched.appends).toEqual([]);
+  expect(switched.requestCategories.filter((name) => name === 'Cat B')).toHaveLength(2);
+  expect(switched.activeRequests).toBe(0);
+  expect(switched.abortedRequests).toContainEqual({
     action: 'll_get_words_by_category',
     categoryName: 'Cat B'
-  }]);
-  expect(state.launches.map((launch) => launch.source)).toEqual([
-    'wordset_chunk_start',
-    'wordset_chunk_repeat',
-    'wordset_chunk_repeat',
-    'wordset_chunk_continue'
-  ]);
-  expect(state.launches[1].sessionWordIds).toEqual(fixture.firstChunkWordIds);
-  expect(state.launches[2].sessionWordIds).toEqual(fixture.firstChunkWordIds);
-  expect(state.launches[3].sessionWordIds).toEqual(fixture.secondChunkWordIds);
-  expect(state.finalPlan.source).toBe('wordset_chunk_continue');
-  expect(state.finalPlan.session_word_ids).toEqual(fixture.secondChunkWordIds);
-  expect(state.alerts).toEqual([]);
-  expect(state.popupVisible).toBeTruthy();
+  });
+  await expect(page.locator('#ll-study-results-next-chunk')).toBeHidden();
 });
 
 test('deferred-category select all hands one 342-word runtime session to bounded hydration', async ({ page }) => {
@@ -2735,7 +2963,7 @@ test('deferred-category select all hands one 342-word runtime session to bounded
     criteria: 'studied',
     mode: 'practice'
   }]);
-  expect(firstLaunch.source).toBe('wordset_chunk_start');
+  expect(firstLaunch.source).toBe('wordset_selection_bounded_start');
   expect(firstLaunch.categoryDisplayOverride).toBe('In progress words');
   expect(firstLaunch.categoryIds).toEqual(plannedCategoryIds);
   expect(firstLaunch.boundedCandidateCategoryIds.slice().sort((a, b) => a - b))
@@ -2909,7 +3137,7 @@ test('a newer selection cancels a same-turn bounded continuation before network 
     continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation
   }));
   expect(state.launches).toEqual([
-    { mode: 'practice', source: 'wordset_chunk_start' },
+    { mode: 'practice', source: 'wordset_selection_bounded_start' },
     { mode: 'listening', source: 'wordset_selection_start' }
   ]);
   expect(state.appends).toEqual([]);
@@ -2958,7 +3186,7 @@ test('an old bounded continuation invoked after a newer selection cannot replace
     finalPlan: Object.assign({}, (window.llToolsFlashcardsData || {}).lastLaunchPlan || {})
   }));
   expect(state.launches).toEqual([
-    { mode: 'practice', source: 'wordset_chunk_start' },
+    { mode: 'practice', source: 'wordset_selection_bounded_start' },
     { mode: 'listening', source: 'wordset_selection_start' }
   ]);
   expect(state.appends).toEqual([]);
@@ -3031,7 +3259,7 @@ test('a stale initial hydration cannot clear the replacement logical session', a
     continuationType: typeof (window.llToolsFlashcardsData || {}).boundedSessionContinuation,
     planRequests: window.__llSelectionPlanRequests.slice()
   }));
-  expect(result.launch.source).toBe('wordset_chunk_start');
+  expect(result.launch.source).toBe('wordset_selection_bounded_start');
   expect(result.launch.sessionWordIds).toEqual(fixture.firstChunkWordIds);
   expect(result.appends).toHaveLength(0);
   expect(result.continuationType).toBe('function');
@@ -3411,6 +3639,10 @@ test('bounded selection plans reject malformed metadata aliases categories and h
     {
       name: 'truncated plan',
       plan: Object.assign(copyPlan(), { truncated: true })
+    },
+    {
+      name: 'plan mode does not match the requested quiz',
+      plan: Object.assign(copyPlan(), { mode: 'self-check' })
     },
     {
       name: 'top aliases differ from first chunk',
@@ -3860,9 +4092,13 @@ test('starred-only practice selection launches one bounded filtered activity', a
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
   expect(launch.source).toBe('wordset_selection_bounded_start');
-  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
-  expect(launch.sessionWordIds.length).toBe(15);
-  expect(new Set(launch.sessionWordIds).size).toBe(15);
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds.length).toBeLessThanOrEqual(15);
+  expect(new Set(launch.sessionWordIds).size).toBe(launch.sessionWordIds.length);
+  expect(launch.logicalSessionWordIds.slice().sort((a, b) => a - b)).toEqual(
+    starredWordIds.slice().sort((a, b) => a - b)
+  );
+  expect(launch.boundedSessionContinuationType).toBe('function');
   expect(alerts).toEqual([]);
 });
 
@@ -3956,9 +4192,13 @@ test('practice selection launches the full selected category scope', async ({ pa
 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
-  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.source).toBe('wordset_selection_bounded_start');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
-  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.sessionWordIds).toHaveLength(11);
+  expect(launch.logicalSessionWordIds.slice().sort((a, b) => a - b)).toEqual(
+    Object.values(wordsByCategory).flat().map((row) => row.id).sort((a, b) => a - b)
+  );
+  expect(launch.boundedSessionContinuationType).toBe('function');
   expect(alerts).toEqual([]);
 });
 
@@ -4067,7 +4307,11 @@ test('starred-only practice selection caps a multi-category activity at fifteen 
   expect(launch.mode).toBe('practice');
   expect(launch.source).toBe('wordset_selection_bounded_start');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
-  expect(launch.sessionWordIds.length).toBe(15);
+  expect(launch.sessionWordIds.length).toBeLessThanOrEqual(15);
+  expect(launch.logicalSessionWordIds.slice().sort((a, b) => a - b)).toEqual(
+    starredWordIds.slice().sort((a, b) => a - b)
+  );
+  expect(launch.boundedSessionContinuationType).toBe('function');
   expect(alerts).toEqual([]);
 });
 
@@ -4150,7 +4394,9 @@ test('practice selection keeps category titles visible for small multi-category 
   expect(launch).not.toBeNull();
   expect(launch.mode).toBe('practice');
   expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
-  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.sessionWordIds).toEqual(
+    wordsByCategory[11].concat(wordsByCategory[22]).map((row) => row.id)
+  );
   expect(launch.hideCategoryDisplay).toBeFalsy();
   expect(flashState.hideCategoryDisplay).toBeFalsy();
   expect(flashState.categoryDisplayOverride).toBe('');
@@ -4315,6 +4561,33 @@ test('learning starred selection mixes only compatible categories and fills to e
   await mountWordsetPage(page, {
     isLoggedIn: true,
     wordsByCategory,
+    selectionLaunchPlan: {
+      category_ids: [11],
+      word_ids: [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108],
+      target_word_ids: [1101, 1102, 1103, 1104, 1105, 1106],
+      compatibility_key: 'ratio:1_1|audio->image',
+      chunks: [
+        {
+          category_ids: [11],
+          word_ids: [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108],
+          target_word_ids: [1101, 1102, 1103, 1104, 1105, 1106],
+          compatibility_key: 'ratio:1_1|audio->image'
+        },
+        {
+          category_ids: [22],
+          word_ids: [2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208],
+          target_word_ids: [2201, 2202, 2203, 2204],
+          compatibility_key: 'ratio:16_9|audio->image'
+        }
+      ],
+      criteria: 'starred',
+      mode: 'learning',
+      matched_count: 10,
+      planned_count: 16,
+      expanded_count: 6,
+      chunk_count: 2,
+      truncated: false
+    },
     configPatch: {
       categories: [
         {
@@ -4422,15 +4695,25 @@ test('learning starred selection mixes only compatible categories and fills to e
   expect(categoryDisplayOverride).toBe('Starred words');
 });
 
-test('learning selection prefers a single compatible category when one category can satisfy the quiz alone', async ({ page }) => {
+test('signed-in multi-select Learn preserves every server-planned target across bounded chunks', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 7, 'LearnA'),
     22: buildCategoryWordRows(22, 10, 'LearnB')
   };
+  const categoryAWordIds = wordsByCategory[11].map((word) => word.id);
+  const categoryBWordIds = wordsByCategory[22].map((word) => word.id);
+  const allTargetWordIds = categoryAWordIds.concat(categoryBWordIds);
+  const firstTargetWordIds = categoryAWordIds.concat(categoryBWordIds.slice(0, 2));
+  const secondTargetWordIds = categoryBWordIds.slice(2);
+  const selectionLaunchPlan = buildBoundedLearningPlan([
+    { category_ids: [11, 22], target_word_ids: firstTargetWordIds },
+    { category_ids: [22], target_word_ids: secondTargetWordIds }
+  ]);
 
   await mountWordsetPage(page, {
     isLoggedIn: true,
     wordsByCategory,
+    selectionLaunchPlan,
     configPatch: {
       categories: [
         {
@@ -4486,24 +4769,174 @@ test('learning selection prefers a single compatible category when one category 
     return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
   }).toBe(1);
 
-  const launch = await page.evaluate(() => {
-    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
-    return launches.length ? launches[launches.length - 1] : null;
-  });
-  const flashState = await page.evaluate(() => {
-    const flash = window.llToolsFlashcardsData || {};
-    return {
-      hideCategoryDisplay: !!(flash.hideCategoryDisplay || flash.hide_category_display),
-      categoryDisplayOverride: String(flash.categoryDisplayOverride || flash.category_display_override || '')
-    };
+  const initial = await page.evaluate(() => ({
+    launch: window.__llLaunches[0],
+    planRequests: window.__llSelectionPlanRequests.slice()
+  }));
+  expect(initial.planRequests).toEqual([{
+    categoryIds: [11, 22],
+    criteria: '',
+    mode: 'learning'
+  }]);
+  expect(initial.launch).toMatchObject({
+    mode: 'learning',
+    source: 'wordset_selection_bounded_start',
+    categoryIds: [11, 22],
+    sessionWordIds: firstTargetWordIds,
+    targetWordIds: firstTargetWordIds,
+    boundedSelectionPlan: true
   });
 
-  expect(launch).not.toBeNull();
-  expect(launch.mode).toBe('learning');
-  expect(launch.categoryIds).toEqual([22]);
-  expect(launch.sessionWordIds.length).toBeGreaterThanOrEqual(8);
-  expect(launch.sessionWordIds.every((id) => id >= 2201 && id <= 2210)).toBeTruthy();
-  expect(launch.hideCategoryDisplay).toBeFalsy();
-  expect(flashState.hideCategoryDisplay).toBeFalsy();
-  expect(flashState.categoryDisplayOverride).toBe('');
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'learning' }]);
+  });
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  await expect(continueButton).toBeVisible();
+  await expect(continueButton).toContainText('2/2');
+  await continueButton.click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(2);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'learning' }]);
+  });
+  await expect(continueButton).toBeHidden();
+
+  const state = await page.evaluate(() => ({
+    launches: window.__llLaunches.map((launch) => ({
+      mode: launch.mode,
+      source: launch.source,
+      categoryIds: launch.categoryIds.slice(),
+      sessionWordIds: launch.sessionWordIds.slice(),
+      targetWordIds: launch.targetWordIds.slice(),
+      boundedSelectionPlan: launch.boundedSelectionPlan
+    })),
+    alerts: window.__llAlerts.slice()
+  }));
+  expect(state.launches).toEqual([
+    {
+      mode: 'learning',
+      source: 'wordset_selection_bounded_start',
+      categoryIds: [11, 22],
+      sessionWordIds: firstTargetWordIds,
+      targetWordIds: firstTargetWordIds,
+      boundedSelectionPlan: true
+    },
+    {
+      mode: 'learning',
+      source: 'wordset_chunk_continue',
+      categoryIds: [22],
+      sessionWordIds: secondTargetWordIds,
+      targetWordIds: secondTargetWordIds,
+      boundedSelectionPlan: true
+    }
+  ]);
+  const launchedTargetWordIds = state.launches.flatMap((launch) => launch.targetWordIds);
+  expect(launchedTargetWordIds).toEqual(allTargetWordIds);
+  expect(new Set(launchedTargetWordIds).size).toBe(allTargetWordIds.length);
+  expect(state.alerts).toEqual([]);
+});
+
+test('large single-category Learn card follows every bounded server chunk exactly once', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 36, 'LargeLearn')
+  };
+  const allTargetWordIds = wordsByCategory[11].map((word) => word.id);
+  const targetChunks = [
+    allTargetWordIds.slice(0, 12),
+    allTargetWordIds.slice(12, 24),
+    allTargetWordIds.slice(24)
+  ];
+  const selectionLaunchPlan = buildBoundedLearningPlan(targetChunks.map((targetWordIds) => ({
+    category_ids: [11],
+    target_word_ids: targetWordIds
+  })));
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    selectionLaunchPlan,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 36,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      visibleCategoryIds: [11],
+      hiddenCategoryIds: [],
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-category-mode][data-mode="learning"][data-cat-id="11"]').click();
+  await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(1);
+
+  const continueButton = page.locator('#ll-study-results-next-chunk');
+  for (let expectedLaunchCount = 2; expectedLaunchCount <= targetChunks.length; expectedLaunchCount += 1) {
+    await page.evaluate(() => {
+      window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'learning' }]);
+    });
+    await expect(continueButton).toBeVisible();
+    await expect(continueButton).toContainText(`${expectedLaunchCount}/${targetChunks.length}`);
+    await continueButton.click();
+    await expect.poll(async () => page.evaluate(() => window.__llLaunches.length)).toBe(expectedLaunchCount);
+  }
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-results-shown', [{ mode: 'learning' }]);
+  });
+  await expect(continueButton).toBeHidden();
+
+  const state = await page.evaluate(() => ({
+    planRequests: window.__llSelectionPlanRequests.slice(),
+    launches: window.__llLaunches.map((launch) => ({
+      mode: launch.mode,
+      source: launch.source,
+      categoryIds: launch.categoryIds.slice(),
+      sessionWordIds: launch.sessionWordIds.slice(),
+      targetWordIds: launch.targetWordIds.slice(),
+      boundedSelectionPlan: launch.boundedSelectionPlan,
+      continuationType: launch.boundedSessionContinuationType
+    })),
+    candidateRequests: window.__llPublicCategoryRequests.requests.map((request) => ({
+      categoryName: request.categoryName,
+      candidateIds: request.candidateIds.slice()
+    })),
+    alerts: window.__llAlerts.slice()
+  }));
+
+  expect(state.planRequests).toEqual([{
+    categoryIds: [11],
+    criteria: '',
+    mode: 'learning'
+  }]);
+  expect(state.launches).toHaveLength(targetChunks.length);
+  state.launches.forEach((launch, index) => {
+    expect(launch.mode).toBe('learning');
+    expect(launch.source).toBe(index === 0 ? 'wordset_category_start' : 'wordset_chunk_continue');
+    expect(launch.categoryIds).toEqual([11]);
+    expect(launch.sessionWordIds).toEqual(targetChunks[index]);
+    expect(launch.targetWordIds).toEqual(targetChunks[index]);
+    expect(launch.boundedSelectionPlan).toBeTruthy();
+    expect(launch.continuationType).toBe('undefined');
+  });
+  expect(state.launches.flatMap((launch) => launch.targetWordIds)).toEqual(allTargetWordIds);
+  expect(state.candidateRequests).toEqual(targetChunks.map((candidateIds) => ({
+    categoryName: 'Cat A',
+    candidateIds
+  })));
+  expect(state.alerts).toEqual([]);
 });

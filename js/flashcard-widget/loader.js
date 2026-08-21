@@ -1052,6 +1052,8 @@
                 }
 
                 const data = window.llToolsFlashcardsData || {};
+                const boundedQuizMode = String(data.quiz_mode || data.quizMode || '').trim().toLowerCase();
+                const requiresPracticeOptionPool = boundedQuizMode !== 'self-check' && boundedQuizMode !== 'gender';
                 const sessionWordIds = normalizeWordIdList(data.sessionWordIds || data.session_word_ids || []);
                 if (!sessionWordIds.length) {
                     throw createBoundedPreloadError('Bounded category data has no session word IDs.');
@@ -1196,7 +1198,7 @@
                                 distinctOptionIds[optionId] = true;
                             }
                         });
-                        if (Object.keys(distinctOptionIds).length < 2) {
+                        if (requiresPracticeOptionPool && Object.keys(distinctOptionIds).length < 2) {
                             const categoryConfig = getCategoryConfig(plan.categoryName) || {};
                             const optionType = String(categoryConfig.option_type || categoryConfig.mode || '').trim().toLowerCase();
                             const textFallbackIsSupported = [

@@ -729,6 +729,144 @@ test('switchMode keeps the popup session active after resetting state', async ({
   expect(['loading', 'quiz_ready']).toContain(state.flowState);
 });
 
+test('mode switch cancels a bounded continuation before the replacement mode starts', async ({ page }) => {
+  await mountRestartHarness(page);
+
+  await page.evaluate(() => {
+    window.__modeSwitchEvents = [];
+    window.jQuery(document).on('lltools:flashcard-mode-switching.test', (_event, detail) => {
+      window.__modeSwitchEvents.push(String((detail && detail.mode) || ''));
+    });
+    window.llToolsFlashcardsData.boundedSessionContinuation = () => Promise.resolve({ success: true });
+    window.llToolsFlashcardsData.bounded_session_continuation = window.llToolsFlashcardsData.boundedSessionContinuation;
+    window.LLFlashcards.Main.switchMode('practice');
+  });
+
+  await page.waitForTimeout(50);
+
+  const result = await page.evaluate(() => ({
+    hasCamelContinuation: typeof window.llToolsFlashcardsData.boundedSessionContinuation === 'function',
+    hasSnakeContinuation: typeof window.llToolsFlashcardsData.bounded_session_continuation === 'function',
+    events: window.__modeSwitchEvents.slice()
+  }));
+  expect(result).toEqual({
+    hasCamelContinuation: false,
+    hasSnakeContinuation: false,
+    events: ['practice']
+  });
+});
+
+test('mode switch fences late bounded continuation fulfillment and rejection from the replacement mode', async ({ page }) => {
+  for (const staleOutcome of ['resolve', 'reject']) {
+    await mountRestartHarness(page);
+
+    await page.evaluate(() => {
+      window.__staleContinuationSettle = null;
+      window.__boundedAppendCalls = 0;
+      window.FlashcardLoader.consumeBoundedPreloadedCategoryData = () => {
+        window.__boundedAppendCalls += 1;
+        return { success: true };
+      };
+      const staleContinuation = new Promise((resolve, reject) => {
+        window.__staleContinuationSettle = { resolve, reject };
+      });
+      window.llToolsFlashcardsData.boundedSessionContinuation = () => staleContinuation;
+      window.LLFlashcards.Main.tryContinueLogicalSession();
+      window.LLFlashcards.Main.switchMode('practice');
+    });
+
+    await page.waitForTimeout(50);
+
+    const replacementAccepted = await page.evaluate(() => {
+      window.__replacementContinuationCalls = 0;
+      window.__replacementContinuation = new Promise(() => {});
+      window.llToolsFlashcardsData.boundedSessionContinuation = () => {
+        window.__replacementContinuationCalls += 1;
+        return window.__replacementContinuation;
+      };
+      return window.LLFlashcards.Main.tryContinueLogicalSession();
+    });
+    expect(replacementAccepted).toBe(true);
+    await page.waitForFunction(() => window.__replacementContinuationCalls === 1);
+
+    await page.evaluate((outcome) => {
+      if (outcome === 'reject') {
+        window.__staleContinuationSettle.reject(new Error('stale continuation failed'));
+        return;
+      }
+      window.__staleContinuationSettle.resolve({ success: true });
+    }, staleOutcome);
+    await page.waitForTimeout(20);
+
+    const acceptedAgain = await page.evaluate(() => window.LLFlashcards.Main.tryContinueLogicalSession());
+    expect(acceptedAgain).toBe(true);
+    await page.waitForTimeout(20);
+
+    const state = await page.evaluate(() => {
+      const results = document.getElementById('quiz-results');
+      return {
+        replacementCalls: window.__replacementContinuationCalls,
+        boundedAppendCalls: window.__boundedAppendCalls,
+        flowState: window.LLFlashcards.State.getState(),
+        widgetActive: !!window.LLFlashcards.State.widgetActive,
+        resultsVisible: window.getComputedStyle(results).display !== 'none',
+        errorState: results.classList.contains('ll-tools-error-state')
+      };
+    });
+    expect(state).toEqual({
+      replacementCalls: 1,
+      boundedAppendCalls: 0,
+      flowState: 'loading',
+      widgetActive: true,
+      resultsVisible: false,
+      errorState: false
+    });
+  }
+});
+
+test('armed bounded Gender plan bypasses a stale category support shell', async ({ page }) => {
+  await mountRestartHarness(page);
+
+  const result = await page.evaluate(async () => {
+    window.__genderInitializeCalls = 0;
+    window.LLFlashcards.Selection.isGenderSupportedForCategories = () => false;
+    window.FlashcardLoader.loadResourcesForCategory = () => Promise.resolve({ success: true });
+    window.LLFlashcards.Modes.Gender = {
+      initialize() {
+        window.__genderInitializeCalls += 1;
+        return true;
+      },
+      selectTargetWord() { return null; },
+      handleNoTarget() { return true; }
+    };
+    window.llToolsFlashcardsData.genderSessionPlan = {
+      level: 1,
+      word_ids: [501],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    window.llToolsFlashcardsData.genderSessionPlanArmed = true;
+    window.llToolsFlashcardsData.gender_session_plan_armed = true;
+    window.llToolsFlashcardsData.genderLaunchSource = 'dashboard';
+
+    await window.LLFlashcards.Main.initFlashcardWidget(['Kitchen'], 'gender');
+    return {
+      isGenderMode: !!window.LLFlashcards.State.isGenderMode,
+      isPracticeMode: !window.LLFlashcards.State.isLearningMode
+        && !window.LLFlashcards.State.isListeningMode
+        && !window.LLFlashcards.State.isGenderMode
+        && !window.LLFlashcards.State.isSelfCheckMode,
+      initializeCalls: window.__genderInitializeCalls
+    };
+  });
+
+  expect(result).toEqual({
+    isGenderMode: true,
+    isPracticeMode: false,
+    initializeCalls: 1
+  });
+});
+
 test('restartQuiz keeps the popup session active after resetting state', async ({ page }) => {
   await mountRestartHarness(page);
 

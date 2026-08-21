@@ -360,8 +360,9 @@ Representative E2E coverage areas:
     persistent warming returns one typed retryable timeout with cleared request
     state so a later manual attempt can succeed, immutable payload pages are drained in
     order with the rendered locale, one stale-cursor restart cannot mix
-    generations, and an underfilled bounded category handoff rolls back
-    atomically before quiz setup.
+    generations, and an underfilled bounded Practice category handoff rolls back
+    atomically before quiz setup while sparse Self Check and Gender handoffs do
+    not inherit Practice's distractor-pool requirement.
 - `tests/e2e/specs/flashcard-audio-readiness.spec.js`
   - Verifies target playback waits for usable buffering, a transient media
     `stalled` event does not fail an audio preload that subsequently becomes
@@ -385,7 +386,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/wordset-manager-settings-ui.spec.js`
   - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table and full-width recording details. Recorder-queue coverage also checks selected-recorder switching, neutral identity-free active-batch shimmer shells plus hidden identity markers, a smaller first request followed by automatic resource-safe serial batches while the end sentinel remains visible, pause/resume behavior, untouched-before-pending retry fairness, resolved-empty category removal, error-only Retry recovery, incomplete/unclassified response failure states, and the absence of normal Load more/loaded-count UI or misleading numbered overview pages.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
-  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
+  - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories. Bounded logical sessions retain exact-once ownership when newer browser progress re-buckets stale server levels, checkpoint after Level 1 groups without emitting an intermediate mode completion, automatically continue Level 2/3 groups without resetting logical progress, and emit completion exactly once at final results.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
   - Verifies Listening mode sequence weighting and replay behavior stay within expected constraints, while large category selections advance through a bounded prefetch window and invalidate old-session requests.
 - `tests/e2e/specs/listening-visualizer-regression.spec.js`
@@ -411,20 +412,22 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/quiz-iframe-recovery.spec.js`
   - Verifies shared and standalone quiz dialogs trap focus, isolate background content, restore the opener, expose timeout/load-error recovery, wait for and accept late embed-ready signals, and honor reduced-motion preferences.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
-  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, and a failed continuation renders one localized retry state without the false no-content line before cleaning that state up immediately on Retry. It also verifies unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled rendered round refills once from the hydrated reserve without resetting long-session progress, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
+  - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck, bounded In Progress/Starred continuation plus subsequent rounds replace stale or generic header copy with the concrete target category while retaining session-level filter metadata, and a failed continuation renders one localized retry state without the false no-content line before cleaning that state up immediately on Retry. Mode switches generation-fence queued and already-in-flight bounded continuations, and stale fulfillment/rejection cannot append, show an error, erase the replacement single-flight guard, or block the new mode. It also verifies unready rendered images are not shown, failed distractor images can be pruned only when a healthy two-option round remains, an underfilled rendered round refills once from the hydrated reserve without resetting long-session progress, and playable mounted prompt audio remains authoritative before and after image retries without another background probe.
 - `tests/e2e/specs/quiz-results-mobile-layout.spec.js`
   - Verifies mobile results remain below the close control and inside the viewport, and that the recoverable continuation error card keeps its neutral Retry geometry, colors, focus treatment, and 44px target under later hostile theme CSS while hiding the in-round progress bar and floating mode switcher.
 - `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
   - Verifies Self-check groups words that share one image into a single review
     card while preserving per-word answer audio, and that client-side bounded
     image-hash comparisons block similar options while preserving explicit
-    similarity overrides and unconditional exact-image blocking.
+    similarity overrides and unconditional exact-image blocking. Bounded chunks
+    append into one cumulative logical session, and an overlapping image group
+    cannot score an already answered word twice.
 - `tests/e2e/specs/wordset-page-category-search.spec.js`
   - Verifies main wordset category search uses the durable tokenized async word/translation lookup while keeping provisional local/category-shell matches visible and usable throughout the 120-second bounded preparation retry, exposing an explicit error/Retry state instead of a false empty result, using a pathname-only one-shot recovery reload whose marker is stripped after the fresh page loads, stopping irrelevant warming when a visible result navigates, pausing it while a result quiz owns the popup loader, and retaining hidden-selection cleanup, add-category hiding, clear-button behavior, and diacritic-insensitive matching. Staff pending-transcription visibility remains covered at the PHP privacy/query layer.
 - `tests/e2e/specs/wordset-page-lazy-loading.spec.js`
   - Verifies lazy wordset-page card hydration from ID-only category shells and sparse registry defaults, deferred preview shells, unloaded category/content search hydration with bounded request chunks, inactive-category card actions including durable pending-to-complete deletion, and mixed content lesson order with category-only selection behavior.
 - `tests/e2e/specs/wordset-page-progress-loading.spec.js`
-  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial Practice continuation. A separate 1,505-ID regression requires Listen, Gender, and Self Check to use that same bounded first-chunk startup; Listen appends the next verified chunk into one uninterrupted session, while Gender and Self Check retain explicit results-stage continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
+  - Verifies the 2,714-ID Zazaca filtered snapshot is reused without a duplicate ID request, transported in one scalar request field, replanned into bounded server chunks, hydrates only the first candidate chunk at launch, and retains the full logical session identity for serial Practice continuation. A separate 1,505-ID regression requires Listen, Gender, and Self Check to use that same bounded first-chunk startup; Listen and Self Check append verified chunks into uninterrupted sessions, while Gender carries homogeneous level metadata, pauses after Level 1, and permits automatic Level 2/3 continuation. Learning also proves first-chunk-only startup with explicit results-stage continuation. The popup and loader must appear in the original click turn, stage markers cover IDs/plan/hydration/commit, cached IDs invalidate on progress changes, active ID/plan/hydration requests really abort on selected-row Close/Escape, and same-mode replacements or immediate retries produce one non-overlapping launch. The same surface disables conflicting controls while active, rejects stale scope after a filter change, holds its inline loading state through flashcard commit, and exposes one inline Retry path after acquisition, planning, or hydration failure.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance action wiring, including the cache-flush form target and mobile overflow check.
 - `tests/e2e/specs/audio-recorder-prompt-card-fixture.spec.js`
@@ -467,25 +470,34 @@ Representative E2E coverage areas:
     that exhausts the bounded warming deadline must clear the global loader and
     dialog busy state, retain the popup with a translated Retry action, and let
     that manual retry initialize the same Listening selection. Broad and
-    progress-filtered logged-in selections use one bounded launch-plan request
+    progress-filtered logged-in selections, signed-in explicit categories, and
+    full-scope signed-in fallbacks use one bounded launch-plan request
     that either preserves every match across server-planned transport chunks or
     fails closed for an impossible sparse layout. They serially hydrate only the
     current chunk, then append the next verified chunk before results so the
-    learner sees one logical Practice or Listen session with a full progress denominator
+    learner sees one logical Practice, Listen, or Self Check session with a full progress denominator
     and no intermediate Continue/Next Set action. Bounded Learning keeps
     presentation- and aspect-compatible 8-15-word chunks within eight categories,
+    prefers no more than 12 words in large scopes while retaining 13-15 only
+    when splitting would create an invalid tail,
     tracks exact targets separately from compatible fillers without a full-category
     fallback, and advances later chunks through the results-screen Next action.
-    Gender and Self Check retain their explicit results-stage continuation. Direct specific-wrong-answer-only
+    Gender owns homogeneous starting-level chunks exactly once, caps Level 1 at
+    10 and Levels 2/3 at 15, checkpoints Level 1 at results, and automatically
+    advances Level 2/3; a newer browser level may re-bucket a stale server hint
+    without dropping the word. Direct specific-wrong-answer-only
     rows remain available as options without entering the target plan, while a
-    prompt card's canonical answer remains targetable. Category queues are
+    prompt card's canonical answer remains targetable for generic modes, while
+    Gender requires direct published-target provenance. Category queues are
     kept contiguous and owned queues are ordered largest-first. Runnable chunks
     then sort by fewest categories, fullest word count, and stable original order
     so the opening card needs the fewest serial category requests,
     and the selected progress filter remains visible across hydration boundaries. Verified candidate rows are handed
     directly to the flashcard runtime without a second AJAX fetch for the same
-    chunk. Aggregate score/replay state survives each boundary and results plus
-    mode-session completion occur once after the final chunk. Selection-plan,
+    chunk. Aggregate score/replay state survives each automatic-session boundary;
+    results plus mode-session completion occur once after the final chunk of a
+    Practice, Listen, Self Check, or full bounded Gender selection. Learning's deliberately
+    separate results-stage sets retain one completion per pedagogical set. Selection-plan,
     ordinary hydration, and continuation requests all enforce the configured
     deadline. A typed 503 or other transient transport failure retries only the
     failed serial category request without duplicating or advancing the chunk.
