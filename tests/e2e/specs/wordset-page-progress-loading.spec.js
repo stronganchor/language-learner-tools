@@ -1859,6 +1859,45 @@ test('progress all-filtered launch is single-flight and disables every mode whil
   await expectFlashcardLaunchUiClosed(page);
 });
 
+test('progress all-filtered launch displays the fresh exact ID count', async ({ page }) => {
+  const staleMatchingIds = Array.from({ length: 24 }, (_unused, index) => 101 + index);
+  const freshMatchingIds = staleMatchingIds.concat(999);
+  await prepareAllFilteredProgressSelection(page, { allMatchingIds: staleMatchingIds });
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${staleMatchingIds.length} selected words`);
+
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = true;
+  });
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  const [launchRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: launchRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(freshMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${freshMatchingIds.length} selected words`);
+  expect(await page.evaluate(() => {
+    const request = window.__llSelectionPlanRequests[0].request || {};
+    return String(request.candidate_word_ids || '').split(',').filter(Boolean).length;
+  })).toBe(freshMatchingIds.length);
+
+  await page.locator('#ll-tools-close-flashcard').click();
+  await expectFlashcardLaunchUiClosed(page);
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${freshMatchingIds.length} selected words`);
+
+  await page.locator('[data-ll-wordset-progress-selection-clear]').click();
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toBeHidden();
+  await page.locator('[data-ll-wordset-progress-select-all]').click();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]'))
+    .toHaveText(`${staleMatchingIds.length} selected words`);
+});
+
 test('progress mutation invalidates a cached filtered-ID snapshot before launch', async ({ page }) => {
   await prepareAllFilteredProgressSelection(page, { primeSnapshot: true });
   expect(await getAllFilteredLaunchRequestIndexes(page)).toEqual([]);

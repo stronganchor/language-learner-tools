@@ -135,6 +135,7 @@
     let progressSelectedWordIds = [];
     let progressSelectedAllWordFilterKey = '';
     let progressSelectedAllWordCount = 0;
+    let progressSelectedAllWordCountIsExact = false;
     let progressSelectionLaunchBusy = false;
     let progressSelectionLaunchMode = '';
     let progressSelectionLaunchStage = '';
@@ -3600,6 +3601,7 @@
     function clearProgressAllFilteredSelection() {
         progressSelectedAllWordFilterKey = '';
         progressSelectedAllWordCount = 0;
+        progressSelectedAllWordCountIsExact = false;
     }
 
     function progressSelectionLaunchSpecSignature(spec) {
@@ -3794,7 +3796,7 @@
         }
         const pagination = getProgressWordPagination();
         const total = Math.max(0, parseInt(pagination.total, 10) || 0);
-        if (total > 0) {
+        if (!progressSelectedAllWordCountIsExact) {
             progressSelectedAllWordCount = total;
         }
         return Math.max(0, parseInt(progressSelectedAllWordCount, 10) || 0);
@@ -6398,6 +6400,7 @@
             && cachedWordIds.length === cachedTotal
         ) {
             progressSelectedAllWordCount = cachedWordIds.length;
+            progressSelectedAllWordCountIsExact = true;
             return $.Deferred().resolve(cachedWordIds).promise();
         }
 
@@ -6438,6 +6441,8 @@
             const payload = res.data.analytics;
             const ids = uniqueIntList(payload.word_ids || payload.wordIds || []);
             progressSelectedAllWordCount = ids.length;
+            progressSelectedAllWordCountIsExact = true;
+            refreshProgressSelectionLaunchControls();
             deferred.resolve(ids);
         }).fail(function (xhr, statusText, errorThrown) {
             deferred.reject(xhr, statusText, errorThrown);
@@ -7267,6 +7272,9 @@
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
                 progressWordPendingFilterKey = null;
+                if (progressSelectedAllWordFilterKey === wordFilterKey) {
+                    progressSelectedAllWordCountIsExact = false;
+                }
                 const filteredWordIds = uniqueIntList(analytics.wordIds || []);
                 const filteredWordTotal = Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0);
                 progressWordIdsSnapshotSignature = progressWordIdsSnapshotGeneration === wordIdsSnapshotGeneration
@@ -19773,6 +19781,7 @@
             } else if (getCurrentProgressWordRequestFilterKey()) {
                 progressSelectedWordIds = [];
                 progressSelectedAllWordFilterKey = getCurrentProgressWordRequestFilterKey();
+                progressSelectedAllWordCountIsExact = false;
                 progressSelectedAllWordCount = Math.max(
                     visibleWordIds.length,
                     Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0)
