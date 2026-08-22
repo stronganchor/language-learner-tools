@@ -78,6 +78,9 @@
     let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
     let summaryMetricsLoadingToken = 0;
     let progressAnalyticsLoaded = (view !== 'progress') || !summaryMetricsLoading;
+    let progressAnalyticsLoading = view === 'progress'
+        && (!progressAnalyticsLoaded || !!analytics.wordsOmitted);
+    let progressAnalyticsFailed = false;
     let cardProgressInitialLoading = (view === 'main' && summaryMetricsLoading);
     let selectedCategoryIds = [];
     let selectionPriorityOnly = false;
@@ -4868,6 +4871,141 @@
         $progressCategorySearchLoading.prop('hidden', !isLoading);
     }
 
+    function buildProgressSkeletonBlock(modifier) {
+        const suffix = String(modifier || '').trim();
+        return $('<span>', {
+            class: 'll-wordset-progress-skeleton' + (suffix ? ' ll-wordset-progress-skeleton--' + suffix : ''),
+            'aria-hidden': 'true'
+        });
+    }
+
+    function buildProgressSkeletonPill(modifier) {
+        const suffix = String(modifier || '').trim();
+        const $pill = $('<span>', {
+            class: 'll-wordset-progress-skeleton-pill' + (suffix ? ' ll-wordset-progress-skeleton-pill--' + suffix : '')
+        });
+        $pill.append(buildProgressSkeletonBlock('icon'));
+        $pill.append(buildProgressSkeletonBlock('pill-line'));
+        return $pill;
+    }
+
+    function renderProgressDailyLoadingSkeleton() {
+        if (!$progressGraph.length) { return; }
+        const barHeights = [28, 48, 36, 62, 42, 55, 32, 68, 45, 58, 38, 64, 50, 34];
+        const $bars = $('<div>', {
+            class: 'll-wordset-progress-bars ll-wordset-progress-bars--skeleton',
+            'data-ll-wordset-progress-graph-loading': '',
+            'aria-hidden': 'true'
+        });
+
+        barHeights.forEach(function (height, index) {
+            const $day = $('<span>', {
+                class: 'll-wordset-progress-day ll-wordset-progress-day--skeleton',
+                'data-ll-wordset-progress-graph-loading-bar': '',
+                style: '--ll-progress-skeleton-height:' + height + 'px;'
+                    + '--ll-progress-skeleton-delay:-' + (index * 90) + 'ms;'
+            });
+            $day.append(buildProgressSkeletonBlock('day-count'));
+            $day.append(buildProgressSkeletonBlock('day-bar'));
+            $day.append(buildProgressSkeletonBlock('day-label'));
+            $bars.append($day);
+        });
+
+        $progressGraph
+            .empty()
+            .addClass('is-loading')
+            .attr('aria-busy', 'true')
+            .append($bars);
+    }
+
+    function buildProgressCategorySkeletonRow() {
+        const $row = $('<tr>', {
+            class: 'll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--category',
+            'data-ll-wordset-progress-loading-row': '',
+            'data-ll-wordset-progress-loading-kind': 'categories',
+            'aria-hidden': 'true'
+        });
+        const $categoryCell = $('<td>');
+        const $category = $('<span>', { class: 'll-wordset-progress-skeleton-category' });
+        const $thumbs = $('<span>', { class: 'll-wordset-progress-skeleton-thumbs' });
+        $thumbs.append(buildProgressSkeletonBlock('category-thumb'));
+        $thumbs.append(buildProgressSkeletonBlock('category-thumb'));
+        $category.append($thumbs);
+        $category.append(buildProgressSkeletonBlock('category-name'));
+        $categoryCell.append($category).appendTo($row);
+
+        const $progress = $('<td>');
+        const $progressPills = $('<span>', { class: 'll-wordset-progress-skeleton-pills' });
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progress.append($progressPills).appendTo($row);
+
+        const $activity = $('<td>');
+        const $activityPills = $('<span>', { class: 'll-wordset-progress-skeleton-pills' });
+        $activityPills.append(buildProgressSkeletonPill('activity'));
+        $activityPills.append(buildProgressSkeletonPill('activity'));
+        $activity.append($activityPills).appendTo($row);
+
+        $('<td>').append(buildProgressSkeletonBlock('date')).appendTo($row);
+        return $row;
+    }
+
+    function buildProgressWordSkeletonRow() {
+        const $row = $('<tr>', {
+            class: 'll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--word',
+            'data-ll-wordset-progress-loading-row': '',
+            'data-ll-wordset-progress-loading-kind': 'words',
+            'aria-hidden': 'true'
+        });
+
+        $('<td>').append(buildProgressSkeletonBlock('star')).appendTo($row);
+
+        const $wordCell = $('<td>');
+        const $word = $('<span>', { class: 'll-wordset-progress-skeleton-word' });
+        $word.append(buildProgressSkeletonBlock('word-thumb'));
+        const $wordCopy = $('<span>', { class: 'll-wordset-progress-skeleton-word-copy' });
+        $wordCopy.append(buildProgressSkeletonBlock('word-primary'));
+        $wordCopy.append(buildProgressSkeletonBlock('word-secondary'));
+        $word.append($wordCopy);
+        $wordCell.append($word).appendTo($row);
+
+        $('<td>').append(buildProgressSkeletonBlock('category-name')).appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-col--part-of-speech' })
+            .append(buildProgressSkeletonBlock('part-of-speech'))
+            .appendTo($row);
+        $('<td>').append(buildProgressSkeletonPill('status')).appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell ll-wordset-progress-col--wrong' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>').append(buildProgressSkeletonBlock('date')).appendTo($row);
+        return $row;
+    }
+
+    function renderProgressTableLoadingSkeleton($body, kind) {
+        if (!$body || !$body.length) { return; }
+        const rowBuilder = String(kind || '').toLowerCase() === 'words'
+            ? buildProgressWordSkeletonRow
+            : buildProgressCategorySkeletonRow;
+        $body.empty().attr('aria-busy', 'true');
+        for (let index = 0; index < 5; index += 1) {
+            $body.append(rowBuilder());
+        }
+    }
+
+    function clearProgressTableLoadingSkeleton($body) {
+        if (!$body || !$body.length || !$body.find('[data-ll-wordset-progress-loading-row]').length) {
+            return;
+        }
+        $body.empty().removeAttr('aria-busy');
+    }
+
     function cancelScheduledProgressTask(task) {
         if (!task || typeof task !== 'object') {
             return;
@@ -5765,10 +5903,17 @@
 
     function renderProgressDailyGraph() {
         if (!$progressGraph.length) { return; }
-        $progressGraph.empty();
+        $progressGraph.empty().removeClass('is-loading').removeAttr('aria-busy');
         const daily = (analytics.daily_activity && typeof analytics.daily_activity === 'object') ? analytics.daily_activity : {};
         const days = Array.isArray(daily.days) ? daily.days : [];
+        if (progressAnalyticsLoading && !days.length) {
+            renderProgressDailyLoadingSkeleton();
+            return;
+        }
         if (!days.length) {
+            if (progressAnalyticsFailed && !progressAnalyticsLoaded) {
+                return;
+            }
             $('<p>', { class: 'll-wordset-progress-empty', text: i18n.analyticsDailyEmpty || '' }).appendTo($progressGraph);
             return;
         }
@@ -5975,9 +6120,17 @@
         analyticsCategoryLoadingTimer = null;
         clearProgressCategoryChunkTask();
 
-        $progressCategoryRows.empty().removeAttr('aria-busy');
         const rows = buildProgressCategoryRowsForDisplay();
+        if (progressAnalyticsLoading && !rows.length) {
+            renderProgressTableLoadingSkeleton($progressCategoryRows, 'categories');
+            return;
+        }
+
+        $progressCategoryRows.empty().removeAttr('aria-busy');
         if (!rows.length) {
+            if (progressAnalyticsFailed && !progressAnalyticsLoaded) {
+                return;
+            }
             $('<tr>').append(
                 $('<td>', { colspan: 4, text: i18n.analyticsNoRows || '' })
             ).appendTo($progressCategoryRows);
@@ -7011,9 +7164,15 @@
         clearProgressWordChunkTask();
 
         stopProgressWordAudio();
-        $progressWordRows.empty().removeAttr('aria-busy');
-
         const rows = buildProgressWordRowsForDisplay();
+        if (progressAnalyticsLoading && (!!analytics.wordsOmitted || !rows.length)) {
+            syncProgressSelectionControls([]);
+            renderProgressTableLoadingSkeleton($progressWordRows, 'words');
+            renderProgressWordPaginationControls();
+            return;
+        }
+
+        $progressWordRows.empty().removeAttr('aria-busy');
         const renderGenderTable = isGenderProgressViewActive();
         const selectedLookup = {};
         if (progressAllFilteredSelectionIsActive()) {
@@ -7031,6 +7190,10 @@
 
         syncProgressSelectionControls(rows);
         if (!rows.length) {
+            if (progressAnalyticsFailed && (!progressAnalyticsLoaded || !!analytics.wordsOmitted)) {
+                renderProgressWordPaginationControls();
+                return;
+            }
             $('<tr>').append(
                 $('<td>', { colspan: 9, text: i18n.analyticsNoRows || '' })
             ).appendTo($progressWordRows);
@@ -7135,8 +7298,14 @@
         });
         if (analyticsTab === 'words') {
             renderProgressWordTable();
+            if (!progressAnalyticsLoading) {
+                clearProgressTableLoadingSkeleton($progressCategoryRows);
+            }
         } else {
             renderProgressCategoryTable();
+            if (!progressAnalyticsLoading) {
+                clearProgressTableLoadingSkeleton($progressWordRows);
+            }
         }
         const hasRows = (Array.isArray(analytics.words) && analytics.words.length > 0) ||
             (Array.isArray(analytics.categories) && analytics.categories.length > 0);
@@ -7222,6 +7391,18 @@
         setProgressWordPageLoading(false);
         pendingProgressAnalyticsRefreshAfterClose = false;
         pendingProgressAnalyticsRefreshOptions = null;
+        const showInitialSectionLoading = view === 'progress'
+            && (!progressAnalyticsLoaded || !!analytics.wordsOmitted);
+        if (showInitialSectionLoading) {
+            progressAnalyticsLoading = true;
+            progressAnalyticsFailed = false;
+            renderProgressDailyGraph();
+            if (analyticsTab === 'words') {
+                renderProgressWordTable();
+            } else {
+                renderProgressCategoryTable();
+            }
+        }
         const wordFilterPayload = buildProgressWordRequestFilter();
         const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
         invalidateProgressWordIdsSnapshot();
@@ -7269,6 +7450,8 @@
             }
             if (res && res.success && res.data && res.data.analytics) {
                 analytics = normalizeAnalytics(res.data.analytics);
+                progressAnalyticsLoading = false;
+                progressAnalyticsFailed = false;
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
                 progressWordPendingFilterKey = null;
@@ -7296,7 +7479,12 @@
             progressWordPendingFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
+            progressAnalyticsLoading = false;
+            progressAnalyticsFailed = true;
             setSummaryMetricsLoadingState(false);
+            if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
+                renderProgressAnalytics();
+            }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).fail(function () {
             if (token !== analyticsRequestToken) { return; }
@@ -7307,7 +7495,12 @@
             progressWordPendingFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
+            progressAnalyticsLoading = false;
+            progressAnalyticsFailed = true;
             setSummaryMetricsLoadingState(false);
+            if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
+                renderProgressAnalytics();
+            }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
             if (token !== analyticsRequestToken) { return; }

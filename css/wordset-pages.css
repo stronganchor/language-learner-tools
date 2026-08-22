@@ -6855,11 +6855,25 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-size: 12px;
 }
 
+.ll-wordset-page .ll-wordset-progress-skeleton {
+    display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
+    color: transparent !important;
+    background: linear-gradient(100deg, #e2e8f0 16%, #f8fafc 34%, #e2e8f0 52%);
+    background-size: 220% 100%;
+    animation: ll-wordset-skeleton-shimmer 1.15s linear infinite;
+}
+
 .ll-wordset-progress-bars {
     display: grid;
     grid-template-columns: repeat(14, minmax(0, 1fr));
     gap: 6px;
     align-items: end;
+}
+
+.ll-wordset-progress-bars--skeleton {
+    min-height: 98px;
 }
 
 .ll-wordset-progress-day {
@@ -6868,6 +6882,43 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-items: center;
     gap: 4px;
     min-width: 0;
+}
+
+.ll-wordset-progress-day--skeleton {
+    justify-content: flex-end;
+}
+
+.ll-wordset-progress-skeleton--day-count {
+    width: min(18px, 72%);
+    height: 7px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--day-bar {
+    width: 100%;
+    height: var(--ll-progress-skeleton-height, 42px);
+    min-height: 18px;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(100, 116, 139, 0.08);
+    transform-origin: center bottom;
+    animation:
+        ll-wordset-skeleton-shimmer 1.15s linear infinite,
+        ll-wordset-progress-skeleton-bob 1.65s ease-in-out var(--ll-progress-skeleton-delay, 0ms) infinite alternate;
+}
+
+.ll-wordset-progress-skeleton--day-label {
+    width: min(26px, 88%);
+    height: 7px;
+    border-radius: 999px;
+}
+
+@keyframes ll-wordset-progress-skeleton-bob {
+    from {
+        transform: scaleY(0.94);
+    }
+    to {
+        transform: scaleY(1.02);
+    }
 }
 
 .ll-wordset-progress-day-count {
@@ -7348,6 +7399,151 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-table tbody tr:last-child td {
     border-bottom: 0;
+}
+
+.ll-wordset-progress-skeleton-row {
+    pointer-events: none;
+    user-select: none;
+}
+
+.ll-wordset-progress-skeleton-row td {
+    height: 54px;
+    vertical-align: middle;
+}
+
+.ll-wordset-progress-skeleton-category,
+.ll-wordset-progress-skeleton-word,
+.ll-wordset-progress-skeleton-thumbs,
+.ll-wordset-progress-skeleton-pills,
+.ll-wordset-progress-skeleton-pill {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.ll-wordset-progress-skeleton-category,
+.ll-wordset-progress-skeleton-word {
+    gap: 8px;
+    min-width: 0;
+}
+
+.ll-wordset-progress-skeleton-thumbs,
+.ll-wordset-progress-skeleton-pills {
+    gap: 4px;
+}
+
+.ll-wordset-progress-skeleton-pills {
+    flex-wrap: wrap;
+}
+
+.ll-wordset-progress-skeleton--category-thumb {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border: 1px solid #d8dde6;
+    border-radius: 6px;
+}
+
+.ll-wordset-progress-skeleton--category-name {
+    width: clamp(72px, 10vw, 132px);
+    height: 11px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton-row:nth-child(even) .ll-wordset-progress-skeleton--category-name {
+    width: clamp(92px, 13vw, 158px);
+}
+
+.ll-wordset-progress-skeleton-pill {
+    gap: 4px;
+    min-height: 22px;
+    padding: 3px 7px;
+    border: 1px solid #d8dde6;
+    border-radius: 999px;
+    background: #f8fafc;
+}
+
+.ll-wordset-progress-skeleton-pill--progress {
+    min-width: 48px;
+}
+
+.ll-wordset-progress-skeleton-pill--activity {
+    min-width: 42px;
+}
+
+.ll-wordset-progress-skeleton-pill--status {
+    min-width: 68px;
+}
+
+.ll-wordset-progress-skeleton--icon {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 11px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--pill-line {
+    width: 19px;
+    height: 7px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--date {
+    width: 64px;
+    height: 10px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--star {
+    width: 22px;
+    height: 22px;
+    border: 1px solid #d8dde6;
+    border-radius: 7px;
+}
+
+.ll-wordset-progress-skeleton--word-thumb {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border: 1px solid #d6dce7;
+    border-radius: 8px;
+}
+
+.ll-wordset-progress-skeleton-word-copy {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    min-width: 0;
+}
+
+.ll-wordset-progress-skeleton--word-primary {
+    width: clamp(86px, 12vw, 142px);
+    height: 11px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--word-secondary {
+    width: clamp(58px, 8vw, 96px);
+    height: 8px;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton-row:nth-child(even) .ll-wordset-progress-skeleton--word-primary {
+    width: clamp(104px, 14vw, 166px);
+}
+
+.ll-wordset-progress-skeleton--part-of-speech {
+    width: 36px;
+    height: 19px;
+    border: 1px solid #d8dde6;
+    border-radius: 999px;
+}
+
+.ll-wordset-progress-skeleton--number {
+    width: 18px;
+    height: 10px;
+    border-radius: 999px;
 }
 
 .ll-wordset-progress-table td.ll-wordset-progress-num-cell {
@@ -10083,6 +10279,74 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         row-gap: 1px;
     }
 
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-row td {
+        overflow: hidden;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-word {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        gap: 2px;
+        overflow: hidden;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-word-copy {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-row .ll-wordset-progress-skeleton--word-primary,
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-row .ll-wordset-progress-skeleton--word-secondary,
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-row .ll-wordset-progress-skeleton--category-name {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton--star {
+        width: 19px;
+        height: 19px;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton--word-thumb {
+        width: 26px;
+        height: 26px;
+        flex-basis: 26px;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton--part-of-speech {
+        width: 22px;
+        max-width: 100%;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-pill--status {
+        width: 16px;
+        min-width: 16px;
+        min-height: 16px;
+        height: 16px;
+        padding: 0;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-pill--status .ll-wordset-progress-skeleton--icon {
+        width: 9px;
+        height: 9px;
+        flex-basis: 9px;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton-pill--status .ll-wordset-progress-skeleton--pill-line {
+        display: none;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-skeleton--number {
+        width: 10px;
+        max-width: 100%;
+    }
+
     .ll-wordset-progress-table--words .ll-wordset-progress-word-body {
         gap: 1px;
     }
@@ -10615,6 +10879,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-next-card__line--skeleton,
     .ll-wordset-buttons-shortcode__loading-line,
     .ll-wordset-page .ll-vocab-lesson-mode-icon--loading .ll-wordset-inline-skeleton,
+    .ll-wordset-page .ll-wordset-progress-skeleton,
+    .ll-wordset-progress-kpi.is-loading .ll-wordset-progress-kpi-value,
     .ll-wordset-progress-mini.is-loading .ll-wordset-progress-pill::after,
     .ll-wordset-card__progress-track.is-loading::after,
     .ll-wordset-card--lazy-placeholder::after,

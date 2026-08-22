@@ -26162,12 +26162,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 <section class="ll-wordset-progress-view" data-ll-wordset-progress-root>
                     <div class="ll-wordset-progress-head">
                         <span class="ll-wordset-progress-scope" data-ll-wordset-progress-scope></span>
-                        <p class="ll-wordset-progress-status" data-ll-wordset-progress-status><?php echo esc_html__('Loading progress...', 'll-tools-text-domain'); ?></p>
+                        <p class="ll-wordset-progress-status" data-ll-wordset-progress-status role="status" aria-live="polite" aria-atomic="true"><?php echo esc_html__('Loading progress...', 'll-tools-text-domain'); ?></p>
                     </div>
 
                     <div class="ll-wordset-progress-graph-wrap">
                         <span class="ll-wordset-progress-subtitle"><?php echo esc_html__('Last 14 days', 'll-tools-text-domain'); ?></span>
-                        <div class="ll-wordset-progress-graph" data-ll-wordset-progress-graph></div>
+                        <div class="ll-wordset-progress-graph is-loading" data-ll-wordset-progress-graph aria-busy="true">
+                            <div class="ll-wordset-progress-bars ll-wordset-progress-bars--skeleton" data-ll-wordset-progress-graph-loading aria-hidden="true">
+                                <?php foreach ([28, 48, 36, 62, 42, 55, 32, 68, 45, 58, 38, 64, 50, 34] as $progress_loading_bar_index => $progress_loading_bar_height) : ?>
+                                    <span
+                                        class="ll-wordset-progress-day ll-wordset-progress-day--skeleton"
+                                        data-ll-wordset-progress-graph-loading-bar
+                                        style="--ll-progress-skeleton-height:<?php echo esc_attr((string) $progress_loading_bar_height); ?>px;--ll-progress-skeleton-delay:-<?php echo esc_attr((string) ($progress_loading_bar_index * 90)); ?>ms;">
+                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--day-count" aria-hidden="true"></span>
+                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--day-bar" aria-hidden="true"></span>
+                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--day-label" aria-hidden="true"></span>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     </div>
 
                     <div
@@ -26281,10 +26294,41 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody data-ll-wordset-progress-categories-body>
-                                    <tr>
-                                        <td colspan="4"><?php echo esc_html__('No data yet.', 'll-tools-text-domain'); ?></td>
-                                    </tr>
+                                <tbody data-ll-wordset-progress-categories-body aria-busy="true">
+                                    <?php for ($progress_loading_row = 0; $progress_loading_row < 5; $progress_loading_row++) : ?>
+                                        <tr class="ll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--category" data-ll-wordset-progress-loading-row data-ll-wordset-progress-loading-kind="categories" aria-hidden="true">
+                                            <td>
+                                                <span class="ll-wordset-progress-skeleton-category">
+                                                    <span class="ll-wordset-progress-skeleton-thumbs">
+                                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--category-thumb" aria-hidden="true"></span>
+                                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--category-thumb" aria-hidden="true"></span>
+                                                    </span>
+                                                    <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--category-name" aria-hidden="true"></span>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="ll-wordset-progress-skeleton-pills">
+                                                    <?php for ($progress_loading_pill = 0; $progress_loading_pill < 3; $progress_loading_pill++) : ?>
+                                                        <span class="ll-wordset-progress-skeleton-pill ll-wordset-progress-skeleton-pill--progress">
+                                                            <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--icon" aria-hidden="true"></span>
+                                                            <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--pill-line" aria-hidden="true"></span>
+                                                        </span>
+                                                    <?php endfor; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="ll-wordset-progress-skeleton-pills">
+                                                    <?php for ($progress_loading_activity = 0; $progress_loading_activity < 2; $progress_loading_activity++) : ?>
+                                                        <span class="ll-wordset-progress-skeleton-pill ll-wordset-progress-skeleton-pill--activity">
+                                                            <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--icon" aria-hidden="true"></span>
+                                                            <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--pill-line" aria-hidden="true"></span>
+                                                        </span>
+                                                    <?php endfor; ?>
+                                                </span>
+                                            </td>
+                                            <td><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--date" aria-hidden="true"></span></td>
+                                        </tr>
+                                    <?php endfor; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -26494,10 +26538,33 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody data-ll-wordset-progress-words-body>
-                                    <tr>
-                                        <td colspan="9"><?php echo esc_html__('No data yet.', 'll-tools-text-domain'); ?></td>
-                                    </tr>
+                                <tbody data-ll-wordset-progress-words-body aria-busy="true">
+                                    <?php for ($progress_loading_row = 0; $progress_loading_row < 5; $progress_loading_row++) : ?>
+                                        <tr class="ll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--word" data-ll-wordset-progress-loading-row data-ll-wordset-progress-loading-kind="words" aria-hidden="true">
+                                            <td><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--star" aria-hidden="true"></span></td>
+                                            <td>
+                                                <span class="ll-wordset-progress-skeleton-word">
+                                                    <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--word-thumb" aria-hidden="true"></span>
+                                                    <span class="ll-wordset-progress-skeleton-word-copy">
+                                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--word-primary" aria-hidden="true"></span>
+                                                        <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--word-secondary" aria-hidden="true"></span>
+                                                    </span>
+                                                </span>
+                                            </td>
+                                            <td><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--category-name" aria-hidden="true"></span></td>
+                                            <td class="ll-wordset-progress-col--part-of-speech"><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--part-of-speech" aria-hidden="true"></span></td>
+                                            <td>
+                                                <span class="ll-wordset-progress-skeleton-pill ll-wordset-progress-skeleton-pill--status">
+                                                    <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--icon" aria-hidden="true"></span>
+                                                    <span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--pill-line" aria-hidden="true"></span>
+                                                </span>
+                                            </td>
+                                            <td class="ll-wordset-progress-num-cell"><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--number" aria-hidden="true"></span></td>
+                                            <td class="ll-wordset-progress-num-cell"><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--number" aria-hidden="true"></span></td>
+                                            <td class="ll-wordset-progress-num-cell ll-wordset-progress-col--wrong"><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--number" aria-hidden="true"></span></td>
+                                            <td><span class="ll-wordset-progress-skeleton ll-wordset-progress-skeleton--date" aria-hidden="true"></span></td>
+                                        </tr>
+                                    <?php endfor; ?>
                                 </tbody>
                             </table>
                         </div>
