@@ -51,6 +51,7 @@
         250,
         Math.min(120000, parseInt(cfg.selectionLaunchRequestTimeoutMs, 10) || 30000)
     );
+    const LARGE_PROGRESS_SELECTION_WORD_COUNT = 1000;
     const PROGRESS_WORD_AUTOLOAD_VIEWPORT_OFFSET_PX = 360;
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
@@ -3805,6 +3806,21 @@
         return Math.max(0, parseInt(progressSelectedAllWordCount, 10) || 0);
     }
 
+    function progressSelectionLaunchRequestTimeoutMs(wordCount) {
+        const normalizedWordCount = Math.max(0, parseInt(wordCount, 10) || 0);
+        if (normalizedWordCount < LARGE_PROGRESS_SELECTION_WORD_COUNT) {
+            return SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        }
+
+        // Cold exact-ID, planning, and first-chunk payload reads can each take
+        // longer than the normal request deadline for production-sized filters.
+        // Keep the scope bounded, but give those large launches time to finish.
+        return Math.min(120000, Math.max(
+            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS * 3
+        ));
+    }
+
     function getProgressAllFilteredLaunchCategoryIds() {
         const filteredCategoryIds = uniqueIntList(analyticsWordCategoryFilterIds || []);
         if (filteredCategoryIds.length) {
@@ -6539,6 +6555,10 @@
         const launchSpec = (spec && typeof spec === 'object') ? spec : null;
         const opts = (options && typeof options === 'object') ? options : {};
         const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
         if (!launchSpec || !ajaxUrl || !nonce) {
             return $.Deferred().reject().promise();
         }
@@ -6579,7 +6599,7 @@
         const deferred = $.Deferred();
         const request = applySelectionLaunchRequestDeadline(
             $.post(ajaxUrl, requestData),
-            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
+            requestTimeoutMs
         );
         if (onRequest) {
             onRequest(request);
@@ -6610,6 +6630,15 @@
 
     function launchProgressSelectionModeWithIds(mode, selectedWordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        const parsedContinuationRequestTimeoutMs = parseInt(opts.continuationRequestTimeoutMs, 10);
+        const continuationRequestTimeoutMs = Number.isFinite(parsedContinuationRequestTimeoutMs)
+            && parsedContinuationRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedContinuationRequestTimeoutMs))
+            : requestTimeoutMs;
         const hasReservedLaunchToken = Object.prototype.hasOwnProperty.call(opts, 'launchToken');
         const reservedLaunchToken = hasReservedLaunchToken
             ? opts.launchToken
@@ -6701,7 +6730,7 @@
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
                 candidateWordIds: initialSessionWordIds,
                 onRequest: notifyLaunchRequest,
-                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
+                requestTimeoutMs: requestTimeoutMs
             }).done(function (serverPlan) {
                 if (!isLaunchCurrent()) {
                     notifyLaunchCanceled();
@@ -6712,7 +6741,8 @@
                     categoryIds: initialLaunchPlan.categoryIds,
                     candidateWordIds: initialSessionWordIds,
                     minimumWordCount: needsBoundedLearningPlan ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
-                    requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+                    requestTimeoutMs: requestTimeoutMs,
+                    continuationRequestTimeoutMs: continuationRequestTimeoutMs,
                     source: 'wordset_progress_bounded_start',
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
@@ -6758,7 +6788,7 @@
             sessionWordIds: initialSessionWordIds
         };
         ensureOptions.rejectOnFailure = true;
-        ensureOptions.requestTimeoutMs = SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        ensureOptions.requestTimeoutMs = requestTimeoutMs;
         ensureOptions.onRequest = notifyLaunchRequest;
         ensureOptions.isRequestCurrent = isLaunchCurrent;
 
@@ -6844,6 +6874,9 @@
             return;
         }
 
+        const expectedWordCount = getProgressAllFilteredSelectionCount();
+        const expectedRequestTimeoutMs = progressSelectionLaunchRequestTimeoutMs(expectedWordCount);
+
         const reservedFlashcardLaunchToken = beginFlashcardLaunch({ owner: 'progress' });
         const token = ++progressSelectionLaunchToken;
         progressSelectionFlashcardLaunchToken = reservedFlashcardLaunchToken;
@@ -6882,7 +6915,8 @@
                 return;
             }
             fetchProgressAllFilteredSelectionWordIds(launchSpec, {
-                onRequest: trackLaunchRequest
+                onRequest: trackLaunchRequest,
+                requestTimeoutMs: expectedRequestTimeoutMs
             }).done(function (wordIds) {
                 if (!progressLaunchIsCurrent()) {
                     finishProgressSelectionLaunch(token, '', null);
@@ -6893,6 +6927,8 @@
                     launchSpec: launchSpec,
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
+                    requestTimeoutMs: progressSelectionLaunchRequestTimeoutMs(wordIds.length),
+                    continuationRequestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                     launchToken: reservedFlashcardLaunchToken,
                     isLaunchCurrent: progressLaunchIsCurrent,
                     onLaunchRequest: trackLaunchRequest,
@@ -16322,7 +16358,7 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
-                request_timeout_ms: opts.requestTimeoutMs,
+                request_timeout_ms: opts.continuationRequestTimeoutMs || opts.requestTimeoutMs,
                 bounded_selection_plan: true,
                 continuous: boundedModeAutomaticallyContinues(normalizedMode),
                 supports_continuation: boundedModeSupportsContinuation(normalizedMode)
@@ -16695,7 +16731,7 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
-                request_timeout_ms: opts.requestTimeoutMs,
+                request_timeout_ms: opts.continuationRequestTimeoutMs || opts.requestTimeoutMs,
                 bounded_selection_plan: true,
                 continuous: false
             };

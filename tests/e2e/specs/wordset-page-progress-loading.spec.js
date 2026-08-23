@@ -2380,6 +2380,137 @@ test('progress hydration timeout clears loading and Retry refetches before launc
   expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
 });
 
+test('large all-filtered Practice allows cold launch stages beyond the base request timeout', async ({ page }) => {
+  const baseTimeoutMs = 750;
+  const stageDelayMs = baseTimeoutMs + 250;
+  const allMatchingIds = Array.from({ length: 2184 }, (_unused, index) => 101 + index);
+  await prepareAllFilteredProgressSelection(page, {
+    allMatchingIds,
+    config: { selectionLaunchRequestTimeoutMs: baseTimeoutMs }
+  });
+  await page.evaluate(() => {
+    window.__llHoldSelectionPlanRequests = true;
+    window.__llHoldFetchWordsRequests = true;
+  });
+
+  await page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]').click();
+  const [wordIdRequestIndex] = await waitForAllFilteredLaunchRequestCount(page, 1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'ids');
+
+  // Large filtered launches get an adaptive deadline. Keep each valid cold
+  // stage pending past the configured base timeout, but below the 3x cap.
+  await page.waitForTimeout(stageDelayMs);
+  expect(await page.evaluate((index) => {
+    const entry = window.__llAnalyticsRequests[index] || {};
+    return {
+      state: entry.deferred ? entry.deferred.state() : '',
+      aborted: !!entry.aborted
+    };
+  }, wordIdRequestIndex)).toEqual({ state: 'pending', aborted: false });
+  await page.evaluate(({ index, payload }) => {
+    window.__resolveAnalyticsRequest(index, payload);
+  }, {
+    index: wordIdRequestIndex,
+    payload: buildAllFilteredWordIdAnalytics(allMatchingIds)
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__llSelectionPlanRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'plan');
+  await page.waitForTimeout(stageDelayMs);
+  expect(await page.evaluate(() => {
+    const entry = window.__llSelectionPlanRequests[0] || {};
+    const request = entry.request || {};
+    const candidateIds = String(request.candidate_word_ids || '')
+      .split(',')
+      .map((value) => Number(value) || 0)
+      .filter(Boolean);
+    return {
+      state: entry.deferred ? entry.deferred.state() : '',
+      aborted: !!entry.aborted,
+      candidateCount: candidateIds.length
+    };
+  })).toEqual({ state: 'pending', aborted: false, candidateCount: allMatchingIds.length });
+  await page.evaluate(() => window.__resolveSelectionPlanRequest(0));
+
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', 'hydrate');
+  await page.waitForTimeout(stageDelayMs);
+  expect(await page.evaluate(() => {
+    const hydration = window.__llFetchWordsRequests[0] || {};
+    return {
+      hydrationRequestCount: window.__llFetchWordsRequests.length,
+      hydrationState: hydration.deferred ? hydration.deferred.state() : '',
+      hydrationAborted: !!hydration.aborted
+    };
+  })).toEqual({
+    hydrationRequestCount: 1,
+    hydrationState: 'pending',
+    hydrationAborted: false
+  });
+  await expect(page.locator('[data-ll-wordset-progress-launch-retry]')).toBeHidden();
+
+  await page.evaluate(() => window.__resolveFetchWordsRequest(0));
+
+  await expect.poll(async () => page.evaluate(() => window.__llFlashcardLaunches.length)).toBe(1);
+  expect(await page.evaluate(() => {
+    const launch = window.__llFlashcardLaunches[0] || {};
+    return {
+      mode: String(launch.mode || ''),
+      sessionWordCount: Array.isArray(launch.sessionWordIds) ? launch.sessionWordIds.length : 0,
+      logicalSessionWordCount: Array.isArray(launch.logicalSessionWordIds)
+        ? launch.logicalSessionWordIds.length
+        : 0,
+      source: launch.lastLaunchPlan ? String(launch.lastLaunchPlan.source || '') : ''
+    };
+  })).toEqual({
+    mode: 'practice',
+    sessionWordCount: 15,
+    logicalSessionWordCount: allMatchingIds.length,
+    source: 'wordset_progress_bounded_start'
+  });
+  await expect(page.locator('[data-ll-wordset-progress-launch-feedback]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-launch-retry]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]'))
+    .toHaveAttribute('data-ll-wordset-progress-launch-stage', '');
+  expect(await page.evaluate(() => window.__llAlerts.slice())).toEqual([]);
+
+  // Once startup commits, later chunks return to the ordinary bounded
+  // deadline instead of inheriting the cold-start extension.
+  await page.evaluate(() => {
+    const flashData = window.llToolsFlashcardsData || {};
+    const continuation = flashData.boundedSessionContinuation || flashData.bounded_session_continuation;
+    window.__llColdLaunchContinuationState = 'pending';
+    Promise.resolve()
+      .then(() => continuation())
+      .then(
+        () => { window.__llColdLaunchContinuationState = 'resolved'; },
+        () => { window.__llColdLaunchContinuationState = 'rejected'; }
+      );
+  });
+  await expect.poll(async () => page.evaluate(() => window.__llFetchWordsRequests.length)).toBe(2);
+  await expect.poll(
+    async () => page.evaluate(() => window.__llColdLaunchContinuationState),
+    { timeout: 6000 }
+  ).toBe('rejected');
+  expect(await page.evaluate(() => window.__llFetchWordsRequests.slice(1).map((entry) => ({
+    aborted: !!entry.aborted,
+    abortStatus: String(entry.abortStatus || ''),
+    state: entry.deferred ? entry.deferred.state() : ''
+  })))).toEqual(Array.from({ length: 3 }, () => ({
+    aborted: true,
+    abortStatus: 'timeout',
+    state: 'rejected'
+  })));
+  expect(await page.evaluate(() => ({
+    launches: window.__llFlashcardLaunches.length,
+    appends: window.__llBoundedSessionAppends.length
+  }))).toEqual({ launches: 1, appends: 0 });
+});
+
 test('bounded progress hydration timeout clears loading and Retry refetches before launch', async ({ page }) => {
   await prepareAllFilteredProgressSelection(page, {
     primeSnapshot: true,
