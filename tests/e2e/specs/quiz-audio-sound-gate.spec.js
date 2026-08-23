@@ -1,6 +1,58 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const domSource = fs.readFileSync(path.resolve(__dirname, '../../../js/flashcard-widget/dom.js'), 'utf8');
 
 const LEARN_PATH = process.env.LL_E2E_LEARN_PATH || '/learn/';
+
+test('rapid sound-gate reactivation keeps its blocking overlay attached', async ({ page }) => {
+  await page.setContent(`
+    <div id="ll-tools-flashcard-quiz-popup">
+      <div id="ll-tools-flashcard-content">
+        <div id="ll-tools-flashcard" style="pointer-events:auto"><button>Answer</button></div>
+      </div>
+    </div>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.LLFlashcards = {
+      State: { widgetActive: true, soundGateActive: false },
+      Util: { getMessage(_key, fallback) { return fallback || ''; } }
+    };
+    window.llToolsFlashcardsData = {};
+    window.llToolsFlashcardsMessages = {};
+    window.FlashcardAudio = {
+      clearAutoplayBlock() {},
+      getCurrentTargetAudio() { return null; }
+    };
+  });
+  await page.addScriptTag({ content: domSource });
+
+  await page.evaluate(() => {
+    const dom = window.LLFlashcards.Dom;
+    dom.showAutoplayBlockedOverlay({ force: true });
+    dom.hideAutoplayBlockedOverlay();
+    dom.showAutoplayBlockedOverlay({ force: true });
+  });
+  await page.waitForTimeout(250);
+
+  const overlay = page.locator('#ll-tools-autoplay-overlay');
+  await expect(overlay).toHaveCount(1);
+  await expect(overlay).toBeVisible();
+  expect(await page.evaluate(() => ({
+    pointerEvents: document.getElementById('ll-tools-flashcard').style.pointerEvents,
+    soundGateActive: window.LLFlashcards.State.soundGateActive
+  }))).toEqual({ pointerEvents: 'none', soundGateActive: true });
+
+  await page.evaluate(() => window.LLFlashcards.Dom.hideAutoplayBlockedOverlay());
+  await expect(overlay).toBeHidden();
+  expect(await page.evaluate(() => ({
+    pointerEvents: document.getElementById('ll-tools-flashcard').style.pointerEvents,
+    soundGateActive: window.LLFlashcards.State.soundGateActive
+  }))).toEqual({ pointerEvents: 'auto', soundGateActive: false });
+});
 
 async function openModeMenu(page) {
   const switcher = page.locator('#ll-tools-mode-switcher');

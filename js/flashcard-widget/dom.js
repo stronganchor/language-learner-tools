@@ -52,6 +52,7 @@
     let soundGateWatchedAudio = null;
     let soundGateWatchedListeners = [];
     let soundGateResumeAudio = null;
+    let soundGateOverlayTransition = 0;
 
     function getMessages() {
         return (root && root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
@@ -247,20 +248,33 @@
     function setSoundGateOverlayVisible(visible) {
         const enabled = !!visible;
         const $overlay = enabled ? ensureSoundGateOverlay() : $('#ll-tools-autoplay-overlay');
+        const transition = ++soundGateOverlayTransition;
         setSoundGateState(enabled);
+        if (enabled) {
+            if (!$overlay.length) {
+                return;
+            }
+            syncSoundGateButtonLabel();
+            $('#ll-tools-flashcard').css('pointer-events', 'none');
+            // Do not jump an in-flight fade-out to its end here. Doing so runs
+            // that animation's removal callback before fadeIn(), leaving the
+            // gate active and the answers inert while its overlay is detached.
+            $overlay.stop(true, false).fadeIn(180);
+            return;
+        }
+
+        // Restore answer interaction even if another lifecycle path already
+        // removed the overlay while the gate was being dismissed.
+        $('#ll-tools-flashcard').css('pointer-events', 'auto');
         if (!$overlay.length) {
             return;
         }
-        if (enabled) {
-            syncSoundGateButtonLabel();
-            $('#ll-tools-flashcard').css('pointer-events', 'none');
-            $overlay.stop(true, true).fadeIn(180);
-            return;
-        }
-        $overlay.stop(true, true).fadeOut(180, function () {
+        $overlay.stop(true, false).fadeOut(180, function () {
+            if (transition !== soundGateOverlayTransition || (State && State.soundGateActive)) {
+                return;
+            }
             $(this).remove();
         });
-        $('#ll-tools-flashcard').css('pointer-events', 'auto');
     }
 
     function clearSoundGateWatch() {
