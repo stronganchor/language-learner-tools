@@ -1325,14 +1325,6 @@ function ll_tools_sync_quiz_pages(): array {
     return ll_tools_run_quiz_page_sync_batch();
 }
 
-/** Compatibility wrapper retained for callers that only need a cleanup step. */
-function ll_tools_cleanup_invalid_quiz_pages(): int {
-    $before = ll_tools_get_quiz_page_sync_state();
-    ll_tools_queue_quiz_page_sync(false, false);
-    $after = ll_tools_run_quiz_page_sync_batch();
-    return max(0, (int) ($after['removed'] ?? 0) - (int) ($before['removed'] ?? 0));
-}
-
 /** Wire term create/edit/delete to sync */
 add_action('created_word-category', 'll_tools_handle_category_sync', 10, 1);
 add_action('edited_word-category',  'll_tools_handle_category_sync', 10, 1);

@@ -1,14 +1,12 @@
 # Maintenance Backlog
 
-Updated August 21, 2026 after the weekly review and focused maintenance
-follow-ups for plugin 6.7.26. The current pass adds atomic public admission,
-bounded auth and event/report inputs, recoverable asynchronous UI, compare-and-set review-note
-autosave, idempotent Audio Processor deletion, a non-mutating source-to-POT
-freshness gate, native LMS REST documentation, and broader WordPress-backed
-browser coverage. Final full-suite and post-freeze catalog validation is
-complete locally: the standard PHPUnit suite, all eight serial Playwright
-shards, source/POT freshness, core catalogs, and active public-locale parity
-are accounted below. No live-site or real-provider check was run.
+Updated August 23, 2026 after the weekly review and controlled-fleet follow-up
+for plugin 6.7.30. The current pass replaces legacy progress payload extension
+compatibility with the inventoried first-party schema, removes helpers and a
+pre-stream recorder path that no controlled integration consumes, closes
+unmeasured module splitting as unnecessary, and adds a privacy-preserving live
+payload audit tool. The six controlled sites were inspected read-only before
+these decisions. No real Google provider authorization was attempted.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -25,16 +23,10 @@ judgment:
 - Real Google OAuth/provider sandbox acceptance. The local browser fixture now
   covers safe unconfigured and mocked connected states, but no local test can
   authorize Marketplace, CourseWork, or grade-passback claims.
-- A decision on whether legacy progress-event extension keys should be replaced
-  by strict per-event allowlists. Current exact byte/node/depth bounds preserve
-  compatibility; narrowing accepted keys needs producer/external-client review.
 - A normalized teacher-class membership table only if measured class size,
   deserialization cost, or assignment latency justifies a dual-write/backfill
   migration.
-- Route/module splitting only after profiling identifies a real runtime or
-  ownership problem; line count alone is not page-load evidence.
-- Any future removal of externally callable compatibility helpers, plus a
-  durable lesson-map materializer only if production measurements justify
+- A durable lesson-map materializer only if production measurements justify
   replacing the winning cold full scan.
 
 Keep performance work evidence-led and scoped to a measured growth dimension.
@@ -42,16 +34,15 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (August 21)
+### Current verification inventory (August 23)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical
   source/POT key comparison backed by a temporary WP-CLI extraction. The
   standalone command is `php scripts/check-i18n-source-pot.php`; it must be
   green after the catalog refresh and before catalog-count or locale-coverage
   checks are accepted. The source-frozen POT and complete Turkish/German core
-  catalogs contain 6,278 canonical keys each; the active public manifest and
-  all eight active tier-2 locales pass 796/796, with 1,119 expected compiled
-  public entries per locale.
+  catalogs contain 6,275 canonical keys each; the active public manifest and
+  all eight active tier-2 locales pass 796/796.
 - The maintenance browser contract owns both automation REST documentation and
   all eight routes registered by `includes/api/lms-rest.php`.
 - The WordPress-backed teacher Classes invite scenario covers latest Practice
@@ -64,10 +55,32 @@ the normal regression suite.
   failures were corrected and passed focused reruns. The route normalization,
   cache-warming Retry, and teacher-login/cleanup corrections therefore produce
   a final accounting of 691 passing cases plus one expected skip.
-- Final PHPUnit result: **2,285 tests, 58,726 assertions, 8 expected skips** in
-  11 minutes 30 seconds. The standard complete suite exited successfully.
+- Final PHPUnit result: **2,288 tests, 58,763 assertions, 8 expected skips** in
+  12 minutes 13 seconds. The standard complete suite exited successfully.
 
 ## Recently Closed
+
+- August 23 progress-event schema inventory: a 143,173-row fixed-high-water
+  scan covered all six controlled sites. The 36,867 rows on WordBoat,
+  NepaliBasics, YerelArapca, StarterEnglish, and TurkishTextbook matched the
+  first-party payload schema exactly. Zazaca's 106,306 rows contained only 23
+  early self-check events with the obsolete diagnostic key `placement`; there
+  is no current producer or external integration for it.
+  Existing rows remain untouched because derived state ignores the key. New
+  browser and offline events are rebuilt from exact per-event key unions, so
+  unknown or cross-event fields are dropped while stale journals are still
+  acknowledged. Nested payload identity can no longer bypass the explicit
+  identity-storage policy.
+
+- August 23 controlled-fleet compatibility cleanup: exact source and database
+  scans across WordBoat, Zazaca, NepaliBasics, YerelArapca, StarterEnglish, and
+  TurkishTextbook found no external consumers of the audited global helpers or
+  recorder category-page query/filter contract. The unused wrappers, unbounded
+  category media helpers, synchronous quiz/category-delete shims, and
+  first-party-unreachable pre-stream recorder branches were removed while the
+  active stream, focused, hidden, and recorder-paging paths remain covered.
+  Module splitting is closed as unnecessary without a measured route-cost or
+  ownership failure; existing route-specific asset gating is the current answer.
 
 - August 21 documentation, localization-contract, and teacher-report coverage:
   source gettext keys are compared with the checked-in POT without regenerating
@@ -525,8 +538,12 @@ the normal regression suite.
 
 3. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
-   - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
-   - `ll_tools_word_option_rules_get_word_posts()` is the bounded default-page compatibility wrapper over `ll_tools_word_option_rules_get_word_page()`, and `ll_find_words_missing_word_images()` is the bounded compatibility wrapper over `ll_word_images_fixer_scan_batch()`. Neither currently has an internal production caller, but keep them until an external-usage/compatibility audit proves removal is safe.
+   - The August 23 controlled-fleet source/database scan found no consumers of
+     `get_deepl_language_codes()`, `ll_tools_word_option_rules_get_word_posts()`,
+     `ll_find_words_missing_word_images()`,
+     `ll_tools_wordset_page_delete_category_for_wordset()`, or
+     `ll_tools_cleanup_invalid_quiz_pages()`. Those wrappers are removed; use
+     their bounded canonical APIs rather than recreating compatibility aliases.
 
 4. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
@@ -557,11 +574,10 @@ the normal regression suite.
 - One prompt card may include at most 300 bounded support-word IDs in the
   materializer. Supporting larger cards needs a nested durable support cursor
   or an explicit content-validation policy, not a higher synchronous cap.
-- The pre-stream manager recorder overview appears unreachable through current
-  internal production routing, while focused and hidden paged recorder modes
-  remain active. Retain the old global PHP helpers as compatibility-only until a
-  human review confirms that themes or integrations do not call them; removal
-  is not safe as an autonomous maintenance deletion.
+- The pre-stream manager recorder overview and its category-page query/filter
+  contract were removed after the controlled-fleet scan found no consumers.
+  Normal visible manager queues use the bounded stream; focused and hidden
+  modes plus hidden recorder paging remain active and covered.
 - Turkish full-catalog completeness is now a hard source/test/automation
   contract. The runtime blank filter remains defense in depth for interrupted
   local merges, but a scheduled upkeep run cannot close or advance its HEAD
@@ -653,32 +669,7 @@ the normal regression suite.
      `/learn/<wordset>/...`, with old root pretty URLs preserved through narrow
      redirects.
 
-2. Earlier audit item 11 meant profiling large modules before deciding whether
-   to split them; it did not ask for an immediate rewrite. Profile, then split
-   the largest modules along existing ownership boundaries.
-   - No split decision is needed now. First capture representative route asset,
-     parse/execute, and request profiles; only then decide whether a split is
-     justified and which ownership boundary should move.
-   - File size is a maintainability signal, not evidence that a bundle or PHP
-     include is slowing a specific page. Before splitting, capture route-level
-     enqueued assets, transfer size, parse/execute cost, request duration, and
-     the ownership/dependency graph for WordPress handles and localized globals.
-   - `includes/pages/wordset-pages.php` combines routing, teacher classes,
-     settings, render helpers, analytics payloads, game launch, and mixed-grid
-     rendering.
-   - `includes/admin/export-import.php` combines import preview, undo, export,
-     offline payload work, jobs, and admin rendering.
-   - `includes/shortcodes/word-grid-shortcode.php` combines rendering, inline
-     editing, media selection, REST/AJAX helpers, and lesson-grid behavior.
-   - `includes/shortcodes/audio-recording-shortcode.php` combines recorder UI,
-     queue construction, uploads, prompt-card handling, and translation helpers.
-   - `js/wordset-pages.js` and `js/wordset-games.js` should be split only at a
-     measured route-cost or clear ownership boundary. Preserve handle names,
-     dependencies, localized data ownership, and route-level browser behavior;
-     verify that a split does not turn one request into duplicate downloads or
-     initialization.
-
-3. Continue the tier-2 public UI translation rollout deliberately.
+2. Continue the tier-2 public UI translation rollout deliberately.
    - Run a QA pass over `languages/tier2-public-ui-strings.json` to reduce the
      public string set by removing unnecessary copy, replacing text with icons
      where appropriate, and reusing existing strings where the context allows.

@@ -218,6 +218,58 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_stale_offline_event_with_unknown_payload_keys_is_processed_and_acknowledged(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $session = ll_tools_offline_app_create_session($user_id, [
+            'device_id' => 'stale-journal-device',
+            'profile_id' => 'stale-journal-profile',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $this->assertNotSame('', $token);
+
+        $fixture = $this->createOfflineSyncFixture();
+        $event_uuid = 'stale-offline-' . wp_generate_uuid4();
+        $response = $this->runOfflineSyncRequest([
+            'auth_token' => $token,
+            'events' => wp_json_encode([[
+                'event_uuid' => $event_uuid,
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $fixture['word_id'],
+                'category_id' => $fixture['category_id'],
+                'wordset_id' => $fixture['wordset_id'],
+                'payload' => [
+                    'recording_type' => 'question',
+                    'available_recording_types' => ['question', 'sentence'],
+                    'legacy_extension' => ['old' => str_repeat('x', 2000)],
+                    'self_check_bucket' => 'right',
+                    'device_id' => 'payload-device',
+                    'profile_id' => 'payload-profile',
+                ],
+            ]]),
+            'word_ids' => wp_json_encode([$fixture['word_id']]),
+        ]);
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $stats = (array) (($response['data'] ?? [])['stats'] ?? []);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+        $this->assertSame(0, (int) ($stats['invalid'] ?? -1));
+        $this->assertSame(0, (int) ($stats['failed'] ?? -1));
+        $this->assertSame([], array_values((array) ($stats['failed_event_uuids'] ?? [])));
+
+        $stored_payload = json_decode((string) $wpdb->get_var($wpdb->prepare(
+            'SELECT payload_json FROM ' . ll_tools_user_progress_table_names()['events'] . ' WHERE event_uuid = %s',
+            $event_uuid
+        )), true);
+        $this->assertSame([
+            'recording_type' => 'question',
+            'available_recording_types' => ['question', 'sentence'],
+        ], $stored_payload);
+    }
+
     public function test_offline_app_session_table_enforces_eight_session_limit_without_rewriting_user_meta(): void
     {
         global $wpdb;

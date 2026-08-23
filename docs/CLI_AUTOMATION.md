@@ -156,6 +156,34 @@ The report includes:
 - audio coverage
 - attribution coverage counts
 
+### Audit progress-event payload keys without exposing learner data
+
+The maintenance-only scanner inventories the stored event types, modes, payload
+key names, nested key names, row counts, and payload sizes. It never prints
+payload values or learner identifiers, and it hashes unknown key names by
+default:
+
+```bash
+wp --path=/path/to/site/public eval-file \
+  wp-content/plugins/language-learner-tools/scripts/audit-progress-event-payloads.php
+```
+
+Each run freezes a `high_water_id` and scans at most 50,000 rows. If
+`complete` is false, resume from `last_scanned_id` while preserving that exact
+high-water mark:
+
+```bash
+LL_TOOLS_AUDIT_START_ID=50000 \
+LL_TOOLS_AUDIT_HIGH_WATER_ID=106306 \
+wp --path=/path/to/site/public eval-file \
+  wp-content/plugins/language-learner-tools/scripts/audit-progress-event-payloads.php
+```
+
+Set `LL_TOOLS_AUDIT_SHOW_SAFE_UNKNOWN_KEYS=1` only during an authorized schema
+review. It reveals unknown names only when they match the conservative
+lowercase key pattern; it still omits values. Treat the report as sensitive
+operational evidence even though it is designed not to contain personal data.
+
 ## Recommended Codex workflow
 
 1. Run `wordset-report` to confirm you are on the expected live wordset.

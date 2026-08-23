@@ -2767,6 +2767,363 @@ function ll_tools_user_progress_event_payload_fits_budget(array $payload): bool 
     return is_string($encoded) && strlen($encoded) <= $byte_limit;
 }
 
+/**
+ * Rebuild one event payload from the first-party contract for its event type.
+ *
+ * Unknown and cross-event fields are intentionally ignored instead of making
+ * the complete event invalid. This keeps stale offline journals drainable while
+ * preventing arbitrary client data from entering the progress ledger.
+ */
+function ll_tools_build_progress_event_payload(string $event_type, string $mode, array $raw_payload): array {
+    $event_type = strtolower(trim($event_type));
+    $mode = ll_tools_normalize_progress_mode($mode);
+    $payload = [];
+
+    $parse_integer = static function ($value): ?int {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (
+            is_float($value)
+            && is_finite($value)
+            && floor($value) === $value
+            && $value >= PHP_INT_MIN
+            && $value <= PHP_INT_MAX
+        ) {
+            return (int) $value;
+        }
+        if (is_string($value) && preg_match('/^-?(?:0|[1-9][0-9]*)$/D', trim($value))) {
+            $parsed = filter_var(trim($value), FILTER_VALIDATE_INT);
+            return $parsed === false ? null : (int) $parsed;
+        }
+        return null;
+    };
+    $bounded_integer = static function ($value, int $minimum, int $maximum) use ($parse_integer): ?int {
+        $parsed = $parse_integer($value);
+        if ($parsed === null) {
+            return null;
+        }
+        return max($minimum, min($maximum, $parsed));
+    };
+    $bounded_number = static function ($value, float $minimum, float $maximum): ?float {
+        if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric(trim($value)))) {
+            return null;
+        }
+        $parsed = (float) $value;
+        if (!is_finite($parsed)) {
+            return null;
+        }
+        return max($minimum, min($maximum, $parsed));
+    };
+    $bounded_text = static function ($value, int $maximum_length = 191): ?string {
+        if (!is_scalar($value) || is_bool($value)) {
+            return null;
+        }
+        $text = sanitize_text_field((string) $value);
+        return function_exists('mb_substr')
+            ? mb_substr($text, 0, max(1, $maximum_length), 'UTF-8')
+            : substr($text, 0, max(1, $maximum_length));
+    };
+    $bounded_key = static function ($value, int $maximum_length = 64): ?string {
+        if (!is_scalar($value) || is_bool($value)) {
+            return null;
+        }
+        return substr(sanitize_key((string) $value), 0, max(1, $maximum_length));
+    };
+    $canonical_boolean = static function ($value): ?bool {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            if ((float) $value === 1.0) {
+                return true;
+            }
+            if ((float) $value === 0.0) {
+                return false;
+            }
+            return null;
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+        return null;
+    };
+    $copy_key = static function (string $key, int $maximum_length = 64) use (&$payload, $raw_payload, $bounded_key): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_key($raw_payload[$key], $maximum_length);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_text = static function (string $key, int $maximum_length = 191) use (&$payload, $raw_payload, $bounded_text): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_text($raw_payload[$key], $maximum_length);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_boolean = static function (string $key) use (&$payload, $raw_payload, $canonical_boolean): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $canonical_boolean($raw_payload[$key]);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_integer = static function (
+        string $key,
+        int $minimum = 0,
+        int $maximum = 1000000
+    ) use (&$payload, $raw_payload, $bounded_integer): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_integer($raw_payload[$key], $minimum, $maximum);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+
+    if ($event_type === 'category_study') {
+        $units = $bounded_integer(
+            $raw_payload['units'] ?? 1,
+            1,
+            ll_tools_user_progress_category_study_units_limit()
+        );
+        $payload['units'] = $units ?? 1;
+        return $payload;
+    }
+
+    if ($event_type === 'mode_session_complete') {
+        $category_ids = [];
+        $category_limit = ll_tools_user_progress_session_category_limit();
+        $category_scan_limit = max(32, min(4000, $category_limit * 4));
+        $raw_category_ids = isset($raw_payload['category_ids']) && is_array($raw_payload['category_ids'])
+            ? array_slice($raw_payload['category_ids'], 0, $category_scan_limit)
+            : [];
+        foreach ($raw_category_ids as $raw_category_id) {
+            $category_id = $parse_integer($raw_category_id);
+            if ($category_id !== null && $category_id > 0) {
+                $category_ids[$category_id] = $category_id;
+                if (count($category_ids) >= $category_limit) {
+                    break;
+                }
+            }
+        }
+        $payload['category_ids'] = array_values($category_ids);
+
+        $raw_result = isset($raw_payload['result']) && is_array($raw_payload['result'])
+            ? $raw_payload['result']
+            : [];
+        if ($mode === 'practice' && $raw_result !== []) {
+            $schema = $parse_integer($raw_result['schema'] ?? null);
+            $score_given = $parse_integer($raw_result['score_given'] ?? null);
+            $score_maximum = $parse_integer($raw_result['score_maximum'] ?? null);
+            $kind = isset($raw_result['kind']) && is_scalar($raw_result['kind'])
+                ? (string) $raw_result['kind']
+                : '';
+            $score_basis = isset($raw_result['score_basis']) && is_scalar($raw_result['score_basis'])
+                ? (string) $raw_result['score_basis']
+                : '';
+            $score_limit = ll_tools_user_progress_practice_result_score_limit();
+            if (
+                $schema === 1
+                && $kind === 'practice_first_try'
+                && $score_basis === 'first_try_distinct_words'
+                && $score_given !== null
+                && $score_maximum !== null
+                && $score_given >= 0
+                && $score_maximum > 0
+                && $score_given <= $score_maximum
+                && $score_maximum <= $score_limit
+            ) {
+                $payload['result'] = [
+                    'schema' => 1,
+                    'kind' => 'practice_first_try',
+                    'score_given' => $score_given,
+                    'score_maximum' => $score_maximum,
+                    'score_basis' => 'first_try_distinct_words',
+                ];
+            }
+        }
+        return $payload;
+    }
+
+    if ($event_type === 'stt_api_call') {
+        $copy_key('source');
+        $copy_key('provider');
+        $copy_key('target_field');
+        return $payload;
+    }
+
+    if (!in_array($event_type, ['word_exposure', 'word_outcome'], true)) {
+        return [];
+    }
+
+    $raw_prompt_card_id = $raw_payload['prompt_card_id'] ?? ($raw_payload['promptCardId'] ?? null);
+    $prompt_card_id = $parse_integer($raw_prompt_card_id);
+    if ($prompt_card_id !== null && $prompt_card_id > 0) {
+        $payload['prompt_card_id'] = $prompt_card_id;
+    }
+
+    if (array_key_exists('recording_type', $raw_payload) && is_scalar($raw_payload['recording_type'])) {
+        $recording_type = ll_tools_normalize_practice_recording_type_slug($raw_payload['recording_type']);
+        if ($recording_type !== '') {
+            $payload['recording_type'] = substr($recording_type, 0, 64);
+        }
+    }
+    if (isset($raw_payload['available_recording_types']) && is_array($raw_payload['available_recording_types'])) {
+        $recording_types = [];
+        foreach (array_slice($raw_payload['available_recording_types'], 0, 32) as $raw_recording_type) {
+            if (!is_scalar($raw_recording_type)) {
+                continue;
+            }
+            $recording_type = substr(ll_tools_normalize_practice_recording_type_slug($raw_recording_type), 0, 64);
+            if ($recording_type !== '') {
+                $recording_types[] = $recording_type;
+            }
+        }
+        $payload['available_recording_types'] = ll_tools_sort_practice_recording_types($recording_types);
+    }
+
+    foreach (['game_slug', 'event_source', 'speaking_target_field', 'sequence_direction', 'prompt_type'] as $key) {
+        $copy_key($key);
+    }
+    foreach (['sequence_length', 'tile_count'] as $key) {
+        $copy_integer($key);
+    }
+
+    if ($event_type === 'word_exposure') {
+        return $payload;
+    }
+
+    if (array_key_exists('audio_progress_ratio', $raw_payload)) {
+        $ratio = $bounded_number($raw_payload['audio_progress_ratio'], 0.0, 1.0);
+        if ($ratio !== null) {
+            $payload['audio_progress_ratio'] = $ratio;
+        }
+    }
+    foreach (['answered_before_audio_end', 'gender_dont_know', 'wrong_hit', 'timeout', 'needed_retry'] as $key) {
+        $copy_boolean($key);
+    }
+    foreach (['gender_answer_timing', 'self_check_confidence', 'self_check_result', 'self_check_bucket'] as $key) {
+        $copy_key($key);
+    }
+    $copy_text('self_check_group_key');
+    $copy_key('forced_prompt');
+    $copy_key('stack_end_reason');
+    $copy_text('sequence_category_name');
+    $copy_key('speaking_game_bucket');
+    $copy_key('stt_provider');
+    foreach (['self_check_group_size', 'sequence_category_id', 'sequence_attempts', 'moves'] as $key) {
+        $copy_integer($key);
+    }
+    if (array_key_exists('speaking_score', $raw_payload)) {
+        $speaking_score = $bounded_number($raw_payload['speaking_score'], 0.0, 100.0);
+        if ($speaking_score !== null) {
+            $payload['speaking_score'] = $speaking_score;
+        }
+    }
+
+    $raw_gender = isset($raw_payload['gender']) && is_array($raw_payload['gender'])
+        ? $raw_payload['gender']
+        : [];
+    $gender_keys = [
+        'level' => true,
+        'confidence' => true,
+        'intro_seen' => true,
+        'quick_correct_streak' => true,
+        'level1_passes' => true,
+        'level1_failures' => true,
+        'level2_correct' => true,
+        'level2_wrong' => true,
+        'level3_correct' => true,
+        'level3_wrong' => true,
+        'dont_know_count' => true,
+        'seen_total' => true,
+        'category_name' => true,
+        'last_seen_at' => true,
+        'updated_at' => true,
+        'updated_at_ms' => true,
+    ];
+    $recognized_gender = [];
+    foreach (array_keys($gender_keys) as $gender_key) {
+        if (array_key_exists($gender_key, $raw_gender)) {
+            $recognized_gender[$gender_key] = $raw_gender[$gender_key];
+        }
+    }
+    $gender_input = [];
+    if ($recognized_gender !== []) {
+        $level = $bounded_integer($recognized_gender['level'] ?? null, 1, 3);
+        if ($level !== null) {
+            $gender_input['level'] = $level;
+        }
+        $confidence = $bounded_integer($recognized_gender['confidence'] ?? null, -8, 12);
+        if ($confidence !== null) {
+            $gender_input['confidence'] = $confidence;
+        }
+        if (array_key_exists('intro_seen', $recognized_gender)) {
+            $intro_seen = $canonical_boolean($recognized_gender['intro_seen']);
+            if ($intro_seen !== null) {
+                $gender_input['intro_seen'] = $intro_seen;
+            }
+        }
+        foreach ([
+            'quick_correct_streak',
+            'level1_passes',
+            'level1_failures',
+            'level2_correct',
+            'level2_wrong',
+            'level3_correct',
+            'level3_wrong',
+            'dont_know_count',
+            'seen_total',
+        ] as $counter_key) {
+            $counter = $bounded_integer($recognized_gender[$counter_key] ?? null, 0, 1000000);
+            if ($counter !== null) {
+                $gender_input[$counter_key] = $counter;
+            }
+        }
+
+        $category_name = $bounded_text($recognized_gender['category_name'] ?? null, 191);
+        if ($category_name !== null) {
+            $gender_input['category_name'] = $category_name;
+        }
+        $last_seen_at = $bounded_text($recognized_gender['last_seen_at'] ?? null, 32);
+        if ($last_seen_at !== null) {
+            $gender_input['last_seen_at'] = $last_seen_at;
+        }
+        $raw_updated_at = $recognized_gender['updated_at'] ?? ($recognized_gender['updated_at_ms'] ?? null);
+        if (is_scalar($raw_updated_at) && !is_bool($raw_updated_at)) {
+            $updated_at = ll_tools_user_progress_datetime_to_millis($raw_updated_at);
+            if ($updated_at > 0) {
+                $gender_input['updated_at'] = min(4102444800000, $updated_at);
+            }
+        }
+    }
+    if ($gender_input !== []) {
+        // Preserve only the fields that were actually supplied and validated.
+        // Older first-party journals contain partial snapshots; the apply path
+        // merges these into the complete stored state instead of defaulting and
+        // overwriting absent counters.
+        $payload['gender'] = $gender_input;
+    }
+
+    return $payload;
+}
+
 function ll_tools_sanitize_progress_event(array $raw): ?array {
     $type = isset($raw['event_type']) ? (string) $raw['event_type'] : (string) ($raw['type'] ?? '');
     $type = strtolower(trim($type));
@@ -2792,87 +3149,28 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
     $had_wrong_before = filter_var(($raw['had_wrong_before'] ?? false), FILTER_VALIDATE_BOOLEAN);
 
-    $payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
-    if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
+    $raw_payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
+    if (!ll_tools_user_progress_event_payload_fits_budget($raw_payload)) {
         return null;
     }
-    if ($type === 'mode_session_complete') {
-        $payload['category_ids'] = array_slice(
-            array_values(array_unique(array_filter(
-                array_map('intval', isset($payload['category_ids']) && is_array($payload['category_ids']) ? $payload['category_ids'] : []),
-                static function (int $payload_category_id): bool {
-                    return $payload_category_id > 0;
-                }
-            ))),
-            0,
-            ll_tools_user_progress_session_category_limit()
-        );
-
-        // Result summaries are learner-submitted formative data. Keep one
-        // explicit versioned contract so teacher reports and future delivery
-        // adapters never have to trust arbitrary payload fields or a submitted
-        // percentage.
-        $raw_result = isset($payload['result']) && is_array($payload['result'])
-            ? $payload['result']
-            : [];
-        unset($payload['result']);
-        if ($mode === 'practice' && !empty($raw_result)) {
-            $parse_result_integer = static function ($value): ?int {
-                if (is_int($value)) {
-                    return $value;
-                }
-                if (is_float($value) && is_finite($value) && floor($value) === $value) {
-                    return (int) $value;
-                }
-                if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value)) {
-                    return (int) $value;
-                }
-                return null;
-            };
-            $schema = $parse_result_integer($raw_result['schema'] ?? null);
-            $score_given = $parse_result_integer($raw_result['score_given'] ?? null);
-            $score_maximum = $parse_result_integer($raw_result['score_maximum'] ?? null);
-            $score_limit = ll_tools_user_progress_practice_result_score_limit();
-            $kind = isset($raw_result['kind']) ? (string) $raw_result['kind'] : '';
-            $score_basis = isset($raw_result['score_basis']) ? (string) $raw_result['score_basis'] : '';
-
-            if (
-                $schema === 1
-                && $kind === 'practice_first_try'
-                && $score_basis === 'first_try_distinct_words'
-                && $score_given !== null
-                && $score_maximum !== null
-                && $score_given >= 0
-                && $score_maximum > 0
-                && $score_given <= $score_maximum
-                && $score_maximum <= $score_limit
-            ) {
-                $payload['result'] = [
-                    'schema' => 1,
-                    'kind' => 'practice_first_try',
-                    'score_given' => $score_given,
-                    'score_maximum' => $score_maximum,
-                    'score_basis' => 'first_try_distinct_words',
-                ];
-            }
-        }
+    $payload = ll_tools_build_progress_event_payload($type, $mode, $raw_payload);
+    $category_name = '';
+    if (isset($raw['category_name']) && is_scalar($raw['category_name'])) {
+        $category_name = sanitize_text_field((string) $raw['category_name']);
+        $category_name = function_exists('mb_substr')
+            ? mb_substr($category_name, 0, 191, 'UTF-8')
+            : substr($category_name, 0, 191);
     }
-    if ($type === 'category_study') {
-        $payload['units'] = max(
-            1,
-            min(
-                ll_tools_user_progress_category_study_units_limit(),
-                (int) ($payload['units'] ?? 1)
-            )
-        );
-    }
-    $category_name = isset($raw['category_name']) ? sanitize_text_field((string) $raw['category_name']) : '';
-    $device_id = isset($raw['device_id']) ? strtolower(trim((string) $raw['device_id'])) : '';
+    $device_id = isset($raw['device_id']) && is_scalar($raw['device_id'])
+        ? strtolower(trim((string) $raw['device_id']))
+        : '';
     $device_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $device_id), 0, 80);
-    $profile_id = isset($raw['profile_id']) ? strtolower(trim((string) $raw['profile_id'])) : '';
+    $profile_id = isset($raw['profile_id']) && is_scalar($raw['profile_id'])
+        ? strtolower(trim((string) $raw['profile_id']))
+        : '';
     $profile_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $profile_id), 0, 80);
     $client_created_at = '';
-    if (!empty($raw['client_created_at'])) {
+    if (!empty($raw['client_created_at']) && is_scalar($raw['client_created_at'])) {
         $timestamp = strtotime((string) $raw['client_created_at']);
         if ($timestamp && $timestamp > 946684800 && $timestamp < (time() + DAY_IN_SECONDS)) {
             $client_created_at = gmdate('Y-m-d H:i:s', $timestamp);
@@ -2883,10 +3181,10 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         ? ll_tools_user_progress_event_identity_storage_enabled()
         : false;
 
-    if ($store_client_identity && $device_id !== '' && !array_key_exists('device_id', $payload)) {
+    if ($store_client_identity && $device_id !== '') {
         $payload['device_id'] = $device_id;
     }
-    if ($store_client_identity && $profile_id !== '' && !array_key_exists('profile_id', $payload)) {
+    if ($store_client_identity && $profile_id !== '') {
         $payload['profile_id'] = $profile_id;
     }
 
@@ -2896,9 +3194,6 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
 
     $prompt_card_id = isset($payload['prompt_card_id']) ? max(0, (int) $payload['prompt_card_id']) : 0;
-    if ($prompt_card_id > 0) {
-        $payload['prompt_card_id'] = $prompt_card_id;
-    }
 
     if ($wordset_id <= 0 && $word_id > 0) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
@@ -3142,13 +3437,24 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
             ? ll_tools_user_progress_get_practice_audio_timing($payload)
             : ['ratio' => null, 'early' => false, 'very_fast' => false];
         if ($mode === 'gender' && !empty($payload['gender']) && is_array($payload['gender'])) {
-            $gender_state = ll_tools_user_progress_normalize_gender_state($payload['gender'], [
-                'level' => ll_tools_user_progress_normalize_gender_level($data['gender_level'] ?? 1),
-                'seen_total' => max(0, (int) ($data['gender_seen_total'] ?? 0)),
-                'category_name' => sanitize_text_field((string) ($event['category_name'] ?? '')),
-                'last_seen_at' => $now_mysql,
-                'updated_at' => ll_tools_user_progress_datetime_to_millis($now_mysql),
-            ]);
+            $gender_fallback = ll_tools_get_progress_row_gender_progress($data);
+            $gender_fallback['level'] = ll_tools_user_progress_normalize_gender_level(
+                $data['gender_level'] ?? ($gender_fallback['level'] ?? 1)
+            );
+            $gender_fallback['seen_total'] = max(
+                0,
+                (int) ($data['gender_seen_total'] ?? ($gender_fallback['seen_total'] ?? 0))
+            );
+            if (empty($gender_fallback['category_name'])) {
+                $gender_fallback['category_name'] = sanitize_text_field((string) ($event['category_name'] ?? ''));
+            }
+            if (empty($gender_fallback['last_seen_at'])) {
+                $gender_fallback['last_seen_at'] = $now_mysql;
+            }
+            if (empty($gender_fallback['updated_at'])) {
+                $gender_fallback['updated_at'] = ll_tools_user_progress_datetime_to_millis($now_mysql);
+            }
+            $gender_state = ll_tools_user_progress_normalize_gender_state($payload['gender'], $gender_fallback);
             $gender_state['last_seen_at'] = $now_mysql;
             if ($gender_state['category_name'] === '' && !empty($event['category_name'])) {
                 $gender_state['category_name'] = sanitize_text_field((string) $event['category_name']);
@@ -3754,7 +4060,14 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         }
 
         $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
-        $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        $raw_payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        if (!ll_tools_user_progress_event_payload_fits_budget($raw_payload)) {
+            return false;
+        }
+        $payload = ll_tools_build_progress_event_payload($event_type, $mode, $raw_payload);
+        if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
+            return false;
+        }
         $payload_json = !empty($payload) ? wp_json_encode($payload) : null;
         $event_uuid = sanitize_text_field(substr((string) ($event['event_uuid'] ?? ''), 0, 64));
         if ($event_uuid === '') {

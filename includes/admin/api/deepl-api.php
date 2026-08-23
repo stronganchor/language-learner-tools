@@ -147,25 +147,6 @@ function get_deepl_language_names($no_parentheses = false, $type = 'target') {
 }
 
 /**
- * Retrieves an associative array of language codes and their names from the DeepL API.
- *
- * Retained for compatibility with older admin snippets that need DeepL's
- * supported-language map. This is different from
- * ll_tools_get_deepl_language_codes(), which resolves a wordset's current
- * source/target translation pair.
- *
- * @return array|null An associative array with language codes as keys and names as values, or null on failure.
- */
-function get_deepl_language_codes() {
-    $json = get_deepl_language_json();
-    if ($json === null) {
-        return null;
-    }
-
-    return array_column($json, 'name', 'language');
-}
-
-/**
  * Retrieves the full language JSON from the DeepL API and caches it.
  *
  * @param string $type The type of languages to retrieve ('source' or 'target').
