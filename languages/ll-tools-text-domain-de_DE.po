@@ -12789,8 +12789,8 @@ msgstr "Quiz Inhalt"
 
 #: includes/pages/quiz-pages.php:1831
 #: includes/shortcodes/flashcard-widget.php:709
-msgid "Close this quiz? Your current progress in this popup will be lost."
-msgstr "Dieses Quiz schließen? Dein aktueller Fortschritt in diesem Popup geht verloren."
+msgid "Exit this activity? Completed rounds are saved, but this activity will restart."
+msgstr "Diese Aktivität verlassen? Abgeschlossene Runden werden gespeichert, aber diese Aktivität beginnt von vorn."
 
 #: includes/pages/quiz-pages.php:1893
 #: includes/pages/quiz-pages.php:2019

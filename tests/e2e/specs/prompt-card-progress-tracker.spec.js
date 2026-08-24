@@ -19,6 +19,124 @@ async function openStorageBackedPage(page) {
   await page.goto(storageTestUrl);
 }
 
+test('continuous answers flush within a bounded window without waiting for inactivity', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<!doctype html><html><body></body></html>');
+  const startedAt = new Date('2026-08-24T00:00:00Z');
+  await page.clock.install({ time: startedAt });
+  await page.clock.pauseAt(startedAt);
+  await page.evaluate(() => {
+    window.LLFlashcards = {};
+    window.llToolsFlashcardsData = {
+      runtimeMode: 'wp',
+      ajaxurl: '/wp-admin/admin-ajax.php',
+      userStudyNonce: 'bounded-sync-nonce',
+      isUserLoggedIn: true,
+      progressStorageScope: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      wordsetIds: [77]
+    };
+    window.llToolsStudyData = {};
+    window.__boundedProgressBatches = [];
+    window.jQuery = {
+      post(_url, payload) {
+        const batch = JSON.parse(payload.events);
+        const entry = {
+          requestedAt: Date.now(),
+          batch,
+          resolve: null
+        };
+        window.__boundedProgressBatches.push(entry);
+        const request = {
+          done(callback) {
+            entry.resolve = () => callback({
+              success: true,
+              data: {
+                stats: {
+                  received: batch.length,
+                  processed: batch.length,
+                  duplicates: 0,
+                  invalid: 0,
+                  failed: 0,
+                  failed_event_uuids: []
+                }
+              }
+            });
+            return request;
+          },
+          fail() {
+            return request;
+          }
+        };
+        return request;
+      }
+    };
+  });
+  await page.addScriptTag({ content: progressTrackerSource });
+
+  const queueOutcome = async (wordId) => page.evaluate((id) => {
+    window.LLFlashcards.ProgressTracker.trackWordOutcome({
+      mode: 'practice',
+      wordId: id,
+      categoryId: 12,
+      wordsetId: 77,
+      isCorrect: true,
+      flushDelay: 900
+    });
+  }, wordId);
+
+  await queueOutcome(101);
+  for (let wordId = 102; wordId <= 108; wordId += 1) {
+    await page.clock.runFor(700);
+    await queueOutcome(wordId);
+  }
+  await page.clock.runFor(99);
+
+  const beforeDeadline = await page.evaluate(() => ({
+    now: Date.now(),
+    requestedAt: window.__boundedProgressBatches.map(entry => entry.requestedAt)
+  }));
+  expect(beforeDeadline).toEqual({
+    now: new Date('2026-08-24T00:00:04.999Z').getTime(),
+    requestedAt: []
+  });
+  await page.clock.runFor(1);
+
+  const firstResult = await page.evaluate(() => ({
+    requestCount: window.__boundedProgressBatches.length,
+    requestedAt: window.__boundedProgressBatches[0]?.requestedAt || 0,
+    wordIds: (window.__boundedProgressBatches[0]?.batch || []).map(event => event.word_id)
+  }));
+  expect(firstResult).toEqual({
+    requestCount: 1,
+    requestedAt: new Date('2026-08-24T00:00:05.000Z').getTime(),
+    wordIds: [101, 102, 103, 104, 105, 106, 107, 108]
+  });
+  await page.evaluate(() => window.__boundedProgressBatches[0].resolve());
+
+  await queueOutcome(201);
+  await page.clock.runFor(899);
+  const beforeQuietPeriod = await page.evaluate(() => ({
+    now: Date.now(),
+    requestedAt: window.__boundedProgressBatches.map(entry => entry.requestedAt)
+  }));
+  expect(beforeQuietPeriod).toEqual({
+    now: new Date('2026-08-24T00:00:05.899Z').getTime(),
+    requestedAt: [new Date('2026-08-24T00:00:05.000Z').getTime()]
+  });
+  await page.clock.runFor(1);
+
+  const secondResult = await page.evaluate(() => ({
+    requestCount: window.__boundedProgressBatches.length,
+    requestedAt: window.__boundedProgressBatches[1]?.requestedAt || 0,
+    wordIds: (window.__boundedProgressBatches[1]?.batch || []).map(event => event.word_id)
+  }));
+  expect(secondResult).toEqual({
+    requestCount: 2,
+    requestedAt: new Date('2026-08-24T00:00:05.900Z').getTime(),
+    wordIds: [201]
+  });
+});
+
 test('progress tracker queues prompt-card-only events without a word progress id', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent('<!doctype html><html><body></body></html>');

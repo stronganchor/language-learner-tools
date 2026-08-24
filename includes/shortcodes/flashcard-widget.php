@@ -706,7 +706,7 @@ function ll_flashcards_get_messages(): array {
         'genderLevelThreeKeepMessage' => __('Keep practicing isolation-only to maintain speed.', 'll-tools-text-domain'),
         'genderLevelThreeFallbackTitle' => __('Level 3: Rebuild Confidence', 'll-tools-text-domain'),
         'genderLevelThreeFallbackMessage' => __('Some words need context support again.', 'll-tools-text-domain'),
-        'closeQuizConfirm'        => __('Close this quiz? Your current progress in this popup will be lost.', 'll-tools-text-domain'),
+        'closeQuizConfirm'        => __('Exit this activity? Completed rounds are saved, but this activity will restart.', 'll-tools-text-domain'),
 
         // Error messages
         'loadingError'            => __('Something went wrong', 'll-tools-text-domain'),

@@ -1206,6 +1206,49 @@ test('progress summary counts stay blank while initial analytics loads', async (
   await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['3', '6', '11', '4', '2']);
 });
 
+test('acknowledged progress refreshes before an activity closes', async ({ page }) => {
+  await mountProgressPage(page);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(1);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(0, payload);
+  }, buildAnalytics({
+    totalWords: 20,
+    masteredWords: 2,
+    studiedWords: 7,
+    newWords: 13
+  }));
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['2', '5', '13', '0', '0']);
+
+  await page.evaluate(() => {
+    document.body.classList.add('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-opened', [{ mode: 'practice' }]);
+    window.jQuery(document).trigger('lltools:progress-updated', [{
+      stats: { received: 1, processed: 1 }
+    }]);
+  });
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
+  }).toBe(2);
+  await expect(page.locator('body')).toHaveClass(/ll-tools-flashcard-open/);
+
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({
+    totalWords: 20,
+    masteredWords: 4,
+    studiedWords: 10,
+    newWords: 10
+  }));
+
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['4', '6', '10', '0', '0']);
+  await expect(page.locator('body')).toHaveClass(/ll-tools-flashcard-open/);
+});
+
 test('progress graph and tables preview their loaded shape while initial analytics loads', async ({ page }) => {
   await mountProgressPage(page, {
     config: {

@@ -10,7 +10,7 @@
     var labelCfg = (quizCfg.labels && typeof quizCfg.labels === 'object') ? quizCfg.labels : {};
     var defaultQuizTitle = labelCfg.defaultTitle || 'Quiz';
     var closeLabel = labelCfg.closeLabel || 'Close';
-    var closeConfirm = labelCfg.closeConfirm || 'Close this quiz? Your current progress in this popup will be lost.';
+    var closeConfirm = labelCfg.closeConfirm || 'Exit this activity? Completed rounds are saved, but this activity will restart.';
     var iframeTitle = labelCfg.iframeTitle || 'Quiz Content';
     var loadingLabel = labelCfg.loadingLabel || 'Loading quiz...';
     var readyLabel = labelCfg.readyLabel || 'Quiz ready.';

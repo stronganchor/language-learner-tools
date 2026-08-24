@@ -997,10 +997,10 @@ msgstr "닫기"
 msgid "Quiz Content"
 msgstr "퀴즈 내용"
 
-#. ll-tools-public-key: 13aa63fe791a0b1d64fbf22989f8bf4070d2b3a3
-#: includes/pages/quiz-pages.php:1836 includes/shortcodes/flashcard-widget.php:693
-msgid "Close this quiz? Your current progress in this popup will be lost."
-msgstr "이 퀴즈를 닫으시겠습니까? 이 팝업의 현재 진행 상황이 손실됩니다."
+#. ll-tools-public-key: 12d8c48eb31bd54b2fb420842ac2f22c10542fcc
+#: includes/pages/quiz-pages.php:1831 includes/shortcodes/flashcard-widget.php:709
+msgid "Exit this activity? Completed rounds are saved, but this activity will restart."
+msgstr "이 활동에서 나가시겠습니까? 완료한 라운드는 저장되지만, 이 활동은 처음부터 다시 시작됩니다."
 
 #. ll-tools-public-key: 898d87817af54de72c595a6cc15fd8fa6b7b1e35
 #: includes/pages/quiz-pages.php:519

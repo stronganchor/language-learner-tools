@@ -15433,8 +15433,8 @@ msgstr "Yeni bir sözlük sayfası mı oluşturacaksınız?"
 
 #: includes/pages/quiz-pages.php:1831
 #: includes/shortcodes/flashcard-widget.php:709
-msgid "Close this quiz? Your current progress in this popup will be lost."
-msgstr "Bu quiz kapatılsın mı? Bu açılır penceredeki mevcut ilerlemen kaybolacak."
+msgid "Exit this activity? Completed rounds are saved, but this activity will restart."
+msgstr "Bu etkinlikten çıkmak istiyor musun? Tamamlanan turlar kaydedilir, ancak etkinlik yeniden başlayacak."
 
 #: includes/pages/site-tools-page.php:16
 #: includes/pages/wordset-pages.php:13866

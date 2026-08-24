@@ -412,7 +412,7 @@
             ? root.llToolsFlashcardsMessages
             : {};
         const raw = messages.closeQuizConfirm || messages.close_quiz_confirm;
-        return String(raw || 'Close this quiz? Your current progress in this popup will be lost.');
+        return String(raw || 'Exit this activity? Completed rounds are saved, but this activity will restart.');
     }
 
     function getMessage(key, fallback) {

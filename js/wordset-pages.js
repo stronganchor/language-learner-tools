@@ -20149,11 +20149,12 @@
 
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
             invalidateProgressWordIdsSnapshot();
-            if (isFlashcardOpen) {
-                deferProgressAnalyticsRefreshUntilClose({ silent: true });
-                return;
-            }
-            scheduleProgressAnalyticsRefresh(220, { silent: true });
+            // Server-acknowledged rounds should update the Progress view even
+            // when its activity modal is still open above the page.
+            scheduleProgressAnalyticsRefresh(220, {
+                silent: true,
+                allowWhileFlashcardOpen: true
+            });
         });
 
         const hasBootstrapAnalytics = (Array.isArray(analytics.words) && analytics.words.length > 0)
