@@ -5981,14 +5981,14 @@ msgstr "Gespeichert."
 #: includes/pages/wordset-pages.php:25590
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:12865
-#: includes/user-progress.php:12891
-#: includes/user-progress.php:12964
-#: includes/user-progress.php:13040
-#: includes/user-progress.php:13105
-#: includes/user-progress.php:13129
-#: includes/user-progress.php:13246
-#: includes/user-progress.php:13418
+#: includes/user-progress.php:12862
+#: includes/user-progress.php:12888
+#: includes/user-progress.php:12961
+#: includes/user-progress.php:13037
+#: includes/user-progress.php:13102
+#: includes/user-progress.php:13126
+#: includes/user-progress.php:13243
+#: includes/user-progress.php:13415
 msgid "Something went wrong. Please try again."
 msgstr "Etwas ist schief gelaufen. Bitte versuche es noch einmal."
 
@@ -13040,12 +13040,12 @@ msgstr "Fehlende Lektion."
 #: includes/shortcodes/quiz-pages-shortcodes.php:1862
 #: includes/shortcodes/quiz-pages-shortcodes.php:1890
 #: includes/user-progress.php:1807
-#: includes/user-progress.php:12814
-#: includes/user-progress.php:13273
-#: includes/user-progress.php:13283
-#: includes/user-progress.php:13305
+#: includes/user-progress.php:12811
+#: includes/user-progress.php:13270
+#: includes/user-progress.php:13280
+#: includes/user-progress.php:13302
+#: includes/user-progress.php:13311
 #: includes/user-progress.php:13314
-#: includes/user-progress.php:13317
 msgid "Invalid request."
 msgstr "Ungültige Anfrage."
 
@@ -14067,13 +14067,13 @@ msgstr "Zu viele Sprechversuche in kurzer Zeit. Bitte warte ein paar Minuten und
 
 #: includes/pages/wordset-games.php:6126
 #: includes/pages/wordset-games.php:6399
-#: includes/user-progress.php:11283
-#: includes/user-progress.php:11324
-#: includes/user-progress.php:11342
-#: includes/user-progress.php:11479
-#: includes/user-progress.php:11503
-#: includes/user-progress.php:13264
-#: includes/user-progress.php:13350
+#: includes/user-progress.php:11280
+#: includes/user-progress.php:11321
+#: includes/user-progress.php:11339
+#: includes/user-progress.php:11476
+#: includes/user-progress.php:11500
+#: includes/user-progress.php:13261
+#: includes/user-progress.php:13347
 #: includes/user-study.php:1369
 #: includes/user-study.php:1407
 #: includes/user-study.php:1471
@@ -17107,18 +17107,18 @@ msgid "Unable to save right now."
 msgstr "Kann im Moment nicht speichern."
 
 #: includes/pages/wordset-pages.php:25582
-#: includes/user-progress.php:12834
+#: includes/user-progress.php:12831
 msgid "Select at least one category."
 msgstr "Wähle mindestens eine Kategorie aus."
 
 #: includes/pages/wordset-pages.php:25583
-#: includes/user-progress.php:12035
-#: includes/user-progress.php:12445
-#: includes/user-progress.php:12849
-#: includes/user-progress.php:12878
-#: includes/user-progress.php:12907
-#: includes/user-progress.php:13116
-#: includes/user-progress.php:13197
+#: includes/user-progress.php:12032
+#: includes/user-progress.php:12442
+#: includes/user-progress.php:12846
+#: includes/user-progress.php:12875
+#: includes/user-progress.php:12904
+#: includes/user-progress.php:13113
+#: includes/user-progress.php:13194
 msgid "No quiz words are available for this selection."
 msgstr "Für diese Auswahl sind keine Vokabeln für Quiz verfügbar."
 
@@ -27631,9 +27631,9 @@ msgstr "Der Fortschritt für diese Lektion kann nicht aktualisiert werden."
 #: includes/content-lesson-progress.php:486
 #: includes/pages/content-lesson-pages.php:1297
 #: includes/shortcodes/content-lesson-index-shortcode.php:390
-#: includes/user-progress.php:3791
-#: includes/user-progress.php:3817
-#: includes/user-progress.php:4013
+#: includes/user-progress.php:3788
+#: includes/user-progress.php:3814
+#: includes/user-progress.php:4010
 msgid "Lesson progress could not be saved."
 msgstr "Der Lernfortschritt konnte nicht gespeichert werden."
 
