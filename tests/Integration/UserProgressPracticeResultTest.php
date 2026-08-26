@@ -164,7 +164,7 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
             'non-string payload' => ['result' => $this->canonicalResult(7, 10)],
             'empty payload' => '',
             'malformed JSON' => '{',
-            'oversized payload' => str_repeat('x', (64 * 1024) + 1),
+            'oversized payload' => str_repeat('x', (16 * 1024) + 1),
             'missing result' => wp_json_encode(['category_ids' => [17]]),
             'non-array result' => wp_json_encode(['result' => '7/10']),
             'wrong schema type' => wp_json_encode(['result' => array_merge($this->canonicalResult(7, 10), ['schema' => '1'])]),
@@ -187,6 +187,38 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
                 $label
             );
         }
+    }
+
+    public function test_report_keeps_a_canonical_result_with_one_thousand_ten_digit_category_ids(): void
+    {
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordsetId = $this->createWordset('Large Category Practice Result');
+        $createdAt = gmdate('Y-m-d H:i:s', time() - HOUR_IN_SECONDS);
+        $categoryIds = range(1000000000, 1000000999);
+        $payload = [
+            'category_ids' => $categoryIds,
+            'result' => $this->canonicalResult(87, 100),
+        ];
+        $payloadJson = wp_json_encode($payload);
+
+        $this->assertIsString($payloadJson);
+        $this->assertLessThanOrEqual(16 * 1024, strlen($payloadJson));
+        $eventId = $this->insertProgressEvent(
+            $learnerId,
+            $wordsetId,
+            'mode_session_complete',
+            'practice',
+            $payload,
+            $createdAt
+        );
+
+        $summaries = ll_tools_user_progress_report_practice_results_for_users([$learnerId], $wordsetId);
+
+        $this->assertFalse((bool) ($summaries[$learnerId]['query_failed'] ?? true));
+        $this->assertSame(1, (int) ($summaries[$learnerId]['attempts_30d'] ?? 0));
+        $this->assertSame($eventId, (int) ($summaries[$learnerId]['latest_result']['event_id'] ?? 0));
+        $this->assertSame(87, (int) ($summaries[$learnerId]['latest_result']['score_given'] ?? 0));
+        $this->assertSame(100, (int) ($summaries[$learnerId]['latest_result']['score_maximum'] ?? 0));
     }
 
     public function test_report_selects_latest_valid_result_and_counts_recent_attempts_with_exact_scope(): void
@@ -335,6 +367,7 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
         $this->assertNotSame('', (string) ($row['wordset_name'] ?? ''));
         $this->assertSame(1, (int) ($row['practice_attempts_30d'] ?? -1));
         $this->assertFalse((bool) ($row['practice_attempts_30d_truncated'] ?? true));
+        $this->assertFalse((bool) ($row['practice_query_failed'] ?? true));
         $this->assertSame([
             'schema' => 1,
             'kind' => 'practice_first_try',
@@ -349,6 +382,7 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
         $display = ll_tools_teacher_class_practice_result_display_data($row);
         $this->assertSame(1, $display['attempts_30d'] ?? null);
         $this->assertSame(number_format_i18n(1), $display['attempts_30d_label'] ?? null);
+        $this->assertSame('1', $display['attempts_sort_value'] ?? null);
         $this->assertSame('77.8', $display['sort_value'] ?? null);
         $this->assertStringContainsString('7 / 9', (string) ($display['score_label'] ?? ''));
         $this->assertStringContainsString('77.8%', (string) ($display['score_label'] ?? ''));
@@ -358,6 +392,7 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
         $emptyDisplay = ll_tools_teacher_class_practice_result_display_data([]);
         $this->assertSame('', $emptyDisplay['score_label'] ?? null);
         $this->assertSame(number_format_i18n(0), $emptyDisplay['attempts_30d_label'] ?? null);
+        $this->assertSame('0', $emptyDisplay['attempts_sort_value'] ?? null);
 
         $truncatedDisplay = ll_tools_teacher_class_practice_result_display_data([
             'practice_attempts_30d' => 25,
@@ -399,6 +434,158 @@ final class UserProgressPracticeResultTest extends LL_Tools_TestCase
             'practice_attempts_30d_truncated' => $summaries[$learnerId]['attempts_30d_truncated'] ?? false,
         ]);
         $this->assertSame('25+', $display['attempts_30d_label'] ?? null);
+    }
+
+    public function test_practice_report_batches_queries_with_per_user_and_payload_bounds(): void
+    {
+        global $wpdb;
+
+        $wordsetId = $this->createWordset('Batched Practice Result Queries');
+        $learnerIds = [];
+        for ($index = 0; $index < 5; $index++) {
+            $learnerIds[] = self::factory()->user->create(['role' => 'subscriber']);
+        }
+
+        $eventsTable = ll_tools_user_progress_table_names()['events'];
+        $queries = [];
+        $capture = static function (string $query) use (&$queries, $eventsTable): string {
+            if (strpos($query, "FROM {$eventsTable}") !== false && strpos($query, 'mode_session_complete') !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+        $batchSize = static function (): int {
+            return 2;
+        };
+
+        add_filter('query', $capture);
+        add_filter('ll_tools_user_progress_report_practice_result_query_batch_size', $batchSize);
+        try {
+            $summaries = ll_tools_user_progress_report_practice_results_for_users($learnerIds, $wordsetId);
+        } finally {
+            remove_filter('ll_tools_user_progress_report_practice_result_query_batch_size', $batchSize);
+            remove_filter('query', $capture);
+        }
+
+        $this->assertCount(5, $summaries);
+        $this->assertCount(3, $queries);
+        foreach ($queries as $query) {
+            $this->assertLessThanOrEqual(1, substr_count($query, 'UNION ALL'));
+            $this->assertStringContainsString('OCTET_LENGTH(payload_json) <= 16384', $query);
+            $this->assertStringContainsString('LIMIT 501', $query);
+        }
+    }
+
+    public function test_practice_report_reduces_a_deep_scan_to_one_learner_per_query(): void
+    {
+        $wordsetId = $this->createWordset('Memory-Bounded Practice Result Queries');
+        $learnerIds = [];
+        for ($index = 0; $index < 3; $index++) {
+            $learnerIds[] = self::factory()->user->create(['role' => 'subscriber']);
+        }
+
+        $eventsTable = ll_tools_user_progress_table_names()['events'];
+        $queries = [];
+        $capture = static function (string $query) use (&$queries, $eventsTable): string {
+            if (strpos($query, "FROM {$eventsTable}") !== false && strpos($query, 'mode_session_complete') !== false) {
+                $queries[] = $query;
+            }
+            return $query;
+        };
+        $scanLimit = static function (): int {
+            return 1000;
+        };
+        $configuredBatchSize = static function (): int {
+            return 5;
+        };
+
+        add_filter('query', $capture);
+        add_filter('ll_tools_user_progress_report_practice_result_scan_limit', $scanLimit);
+        add_filter('ll_tools_user_progress_report_practice_result_query_batch_size', $configuredBatchSize);
+        try {
+            $summaries = ll_tools_user_progress_report_practice_results_for_users($learnerIds, $wordsetId);
+        } finally {
+            remove_filter('ll_tools_user_progress_report_practice_result_query_batch_size', $configuredBatchSize);
+            remove_filter('ll_tools_user_progress_report_practice_result_scan_limit', $scanLimit);
+            remove_filter('query', $capture);
+        }
+
+        $this->assertCount(3, $summaries);
+        $this->assertCount(3, $queries);
+        foreach ($queries as $query) {
+            $this->assertStringNotContainsString('UNION ALL', $query);
+            $this->assertStringContainsString('OCTET_LENGTH(payload_json) <= 16384', $query);
+            $this->assertStringContainsString('LIMIT 1001', $query);
+        }
+    }
+
+    public function test_practice_report_marks_query_failure_without_exposing_database_diagnostics(): void
+    {
+        global $wpdb;
+
+        $wordsetId = $this->createWordset('Failed Practice Result Query');
+        $learnerIds = [
+            self::factory()->user->create(['role' => 'subscriber']),
+            self::factory()->user->create(['role' => 'subscriber']),
+        ];
+        $eventsTable = ll_tools_user_progress_table_names()['events'];
+        $failReportQuery = static function (string $query) use ($eventsTable): string {
+            if (strpos($query, "FROM {$eventsTable}") !== false && strpos($query, 'OCTET_LENGTH(payload_json)') !== false) {
+                return "SELECT ll_tools_missing_column FROM {$eventsTable}";
+            }
+            return $query;
+        };
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+
+        add_filter('query', $failReportQuery);
+        try {
+            $failedSummaries = ll_tools_user_progress_report_practice_results_for_users($learnerIds, $wordsetId);
+        } finally {
+            remove_filter('query', $failReportQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+        }
+
+        foreach ($learnerIds as $learnerId) {
+            $this->assertTrue((bool) ($failedSummaries[$learnerId]['query_failed'] ?? false));
+            $this->assertNull($failedSummaries[$learnerId]['latest_result'] ?? null);
+            $this->assertSame(0, (int) ($failedSummaries[$learnerId]['attempts_30d'] ?? -1));
+            $this->assertArrayNotHasKey('query_error', $failedSummaries[$learnerId]);
+        }
+
+        $emptySummaries = ll_tools_user_progress_report_practice_results_for_users($learnerIds, $wordsetId);
+        foreach ($learnerIds as $learnerId) {
+            $this->assertFalse((bool) ($emptySummaries[$learnerId]['query_failed'] ?? true));
+        }
+
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failReportQuery);
+        try {
+            $studentRows = ll_tools_teacher_class_student_progress_rows($learnerIds, $wordsetId);
+        } finally {
+            remove_filter('query', $failReportQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+        }
+
+        $this->assertCount(2, $studentRows);
+        foreach ($studentRows as $studentRow) {
+            $this->assertTrue((bool) ($studentRow['practice_query_failed'] ?? false));
+            $this->assertNull($studentRow['latest_practice_result'] ?? null);
+            $this->assertSame(0, (int) ($studentRow['practice_attempts_30d'] ?? -1));
+        }
+
+        $unavailableDisplay = ll_tools_teacher_class_practice_result_display_data($studentRows[0]);
+        $this->assertTrue((bool) ($unavailableDisplay['query_failed'] ?? false));
+        $this->assertSame('', $unavailableDisplay['sort_value'] ?? null);
+        $this->assertSame('', $unavailableDisplay['attempts_sort_value'] ?? null);
+        $this->assertSame(__('Unavailable', 'll-tools-text-domain'), $unavailableDisplay['attempts_30d_label'] ?? null);
+
+        ob_start();
+        ll_tools_teacher_class_render_frontend_practice_cells($studentRows[0]);
+        $unavailableHtml = (string) ob_get_clean();
+        $this->assertSame(2, substr_count($unavailableHtml, 'data-sort-value=""'));
+        $this->assertSame(2, substr_count($unavailableHtml, '>Unavailable</span>'));
+        $this->assertSame(2, substr_count($unavailableHtml, 'aria-label="Practice data is temporarily unavailable."'));
+        $this->assertStringNotContainsString('No practice result', $unavailableHtml);
     }
 
     public function test_frontend_class_view_limits_practice_results_to_the_owned_class_and_wordset(): void

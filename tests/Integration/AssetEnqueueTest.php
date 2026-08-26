@@ -69,6 +69,10 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertIsString($localized);
         $this->assertStringContainsString('llQuizPages', $localized);
         $this->assertStringContainsString('closeConfirm', $localized);
+        $this->assertStringContainsString(
+            'Exit this activity? Completed rounds are saved, but this activity will restart.',
+            $localized
+        );
         $this->assertStringContainsString('loadTimeoutLabel', $localized);
         $this->assertStringContainsString('openDirectLabel', $localized);
     }

@@ -191,7 +191,8 @@
     font-size: 13px;
 }
 
-.ll-content-lesson-progress-status[data-state="error"] {
+.ll-content-lesson-progress-status[data-state="error"],
+.ll-content-lesson-progress-status[data-state="timeout"] {
     color: #9f241d;
 }
 

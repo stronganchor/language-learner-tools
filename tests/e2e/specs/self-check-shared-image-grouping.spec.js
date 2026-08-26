@@ -19,6 +19,10 @@ const selfCheckModeSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/modes/self-check.js'),
   'utf8'
 );
+const mainSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/main.js'),
+  'utf8'
+);
 
 test('option conflicts compare bounded image hashes while preserving exact-image blocking', async ({ page }) => {
   await page.goto('about:blank');
@@ -97,13 +101,22 @@ function buildHarnessMarkup() {
   `;
 }
 
-async function mountSelfCheckHarness(page) {
+async function mountSelfCheckHarness(page, options = {}) {
+  const bootstrap = {
+    initialWordIds: Array.isArray(options.initialWordIds)
+      ? options.initialWordIds.map((value) => Number(value) || 0).filter(Boolean)
+      : [201, 202, 203],
+    initialTargetId: Number(options.initialTargetId || 201),
+    logicalSessionTotal: Math.max(0, Number(options.logicalSessionTotal) || 0),
+    widgetActive: !!options.widgetActive
+  };
+
   await page.goto('about:blank');
   await page.setContent(buildHarnessMarkup());
   await page.addScriptTag({ content: jquerySource });
   await page.addScriptTag({ content: stateSource });
 
-  await page.evaluate(() => {
+  await page.evaluate((setup) => {
     window.__playedAudioUrls = [];
 
     window.Audio = function AudioStub(url) {
@@ -182,9 +195,12 @@ async function mountSelfCheckHarness(page) {
         wordset_id: 41
       }
     };
+    if (setup.logicalSessionTotal > 0) {
+      window.llToolsFlashcardsData.logicalSessionTotal = setup.logicalSessionTotal;
+    }
 
     const sharedImage = 'https://images.test/family-photo.jpg?lltools-img=500';
-    const words = [
+    const allWords = [
       {
         id: 201,
         title: 'mother',
@@ -218,6 +234,16 @@ async function mountSelfCheckHarness(page) {
         __categoryName: 'Family'
       }
     ];
+    const initialWordLookup = {};
+    setup.initialWordIds.forEach((wordId) => {
+      initialWordLookup[Number(wordId)] = true;
+    });
+    const words = allWords.filter((word) => initialWordLookup[Number(word.id)]);
+    window.__selfCheckAllWords = allWords;
+    window.__selfCheckTargetId = setup.initialTargetId;
+    window.__selfCheckContinueAccepted = false;
+    window.__selfCheckContinuationCalls = 0;
+    window.__resultsShown = false;
 
     window.LLFlashcards = window.LLFlashcards || {};
     window.LLFlashcards.Dom = {
@@ -236,7 +262,17 @@ async function mountSelfCheckHarness(page) {
     };
     window.LLFlashcards.Selection = {
       selectTargetWordAndCategory() {
-        return words[0];
+        const targetId = Number(window.__selfCheckTargetId) || 0;
+        const wordsByCategory = window.LLFlashcards.State.wordsByCategory || {};
+        for (const categoryWords of Object.values(wordsByCategory)) {
+          const target = Array.isArray(categoryWords)
+            ? categoryWords.find((word) => Number(word && word.id) === targetId)
+            : null;
+          if (target) {
+            return target;
+          }
+        }
+        return null;
       },
       getTargetCategoryName(word) {
         return (word && word.__categoryName) || 'Family';
@@ -268,7 +304,7 @@ async function mountSelfCheckHarness(page) {
     window.LLFlashcards.State.quizResults = { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
     window.LLFlashcards.State.currentCategoryRoundCount = 0;
     window.LLFlashcards.State.isFirstRound = true;
-    window.LLFlashcards.State.widgetActive = false;
+    window.LLFlashcards.State.widgetActive = setup.widgetActive;
     window.LLFlashcards.State.transitionTo = function transitionTo() {};
     window.LLFlashcards.State.forceTransitionTo = function forceTransitionTo() {};
 
@@ -281,9 +317,13 @@ async function mountSelfCheckHarness(page) {
       },
       startQuizRound() {
         window.__startQuizRoundCalls = (window.__startQuizRoundCalls || 0) + 1;
+      },
+      tryContinueLogicalSession() {
+        window.__selfCheckContinuationCalls += 1;
+        return !!window.__selfCheckContinueAccepted;
       }
     };
-  });
+  }, bootstrap);
 
   await page.addScriptTag({ content: optionConflictsSource });
   await page.addScriptTag({ content: selfCheckSharedSource });
@@ -336,4 +376,151 @@ test('self-check groups words that share one image into a single review card', a
   expect(summary.wordAttempts['201']).toMatchObject({ seen: 1, clean: 1, hadWrong: false });
   expect(summary.wordAttempts['202']).toMatchObject({ seen: 1, clean: 1, hadWrong: false });
   expect(Object.keys(summary.roundAttempts)).toHaveLength(1);
+});
+
+test('self-check continues bounded chunks without resetting scores or replaying a shared-image word', async ({ page }) => {
+  await mountSelfCheckHarness(page, {
+    initialWordIds: [201],
+    initialTargetId: 201,
+    logicalSessionTotal: 2,
+    widgetActive: true
+  });
+
+  await expect(page.locator('.ll-study-check-progress')).toHaveText('1 / 2');
+  await expect(page.locator('.ll-study-check-face--back .ll-study-check-image img')).toHaveAttribute('alt', 'mother');
+  await page.locator('.ll-study-check-btn--think').click();
+  await expect(page.locator('.ll-study-check-btn--right')).toBeEnabled();
+  await page.locator('.ll-study-check-btn--right').click();
+
+  const continuationOutcome = await page.evaluate(() => {
+    window.__selfCheckTargetId = 0;
+    window.__selfCheckContinueAccepted = true;
+    window.LLFlashcards.Modes.SelfCheck.runRound(window.__selfCheckCtx);
+    return {
+      continuationCalls: window.__selfCheckContinuationCalls,
+      resultsShown: window.__resultsShown
+    };
+  });
+  expect(continuationOutcome).toEqual({ continuationCalls: 1, resultsShown: false });
+
+  await page.evaluate(() => {
+    const State = window.LLFlashcards.State;
+    const noop = function noop() {};
+    window.LLFlashcards.Effects = window.LLFlashcards.Effects || {};
+    window.LLFlashcards.Cards = window.LLFlashcards.Cards || {};
+    window.LLFlashcards.StateMachine = window.LLFlashcards.StateMachine || {};
+    window.LLFlashcards.ModeConfig = window.LLFlashcards.ModeConfig || {};
+    window.LLFlashcards.Dom.restoreHeaderUI = noop;
+    window.LLFlashcards.Dom.clearRepeatButtonBinding = noop;
+    window.LLFlashcards.Dom.showLoading = noop;
+    window.LLFlashcards.Results.hideResults = noop;
+    window.FlashcardAudio = {
+      initializeAudio: noop,
+      pauseAllAudio: noop,
+      getCurrentSessionId() { return 0; },
+      getCorrectAudioURL() { return ''; },
+      getWrongAudioURL() { return ''; },
+      setTargetWordAudio: noop,
+      suspendPlayback: noop
+    };
+    window.FlashcardOptions = { initializeOptionsCount: noop };
+    window.FlashcardLoader = {
+      loadAudio: noop,
+      async consumeBoundedPreloadedCategoryData(names) {
+        const priorWord = Object.assign({}, window.__selfCheckAllWords.find((word) => Number(word.id) === 201));
+        const nextWord = Object.assign({}, window.__selfCheckAllWords.find((word) => Number(word.id) === 202));
+        State.wordsByCategory.Family = [priorWord, nextWord];
+        window.wordsByCategory = State.wordsByCategory;
+        return {
+          success: true,
+          categories: names.slice(),
+          sessionWordIds: [202]
+        };
+      }
+    };
+    window.llToolsFlashcardsData.sessionWordIds = [202];
+    window.__LLFlashcardsMainLoaded = false;
+    window.__selfCheckMainLoadErrors = [];
+    window.addEventListener('error', (event) => {
+      window.__selfCheckMainLoadErrors.push(String((event && event.error && event.error.stack) || event.message || 'unknown'));
+    });
+  });
+  await page.addScriptTag({ content: mainSource });
+
+  const mainLoadState = await page.evaluate(() => ({
+    mainType: typeof (window.LLFlashcards && window.LLFlashcards.Main),
+    errors: window.__selfCheckMainLoadErrors.slice()
+  }));
+  expect(mainLoadState).toEqual({ mainType: 'object', errors: [] });
+
+  const appendOutcome = await page.evaluate(async () => {
+    const State = window.LLFlashcards.State;
+    const quizResults = State.quizResults;
+    const usedWordIDs = State.usedWordIDs;
+    const selfCheck = window.LLFlashcards.Modes.SelfCheck;
+    const originalAppend = selfCheck.appendBoundedSelectionChunk;
+    window.__selfCheckAppendCalls = 0;
+    selfCheck.appendBoundedSelectionChunk = function appendBoundedSelectionChunk(names) {
+      window.__selfCheckAppendCalls += 1;
+      return originalAppend(names);
+    };
+
+    const result = await window.LLFlashcards.Main.appendBoundedSelectionChunk(['Family']);
+    return {
+      result,
+      appendCalls: window.__selfCheckAppendCalls,
+      quizResultsSameReference: State.quizResults === quizResults,
+      usedWordIDsSameReference: State.usedWordIDs === usedWordIDs,
+      totalWordCount: State.totalWordCount,
+      activeWordIds: State.currentCategory.map((word) => Number(word.id))
+    };
+  });
+
+  expect(appendOutcome).toEqual({
+    result: {
+      success: true,
+      categories: ['Family'],
+      sessionWordIds: [202]
+    },
+    appendCalls: 1,
+    quizResultsSameReference: true,
+    usedWordIDsSameReference: true,
+    totalWordCount: 2,
+    activeWordIds: [201, 202]
+  });
+
+  await page.evaluate(() => {
+    window.__selfCheckTargetId = 202;
+    window.__selfCheckContinueAccepted = false;
+    window.LLFlashcards.Modes.SelfCheck.runRound(window.__selfCheckCtx);
+  });
+
+  await expect(page.locator('.ll-study-check-progress')).toHaveText('2 / 2');
+  await expect(page.locator('.ll-study-check-face--back .ll-study-check-answer-item')).toHaveCount(0);
+  await expect(page.locator('.ll-study-check-face--back .ll-study-check-image img')).toHaveAttribute('alt', 'father');
+  await page.locator('.ll-study-check-btn--think').click();
+  await expect(page.locator('.ll-study-check-btn--right')).toBeEnabled();
+  await page.locator('.ll-study-check-btn--right').click();
+
+  const finalOutcome = await page.evaluate(() => {
+    window.__selfCheckTargetId = 0;
+    window.LLFlashcards.Modes.SelfCheck.runRound(window.__selfCheckCtx);
+    const results = window.LLFlashcards.State.quizResults || {};
+    return {
+      continuationCalls: window.__selfCheckContinuationCalls,
+      resultsShown: window.__resultsShown,
+      correctOnFirstTry: results.correctOnFirstTry,
+      incorrect: results.incorrect,
+      wordAttempts: results.wordAttempts,
+      usedWordIDs: window.LLFlashcards.State.usedWordIDs.slice().sort((a, b) => a - b)
+    };
+  });
+
+  expect(finalOutcome.continuationCalls).toBe(2);
+  expect(finalOutcome.resultsShown).toBe(true);
+  expect(finalOutcome.correctOnFirstTry).toBe(2);
+  expect(finalOutcome.incorrect).toEqual([]);
+  expect(finalOutcome.wordAttempts['201']).toMatchObject({ seen: 1, clean: 1, hadWrong: false });
+  expect(finalOutcome.wordAttempts['202']).toMatchObject({ seen: 1, clean: 1, hadWrong: false });
+  expect(finalOutcome.usedWordIDs).toEqual([201, 202]);
 });

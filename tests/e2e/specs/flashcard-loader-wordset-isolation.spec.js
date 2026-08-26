@@ -1050,7 +1050,7 @@ test('incomplete bounded category handoff rejects before any AJAX fallback', asy
   expect(result.ajaxCount).toBe(0);
 });
 
-test('target-only bounded category handoff rejects atomically before quiz setup', async ({ page }) => {
+test('target-only bounded handoff rejects Practice atomically but permits Self Check and Gender', async ({ page }) => {
   await page.goto('about:blank');
   await page.addScriptTag({ content: jquerySource });
 
@@ -1096,11 +1096,20 @@ test('target-only bounded category handoff rejects atomically before quiz setup'
         details: error && error.details ? Object.assign({}, error.details) : {}
       };
     }
-    return {
-      rejection,
+    const preservedAfterPracticeRejection = {
       targetIds: (window.wordsByCategory.Solo || []).map((row) => Number(row.id) || 0),
       optionIds: (window.optionWordsByCategory.Solo || []).map((row) => Number(row.id) || 0).sort((a, b) => a - b),
       roundCount: Number(window.categoryRoundCount.Solo) || 0
+    };
+    window.llToolsFlashcardsData.quiz_mode = 'self-check';
+    const selfCheck = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Solo']);
+    window.llToolsFlashcardsData.quiz_mode = 'gender';
+    const gender = await window.FlashcardLoader.consumeBoundedPreloadedCategoryData(['Solo']);
+    return {
+      rejection,
+      preservedAfterPracticeRejection,
+      selfCheck,
+      gender
     };
   });
 
@@ -1109,9 +1118,13 @@ test('target-only bounded category handoff rejects atomically before quiz setup'
     details: { availableOptions: 1, requiredOptions: 2 }
   });
   expect(result.rejection.message).toContain('fewer than two');
-  expect(result.targetIds).toEqual([501]);
-  expect(result.optionIds).toEqual([501, 502]);
-  expect(result.roundCount).toBe(7);
+  expect(result.preservedAfterPracticeRejection).toEqual({
+    targetIds: [501],
+    optionIds: [501, 502],
+    roundCount: 7
+  });
+  expect(result.selfCheck).toMatchObject({ success: true, sessionWordIds: [501] });
+  expect(result.gender).toMatchObject({ success: true, sessionWordIds: [501] });
 });
 
 test('bounded target-only handoff accepts only runtime-usable text fallbacks', async ({ page }) => {

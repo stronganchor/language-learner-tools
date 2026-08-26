@@ -291,27 +291,228 @@ if (!function_exists('ll_tools_teacher_class_user_is_student')) {
     }
 }
 
-if (!function_exists('ll_tools_teacher_class_add_student')) {
-    function ll_tools_teacher_class_add_student(int $class_id, int $user_id): bool {
-        if (!ll_tools_teacher_class_exists($class_id) || $user_id <= 0 || !get_userdata($user_id)) {
+if (!function_exists('ll_tools_teacher_class_begin_student_membership_mutation')) {
+    /**
+     * Start a membership mutation using the privacy-safe lock order.
+     *
+     * @return array{session_lock:string,transaction:array,user_id:int}|WP_Error
+     */
+    function ll_tools_teacher_class_begin_student_membership_mutation(
+        int $user_id,
+        bool $allow_during_privacy = false
+    ) {
+        if (
+            $user_id <= 0
+            || !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+            || !function_exists('ll_tools_offline_app_release_user_session_lock')
+            || !function_exists('ll_tools_user_progress_begin_event_transaction')
+            || !function_exists('ll_tools_user_progress_lock_user_for_event')
+        ) {
+            return new WP_Error('teacher_class_membership_lock_unavailable');
+        }
+
+        $session_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($session_lock === '') {
+            return new WP_Error('teacher_class_membership_lock_unavailable');
+        }
+
+        $transaction = ll_tools_user_progress_begin_event_transaction();
+        if (!is_array($transaction)) {
+            ll_tools_offline_app_release_user_session_lock($session_lock);
+            return new WP_Error('teacher_class_membership_transaction_unavailable');
+        }
+        if (!ll_tools_user_progress_lock_user_for_event($user_id)) {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+            ll_tools_offline_app_release_user_session_lock($session_lock);
+            return new WP_Error('teacher_class_membership_user_lock_unavailable');
+        }
+        if (
+            !$allow_during_privacy
+            && (
+                !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+                || ll_tools_offline_app_user_data_write_is_fenced($user_id)
+            )
+        ) {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+            ll_tools_offline_app_release_user_session_lock($session_lock);
+            return new WP_Error('teacher_class_membership_privacy_erasure_in_progress');
+        }
+
+        return [
+            'session_lock' => $session_lock,
+            'transaction' => $transaction,
+            'user_id' => $user_id,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_finish_student_membership_mutation')) {
+    /**
+     * Commit or roll back a membership mutation and release its advisory lock.
+     *
+     * @param array{session_lock:string,transaction:array,user_id:int}|array{} $context
+     * @param array<int,int>                                                   $class_ids
+     */
+    function ll_tools_teacher_class_finish_student_membership_mutation(
+        array &$context,
+        bool $commit,
+        array $class_ids = []
+    ): bool {
+        if ($context === []) {
             return false;
         }
 
-        $student_ids = ll_tools_teacher_class_get_student_ids($class_id);
-        if (!in_array($user_id, $student_ids, true)) {
-            $student_ids[] = $user_id;
-            $student_ids = ll_tools_teacher_class_normalize_ids($student_ids);
-            update_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $student_ids);
+        $transaction = is_array($context['transaction'] ?? null) ? $context['transaction'] : [];
+        $user_id = (int) ($context['user_id'] ?? 0);
+        $session_lock = (string) ($context['session_lock'] ?? '');
+        $committed = false;
+        if ($commit && $transaction !== []) {
+            $committed = ll_tools_user_progress_commit_event_transaction($transaction);
+            if (!$committed) {
+                ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+            }
+        } elseif ($transaction !== []) {
+            ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
         }
 
-        $class_ids = ll_tools_teacher_class_get_ids_for_student($user_id);
-        if (!in_array($class_id, $class_ids, true)) {
-            $class_ids[] = $class_id;
-            $class_ids = ll_tools_teacher_class_normalize_ids($class_ids);
-            update_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META, $class_ids);
+        if (function_exists('ll_tools_user_progress_clear_user_cache')) {
+            ll_tools_user_progress_clear_user_cache($user_id);
+        } else {
+            wp_cache_delete($user_id, 'user_meta');
+            clean_user_cache($user_id);
+        }
+        foreach (ll_tools_teacher_class_normalize_ids($class_ids) as $class_id) {
+            clean_post_cache($class_id);
+        }
+        ll_tools_offline_app_release_user_session_lock($session_lock);
+        $context = [];
+
+        return $commit && $committed;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_lock_for_membership_mutation')) {
+    /** Lock the class row before reading its serialized membership meta. */
+    function ll_tools_teacher_class_lock_for_membership_mutation(int $class_id): bool {
+        global $wpdb;
+
+        if ($class_id <= 0) {
+            return false;
+        }
+        $wpdb->last_error = '';
+        $locked_class_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} WHERE ID = %d AND post_type = %s FOR UPDATE",
+            $class_id,
+            LL_TOOLS_TEACHER_CLASS_POST_TYPE
+        ));
+        $locked = (int) $locked_class_id === $class_id && (string) $wpdb->last_error === '';
+        if ($locked) {
+            clean_post_cache($class_id);
         }
 
-        return true;
+        return $locked;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_mutate_student_membership')) {
+    /**
+     * Atomically update both sides of one learner/class membership.
+     *
+     * The per-user session lock makes the operation mutually exclusive with
+     * privacy erasure. The user row is locked before the class row, matching
+     * privacy's ordering. A fresh class-meta read after the row lock prevents a
+     * concurrent update for another learner from restoring a stale roster.
+     */
+    function ll_tools_teacher_class_mutate_student_membership(
+        int $class_id,
+        int $user_id,
+        bool $add
+    ): bool {
+        if ($class_id <= 0 || $user_id <= 0) {
+            return false;
+        }
+
+        $context = ll_tools_teacher_class_begin_student_membership_mutation($user_id);
+        if (is_wp_error($context)) {
+            return false;
+        }
+
+        try {
+            if (!ll_tools_teacher_class_lock_for_membership_mutation($class_id)) {
+                return false;
+            }
+            if (!ll_tools_teacher_class_exists($class_id) || !get_userdata($user_id)) {
+                return false;
+            }
+
+            $student_ids = ll_tools_teacher_class_normalize_ids(
+                get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
+            );
+            $class_ids = ll_tools_teacher_class_normalize_ids(
+                get_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META, true)
+            );
+            if ($add) {
+                $target_student_ids = ll_tools_teacher_class_normalize_ids(array_merge($student_ids, [$user_id]));
+                $target_class_ids = ll_tools_teacher_class_normalize_ids(array_merge($class_ids, [$class_id]));
+            } else {
+                $target_student_ids = array_values(array_filter(
+                    $student_ids,
+                    static function (int $student_id) use ($user_id): bool {
+                        return $student_id !== $user_id;
+                    }
+                ));
+                $target_class_ids = array_values(array_filter(
+                    $class_ids,
+                    static function (int $student_class_id) use ($class_id): bool {
+                        return $student_class_id !== $class_id;
+                    }
+                ));
+            }
+
+            if ($target_student_ids !== $student_ids) {
+                update_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $target_student_ids);
+            }
+            if ($target_class_ids !== $class_ids) {
+                if ($target_class_ids === []) {
+                    delete_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META);
+                } else {
+                    update_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META, $target_class_ids);
+                }
+            }
+
+            clean_post_cache($class_id);
+            if (function_exists('ll_tools_user_progress_clear_user_cache')) {
+                ll_tools_user_progress_clear_user_cache($user_id);
+            } else {
+                wp_cache_delete($user_id, 'user_meta');
+                clean_user_cache($user_id);
+            }
+            $stored_student_ids = ll_tools_teacher_class_normalize_ids(
+                get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
+            );
+            $stored_class_ids = ll_tools_teacher_class_normalize_ids(
+                get_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META, true)
+            );
+            if ($stored_student_ids !== $target_student_ids || $stored_class_ids !== $target_class_ids) {
+                return false;
+            }
+
+            return ll_tools_teacher_class_finish_student_membership_mutation(
+                $context,
+                true,
+                [$class_id]
+            );
+        } finally {
+            if ($context !== []) {
+                ll_tools_teacher_class_finish_student_membership_mutation($context, false, [$class_id]);
+            }
+        }
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_add_student')) {
+    function ll_tools_teacher_class_add_student(int $class_id, int $user_id): bool {
+        return ll_tools_teacher_class_mutate_student_membership($class_id, $user_id, true);
     }
 }
 
@@ -600,22 +801,8 @@ if (!function_exists('ll_tools_teacher_class_remove_student')) {
         }
 
         $already_removed = !ll_tools_teacher_class_user_is_student($class_id, $user_id);
-        if (!$already_removed) {
-            $student_ids = array_values(array_filter(
-                ll_tools_teacher_class_get_student_ids($class_id),
-                static function (int $student_id) use ($user_id): bool {
-                    return $student_id !== $user_id;
-                }
-            ));
-            update_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $student_ids);
-
-            $class_ids = array_values(array_filter(
-                ll_tools_teacher_class_get_ids_for_student($user_id),
-                static function (int $student_class_id) use ($class_id): bool {
-                    return $student_class_id !== $class_id;
-                }
-            ));
-            update_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META, $class_ids);
+        if (!ll_tools_teacher_class_mutate_student_membership($class_id, $user_id, false)) {
+            return new WP_Error('remove_failed', __('The class membership could not be updated.', 'll-tools-text-domain'));
         }
 
         return [
@@ -628,48 +815,188 @@ if (!function_exists('ll_tools_teacher_class_remove_student')) {
     }
 }
 
-if (!function_exists('ll_tools_teacher_class_unlink_student')) {
-    function ll_tools_teacher_class_unlink_student(int $user_id): bool {
+if (!function_exists('ll_tools_teacher_class_membership_ids_for_privacy')) {
+    /**
+     * Read every class post-meta row that still contains this learner ID.
+     *
+     * A locking read lets the privacy transaction verify the reverse side of
+     * the relationship without hydrating an unbounded post collection.
+     *
+     * @return array<int,int>|WP_Error
+     */
+    function ll_tools_teacher_class_membership_ids_for_privacy(int $user_id) {
+        global $wpdb;
+
         if ($user_id <= 0) {
-            return false;
+            return new WP_Error('teacher_class_privacy_invalid_user');
+        }
+
+        $scan_limit = max(1, min(10000, (int) apply_filters(
+            'll_tools_teacher_class_privacy_roster_scan_limit',
+            5000,
+            $user_id
+        )));
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT p.ID, pm.meta_value
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = p.ID
+             WHERE p.post_type = %s
+               AND pm.meta_key = %s
+               AND pm.meta_value LIKE %s
+             ORDER BY p.ID ASC, pm.meta_id ASC
+             LIMIT %d
+             FOR UPDATE",
+            LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
+            '%' . $wpdb->esc_like('i:' . $user_id . ';') . '%',
+            $scan_limit + 1
+        ), ARRAY_A);
+        if (!is_array($rows) || (string) $wpdb->last_error !== '') {
+            return new WP_Error(
+                'teacher_class_privacy_read_failed',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
+        }
+        if (count($rows) > $scan_limit) {
+            return new WP_Error(
+                'teacher_class_privacy_scope_too_large',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
+        }
+
+        // The serialized integer token can occur as either an array key or a
+        // roster value. Treat SQL LIKE only as a bounded candidate filter and
+        // certify membership from the decoded values before returning a class.
+        $class_ids = [];
+        foreach ($rows as $row) {
+            $student_ids = ll_tools_teacher_class_normalize_ids(
+                maybe_unserialize((string) ($row['meta_value'] ?? ''))
+            );
+            if (in_array($user_id, $student_ids, true)) {
+                $class_id = (int) ($row['ID'] ?? 0);
+                if ($class_id > 0) {
+                    $class_ids[$class_id] = $class_id;
+                }
+            }
+        }
+
+        return array_values($class_ids);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_unlink_student_verified')) {
+    /**
+     * Remove and verify both sides of a learner's class memberships.
+     *
+     * @return array{removed:int,class_ids:array<int,int>}|WP_Error
+     */
+    function ll_tools_teacher_class_unlink_student_verified(int $user_id) {
+        if ($user_id <= 0) {
+            return new WP_Error('teacher_class_privacy_invalid_user');
         }
 
         $class_ids = ll_tools_teacher_class_get_ids_for_student($user_id);
-        $matching_class_ids = get_posts([
-            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
-            'post_status' => 'any',
-            'posts_per_page' => -1,
-            'fields' => 'ids',
-            'no_found_rows' => true,
-            'meta_query' => [[
-                'key' => LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
-                'value' => 'i:' . $user_id . ';',
-                'compare' => 'LIKE',
-            ]],
-        ]);
-        $class_ids = ll_tools_teacher_class_normalize_ids(array_merge($class_ids, (array) $matching_class_ids));
-        $removed = false;
+        $matching_class_ids = ll_tools_teacher_class_membership_ids_for_privacy($user_id);
+        if (is_wp_error($matching_class_ids)) {
+            return $matching_class_ids;
+        }
+        $class_ids = ll_tools_teacher_class_normalize_ids(array_merge($class_ids, $matching_class_ids));
+        $removed = 0;
 
         foreach ($class_ids as $class_id) {
-            $student_ids = ll_tools_teacher_class_get_student_ids((int) $class_id);
+            $class_id = (int) $class_id;
+            clean_post_cache($class_id);
+            $student_ids = ll_tools_teacher_class_normalize_ids(
+                get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
+            );
+            if (!in_array($user_id, $student_ids, true)) {
+                continue;
+            }
+
             $remaining_ids = array_values(array_filter(
                 $student_ids,
                 static function (int $student_id) use ($user_id): bool {
                     return $student_id !== $user_id;
                 }
             ));
-            if ($remaining_ids !== $student_ids) {
-                update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $remaining_ids);
-                $removed = true;
+            update_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, $remaining_ids);
+            clean_post_cache($class_id);
+            $stored_ids = ll_tools_teacher_class_normalize_ids(
+                get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
+            );
+            if (in_array($user_id, $stored_ids, true)) {
+                return new WP_Error(
+                    'teacher_class_privacy_write_failed',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain'),
+                    ['class_ids' => $class_ids]
+                );
+            }
+            $removed++;
+        }
+
+        $student_meta_existed = metadata_exists('user', $user_id, LL_TOOLS_STUDENT_CLASS_IDS_META);
+        if ($student_meta_existed) {
+            delete_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META);
+            wp_cache_delete($user_id, 'user_meta');
+        }
+        if (metadata_exists('user', $user_id, LL_TOOLS_STUDENT_CLASS_IDS_META)) {
+            return new WP_Error(
+                'teacher_class_privacy_user_meta_retained',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain'),
+                ['class_ids' => $class_ids]
+            );
+        }
+
+        $remaining_class_ids = ll_tools_teacher_class_membership_ids_for_privacy($user_id);
+        if (is_wp_error($remaining_class_ids)) {
+            $remaining_class_ids->add_data(['class_ids' => $class_ids]);
+            return $remaining_class_ids;
+        }
+        if ($remaining_class_ids !== []) {
+            return new WP_Error(
+                'teacher_class_privacy_membership_retained',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain'),
+                ['class_ids' => array_values(array_unique(array_merge($class_ids, $remaining_class_ids)))]
+            );
+        }
+
+        return [
+            'removed' => $removed + ($student_meta_existed ? 1 : 0),
+            'class_ids' => $class_ids,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_unlink_student')) {
+    function ll_tools_teacher_class_unlink_student(int $user_id): bool {
+        $context = ll_tools_teacher_class_begin_student_membership_mutation($user_id, true);
+        if (is_wp_error($context)) {
+            return false;
+        }
+
+        $class_ids = [];
+        try {
+            $result = ll_tools_teacher_class_unlink_student_verified($user_id);
+            if (is_wp_error($result)) {
+                $error_data = $result->get_error_data();
+                if (is_array($error_data)) {
+                    $class_ids = (array) ($error_data['class_ids'] ?? []);
+                }
+                return false;
+            }
+            $class_ids = (array) ($result['class_ids'] ?? []);
+            $removed = (int) ($result['removed'] ?? 0);
+            if (!ll_tools_teacher_class_finish_student_membership_mutation($context, true, $class_ids)) {
+                return false;
+            }
+
+            return $removed > 0;
+        } finally {
+            if ($context !== []) {
+                ll_tools_teacher_class_finish_student_membership_mutation($context, false, $class_ids);
             }
         }
-
-        if (metadata_exists('user', $user_id, LL_TOOLS_STUDENT_CLASS_IDS_META)) {
-            delete_user_meta($user_id, LL_TOOLS_STUDENT_CLASS_IDS_META);
-            $removed = true;
-        }
-
-        return $removed;
     }
 }
 
@@ -715,13 +1042,12 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
                 continue;
             }
 
-            $class_ids = array_values(array_filter(
-                ll_tools_teacher_class_get_ids_for_student($student_id),
-                static function (int $student_class_id) use ($class_id): bool {
-                    return $student_class_id !== $class_id;
-                }
-            ));
-            update_user_meta($student_id, LL_TOOLS_STUDENT_CLASS_IDS_META, $class_ids);
+            if (!ll_tools_teacher_class_mutate_student_membership($class_id, $student_id, false)) {
+                return new WP_Error(
+                    'delete_membership_failed',
+                    __('The class membership could not be updated.', 'll-tools-text-domain')
+                );
+            }
         }
 
         delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META);
@@ -810,14 +1136,25 @@ if (!function_exists('ll_tools_teacher_class_user_option_label')) {
 
 if (!function_exists('ll_tools_teacher_class_practice_result_display_data')) {
     function ll_tools_teacher_class_practice_result_display_data(array $student_row): array {
+        $query_failed = !empty($student_row['practice_query_failed']);
         $display = [
             'score_label' => '',
             'date_label' => '',
             'datetime' => '',
             'sort_value' => '',
             'attempts_30d' => max(0, (int) ($student_row['practice_attempts_30d'] ?? 0)),
+            'attempts_sort_value' => '',
             'attempts_30d_label' => '',
+            'query_failed' => $query_failed,
+            'unavailable_label' => '',
         ];
+        if ($query_failed) {
+            $display['attempts_30d_label'] = __('Unavailable', 'll-tools-text-domain');
+            $display['unavailable_label'] = __('Practice data is temporarily unavailable.', 'll-tools-text-domain');
+            return $display;
+        }
+
+        $display['attempts_sort_value'] = (string) $display['attempts_30d'];
         $display['attempts_30d_label'] = !empty($student_row['practice_attempts_30d_truncated'])
             ? sprintf(
                 /* translators: %d: minimum number of practice attempts */
@@ -900,7 +1237,9 @@ if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
         $display = ll_tools_teacher_class_practice_result_display_data($student_row);
         ?>
         <td data-sort-value="<?php echo esc_attr((string) ($display['sort_value'] ?? '')); ?>">
-            <?php if (!empty($display['score_label'])) : ?>
+            <?php if (!empty($display['query_failed'])) : ?>
+                <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr((string) ($display['unavailable_label'] ?? '')); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '')); ?></span>
+            <?php elseif (!empty($display['score_label'])) : ?>
                 <span class="ll-teacher-classes__practice-result">
                     <strong class="ll-teacher-classes__practice-score"><?php echo esc_html((string) $display['score_label']); ?></strong>
                     <?php if (!empty($display['date_label'])) : ?>
@@ -911,7 +1250,13 @@ if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
                 <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr__('No practice result', 'll-tools-text-domain'); ?>">&mdash;</span>
             <?php endif; ?>
         </td>
-        <td data-sort-value="<?php echo esc_attr((string) ($display['attempts_30d'] ?? 0)); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '0')); ?></td>
+        <td data-sort-value="<?php echo esc_attr((string) ($display['attempts_sort_value'] ?? '')); ?>">
+            <?php if (!empty($display['query_failed'])) : ?>
+                <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr((string) ($display['unavailable_label'] ?? '')); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '')); ?></span>
+            <?php else : ?>
+                <?php echo esc_html((string) ($display['attempts_30d_label'] ?? '0')); ?>
+            <?php endif; ?>
+        </td>
         <?php
     }
 }
@@ -988,6 +1333,7 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
                     : null,
                 'practice_attempts_30d' => max(0, (int) ($practice_summary['attempts_30d'] ?? 0)),
                 'practice_attempts_30d_truncated' => !empty($practice_summary['attempts_30d_truncated']),
+                'practice_query_failed' => !empty($practice_summary['query_failed']),
                 'last_activity' => function_exists('ll_tools_user_progress_report_last_activity')
                     ? ll_tools_user_progress_report_last_activity($row_stats)
                     : '',

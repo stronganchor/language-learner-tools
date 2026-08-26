@@ -1927,7 +1927,12 @@ function ll_tools_get_user_study_goals($user_id = 0): array {
         $repaired = $raw;
         $repaired['ignored_category_ids'] = $normalized['ignored_category_ids'];
         $repaired['placement_known_category_ids'] = $normalized['placement_known_category_ids'];
-        update_user_meta($uid, LL_TOOLS_USER_GOALS_META, $repaired);
+        ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_GOALS_META,
+            $raw,
+            $repaired
+        );
     }
 
     return $normalized;
@@ -2031,7 +2036,12 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
     }
     if ($repaired_raw !== $raw) {
         ll_tools_user_progress_prepare_source_read();
-        update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $repaired_raw);
+        ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_CATEGORY_PROGRESS_META,
+            $raw,
+            $repaired_raw
+        );
         if (ll_tools_user_progress_capture_source_error('category_progress_repair') instanceof WP_Error) {
             return [];
         }
@@ -2737,6 +2747,393 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
     return 0;
 }
 
+function ll_tools_user_progress_event_payload_byte_limit(): int {
+    $limit = (int) apply_filters('ll_tools_user_progress_event_payload_byte_limit', 64 * 1024);
+    return max(1024, min(256 * 1024, $limit));
+}
+
+function ll_tools_user_progress_event_payload_node_limit(): int {
+    $default = max(512, ll_tools_user_progress_session_category_limit() + 128);
+    $limit = (int) apply_filters('ll_tools_user_progress_event_payload_node_limit', $default);
+    return max(32, min(2000, $limit));
+}
+
+/**
+ * Bound both the parsed payload structure and the exact JSON stored in the
+ * event log. The second check accounts for JSON escape expansion and must be
+ * repeated after server-side normalization/enrichment.
+ */
+function ll_tools_user_progress_event_payload_fits_budget(array $payload): bool {
+    $byte_limit = ll_tools_user_progress_event_payload_byte_limit();
+    if (!ll_tools_user_study_request_value_fits_budget(
+        $payload,
+        $byte_limit,
+        ll_tools_user_progress_event_payload_node_limit()
+    )) {
+        return false;
+    }
+
+    $encoded = wp_json_encode($payload);
+    return is_string($encoded) && strlen($encoded) <= $byte_limit;
+}
+
+/**
+ * Rebuild one event payload from the first-party contract for its event type.
+ *
+ * Unknown and cross-event fields are intentionally ignored instead of making
+ * the complete event invalid. This keeps stale offline journals drainable while
+ * preventing arbitrary client data from entering the progress ledger.
+ */
+function ll_tools_build_progress_event_payload(string $event_type, string $mode, array $raw_payload): array {
+    $event_type = strtolower(trim($event_type));
+    $mode = ll_tools_normalize_progress_mode($mode);
+    $payload = [];
+
+    $parse_integer = static function ($value): ?int {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (
+            is_float($value)
+            && is_finite($value)
+            && floor($value) === $value
+            && $value >= PHP_INT_MIN
+            && $value <= PHP_INT_MAX
+        ) {
+            return (int) $value;
+        }
+        if (is_string($value) && preg_match('/^-?(?:0|[1-9][0-9]*)$/D', trim($value))) {
+            $parsed = filter_var(trim($value), FILTER_VALIDATE_INT);
+            return $parsed === false ? null : (int) $parsed;
+        }
+        return null;
+    };
+    $bounded_integer = static function ($value, int $minimum, int $maximum) use ($parse_integer): ?int {
+        $parsed = $parse_integer($value);
+        if ($parsed === null) {
+            return null;
+        }
+        return max($minimum, min($maximum, $parsed));
+    };
+    $bounded_number = static function ($value, float $minimum, float $maximum): ?float {
+        if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric(trim($value)))) {
+            return null;
+        }
+        $parsed = (float) $value;
+        if (!is_finite($parsed)) {
+            return null;
+        }
+        return max($minimum, min($maximum, $parsed));
+    };
+    $bounded_text = static function ($value, int $maximum_length = 191): ?string {
+        if (!is_scalar($value) || is_bool($value)) {
+            return null;
+        }
+        $text = sanitize_text_field((string) $value);
+        return function_exists('mb_substr')
+            ? mb_substr($text, 0, max(1, $maximum_length), 'UTF-8')
+            : substr($text, 0, max(1, $maximum_length));
+    };
+    $bounded_key = static function ($value, int $maximum_length = 64): ?string {
+        if (!is_scalar($value) || is_bool($value)) {
+            return null;
+        }
+        return substr(sanitize_key((string) $value), 0, max(1, $maximum_length));
+    };
+    $canonical_boolean = static function ($value): ?bool {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            if ((float) $value === 1.0) {
+                return true;
+            }
+            if ((float) $value === 0.0) {
+                return false;
+            }
+            return null;
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+        return null;
+    };
+    $copy_key = static function (string $key, int $maximum_length = 64) use (&$payload, $raw_payload, $bounded_key): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_key($raw_payload[$key], $maximum_length);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_text = static function (string $key, int $maximum_length = 191) use (&$payload, $raw_payload, $bounded_text): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_text($raw_payload[$key], $maximum_length);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_boolean = static function (string $key) use (&$payload, $raw_payload, $canonical_boolean): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $canonical_boolean($raw_payload[$key]);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+    $copy_integer = static function (
+        string $key,
+        int $minimum = 0,
+        int $maximum = 1000000
+    ) use (&$payload, $raw_payload, $bounded_integer): void {
+        if (!array_key_exists($key, $raw_payload)) {
+            return;
+        }
+        $value = $bounded_integer($raw_payload[$key], $minimum, $maximum);
+        if ($value !== null) {
+            $payload[$key] = $value;
+        }
+    };
+
+    if ($event_type === 'category_study') {
+        $units = $bounded_integer(
+            $raw_payload['units'] ?? 1,
+            1,
+            ll_tools_user_progress_category_study_units_limit()
+        );
+        $payload['units'] = $units ?? 1;
+        return $payload;
+    }
+
+    if ($event_type === 'mode_session_complete') {
+        $category_ids = [];
+        $category_limit = ll_tools_user_progress_session_category_limit();
+        $category_scan_limit = max(32, min(4000, $category_limit * 4));
+        $raw_category_ids = isset($raw_payload['category_ids']) && is_array($raw_payload['category_ids'])
+            ? array_slice($raw_payload['category_ids'], 0, $category_scan_limit)
+            : [];
+        foreach ($raw_category_ids as $raw_category_id) {
+            $category_id = $parse_integer($raw_category_id);
+            if ($category_id !== null && $category_id > 0) {
+                $category_ids[$category_id] = $category_id;
+                if (count($category_ids) >= $category_limit) {
+                    break;
+                }
+            }
+        }
+        $payload['category_ids'] = array_values($category_ids);
+
+        $raw_result = isset($raw_payload['result']) && is_array($raw_payload['result'])
+            ? $raw_payload['result']
+            : [];
+        if ($mode === 'practice' && $raw_result !== []) {
+            $schema = $parse_integer($raw_result['schema'] ?? null);
+            $score_given = $parse_integer($raw_result['score_given'] ?? null);
+            $score_maximum = $parse_integer($raw_result['score_maximum'] ?? null);
+            $kind = isset($raw_result['kind']) && is_scalar($raw_result['kind'])
+                ? (string) $raw_result['kind']
+                : '';
+            $score_basis = isset($raw_result['score_basis']) && is_scalar($raw_result['score_basis'])
+                ? (string) $raw_result['score_basis']
+                : '';
+            $score_limit = ll_tools_user_progress_practice_result_score_limit();
+            if (
+                $schema === 1
+                && $kind === 'practice_first_try'
+                && $score_basis === 'first_try_distinct_words'
+                && $score_given !== null
+                && $score_maximum !== null
+                && $score_given >= 0
+                && $score_maximum > 0
+                && $score_given <= $score_maximum
+                && $score_maximum <= $score_limit
+            ) {
+                $payload['result'] = [
+                    'schema' => 1,
+                    'kind' => 'practice_first_try',
+                    'score_given' => $score_given,
+                    'score_maximum' => $score_maximum,
+                    'score_basis' => 'first_try_distinct_words',
+                ];
+            }
+        }
+        return $payload;
+    }
+
+    if ($event_type === 'stt_api_call') {
+        $copy_key('source');
+        $copy_key('provider');
+        $copy_key('target_field');
+        return $payload;
+    }
+
+    if (!in_array($event_type, ['word_exposure', 'word_outcome'], true)) {
+        return [];
+    }
+
+    $raw_prompt_card_id = $raw_payload['prompt_card_id'] ?? ($raw_payload['promptCardId'] ?? null);
+    $prompt_card_id = $parse_integer($raw_prompt_card_id);
+    if ($prompt_card_id !== null && $prompt_card_id > 0) {
+        $payload['prompt_card_id'] = $prompt_card_id;
+    }
+
+    if (array_key_exists('recording_type', $raw_payload) && is_scalar($raw_payload['recording_type'])) {
+        $recording_type = ll_tools_normalize_practice_recording_type_slug($raw_payload['recording_type']);
+        if ($recording_type !== '') {
+            $payload['recording_type'] = substr($recording_type, 0, 64);
+        }
+    }
+    if (isset($raw_payload['available_recording_types']) && is_array($raw_payload['available_recording_types'])) {
+        $recording_types = [];
+        foreach (array_slice($raw_payload['available_recording_types'], 0, 32) as $raw_recording_type) {
+            if (!is_scalar($raw_recording_type)) {
+                continue;
+            }
+            $recording_type = substr(ll_tools_normalize_practice_recording_type_slug($raw_recording_type), 0, 64);
+            if ($recording_type !== '') {
+                $recording_types[] = $recording_type;
+            }
+        }
+        $payload['available_recording_types'] = ll_tools_sort_practice_recording_types($recording_types);
+    }
+
+    foreach (['game_slug', 'event_source', 'speaking_target_field', 'sequence_direction', 'prompt_type'] as $key) {
+        $copy_key($key);
+    }
+    foreach (['sequence_length', 'tile_count'] as $key) {
+        $copy_integer($key);
+    }
+
+    if ($event_type === 'word_exposure') {
+        return $payload;
+    }
+
+    if (array_key_exists('audio_progress_ratio', $raw_payload)) {
+        $ratio = $bounded_number($raw_payload['audio_progress_ratio'], 0.0, 1.0);
+        if ($ratio !== null) {
+            $payload['audio_progress_ratio'] = $ratio;
+        }
+    }
+    foreach (['answered_before_audio_end', 'gender_dont_know', 'wrong_hit', 'timeout', 'needed_retry'] as $key) {
+        $copy_boolean($key);
+    }
+    foreach (['gender_answer_timing', 'self_check_confidence', 'self_check_result', 'self_check_bucket'] as $key) {
+        $copy_key($key);
+    }
+    $copy_text('self_check_group_key');
+    $copy_key('forced_prompt');
+    $copy_key('stack_end_reason');
+    $copy_text('sequence_category_name');
+    $copy_key('speaking_game_bucket');
+    $copy_key('stt_provider');
+    foreach (['self_check_group_size', 'sequence_category_id', 'sequence_attempts', 'moves'] as $key) {
+        $copy_integer($key);
+    }
+    if (array_key_exists('speaking_score', $raw_payload)) {
+        $speaking_score = $bounded_number($raw_payload['speaking_score'], 0.0, 100.0);
+        if ($speaking_score !== null) {
+            $payload['speaking_score'] = $speaking_score;
+        }
+    }
+
+    $raw_gender = isset($raw_payload['gender']) && is_array($raw_payload['gender'])
+        ? $raw_payload['gender']
+        : [];
+    $gender_keys = [
+        'level' => true,
+        'confidence' => true,
+        'intro_seen' => true,
+        'quick_correct_streak' => true,
+        'level1_passes' => true,
+        'level1_failures' => true,
+        'level2_correct' => true,
+        'level2_wrong' => true,
+        'level3_correct' => true,
+        'level3_wrong' => true,
+        'dont_know_count' => true,
+        'seen_total' => true,
+        'category_name' => true,
+        'last_seen_at' => true,
+        'updated_at' => true,
+        'updated_at_ms' => true,
+    ];
+    $recognized_gender = [];
+    foreach (array_keys($gender_keys) as $gender_key) {
+        if (array_key_exists($gender_key, $raw_gender)) {
+            $recognized_gender[$gender_key] = $raw_gender[$gender_key];
+        }
+    }
+    $gender_input = [];
+    if ($recognized_gender !== []) {
+        $level = $bounded_integer($recognized_gender['level'] ?? null, 1, 3);
+        if ($level !== null) {
+            $gender_input['level'] = $level;
+        }
+        $confidence = $bounded_integer($recognized_gender['confidence'] ?? null, -8, 12);
+        if ($confidence !== null) {
+            $gender_input['confidence'] = $confidence;
+        }
+        if (array_key_exists('intro_seen', $recognized_gender)) {
+            $intro_seen = $canonical_boolean($recognized_gender['intro_seen']);
+            if ($intro_seen !== null) {
+                $gender_input['intro_seen'] = $intro_seen;
+            }
+        }
+        foreach ([
+            'quick_correct_streak',
+            'level1_passes',
+            'level1_failures',
+            'level2_correct',
+            'level2_wrong',
+            'level3_correct',
+            'level3_wrong',
+            'dont_know_count',
+            'seen_total',
+        ] as $counter_key) {
+            $counter = $bounded_integer($recognized_gender[$counter_key] ?? null, 0, 1000000);
+            if ($counter !== null) {
+                $gender_input[$counter_key] = $counter;
+            }
+        }
+
+        $category_name = $bounded_text($recognized_gender['category_name'] ?? null, 191);
+        if ($category_name !== null) {
+            $gender_input['category_name'] = $category_name;
+        }
+        $last_seen_at = $bounded_text($recognized_gender['last_seen_at'] ?? null, 32);
+        if ($last_seen_at !== null) {
+            $gender_input['last_seen_at'] = $last_seen_at;
+        }
+        $raw_updated_at = $recognized_gender['updated_at'] ?? ($recognized_gender['updated_at_ms'] ?? null);
+        if (is_scalar($raw_updated_at) && !is_bool($raw_updated_at)) {
+            $updated_at = ll_tools_user_progress_datetime_to_millis($raw_updated_at);
+            if ($updated_at > 0) {
+                $gender_input['updated_at'] = min(4102444800000, $updated_at);
+            }
+        }
+    }
+    if ($gender_input !== []) {
+        // Preserve only the fields that were actually supplied and validated.
+        // Older first-party journals contain partial snapshots; the apply path
+        // merges these into the complete stored state instead of defaulting and
+        // overwriting absent counters.
+        $payload['gender'] = $gender_input;
+    }
+
+    return $payload;
+}
+
 function ll_tools_sanitize_progress_event(array $raw): ?array {
     $type = isset($raw['event_type']) ? (string) $raw['event_type'] : (string) ($raw['type'] ?? '');
     $type = strtolower(trim($type));
@@ -2762,84 +3159,28 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
     $had_wrong_before = filter_var(($raw['had_wrong_before'] ?? false), FILTER_VALIDATE_BOOLEAN);
 
-    $payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
-    if ($type === 'mode_session_complete') {
-        $payload['category_ids'] = array_slice(
-            array_values(array_unique(array_filter(
-                array_map('intval', isset($payload['category_ids']) && is_array($payload['category_ids']) ? $payload['category_ids'] : []),
-                static function (int $payload_category_id): bool {
-                    return $payload_category_id > 0;
-                }
-            ))),
-            0,
-            ll_tools_user_progress_session_category_limit()
-        );
-
-        // Result summaries are learner-submitted formative data. Keep one
-        // explicit versioned contract so teacher reports and future delivery
-        // adapters never have to trust arbitrary payload fields or a submitted
-        // percentage.
-        $raw_result = isset($payload['result']) && is_array($payload['result'])
-            ? $payload['result']
-            : [];
-        unset($payload['result']);
-        if ($mode === 'practice' && !empty($raw_result)) {
-            $parse_result_integer = static function ($value): ?int {
-                if (is_int($value)) {
-                    return $value;
-                }
-                if (is_float($value) && is_finite($value) && floor($value) === $value) {
-                    return (int) $value;
-                }
-                if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value)) {
-                    return (int) $value;
-                }
-                return null;
-            };
-            $schema = $parse_result_integer($raw_result['schema'] ?? null);
-            $score_given = $parse_result_integer($raw_result['score_given'] ?? null);
-            $score_maximum = $parse_result_integer($raw_result['score_maximum'] ?? null);
-            $score_limit = ll_tools_user_progress_practice_result_score_limit();
-            $kind = isset($raw_result['kind']) ? (string) $raw_result['kind'] : '';
-            $score_basis = isset($raw_result['score_basis']) ? (string) $raw_result['score_basis'] : '';
-
-            if (
-                $schema === 1
-                && $kind === 'practice_first_try'
-                && $score_basis === 'first_try_distinct_words'
-                && $score_given !== null
-                && $score_maximum !== null
-                && $score_given >= 0
-                && $score_maximum > 0
-                && $score_given <= $score_maximum
-                && $score_maximum <= $score_limit
-            ) {
-                $payload['result'] = [
-                    'schema' => 1,
-                    'kind' => 'practice_first_try',
-                    'score_given' => $score_given,
-                    'score_maximum' => $score_maximum,
-                    'score_basis' => 'first_try_distinct_words',
-                ];
-            }
-        }
+    $raw_payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
+    if (!ll_tools_user_progress_event_payload_fits_budget($raw_payload)) {
+        return null;
     }
-    if ($type === 'category_study') {
-        $payload['units'] = max(
-            1,
-            min(
-                ll_tools_user_progress_category_study_units_limit(),
-                (int) ($payload['units'] ?? 1)
-            )
-        );
+    $payload = ll_tools_build_progress_event_payload($type, $mode, $raw_payload);
+    $category_name = '';
+    if (isset($raw['category_name']) && is_scalar($raw['category_name'])) {
+        $category_name = sanitize_text_field((string) $raw['category_name']);
+        $category_name = function_exists('mb_substr')
+            ? mb_substr($category_name, 0, 191, 'UTF-8')
+            : substr($category_name, 0, 191);
     }
-    $category_name = isset($raw['category_name']) ? sanitize_text_field((string) $raw['category_name']) : '';
-    $device_id = isset($raw['device_id']) ? strtolower(trim((string) $raw['device_id'])) : '';
+    $device_id = isset($raw['device_id']) && is_scalar($raw['device_id'])
+        ? strtolower(trim((string) $raw['device_id']))
+        : '';
     $device_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $device_id), 0, 80);
-    $profile_id = isset($raw['profile_id']) ? strtolower(trim((string) $raw['profile_id'])) : '';
+    $profile_id = isset($raw['profile_id']) && is_scalar($raw['profile_id'])
+        ? strtolower(trim((string) $raw['profile_id']))
+        : '';
     $profile_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $profile_id), 0, 80);
     $client_created_at = '';
-    if (!empty($raw['client_created_at'])) {
+    if (!empty($raw['client_created_at']) && is_scalar($raw['client_created_at'])) {
         $timestamp = strtotime((string) $raw['client_created_at']);
         if ($timestamp && $timestamp > 946684800 && $timestamp < (time() + DAY_IN_SECONDS)) {
             $client_created_at = gmdate('Y-m-d H:i:s', $timestamp);
@@ -2850,10 +3191,10 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         ? ll_tools_user_progress_event_identity_storage_enabled()
         : false;
 
-    if ($store_client_identity && $device_id !== '' && !array_key_exists('device_id', $payload)) {
+    if ($store_client_identity && $device_id !== '') {
         $payload['device_id'] = $device_id;
     }
-    if ($store_client_identity && $profile_id !== '' && !array_key_exists('profile_id', $payload)) {
+    if ($store_client_identity && $profile_id !== '') {
         $payload['profile_id'] = $profile_id;
     }
 
@@ -2863,9 +3204,6 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
 
     $prompt_card_id = isset($payload['prompt_card_id']) ? max(0, (int) $payload['prompt_card_id']) : 0;
-    if ($prompt_card_id > 0) {
-        $payload['prompt_card_id'] = $prompt_card_id;
-    }
 
     if ($wordset_id <= 0 && $word_id > 0) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
@@ -2922,6 +3260,10 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     }
 
     if (($type === 'word_outcome' || $type === 'word_exposure') && $word_id <= 0 && $prompt_card_id <= 0) {
+        return null;
+    }
+
+    if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
         return null;
     }
 
@@ -3105,13 +3447,24 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
             ? ll_tools_user_progress_get_practice_audio_timing($payload)
             : ['ratio' => null, 'early' => false, 'very_fast' => false];
         if ($mode === 'gender' && !empty($payload['gender']) && is_array($payload['gender'])) {
-            $gender_state = ll_tools_user_progress_normalize_gender_state($payload['gender'], [
-                'level' => ll_tools_user_progress_normalize_gender_level($data['gender_level'] ?? 1),
-                'seen_total' => max(0, (int) ($data['gender_seen_total'] ?? 0)),
-                'category_name' => sanitize_text_field((string) ($event['category_name'] ?? '')),
-                'last_seen_at' => $now_mysql,
-                'updated_at' => ll_tools_user_progress_datetime_to_millis($now_mysql),
-            ]);
+            $gender_fallback = ll_tools_get_progress_row_gender_progress($data);
+            $gender_fallback['level'] = ll_tools_user_progress_normalize_gender_level(
+                $data['gender_level'] ?? ($gender_fallback['level'] ?? 1)
+            );
+            $gender_fallback['seen_total'] = max(
+                0,
+                (int) ($data['gender_seen_total'] ?? ($gender_fallback['seen_total'] ?? 0))
+            );
+            if (empty($gender_fallback['category_name'])) {
+                $gender_fallback['category_name'] = sanitize_text_field((string) ($event['category_name'] ?? ''));
+            }
+            if (empty($gender_fallback['last_seen_at'])) {
+                $gender_fallback['last_seen_at'] = $now_mysql;
+            }
+            if (empty($gender_fallback['updated_at'])) {
+                $gender_fallback['updated_at'] = ll_tools_user_progress_datetime_to_millis($now_mysql);
+            }
+            $gender_state = ll_tools_user_progress_normalize_gender_state($payload['gender'], $gender_fallback);
             $gender_state['last_seen_at'] = $now_mysql;
             if ($gender_state['category_name'] === '' && !empty($event['category_name'])) {
                 $gender_state['category_name'] = sanitize_text_field((string) $event['category_name']);
@@ -3451,6 +3804,8 @@ function ll_tools_user_progress_stats_are_retryable_failure(array $stats): bool 
         && in_array((string) ($stats['failure_code'] ?? ''), [
             'progress_schema_unavailable',
             'progress_transactional_engine_unavailable',
+            'progress_mutation_lock_unavailable',
+            'progress_privacy_erasure_in_progress',
         ], true);
 }
 
@@ -3475,7 +3830,49 @@ function ll_tools_user_progress_send_retryable_failure(array $stats): void {
     ], 503);
 }
 
+/**
+ * Serialize a direct progress batch against offline sync and privacy erasure.
+ */
 function ll_tools_process_progress_events_batch(int $user_id, array $events): array {
+    if ($events === []) {
+        return ll_tools_process_progress_events_batch_locked($user_id, $events);
+    }
+    if (
+        !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        || !function_exists('ll_tools_offline_app_release_user_session_lock')
+    ) {
+        return ll_tools_user_progress_core_engine_failure_stats($events, [
+            'failure_code' => 'progress_mutation_lock_unavailable',
+        ]);
+    }
+
+    $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+    if ($mutation_lock === '') {
+        return ll_tools_user_progress_core_engine_failure_stats($events, [
+            'failure_code' => 'progress_mutation_lock_unavailable',
+        ]);
+    }
+
+    try {
+        if (
+            function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+            && ll_tools_offline_app_user_data_write_is_fenced($user_id)
+        ) {
+            return ll_tools_user_progress_core_engine_failure_stats($events, [
+                'failure_code' => 'progress_privacy_erasure_in_progress',
+            ]);
+        }
+
+        return ll_tools_process_progress_events_batch_locked($user_id, $events);
+    } finally {
+        ll_tools_offline_app_release_user_session_lock($mutation_lock);
+    }
+}
+
+/**
+ * Process a batch while the caller holds the per-user mutation/session lock.
+ */
+function ll_tools_process_progress_events_batch_locked(int $user_id, array $events): array {
     global $wpdb;
 
     ll_tools_user_progress_clear_source_error();
@@ -3555,6 +3952,12 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             $source_failure = true;
             $stats['failed']++;
             $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
+        }
+        if ($event['event_type'] === 'category_study' && (int) $event['category_id'] <= 0) {
+            // A retry cannot repair an event that identifies no category. Do
+            // not journal/acknowledge it as processed without derived state.
+            $stats['invalid']++;
             continue;
         }
 
@@ -3689,7 +4092,23 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         return false;
     }
 
+    if (
+        !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        || !function_exists('ll_tools_offline_app_release_user_session_lock')
+        || !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+    ) {
+        return false;
+    }
+    $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($uid);
+    if ($mutation_lock === '') {
+        return false;
+    }
+
     try {
+        if (ll_tools_offline_app_user_data_write_is_fenced($uid)) {
+            return false;
+        }
+
         $word_id = max(0, (int) ($event['word_id'] ?? 0));
         $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
         if ($wordset_id <= 0 && $word_id > 0) {
@@ -3717,7 +4136,14 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         }
 
         $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
-        $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        $raw_payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+        if (!ll_tools_user_progress_event_payload_fits_budget($raw_payload)) {
+            return false;
+        }
+        $payload = ll_tools_build_progress_event_payload($event_type, $mode, $raw_payload);
+        if (!ll_tools_user_progress_event_payload_fits_budget($payload)) {
+            return false;
+        }
         $payload_json = !empty($payload) ? wp_json_encode($payload) : null;
         $event_uuid = sanitize_text_field(substr((string) ($event['event_uuid'] ?? ''), 0, 64));
         if ($event_uuid === '') {
@@ -3758,6 +4184,7 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         return true;
     } finally {
         ll_tools_user_progress_clear_source_error();
+        ll_tools_offline_app_release_user_session_lock($mutation_lock);
     }
 }
 
@@ -4466,7 +4893,7 @@ function ll_tools_user_progress_analytics_word_ids_cache_key(array $category_ids
         : 0;
 
     $payload = [
-        'schema' => 3,
+        'schema' => 4,
         'wordset_id' => max(0, $wordset_id),
         'category_ids' => $key_category_ids,
         'category_versions' => $category_versions,
@@ -4480,13 +4907,19 @@ function ll_tools_user_progress_analytics_word_ids_cache_key(array $category_ids
     return 'll_up_an_words_' . md5(wp_json_encode($payload));
 }
 
-function ll_tools_user_progress_normalize_cached_analytics_word_ids($cached): ?array {
+function ll_tools_user_progress_normalize_cached_analytics_word_ids(
+    $cached,
+    ?array &$direct_word_ids_by_category = null
+): ?array {
+    $direct_word_ids_by_category = [];
     if (
         !is_array($cached)
         || !isset($cached['__ll_user_progress_analytics_word_ids_cache_format'])
-        || (int) $cached['__ll_user_progress_analytics_word_ids_cache_format'] !== 1
+        || (int) $cached['__ll_user_progress_analytics_word_ids_cache_format'] !== 2
         || !isset($cached['word_ids_by_category'])
         || !is_array($cached['word_ids_by_category'])
+        || !isset($cached['direct_word_ids_by_category'])
+        || !is_array($cached['direct_word_ids_by_category'])
     ) {
         return null;
     }
@@ -4498,6 +4931,14 @@ function ll_tools_user_progress_normalize_cached_analytics_word_ids($cached): ?a
             continue;
         }
         $word_ids_by_category[$category_id] = ll_tools_user_progress_normalize_positive_ids($word_ids);
+    }
+
+    foreach ($cached['direct_word_ids_by_category'] as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0 || !is_array($word_ids)) {
+            continue;
+        }
+        $direct_word_ids_by_category[$category_id] = ll_tools_user_progress_normalize_positive_ids($word_ids);
     }
 
     return $word_ids_by_category;
@@ -4527,11 +4968,13 @@ function ll_tools_user_progress_order_word_ids_by_category(array $word_ids_by_ca
 function ll_tools_user_progress_analytics_word_ids_by_category(
     array $category_ids,
     int $wordset_id,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    ?array &$direct_word_ids_by_category = null
 ): array {
     global $wpdb;
 
     $complete = true;
+    $direct_word_ids_by_category = [];
     if (empty($category_ids)) {
         return [];
     }
@@ -4556,8 +4999,21 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
 
     static $request_cache = [];
     if ($cache_key !== '' && array_key_exists($cache_key, $request_cache)) {
+        $request_entry = is_array($request_cache[$cache_key]) ? $request_cache[$cache_key] : [];
+        $cached_word_ids_by_category = isset($request_entry['word_ids_by_category'])
+            && is_array($request_entry['word_ids_by_category'])
+            ? $request_entry['word_ids_by_category']
+            : [];
+        $cached_direct_word_ids_by_category = isset($request_entry['direct_word_ids_by_category'])
+            && is_array($request_entry['direct_word_ids_by_category'])
+            ? $request_entry['direct_word_ids_by_category']
+            : [];
+        $direct_word_ids_by_category = ll_tools_user_progress_order_word_ids_by_category(
+            $cached_direct_word_ids_by_category,
+            $category_ids
+        );
         do_action('ll_tools_user_progress_analytics_word_ids_cache_status', 'request_hit', $cache_key, $category_ids, $wordset_id);
-        return ll_tools_user_progress_order_word_ids_by_category($request_cache[$cache_key], $category_ids);
+        return ll_tools_user_progress_order_word_ids_by_category($cached_word_ids_by_category, $category_ids);
     }
 
     if ($cache_key !== '') {
@@ -4570,9 +5026,20 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
             $complete = false;
             return [];
         }
-        $cached_word_ids_by_category = ll_tools_user_progress_normalize_cached_analytics_word_ids($cached);
+        $cached_direct_word_ids_by_category = [];
+        $cached_word_ids_by_category = ll_tools_user_progress_normalize_cached_analytics_word_ids(
+            $cached,
+            $cached_direct_word_ids_by_category
+        );
         if (is_array($cached_word_ids_by_category)) {
-            $request_cache[$cache_key] = $cached_word_ids_by_category;
+            $request_cache[$cache_key] = [
+                'word_ids_by_category' => $cached_word_ids_by_category,
+                'direct_word_ids_by_category' => $cached_direct_word_ids_by_category,
+            ];
+            $direct_word_ids_by_category = ll_tools_user_progress_order_word_ids_by_category(
+                $cached_direct_word_ids_by_category,
+                $category_ids
+            );
             do_action('ll_tools_user_progress_analytics_word_ids_cache_status', 'persistent_hit', $cache_key, $category_ids, $wordset_id);
             return ll_tools_user_progress_order_word_ids_by_category($cached_word_ids_by_category, $category_ids);
         }
@@ -4595,7 +5062,10 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
     }
     if (empty($renderable_ids_by_category)) {
         if ($cache_key !== '') {
-            $request_cache[$cache_key] = [];
+            $request_cache[$cache_key] = [
+                'word_ids_by_category' => [],
+                'direct_word_ids_by_category' => [],
+            ];
         }
         return [];
     }
@@ -4656,6 +5126,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
     }
 
     $word_ids_by_category = [];
+    $direct_word_ids_by_category = [];
     foreach ($renderable_ids_by_category as $category_id => $item_ids_for_category) {
         $category_id = (int) $category_id;
         if ($category_id <= 0) {
@@ -4663,6 +5134,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
         }
 
         $word_lookup = [];
+        $direct_word_lookup = [];
         foreach ((array) $item_ids_for_category as $item_id) {
             $item_id = (int) $item_id;
             if ($item_id <= 0) {
@@ -4673,6 +5145,7 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
             $word_id = 0;
             if ($post_type === 'words' && !isset($specific_wrong_only_lookup[$item_id])) {
                 $word_id = $item_id;
+                $direct_word_lookup[$word_id] = true;
             } elseif ($post_type === $prompt_card_post_type) {
                 $word_id = (int) ($prompt_card_answer_ids[$item_id] ?? 0);
             }
@@ -4683,14 +5156,19 @@ function ll_tools_user_progress_analytics_word_ids_by_category(
         }
 
         $word_ids_by_category[$category_id] = array_values(array_map('intval', array_keys($word_lookup)));
+        $direct_word_ids_by_category[$category_id] = array_values(array_map('intval', array_keys($direct_word_lookup)));
     }
 
     if ($cache_key !== '') {
         $payload = [
-            '__ll_user_progress_analytics_word_ids_cache_format' => 1,
+            '__ll_user_progress_analytics_word_ids_cache_format' => 2,
             'word_ids_by_category' => $word_ids_by_category,
+            'direct_word_ids_by_category' => $direct_word_ids_by_category,
         ];
-        $request_cache[$cache_key] = $word_ids_by_category;
+        $request_cache[$cache_key] = [
+            'word_ids_by_category' => $word_ids_by_category,
+            'direct_word_ids_by_category' => $direct_word_ids_by_category,
+        ];
         wp_cache_set($cache_key, $payload, $cache_group, $cache_ttl);
         set_transient($cache_key, $payload, $cache_ttl);
         do_action('ll_tools_user_progress_analytics_word_ids_cache_status', 'store', $cache_key, $category_ids, $wordset_id);
@@ -4762,7 +5240,7 @@ function ll_tools_user_progress_selection_category_payload_cache_key(int $wordse
     return 'll_up_sel_cat_' . md5(wp_json_encode([
         // Bump this schema deliberately when the stored planner row contract
         // changes. Routine releases must keep this user-invariant aggregate warm.
-        'schema' => 3,
+        'schema' => 4,
         'wordset_id' => $wordset_id,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
@@ -4799,6 +5277,7 @@ function ll_tools_user_progress_normalize_selection_category_payload_rows(array 
                 || !empty($category_row['learning_supported']),
             'self_check_supported' => !array_key_exists('self_check_supported', $category_row)
                 || !empty($category_row['self_check_supported']),
+            'gender_supported' => !empty($category_row['gender_supported']),
             'sign_language_mode' => !empty($category_row['sign_language_mode']),
             'aspect_bucket' => $aspect_bucket !== '' ? $aspect_bucket : 'no-image',
         ];
@@ -5089,6 +5568,7 @@ function ll_tools_user_progress_selection_category_payload_map(
             'learning_option_type' => (string) ($config['learning_option_type'] ?? ''),
             'learning_supported' => !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']),
             'self_check_supported' => !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']),
+            'gender_supported' => !empty($config['gender_supported']),
             'sign_language_mode' => !empty($config['sign_language_mode']),
             'aspect_bucket' => $aspect_bucket,
         ];
@@ -5109,9 +5589,13 @@ function ll_tools_user_progress_selection_category_payload_map(
     return $ordered_payload;
 }
 
-function ll_tools_user_progress_get_word_gender_meta_map(array $word_ids): array {
+function ll_tools_user_progress_get_word_gender_meta_map(
+    array $word_ids,
+    ?bool &$complete = null
+): array {
     global $wpdb;
 
+    $complete = true;
     $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     })));
@@ -5122,18 +5606,29 @@ function ll_tools_user_progress_get_word_gender_meta_map(array $word_ids): array
     $map = [];
     foreach (array_chunk($word_ids, 500) as $chunk) {
         $placeholders = implode(',', array_fill(0, count($chunk), '%d'));
+        $wpdb->last_error = '';
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 "
-                SELECT post_id, meta_value
-                FROM {$wpdb->postmeta}
-                WHERE meta_key = %s
-                  AND post_id IN ({$placeholders})
+                SELECT gender_meta.post_id, gender_meta.meta_value
+                FROM {$wpdb->postmeta} AS gender_meta
+                WHERE gender_meta.meta_key = %s
+                  AND gender_meta.post_id IN ({$placeholders})
+                  AND gender_meta.meta_id = (
+                      SELECT MIN(first_gender.meta_id)
+                      FROM {$wpdb->postmeta} AS first_gender
+                      WHERE first_gender.post_id = gender_meta.post_id
+                        AND first_gender.meta_key = 'll_grammatical_gender'
+                  )
                 ",
                 array_merge(['ll_grammatical_gender'], $chunk)
             ),
             ARRAY_A
         );
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
         foreach ((array) $rows as $row) {
             $word_id = isset($row['post_id']) ? (int) $row['post_id'] : 0;
             if ($word_id > 0) {
@@ -8126,19 +8621,101 @@ function ll_tools_user_progress_compare_and_swap_user_meta(
     $expected,
     bool $delete_expected = false
 ): bool {
+    global $wpdb;
+
+    if ($user_id <= 0 || $meta_key === '') {
+        return false;
+    }
     if (!$delete_expected && $before === $expected) {
         return true;
     }
 
-    if ($delete_expected) {
-        delete_user_meta($user_id, $meta_key, $before);
-        wp_cache_delete($user_id, 'user_meta');
-        return !metadata_exists('user', $user_id, $meta_key);
+    $before_stored = (string) maybe_serialize($before);
+    $expected_stored = (string) maybe_serialize($expected);
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT umeta_id, meta_value
+         FROM {$wpdb->usermeta}
+         WHERE user_id = %d
+           AND meta_key = %s
+         ORDER BY umeta_id ASC
+         LIMIT 2",
+        $user_id,
+        $meta_key
+    ), ARRAY_A);
+    // The SELECT intentionally bypasses WordPress metadata APIs. Another
+    // request may have replaced or deleted this row while this request still
+    // owns a stale user-meta cache snapshot, so every caller retry/readback
+    // must start from the database result we just observed.
+    wp_cache_delete($user_id, 'user_meta');
+    if (!is_array($rows) || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+    if ($rows === []) {
+        // A concurrent erasure already removed the baseline. Never recreate it.
+        return false;
+    }
+    if (count($rows) !== 1 || (string) ($rows[0]['meta_value'] ?? '') !== $before_stored) {
+        return false;
+    }
+    $meta_id = (int) ($rows[0]['umeta_id'] ?? 0);
+    if ($meta_id <= 0) {
+        return false;
     }
 
-    update_user_meta($user_id, $meta_key, $expected, $before);
+    $wpdb->last_error = '';
+    if ($delete_expected) {
+        $deleted = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->usermeta}
+             WHERE umeta_id = %d
+               AND user_id = %d
+               AND meta_key = %s
+               AND meta_value = %s",
+            $meta_id,
+            $user_id,
+            $meta_key,
+            $before_stored
+        ));
+        wp_cache_delete($user_id, 'user_meta');
+        return $deleted !== false
+            && $deleted > 0
+            && (string) $wpdb->last_error === ''
+            && !metadata_exists('user', $user_id, $meta_key);
+    }
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->usermeta}
+         SET meta_value = %s
+         WHERE umeta_id = %d
+           AND user_id = %d
+           AND meta_key = %s
+           AND meta_value = %s",
+        $expected_stored,
+        $meta_id,
+        $user_id,
+        $meta_key,
+        $before_stored
+    ));
     wp_cache_delete($user_id, 'user_meta');
-    return get_user_meta($user_id, $meta_key, true) === $expected;
+    if ($updated === false || $updated <= 0 || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $stored = $wpdb->get_var($wpdb->prepare(
+        "SELECT meta_value
+         FROM {$wpdb->usermeta}
+         WHERE umeta_id = %d
+           AND user_id = %d
+           AND meta_key = %s",
+        $meta_id,
+        $user_id,
+        $meta_key
+    ));
+    wp_cache_delete($user_id, 'user_meta');
+    return $stored !== null
+        && (string) $wpdb->last_error === ''
+        && (string) $stored === $expected_stored;
 }
 
 function ll_tools_get_user_recommendation_queue($user_id = 0, $wordset_id = 0): array {
@@ -10867,34 +11444,68 @@ function ll_tools_user_progress_batch_ajax() {
     if (is_wp_error($events)) {
         ll_tools_user_study_send_request_collection_error($events);
     }
-    $stats = ll_tools_process_progress_events_batch(get_current_user_id(), $events);
-    if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
-        ll_tools_user_progress_send_retryable_failure($stats);
-    }
-
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
     if (is_wp_error($category_ids)) {
         ll_tools_user_study_send_request_collection_error($category_ids);
     }
 
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    $queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $category_ids, $categories, 8);
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $category_ids, $categories);
+    $user_id = get_current_user_id();
+    $result = null;
+    $mutation_lock = function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        ? ll_tools_offline_app_acquire_user_session_lock($user_id)
+        : '';
+    if ($mutation_lock === '') {
+        $result = [
+            'stats' => ll_tools_user_progress_core_engine_failure_stats($events, [
+                'failure_code' => 'progress_mutation_lock_unavailable',
+            ]),
+        ];
+    } else {
+        try {
+            if (
+                !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+                || ll_tools_offline_app_user_data_write_is_fenced($user_id)
+            ) {
+                $result = [
+                    'stats' => ll_tools_user_progress_core_engine_failure_stats($events, [
+                        'failure_code' => 'progress_privacy_erasure_in_progress',
+                    ]),
+                ];
+            } else {
+                $stats = ll_tools_process_progress_events_batch_locked($user_id, $events);
+                if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
+                    $result = ['stats' => $stats];
+                } else {
+                    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                        ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                        : [];
+                    $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, $category_ids, $categories, 8);
+                    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+                    if (!$recommendation) {
+                        $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, $category_ids, $categories);
+                    }
+                    if ($recommendation) {
+                        ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+                    }
+
+                    $result = [
+                        'stats' => $stats,
+                        'next_activity' => $recommendation,
+                        'recommendation_queue' => $queue,
+                    ];
+                }
+            }
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($mutation_lock);
+        }
     }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, get_current_user_id(), $wordset_id);
+    $stats = (array) ($result['stats'] ?? []);
+    if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
+        ll_tools_user_progress_send_retryable_failure($stats);
     }
 
-    wp_send_json_success([
-        'stats' => $stats,
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_progress_batch', 'll_tools_user_progress_batch_ajax');
 
@@ -10916,6 +11527,57 @@ function ll_tools_user_progress_sync_snapshot_ajax() {
 }
 add_action('wp_ajax_ll_user_study_sync_snapshot', 'll_tools_user_progress_sync_snapshot_ajax');
 
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_save_goals_request(
+    int $user_id,
+    array $goals_raw,
+    int $wordset_id,
+    array $category_ids
+) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static function () use ($user_id, $goals_raw, $wordset_id, $category_ids): array {
+            $goals = ll_tools_save_user_study_goals($goals_raw, $user_id);
+            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                : [];
+            $queue = ll_tools_refresh_user_recommendation_queue(
+                $user_id,
+                $wordset_id,
+                $category_ids,
+                $categories,
+                8
+            );
+            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+            if (!$recommendation) {
+                $recommendation = ll_tools_build_next_activity_recommendation(
+                    $user_id,
+                    $wordset_id,
+                    $category_ids,
+                    $categories
+                );
+            }
+            if ($recommendation) {
+                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+            }
+
+            return [
+                'goals' => $goals,
+                'next_activity' => $recommendation,
+                'recommendation_queue' => $queue,
+            ];
+        }
+    );
+}
+
 function ll_tools_user_study_save_goals_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -10927,31 +11589,22 @@ function ll_tools_user_study_save_goals_ajax() {
         ll_tools_user_study_send_request_collection_error($goals_raw);
     }
 
-    $goals = ll_tools_save_user_study_goals($goals_raw, get_current_user_id());
-
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
     if (is_wp_error($category_ids)) {
         ll_tools_user_study_send_request_collection_error($category_ids);
     }
-
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    $queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $category_ids, $categories, 8);
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $category_ids, $categories);
-    }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, get_current_user_id(), $wordset_id);
+    $result = ll_tools_user_study_save_goals_request(
+        get_current_user_id(),
+        $goals_raw,
+        $wordset_id,
+        $category_ids
+    );
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
     }
 
-    wp_send_json_success([
-        'goals' => $goals,
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_save_goals', 'll_tools_user_study_save_goals_ajax');
 
@@ -11053,6 +11706,34 @@ function ll_tools_user_study_recommendation_payload(
     ];
 }
 
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_recommendation_request(
+    int $user_id,
+    int $wordset_id,
+    array $category_ids,
+    string $preferred_mode = '',
+    bool $force_refresh = true
+) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static fn (): array => ll_tools_user_study_recommendation_payload(
+            $user_id,
+            $wordset_id,
+            $category_ids,
+            $preferred_mode,
+            $force_refresh
+        )
+    );
+}
+
 function ll_tools_user_study_recommendation_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -11066,16 +11747,76 @@ function ll_tools_user_study_recommendation_ajax() {
     }
     $preferred_mode = sanitize_key((string) ($_POST['preferred_mode'] ?? ''));
     $force_refresh = !isset($_POST['refresh']) || !empty($_POST['refresh']);
-
-    wp_send_json_success(ll_tools_user_study_recommendation_payload(
+    $result = ll_tools_user_study_recommendation_request(
         get_current_user_id(),
         $wordset_id,
         $category_ids,
         $preferred_mode,
         $force_refresh
-    ));
+    );
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
+    }
+
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_recommendation', 'll_tools_user_study_recommendation_ajax');
+
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_queue_remove_request(int $user_id, int $wordset_id, string $queue_id) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static function () use ($user_id, $wordset_id, $queue_id): array {
+            $removed_signature = '';
+            $removed_activity = null;
+            if ($wordset_id > 0 && $queue_id !== '') {
+                $current_queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
+                foreach ((array) $current_queue as $activity) {
+                    if (!is_array($activity)) {
+                        continue;
+                    }
+                    $current_id = sanitize_key((string) ($activity['queue_id'] ?? ''));
+                    if ($current_id === '' || $current_id !== $queue_id) {
+                        continue;
+                    }
+                    $removed_signature = ll_tools_recommendation_activity_queue_id($activity);
+                    $removed_activity = $activity;
+                    break;
+                }
+            }
+
+            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                : [];
+            if (is_array($removed_activity) && function_exists('ll_tools_defer_user_recommendation_activity')) {
+                ll_tools_defer_user_recommendation_activity($removed_activity, $user_id, $wordset_id);
+            } elseif ($removed_signature !== '') {
+                ll_tools_add_user_recommendation_dismissed_signature($removed_signature, $user_id, $wordset_id);
+            }
+            $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, [], $categories, 8);
+            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+            if (!$recommendation) {
+                $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, [], $categories);
+            }
+            if ($recommendation) {
+                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+            }
+
+            return [
+                'next_activity' => $recommendation,
+                'recommendation_queue' => $queue,
+            ];
+        }
+    );
+}
 
 function ll_tools_user_study_queue_remove_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
@@ -11086,46 +11827,12 @@ function ll_tools_user_study_queue_remove_ajax() {
     $uid = get_current_user_id();
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $queue_id = isset($_POST['queue_id']) ? sanitize_key((string) $_POST['queue_id']) : '';
-    $removed_signature = '';
-    $removed_activity = null;
-    if ($wordset_id > 0 && $queue_id !== '') {
-        $current_queue = ll_tools_get_user_recommendation_queue($uid, $wordset_id);
-        foreach ((array) $current_queue as $activity) {
-            if (!is_array($activity)) {
-                continue;
-            }
-            $current_id = sanitize_key((string) ($activity['queue_id'] ?? ''));
-            if ($current_id === '' || $current_id !== $queue_id) {
-                continue;
-            }
-            $removed_signature = ll_tools_recommendation_activity_queue_id($activity);
-            $removed_activity = $activity;
-            break;
-        }
+    $result = ll_tools_user_study_queue_remove_request($uid, $wordset_id, $queue_id);
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
     }
 
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    if (is_array($removed_activity) && function_exists('ll_tools_defer_user_recommendation_activity')) {
-        ll_tools_defer_user_recommendation_activity($removed_activity, $uid, $wordset_id);
-    } elseif ($removed_signature !== '') {
-        ll_tools_add_user_recommendation_dismissed_signature($removed_signature, $uid, $wordset_id);
-    }
-    $queue = ll_tools_refresh_user_recommendation_queue($uid, $wordset_id, [], $categories, 8);
-
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation($uid, $wordset_id, [], $categories);
-    }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, $uid, $wordset_id);
-    }
-
-    wp_send_json_success([
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_queue_remove', 'll_tools_user_study_queue_remove_ajax');
 
@@ -11616,6 +12323,325 @@ function ll_tools_build_launchable_user_study_selection_chunks(
 }
 
 /**
+ * Read only the persisted Gender fields needed to plan a large launch.
+ *
+ * @param int[] $word_ids
+ * @return array<int,array<string,mixed>>
+ */
+function ll_tools_get_user_word_gender_planning_rows(
+    int $user_id,
+    array $word_ids,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    if (!isset($wpdb) || !($wpdb instanceof wpdb)) {
+        $complete = false;
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if ($user_id <= 0 || empty($word_ids)) {
+        return [];
+    }
+
+    $table = ll_tools_user_progress_table_names()['words'];
+    $rows_by_word_id = [];
+    foreach (array_chunk($word_ids, 500) as $chunk) {
+        $placeholders = implode(', ', array_fill(0, count($chunk), '%d'));
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "
+                SELECT
+                    word_id,
+                    category_id,
+                    gender_level,
+                    gender_seen_total,
+                    gender_last_seen_at,
+                    gender_state_json,
+                    updated_at
+                FROM {$table}
+                WHERE user_id = %d
+                  AND word_id IN ({$placeholders})
+                ",
+                array_merge([$user_id], $chunk)
+            ),
+            ARRAY_A
+        );
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+        foreach ((array) $rows as $row) {
+            $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+            if ($word_id > 0) {
+                $rows_by_word_id[$word_id] = $row;
+            }
+        }
+    }
+
+    return $rows_by_word_id;
+}
+
+/**
+ * Keep only nouns that can actually render a Gender round for their category.
+ *
+ * @param array<int,int[]>                $matched_by_category
+ * @param array<int,array<string,mixed>> $category_payload_lookup
+ * @return array<int,int[]>
+ */
+function ll_tools_filter_user_study_gender_selection_matches(
+    array $matched_by_category,
+    int $wordset_id,
+    array $category_payload_lookup,
+    ?bool &$complete = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $all_word_ids = [];
+    foreach ($matched_by_category as $word_ids) {
+        foreach ((array) $word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id > 0) {
+                $all_word_ids[$word_id] = $word_id;
+            }
+        }
+    }
+    $all_word_ids = array_values($all_word_ids);
+    if ($wordset_id <= 0 || empty($all_word_ids)) {
+        return [];
+    }
+
+    if (
+        !function_exists('ll_tools_wordset_has_grammatical_gender')
+        || !function_exists('ll_tools_wordset_get_gender_options')
+        || !function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+        || !function_exists('ll_tools_get_object_term_slugs_map')
+    ) {
+        $complete = false;
+        return [];
+    }
+
+    $gender_enabled_complete = true;
+    $gender_enabled = ll_tools_wordset_has_grammatical_gender($wordset_id, $gender_enabled_complete);
+    if (!$gender_enabled_complete || !$gender_enabled) {
+        $complete = $gender_enabled_complete;
+        return [];
+    }
+
+    $gender_options_complete = true;
+    $gender_options = ll_tools_wordset_get_gender_options($wordset_id, $gender_options_complete);
+    if (!$gender_options_complete || empty($gender_options)) {
+        $complete = $gender_options_complete;
+        return [];
+    }
+
+    $gender_meta_complete = true;
+    $gender_by_word = ll_tools_user_progress_get_word_gender_meta_map($all_word_ids, $gender_meta_complete);
+    if (!$gender_meta_complete) {
+        $complete = false;
+        return [];
+    }
+
+    $part_of_speech_complete = true;
+    $part_of_speech_by_word = ll_tools_get_object_term_slugs_map(
+        $all_word_ids,
+        'part_of_speech',
+        $part_of_speech_complete
+    );
+    if (!$part_of_speech_complete) {
+        $complete = false;
+        return [];
+    }
+
+    $requires_audio_by_category = [];
+    $requires_image_by_category = [];
+    $needs_audio = false;
+    $needs_image = false;
+    foreach ($matched_by_category as $category_id => $_word_ids) {
+        $category_id = (int) $category_id;
+        $category_meta = isset($category_payload_lookup[$category_id]) && is_array($category_payload_lookup[$category_id])
+            ? $category_payload_lookup[$category_id]
+            : [];
+        $prompt_type = sanitize_key((string) ($category_meta['prompt_type'] ?? 'audio'));
+        $option_type = sanitize_key((string) ($category_meta['option_type'] ?? ($category_meta['mode'] ?? 'image')));
+        $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+        $requires_image = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : ($prompt_type === 'image' || $option_type === 'image');
+        $requires_audio_by_category[$category_id] = (bool) $requires_audio;
+        $requires_image_by_category[$category_id] = (bool) $requires_image;
+        $needs_audio = $needs_audio || (bool) $requires_audio;
+        $needs_image = $needs_image || (bool) $requires_image;
+    }
+
+    $audio_presence_by_word = [];
+    if ($needs_audio) {
+        if (!function_exists('ll_tools_get_word_audio_presence_map')) {
+            $complete = false;
+            return [];
+        }
+        $audio_complete = true;
+        $audio_presence_by_word = ll_tools_get_word_audio_presence_map($all_word_ids, $audio_complete);
+        if (!$audio_complete) {
+            $complete = false;
+            return [];
+        }
+    }
+
+    $image_presence_by_word = [];
+    if ($needs_image) {
+        if (!function_exists('ll_tools_get_word_effective_image_presence_map')) {
+            $complete = false;
+            return [];
+        }
+        $image_complete = true;
+        $image_presence_by_word = ll_tools_get_word_effective_image_presence_map($all_word_ids, $image_complete);
+        if (!$image_complete) {
+            $complete = false;
+            return [];
+        }
+    }
+
+    $filtered = [];
+    foreach ($matched_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0) {
+            continue;
+        }
+        foreach ((array) $word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0) {
+                continue;
+            }
+            $gender_value = ll_tools_wordset_normalize_gender_value_for_options(
+                trim((string) ($gender_by_word[$word_id] ?? '')),
+                $gender_options
+            );
+            $part_of_speech = array_values(array_filter(array_map(
+                'sanitize_key',
+                array_map('strval', (array) ($part_of_speech_by_word[$word_id] ?? []))
+            )));
+            if (
+                $gender_value === ''
+                || !in_array('noun', $part_of_speech, true)
+                || (!empty($requires_audio_by_category[$category_id]) && empty($audio_presence_by_word[$word_id]))
+                || (!empty($requires_image_by_category[$category_id]) && empty($image_presence_by_word[$word_id]))
+            ) {
+                continue;
+            }
+            if (!isset($filtered[$category_id])) {
+                $filtered[$category_id] = [];
+            }
+            $filtered[$category_id][] = $word_id;
+        }
+    }
+
+    return $filtered;
+}
+
+/**
+ * Build exact, starting-level-homogeneous Gender chunks.
+ *
+ * Level 1 is learn-like and intentionally smaller. Levels 2 and 3 are linear
+ * practice flows and can use the normal 15-word transport cap. The output is
+ * round-robin by level so a large slow Level 1 queue cannot starve review.
+ *
+ * @param array<int,int[]>                $matched_by_category
+ * @param array<int,array<string,mixed>> $gender_progress_rows
+ * @return array<int,array{category_ids:int[],word_ids:int[],details:array<string,int|bool>}>
+ */
+function ll_tools_build_user_study_gender_selection_launch_chunks(
+    array $matched_by_category,
+    array $gender_progress_rows,
+    int $level_one_max_words = 10,
+    int $review_max_words = 15,
+    int $max_categories = 8
+): array {
+    $level_one_max_words = max(1, min(10, $level_one_max_words));
+    $review_max_words = max(1, min(15, $review_max_words));
+    $max_categories = max(1, min(8, $max_categories));
+
+    $seen_word_ids = [];
+    $matched_by_level = [1 => [], 2 => [], 3 => []];
+    foreach ($matched_by_category as $category_id => $word_ids) {
+        $category_id = (int) $category_id;
+        if ($category_id <= 0) {
+            continue;
+        }
+        foreach ((array) $word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($seen_word_ids[$word_id])) {
+                continue;
+            }
+            $seen_word_ids[$word_id] = true;
+            $progress_row = isset($gender_progress_rows[$word_id]) && is_array($gender_progress_rows[$word_id])
+                ? $gender_progress_rows[$word_id]
+                : [];
+            $gender_progress = ll_tools_get_progress_row_gender_progress($progress_row);
+            $level = empty($gender_progress)
+                ? 1
+                : ll_tools_user_progress_normalize_gender_level($gender_progress['level'] ?? 1);
+            if (!isset($matched_by_level[$level][$category_id])) {
+                $matched_by_level[$level][$category_id] = [];
+            }
+            $matched_by_level[$level][$category_id][] = $word_id;
+        }
+    }
+
+    $chunks_by_level = [1 => [], 2 => [], 3 => []];
+    foreach ([1, 2, 3] as $level) {
+        if (empty($matched_by_level[$level])) {
+            continue;
+        }
+        $max_words = ($level === 1) ? $level_one_max_words : $review_max_words;
+        $level_chunks = ll_tools_build_user_study_selection_launch_chunks(
+            $matched_by_level[$level],
+            $max_words,
+            $max_categories,
+            1
+        );
+        if (!ll_tools_validate_user_study_selection_launch_chunks(
+            $level_chunks,
+            $matched_by_level[$level],
+            $max_words,
+            $max_categories,
+            1
+        )) {
+            return [];
+        }
+        foreach ($level_chunks as $chunk) {
+            $chunk['details'] = [
+                'gender_level' => $level,
+                'gender_auto_continue' => $level > 1,
+            ];
+            $chunks_by_level[$level][] = $chunk;
+        }
+    }
+
+    $chunks = [];
+    do {
+        $added = false;
+        foreach ([1, 2, 3] as $level) {
+            if (empty($chunks_by_level[$level])) {
+                continue;
+            }
+            $chunks[] = array_shift($chunks_by_level[$level]);
+            $added = true;
+        }
+    } while ($added);
+
+    return $chunks;
+}
+
+/**
  * Normalize a learning prompt type for category compatibility comparisons.
  */
 function ll_tools_user_study_learning_prompt_compatibility_type($value): string {
@@ -11692,10 +12718,12 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
     array $word_ids_by_category,
     array $category_payload_lookup,
     int $max_words = 15,
-    int $max_categories = 8
+    int $max_categories = 8,
+    int $preferred_max_words = 12
 ) {
     $minimum_words = 8;
     $max_words = max($minimum_words, min(15, $max_words));
+    $preferred_max_words = max($minimum_words, min($max_words, $preferred_max_words));
     $max_categories = max(1, min(8, $max_categories));
     $unlaunchable = static function (): WP_Error {
         return new WP_Error(
@@ -11757,9 +12785,28 @@ function ll_tools_build_user_study_learning_selection_launch_chunks(
     $filler_need_by_group = [];
     $filler_category_lookups_by_group = [];
     foreach ($targets_by_group as $compatibility_key => $group_targets_by_category) {
+        $group_target_lookup = [];
+        foreach ($group_targets_by_category as $group_target_word_ids) {
+            foreach ((array) $group_target_word_ids as $group_target_word_id) {
+                $group_target_word_id = (int) $group_target_word_id;
+                if ($group_target_word_id > 0) {
+                    $group_target_lookup[$group_target_word_id] = true;
+                }
+            }
+        }
+        $group_target_count = count($group_target_lookup);
+        // Totals from 13 through 15 cannot be split into two complete
+        // eight-word Learning sets without repeating targets. Keep that one
+        // unavoidable set under the hard cap; all other groups use the gentler
+        // preferred cap so large selections do not become a chain of 15-word
+        // quadratic rounds.
+        $target_chunk_max_words = (
+            $group_target_count > $preferred_max_words
+            && $group_target_count <= $max_words
+        ) ? $max_words : $preferred_max_words;
         $target_chunks = ll_tools_build_user_study_selection_launch_chunks(
             $group_targets_by_category,
-            $max_words,
+            $target_chunk_max_words,
             $max_categories,
             1
         );
@@ -12092,11 +13139,13 @@ function ll_tools_build_user_study_selection_launch_plan(
     // applies visibility/quizzability checks. Reusing its persistent ID map is
     // substantially cheaper than rebuilding every category card and preview.
     $membership_complete = true;
+    $direct_word_ids_by_category = [];
     $wpdb->last_error = '';
     $word_ids_by_category = ll_tools_user_progress_analytics_word_ids_by_category(
         $category_ids,
         $wordset_id,
-        $membership_complete
+        $membership_complete,
+        $direct_word_ids_by_category
     );
     if (!$membership_complete || $wpdb->last_error !== '') {
         return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
@@ -12117,7 +13166,7 @@ function ll_tools_build_user_study_selection_launch_plan(
     $word_ids_by_category = ll_tools_user_progress_order_word_ids_by_category($word_ids_by_category, $category_ids);
 
     $category_payload_lookup = [];
-    if ($mode === 'learning' || $mode === 'self-check') {
+    if (in_array($mode, ['learning', 'self-check', 'gender'], true)) {
         $category_payload_complete = true;
         $category_payload_lookup = ll_tools_user_progress_selection_category_payload_map(
             $category_ids,
@@ -12130,8 +13179,14 @@ function ll_tools_build_user_study_selection_launch_plan(
         $category_ids = array_values(array_filter(
             $category_ids,
             static function (int $category_id) use ($mode, $category_payload_lookup): bool {
-                return isset($category_payload_lookup[$category_id])
-                    && ll_tools_category_meta_supports_progress_mode($mode, $category_payload_lookup[$category_id]);
+                if (!isset($category_payload_lookup[$category_id])) {
+                    return false;
+                }
+                // Gender eligibility is resolved against the exact word/media
+                // projection below. Older warm category aggregates did not carry
+                // gender_supported, so it must not be the authoritative gate here.
+                return $mode === 'gender'
+                    || ll_tools_category_meta_supports_progress_mode($mode, $category_payload_lookup[$category_id]);
             }
         ));
         if (empty($category_ids)) {
@@ -12142,6 +13197,8 @@ function ll_tools_build_user_study_selection_launch_plan(
             $category_payload_lookup[$category_id] = ['id' => $category_id];
         }
     }
+
+    $limits = ll_tools_user_study_selection_launch_limits($wordset_id);
 
     $all_word_ids = [];
     foreach ($category_ids as $category_id) {
@@ -12166,11 +13223,18 @@ function ll_tools_build_user_study_selection_launch_plan(
             'truncated' => false,
         ];
         if ($mode === 'learning') {
+            $learning_max_words = max(8, min(15, (int) ($limits['max_words'] ?? 15)));
+            $learning_preferred_max_words = max(8, min($learning_max_words, (int) apply_filters(
+                'll_tools_user_study_learning_selection_launch_preferred_max_words',
+                min(12, $learning_max_words),
+                $wordset_id
+            )));
             $empty_plan['target_word_ids'] = [];
             $empty_plan['compatibility_key'] = '';
             $empty_plan['expanded_count'] = 0;
             $empty_plan['minimum_words'] = 8;
-            $empty_plan['maximum_words'] = 15;
+            $empty_plan['maximum_words'] = $learning_max_words;
+            $empty_plan['preferred_maximum_words'] = $learning_preferred_max_words;
         }
         return $empty_plan;
     }
@@ -12230,6 +13294,48 @@ function ll_tools_build_user_study_selection_launch_plan(
         }
     }
 
+    if ($mode === 'gender' && !empty($matched_by_category)) {
+        foreach ($matched_by_category as $category_id => $word_ids) {
+            $direct_lookup = array_fill_keys(
+                ll_tools_user_progress_normalize_positive_ids(
+                    (array) ($direct_word_ids_by_category[(int) $category_id] ?? [])
+                ),
+                true
+            );
+            $direct_matches = array_values(array_filter(
+                ll_tools_user_progress_normalize_positive_ids((array) $word_ids),
+                static function (int $word_id) use ($direct_lookup): bool {
+                    return isset($direct_lookup[$word_id]);
+                }
+            ));
+            if (empty($direct_matches)) {
+                unset($matched_by_category[$category_id]);
+                continue;
+            }
+            $matched_by_category[$category_id] = $direct_matches;
+        }
+
+        $gender_matches_complete = true;
+        $matched_by_category = ll_tools_filter_user_study_gender_selection_matches(
+            $matched_by_category,
+            $wordset_id,
+            $category_payload_lookup,
+            $gender_matches_complete
+        );
+        if (!$gender_matches_complete || $wpdb->last_error !== '') {
+            return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+        }
+        $matched_word_lookup = [];
+        foreach ($matched_by_category as $word_ids) {
+            foreach ((array) $word_ids as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0) {
+                    $matched_word_lookup[$word_id] = true;
+                }
+            }
+        }
+    }
+
     $matched_count = count($matched_word_lookup);
     if ($matched_count === 0) {
         $empty_plan = [
@@ -12244,23 +13350,103 @@ function ll_tools_build_user_study_selection_launch_plan(
             'truncated' => false,
         ];
         if ($mode === 'learning') {
+            $learning_max_words = max(8, min(15, (int) ($limits['max_words'] ?? 15)));
+            $learning_preferred_max_words = max(8, min($learning_max_words, (int) apply_filters(
+                'll_tools_user_study_learning_selection_launch_preferred_max_words',
+                min(12, $learning_max_words),
+                $wordset_id
+            )));
             $empty_plan['target_word_ids'] = [];
             $empty_plan['compatibility_key'] = '';
             $empty_plan['expanded_count'] = 0;
             $empty_plan['minimum_words'] = 8;
-            $empty_plan['maximum_words'] = 15;
+            $empty_plan['maximum_words'] = $learning_max_words;
+            $empty_plan['preferred_maximum_words'] = $learning_preferred_max_words;
         }
         return $empty_plan;
     }
 
-    $limits = ll_tools_user_study_selection_launch_limits($wordset_id);
+    if ($mode === 'gender') {
+        $selection_max_words = max(1, (int) ($limits['max_words'] ?? 15));
+        $level_one_hard_cap = min(10, $selection_max_words);
+        $review_hard_cap = min(15, $selection_max_words);
+        $level_one_max_words = max(1, min($level_one_hard_cap, (int) apply_filters(
+            'll_tools_user_study_gender_level_one_launch_max_words',
+            $level_one_hard_cap,
+            $wordset_id
+        )));
+        $review_max_words = max(1, min($review_hard_cap, (int) apply_filters(
+            'll_tools_user_study_gender_review_launch_max_words',
+            $review_hard_cap,
+            $wordset_id
+        )));
+        $gender_word_ids = array_values(array_map('intval', array_keys($matched_word_lookup)));
+        $gender_progress_complete = true;
+        $gender_progress_rows = ll_tools_get_user_word_gender_planning_rows(
+            $user_id,
+            $gender_word_ids,
+            $gender_progress_complete
+        );
+        if (!$gender_progress_complete || $wpdb->last_error !== '') {
+            return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+        }
+
+        $gender_chunks = ll_tools_build_user_study_gender_selection_launch_chunks(
+            $matched_by_category,
+            $gender_progress_rows,
+            $level_one_max_words,
+            $review_max_words,
+            (int) ($limits['hard_max_categories'] ?? 8)
+        );
+        if (empty($gender_chunks)) {
+            return new WP_Error('selection_plan_unlaunchable', __('No quiz words are available for this selection.', 'll-tools-text-domain'));
+        }
+
+        $planned_gender_word_lookup = [];
+        foreach ($gender_chunks as $gender_chunk) {
+            foreach ((array) ($gender_chunk['word_ids'] ?? []) as $word_id) {
+                $word_id = (int) $word_id;
+                if ($word_id > 0) {
+                    $planned_gender_word_lookup[$word_id] = true;
+                }
+            }
+        }
+        if (count($planned_gender_word_lookup) !== $matched_count) {
+            return new WP_Error('selection_query_failed', __('Something went wrong. Please try again.', 'll-tools-text-domain'));
+        }
+
+        $first_gender_chunk = isset($gender_chunks[0]) && is_array($gender_chunks[0])
+            ? $gender_chunks[0]
+            : ['category_ids' => [], 'word_ids' => [], 'details' => []];
+
+        return [
+            'category_ids' => array_values(array_map('intval', (array) ($first_gender_chunk['category_ids'] ?? []))),
+            'word_ids' => array_values(array_map('intval', (array) ($first_gender_chunk['word_ids'] ?? []))),
+            'chunks' => $gender_chunks,
+            'criteria' => $criteria,
+            'mode' => $mode,
+            'matched_count' => $matched_count,
+            'planned_count' => count($planned_gender_word_lookup),
+            'chunk_count' => count($gender_chunks),
+            'level_one_maximum_words' => $level_one_max_words,
+            'review_maximum_words' => $review_max_words,
+            'truncated' => false,
+        ];
+    }
     if ($mode === 'learning') {
+        $learning_max_words = max(8, min(15, (int) ($limits['max_words'] ?? 15)));
+        $learning_preferred_max_words = max(8, min($learning_max_words, (int) apply_filters(
+            'll_tools_user_study_learning_selection_launch_preferred_max_words',
+            min(12, $learning_max_words),
+            $wordset_id
+        )));
         $learning_chunks = ll_tools_build_user_study_learning_selection_launch_chunks(
             $matched_by_category,
             $word_ids_by_category,
             $category_payload_lookup,
-            (int) ($limits['max_words'] ?? 15),
-            (int) ($limits['hard_max_categories'] ?? 8)
+            $learning_max_words,
+            (int) ($limits['hard_max_categories'] ?? 8),
+            $learning_preferred_max_words
         );
         if (is_wp_error($learning_chunks)) {
             return $learning_chunks;
@@ -12311,17 +13497,19 @@ function ll_tools_build_user_study_selection_launch_plan(
             'expanded_count' => max(0, $planned_count - $matched_count),
             'chunk_count' => count($learning_chunks),
             'minimum_words' => 8,
-            'maximum_words' => max(8, min(15, (int) ($limits['max_words'] ?? 15))),
+            'maximum_words' => $learning_max_words,
+            'preferred_maximum_words' => $learning_preferred_max_words,
             'truncated' => false,
         ];
     }
     [$minimum_words] = ll_tools_recommendation_session_word_bounds();
+    $chunk_minimum_words = ($mode === 'self-check') ? 1 : $minimum_words;
     $chunks = ll_tools_build_launchable_user_study_selection_chunks(
         $matched_by_category,
         (int) $limits['max_words'],
         (int) $limits['max_categories'],
         (int) $limits['hard_max_categories'],
-        $minimum_words,
+        $chunk_minimum_words,
         (int) $limits['preferred_categories']
     );
     if (is_wp_error($chunks)) {

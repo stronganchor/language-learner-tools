@@ -30,11 +30,28 @@
     const LEVEL_TWO = 2;
     const LEVEL_THREE = 3;
     const LEVEL_ONE_MIN_CORRECT = 3;
+    const BOUNDED_LEVEL_ONE_CHUNK_SIZE = 10;
+    const BOUNDED_PRACTICE_CHUNK_SIZE = 15;
 
     let storeCache = null;
     let storeCacheKey = '';
+    let boundedRuntime = createEmptyBoundedRuntime();
     let session = createEmptySession();
     let round = createEmptyRoundState();
+
+    function createEmptyBoundedRuntime(signature) {
+        return {
+            signature: String(signature || ''),
+            isBoundedSession: false,
+            acceptedWordLookup: {},
+            completedWordLookup: {},
+            completedWordCount: 0,
+            deferredPlans: [],
+            deferredWordsById: {},
+            activeWordsById: {},
+            progressMaxAnsweredCount: 0
+        };
+    }
 
     function createEmptySession() {
         return {
@@ -67,6 +84,15 @@
                 beforeIntroCorrect: 0,
                 afterIntroCorrect: 0
             },
+            logicalSessionWordIds: [],
+            logicalSessionWordLookup: {},
+            logicalAcceptedWordLookup: {},
+            logicalCompletedWordLookup: {},
+            logicalCompletedWordCount: 0,
+            logicalSessionTotal: 0,
+            deferredPlans: [],
+            deferredWordsById: {},
+            boundedActiveWordsById: {},
             progressMaxAnsweredCount: 0,
             resultsActions: null
         };
@@ -598,10 +624,37 @@
         return true;
     }
 
-    function collectEligibleWords() {
+    function normalizeCategoryNames(values) {
+        const out = [];
+        const seen = {};
+        (Array.isArray(values) ? values : []).forEach(function (value) {
+            const name = String(value || '').trim();
+            if (!name || seen[name]) return;
+            seen[name] = true;
+            out.push(name);
+        });
+        return out;
+    }
+
+    function normalizeWordIds(values) {
+        const out = [];
+        const seen = {};
+        (Array.isArray(values) ? values : []).forEach(function (value) {
+            const id = toInt(value);
+            if (!id || seen[id]) return;
+            seen[id] = true;
+            out.push(id);
+        });
+        return out;
+    }
+
+    function collectEligibleWords(categoryNames) {
         const byCategory = State.wordsByCategory || {};
-        const categoryNames = Array.isArray(State.categoryNames) ? State.categoryNames.slice() : [];
-        const selected = categoryNames.length ? categoryNames : Object.keys(byCategory);
+        const requestedNames = normalizeCategoryNames(categoryNames);
+        const selectedNames = normalizeCategoryNames(State.categoryNames);
+        const selected = requestedNames.length
+            ? requestedNames
+            : (selectedNames.length ? selectedNames : Object.keys(byCategory));
         const options = getGenderOptions();
         const out = [];
         selected.forEach(function (name) {
@@ -638,17 +691,352 @@
             return null;
         }
         const hasExplicitLevel = Object.prototype.hasOwnProperty.call(raw, 'level');
-        const level = hasExplicitLevel ? normalizeLevel(raw.level) : 0;
-        const wordIds = (Array.isArray(raw.word_ids) ? raw.word_ids : [])
+        const rawLevel = hasExplicitLevel ? toInt(raw.level) : 0;
+        const level = (rawLevel >= LEVEL_ONE && rawLevel <= LEVEL_THREE) ? rawLevel : 0;
+        const rawWordIds = (Array.isArray(raw.word_ids) ? raw.word_ids : [])
             .map(toInt)
             .filter(function (id) { return id > 0; });
+        const wordIds = normalizeWordIds(rawWordIds);
         return {
             level: level,
             word_ids: wordIds,
+            word_ids_are_unique: rawWordIds.length === wordIds.length,
             launch_source: String(raw.launch_source || data.genderLaunchSource || 'direct'),
             force_intro: !!raw.force_intro,
             reason_code: String(raw.reason_code || '')
         };
+    }
+
+    function getLogicalSessionWordIds() {
+        const data = root.llToolsFlashcardsData || {};
+        const values = Array.isArray(data.logicalSessionWordIds)
+            ? data.logicalSessionWordIds
+            : data.logical_session_word_ids;
+        return normalizeWordIds(values);
+    }
+
+    function getConfiguredLogicalSessionTotal() {
+        const data = root.llToolsFlashcardsData || {};
+        return Math.max(
+            0,
+            parseInt(data.logicalSessionTotal || data.logical_session_total, 10) || 0
+        );
+    }
+
+    function getConfiguredLogicalCompletedBefore() {
+        const data = root.llToolsFlashcardsData || {};
+        const hasCamel = Object.prototype.hasOwnProperty.call(data, 'logicalSessionCompletedBefore');
+        const hasSnake = Object.prototype.hasOwnProperty.call(data, 'logical_session_completed_before');
+        return {
+            configured: hasCamel || hasSnake,
+            count: Math.max(
+                0,
+                parseInt(data.logicalSessionCompletedBefore || data.logical_session_completed_before, 10) || 0
+            )
+        };
+    }
+
+    function getLogicalSessionSignature(fallbackIds) {
+        const data = root.llToolsFlashcardsData || {};
+        const configuredIds = getLogicalSessionWordIds();
+        const ids = configuredIds.length
+            ? configuredIds
+            : normalizeWordIds(fallbackIds);
+        if (!ids.length) return '';
+        const sortedIds = ids.slice().sort(function (left, right) { return left - right; });
+        const userState = (data.userStudyState && typeof data.userStudyState === 'object')
+            ? data.userStudyState
+            : {};
+        const wordsetId = toInt(data.genderWordsetId || userState.wordset_id || (Array.isArray(data.wordsetIds) ? data.wordsetIds[0] : 0));
+        const scope = getProgressStorageScope() || (isUserLoggedIn() ? 'user' : 'guest');
+        return scope + '::' + String(wordsetId || 0) + '::' + sortedIds.join(',');
+    }
+
+    function isBoundedTransportPlan(plan) {
+        return String((plan && plan.reason_code) || '') === 'bounded_level_chunk';
+    }
+
+    function isDeferredOverflowPlan(plan) {
+        return String((plan && plan.reason_code) || '') === 'local_level_overflow';
+    }
+
+    function attachBoundedRuntimeToSession() {
+        session.logicalAcceptedWordLookup = boundedRuntime.acceptedWordLookup;
+        session.logicalCompletedWordLookup = boundedRuntime.completedWordLookup;
+        session.logicalCompletedWordCount = boundedRuntime.completedWordCount;
+        session.deferredPlans = boundedRuntime.deferredPlans;
+        session.deferredWordsById = boundedRuntime.deferredWordsById;
+        session.boundedActiveWordsById = boundedRuntime.activeWordsById;
+        session.progressMaxAnsweredCount = Math.max(
+            session.progressMaxAnsweredCount || 0,
+            boundedRuntime.progressMaxAnsweredCount || 0
+        );
+    }
+
+    function resetBoundedRuntime(signature) {
+        boundedRuntime = createEmptyBoundedRuntime(signature);
+        attachBoundedRuntimeToSession();
+    }
+
+    function prepareBoundedRuntimeForInitialize(plan) {
+        const signature = getLogicalSessionSignature(plan && plan.word_ids);
+        const completedBefore = getConfiguredLogicalCompletedBefore();
+        const startsNewBoundedSession = isBoundedTransportPlan(plan) &&
+            (!completedBefore.configured || completedBefore.count === 0);
+
+        if (!signature || startsNewBoundedSession || boundedRuntime.signature !== signature) {
+            resetBoundedRuntime(signature);
+            return;
+        }
+        attachBoundedRuntimeToSession();
+    }
+
+    function clearBoundedSessionState() {
+        boundedRuntime = createEmptyBoundedRuntime();
+        if (session && typeof session === 'object') {
+            session.logicalAcceptedWordLookup = {};
+            session.logicalCompletedWordLookup = {};
+            session.logicalCompletedWordCount = 0;
+            session.deferredPlans = [];
+            session.deferredWordsById = {};
+            session.boundedActiveWordsById = {};
+            session.progressMaxAnsweredCount = 0;
+        }
+        return true;
+    }
+
+    function syncLogicalSessionScope(activeIds) {
+        let scopeChanged = false;
+        if (!session.logicalSessionWordIds.length) {
+            getLogicalSessionWordIds().forEach(function (wordId) {
+                if (!session.logicalSessionWordLookup[wordId]) scopeChanged = true;
+                session.logicalSessionWordLookup[wordId] = true;
+            });
+        }
+        normalizeWordIds(activeIds).forEach(function (wordId) {
+            if (!session.logicalSessionWordLookup[wordId]) scopeChanged = true;
+            session.logicalSessionWordLookup[wordId] = true;
+        });
+        if (scopeChanged || !session.logicalSessionWordIds.length) {
+            session.logicalSessionWordIds = Object.keys(session.logicalSessionWordLookup)
+                .map(toInt)
+                .filter(function (wordId) { return wordId > 0; });
+        }
+        session.logicalSessionTotal = Math.max(
+            session.logicalSessionTotal || 0,
+            getConfiguredLogicalSessionTotal(),
+            session.logicalSessionWordIds.length
+        );
+    }
+
+    function registerLogicalChunkWordIds(wordIds, allowExisting) {
+        const ids = normalizeWordIds(wordIds);
+        if (!ids.length) return false;
+        const hasDuplicate = ids.some(function (wordId) {
+            return !!session.logicalAcceptedWordLookup[wordId];
+        });
+        if (hasDuplicate && !allowExisting) return false;
+        if (hasDuplicate && ids.some(function (wordId) {
+            return !session.logicalAcceptedWordLookup[wordId];
+        })) {
+            return false;
+        }
+        ids.forEach(function (wordId) {
+            session.logicalAcceptedWordLookup[wordId] = true;
+        });
+        syncLogicalSessionScope(ids);
+        return true;
+    }
+
+    function markActiveChunkLogicallyComplete() {
+        if (!allWordsPassed()) return false;
+        session.activeWordIds.forEach(function (wordId) {
+            const id = toInt(wordId);
+            if (!id || session.logicalCompletedWordLookup[id]) return;
+            session.logicalCompletedWordLookup[id] = true;
+            session.logicalCompletedWordCount += 1;
+            boundedRuntime.completedWordCount += 1;
+        });
+        return true;
+    }
+
+    function countLogicallyCompletedWords() {
+        return Math.max(0, parseInt(session.logicalCompletedWordCount, 10) || 0);
+    }
+
+    function countLogicallyAcceptedWords() {
+        return Object.keys(session.logicalAcceptedWordLookup).length;
+    }
+
+    function getBoundedChunkSizeForLevel(level) {
+        return normalizeLevel(level) === LEVEL_ONE
+            ? BOUNDED_LEVEL_ONE_CHUNK_SIZE
+            : BOUNDED_PRACTICE_CHUNK_SIZE;
+    }
+
+    function getDeferredPlan() {
+        return Array.isArray(session.deferredPlans) && session.deferredPlans.length
+            ? session.deferredPlans[0]
+            : null;
+    }
+
+    function supplementEligibleWordsForPlan(eligibleWords, plan) {
+        const out = Array.isArray(eligibleWords) ? eligibleWords.slice() : [];
+        const seen = {};
+        out.forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (wordId) seen[wordId] = true;
+        });
+        normalizeWordIds(plan && plan.word_ids).forEach(function (wordId) {
+            if (seen[wordId]) return;
+            const snapshot = session.boundedActiveWordsById[wordId] || session.deferredWordsById[wordId];
+            if (!snapshot) return;
+            seen[wordId] = true;
+            out.push(snapshot);
+        });
+        return out;
+    }
+
+    function rememberBoundedActiveWords(words) {
+        if (!boundedRuntime.isBoundedSession) return;
+        const activeLookup = {};
+        (Array.isArray(words) ? words : []).forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (wordId && session.activeWordLookup[wordId]) {
+                activeLookup[wordId] = word;
+            }
+        });
+        boundedRuntime.activeWordsById = activeLookup;
+        session.boundedActiveWordsById = boundedRuntime.activeWordsById;
+    }
+
+    function hasDeferredPlan() {
+        return !!getDeferredPlan();
+    }
+
+    function buildDeferredPlanEntries(plan, eligibleWords) {
+        const eligibleLookup = {};
+        (Array.isArray(eligibleWords) ? eligibleWords : []).forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (wordId) eligibleLookup[wordId] = word;
+        });
+        const plannedIds = normalizeWordIds(plan && plan.word_ids);
+        if (!plannedIds.length || plannedIds.some(function (wordId) { return !eligibleLookup[wordId]; })) {
+            return null;
+        }
+
+        const groupedIds = { 1: [], 2: [], 3: [] };
+        plannedIds.forEach(function (wordId) {
+            const effectiveLevel = normalizeLevel(getWordProgress(wordId).level);
+            groupedIds[effectiveLevel].push(wordId);
+        });
+
+        const plannedLevel = normalizeLevel(plan && plan.level);
+        const levelOrder = [plannedLevel, LEVEL_ONE, LEVEL_TWO, LEVEL_THREE].filter(function (level, index, values) {
+            return values.indexOf(level) === index;
+        });
+        const entries = [];
+        levelOrder.forEach(function (level) {
+            const ids = groupedIds[level].slice();
+            const chunkSize = getBoundedChunkSizeForLevel(level);
+            while (ids.length) {
+                entries.push({
+                    level: level,
+                    word_ids: ids.splice(0, chunkSize),
+                    launch_source: String((plan && plan.launch_source) || session.launchSource || 'dashboard'),
+                    force_intro: level === LEVEL_ONE,
+                    reason_code: 'local_level_overflow'
+                });
+            }
+        });
+
+        return {
+            entries: entries,
+            eligibleLookup: eligibleLookup,
+            plannedIds: plannedIds
+        };
+    }
+
+    function ingestBoundedPlan(plan, eligibleWords) {
+        if (!plan || !plan.level || plan.word_ids_are_unique === false) return false;
+        const partition = buildDeferredPlanEntries(plan, eligibleWords);
+        if (!partition || !partition.entries.length) return false;
+
+        const configuredLogicalIds = getLogicalSessionWordIds();
+        if (configuredLogicalIds.length) {
+            const configuredLookup = {};
+            configuredLogicalIds.forEach(function (wordId) { configuredLookup[wordId] = true; });
+            if (partition.plannedIds.some(function (wordId) { return !configuredLookup[wordId]; })) {
+                return false;
+            }
+        }
+        if (!registerLogicalChunkWordIds(partition.plannedIds, false)) {
+            return false;
+        }
+        boundedRuntime.isBoundedSession = true;
+
+        partition.plannedIds.forEach(function (wordId) {
+            session.deferredWordsById[wordId] = partition.eligibleLookup[wordId];
+        });
+        partition.entries.forEach(function (entry) {
+            session.deferredPlans.push(entry);
+        });
+        return true;
+    }
+
+    function ingestAndActivateBoundedPlan(plan, eligibleWords) {
+        const plannedIds = normalizeWordIds(plan && plan.word_ids);
+        const deferredCountBefore = session.deferredPlans.length;
+        const wasBoundedSession = boundedRuntime.isBoundedSession;
+        if (!ingestBoundedPlan(plan, eligibleWords)) {
+            return false;
+        }
+        if (activateNextDeferredPlan()) {
+            return true;
+        }
+
+        session.deferredPlans.splice(deferredCountBefore);
+        plannedIds.forEach(function (wordId) {
+            delete session.logicalAcceptedWordLookup[wordId];
+            delete session.deferredWordsById[wordId];
+        });
+        boundedRuntime.isBoundedSession = wasBoundedSession;
+        return false;
+    }
+
+    function activateNextDeferredPlan() {
+        const nextPlan = getDeferredPlan();
+        if (!nextPlan) return false;
+        const words = normalizeWordIds(nextPlan.word_ids).map(function (wordId) {
+            return session.deferredWordsById[wordId] || null;
+        }).filter(Boolean);
+        if (words.length !== nextPlan.word_ids.length) {
+            return false;
+        }
+
+        resetRoundSequence();
+        if (!hydrateSession(nextPlan, words)) {
+            return false;
+        }
+        rememberBoundedActiveWords(words);
+        session.deferredPlans.shift();
+        session.activeWordIds.forEach(function (wordId) {
+            delete session.deferredWordsById[wordId];
+        });
+        session.pendingPlan = null;
+        State.isFirstRound = false;
+        updateSessionProgressBar();
+        return true;
+    }
+
+    function deferredPlanMatches(plan, deferredPlan) {
+        if (!plan || !deferredPlan) return false;
+        if (normalizeLevel(plan.level) !== normalizeLevel(deferredPlan.level)) return false;
+        const left = normalizeWordIds(plan.word_ids);
+        const right = normalizeWordIds(deferredPlan.word_ids);
+        return left.length === right.length && left.every(function (wordId, index) {
+            return wordId === right[index];
+        });
     }
 
     function consumePendingPlan() {
@@ -922,15 +1310,38 @@
 
     function ensureSessionReady() {
         if (session.ready) return true;
-        const eligible = collectEligibleWords();
+        const pending = session.pendingPlan || consumePendingPlan();
+        if (isDeferredOverflowPlan(pending)) {
+            if (!deferredPlanMatches(pending, getDeferredPlan())) {
+                return false;
+            }
+            return activateNextDeferredPlan();
+        }
+
+        const eligible = supplementEligibleWordsForPlan(collectEligibleWords(), pending);
         if (!eligible.length) {
             return false;
         }
         mergeServerProgressIntoStore(eligible);
-        const pending = session.pendingPlan || consumePendingPlan();
         const plan = pending || buildDefaultPlan(eligible);
         if (!plan) return false;
-        return hydrateSession(plan, eligible);
+        if (isBoundedTransportPlan(plan)) {
+            if (!ingestAndActivateBoundedPlan(plan, eligible)) return false;
+            session.pendingPlan = null;
+            return true;
+        }
+        const hydrated = hydrateSession(plan, eligible);
+        if (!hydrated) return false;
+        rememberBoundedActiveWords(eligible);
+        session.pendingPlan = null;
+        const alreadyAccepted = session.activeWordIds.length > 0 && session.activeWordIds.every(function (wordId) {
+            return !!session.logicalAcceptedWordLookup[wordId];
+        });
+        if (!registerLogicalChunkWordIds(session.activeWordIds, alreadyAccepted)) {
+            session.ready = false;
+            return false;
+        }
+        return true;
     }
 
     function resetRoundSequence() {
@@ -1865,16 +2276,34 @@
         return count;
     }
 
+    function countLogicalProgressedWords() {
+        let progressedCount = countLogicallyCompletedWords();
+        session.activeWordIds.forEach(function (wordId) {
+            const state = getWordState(wordId);
+            if (
+                !session.logicalCompletedWordLookup[wordId] &&
+                (isWordPassed(wordId) || Math.max(0, parseInt(state && state.answers, 10) || 0) > 0)
+            ) {
+                progressedCount += 1;
+            }
+        });
+        return progressedCount;
+    }
+
     function updateSessionProgressBar() {
-        const total = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
+        syncLogicalSessionScope(session.activeWordIds);
+        const activeTotal = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
+        const total = Math.max(activeTotal, session.logicalSessionTotal || 0);
         if (!total) return;
-        const answeredCount = countAnsweredWords();
-        const passedCount = countPassedWords();
+        const progressedCount = countLogicalProgressedWords();
         session.progressMaxAnsweredCount = Math.max(
             0,
             parseInt(session.progressMaxAnsweredCount, 10) || 0,
-            answeredCount,
-            passedCount
+            progressedCount
+        );
+        boundedRuntime.progressMaxAnsweredCount = Math.max(
+            boundedRuntime.progressMaxAnsweredCount || 0,
+            session.progressMaxAnsweredCount
         );
         if (Dom && typeof Dom.updateSimpleProgress === 'function') {
             try {
@@ -2452,6 +2881,20 @@
     }
 
     function buildDashboardSecondaryPlan(primaryLevel) {
+        const deferred = getDeferredPlan();
+        if (deferred && Array.isArray(deferred.word_ids) && deferred.word_ids.length) {
+            return {
+                level: normalizeLevel(deferred.level),
+                word_ids: deferred.word_ids.slice(),
+                launch_source: String(deferred.launch_source || session.launchSource || 'dashboard'),
+                force_intro: !!deferred.force_intro,
+                reason_code: 'local_level_overflow'
+            };
+        }
+        if (boundedRuntime.isBoundedSession) {
+            return null;
+        }
+
         const fallbackLevel = normalizeLevel(primaryLevel || session.level);
         const currentLookup = {};
         session.activeWordIds.forEach(function (id) {
@@ -2600,13 +3043,17 @@
         }
 
         let secondary = null;
-        if (session.launchSource === 'dashboard') {
+        const transportOwnsNext = !!getLogicalSessionContinuation();
+        if (session.launchSource === 'dashboard' && !transportOwnsNext) {
             const targetLevel = normalizeLevel(primary && primary.plan ? primary.plan.level : level);
-            secondary = {
-                key: 'secondary',
-                label: msgs.genderNextChunk || 'Next Set',
-                plan: buildDashboardSecondaryPlan(targetLevel)
-            };
+            const secondaryPlan = buildDashboardSecondaryPlan(targetLevel);
+            if (secondaryPlan) {
+                secondary = {
+                    key: 'secondary',
+                    label: msgs.genderNextChunk || 'Next Set',
+                    plan: secondaryPlan
+                };
+            }
         }
 
         session.resultsActions = {
@@ -2637,12 +3084,86 @@
             level: normalizeLevel(target.plan.level),
             word_ids: plannedWordIds,
             launch_source: String(target.plan.launch_source || session.launchSource || 'direct'),
+            force_intro: !!target.plan.force_intro,
             reason_code: String(target.plan.reason_code || '')
         };
         data.genderSessionPlanArmed = true;
         data.gender_session_plan_armed = true;
         data.genderLaunchSource = String(target.plan.launch_source || session.launchSource || 'direct');
         root.llToolsFlashcardsData = data;
+        return true;
+    }
+
+    function getLogicalSessionContinuation() {
+        const data = root.llToolsFlashcardsData || {};
+        const continuation = data.boundedSessionContinuation || data.bounded_session_continuation ||
+            data.requestLogicalSessionContinuation || data.request_logical_session_continuation;
+        return typeof continuation === 'function' ? continuation : null;
+    }
+
+    function shouldAutoContinue() {
+        if (!session.ready || !allWordsPassed()) return false;
+        if (session.level !== LEVEL_TWO && session.level !== LEVEL_THREE) return false;
+        if (hasDeferredPlan()) return false;
+        return !!getLogicalSessionContinuation();
+    }
+
+    function shouldTrackModeSessionCompletion() {
+        if (!boundedRuntime.isBoundedSession) {
+            return true;
+        }
+
+        syncLogicalSessionScope(session.activeWordIds);
+        const total = Math.max(0, parseInt(session.logicalSessionTotal, 10) || 0);
+        return total === 0 || countLogicallyCompletedWords() >= total;
+    }
+
+    function appendBoundedSelectionChunk(categoryNames) {
+        const names = normalizeCategoryNames(categoryNames);
+        const plan = parsePendingPlan();
+        if (!State.isGenderMode || !session.ready || !names.length || !plan || !isBoundedTransportPlan(plan)) {
+            return false;
+        }
+        if (!plan.level || !plan.word_ids_are_unique || !Array.isArray(plan.word_ids) || !plan.word_ids.length) {
+            return false;
+        }
+        if (!allWordsPassed()) {
+            return false;
+        }
+        const logicalSignature = getLogicalSessionSignature(plan.word_ids);
+        if (!logicalSignature || !boundedRuntime.signature || logicalSignature !== boundedRuntime.signature) {
+            return false;
+        }
+
+        const plannedIds = normalizeWordIds(plan.word_ids);
+        if (plannedIds.length !== plan.word_ids.length) {
+            return false;
+        }
+        const completedBefore = getConfiguredLogicalCompletedBefore();
+        if (completedBefore.configured && completedBefore.count !== countLogicallyAcceptedWords()) {
+            return false;
+        }
+
+        const eligible = collectEligibleWords(names);
+        if (!eligible.length) {
+            return false;
+        }
+        const eligibleLookup = {};
+        eligible.forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (wordId) eligibleLookup[wordId] = true;
+        });
+        if (plannedIds.some(function (wordId) { return !eligibleLookup[wordId]; })) {
+            return false;
+        }
+
+        markActiveChunkLogicallyComplete();
+        mergeServerProgressIntoStore(eligible);
+        if (!ingestAndActivateBoundedPlan(plan, eligible)) {
+            return false;
+        }
+
+        consumePendingPlan();
         return true;
     }
 
@@ -2655,6 +3176,7 @@
         resetRoundSequence();
         session = createEmptySession();
         session.pendingPlan = consumePendingPlan();
+        prepareBoundedRuntimeForInitialize(session.pendingPlan);
         return true;
     }
 
@@ -2756,6 +3278,29 @@
                 ctx.showLoadingError();
             }
             return true;
+        }
+
+        if (
+            session.ready &&
+            session.level !== LEVEL_ONE &&
+            allWordsPassed() &&
+            hasDeferredPlan()
+        ) {
+            markActiveChunkLogicallyComplete();
+            if (activateNextDeferredPlan()) {
+                if (ctx && typeof ctx.startQuizRound === 'function') {
+                    ctx.startQuizRound();
+                }
+                return true;
+            }
+        }
+
+        if (shouldAutoContinue() && ctx && typeof ctx.tryContinueLogicalSession === 'function') {
+            try {
+                if (ctx.tryContinueLogicalSession()) {
+                    return true;
+                }
+            } catch (_) { /* fall through to adaptive results */ }
         }
 
         buildResultsActions();
@@ -2875,7 +3420,14 @@
             isDontKnow: isDontKnow
         });
 
-        if (allWordsPassed()) {
+        let completed = allWordsPassed();
+        if (completed) {
+            markActiveChunkLogicallyComplete();
+            if (session.level !== LEVEL_ONE && hasDeferredPlan() && activateNextDeferredPlan()) {
+                completed = false;
+            }
+        }
+        if (completed) {
             buildResultsActions();
         }
 
@@ -2888,7 +3440,7 @@
                 gender_answer_timing: timing,
                 gender_dont_know: isDontKnow
             },
-            completed: allWordsPassed()
+            completed: completed
         };
     }
 
@@ -2910,6 +3462,10 @@
         getResultsActions,
         getResultsCategoryNames,
         getResultsProgressSummary,
-        queueResultsAction
+        queueResultsAction,
+        shouldAutoContinue,
+        shouldTrackModeSessionCompletion,
+        appendBoundedSelectionChunk,
+        clearBoundedSessionState
     };
 })(window);

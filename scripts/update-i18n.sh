@@ -60,6 +60,18 @@ if [[ "$WP_CLI_BIN" == *.exe && "${#WP_CLI_ARGS[@]}" -gt 0 ]]; then
   fi
 fi
 
+# The JavaScript parser used by `wp i18n make-pot` can exceed PHP's common
+# 128 MiB CLI default on this plugin. Keep the canonical updater aligned with
+# the source/POT freshness guard so both extraction paths have the same bounded
+# but sufficient memory ceiling.
+case "$(basename "$WP_CLI_BIN")" in
+  php|php.exe)
+    if [[ "${#WP_CLI_ARGS[@]}" -gt 0 ]]; then
+      WP_CLI_ARGS=(-d memory_limit=512M "${WP_CLI_ARGS[@]}")
+    fi
+    ;;
+esac
+
 "$WP_CLI_BIN" "${WP_CLI_ARGS[@]}" i18n make-pot . "$POT_FILE" \
   --slug=language-learner-tools \
   --domain=ll-tools-text-domain \

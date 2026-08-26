@@ -67,7 +67,7 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
     }, 0);
   });
   const cancelDialog = await cancelDialogPromise;
-  expect(cancelDialog.message()).toContain('Close this quiz?');
+  expect(cancelDialog.message()).toBe('Exit this activity? Completed rounds are saved, but this activity will restart.');
   await cancelDialog.dismiss();
 
   await expect(page.locator('.ll-quiz-overlay')).toHaveCount(1);
@@ -77,7 +77,7 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
     window.setTimeout(() => window.history.back(), 0);
   });
   const acceptDialog = await acceptDialogPromise;
-  expect(acceptDialog.message()).toContain('Close this quiz?');
+  expect(acceptDialog.message()).toBe('Exit this activity? Completed rounds are saved, but this activity will restart.');
   await acceptDialog.accept();
 
   await expect(page.locator('.ll-quiz-overlay')).toHaveCount(0);

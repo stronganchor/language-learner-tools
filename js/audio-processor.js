@@ -40,6 +40,9 @@
     const i18n = (window.llAudioProcessor && window.llAudioProcessor.i18n && typeof window.llAudioProcessor.i18n === 'object')
         ? window.llAudioProcessor.i18n
         : {};
+    const deleteConcurrency = Math.max(1, Math.min(8, parseInt(window.llAudioProcessor && window.llAudioProcessor.deleteConcurrency, 10) || 4));
+    const deleteRequestTimeoutMs = Math.max(25, Math.min(120000, parseInt(window.llAudioProcessor && window.llAudioProcessor.deleteRequestTimeoutMs, 10) || 15000));
+    const processRequestTimeoutMs = Math.max(25, Math.min(120000, parseInt(window.llAudioProcessor && window.llAudioProcessor.processRequestTimeoutMs, 10) || 30000));
 
     document.addEventListener('DOMContentLoaded', init);
 
@@ -73,6 +76,13 @@
         });
 
         return output;
+    }
+
+    function announceDeleteStatus(message) {
+        const status = document.getElementById('ll-delete-status');
+        if (status) {
+            status.textContent = String(message || '');
+        }
     }
 
     function getSaveOverlayElements() {
@@ -133,10 +143,12 @@
     }
 
     function handleBeforeUnload(event) {
-        if (!state.saving) {
+        if (!state.saving && !state.deleting) {
             return undefined;
         }
-        const warning = t('beforeUnloadWarning', 'Saving is still in progress. Leaving this page will interrupt uploads.');
+        const warning = state.saving
+            ? t('beforeUnloadWarning', 'Saving is still in progress. Leaving this page will interrupt uploads.')
+            : t('deleteBeforeUnloadWarning', 'Deletion is still in progress. Leaving this page may interrupt it.');
         event.preventDefault();
         event.returnValue = warning;
         return warning;
@@ -159,6 +171,72 @@
         } else {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         }
+    }
+
+    function setDeletingState(isDeleting) {
+        state.deleting = !!isDeleting;
+        document.body.classList.toggle('ll-audio-delete-in-progress', state.deleting);
+
+        const processor = document.querySelector('.ll-audio-processor-wrap');
+        if (processor) {
+            processor.setAttribute('aria-busy', state.deleting ? 'true' : 'false');
+        }
+
+        document.querySelectorAll('#ll-save-all, #ll-cancel-review, #ll-delete-all-review, .ll-delete-review-btn, .ll-remove-review-btn, .ll-delete-recording').forEach(button => {
+            button.disabled = state.deleting;
+        });
+        updateSelectedCount();
+
+        if (state.deleting) {
+            window.addEventListener('beforeunload', handleBeforeUnload);
+        } else if (!state.saving) {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        }
+    }
+
+    function setProcessingState(isProcessing) {
+        state.processing = !!isProcessing;
+
+        document.querySelectorAll('#ll-delete-all-review, .ll-delete-review-btn, .ll-remove-review-btn, .ll-delete-recording').forEach(button => {
+            if (state.processing) {
+                button.dataset.llProcessingWasDisabled = button.disabled ? '1' : '0';
+                button.disabled = true;
+                return;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(button.dataset, 'llProcessingWasDisabled')) {
+                const wasDisabled = button.dataset.llProcessingWasDisabled === '1';
+                delete button.dataset.llProcessingWasDisabled;
+                if (!wasDisabled && !state.deleting && !state.saving) {
+                    button.disabled = false;
+                }
+            }
+        });
+        updateSelectedCount();
+    }
+
+    function setIndividualDeleteButtonBusy(button, isBusy) {
+        if (!button) {
+            return;
+        }
+        if (isBusy) {
+            if (typeof button.__llDeleteOriginalHtml !== 'string') {
+                button.__llDeleteOriginalHtml = button.innerHTML;
+            }
+            button.disabled = true;
+            button.style.opacity = '0.5';
+            button.setAttribute('aria-busy', 'true');
+            button.textContent = t('deleteButtonDeleting', 'Deleting...');
+            return;
+        }
+
+        if (typeof button.__llDeleteOriginalHtml === 'string') {
+            button.innerHTML = button.__llDeleteOriginalHtml;
+            delete button.__llDeleteOriginalHtml;
+        }
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.removeAttribute('aria-busy');
     }
 
     function getWordBlocks(parentWordId) {
@@ -1100,7 +1178,7 @@
                 deleteReviewRecording(postId);
             } else if (e.target.classList.contains('ll-delete-recording') || e.target.closest('.ll-delete-recording')) {
                 const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
-                const postId = parseInt(btn.dataset.id);
+                const postId = parseInt(btn.dataset.postId || btn.dataset.id);
                 deleteRecording(postId, btn);
             } else if (e.target.classList.contains('ll-edit-word-title-btn') || e.target.closest('.ll-edit-word-title-btn')) {
                 const btn = e.target.classList.contains('ll-edit-word-title-btn') ? e.target : e.target.closest('.ll-edit-word-title-btn');
@@ -1180,9 +1258,9 @@
     }
 
     async function processSelectedRecordings() {
-        if (state.processing || state.saving || state.selected.size === 0) return;
+        if (state.processing || state.deleting || state.saving || state.selected.size === 0) return;
 
-        state.processing = true;
+        setProcessingState(true);
         const processBtn = document.getElementById('ll-process-selected');
         const statusDiv = document.getElementById('ll-processor-status');
         const progressBar = statusDiv.querySelector('.ll-progress-fill');
@@ -1193,6 +1271,7 @@
 
         const selectedRecordings = state.recordings.filter(r => state.selected.has(r.id));
         let completed = 0;
+        let failed = 0;
 
         for (const recording of selectedRecordings) {
             try {
@@ -1220,32 +1299,84 @@
                     progressBar.style.width = `${(completed / selectedRecordings.length) * 100}%`;
                 }
             } catch (error) {
+                failed++;
                 console.error(`Failed to process ${recording.title}:`, error);
                 if (statusText) {
-                    statusText.textContent = formatText(
-                        t('processingErrorTemplate', 'Error processing %1$s: %2$s'),
-                        [recording.title, error && error.message ? error.message : '']
-                    );
+                    statusText.textContent = error && error.code === 'audio_processing_timeout'
+                        ? formatText(
+                            t('processingTimeoutTemplate', 'Processing %s took too long. It was skipped; select it and try again.'),
+                            [recording.title]
+                        )
+                        : formatText(
+                            t('processingErrorTemplate', 'Error processing %1$s: %2$s'),
+                            [recording.title, error && error.message ? error.message : '']
+                        );
                 }
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
 
         if (statusText) {
-            statusText.textContent = t('processingComplete', 'Processing complete! Review the results below.');
+            statusText.textContent = completed === 0
+                ? t('processingNoneCompleted', 'No recordings were processed. The skipped recordings remain selected; try again.')
+                : failed > 0
+                ? formatText(
+                    t('processingPartialTemplate', 'Processed %1$d recording(s); skipped %2$d. Review the completed recordings, then retry the skipped items.'),
+                    [completed, failed]
+                )
+                : t('processingComplete', 'Processing complete! Review the results below.');
         }
 
-        state.processing = false;
+        if (completed === 0) {
+            setProcessingState(false);
+            return;
+        }
+
         setTimeout(() => {
             if (statusDiv) statusDiv.style.display = 'none';
-            showReviewInterface();
+            try {
+                showReviewInterface();
+            } finally {
+                setProcessingState(false);
+            }
         }, 1500);
     }
 
     async function processAudioFile(url, options) {
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const originalBuffer = await state.audioContext.decodeAudioData(arrayBuffer.slice(0));
+        const controller = typeof window.AbortController === 'function' ? new window.AbortController() : null;
+        let timeoutId = 0;
+        let timedOut = false;
+        const work = fetch(url, {
+            signal: controller ? controller.signal : undefined
+        }).then(response => {
+            if (!response || response.ok === false) {
+                throw new Error('audio_processing_fetch_failed');
+            }
+            return response.arrayBuffer();
+        }).then(arrayBuffer => state.audioContext.decodeAudioData(arrayBuffer.slice(0)));
+        const deadline = new Promise((resolve, reject) => {
+            timeoutId = window.setTimeout(() => {
+                timedOut = true;
+                if (controller) {
+                    controller.abort();
+                }
+                reject(new Error('audio_processing_timeout'));
+            }, processRequestTimeoutMs);
+        });
+        let originalBuffer;
+
+        try {
+            originalBuffer = await Promise.race([work, deadline]);
+        } catch (error) {
+            if (timedOut) {
+                const timeoutError = new Error('audio_processing_timeout');
+                timeoutError.code = 'audio_processing_timeout';
+                throw timeoutError;
+            }
+            throw error;
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
 
         let processedBuffer = originalBuffer;
         let trimStart = 0;
@@ -2010,7 +2141,7 @@
         const deleteBtn = document.getElementById('ll-delete-selected');
         const deleteBtnLabel = deleteBtn ? deleteBtn.querySelector('.ll-btn-label') : null;
 
-        state.deleting = true;
+        setDeletingState(true);
         if (deleteBtnLabel) {
             deleteBtnLabel.textContent = t('deleteButtonDeleting', 'Deleting...');
         }
@@ -2018,31 +2149,45 @@
 
         let deleted = 0;
         let failed = 0;
+        let completed = 0;
+        announceDeleteStatus(formatText(
+            t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+            [completed, postIds.length]
+        ));
 
-        for (const postId of postIds) {
-            try {
-                const success = await deleteRecordingById(postId);
+        try {
+            await runBoundedDeleteQueue(postIds, (postId, success) => {
+                completed++;
                 if (success) {
                     deleted++;
                     removeRecordingItem(postId);
                 } else {
                     failed++;
                 }
-            } catch (error) {
-                failed++;
-            }
+                announceDeleteStatus(formatText(
+                    t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+                    [completed, postIds.length]
+                ));
+            });
+        } finally {
+            setDeletingState(false);
         }
-
-        state.deleting = false;
         if (deleteBtnLabel) {
             deleteBtnLabel.textContent = t('deleteSelectedButtonDefault', 'Delete Selected');
         }
         updateSelectedCount();
 
         if (deleted > 0 && failed === 0) {
-            alert(formatText(t('deleteSuccessTemplate', 'Deleted %d recording(s).'), [deleted]));
+            const message = formatText(t('deleteSuccessTemplate', 'Deleted %d recording(s).'), [deleted]);
+            announceDeleteStatus(message);
+            alert(message);
         } else if (failed > 0) {
-            alert(formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]));
+            const message = formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]);
+            announceDeleteStatus(formatText(
+                t('deleteFailureRetryStatusTemplate', 'Deletion finished: %1$d deleted and %2$d failed. %3$d failed deletion(s) are ready to retry.'),
+                [deleted, failed, failed]
+            ));
+            alert(message);
         }
 
         const remainingItems = document.querySelectorAll('.ll-recording-item');
@@ -2052,7 +2197,9 @@
     }
 
     async function deleteRecordingById(postId) {
-        const response = await fetch(window.llAudioProcessor.ajaxUrl, {
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let timeoutId = 0;
+        const request = fetch(window.llAudioProcessor.ajaxUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -2061,11 +2208,57 @@
                 action: 'll_delete_audio_recording',
                 nonce: window.llAudioProcessor.nonce,
                 post_id: postId
-            })
+            }),
+            signal: controller ? controller.signal : undefined
+        }).then(response => response.json());
+        const deadline = new Promise((resolve, reject) => {
+            timeoutId = window.setTimeout(() => {
+                if (controller) {
+                    controller.abort();
+                }
+                reject(new Error('audio_delete_timeout'));
+            }, deleteRequestTimeoutMs);
         });
 
-        const data = await response.json();
-        return !!data.success;
+        try {
+            const data = await Promise.race([request, deadline]);
+            if (data && data.success) {
+                return true;
+            }
+            const message = data && typeof data.data === 'string' && data.data !== ''
+                ? data.data
+                : t('deleteFailed', 'Failed to delete recording');
+            throw new Error(message);
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
+    }
+
+    async function runBoundedDeleteQueue(postIds, onSettled) {
+        const ids = Array.isArray(postIds) ? postIds.slice() : [];
+        let nextIndex = 0;
+
+        async function worker() {
+            while (nextIndex < ids.length) {
+                const postId = ids[nextIndex];
+                nextIndex += 1;
+                let success = false;
+                try {
+                    success = await deleteRecordingById(postId);
+                } catch (error) {
+                    success = false;
+                }
+                if (typeof onSettled === 'function') {
+                    onSettled(postId, success);
+                }
+            }
+        }
+
+        const workers = Array.from(
+            { length: Math.min(deleteConcurrency, ids.length) },
+            () => worker()
+        );
+        await Promise.all(workers);
     }
 
     function removeRecordingItem(postId) {
@@ -2075,10 +2268,35 @@
         }
         state.selected.delete(postId);
         state.recordings = state.recordings.filter(recording => recording.id !== postId);
+        state.reviewData.delete(postId);
     }
 
-    function deleteRecording(postId, button) {
-        if (state.saving) return;
+    function getIndividualRemovalFocusTarget(container, itemSelector, actionSelector) {
+        const parent = container && container.parentElement;
+        if (!parent) {
+            return null;
+        }
+        const items = Array.from(parent.children).filter(child => child.matches(itemSelector));
+        const index = items.indexOf(container);
+        const neighbor = index >= 0 ? (items[index + 1] || items[index - 1] || null) : null;
+        return neighbor ? (neighbor.querySelector(actionSelector) || neighbor.querySelector('button, input, select, a[href]')) : null;
+    }
+
+    function restoreFocusAfterIndividualRemoval(target) {
+        const fallback = document.getElementById('ll-delete-status')
+            || document.querySelector('.ll-audio-processor-tab.is-active');
+        const focusTarget = target && target.isConnected ? target : fallback;
+        if (!focusTarget || typeof focusTarget.focus !== 'function') {
+            return;
+        }
+        if (focusTarget === fallback && !focusTarget.hasAttribute('tabindex')) {
+            focusTarget.setAttribute('tabindex', '-1');
+        }
+        focusTarget.focus({ preventScroll: true });
+    }
+
+    async function deleteRecording(postId, button) {
+        if (state.processing || state.saving || state.deleting) return;
 
         const item = document.querySelector(`.ll-recording-item[data-id="${postId}"]`);
         if (!item) return;
@@ -2089,60 +2307,49 @@
             return;
         }
 
-        button.disabled = true;
-        button.style.opacity = '0.5';
+        const shouldRestoreFocus = item.contains(document.activeElement);
+        const focusTarget = shouldRestoreFocus
+            ? getIndividualRemovalFocusTarget(item, '.ll-recording-item', '.ll-delete-recording')
+            : null;
+        setIndividualDeleteButtonBusy(button, true);
+        setDeletingState(true);
+        announceDeleteStatus(formatText(t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'), [0, 1]));
 
-        fetch(window.llAudioProcessor.ajaxUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                action: 'll_delete_audio_recording',
-                nonce: window.llAudioProcessor.nonce,
-                post_id: postId
-            })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    item.style.opacity = '0';
-                    item.style.transform = 'translateX(-20px)';
-                    item.style.transition = 'all 0.3s ease';
+        let success = false;
+        let failureMessage = t('deleteFailed', 'Failed to delete recording');
+        try {
+            success = await deleteRecordingById(postId);
+        } catch (error) {
+            console.error('Delete error:', error);
+            failureMessage = error && error.message === 'audio_delete_timeout'
+                ? t('deleteTimeout', 'Deletion timed out. It may still finish; retry this recording to confirm.')
+                : (error && error.message ? error.message : failureMessage);
+        } finally {
+            setDeletingState(false);
+        }
 
-                    setTimeout(() => {
-                        item.remove();
+        if (success) {
+            removeRecordingItem(postId);
+            announceDeleteStatus(t('deleteSingleSuccess', 'Recording deleted.'));
+            if (shouldRestoreFocus) {
+                restoreFocusAfterIndividualRemoval(focusTarget);
+            }
+            if (document.querySelectorAll('.ll-recording-item').length === 0) {
+                window.setTimeout(() => location.reload(), 300);
+            }
+            return;
+        }
 
-                        const checkbox = item.querySelector('.ll-recording-checkbox');
-                        if (checkbox && checkbox.checked) {
-                            state.selected.delete(postId);
-                            updateSelectedCount();
-                        }
-
-                        const remainingItems = document.querySelectorAll('.ll-recording-item');
-                        if (remainingItems.length === 0) {
-                            location.reload();
-                        }
-                    }, 300);
-                } else {
-                    alert(
-                        t('deleteErrorPrefix', 'Error:') + ' ' +
-                        (data.data || t('deleteFailed', 'Failed to delete recording'))
-                    );
-                    button.disabled = false;
-                    button.style.opacity = '1';
-                }
-            })
-            .catch(error => {
-                console.error('Delete error:', error);
-                alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [error.message]));
-                button.disabled = false;
-                button.style.opacity = '1';
-            });
+        announceDeleteStatus(formatText(
+            t('deleteFailureRetryStatusTemplate', 'Deletion finished: %1$d deleted and %2$d failed. %3$d failed deletion(s) are ready to retry.'),
+            [0, 1, 1]
+        ));
+        alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [failureMessage]));
+        setIndividualDeleteButtonBusy(button, false);
     }
 
-    function deleteReviewRecording(postId) {
-        if (state.saving) return;
+    async function deleteReviewRecording(postId) {
+        if (state.processing || state.saving || state.deleting) return;
 
         const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
         if (!reviewFile) return;
@@ -2155,60 +2362,50 @@
         }
 
         const deleteBtn = reviewFile.querySelector('.ll-delete-review-btn');
-        if (deleteBtn) {
-            deleteBtn.disabled = true;
-            deleteBtn.style.opacity = '0.5';
+        const shouldRestoreFocus = reviewFile.contains(document.activeElement);
+        const focusTarget = shouldRestoreFocus
+            ? getIndividualRemovalFocusTarget(reviewFile, '.ll-review-file', '.ll-delete-review-btn')
+            : null;
+        setIndividualDeleteButtonBusy(deleteBtn, true);
+        setDeletingState(true);
+        announceDeleteStatus(formatText(t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'), [0, 1]));
+
+        let success = false;
+        let failureMessage = t('deleteFailed', 'Failed to delete recording');
+        try {
+            success = await deleteRecordingById(postId);
+        } catch (error) {
+            console.error('Delete error:', error);
+            failureMessage = error && error.message === 'audio_delete_timeout'
+                ? t('deleteTimeout', 'Deletion timed out. It may still finish; retry this recording to confirm.')
+                : (error && error.message ? error.message : failureMessage);
+        } finally {
+            setDeletingState(false);
         }
 
-        fetch(window.llAudioProcessor.ajaxUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                action: 'll_delete_audio_recording',
-                nonce: window.llAudioProcessor.nonce,
-                post_id: postId
-            })
-        })
-            .then(response => response.json())
-            .then(result => {
-                if (result.success) {
-                    reviewFile.style.opacity = '0';
-                    reviewFile.style.transform = 'translateY(-10px)';
-                    reviewFile.style.transition = 'all 0.3s ease';
+        if (success) {
+            state.reviewData.delete(postId);
+            reviewFile.remove();
+            announceDeleteStatus(t('deleteSingleSuccess', 'Recording deleted.'));
+            if (shouldRestoreFocus) {
+                restoreFocusAfterIndividualRemoval(focusTarget);
+            }
+            if (state.reviewData.size === 0) {
+                window.setTimeout(() => location.reload(), 300);
+            }
+            return;
+        }
 
-                    setTimeout(() => {
-                        reviewFile.remove();
-                        state.reviewData.delete(postId);
-
-                        if (state.reviewData.size === 0) {
-                            location.reload();
-                        }
-                    }, 300);
-                } else {
-                    alert(
-                        t('deleteErrorPrefix', 'Error:') + ' ' +
-                        (result.data || t('deleteFailed', 'Failed to delete recording'))
-                    );
-                    if (deleteBtn) {
-                        deleteBtn.disabled = false;
-                        deleteBtn.style.opacity = '1';
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Delete error:', error);
-                alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [error.message]));
-                if (deleteBtn) {
-                    deleteBtn.disabled = false;
-                    deleteBtn.style.opacity = '1';
-                }
-            });
+        announceDeleteStatus(formatText(
+            t('deleteFailureRetryStatusTemplate', 'Deletion finished: %1$d deleted and %2$d failed. %3$d failed deletion(s) are ready to retry.'),
+            [0, 1, 1]
+        ));
+        alert(formatText(t('deleteErrorTemplate', 'Error deleting recording: %s'), [failureMessage]));
+        setIndividualDeleteButtonBusy(deleteBtn, false);
     }
 
     function removeReviewRecording(postId) {
-        if (state.saving) return;
+        if (state.processing || state.saving || state.deleting) return;
 
         const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
         if (!reviewFile) return;
@@ -2220,22 +2417,30 @@
             return;
         }
 
+        // Update the authoritative batch immediately. The visual transition is
+        // deliberately secondary so Delete All can never snapshot this item.
+        state.reviewData.delete(postId);
+
         reviewFile.style.opacity = '0';
         reviewFile.style.transform = 'translateY(-10px)';
         reviewFile.style.transition = 'all 0.3s ease';
+        reviewFile.setAttribute('aria-hidden', 'true');
+        reviewFile.querySelectorAll('button, input, select, audio').forEach(control => {
+            control.disabled = true;
+        });
+
+        const batchIsEmpty = state.reviewData.size === 0;
 
         setTimeout(() => {
             reviewFile.remove();
-            state.reviewData.delete(postId);
-
-            if (state.reviewData.size === 0) {
+            if (batchIsEmpty) {
                 location.reload();
             }
         }, 300);
     }
 
-    function deleteAllReviewRecordings() {
-        if (state.saving) return;
+    async function deleteAllReviewRecordings() {
+        if (state.processing || state.saving || state.deleting) return;
 
         const count = state.reviewData.size;
         if (count === 0) return;
@@ -2245,51 +2450,73 @@
         }
 
         const deleteBtn = document.getElementById('ll-delete-all-review');
-        if (deleteBtn) {
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = t('deleteButtonDeleting', 'Deleting...');
-        }
-
         const postIds = Array.from(state.reviewData.keys());
         let deleted = 0;
         let failed = 0;
+        let completed = 0;
 
-        Promise.all(postIds.map(postId => {
-            return fetch(window.llAudioProcessor.ajaxUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    action: 'll_delete_audio_recording',
-                    nonce: window.llAudioProcessor.nonce,
-                    post_id: postId
-                })
-            })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.success) {
-                        deleted++;
-                    } else {
-                        failed++;
+        setDeletingState(true);
+        announceDeleteStatus(formatText(
+            t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+            [completed, postIds.length]
+        ));
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = formatText(
+                t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+                [completed, postIds.length]
+            );
+        }
+
+        try {
+            await runBoundedDeleteQueue(postIds, (postId, success) => {
+                completed++;
+                if (success) {
+                    deleted++;
+                    state.reviewData.delete(postId);
+                    const reviewFile = document.querySelector(`.ll-review-file[data-post-id="${postId}"]`);
+                    if (reviewFile) {
+                        reviewFile.remove();
                     }
-                })
-                .catch(() => {
-                    failed++;
-                });
-        }))
-            .then(() => {
-                if (failed === 0) {
-                    alert(formatText(t('deleteAllSuccessTemplate', 'Successfully deleted %d recording(s)'), [deleted]));
-                    location.reload();
                 } else {
-                    alert(formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]));
-                    if (deleteBtn) {
-                        deleteBtn.disabled = false;
-                        deleteBtn.textContent = t('deleteAllButtonDefault', 'Delete All');
-                    }
+                    failed++;
                 }
+                if (deleteBtn) {
+                    deleteBtn.textContent = formatText(
+                        t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+                        [completed, postIds.length]
+                    );
+                }
+                announceDeleteStatus(formatText(
+                    t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'),
+                    [completed, postIds.length]
+                ));
             });
+        } finally {
+            setDeletingState(false);
+        }
+
+        if (failed === 0) {
+            const message = formatText(t('deleteAllSuccessTemplate', 'Successfully deleted %d recording(s)'), [deleted]);
+            announceDeleteStatus(message);
+            alert(message);
+            location.reload();
+            return;
+        }
+
+        const message = formatText(t('deletePartialTemplate', 'Deleted %1$d recording(s). Failed to delete %2$d.'), [deleted, failed]);
+        announceDeleteStatus(formatText(
+            t('deleteFailureRetryStatusTemplate', 'Deletion finished: %1$d deleted and %2$d failed. %3$d failed deletion(s) are ready to retry.'),
+            [deleted, failed, state.reviewData.size]
+        ));
+        alert(message);
+        if (deleteBtn) {
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = formatText(
+                t('deleteRetryTemplate', 'Retry %d failed deletion(s)'),
+                [state.reviewData.size]
+            );
+        }
     }
 
     function escapeHtml(text) {
@@ -2355,7 +2582,7 @@
     }
 
     async function saveAllProcessedAudio() {
-        if (state.saving) {
+        if (state.saving || state.deleting) {
             return;
         }
 
@@ -2567,7 +2794,7 @@
     }
 
     function cancelReview() {
-        if (state.saving) {
+        if (state.saving || state.deleting) {
             return;
         }
         if (confirm(t('cancelReviewConfirm', 'Are you sure you want to cancel? All processing will be lost.'))) {

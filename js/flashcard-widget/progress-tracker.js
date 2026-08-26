@@ -10,6 +10,7 @@
     const MAX_BATCH_SIZE = 200;
     const MIN_SYNC_RETRY_AFTER_MS = 50;
     const MAX_SYNC_RETRY_AFTER_MS = 60 * 60 * 1000;
+    const MAX_ACTIVITY_SYNC_WAIT_MS = 5000;
     const WP_PROGRESS_JOURNAL_PREFIX = 'lltools_wp_progress_journal_v1';
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
     const ALLOWED_TYPES = {
@@ -35,6 +36,7 @@
     let flushTimer = null;
     let flushTimerDueAtMs = 0;
     let flushTimerKind = '';
+    let activityFlushWindowStartedAtMs = 0;
     let inFlight = false;
     let inFlightBatch = [];
     let flushRequestedWhileInFlight = false;
@@ -369,6 +371,7 @@
         flushTimer = null;
         flushTimerDueAtMs = 0;
         flushTimerKind = '';
+        activityFlushWindowStartedAtMs = 0;
     }
 
     function resetSyncRetryBackoff(clearScheduledFlush) {
@@ -1409,14 +1412,28 @@
         return event.event_uuid;
     }
 
-    function scheduleFlush(delay) {
+    function scheduleFlush(delay, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const now = Date.now();
         let ms = Math.max(30, parseInt(delay, 10) || 1200);
         const retryAfterMs = getSyncRetryAfterMs();
         if (retryAfterMs > 0) {
             ms = retryAfterMs;
         }
-        const dueAtMs = retryAfterMs > 0 ? syncRetryNotBeforeMs : now + ms;
+        const isActivityDebounce = !!opts.activity && retryAfterMs <= 0;
+        if (isActivityDebounce && activityFlushWindowStartedAtMs <= 0) {
+            activityFlushWindowStartedAtMs = now;
+        } else if (!isActivityDebounce) {
+            activityFlushWindowStartedAtMs = 0;
+        }
+        // Keep the quiet-period batch, but do not let uninterrupted play push
+        // server persistence (and the Progress-page acknowledgement) forever.
+        const activityDeadlineMs = isActivityDebounce
+            ? activityFlushWindowStartedAtMs + MAX_ACTIVITY_SYNC_WAIT_MS
+            : 0;
+        const dueAtMs = retryAfterMs > 0
+            ? syncRetryNotBeforeMs
+            : Math.min(now + ms, activityDeadlineMs || (now + ms));
         if (
             flushTimer
             && flushTimerKind === 'sync-retry'
@@ -1425,13 +1442,18 @@
         ) {
             return;
         }
-        clearScheduledFlushTimer();
+        if (flushTimer) {
+            clearTimeout(flushTimer);
+        }
         flushTimerDueAtMs = dueAtMs;
-        flushTimerKind = retryAfterMs > 0 ? 'sync-retry' : 'debounce';
+        flushTimerKind = retryAfterMs > 0
+            ? 'sync-retry'
+            : (isActivityDebounce ? 'activity-debounce' : 'debounce');
         flushTimer = setTimeout(function () {
             flushTimer = null;
             flushTimerDueAtMs = 0;
             flushTimerKind = '';
+            activityFlushWindowStartedAtMs = 0;
             flush();
         }, Math.max(0, Math.ceil(dueAtMs - Date.now())));
     }
@@ -1833,7 +1855,7 @@
             payload: payload
         });
         if (eventId) {
-            scheduleFlush(entry.flushDelay || 1400);
+            scheduleFlush(entry.flushDelay || 1400, { activity: true });
         }
         return eventId;
     }
@@ -1865,7 +1887,7 @@
             payload: payload
         });
         if (eventId) {
-            scheduleFlush(entry.flushDelay || 900);
+            scheduleFlush(entry.flushDelay || 900, { activity: true });
             try {
                 if ($ && typeof $.fn !== 'undefined' && typeof document !== 'undefined') {
                     $(document).trigger('lltools:flashcard-word-outcome-queued', [{
@@ -1900,7 +1922,7 @@
             payload: payload
         });
         if (eventId) {
-            scheduleFlush(entry.flushDelay || 1400);
+            scheduleFlush(entry.flushDelay || 1400, { activity: true });
         }
         return eventId;
     }
@@ -1921,7 +1943,7 @@
             payload: payload
         });
         if (eventId) {
-            scheduleFlush(entry.flushDelay || 800);
+            scheduleFlush(entry.flushDelay || 800, { activity: true });
         }
         return eventId;
     }

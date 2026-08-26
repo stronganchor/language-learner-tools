@@ -472,11 +472,6 @@ function ll_tools_word_option_rules_get_word_page(
     ];
 }
 
-function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $category_id): array {
-    $page = ll_tools_word_option_rules_get_word_page($wordset_id, $category_id);
-    return $page['posts'];
-}
-
 function ll_tools_word_option_rules_get_all_word_posts_for_maintenance(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
     $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
@@ -1824,7 +1819,7 @@ function ll_render_word_option_rules_admin_page() {
     if ($is_iframe) {
         $wrap_class .= ' ll-tools-word-options--iframe';
     }
-    echo '<div class="' . esc_attr($wrap_class) . '">';
+    echo '<div class="' . esc_attr($wrap_class) . '" data-ll-word-options-ready="1">';
 
     if ($is_iframe) {
         echo '<div class="ll-tools-word-options-hero">';

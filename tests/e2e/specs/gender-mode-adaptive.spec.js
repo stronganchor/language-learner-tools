@@ -1732,3 +1732,775 @@ test('gender results render chunk progress summary after completion', async ({ p
   expect(result.level2Value).toBe('1');
   expect(result.level3Value).toBe('1');
 });
+
+test('bounded gender checkpoints emit mode completion once at the final logical results', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <body>
+        <div id="ll-tools-mode-switcher-wrap"></div>
+        <div id="ll-tools-prompt"></div>
+        <div id="ll-tools-flashcard"></div>
+        <div id="ll-quiz-star-row"></div>
+        <div id="ll-tools-listening-controls"></div>
+        <button id="ll-tools-repeat-flashcard" type="button"></button>
+        <div id="ll-tools-category-stack"></div>
+        <div id="ll-tools-category-display"></div>
+        <div id="ll-tools-learning-progress"></div>
+        <div id="quiz-results" style="display:none;">
+          <h2 id="quiz-results-title"></h2>
+          <p id="quiz-results-message" style="display:none;"></p>
+          <p><span id="correct-count">0</span> / <span id="total-questions">0</span></p>
+          <p id="quiz-results-categories" style="display:none;"></p>
+          <div id="ll-gender-results-progress" style="display:none;"></div>
+          <div id="quiz-mode-buttons" style="display:none;">
+            <button id="restart-practice-mode" type="button"></button>
+            <button id="restart-learning-mode" type="button"></button>
+            <button id="restart-self-check-mode" type="button"></button>
+            <button id="restart-gender-mode" type="button"><span class="ll-gender-results-label">Gender</span></button>
+            <button id="restart-listening-mode" type="button"></button>
+          </div>
+          <div id="ll-gender-results-actions" style="display:none;">
+            <button id="ll-gender-next-activity" type="button" style="display:none;"></button>
+            <button id="ll-gender-next-chunk" type="button" style="display:none;"></button>
+          </div>
+          <div id="ll-study-results-actions" style="display:none;">
+            <p id="ll-study-results-suggestion" style="display:none;"></p>
+            <button id="ll-study-results-same-chunk" type="button" style="display:none;"></button>
+            <button id="ll-study-results-different-chunk" type="button" style="display:none;"></button>
+            <button id="ll-study-results-next-chunk" type="button" style="display:none;"></button>
+          </div>
+          <button id="restart-quiz" type="button" style="display:none;"></button>
+        </div>
+      </body>
+    </html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await bootstrapGenderHarness(page, {
+    wordsetId: 101,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [makeNounWord(1011, 'CatA', 'masculine', {
+        gender_progress: makeGenderProgress({ level: 3 })
+      })],
+      CatB: [makeNounWord(1012, 'CatB', 'feminine', {
+        gender_progress: makeGenderProgress({ level: 3, category_name: 'CatB' })
+      })]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [1011],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    }
+  });
+
+  await page.evaluate(() => {
+    const data = window.llToolsFlashcardsData;
+    data.logicalSessionWordIds = [1011, 1012];
+    data.logical_session_word_ids = [1011, 1012];
+    data.logicalSessionTotal = 2;
+    data.logical_session_total = 2;
+    data.logicalSessionCompletedBefore = 0;
+    data.logical_session_completed_before = 0;
+    data.boundedSessionContinuation = function () { return Promise.resolve({ success: true }); };
+    data.modeUi = {};
+
+    window.__genderCompletionEvents = [];
+    window.__genderCompletionFlushes = 0;
+    window.LLFlashcards.State.modeSessionCompleteTracked = false;
+    window.LLFlashcards.Dom.hideLoading = function () {};
+    window.LLFlashcards.ProgressTracker = {
+      categoryNameToId: function (name) { return name === 'CatA' ? 11 : 22; },
+      trackModeSessionComplete: function (event) {
+        window.__genderCompletionEvents.push(Object.assign({}, event));
+        return 'gender-complete-' + window.__genderCompletionEvents.length;
+      },
+      flush: function () {
+        window.__genderCompletionFlushes += 1;
+        return Promise.resolve(true);
+      }
+    };
+  });
+
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+  await page.addScriptTag({ content: fs.readFileSync(resultsScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const Results = window.LLFlashcards.Results;
+    const State = window.LLFlashcards.State;
+    const data = window.llToolsFlashcardsData;
+
+    Gender.initialize();
+    const firstTarget = Gender.selectTargetWord();
+    const firstOutcome = await Gender.handleAnswer({
+      targetWord: firstTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+    const tracksAtCheckpoint = Gender.shouldTrackModeSessionCompletion();
+    Results.showResults();
+    const intermediate = {
+      events: window.__genderCompletionEvents.length,
+      trackedFlag: !!State.modeSessionCompleteTracked,
+      resultsVisible: window.getComputedStyle(document.getElementById('quiz-results')).display !== 'none',
+      continueVisible: window.getComputedStyle(document.getElementById('ll-gender-next-activity')).display !== 'none',
+      continueLabel: document.getElementById('ll-gender-next-activity').textContent.trim()
+    };
+
+    data.genderSessionPlan = {
+      level: 3,
+      word_ids: [1012],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    data.genderSessionPlanArmed = true;
+    data.gender_session_plan_armed = true;
+    data.logicalSessionCompletedBefore = 1;
+    data.logical_session_completed_before = 1;
+    const appended = Gender.appendBoundedSelectionChunk(['CatB']);
+    const secondTarget = Gender.selectTargetWord();
+    const secondOutcome = await Gender.handleAnswer({
+      targetWord: secondTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+    const tracksAtFinal = Gender.shouldTrackModeSessionCompletion();
+    Results.showResults();
+    Results.showResults();
+
+    return {
+      firstCompleted: !!(firstOutcome && firstOutcome.completed),
+      secondCompleted: !!(secondOutcome && secondOutcome.completed),
+      tracksAtCheckpoint,
+      tracksAtFinal,
+      appended,
+      intermediate,
+      finalEvents: window.__genderCompletionEvents.slice(),
+      finalFlushes: window.__genderCompletionFlushes,
+      finalTrackedFlag: !!State.modeSessionCompleteTracked
+    };
+  });
+
+  expect(result.firstCompleted).toBe(true);
+  expect(result.secondCompleted).toBe(true);
+  expect(result.tracksAtCheckpoint).toBe(false);
+  expect(result.tracksAtFinal).toBe(true);
+  expect(result.appended).toBe(true);
+  expect(result.intermediate).toMatchObject({
+    events: 0,
+    trackedFlag: false,
+    resultsVisible: true,
+    continueVisible: true
+  });
+  expect(result.intermediate.continueLabel).not.toBe('');
+  expect(result.finalEvents).toHaveLength(1);
+  expect(result.finalEvents[0].mode).toBe('gender');
+  expect(result.finalFlushes).toBe(1);
+  expect(result.finalTrackedFlag).toBe(true);
+});
+
+test('gender bounded append consumes an explicit homogeneous plan and keeps logical progress monotonic', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 96,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [
+        makeNounWord(961, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        }),
+        makeNounWord(962, 'CatA', 'feminine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        })
+      ],
+      CatB: [
+        makeNounWord(963, 'CatB', 'masculine', {
+          gender_progress: makeGenderProgress({ level: 3 })
+        }),
+        makeNounWord(964, 'CatB', 'feminine', {
+          gender_progress: makeGenderProgress({ level: 3 })
+        })
+      ]
+    },
+    sessionPlan: {
+      level: 2,
+      word_ids: [961, 962],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const data = window.llToolsFlashcardsData;
+    const progress = [];
+    const playedIds = [];
+    window.LLFlashcards.Dom.updateSimpleProgress = function (current, total) {
+      progress.push([Number(current) || 0, Number(total) || 0]);
+    };
+    data.logicalSessionWordIds = [961, 962, 963, 964];
+    data.logical_session_word_ids = [961, 962, 963, 964];
+    data.logicalSessionTotal = 4;
+    data.logical_session_total = 4;
+    data.logicalSessionCompletedBefore = 0;
+    data.logical_session_completed_before = 0;
+    data.boundedSessionContinuation = function () { return Promise.resolve({ success: true }); };
+
+    Gender.initialize();
+    let firstOutcome = null;
+    for (let i = 0; i < 2; i += 1) {
+      const target = Gender.selectTargetWord();
+      playedIds.push(Number(target && target.id) || 0);
+      firstOutcome = await Gender.handleAnswer({
+        targetWord: target,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+    const autoContinuesFirstChunk = Gender.shouldAutoContinue();
+
+    data.genderSessionPlan = {
+      level: 3,
+      word_ids: [963, 964],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    data.genderSessionPlanArmed = true;
+    data.gender_session_plan_armed = true;
+    data.logicalSessionCompletedBefore = 2;
+    data.logical_session_completed_before = 2;
+
+    const appended = Gender.appendBoundedSelectionChunk(['CatB']);
+    const autoContinuesBeforeAnswer = Gender.shouldAutoContinue();
+    const planWasConsumed = !data.genderSessionPlan &&
+      !data.genderSessionPlanArmed &&
+      !data.gender_session_plan_armed;
+
+    let secondOutcome = null;
+    for (let i = 0; i < 2; i += 1) {
+      const target = Gender.selectTargetWord();
+      playedIds.push(Number(target && target.id) || 0);
+      secondOutcome = await Gender.handleAnswer({
+        targetWord: target,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+    delete data.boundedSessionContinuation;
+    delete data.bounded_session_continuation;
+
+    return {
+      firstCompleted: !!(firstOutcome && firstOutcome.completed),
+      secondCompleted: !!(secondOutcome && secondOutcome.completed),
+      autoContinuesFirstChunk,
+      autoContinuesBeforeAnswer,
+      autoContinuesFinalChunk: Gender.shouldAutoContinue(),
+      appended,
+      planWasConsumed,
+      playedIds,
+      progress,
+      resultCategories: Gender.getResultsCategoryNames()
+    };
+  });
+
+  expect(result.firstCompleted).toBe(true);
+  expect(result.secondCompleted).toBe(true);
+  expect(result.autoContinuesFirstChunk).toBe(true);
+  expect(result.autoContinuesBeforeAnswer).toBe(false);
+  expect(result.autoContinuesFinalChunk).toBe(false);
+  expect(result.appended).toBe(true);
+  expect(result.planWasConsumed).toBe(true);
+  expect(new Set(result.playedIds)).toEqual(new Set([961, 962, 963, 964]));
+  expect(result.progress.length).toBeGreaterThan(0);
+  expect(result.progress.every((entry) => entry[1] === 4)).toBe(true);
+  expect(result.progress.map((entry) => entry[0])).toEqual(
+    result.progress.map((entry) => entry[0]).slice().sort((left, right) => left - right)
+  );
+  expect(result.progress[result.progress.length - 1]).toEqual([4, 4]);
+  expect(result.resultCategories).toEqual(['CatB']);
+});
+
+test('gender bounded append rejects an already accepted word without replacing the completed chunk', async ({ page }) => {
+  await openHarnessPage(page);
+  await bootstrapGenderHarness(page, {
+    wordsetId: 97,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [makeNounWord(971, 'CatA', 'masculine', {
+        gender_progress: makeGenderProgress({ level: 3 })
+      })],
+      CatB: [makeNounWord(972, 'CatB', 'feminine', {
+        gender_progress: makeGenderProgress({ level: 3 })
+      })]
+    },
+    sessionPlan: {
+      level: 3,
+      word_ids: [971],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const data = window.llToolsFlashcardsData;
+    data.logicalSessionWordIds = [971, 972];
+    data.logical_session_word_ids = [971, 972];
+    data.logicalSessionTotal = 2;
+    data.logical_session_total = 2;
+    data.logicalSessionCompletedBefore = 0;
+    data.logical_session_completed_before = 0;
+    data.boundedSessionContinuation = function () { return Promise.resolve({ success: true }); };
+
+    Gender.initialize();
+    const first = Gender.selectTargetWord();
+    const firstOutcome = await Gender.handleAnswer({
+      targetWord: first,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    data.genderSessionPlan = {
+      level: 3,
+      word_ids: [971],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    data.genderSessionPlanArmed = true;
+    data.gender_session_plan_armed = true;
+    data.logicalSessionCompletedBefore = 1;
+    data.logical_session_completed_before = 1;
+    const duplicateAccepted = Gender.appendBoundedSelectionChunk(['CatA']);
+    const duplicatePlanRemainsArmed = !!data.genderSessionPlanArmed &&
+      Array.isArray(data.genderSessionPlan && data.genderSessionPlan.word_ids) &&
+      data.genderSessionPlan.word_ids[0] === 971;
+    const categoriesAfterReject = Gender.getResultsCategoryNames();
+
+    data.genderSessionPlan = {
+      level: 3,
+      word_ids: [972],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    data.genderSessionPlanArmed = true;
+    data.gender_session_plan_armed = true;
+    const validAccepted = Gender.appendBoundedSelectionChunk(['CatB']);
+    const next = Gender.selectTargetWord();
+
+    return {
+      firstCompleted: !!(firstOutcome && firstOutcome.completed),
+      duplicateAccepted,
+      duplicatePlanRemainsArmed,
+      categoriesAfterReject,
+      validAccepted,
+      nextId: Number(next && next.id) || 0
+    };
+  });
+
+  expect(result.firstCompleted).toBe(true);
+  expect(result.duplicateAccepted).toBe(false);
+  expect(result.duplicatePlanRemainsArmed).toBe(true);
+  expect(result.categoriesAfterReject).toEqual(['CatA']);
+  expect(result.validAccepted).toBe(true);
+  expect(result.nextId).toBe(972);
+});
+
+test('stale bounded levels re-bucket without loss and level-one results preserve native overflow continuation', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html><body>
+      <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+      <div id="ll-tools-flashcard"></div>
+    </body></html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await bootstrapGenderHarness(page, {
+    wordsetId: 99,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [
+        makeNounWord(991, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        }),
+        makeNounWord(992, 'CatA', 'feminine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        }),
+        makeNounWord(993, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        })
+      ]
+    },
+    sessionPlan: {
+      level: 2,
+      word_ids: [991, 992, 993],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    },
+    preseedStore: {
+      words: {
+        '992': makeGenderProgress({
+          level: 1,
+          confidence: 0,
+          intro_seen: false,
+          quick_correct_streak: 0,
+          level1_passes: 0,
+          seen_total: 0,
+          updated_at: Date.parse('2026-03-21T10:00:00Z')
+        }),
+        '993': makeGenderProgress({
+          level: 3,
+          updated_at: Date.parse('2026-03-21T10:00:00Z')
+        })
+      },
+      updated_at: Date.parse('2026-03-21T10:00:00Z')
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const data = window.llToolsFlashcardsData;
+    const playedIds = [];
+    const progress = [];
+    data.logicalSessionWordIds = [991, 992, 993];
+    data.logical_session_word_ids = [991, 992, 993];
+    data.logicalSessionTotal = 3;
+    data.logical_session_total = 3;
+    data.logicalSessionCompletedBefore = 0;
+    data.logical_session_completed_before = 0;
+    window.LLFlashcards.Dom.updateSimpleProgress = function (current, total) {
+      progress.push([Number(current) || 0, Number(total) || 0]);
+    };
+
+    Gender.initialize();
+    const levelTwoTarget = Gender.selectTargetWord();
+    playedIds.push(Number(levelTwoTarget && levelTwoTarget.id) || 0);
+    const levelTwoOutcome = await Gender.handleAnswer({
+      targetWord: levelTwoTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    const levelOneIntro = Gender.selectTargetWord();
+    Gender.handlePostSelection(levelOneIntro, { startQuizRound: function () {} });
+    let levelOneTarget = null;
+    const introStartedAt = Date.now();
+    while ((Date.now() - introStartedAt) < 12000) {
+      const candidate = Gender.selectTargetWord();
+      if (!Array.isArray(candidate)) {
+        levelOneTarget = candidate;
+        break;
+      }
+      await wait(50);
+    }
+
+    let levelOneOutcome = null;
+    for (let i = 0; i < 3; i += 1) {
+      const current = levelOneTarget || Gender.selectTargetWord();
+      levelOneTarget = null;
+      if (i === 0) playedIds.push(Number(current && current.id) || 0);
+      levelOneOutcome = await Gender.handleAnswer({
+        targetWord: current,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+
+    const actions = Gender.getResultsActions();
+    const overflowPlan = actions && actions.secondary ? actions.secondary.plan : null;
+    const overflowQueued = Gender.queueResultsAction('secondary');
+    Gender.initialize();
+    const levelThreeTarget = Gender.selectTargetWord();
+    playedIds.push(Number(levelThreeTarget && levelThreeTarget.id) || 0);
+    const levelThreeOutcome = await Gender.handleAnswer({
+      targetWord: levelThreeTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    return {
+      levelTwoId: Number(levelTwoTarget && levelTwoTarget.id) || 0,
+      levelTwoCompleted: !!(levelTwoOutcome && levelTwoOutcome.completed),
+      introIds: Array.isArray(levelOneIntro)
+        ? levelOneIntro.map((word) => Number(word && word.id) || 0)
+        : [],
+      levelOneCompleted: !!(levelOneOutcome && levelOneOutcome.completed),
+      overflowQueued,
+      overflowLevel: Number(overflowPlan && overflowPlan.level) || 0,
+      overflowIds: overflowPlan && Array.isArray(overflowPlan.word_ids)
+        ? overflowPlan.word_ids.map((id) => Number(id) || 0)
+        : [],
+      levelThreeId: Number(levelThreeTarget && levelThreeTarget.id) || 0,
+      levelThreeCompleted: !!(levelThreeOutcome && levelThreeOutcome.completed),
+      playedIds,
+      progress,
+      armedPlanConsumed: !data.genderSessionPlan && !data.genderSessionPlanArmed
+    };
+  });
+
+  expect(result.levelTwoId).toBe(991);
+  expect(result.levelTwoCompleted).toBe(false);
+  expect(result.introIds).toEqual([992]);
+  expect(result.levelOneCompleted).toBe(true);
+  expect(result.overflowQueued).toBe(true);
+  expect(result.overflowLevel).toBe(3);
+  expect(result.overflowIds).toEqual([993]);
+  expect(result.levelThreeId).toBe(993);
+  expect(result.levelThreeCompleted).toBe(true);
+  expect(result.playedIds).toEqual([991, 992, 993]);
+  expect(result.progress[result.progress.length - 1]).toEqual([3, 3]);
+  expect(result.armedPlanConsumed).toBe(true);
+});
+
+test('server continuation ingests its chunk behind older local level overflow', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html><body>
+      <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+      <div id="ll-tools-flashcard"></div>
+    </body></html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await bootstrapGenderHarness(page, {
+    wordsetId: 100,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [
+        makeNounWord(1001, 'CatA', 'masculine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        }),
+        makeNounWord(1002, 'CatA', 'feminine', {
+          gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+        })
+      ],
+      CatB: [makeNounWord(1003, 'CatB', 'masculine', {
+        gender_progress: makeGenderProgress({ level: 2, confidence: 2, quick_correct_streak: 0 })
+      })]
+    },
+    sessionPlan: {
+      level: 2,
+      word_ids: [1001, 1002],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    },
+    preseedStore: {
+      words: {
+        '1001': makeGenderProgress({
+          level: 1,
+          confidence: 0,
+          intro_seen: false,
+          quick_correct_streak: 0,
+          level1_passes: 0,
+          seen_total: 0,
+          updated_at: Date.parse('2026-03-21T11:00:00Z')
+        }),
+        '1002': makeGenderProgress({
+          level: 3,
+          updated_at: Date.parse('2026-03-21T11:00:00Z')
+        })
+      },
+      updated_at: Date.parse('2026-03-21T11:00:00Z')
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const data = window.llToolsFlashcardsData;
+    const playedIds = [];
+    data.logicalSessionWordIds = [1001, 1002, 1003];
+    data.logical_session_word_ids = [1001, 1002, 1003];
+    data.logicalSessionTotal = 3;
+    data.logical_session_total = 3;
+    data.logicalSessionCompletedBefore = 0;
+    data.logical_session_completed_before = 0;
+    data.boundedSessionContinuation = function () { return Promise.resolve({ success: true }); };
+
+    Gender.initialize();
+    const intro = Gender.selectTargetWord();
+    Gender.handlePostSelection(intro, { startQuizRound: function () {} });
+    let levelOneTarget = null;
+    const introStartedAt = Date.now();
+    while ((Date.now() - introStartedAt) < 12000) {
+      const candidate = Gender.selectTargetWord();
+      if (!Array.isArray(candidate)) {
+        levelOneTarget = candidate;
+        break;
+      }
+      await wait(50);
+    }
+    let levelOneOutcome = null;
+    for (let i = 0; i < 3; i += 1) {
+      const current = levelOneTarget || Gender.selectTargetWord();
+      levelOneTarget = null;
+      if (i === 0) playedIds.push(Number(current && current.id) || 0);
+      levelOneOutcome = await Gender.handleAnswer({
+        targetWord: current,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+    const resultsActionsBeforeAppend = Gender.getResultsActions();
+
+    data.genderSessionPlan = {
+      level: 2,
+      word_ids: [1003],
+      launch_source: 'dashboard',
+      reason_code: 'bounded_level_chunk'
+    };
+    data.genderSessionPlanArmed = true;
+    data.gender_session_plan_armed = true;
+    data.logicalSessionCompletedBefore = 2;
+    data.logical_session_completed_before = 2;
+    const appended = Gender.appendBoundedSelectionChunk(['CatB']);
+
+    const olderOverflowTarget = Gender.selectTargetWord();
+    playedIds.push(Number(olderOverflowTarget && olderOverflowTarget.id) || 0);
+    const overflowOutcome = await Gender.handleAnswer({
+      targetWord: olderOverflowTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+    const transportedTarget = Gender.selectTargetWord();
+    playedIds.push(Number(transportedTarget && transportedTarget.id) || 0);
+    const transportedOutcome = await Gender.handleAnswer({
+      targetWord: transportedTarget,
+      isCorrect: true,
+      isDontKnow: false
+    });
+
+    return {
+      levelOneCompleted: !!(levelOneOutcome && levelOneOutcome.completed),
+      hasNativeSecondaryBeforeAppend: !!(resultsActionsBeforeAppend && resultsActionsBeforeAppend.secondary),
+      appended,
+      olderOverflowId: Number(olderOverflowTarget && olderOverflowTarget.id) || 0,
+      overflowCompleted: !!(overflowOutcome && overflowOutcome.completed),
+      transportedId: Number(transportedTarget && transportedTarget.id) || 0,
+      transportedCompleted: !!(transportedOutcome && transportedOutcome.completed),
+      playedIds
+    };
+  });
+
+  expect(result.levelOneCompleted).toBe(true);
+  expect(result.hasNativeSecondaryBeforeAppend).toBe(false);
+  expect(result.appended).toBe(true);
+  expect(result.olderOverflowId).toBe(1002);
+  expect(result.overflowCompleted).toBe(false);
+  expect(result.transportedId).toBe(1003);
+  expect(result.transportedCompleted).toBe(true);
+  expect(result.playedIds).toEqual([1001, 1002, 1003]);
+});
+
+test('completed level one keeps adaptive results instead of auto-continuing', async ({ page }) => {
+  await openHarnessPage(page);
+  await page.setContent(`
+    <!doctype html>
+    <html><body>
+      <div id="ll-tools-flashcard-content"><div id="ll-tools-prompt"></div></div>
+      <div id="ll-tools-flashcard"></div>
+    </body></html>
+  `);
+  await page.addScriptTag({ content: jquerySource });
+  await bootstrapGenderHarness(page, {
+    wordsetId: 98,
+    launchSource: 'dashboard',
+    categoryWords: {
+      CatA: [makeNounWord(981, 'CatA', 'masculine')]
+    },
+    sessionPlan: {
+      level: 1,
+      word_ids: [981],
+      launch_source: 'dashboard',
+      force_intro: true,
+      reason_code: 'bounded_level_chunk'
+    }
+  });
+  await page.addScriptTag({ content: fs.readFileSync(genderScriptPath, 'utf8') });
+
+  const result = await page.evaluate(async () => {
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const Gender = window.LLFlashcards.Modes.Gender;
+    const data = window.llToolsFlashcardsData;
+    data.logicalSessionWordIds = [981, 982];
+    data.logical_session_word_ids = [981, 982];
+    data.logicalSessionTotal = 2;
+    data.logical_session_total = 2;
+    data.boundedSessionContinuation = function () { return Promise.resolve({ success: true }); };
+
+    let resultsCalls = 0;
+    let continuationCalls = 0;
+    window.LLFlashcards.Results.showResults = function () { resultsCalls += 1; };
+
+    Gender.initialize();
+    const intro = Gender.selectTargetWord();
+    Gender.handlePostSelection(intro, { startQuizRound: function () {} });
+
+    let target = null;
+    const introStartedAt = Date.now();
+    while ((Date.now() - introStartedAt) < 12000) {
+      const candidate = Gender.selectTargetWord();
+      if (!Array.isArray(candidate)) {
+        target = candidate;
+        break;
+      }
+      await wait(50);
+    }
+
+    let outcome = null;
+    for (let i = 0; i < 3; i += 1) {
+      const current = target || Gender.selectTargetWord();
+      target = null;
+      outcome = await Gender.handleAnswer({
+        targetWord: current,
+        isCorrect: true,
+        isDontKnow: false
+      });
+    }
+
+    const autoContinues = Gender.shouldAutoContinue();
+    const handled = Gender.handleNoTarget({
+      tryContinueLogicalSession: function () {
+        continuationCalls += 1;
+        return true;
+      }
+    });
+    const actions = Gender.getResultsActions();
+    const primaryQueued = Gender.queueResultsAction('primary');
+    window.LLFlashcards.State.wordsByCategory.CatA = [];
+    Gender.initialize();
+    const resumedPrimaryTarget = Gender.selectTargetWord();
+
+    return {
+      completed: !!(outcome && outcome.completed),
+      autoContinues,
+      handled,
+      continuationCalls,
+      resultsCalls,
+      hasSecondary: !!(actions && actions.secondary),
+      primaryQueued,
+      resumedPrimaryId: Number(resumedPrimaryTarget && resumedPrimaryTarget.id) || 0,
+      primaryReason: actions && actions.primary && actions.primary.plan
+        ? actions.primary.plan.reason_code
+        : ''
+    };
+  });
+
+  expect(result.completed).toBe(true);
+  expect(result.autoContinues).toBe(false);
+  expect(result.handled).toBe(true);
+  expect(result.continuationCalls).toBe(0);
+  expect(result.resultsCalls).toBe(1);
+  expect(result.hasSecondary).toBe(false);
+  expect(result.primaryQueued).toBe(true);
+  expect(result.resumedPrimaryId).toBe(981);
+  expect(result.primaryReason).toBe('advance_to_level2');
+});

@@ -378,19 +378,16 @@ test('warm 209-category recorder manifest leaves zero summary AJAX work and isol
     batchSize: 6
   });
 
-  // The manager gives manifest-only summary construction the complete canonical
-  // catalog instead of the three-card presentation slice.
+  // The only normal visible overview is the stream path, so it gives
+  // manifest-only summary construction the complete canonical catalog.
   expect(renderContent).toMatch(
-    /'summary_categories'\s*=>\s*\$recorder_queue_stream_view\s*\?\s*\$recorder_queue_stream_categories/s
-  );
-  expect(renderContent).toMatch(
-    /'summary_manifest_only'\s*=>\s*\$recorder_queue_stream_view/
+    /'summary_categories'\s*=>\s*\$recorder_queue_stream_categories/
   );
   expect(buildRows).toMatch(
-    /\$summary_category_page\s*=\s*\$summary_manifest_only\s*\?\s*\$summary_categories/s
+    /\$summary_category_page\s*=\s*\$stream_view\s*\?\s*ll_tools_wordset_page_normalize_recorder_queue_summary_categories\(\$summary_categories\)/s
   );
   expect(buildRows).toMatch(
-    /\['manifest_only'\s*=>\s*\$summary_manifest_only\]/
+    /\['manifest_only'\s*=>\s*true\]/
   );
 
   // One scope-manifest lookup covers the full catalog. Manifest-only rendering

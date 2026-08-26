@@ -3,28 +3,26 @@ declare(strict_types=1);
 
 final class WordImagesFixerBatchTest extends LL_Tools_TestCase
 {
-    public function test_legacy_missing_image_wrapper_matches_the_bounded_scanner_candidates(): void
+    public function test_bounded_scanner_returns_missing_image_candidate(): void
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'publish',
-            'post_title' => 'Legacy Fixer Wrapper Word',
+            'post_title' => 'Bounded Fixer Scanner Word',
         ]);
         $attachment_id = self::factory()->post->create([
             'post_type' => 'attachment',
             'post_status' => 'inherit',
-            'post_title' => 'Legacy Fixer Wrapper Attachment',
+            'post_title' => 'Bounded Fixer Scanner Attachment',
         ]);
         update_post_meta($word_id, '_thumbnail_id', $attachment_id);
 
-        $canonical = ll_word_images_fixer_scan_batch(0);
-        $legacy = ll_find_words_missing_word_images(0);
+        $batch = ll_word_images_fixer_scan_batch(0);
 
-        $this->assertSame((array) $canonical['candidates'], $legacy);
         $this->assertContains([
             'word_id' => $word_id,
             'attachment_id' => $attachment_id,
-        ], $legacy);
+        ], (array) $batch['candidates']);
     }
 
     public function test_page_render_does_not_scan_words_and_batches_resume_by_id(): void

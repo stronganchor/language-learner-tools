@@ -159,6 +159,102 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertSame('rate_limited', (string) (($miss_response['data'] ?? [])['code'] ?? ''));
     }
 
+    public function test_lesson_grid_cache_lock_release_preserves_successor_owner(): void
+    {
+        $cache_key = 'll_tools_vocab_grid_owner_test';
+        ll_tools_public_ajax_reset_client_leases('ll_tools_vocab_grid_lock_', $cache_key);
+
+        try {
+            $this->assertTrue(ll_tools_vocab_lesson_grid_public_cache_acquire_build_lock($cache_key));
+            $option_name = ll_tools_vocab_lesson_grid_public_cache_lock_option($cache_key);
+            $successor_value = (time() + 30) . '|successor-owner';
+            update_option($option_name, $successor_value, false);
+
+            ll_tools_vocab_lesson_grid_public_cache_release_build_lock($cache_key);
+
+            $this->assertSame($successor_value, get_option($option_name));
+        } finally {
+            unset($GLOBALS['ll_tools_vocab_lesson_grid_public_cache_leases'][$cache_key]);
+            ll_tools_public_ajax_reset_client_leases('ll_tools_vocab_grid_lock_', $cache_key);
+        }
+    }
+
+    public function test_lesson_grid_order_lock_takeover_and_release_are_exact_owner_operations(): void
+    {
+        $cache_key = 'll_tools_vocab_order_owner_test';
+        $prefix = 'll_tools_vocab_order_lock_';
+        ll_tools_public_ajax_reset_client_leases($prefix, $cache_key);
+
+        try {
+            $first_token = ll_tools_vocab_lesson_grid_acquire_order_lock($cache_key);
+            $this->assertIsString($first_token);
+            $this->assertNotSame('', $first_token);
+
+            $option_name = ll_tools_vocab_lesson_grid_order_lock_option($cache_key);
+            $successor_value = (time() + 60) . '|successor-owner';
+            update_option($option_name, $successor_value, false);
+            ll_tools_vocab_lesson_grid_release_order_lock($cache_key, $first_token);
+            $this->assertSame($successor_value, get_option($option_name));
+
+            update_option($option_name, (time() - 1) . '|expired-owner', false);
+            $takeover_token = ll_tools_vocab_lesson_grid_acquire_order_lock($cache_key);
+            $this->assertIsString($takeover_token);
+            $this->assertNotSame('', $takeover_token);
+            $this->assertSame($takeover_token, get_option($option_name));
+
+            $blocked_contender = ll_tools_vocab_lesson_grid_acquire_order_lock($cache_key);
+            $this->assertFalse($blocked_contender);
+            $this->assertSame($takeover_token, get_option($option_name));
+
+            ll_tools_vocab_lesson_grid_release_order_lock($cache_key, $takeover_token);
+            $this->assertFalse(get_option($option_name, false));
+            $timeout_names = ll_tools_public_ajax_client_lease_option_names($prefix, $cache_key, 1);
+            $this->assertFalse(get_option($timeout_names['timeout'], false));
+        } finally {
+            unset($GLOBALS['ll_tools_vocab_lesson_grid_order_leases'][$cache_key]);
+            ll_tools_public_ajax_reset_client_leases($prefix, $cache_key);
+        }
+    }
+
+    public function test_lesson_grid_miss_admission_refunds_lesson_when_ip_is_full(): void
+    {
+        wp_set_current_user(0);
+        $ip = '203.0.113.31';
+        $_SERVER['REMOTE_ADDR'] = $ip;
+        $lesson_limit = static function (): int {
+            return 100;
+        };
+        $ip_limit = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_vocab_lesson_grid_public_cache_miss_lesson_limit', $lesson_limit);
+        add_filter('ll_tools_vocab_lesson_grid_public_cache_miss_ip_limit', $ip_limit);
+
+        try {
+            $first = ll_tools_vocab_lesson_grid_public_cache_reserve_miss(901);
+            $blocked = ll_tools_vocab_lesson_grid_public_cache_reserve_miss(902);
+            $config = ll_tools_vocab_lesson_grid_public_cache_miss_throttle_config();
+            $second_lesson = ll_tools_public_ajax_counter_status(
+                ll_tools_vocab_lesson_grid_public_cache_miss_counter_prefix('lesson'),
+                '902',
+                100,
+                (int) $config['window']
+            );
+
+            $this->assertTrue($first['allowed']);
+            $this->assertFalse($blocked['allowed']);
+            $this->assertSame('ip', $blocked['scope']);
+            $this->assertSame(0, $second_lesson['count']);
+        } finally {
+            ll_tools_public_ajax_reset_counter(ll_tools_vocab_lesson_grid_public_cache_miss_counter_prefix('lesson'), '901');
+            ll_tools_public_ajax_reset_counter(ll_tools_vocab_lesson_grid_public_cache_miss_counter_prefix('lesson'), '902');
+            ll_tools_public_ajax_reset_counter(ll_tools_vocab_lesson_grid_public_cache_miss_counter_prefix('ip'), $ip);
+            remove_filter('ll_tools_vocab_lesson_grid_public_cache_miss_lesson_limit', $lesson_limit);
+            remove_filter('ll_tools_vocab_lesson_grid_public_cache_miss_ip_limit', $ip_limit);
+            unset($_SERVER['REMOTE_ADDR']);
+        }
+    }
+
     public function test_title_backed_audio_translation_lesson_grid_uses_category_labels(): void
     {
         $wordset = wp_insert_term('Title Backed Grid Wordset', 'wordset', ['slug' => 'title-backed-grid-wordset']);

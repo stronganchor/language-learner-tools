@@ -40,12 +40,29 @@
         }
     }
 
+    function setRetryState(button, enabled) {
+        var label = button.querySelector('[data-ll-content-lesson-progress-label]');
+        button.classList.toggle('has-save-error', enabled);
+        if (enabled && label) {
+            label.textContent = getString('retry', 'Retry');
+        }
+    }
+
+    function requestTimeoutMs() {
+        var configured = parseInt(getConfig().requestTimeoutMs, 10);
+        return Math.max(25, Math.min(120000, Number.isFinite(configured) ? configured : 15000));
+    }
+
     function saveState(button) {
         var config = getConfig();
         var lessonId = parseInt(button.getAttribute('data-lesson-id') || '0', 10) || 0;
         var currentState = button.getAttribute('data-completed') === '1';
         var nextState = !currentState;
         var body;
+        var controller;
+        var timeoutId;
+        var timedOut = false;
+        var attempt;
 
         if (!lessonId || !config.ajaxUrl || !config.nonce || button.disabled) {
             return;
@@ -57,20 +74,40 @@
         body.set('lesson_id', String(lessonId));
         body.set('completed', nextState ? '1' : '0');
 
+        attempt = (parseInt(button.__llContentLessonProgressAttempt, 10) || 0) + 1;
+        button.__llContentLessonProgressAttempt = attempt;
+        controller = typeof AbortController === 'function' ? new AbortController() : null;
         button.disabled = true;
         button.setAttribute('aria-busy', 'true');
+        setRetryState(button, false);
+        applyState(button, currentState);
         setStatus(button, 'saving', getString('saving', 'Saving...'));
 
-        fetch(String(config.ajaxUrl), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-            },
-            body: body.toString()
-        }).then(function (response) {
+        var request = fetch(String(config.ajaxUrl), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: body.toString(),
+                signal: controller ? controller.signal : undefined
+            });
+        var deadline = new Promise(function (resolve, reject) {
+            timeoutId = window.setTimeout(function () {
+                timedOut = true;
+                if (controller) {
+                    controller.abort();
+                }
+                reject(new Error(getString('timeout', 'Saving took too long. Please retry.')));
+            }, requestTimeoutMs());
+        });
+
+        Promise.race([request, deadline]).then(function (response) {
             return response.json();
         }).then(function (response) {
+            if (button.__llContentLessonProgressAttempt !== attempt) {
+                return;
+            }
             if (!response || response.success !== true || !response.data) {
                 var errorMessage = response && response.data && response.data.message
                     ? String(response.data.message)
@@ -78,16 +115,27 @@
                 throw new Error(errorMessage);
             }
             applyState(button, response.data.completed === true);
+            setRetryState(button, false);
             setStatus(button, 'saved', getString('saved', 'Progress saved.'));
         }).catch(function (error) {
+            if (button.__llContentLessonProgressAttempt !== attempt) {
+                return;
+            }
+            setRetryState(button, true);
             setStatus(
                 button,
-                'error',
-                error && error.message
+                timedOut ? 'timeout' : 'error',
+                timedOut
+                    ? getString('timeout', 'Saving took too long. Please retry.')
+                    : error && error.message
                     ? String(error.message)
                     : getString('error', 'Lesson progress could not be saved.')
             );
         }).finally(function () {
+            window.clearTimeout(timeoutId);
+            if (button.__llContentLessonProgressAttempt !== attempt) {
+                return;
+            }
             button.disabled = false;
             button.removeAttribute('aria-busy');
         });

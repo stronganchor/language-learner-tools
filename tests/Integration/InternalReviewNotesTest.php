@@ -276,6 +276,153 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Check the dotted e in this line.', $filled_field);
     }
 
+    public function test_text_document_review_note_cas_preserves_other_keys_and_rejects_stale_same_key_writes(): void
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Concurrent Corpus Review Notes',
+        ]);
+        update_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key(), [
+            'line:l01' => 'First line base.',
+            'line:l02' => 'Second line base.',
+        ]);
+
+        $first = ll_tools_compare_and_set_text_document_review_note(
+            $lesson_id,
+            'line:l01',
+            'First line updated.',
+            'First line base.'
+        );
+        $this->assertIsArray($first);
+        $this->assertSame('First line updated.', (string) ($first['note'] ?? ''));
+        $this->assertSame('Second line base.', ll_tools_get_text_document_review_note($lesson_id, 'line:l02'));
+
+        $idempotent_retry = ll_tools_compare_and_set_text_document_review_note(
+            $lesson_id,
+            'line:l01',
+            'First line updated.',
+            'First line base.'
+        );
+        $this->assertIsArray($idempotent_retry);
+        $this->assertFalse((bool) ($idempotent_retry['changed'] ?? true));
+        $this->assertSame('First line updated.', (string) ($idempotent_retry['note'] ?? ''));
+
+        $stale = ll_tools_compare_and_set_text_document_review_note(
+            $lesson_id,
+            'line:l01',
+            'Stale overwrite must fail.',
+            'First line base.'
+        );
+        $this->assertWPError($stale);
+        $this->assertSame('ll_tools_text_document_review_note_conflict', $stale->get_error_code());
+        $this->assertSame('First line updated.', (string) ($stale->get_error_data()['note'] ?? ''));
+        $this->assertSame('First line updated.', ll_tools_get_text_document_review_note($lesson_id, 'line:l01'));
+    }
+
+    public function test_text_document_review_note_cas_retries_after_a_different_key_changes(): void
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Interleaved Corpus Review Notes',
+        ]);
+        $meta_key = ll_tools_text_document_review_notes_meta_key();
+        update_post_meta($lesson_id, $meta_key, [
+            'line:l01' => 'First line base.',
+            'line:l02' => 'Second line base.',
+        ]);
+
+        $intercepted = false;
+        $filter = null;
+        $filter = static function ($check, int $object_id, string $candidate_key) use (
+            &$filter,
+            &$intercepted,
+            $lesson_id,
+            $meta_key
+        ) {
+            if ($intercepted || $object_id !== $lesson_id || $candidate_key !== $meta_key) {
+                return $check;
+            }
+            $intercepted = true;
+            remove_filter('update_post_metadata', $filter, 10);
+            $concurrent = get_post_meta($lesson_id, $meta_key, true);
+            $concurrent = is_array($concurrent) ? $concurrent : [];
+            $concurrent['line:l02'] = 'Second line changed concurrently.';
+            update_post_meta($lesson_id, $meta_key, $concurrent);
+            add_filter('update_post_metadata', $filter, 10, 5);
+            return false;
+        };
+        add_filter('update_post_metadata', $filter, 10, 5);
+
+        try {
+            $result = ll_tools_compare_and_set_text_document_review_note(
+                $lesson_id,
+                'line:l01',
+                'First line updated safely.',
+                'First line base.'
+            );
+        } finally {
+            remove_filter('update_post_metadata', $filter, 10);
+        }
+
+        $this->assertTrue($intercepted);
+        $this->assertIsArray($result);
+        $this->assertSame('First line updated safely.', ll_tools_get_text_document_review_note($lesson_id, 'line:l01'));
+        $this->assertSame('Second line changed concurrently.', ll_tools_get_text_document_review_note($lesson_id, 'line:l02'));
+    }
+
+    public function test_text_document_review_note_ajax_reports_write_failure_instead_of_false_success(): void
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Failed Corpus Review Note',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_KIND_META, 'corpus_text');
+        update_post_meta($lesson_id, ll_tools_text_document_review_notes_meta_key(), [
+            'document' => 'Saved base.',
+        ]);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_text_document_review_note'),
+            'lesson_id' => (string) $lesson_id,
+            'note_key' => 'document',
+            'base_note' => 'Saved base.',
+            'note' => 'This write must fail.',
+        ];
+        $_REQUEST = $_POST;
+
+        $fail_update = static function ($check, int $object_id, string $candidate_key) use ($lesson_id): bool|null {
+            if ($object_id === $lesson_id && $candidate_key === ll_tools_text_document_review_notes_meta_key()) {
+                return false;
+            }
+            return $check;
+        };
+        $attempts = static function (): int {
+            return 2;
+        };
+        add_filter('update_post_metadata', $fail_update, 10, 5);
+        add_filter('ll_tools_text_document_review_note_cas_attempts', $attempts);
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_save_text_document_review_note_ajax_handler();
+            });
+        } finally {
+            remove_filter('update_post_metadata', $fail_update, 10);
+            remove_filter('ll_tools_text_document_review_note_cas_attempts', $attempts);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse($response['success']);
+        $this->assertSame('ll_tools_text_document_review_note_write_failed', (string) ($response['data']['code'] ?? ''));
+        $this->assertSame('Saved base.', ll_tools_get_text_document_review_note($lesson_id, 'document'));
+    }
+
     private function createTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

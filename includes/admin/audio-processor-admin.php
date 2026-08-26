@@ -125,6 +125,9 @@ function ll_enqueue_audio_processor_assets($hook) {
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_audio_processor'),
         'recordings' => [],
+        'deleteConcurrency' => 4,
+        'deleteRequestTimeoutMs' => 15000,
+        'processRequestTimeoutMs' => 30000,
         'recordingTypes' => $recording_type_choices,
         'recordingTypeIcons' => ll_audio_processor_get_recording_type_icons_map(),
         'i18n' => [
@@ -144,6 +147,7 @@ function ll_enqueue_audio_processor_assets($hook) {
             /* translators: 1: completed file count, 2: total file count */
             'saveCountTemplate' => __('%1$d / %2$d complete', 'll-tools-text-domain'),
             'beforeUnloadWarning' => __('Saving is still in progress. Leaving this page will interrupt uploads.', 'll-tools-text-domain'),
+            'deleteBeforeUnloadWarning' => __('Deletion is still in progress. Leaving this page may interrupt it.', 'll-tools-text-domain'),
             'editWordButton' => __('Edit word', 'll-tools-text-domain'),
             'saveWordButton' => __('Save changes', 'll-tools-text-domain'),
             'cancelWordButton' => __('Cancel', 'll-tools-text-domain'),
@@ -158,12 +162,19 @@ function ll_enqueue_audio_processor_assets($hook) {
             /* translators: %d: number of selected recordings */
             'deleteSelectedConfirmTemplate' => __('Delete %d recording(s)? This action cannot be undone.', 'll-tools-text-domain'),
             'deleteButtonDeleting' => __('Deleting...', 'll-tools-text-domain'),
+            /* translators: 1: completed deletion count, 2: total deletion count */
+            'deleteProgressTemplate' => __('Deleting %1$d of %2$d...', 'll-tools-text-domain'),
             'deleteSelectedButtonDefault' => __('Delete Selected', 'll-tools-text-domain'),
             'deleteAllButtonDefault' => __('Delete All', 'll-tools-text-domain'),
             /* translators: %d: number of deleted recordings */
             'deleteSuccessTemplate' => __('Deleted %d recording(s).', 'll-tools-text-domain'),
             /* translators: 1: deleted recording count, 2: failed deletion count */
             'deletePartialTemplate' => __('Deleted %1$d recording(s). Failed to delete %2$d.', 'll-tools-text-domain'),
+            /* translators: %d: number of failed deletions available to retry */
+            'deleteRetryTemplate' => __('Retry %d failed deletion(s)', 'll-tools-text-domain'),
+            'deleteSingleSuccess' => __('Recording deleted.', 'll-tools-text-domain'),
+            /* translators: 1: deleted recording count, 2: failed deletion count, 3: failed deletion count available to retry */
+            'deleteFailureRetryStatusTemplate' => __('Deletion finished: %1$d deleted and %2$d failed. %3$d failed deletion(s) are ready to retry.', 'll-tools-text-domain'),
             /* translators: %d: number of deleted recordings */
             'deleteAllSuccessTemplate' => __('Successfully deleted %d recording(s)', 'll-tools-text-domain'),
             /* translators: %s: recording title */
@@ -172,6 +183,7 @@ function ll_enqueue_audio_processor_assets($hook) {
             'removeFromBatchConfirmTemplate' => __('Remove "%s" from this batch? It will remain unprocessed.', 'll-tools-text-domain'),
             'deleteErrorPrefix' => __('Error:', 'll-tools-text-domain'),
             'deleteFailed' => __('Failed to delete recording', 'll-tools-text-domain'),
+            'deleteTimeout' => __('Deletion timed out. It may still finish; retry this recording to confirm.', 'll-tools-text-domain'),
             /* translators: %s: error message */
             'deleteErrorTemplate' => __('Error deleting recording: %s', 'll-tools-text-domain'),
             'recordingFallbackLabel' => __('this recording', 'll-tools-text-domain'),
@@ -190,6 +202,11 @@ function ll_enqueue_audio_processor_assets($hook) {
             'processingStatusTemplate' => __('Processing: %1$s (%2$d/%3$d)', 'll-tools-text-domain'),
             /* translators: 1: recording title, 2: error message */
             'processingErrorTemplate' => __('Error processing %1$s: %2$s', 'll-tools-text-domain'),
+            /* translators: %s: recording title */
+            'processingTimeoutTemplate' => __('Processing %s took too long. It was skipped; select it and try again.', 'll-tools-text-domain'),
+            /* translators: 1: processed recording count, 2: skipped recording count */
+            'processingPartialTemplate' => __('Processed %1$d recording(s); skipped %2$d. Review the completed recordings, then retry the skipped items.', 'll-tools-text-domain'),
+            'processingNoneCompleted' => __('No recordings were processed. The skipped recordings remain selected; try again.', 'll-tools-text-domain'),
             'processingComplete' => __('Processing complete! Review the results below.', 'll-tools-text-domain'),
             'queueLoading' => __('Loading recordings...', 'll-tools-text-domain'),
             'queueLoadFailed' => __('Could not load recordings. Please try again.', 'll-tools-text-domain'),
@@ -1339,7 +1356,7 @@ function ll_render_audio_processor_page() {
     $active_page = (int) $active_request_page['page'];
     $active_cursor = (string) $active_request_page['cursor'];
     ?>
-    <div class="wrap ll-audio-processor-wrap">
+    <div class="wrap ll-audio-processor-wrap" aria-busy="false">
         <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>
         <p><?php esc_html_e('Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.', 'll-tools-text-domain'); ?></p>
 
@@ -1376,6 +1393,7 @@ function ll_render_audio_processor_page() {
                 </div>
                 <p class="ll-status-text"><?php esc_html_e('Processing...', 'll-tools-text-domain'); ?></p>
             </div>
+            <p id="ll-delete-status" class="screen-reader-text" role="status" aria-live="polite" aria-atomic="true"></p>
 
             <div id="ll-save-progress-overlay" class="ll-save-progress-overlay" hidden aria-hidden="true">
                 <div class="ll-save-progress-panel" role="status" aria-live="assertive" aria-atomic="true">
@@ -1756,6 +1774,321 @@ function ll_audio_processor_update_word_text_handler() {
  */
 add_action('wp_ajax_ll_delete_audio_recording', 'll_delete_audio_recording_handler');
 
+function ll_audio_processor_delete_receipt_key(int $user_id, int $audio_post_id): string {
+    return 'll_ap_delete_receipt_' . md5(max(0, $user_id) . ':' . max(0, $audio_post_id));
+}
+
+function ll_audio_processor_delete_lease_prefix(): string {
+    return 'll_ap_delete_';
+}
+
+/**
+ * @return array{value:string,timeout:string}
+ */
+function ll_audio_processor_delete_lock_option_names(int $audio_post_id): array {
+    return ll_tools_public_ajax_client_lease_option_names(
+        ll_audio_processor_delete_lease_prefix(),
+        (string) max(0, $audio_post_id),
+        1
+    );
+}
+
+function ll_audio_processor_delete_lock_key(int $audio_post_id): string {
+    $names = ll_audio_processor_delete_lock_option_names($audio_post_id);
+    return (string) $names['value'];
+}
+
+function ll_audio_processor_delete_lock_timeout_key(int $audio_post_id): string {
+    $names = ll_audio_processor_delete_lock_option_names($audio_post_id);
+    return (string) $names['timeout'];
+}
+
+function ll_audio_processor_delete_receipt_ttl(): int {
+    $ttl = (int) apply_filters('ll_audio_processor_delete_receipt_ttl', 5 * MINUTE_IN_SECONDS);
+    return max(30, min(15 * MINUTE_IN_SECONDS, $ttl));
+}
+
+function ll_audio_processor_delete_lock_seconds(): int {
+    $seconds = (int) apply_filters('ll_audio_processor_delete_lock_seconds', 120);
+    return max(30, min(5 * MINUTE_IN_SECONDS, $seconds));
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function ll_audio_processor_get_delete_receipt(int $user_id, int $audio_post_id): array {
+    if ($user_id <= 0 || $audio_post_id <= 0) {
+        return [];
+    }
+
+    $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_post_id);
+    $receipt = get_transient($receipt_key);
+    if (
+        !is_array($receipt)
+        || (int) ($receipt['user_id'] ?? 0) !== $user_id
+        || (int) ($receipt['post_id'] ?? 0) !== $audio_post_id
+        || !in_array((string) ($receipt['status'] ?? ''), ['pending', 'deleted'], true)
+        || (int) ($receipt['expires_at'] ?? 0) <= time()
+    ) {
+        if ($receipt !== false) {
+            delete_transient($receipt_key);
+        }
+        return [];
+    }
+
+    return $receipt;
+}
+
+/**
+ * Store a short-lived authorization receipt before deletion, then mark it
+ * deleted after the post and its parent cleanup have committed. A pending
+ * receipt lets a retry recover safely if the first response is lost between
+ * the destructive commit and the final receipt write.
+ */
+function ll_audio_processor_store_delete_receipt(
+    int $user_id,
+    int $audio_post_id,
+    int $parent_word_id,
+    string $status
+): bool {
+    if ($user_id <= 0 || $audio_post_id <= 0 || !in_array($status, ['pending', 'deleted'], true)) {
+        return false;
+    }
+
+    $ttl = ll_audio_processor_delete_receipt_ttl();
+    $receipt = [
+        'user_id' => $user_id,
+        'post_id' => $audio_post_id,
+        'parent_word_id' => max(0, $parent_word_id),
+        'status' => $status,
+        'updated_at' => time(),
+        'expires_at' => time() + $ttl,
+    ];
+    $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_post_id);
+
+    set_transient($receipt_key, $receipt, $ttl);
+    $stored = ll_audio_processor_get_delete_receipt($user_id, $audio_post_id);
+    return !empty($stored) && (string) ($stored['status'] ?? '') === $status;
+}
+
+function ll_audio_processor_delete_lock_value(int $audio_post_id): string {
+    global $wpdb;
+
+    if ($audio_post_id <= 0 || !($wpdb instanceof wpdb)) {
+        return '';
+    }
+
+    $lock_key = ll_audio_processor_delete_lock_key($audio_post_id);
+    $value = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        $lock_key
+    ));
+    return is_string($value) ? $value : '';
+}
+
+function ll_audio_processor_delete_lock_is_active(int $audio_post_id): bool {
+    $value = ll_audio_processor_delete_lock_value($audio_post_id);
+    if ($value === '') {
+        return false;
+    }
+    $parts = explode('|', $value, 2);
+    $expires_at = (int) ($parts[0] ?? 0);
+    if ($expires_at <= 0) {
+        $timeout_key = ll_audio_processor_delete_lock_timeout_key($audio_post_id);
+        $expires_at = (int) get_option($timeout_key, 0);
+    }
+    return $expires_at > time();
+}
+
+/**
+ * Acquire an atomic option-backed per-post lease. Receipts remain user-scoped,
+ * while the destructive work itself is serialized across every authorized
+ * user who could act on the same recording.
+ *
+ * @return array<string,mixed> Lease payload required for exact-token release.
+ */
+function ll_audio_processor_acquire_delete_lock(int $audio_post_id, int $now = 0): array {
+    if ($audio_post_id <= 0) {
+        return [
+            'acquired' => false,
+            'retry_after' => 1,
+        ];
+    }
+
+    return ll_tools_public_ajax_acquire_client_lease(
+        ll_audio_processor_delete_lease_prefix(),
+        (string) $audio_post_id,
+        1,
+        ll_audio_processor_delete_lock_seconds(),
+        $now
+    );
+}
+
+function ll_audio_processor_release_delete_lock(array $lease): void {
+    ll_tools_public_ajax_release_client_lease($lease);
+}
+
+/**
+ * Give an authorized concurrent retry a bounded chance to observe the first
+ * request's receipt without launching duplicate destructive work.
+ *
+ * @return array<string,mixed>
+ */
+function ll_audio_processor_wait_for_delete_receipt(int $user_id, int $audio_post_id): array {
+    $wait_milliseconds = (int) apply_filters('ll_audio_processor_delete_receipt_wait_milliseconds', 1250);
+    $wait_milliseconds = max(0, min(3000, $wait_milliseconds));
+    $deadline = microtime(true) + ($wait_milliseconds / 1000);
+
+    do {
+        $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_post_id);
+        if ((string) ($receipt['status'] ?? '') === 'deleted') {
+            return $receipt;
+        }
+        if (!ll_audio_processor_delete_lock_is_active($audio_post_id)) {
+            return $receipt;
+        }
+        if (microtime(true) >= $deadline) {
+            return $receipt;
+        }
+        usleep(50000);
+    } while (true);
+}
+
+/**
+ * @param array<string,mixed> $receipt
+ */
+function ll_audio_processor_send_delete_success(bool $already_deleted, array $receipt = []): void {
+    wp_send_json_success([
+        'message' => __('Audio recording deleted', 'll-tools-text-domain'),
+        'already_deleted' => $already_deleted,
+        'receipt_status' => (string) ($receipt['status'] ?? 'deleted'),
+    ]);
+}
+
+function ll_audio_processor_cleanup_deleted_recording_parent(int $parent_word_id): void {
+    if ($parent_word_id <= 0) {
+        return;
+    }
+
+    $remaining = get_posts([
+        'post_type'      => 'word_audio',
+        'post_parent'    => $parent_word_id,
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+    ]);
+    if (!empty($remaining)) {
+        return;
+    }
+
+    $parent = get_post($parent_word_id);
+    if ($parent && $parent->post_status === 'publish') {
+        wp_update_post([
+            'ID'          => $parent_word_id,
+            'post_status' => 'draft',
+        ]);
+    }
+    // Remove legacy meta to prevent stale fallbacks elsewhere.
+    delete_post_meta($parent_word_id, 'word_audio_file');
+}
+
+/**
+ * Complete one authorized deletion while its per-post lease is held.
+ * This helper returns instead of sending JSON so the caller can always release
+ * the lease before WordPress terminates the request.
+ *
+ * @return array{success:bool,already_deleted?:bool,receipt?:array<string,mixed>,message?:string,status_code?:int}
+ */
+function ll_audio_processor_delete_recording_under_lease(int $user_id, int $audio_post_id): array {
+    $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_post_id);
+    if ((string) ($receipt['status'] ?? '') === 'deleted') {
+        return [
+            'success' => true,
+            'already_deleted' => true,
+            'receipt' => $receipt,
+        ];
+    }
+
+    $audio_post = get_post($audio_post_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        if ((string) ($receipt['status'] ?? '') === 'pending') {
+            $parent_word_id = max(0, (int) ($receipt['parent_word_id'] ?? 0));
+            ll_audio_processor_cleanup_deleted_recording_parent($parent_word_id);
+            if (ll_audio_processor_store_delete_receipt($user_id, $audio_post_id, $parent_word_id, 'deleted')) {
+                return [
+                    'success' => true,
+                    'already_deleted' => true,
+                    'receipt' => ll_audio_processor_get_delete_receipt($user_id, $audio_post_id),
+                ];
+            }
+        }
+        return [
+            'success' => false,
+            'message' => __('Invalid audio post', 'll-tools-text-domain'),
+        ];
+    }
+    if (!current_user_can('delete_post', $audio_post_id)) {
+        return [
+            'success' => false,
+            'message' => __('Insufficient permissions to delete this recording.', 'll-tools-text-domain'),
+        ];
+    }
+
+    // Resolve parent word before deletion.
+    $parent_word_id = (int) $audio_post->post_parent;
+    if (!ll_audio_processor_store_delete_receipt($user_id, $audio_post_id, $parent_word_id, 'pending')) {
+        return [
+            'success' => false,
+            'message' => __('Could not prepare this deletion safely. Please retry.', 'll-tools-text-domain'),
+        ];
+    }
+
+    // Resolve the files while post meta is still available, but do not unlink
+    // until WordPress has committed the post deletion. A pre_delete_post veto
+    // or database failure must leave the still-live recording usable.
+    $delete_paths = [];
+    $audio_file_path = get_post_meta($audio_post_id, 'audio_file_path', true);
+    if ($audio_file_path) {
+        $full_path = ll_audio_processor_resolve_safe_delete_path($audio_file_path);
+        if ($full_path !== '') {
+            $delete_paths[] = $full_path;
+        }
+    }
+    if (function_exists('ll_tools_get_audio_original_file_path')) {
+        $original_audio_file_path = ll_tools_get_audio_original_file_path((int) $audio_post_id);
+        if ($original_audio_file_path !== '' && $original_audio_file_path !== $audio_file_path) {
+            $original_full_path = ll_audio_processor_resolve_safe_delete_path($original_audio_file_path);
+            if ($original_full_path !== '') {
+                $delete_paths[] = $original_full_path;
+            }
+        }
+    }
+    $delete_paths = array_values(array_unique($delete_paths));
+
+    $deleted = wp_delete_post($audio_post_id, true);
+    if (!$deleted) {
+        return [
+            'success' => false,
+            'message' => __('Failed to delete audio recording', 'll-tools-text-domain'),
+        ];
+    }
+
+    foreach ($delete_paths as $delete_path) {
+        if (is_string($delete_path) && $delete_path !== '' && file_exists($delete_path)) {
+            @unlink($delete_path);
+        }
+    }
+
+    ll_audio_processor_cleanup_deleted_recording_parent($parent_word_id);
+    ll_audio_processor_store_delete_receipt($user_id, $audio_post_id, $parent_word_id, 'deleted');
+
+    return [
+        'success' => true,
+        'already_deleted' => false,
+        'receipt' => ll_audio_processor_get_delete_receipt($user_id, $audio_post_id),
+    ];
+}
+
 function ll_delete_audio_recording_handler() {
     check_ajax_referer('ll_audio_processor', 'nonce');
 
@@ -1769,7 +2102,31 @@ function ll_delete_audio_recording_handler() {
         wp_send_json_error(__('Invalid post ID', 'll-tools-text-domain'));
     }
 
+    $user_id = (int) get_current_user_id();
+    $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_post_id);
+    // A deleted receipt is written only after this same user passed the exact
+    // delete_post check. It is the scoped authorization proof for a retry once
+    // the post no longer exists and WordPress cannot map that capability.
+    if ((string) ($receipt['status'] ?? '') === 'deleted') {
+        ll_audio_processor_send_delete_success(true, $receipt);
+    }
+
     $audio_post = get_post($audio_post_id);
+    if (!$audio_post && !empty($receipt)) {
+        $receipt = ll_audio_processor_wait_for_delete_receipt($user_id, $audio_post_id);
+        if ((string) ($receipt['status'] ?? '') === 'deleted') {
+            ll_audio_processor_send_delete_success(true, $receipt);
+        }
+        if (ll_audio_processor_delete_lock_is_active($audio_post_id)) {
+            wp_send_json_error(__('Deletion is already in progress. Please retry shortly.', 'll-tools-text-domain'), 409);
+        } else {
+            $parent_word_id = max(0, (int) ($receipt['parent_word_id'] ?? 0));
+            ll_audio_processor_cleanup_deleted_recording_parent($parent_word_id);
+            if (ll_audio_processor_store_delete_receipt($user_id, $audio_post_id, $parent_word_id, 'deleted')) {
+                ll_audio_processor_send_delete_success(true, ll_audio_processor_get_delete_receipt($user_id, $audio_post_id));
+            }
+        }
+    }
     if (!$audio_post || $audio_post->post_type !== 'word_audio') {
         wp_send_json_error(__('Invalid audio post', 'll-tools-text-domain'));
     }
@@ -1777,57 +2134,32 @@ function ll_delete_audio_recording_handler() {
         wp_send_json_error(__('Insufficient permissions to delete this recording.', 'll-tools-text-domain'));
     }
 
-    // Resolve parent word before deletion
-    $parent_word_id = (int) $audio_post->post_parent;
-
-    // Delete the audio file from filesystem
-    $audio_file_path = get_post_meta($audio_post_id, 'audio_file_path', true);
-    if ($audio_file_path) {
-        $full_path = ll_audio_processor_resolve_safe_delete_path($audio_file_path);
-        if ($full_path !== '' && file_exists($full_path)) {
-            @unlink($full_path);
+    $lease = ll_audio_processor_acquire_delete_lock($audio_post_id);
+    if (empty($lease['acquired'])) {
+        $receipt = ll_audio_processor_wait_for_delete_receipt($user_id, $audio_post_id);
+        if ((string) ($receipt['status'] ?? '') === 'deleted') {
+            ll_audio_processor_send_delete_success(true, $receipt);
         }
-    }
-    if (function_exists('ll_tools_get_audio_original_file_path')) {
-        $original_audio_file_path = ll_tools_get_audio_original_file_path((int) $audio_post_id);
-        if ($original_audio_file_path !== '' && $original_audio_file_path !== $audio_file_path) {
-            $original_full_path = ll_audio_processor_resolve_safe_delete_path($original_audio_file_path);
-            if ($original_full_path !== '' && file_exists($original_full_path)) {
-                @unlink($original_full_path);
-            }
-        }
+        wp_send_json_error(__('Deletion is already in progress. Please retry shortly.', 'll-tools-text-domain'), 409);
     }
 
-    // Delete the post
-    $deleted = wp_delete_post($audio_post_id, true);
-
-    if ($deleted) {
-        // If parent exists, and it now has no published audio posts, set it to draft and clean legacy meta
-        if ($parent_word_id) {
-            $remaining = get_posts([
-                'post_type'      => 'word_audio',
-                'post_parent'    => $parent_word_id,
-                'post_status'    => 'publish',
-                'posts_per_page' => 1,
-                'fields'         => 'ids',
-            ]);
-            if (empty($remaining)) {
-                $parent = get_post($parent_word_id);
-                if ($parent && $parent->post_status === 'publish') {
-                    wp_update_post([
-                        'ID'          => $parent_word_id,
-                        'post_status' => 'draft',
-                    ]);
-                }
-                // Remove legacy meta to prevent stale fallbacks elsewhere
-                delete_post_meta($parent_word_id, 'word_audio_file');
-            }
-        }
-
-        wp_send_json_success(['message' => __('Audio recording deleted', 'll-tools-text-domain')]);
-    } else {
-        wp_send_json_error(__('Failed to delete audio recording', 'll-tools-text-domain'));
+    try {
+        $result = ll_audio_processor_delete_recording_under_lease($user_id, $audio_post_id);
+    } finally {
+        ll_audio_processor_release_delete_lock($lease);
     }
+
+    if (!empty($result['success'])) {
+        ll_audio_processor_send_delete_success(
+            !empty($result['already_deleted']),
+            isset($result['receipt']) && is_array($result['receipt']) ? $result['receipt'] : []
+        );
+    }
+
+    wp_send_json_error(
+        (string) ($result['message'] ?? __('Failed to delete audio recording', 'll-tools-text-domain')),
+        isset($result['status_code']) ? (int) $result['status_code'] : null
+    );
 }
 
 /**

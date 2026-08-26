@@ -1858,6 +1858,262 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
     }
 
+    public function test_audio_processor_delete_veto_preserves_the_live_recording_file(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Delete Veto Word',
+            'post_author' => $user_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Delete Veto Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+
+        $uploads = wp_upload_dir();
+        $fixture_dir = trailingslashit((string) $uploads['basedir']) . 'll-tools-test-fixtures';
+        $this->assertTrue(wp_mkdir_p($fixture_dir));
+        $fixture_path = trailingslashit($fixture_dir) . 'delete-veto-' . $audio_id . '.mp3';
+        $this->assertNotFalse(file_put_contents($fixture_path, 'll-tools-audio-delete-veto-fixture'));
+        $relative_path = str_replace(
+            wp_normalize_path(untrailingslashit(ABSPATH)),
+            '',
+            wp_normalize_path($fixture_path)
+        );
+        update_post_meta($audio_id, 'audio_file_path', $relative_path);
+
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $veto = static function ($delete, $post, $force_delete) use ($audio_id) {
+            if ($post instanceof WP_Post && (int) $post->ID === $audio_id) {
+                return false;
+            }
+            return $delete;
+        };
+        add_filter('pre_delete_post', $veto, 10, 3);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertStringContainsString('Failed to delete audio recording', (string) ($response['data'] ?? ''));
+            $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
+            $this->assertFileExists($fixture_path);
+            $this->assertSame('publish', (string) get_post_status($word_id));
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('pre_delete_post', $veto, 10);
+            delete_transient($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            if (file_exists($fixture_path)) {
+                @unlink($fixture_path);
+            }
+            if (is_dir($fixture_dir)) {
+                @rmdir($fixture_dir);
+            }
+            wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_delete_retry_uses_scoped_receipt_after_parent_cleanup(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Receipt Word',
+            'post_author' => $user_id,
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/stale-receipt-audio.mp3');
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Receipt Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+
+        $other_user_id = self::factory()->user->create(['role' => 'administrator']);
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $other_receipt_key = ll_audio_processor_delete_receipt_key($other_user_id, $audio_id);
+        $lock_key = ll_audio_processor_delete_lock_key($audio_id);
+        $lock_timeout_key = ll_audio_processor_delete_lock_timeout_key($audio_id);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $first = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertTrue((bool) ($first['success'] ?? false));
+            $this->assertFalse((bool) ($first['data']['already_deleted'] ?? true));
+            $this->assertNull(get_post($audio_id));
+            $this->assertSame('draft', (string) get_post_status($word_id));
+            $this->assertSame('', (string) get_post_meta($word_id, 'word_audio_file', true));
+            $this->assertFalse(get_option($lock_key, false));
+            $this->assertFalse(get_option($lock_timeout_key, false));
+
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $retry = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertTrue((bool) ($retry['success'] ?? false));
+            $this->assertTrue((bool) ($retry['data']['already_deleted'] ?? false));
+            $this->assertSame('deleted', (string) ($retry['data']['receipt_status'] ?? ''));
+
+            wp_set_current_user($other_user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $other_user_retry = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertFalse((bool) ($other_user_retry['success'] ?? true));
+            $this->assertStringContainsString('Invalid audio post', (string) ($other_user_retry['data'] ?? ''));
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            delete_transient($receipt_key);
+            delete_transient($other_receipt_key);
+            delete_option($lock_key);
+            delete_option($lock_timeout_key);
+        }
+    }
+
+    public function test_audio_processor_delete_retry_recovers_pending_receipt_after_lost_final_write(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Pending Receipt Word',
+            'post_author' => $user_id,
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/pending-receipt-audio.mp3');
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Pending Receipt Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+
+        try {
+            wp_set_current_user($user_id);
+            $this->assertTrue(ll_audio_processor_store_delete_receipt($user_id, $audio_id, $word_id, 'pending'));
+            $this->assertInstanceOf(WP_Post::class, wp_delete_post($audio_id, true));
+
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $retry = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertTrue((bool) ($retry['success'] ?? false));
+            $this->assertTrue((bool) ($retry['data']['already_deleted'] ?? false));
+            $this->assertSame('deleted', (string) ($retry['data']['receipt_status'] ?? ''));
+            $this->assertSame('draft', (string) get_post_status($word_id));
+            $this->assertSame('', (string) get_post_meta($word_id, 'word_audio_file', true));
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            delete_transient($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+        }
+    }
+
+    public function test_audio_processor_delete_lock_serializes_concurrent_retries_and_preserves_receipt(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $audio_id = 987654321;
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $lock_key = ll_audio_processor_delete_lock_key($audio_id);
+        $lock_timeout_key = ll_audio_processor_delete_lock_timeout_key($audio_id);
+        $first_lease = [];
+        $replacement_lease = [];
+
+        try {
+            $first_lease = ll_audio_processor_acquire_delete_lock($audio_id);
+            $this->assertTrue((bool) ($first_lease['acquired'] ?? false));
+            $this->assertFalse((bool) (ll_audio_processor_acquire_delete_lock($audio_id)['acquired'] ?? true));
+            $this->assertStringStartsWith('_transient_', $lock_key);
+            $this->assertStringStartsWith('_transient_timeout_', $lock_timeout_key);
+            $this->assertSame((int) ($first_lease['expires_at'] ?? 0), (int) get_option($lock_timeout_key, 0));
+
+            $wrong_lease = $first_lease;
+            $wrong_lease['lease_value'] = (string) ($wrong_lease['lease_value'] ?? '') . '-not-the-owner';
+            ll_audio_processor_release_delete_lock($wrong_lease);
+            $this->assertTrue(ll_audio_processor_delete_lock_is_active($audio_id));
+
+            $replacement_lease = ll_audio_processor_acquire_delete_lock(
+                $audio_id,
+                (int) ($first_lease['expires_at'] ?? time()) + 1
+            );
+            $this->assertTrue((bool) ($replacement_lease['acquired'] ?? false));
+            $this->assertNotSame(
+                (string) ($first_lease['lease_value'] ?? ''),
+                (string) ($replacement_lease['lease_value'] ?? '')
+            );
+            ll_audio_processor_release_delete_lock($first_lease);
+            $this->assertSame((string) ($replacement_lease['lease_value'] ?? ''), get_option($lock_key, ''));
+
+            $this->assertTrue(ll_audio_processor_store_delete_receipt($user_id, $audio_id, 123, 'pending'));
+            $this->assertTrue(ll_audio_processor_store_delete_receipt($user_id, $audio_id, 123, 'deleted'));
+            $receipt = ll_audio_processor_wait_for_delete_receipt($user_id, $audio_id);
+            $this->assertSame('deleted', (string) ($receipt['status'] ?? ''));
+            $this->assertSame($audio_id, (int) ($receipt['post_id'] ?? 0));
+        } finally {
+            if (!empty($replacement_lease)) {
+                ll_audio_processor_release_delete_lock($replacement_lease);
+            }
+            if (!empty($first_lease)) {
+                ll_audio_processor_release_delete_lock($first_lease);
+            }
+            delete_transient($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+        }
+    }
+
     public function test_audio_processor_queue_scopes_recorder_to_assigned_wordset(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

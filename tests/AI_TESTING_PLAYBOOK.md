@@ -160,12 +160,34 @@ For network-sensitive regressions on Local sites:
 ### Core full-catalog localization guards
 
 Configured core locales are not limited to the public tier-2 manifest. Before
-accepting a POT/PO refresh, run both database-free full-catalog checks:
+accepting a POT/PO refresh, run the database-free source freshness and
+full-catalog checks:
 
 ```bash
+php scripts/check-i18n-source-pot.php
 php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --details --json
 php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --details --json
 ```
+
+A matching catalog count is not proof that the POT is fresh. The first command
+uses a temporary WP-CLI extraction and fails when canonical source gettext keys
+are missing from or stale in the checked-in POT; it never regenerates the
+repository catalog.
+
+The source guard resolves `WP_CLI_PHAR`, then `WP_CLI`, then a readable
+Local-bundled PHAR, and finally `wp` on `PATH`. When autodiscovery is not usable,
+set exactly one explicit override in the current PowerShell session:
+
+```powershell
+$env:WP_CLI = 'C:\path\to\wp.bat'
+# Or, instead of WP_CLI:
+$env:WP_CLI_PHAR = 'C:\path\to\wp-cli.phar'
+php scripts/check-i18n-source-pot.php
+```
+
+An explicit PHAR must be readable and takes precedence over `WP_CLI` when both
+are set. Keep `WP_CLI` to one executable or command path; do not embed arguments
+in it.
 
 A matching HEAD is not sufficient reason for scheduled upkeep to skip when
 this command reports missing, blank, partial, fuzzy, stale, duplicate,
@@ -174,6 +196,62 @@ structurally invalid, or uncompiled entries. Every locale configured under
 checker compares compiled MO and PHP messages with each PO, so stale runtime
 copy also fails the guard. Fill new catalog entries, rebuild both compiled
 artifacts, and rerun `Integration/PublicUiTranslationManifestTest.php`.
+
+### Native LMS foundation and REST contracts
+
+The provider-neutral assignment, attempt, delivery, privacy, and Google
+Classroom foundation has focused integration files. Run them together when an
+LMS schema, permission callback, route, grade, delivery, or connector boundary
+changes:
+
+```bash
+tests/bin/run-tests.sh \
+  Integration/LmsAssignmentFoundationTest.php \
+  Integration/LmsRestApiTest.php \
+  Integration/LmsGradeDeliveryTest.php \
+  Integration/LmsPrivacyLifecycleTest.php \
+  Integration/GoogleClassroomFoundationTest.php
+tests/bin/run-e2e.sh \
+  specs/maintenance-doc-contracts.spec.js \
+  specs/teacher-classes-frontend.spec.js \
+  specs/google-classroom-admin-ui.spec.js
+```
+
+These are native Wordboat contracts, not proof of LTI interoperability or a
+live Google Classroom deployment. Provider calls and live-site checks remain
+subject to their dedicated runbooks and explicit safety gates.
+
+### Public resource, progress, autosave, and recovery contracts
+
+For changes to the atomic public admission helpers, frontend auth, progress
+event/report bounds, review-note CAS storage, Audio Processor deletion, or the
+new timeout/recovery states, run the focused contract set before the full
+suites:
+
+```bash
+tests/bin/run-tests.sh \
+  Integration/PublicAjaxResourceGuardTest.php \
+  Integration/LoginWindowLoginTest.php \
+  Integration/LoginWindowRegistrationTest.php \
+  Integration/OfflineAppSyncTest.php \
+  Integration/UserProgressEventPayloadGuardTest.php \
+  Integration/UserProgressPracticeResultTest.php \
+  Integration/InternalReviewNotesTest.php \
+  Integration/SecurityHardeningRegressionTest.php
+
+tests/bin/run-e2e.sh \
+  specs/audio-processor-delete-all.spec.js \
+  specs/text-document-review-notes-autosave.spec.js \
+  specs/content-lesson-progress.spec.js \
+  specs/quiz-pages-catalog-warmup.spec.js \
+  specs/vocab-lesson-word-options-modal.spec.js \
+  specs/frontend-recovery-localization-wiring.spec.js \
+  specs/teacher-sort-focus-visible.spec.js \
+  specs/teacher-classes-frontend.spec.js
+```
+
+Keep these runs serial when they use the shared Local WordPress fixture. They
+are local gates and do not authorize a live-site smoke pass.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -240,7 +318,7 @@ When diagnosing quiz popup prompt/option behavior for a target category outside 
 Full Playwright run times out under an automation cap:
 - Run `tests/bin/run-e2e.sh --list` first to confirm the inventory and catch discovery errors.
 - Then run `tests/bin/run-e2e.sh --shard=1/8` through `--shard=8/8` to isolate whether a spec actually hangs and keep request-heavy groups below Local's PHP-CGI recycle boundary.
-- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four then-current shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, the July 17 discovery listed 436 tests in 95 spec files, the July 24 discovery listed 453 tests in 95 spec files, the July 31 no-install discovery listed 479 tests in 97 spec files, and the August 6 release audit exercised 597 tests. The final July 24 serial run completed with 440 passed and 13 intentionally skipped. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
+- On June 10, 2026, the local suite listed 314 tests at the time of the runner-health shard check, and all four then-current shards completed with 313 passed and 1 skipped. Later E2E follow-ups expanded the suite; the July 10, 2026 weekly audit listed 368 tests in 81 files, the July 17 discovery listed 436 tests in 95 spec files, the July 24 discovery listed 453 tests in 95 spec files, the July 31 no-install discovery listed 479 tests in 97 spec files, the August 6 release audit exercised 597 tests, and the August 21 source-frozen discovery listed 692 tests in 108 files. The final July 24 serial run completed with 440 passed and 13 intentionally skipped. These are dated discovery snapshots. The 20-minute full-run cap was too low for this Local serial suite, not evidence of a single hung spec.
 - The current Windows Local stack runs one `php-cgi` worker and was empirically observed recycling it after roughly 500 dynamic requests. A large shard can therefore receive one Nginx `502` while Local replaces the worker. Confirm this boundary with simultaneous `WSARecv()` failures in the site's Nginx error log plus a changed `php-cgi` PID/start time, then rerun the exact failed spec or request-heavy file on the fresh worker. Do not add a generic 5xx retry or weaken the assertion; a route that fails again before the recycle boundary remains an application failure.
 - If all shards pass but the unsharded command still stalls beyond 35 minutes, investigate suite-level state leakage, leftover browser/process state, or Local-site slowness before weakening assertions.
 
@@ -351,6 +429,8 @@ For public-page shell, asset, or template changes that could affect perceived lo
 Wordset-boundary changes should also include:
 
 1. `tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js`
+2. `tests/bin/run-e2e.sh specs/private-wordset-access-wp.spec.js` when private
+   wordset routing, manager assignment, or lazy-card access changes.
 
 Dictionary import/search changes should also include:
 

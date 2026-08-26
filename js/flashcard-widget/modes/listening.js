@@ -793,6 +793,28 @@
         return State.totalWordCount;
     }
 
+    function appendBoundedSelectionChunk(categoryNames) {
+        const names = Array.isArray(categoryNames)
+            ? categoryNames.map(function (name) { return String(name || '').trim(); }).filter(Boolean)
+            : [];
+        if (!State.isListeningMode || !names.length) {
+            return false;
+        }
+
+        State.categoryNames = Array.isArray(State.categoryNames) ? State.categoryNames : [];
+        names.forEach(function (name) {
+            if (State.categoryNames.indexOf(name) === -1) {
+                State.categoryNames.push(name);
+            }
+        });
+
+        const previousIndex = Math.max(0, parseInt(State.listenIndex, 10) || 0);
+        rebuildWordsLinear();
+        resetListeningPrefetchPlanner();
+        updateControlsState();
+        return Array.isArray(State.wordsLinear) && State.wordsLinear.length > previousIndex;
+    }
+
     function onStarChange(wordId, isStarredFlag, starMode) {
         if (starMode === 'only') {
             const starredLookup = getStarredLookup();
@@ -1231,6 +1253,14 @@
         const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
         const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
         let total = Math.max(historyLen, wordsTotal);
+        const data = root.llToolsFlashcardsData || {};
+        const logicalSessionTotal = Math.max(
+            0,
+            parseInt(data.logicalSessionTotal || data.logical_session_total, 10) || 0
+        );
+        if (logicalSessionTotal > total) {
+            total = logicalSessionTotal;
+        }
         const categoryCount = getSelectedCategoryNames().length;
         let pendingLoads = false;
 
@@ -1316,6 +1346,14 @@
         };
 
         const goToResults = function (reason) {
+            if (utils && typeof utils.tryContinueLogicalSession === 'function') {
+                try {
+                    if (utils.tryContinueLogicalSession()) {
+                        try { WakeLock.update(); } catch (_) { }
+                        return;
+                    }
+                } catch (_) { /* fall through to final results */ }
+            }
             State.forceTransitionTo(STATES.SHOWING_RESULTS, reason || 'Listening complete via next');
             try { resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults(); } catch (_) { }
             try { WakeLock.update(); } catch (_) { }
@@ -1575,6 +1613,29 @@
             }, retryDelay);
             State.addTimeout && State.addTimeout(retryId);
         };
+        const tryContinueListeningSequence = function () {
+            if (typeof utils.tryContinueLogicalSession === 'function') {
+                try {
+                    if (utils.tryContinueLogicalSession()) {
+                        try { WakeLock.update(); } catch (_) { }
+                        return true;
+                    }
+                } catch (_) { /* use the normal loop/results fallback */ }
+            }
+            return false;
+        };
+        const showFinalListeningResults = function (reason) {
+            State.forceTransitionTo(STATES.SHOWING_RESULTS, reason || 'Listening complete');
+            resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+            try { WakeLock.update(); } catch (_) { }
+        };
+        const finishListeningSequence = function (reason) {
+            if (tryContinueListeningSequence()) {
+                return true;
+            }
+            showFinalListeningResults(reason);
+            return false;
+        };
 
         if ($jq) {
             $jq('#ll-tools-prompt').hide();
@@ -1610,9 +1671,7 @@
                     return;
                 }
                 if (!hasMore) {
-                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-                    try { WakeLock.update(); } catch (_) { }
+                    finishListeningSequence('Listening complete');
                     return;
                 }
                 restartRound('Listening data loaded');
@@ -1636,13 +1695,14 @@
                         return;
                     }
                     if (!hasMore) {
-                        State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                        resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-                        try { WakeLock.update(); } catch (_) { }
+                        finishListeningSequence('Listening complete');
                         return;
                     }
                     restartRound('Listening delayed until data ready');
                 });
+                return true;
+            }
+            if (tryContinueListeningSequence()) {
                 return true;
             }
             if (State.listeningLoop && Array.isArray(State.wordsLinear) && State.wordsLinear.length > 0) {
@@ -1669,9 +1729,7 @@
                 try { WakeLock.update(); } catch (_) { }
                 return true;
             }
-            State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-            resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-            try { WakeLock.update(); } catch (_) { }
+            showFinalListeningResults('Listening complete');
             return true;
         }
 
@@ -2057,6 +2115,9 @@
                                 return;
                             }
                             if (!hasMore && !stillPending) {
+                                if (tryContinueListeningSequence()) {
+                                    return;
+                                }
                                 if (State.listeningLoop) {
                                     try {
                                         rebuildWordsLinear();
@@ -2071,9 +2132,7 @@
                                         utils.startQuizRound();
                                     }
                                 } else {
-                                    State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                                    resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
-                                    try { WakeLock.update(); } catch (_) { }
+                                    showFinalListeningResults('Listening complete');
                                 }
                                 return;
                             }
@@ -2088,6 +2147,9 @@
                     }
 
                     if (atEnd) {
+                        if (tryContinueListeningSequence()) {
+                            return;
+                        }
                         if (State.listeningLoop) {
                             const $jq = getJQuery();
                             const doRestart = function () {
@@ -2112,8 +2174,7 @@
                                 doRestart();
                             }
                         } else {
-                            State.forceTransitionTo(STATES.SHOWING_RESULTS, 'Listening complete');
-                            resultsApi && typeof resultsApi.showResults === 'function' && resultsApi.showResults();
+                            showFinalListeningResults('Listening complete');
                         }
                     } else {
                         State.forceTransitionTo(STATES.QUIZ_READY, 'Next listening item');
@@ -2429,6 +2490,7 @@
         onCorrectAnswer,
         onWrongAnswer,
         runRound,
+        appendBoundedSelectionChunk,
         queueCategoryPrefetch: function (loader) { return queueSelectedCategoryWindow(loader || FlashcardLoader); },
         cancelPendingCategoryLoads,
         onStarChange,

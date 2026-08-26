@@ -3,7 +3,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
+const {
+  clickAndWaitForAdminNavigation,
+  ensureLoggedIntoAdmin,
+  hasAdminCredentials
+} = require('../helpers/admin');
 
 function psQuote(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
@@ -143,20 +147,6 @@ function confirmImportForm(page) {
   }).first();
 }
 
-async function clickAndWaitForUrlState(page, button, urlPredicate, timeout = 120000) {
-  await button.click({ timeout, noWaitAfter: true });
-  await expect.poll(() => {
-    try {
-      return urlPredicate(new URL(page.url()));
-    } catch (_) {
-      return false;
-    }
-  }, {
-    timeout,
-    message: 'URL did not reach the expected admin import state'
-  }).toBe(true);
-}
-
 async function clickAndWaitForAdminPost(page, button, action, timeout = 120000) {
   await Promise.all([
     page.waitForResponse((response) => {
@@ -189,7 +179,7 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(previewForm.locator('#ll_import_existing')).toBeVisible({ timeout: 30000 });
 
     await previewForm.locator('#ll_import_existing').selectOption({ value: fixture.zipName });
-    await clickAndWaitForUrlState(
+    await clickAndWaitForAdminNavigation(
       page,
       previewForm.locator('button[type="submit"]'),
       (url) => url.searchParams.has('ll_import_preview')
@@ -200,7 +190,7 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(confirmImportForm(page)).toBeVisible();
 
     const importForm = confirmImportForm(page);
-    await clickAndWaitForUrlState(
+    await clickAndWaitForAdminNavigation(
       page,
       importForm.locator('button[type="submit"]'),
       (url) => (

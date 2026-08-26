@@ -51,6 +51,11 @@
         250,
         Math.min(120000, parseInt(cfg.selectionLaunchRequestTimeoutMs, 10) || 30000)
     );
+    const PROGRESS_ANALYTICS_REQUEST_TIMEOUT_MS = Math.max(
+        250,
+        Math.min(120000, parseInt(cfg.progressAnalyticsRequestTimeoutMs, 10) || 30000)
+    );
+    const LARGE_PROGRESS_SELECTION_WORD_COUNT = 1000;
     const PROGRESS_WORD_AUTOLOAD_VIEWPORT_OFFSET_PX = 360;
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
@@ -78,6 +83,9 @@
     let summaryMetricsLoading = !!cfg.summaryCountsDeferred;
     let summaryMetricsLoadingToken = 0;
     let progressAnalyticsLoaded = (view !== 'progress') || !summaryMetricsLoading;
+    let progressAnalyticsLoading = view === 'progress'
+        && (!progressAnalyticsLoaded || !!analytics.wordsOmitted);
+    let progressAnalyticsFailed = false;
     let cardProgressInitialLoading = (view === 'main' && summaryMetricsLoading);
     let selectedCategoryIds = [];
     let selectionPriorityOnly = false;
@@ -113,7 +121,11 @@
     let stateSaveLatestToken = 0;
     let goalsSaveRequestToken = 0;
     let analyticsTimer = null;
+    let analyticsTimerOptions = null;
     let analyticsRequestToken = 0;
+    let analyticsInFlightRequest = null;
+    let analyticsInFlightOptions = null;
+    let queuedAnalyticsRefreshOptions = null;
     let analyticsTab = 'categories';
     const progressTabStorageKey = 'llToolsWordsetProgressTab:' + String(wordsetId || 0);
     let analyticsWordSearchQuery = '';
@@ -135,6 +147,7 @@
     let progressSelectedWordIds = [];
     let progressSelectedAllWordFilterKey = '';
     let progressSelectedAllWordCount = 0;
+    let progressSelectedAllWordCountIsExact = false;
     let progressSelectionLaunchBusy = false;
     let progressSelectionLaunchMode = '';
     let progressSelectionLaunchStage = '';
@@ -751,6 +764,7 @@
     const $progressRoot = $root.find('[data-ll-wordset-progress-root]');
     const $progressScope = $root.find('[data-ll-wordset-progress-scope]');
     const $progressStatus = $root.find('[data-ll-wordset-progress-status]');
+    const $progressRetry = $root.find('[data-ll-wordset-progress-retry]');
     const $progressSummary = $root.find('[data-ll-wordset-progress-summary]');
     const $progressGender = $root.find('[data-ll-wordset-progress-gender]');
     const $progressGenderToggle = $root.find('[data-ll-wordset-progress-gender-toggle]');
@@ -3600,6 +3614,7 @@
     function clearProgressAllFilteredSelection() {
         progressSelectedAllWordFilterKey = '';
         progressSelectedAllWordCount = 0;
+        progressSelectedAllWordCountIsExact = false;
     }
 
     function progressSelectionLaunchSpecSignature(spec) {
@@ -3794,10 +3809,25 @@
         }
         const pagination = getProgressWordPagination();
         const total = Math.max(0, parseInt(pagination.total, 10) || 0);
-        if (total > 0) {
+        if (!progressSelectedAllWordCountIsExact) {
             progressSelectedAllWordCount = total;
         }
         return Math.max(0, parseInt(progressSelectedAllWordCount, 10) || 0);
+    }
+
+    function progressSelectionLaunchRequestTimeoutMs(wordCount) {
+        const normalizedWordCount = Math.max(0, parseInt(wordCount, 10) || 0);
+        if (normalizedWordCount < LARGE_PROGRESS_SELECTION_WORD_COUNT) {
+            return SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        }
+
+        // Cold exact-ID, planning, and first-chunk payload reads can each take
+        // longer than the normal request deadline for production-sized filters.
+        // Keep the scope bounded, but give those large launches time to finish.
+        return Math.min(120000, Math.max(
+            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS * 3
+        ));
     }
 
     function getProgressAllFilteredLaunchCategoryIds() {
@@ -4866,6 +4896,141 @@
         $progressCategorySearchLoading.prop('hidden', !isLoading);
     }
 
+    function buildProgressSkeletonBlock(modifier) {
+        const suffix = String(modifier || '').trim();
+        return $('<span>', {
+            class: 'll-wordset-progress-skeleton' + (suffix ? ' ll-wordset-progress-skeleton--' + suffix : ''),
+            'aria-hidden': 'true'
+        });
+    }
+
+    function buildProgressSkeletonPill(modifier) {
+        const suffix = String(modifier || '').trim();
+        const $pill = $('<span>', {
+            class: 'll-wordset-progress-skeleton-pill' + (suffix ? ' ll-wordset-progress-skeleton-pill--' + suffix : '')
+        });
+        $pill.append(buildProgressSkeletonBlock('icon'));
+        $pill.append(buildProgressSkeletonBlock('pill-line'));
+        return $pill;
+    }
+
+    function renderProgressDailyLoadingSkeleton() {
+        if (!$progressGraph.length) { return; }
+        const barHeights = [28, 48, 36, 62, 42, 55, 32, 68, 45, 58, 38, 64, 50, 34];
+        const $bars = $('<div>', {
+            class: 'll-wordset-progress-bars ll-wordset-progress-bars--skeleton',
+            'data-ll-wordset-progress-graph-loading': '',
+            'aria-hidden': 'true'
+        });
+
+        barHeights.forEach(function (height, index) {
+            const $day = $('<span>', {
+                class: 'll-wordset-progress-day ll-wordset-progress-day--skeleton',
+                'data-ll-wordset-progress-graph-loading-bar': '',
+                style: '--ll-progress-skeleton-height:' + height + 'px;'
+                    + '--ll-progress-skeleton-delay:-' + (index * 90) + 'ms;'
+            });
+            $day.append(buildProgressSkeletonBlock('day-count'));
+            $day.append(buildProgressSkeletonBlock('day-bar'));
+            $day.append(buildProgressSkeletonBlock('day-label'));
+            $bars.append($day);
+        });
+
+        $progressGraph
+            .empty()
+            .addClass('is-loading')
+            .attr('aria-busy', 'true')
+            .append($bars);
+    }
+
+    function buildProgressCategorySkeletonRow() {
+        const $row = $('<tr>', {
+            class: 'll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--category',
+            'data-ll-wordset-progress-loading-row': '',
+            'data-ll-wordset-progress-loading-kind': 'categories',
+            'aria-hidden': 'true'
+        });
+        const $categoryCell = $('<td>');
+        const $category = $('<span>', { class: 'll-wordset-progress-skeleton-category' });
+        const $thumbs = $('<span>', { class: 'll-wordset-progress-skeleton-thumbs' });
+        $thumbs.append(buildProgressSkeletonBlock('category-thumb'));
+        $thumbs.append(buildProgressSkeletonBlock('category-thumb'));
+        $category.append($thumbs);
+        $category.append(buildProgressSkeletonBlock('category-name'));
+        $categoryCell.append($category).appendTo($row);
+
+        const $progress = $('<td>');
+        const $progressPills = $('<span>', { class: 'll-wordset-progress-skeleton-pills' });
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progressPills.append(buildProgressSkeletonPill('progress'));
+        $progress.append($progressPills).appendTo($row);
+
+        const $activity = $('<td>');
+        const $activityPills = $('<span>', { class: 'll-wordset-progress-skeleton-pills' });
+        $activityPills.append(buildProgressSkeletonPill('activity'));
+        $activityPills.append(buildProgressSkeletonPill('activity'));
+        $activity.append($activityPills).appendTo($row);
+
+        $('<td>').append(buildProgressSkeletonBlock('date')).appendTo($row);
+        return $row;
+    }
+
+    function buildProgressWordSkeletonRow() {
+        const $row = $('<tr>', {
+            class: 'll-wordset-progress-skeleton-row ll-wordset-progress-skeleton-row--word',
+            'data-ll-wordset-progress-loading-row': '',
+            'data-ll-wordset-progress-loading-kind': 'words',
+            'aria-hidden': 'true'
+        });
+
+        $('<td>').append(buildProgressSkeletonBlock('star')).appendTo($row);
+
+        const $wordCell = $('<td>');
+        const $word = $('<span>', { class: 'll-wordset-progress-skeleton-word' });
+        $word.append(buildProgressSkeletonBlock('word-thumb'));
+        const $wordCopy = $('<span>', { class: 'll-wordset-progress-skeleton-word-copy' });
+        $wordCopy.append(buildProgressSkeletonBlock('word-primary'));
+        $wordCopy.append(buildProgressSkeletonBlock('word-secondary'));
+        $word.append($wordCopy);
+        $wordCell.append($word).appendTo($row);
+
+        $('<td>').append(buildProgressSkeletonBlock('category-name')).appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-col--part-of-speech' })
+            .append(buildProgressSkeletonBlock('part-of-speech'))
+            .appendTo($row);
+        $('<td>').append(buildProgressSkeletonPill('status')).appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>', { class: 'll-wordset-progress-num-cell ll-wordset-progress-col--wrong' })
+            .append(buildProgressSkeletonBlock('number'))
+            .appendTo($row);
+        $('<td>').append(buildProgressSkeletonBlock('date')).appendTo($row);
+        return $row;
+    }
+
+    function renderProgressTableLoadingSkeleton($body, kind) {
+        if (!$body || !$body.length) { return; }
+        const rowBuilder = String(kind || '').toLowerCase() === 'words'
+            ? buildProgressWordSkeletonRow
+            : buildProgressCategorySkeletonRow;
+        $body.empty().attr('aria-busy', 'true');
+        for (let index = 0; index < 5; index += 1) {
+            $body.append(rowBuilder());
+        }
+    }
+
+    function clearProgressTableLoadingSkeleton($body) {
+        if (!$body || !$body.length || !$body.find('[data-ll-wordset-progress-loading-row]').length) {
+            return;
+        }
+        $body.empty().removeAttr('aria-busy');
+    }
+
     function cancelScheduledProgressTask(task) {
         if (!task || typeof task !== 'object') {
             return;
@@ -5763,10 +5928,17 @@
 
     function renderProgressDailyGraph() {
         if (!$progressGraph.length) { return; }
-        $progressGraph.empty();
+        $progressGraph.empty().removeClass('is-loading').removeAttr('aria-busy');
         const daily = (analytics.daily_activity && typeof analytics.daily_activity === 'object') ? analytics.daily_activity : {};
         const days = Array.isArray(daily.days) ? daily.days : [];
+        if (progressAnalyticsLoading && !days.length) {
+            renderProgressDailyLoadingSkeleton();
+            return;
+        }
         if (!days.length) {
+            if (progressAnalyticsFailed && !progressAnalyticsLoaded) {
+                return;
+            }
             $('<p>', { class: 'll-wordset-progress-empty', text: i18n.analyticsDailyEmpty || '' }).appendTo($progressGraph);
             return;
         }
@@ -5973,9 +6145,17 @@
         analyticsCategoryLoadingTimer = null;
         clearProgressCategoryChunkTask();
 
-        $progressCategoryRows.empty().removeAttr('aria-busy');
         const rows = buildProgressCategoryRowsForDisplay();
+        if (progressAnalyticsLoading && !rows.length) {
+            renderProgressTableLoadingSkeleton($progressCategoryRows, 'categories');
+            return;
+        }
+
+        $progressCategoryRows.empty().removeAttr('aria-busy');
         if (!rows.length) {
+            if (progressAnalyticsFailed && !progressAnalyticsLoaded) {
+                return;
+            }
             $('<tr>').append(
                 $('<td>', { colspan: 4, text: i18n.analyticsNoRows || '' })
             ).appendTo($progressCategoryRows);
@@ -6179,9 +6359,14 @@
         }
 
         const rawCategoryIds = scopedCategoryIds.length ? scopedCategoryIds : getProgressSelectionCategoryIds(sessionWordIds);
-        const categoryIds = filterCategoryIdsForMode(normalizedMode, rawCategoryIds, {
-            skipCompatibilityFilter: true
-        });
+        // Signed-in Gender launches are validated against the exact server-side
+        // noun/gender/media projection. Do not discard an otherwise visible
+        // category because a stale lightweight shell lacks gender_supported.
+        const categoryIds = normalizedMode === 'gender' && isLoggedIn && ajaxUrl && nonce
+            ? uniqueIntList(rawCategoryIds).filter(categoryIdIsLaunchable)
+            : filterCategoryIdsForMode(normalizedMode, rawCategoryIds, {
+                skipCompatibilityFilter: true
+            });
         if (!categoryIds.length) {
             return {
                 categoryIds: [],
@@ -6379,6 +6564,10 @@
         const launchSpec = (spec && typeof spec === 'object') ? spec : null;
         const opts = (options && typeof options === 'object') ? options : {};
         const onRequest = typeof opts.onRequest === 'function' ? opts.onRequest : null;
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
         if (!launchSpec || !ajaxUrl || !nonce) {
             return $.Deferred().reject().promise();
         }
@@ -6393,6 +6582,7 @@
             && cachedWordIds.length === cachedTotal
         ) {
             progressSelectedAllWordCount = cachedWordIds.length;
+            progressSelectedAllWordCountIsExact = true;
             return $.Deferred().resolve(cachedWordIds).promise();
         }
 
@@ -6418,7 +6608,7 @@
         const deferred = $.Deferred();
         const request = applySelectionLaunchRequestDeadline(
             $.post(ajaxUrl, requestData),
-            SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
+            requestTimeoutMs
         );
         if (onRequest) {
             onRequest(request);
@@ -6433,6 +6623,8 @@
             const payload = res.data.analytics;
             const ids = uniqueIntList(payload.word_ids || payload.wordIds || []);
             progressSelectedAllWordCount = ids.length;
+            progressSelectedAllWordCountIsExact = true;
+            refreshProgressSelectionLaunchControls();
             deferred.resolve(ids);
         }).fail(function (xhr, statusText, errorThrown) {
             deferred.reject(xhr, statusText, errorThrown);
@@ -6447,6 +6639,15 @@
 
     function launchProgressSelectionModeWithIds(mode, selectedWordIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const parsedRequestTimeoutMs = parseInt(opts.requestTimeoutMs, 10);
+        const requestTimeoutMs = Number.isFinite(parsedRequestTimeoutMs) && parsedRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedRequestTimeoutMs))
+            : SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        const parsedContinuationRequestTimeoutMs = parseInt(opts.continuationRequestTimeoutMs, 10);
+        const continuationRequestTimeoutMs = Number.isFinite(parsedContinuationRequestTimeoutMs)
+            && parsedContinuationRequestTimeoutMs > 0
+            ? Math.max(250, Math.min(120000, parsedContinuationRequestTimeoutMs))
+            : requestTimeoutMs;
         const hasReservedLaunchToken = Object.prototype.hasOwnProperty.call(opts, 'launchToken');
         const reservedLaunchToken = hasReservedLaunchToken
             ? opts.launchToken
@@ -6519,13 +6720,14 @@
             opts.onLaunchCleanupReady(launchUiCleanup);
         }
 
-        const needsBoundedPracticePlan = normalizedMode === 'practice' && (
-            initialSessionWordIds.length > CHUNK_SIZE
+        const needsBoundedSelectionPlan = normalizedMode !== 'learning' && (
+            normalizedMode === 'gender'
+            || initialSessionWordIds.length > CHUNK_SIZE
             || initialLaunchPlan.categoryIds.length > 8
         );
         const needsBoundedLearningPlan = normalizedMode === 'learning';
         if (
-            (needsBoundedPracticePlan || needsBoundedLearningPlan)
+            (needsBoundedSelectionPlan || needsBoundedLearningPlan)
             && isLoggedIn
             && ajaxUrl
             && nonce
@@ -6537,27 +6739,29 @@
             requestSelectionLaunchPlan(initialLaunchPlan.categoryIds, '', normalizedMode, {
                 candidateWordIds: initialSessionWordIds,
                 onRequest: notifyLaunchRequest,
-                requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS
+                requestTimeoutMs: requestTimeoutMs
             }).done(function (serverPlan) {
                 if (!isLaunchCurrent()) {
                     notifyLaunchCanceled();
                     return;
                 }
                 const launchOptions = {
+                    mode: normalizedMode,
                     categoryIds: initialLaunchPlan.categoryIds,
                     candidateWordIds: initialSessionWordIds,
                     minimumWordCount: needsBoundedLearningPlan ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
-                    requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+                    requestTimeoutMs: requestTimeoutMs,
+                    continuationRequestTimeoutMs: continuationRequestTimeoutMs,
                     source: 'wordset_progress_bounded_start',
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
-                    details: {
+                    details: Object.assign({}, (opts.details && typeof opts.details === 'object') ? opts.details : {}, {
                         preserve_mixed_presentation: true,
                         allow_session_category_display: true,
                         preserve_category_order: true,
                         bounded_selection_plan: true,
                         progress_selection: true
-                    },
+                    }),
                     onEmpty: function (normalizedPlan) {
                         abortBoundedProgressLaunch(normalizedPlan && normalizedPlan.invalid
                             ? (i18n.selectionLaunchError || i18n.saveError || '')
@@ -6576,7 +6780,7 @@
                 if (needsBoundedLearningPlan) {
                     launchBoundedLearningSelectionPlan(serverPlan, launchOptions);
                 } else {
-                    launchBoundedPracticeSelectionPlan(serverPlan, launchOptions);
+                    launchBoundedSelectionPlan(serverPlan, launchOptions);
                 }
             }).fail(function () {
                 if (!isLaunchCurrent()) {
@@ -6593,7 +6797,7 @@
             sessionWordIds: initialSessionWordIds
         };
         ensureOptions.rejectOnFailure = true;
-        ensureOptions.requestTimeoutMs = SELECTION_LAUNCH_REQUEST_TIMEOUT_MS;
+        ensureOptions.requestTimeoutMs = requestTimeoutMs;
         ensureOptions.onRequest = notifyLaunchRequest;
         ensureOptions.isRequestCurrent = isLaunchCurrent;
 
@@ -6679,6 +6883,9 @@
             return;
         }
 
+        const expectedWordCount = getProgressAllFilteredSelectionCount();
+        const expectedRequestTimeoutMs = progressSelectionLaunchRequestTimeoutMs(expectedWordCount);
+
         const reservedFlashcardLaunchToken = beginFlashcardLaunch({ owner: 'progress' });
         const token = ++progressSelectionLaunchToken;
         progressSelectionFlashcardLaunchToken = reservedFlashcardLaunchToken;
@@ -6717,7 +6924,8 @@
                 return;
             }
             fetchProgressAllFilteredSelectionWordIds(launchSpec, {
-                onRequest: trackLaunchRequest
+                onRequest: trackLaunchRequest,
+                requestTimeoutMs: expectedRequestTimeoutMs
             }).done(function (wordIds) {
                 if (!progressLaunchIsCurrent()) {
                     finishProgressSelectionLaunch(token, '', null);
@@ -6728,6 +6936,8 @@
                     launchSpec: launchSpec,
                     launchUi: launchUi,
                     launchUiCleanup: launchUiCleanup,
+                    requestTimeoutMs: progressSelectionLaunchRequestTimeoutMs(wordIds.length),
+                    continuationRequestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
                     launchToken: reservedFlashcardLaunchToken,
                     isLaunchCurrent: progressLaunchIsCurrent,
                     onLaunchRequest: trackLaunchRequest,
@@ -6999,9 +7209,15 @@
         clearProgressWordChunkTask();
 
         stopProgressWordAudio();
-        $progressWordRows.empty().removeAttr('aria-busy');
-
         const rows = buildProgressWordRowsForDisplay();
+        if (progressAnalyticsLoading && (!!analytics.wordsOmitted || !rows.length)) {
+            syncProgressSelectionControls([]);
+            renderProgressTableLoadingSkeleton($progressWordRows, 'words');
+            renderProgressWordPaginationControls();
+            return;
+        }
+
+        $progressWordRows.empty().removeAttr('aria-busy');
         const renderGenderTable = isGenderProgressViewActive();
         const selectedLookup = {};
         if (progressAllFilteredSelectionIsActive()) {
@@ -7019,6 +7235,10 @@
 
         syncProgressSelectionControls(rows);
         if (!rows.length) {
+            if (progressAnalyticsFailed && (!progressAnalyticsLoaded || !!analytics.wordsOmitted)) {
+                renderProgressWordPaginationControls();
+                return;
+            }
             $('<tr>').append(
                 $('<td>', { colspan: 9, text: i18n.analyticsNoRows || '' })
             ).appendTo($progressWordRows);
@@ -7079,7 +7299,10 @@
         $progressTabButtons.each(function () {
             const tab = String($(this).attr('data-ll-wordset-progress-tab') || '');
             const active = tab === analyticsTab;
-            $(this).toggleClass('active', active).attr('aria-selected', active ? 'true' : 'false');
+            $(this)
+                .toggleClass('active', active)
+                .attr('aria-selected', active ? 'true' : 'false')
+                .attr('tabindex', active ? '0' : '-1');
         });
         $progressPanels.each(function () {
             const panel = String($(this).attr('data-ll-wordset-progress-panel') || '');
@@ -7123,8 +7346,14 @@
         });
         if (analyticsTab === 'words') {
             renderProgressWordTable();
+            if (!progressAnalyticsLoading) {
+                clearProgressTableLoadingSkeleton($progressCategoryRows);
+            }
         } else {
             renderProgressCategoryTable();
+            if (!progressAnalyticsLoading) {
+                clearProgressTableLoadingSkeleton($progressWordRows);
+            }
         }
         const hasRows = (Array.isArray(analytics.words) && analytics.words.length > 0) ||
             (Array.isArray(analytics.categories) && analytics.categories.length > 0);
@@ -7159,6 +7388,7 @@
         if (!$progressStatus.length) { return; }
         const text = String(message || '').trim();
         $progressStatus.removeClass('is-loading is-error');
+        $progressRetry.prop('hidden', stateClass !== 'error');
         if (!text) {
             $progressStatus.text('').hide();
             return;
@@ -7173,14 +7403,24 @@
 
     function deferProgressAnalyticsRefreshUntilClose(options) {
         const opts = (options && typeof options === 'object') ? options : {};
-        pendingProgressAnalyticsRefreshAfterClose = true;
-        pendingProgressAnalyticsRefreshOptions = Object.assign(
-            {},
-            pendingProgressAnalyticsRefreshOptions || {},
-            opts
+        const preserveAllowedTimer = !!(
+            analyticsTimer
+            && analyticsTimerOptions
+            && analyticsTimerOptions.allowWhileFlashcardOpen
         );
-        clearTimeout(analyticsTimer);
-        analyticsTimer = null;
+        const deferredOptions = preserveAllowedTimer
+            ? opts
+            : mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, opts);
+        pendingProgressAnalyticsRefreshAfterClose = true;
+        pendingProgressAnalyticsRefreshOptions = mergeProgressAnalyticsRefreshOptions(
+            pendingProgressAnalyticsRefreshOptions,
+            deferredOptions
+        );
+        if (!preserveAllowedTimer) {
+            clearTimeout(analyticsTimer);
+            analyticsTimer = null;
+            analyticsTimerOptions = null;
+        }
     }
 
     function flushDeferredProgressAnalyticsRefresh() {
@@ -7196,20 +7436,64 @@
         scheduleProgressAnalyticsRefresh(120, opts);
     }
 
+    function mergeProgressAnalyticsRefreshOptions(current, incoming) {
+        const next = (incoming && typeof incoming === 'object') ? incoming : null;
+        if (!current || typeof current !== 'object') {
+            return Object.assign({}, next || {});
+        }
+        if (!next) { return Object.assign({}, current); }
+        const merged = Object.assign({}, current, next);
+        merged.silent = !!current.silent && !!next.silent;
+        merged.showWordLoading = !!current.showWordLoading || !!next.showWordLoading;
+        merged.allowWhileFlashcardOpen = !!current.allowWhileFlashcardOpen || !!next.allowWhileFlashcardOpen;
+        return merged;
+    }
+
     function refreshProgressAnalyticsNow(options) {
-        const opts = (options && typeof options === 'object') ? options : {};
+        const requestedOptions = (options && typeof options === 'object') ? options : {};
+        const opts = mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, requestedOptions);
         if (!$progressRoot.length || !isLoggedIn || !ajaxUrl || !nonce) {
             return $.Deferred().resolve(null).promise();
         }
+        clearTimeout(analyticsTimer);
+        analyticsTimer = null;
+        analyticsTimerOptions = null;
         if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
             deferProgressAnalyticsRefreshUntilClose(opts);
             return $.Deferred().resolve(null).promise();
+        }
+        if (analyticsInFlightRequest) {
+            queuedAnalyticsRefreshOptions = mergeProgressAnalyticsRefreshOptions(
+                mergeProgressAnalyticsRefreshOptions(
+                    analyticsInFlightOptions,
+                    queuedAnalyticsRefreshOptions
+                ),
+                opts
+            );
+            // The current response belongs to the state that was visible when
+            // it started. A queued refresh means that state is already stale,
+            // so do not render its payload or transient error before the
+            // trailing request resolves.
+            analyticsRequestToken += 1;
+            return analyticsInFlightRequest;
         }
         const token = ++analyticsRequestToken;
         progressWordPageRequestToken += 1;
         setProgressWordPageLoading(false);
         pendingProgressAnalyticsRefreshAfterClose = false;
         pendingProgressAnalyticsRefreshOptions = null;
+        const showInitialSectionLoading = view === 'progress'
+            && (!progressAnalyticsLoaded || !!analytics.wordsOmitted);
+        if (showInitialSectionLoading) {
+            progressAnalyticsLoading = true;
+            progressAnalyticsFailed = false;
+            renderProgressDailyGraph();
+            if (analyticsTab === 'words') {
+                renderProgressWordTable();
+            } else {
+                renderProgressCategoryTable();
+            }
+        }
         const wordFilterPayload = buildProgressWordRequestFilter();
         const wordFilterKey = getProgressWordRequestFilterKey(wordFilterPayload);
         invalidateProgressWordIdsSnapshot();
@@ -7249,7 +7533,16 @@
         }
         appendProgressWordRequestFilter(analyticsRequestData, wordFilterPayload);
 
-        return $.post(ajaxUrl, analyticsRequestData).done(function (res) {
+        const request = $.post(ajaxUrl, analyticsRequestData);
+        analyticsInFlightRequest = request;
+        analyticsInFlightOptions = Object.assign({}, opts);
+        const requestTimeoutTimer = setTimeout(function () {
+            if (analyticsInFlightRequest !== request || typeof request.abort !== 'function') {
+                return;
+            }
+            try { request.abort('timeout'); } catch (_) { /* no-op */ }
+        }, PROGRESS_ANALYTICS_REQUEST_TIMEOUT_MS);
+        return request.done(function (res) {
             if (token !== analyticsRequestToken) { return; }
             if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose(opts);
@@ -7257,9 +7550,14 @@
             }
             if (res && res.success && res.data && res.data.analytics) {
                 analytics = normalizeAnalytics(res.data.analytics);
+                progressAnalyticsLoading = false;
+                progressAnalyticsFailed = false;
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
                 progressWordPendingFilterKey = null;
+                if (progressSelectedAllWordFilterKey === wordFilterKey) {
+                    progressSelectedAllWordCountIsExact = false;
+                }
                 const filteredWordIds = uniqueIntList(analytics.wordIds || []);
                 const filteredWordTotal = Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0);
                 progressWordIdsSnapshotSignature = progressWordIdsSnapshotGeneration === wordIdsSnapshotGeneration
@@ -7281,7 +7579,12 @@
             progressWordPendingFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
+            progressAnalyticsLoading = false;
+            progressAnalyticsFailed = true;
             setSummaryMetricsLoadingState(false);
+            if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
+                renderProgressAnalytics();
+            }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).fail(function () {
             if (token !== analyticsRequestToken) { return; }
@@ -7292,13 +7595,30 @@
             progressWordPendingFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
+            progressAnalyticsLoading = false;
+            progressAnalyticsFailed = true;
             setSummaryMetricsLoadingState(false);
+            if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
+                renderProgressAnalytics();
+            }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
-            if (token !== analyticsRequestToken) { return; }
-            if (opts.showWordLoading) {
+            clearTimeout(requestTimeoutTimer);
+            const ownsInFlightRequest = analyticsInFlightRequest === request;
+            if (ownsInFlightRequest) {
+                analyticsInFlightRequest = null;
+                analyticsInFlightOptions = null;
+            }
+            if (token === analyticsRequestToken && opts.showWordLoading) {
                 setProgressWordLoading(false);
             }
+            if (!ownsInFlightRequest || !queuedAnalyticsRefreshOptions) {
+                return;
+            }
+
+            const queuedOptions = queuedAnalyticsRefreshOptions;
+            queuedAnalyticsRefreshOptions = null;
+            scheduleProgressAnalyticsRefresh(80, queuedOptions);
         });
     }
 
@@ -7306,10 +7626,13 @@
         if (!$progressRoot.length) { return; }
         const ms = Math.max(80, parseInt(delay, 10) || 250);
         const opts = (options && typeof options === 'object') ? options : {};
+        analyticsTimerOptions = mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, opts);
         clearTimeout(analyticsTimer);
         analyticsTimer = setTimeout(function () {
+            const scheduledOptions = analyticsTimerOptions || {};
             analyticsTimer = null;
-            refreshProgressAnalyticsNow(opts);
+            analyticsTimerOptions = null;
+            refreshProgressAnalyticsNow(scheduledOptions);
         }, ms);
     }
 
@@ -13870,7 +14193,8 @@
         }
         syncSelectionModeButtons({
             categoryIds: selectedIds,
-            effectiveWordCount: effectiveWordCount
+            effectiveWordCount: effectiveWordCount,
+            totalWordCount: Math.max(0, parseInt(metrics.total, 10) || 0)
         });
         syncSettingsButtons();
         syncPrimaryActionState();
@@ -13884,8 +14208,9 @@
         const hasSelection = ids.length > 0;
         const allowGender = selectionHasGenderSupport(ids);
         const effectiveWordCount = Math.max(0, parseInt(opts.effectiveWordCount, 10) || 0);
+        const totalWordCount = Math.max(0, parseInt(opts.totalWordCount, 10) || effectiveWordCount);
         const hasEnoughWords = effectiveWordCount >= getSelectionMinimumWordCount();
-        const hasEnoughLearningWords = effectiveWordCount >= getSelectionMinimumWordCount();
+        const hasEnoughLearningWords = hasEnoughWords && totalWordCount >= LEARNING_MIN_CHUNK_SIZE;
 
         $root.find('[data-ll-wordset-selection-mode]').each(function () {
             const $btn = $(this);
@@ -15702,10 +16027,23 @@
         }
     }
 
+    function boundedModeAutomaticallyContinues(mode) {
+        const normalizedMode = normalizeMode(mode);
+        return normalizedMode === 'practice'
+            || normalizedMode === 'listening'
+            || normalizedMode === 'self-check';
+    }
+
+    function boundedModeSupportsContinuation(mode) {
+        const normalizedMode = normalizeMode(mode);
+        return boundedModeAutomaticallyContinues(normalizedMode)
+            || normalizedMode === 'gender';
+    }
+
     function createBoundedSessionContinuation(session) {
         return function () {
-            if (chunkSession !== session || !session || !session.continuous) {
-                return Promise.reject(new Error('The bounded practice session is no longer active.'));
+            if (chunkSession !== session || !session || !session.supports_continuation) {
+                return Promise.reject(new Error('The bounded quiz session is no longer active.'));
             }
             if (session.pending_promise && typeof session.pending_promise.then === 'function') {
                 return session.pending_promise;
@@ -15715,7 +16053,7 @@
             const nextEntry = getChunkSessionEntry(session, nextIndex);
             if (!nextEntry) {
                 clearBoundedSessionContinuation(session);
-                return Promise.reject(new Error('The next bounded practice batch is unavailable.'));
+                return Promise.reject(new Error('The next bounded quiz batch is unavailable.'));
             }
 
             const continuationLaunchToken = beginFlashcardLaunch();
@@ -15724,12 +16062,12 @@
                 if (
                     !flashcardLaunchIsCurrent(continuationLaunchToken)
                     || chunkSession !== session
-                    || session.continuous !== true
+                    || session.supports_continuation !== true
                     || session.pending_index !== nextIndex
                 ) {
                     delete session.pending_index;
                     delete session.pending_promise;
-                    throw new Error('The bounded practice continuation was canceled.');
+                    throw new Error('The bounded quiz continuation was canceled.');
                 }
                 return new Promise(function (resolve, reject) {
                     launchFlashcards(session.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
@@ -15751,12 +16089,12 @@
                         launchToken: continuationLaunchToken,
                         isLaunchCurrent: function () {
                             return chunkSession === session &&
-                                session.continuous === true &&
+                                session.supports_continuation === true &&
                                 session.pending_index === nextIndex;
                         },
                         onLaunchCommitted: function () {
                             if (chunkSession !== session || session.pending_index !== nextIndex) {
-                                reject(new Error('The bounded practice continuation became stale.'));
+                                reject(new Error('The bounded quiz continuation became stale.'));
                                 return;
                             }
                             session.index = nextIndex;
@@ -15776,14 +16114,14 @@
                                 delete session.pending_index;
                                 delete session.pending_promise;
                             }
-                            reject(new Error('The bounded practice continuation failed to load.'));
+                            reject(new Error('The bounded quiz continuation failed to load.'));
                         },
                         onLaunchCanceled: function () {
                             if (session.pending_index === nextIndex) {
                                 delete session.pending_index;
                                 delete session.pending_promise;
                             }
-                            reject(new Error('The bounded practice continuation was canceled.'));
+                            reject(new Error('The bounded quiz continuation was canceled.'));
                         }
                     });
                 });
@@ -15800,7 +16138,7 @@
             ? opts.isLaunchCurrent
             : null;
         const firstEntry = getChunkSessionEntry(activeSession, 0);
-        if (!activeSession || !activeSession.continuous || !firstEntry) {
+        if (!activeSession || !activeSession.supports_continuation || !firstEntry) {
             return false;
         }
 
@@ -15814,9 +16152,10 @@
             requestTimeoutMs: opts.requestTimeoutMs || activeSession.request_timeout_ms,
             chunked: true,
             sessionStarMode: activeSession.star_mode || 'normal',
-            randomizeSessionCategoryOrder: true,
+            randomizeSessionCategoryOrder: activeSession.mode === 'practice',
             allowSessionCategoryDisplay: true,
             skipCompatibilityFilter: true,
+            preserveCategoryOrder: activeSession.mode === 'listening',
             categoryLabelOverride: firstEntry.category_label_override || activeSession.category_label_override,
             details: firstEntry.details,
             launchUi: opts.launchUi,
@@ -15829,7 +16168,7 @@
             logicalSessionCategoryIds: activeSession.category_ids,
             boundedSessionContinuation: activeSession.chunks.length > 1 ? activeSession.continuation : null,
             isLaunchCurrent: function () {
-                if (chunkSession !== activeSession || activeSession.continuous !== true) {
+                if (chunkSession !== activeSession || activeSession.supports_continuation !== true) {
                     return false;
                 }
                 return !externalIsLaunchCurrent || externalIsLaunchCurrent() === true;
@@ -15860,11 +16199,15 @@
         return true;
     }
 
-    function normalizeBoundedSelectionPlanChunks(serverPlan, fallbackDetails, selectedIds, minimumWordCount) {
+    function normalizeBoundedSelectionPlanChunks(serverPlan, fallbackDetails, selectedIds, minimumWordCount, mode) {
         const plan = (serverPlan && typeof serverPlan === 'object' && !Array.isArray(serverPlan))
             ? serverPlan
             : null;
+        const normalizedMode = normalizeMode(mode || (plan && plan.mode) || '') || 'practice';
         const minimumCount = Math.max(1, parseInt(minimumWordCount, 10) || 1);
+        const chunkMinimumCount = (normalizedMode === 'gender' || normalizedMode === 'self-check')
+            ? 1
+            : minimumCount;
         const allowedCategoryLookup = {};
         uniqueIntList(selectedIds || []).forEach(function (categoryId) {
             allowedCategoryLookup[categoryId] = true;
@@ -15912,7 +16255,12 @@
             return true;
         };
 
-        if (!plan || !Array.isArray(plan.chunks) || plan.truncated !== false) {
+        if (
+            !plan
+            || normalizeMode(plan.mode || '') !== normalizedMode
+            || !Array.isArray(plan.chunks)
+            || plan.truncated !== false
+        ) {
             return invalidResult();
         }
         const matchedCount = strictCount(plan.matched_count);
@@ -15949,7 +16297,29 @@
                 invalid = true;
                 return;
             }
-            if (sessionWordIds.length < minimumCount) {
+            const rawDetails = (rawChunk.details && typeof rawChunk.details === 'object' && !Array.isArray(rawChunk.details))
+                ? rawChunk.details
+                : {};
+            if (
+                normalizedMode === 'gender'
+                && (
+                    typeof rawDetails.gender_level !== 'number'
+                    || !Number.isSafeInteger(rawDetails.gender_level)
+                    || rawDetails.gender_level < 1
+                    || rawDetails.gender_level > 3
+                )
+            ) {
+                invalid = true;
+                return;
+            }
+            if (
+                normalizedMode === 'gender'
+                && sessionWordIds.length > (rawDetails.gender_level === 1 ? 10 : 15)
+            ) {
+                invalid = true;
+                return;
+            }
+            if (sessionWordIds.length < chunkMinimumCount) {
                 containsUndersizedChunk = true;
             }
 
@@ -15965,8 +16335,8 @@
                     category_ids: categoryIds,
                     session_word_ids: sessionWordIds,
                     category_label_override: String(rawChunk.category_label_override || '').trim(),
-                    details: (rawChunk.details && typeof rawChunk.details === 'object' && !Array.isArray(rawChunk.details))
-                        ? Object.assign({}, fallbackDetails || {}, rawChunk.details)
+                    details: Object.keys(rawDetails).length
+                        ? Object.assign({}, fallbackDetails || {}, rawDetails)
                         : Object.assign({}, fallbackDetails || {})
                 });
             }
@@ -16004,8 +16374,11 @@
         };
     }
 
-    function launchBoundedPracticeSelectionPlan(serverPlan, options) {
+    function launchBoundedSelectionPlan(serverPlan, options) {
         const opts = (options && typeof options === 'object') ? options : {};
+        const normalizedMode = normalizeMode(
+            opts.mode || (serverPlan && serverPlan.mode) || 'practice'
+        ) || 'practice';
         const selectedIds = uniqueIntList(opts.categoryIds || opts.category_ids || []);
         const minimumWordCount = Math.max(1, parseInt(opts.minimumWordCount, 10) || 1);
         const launchDetails = (opts.details && typeof opts.details === 'object')
@@ -16015,7 +16388,8 @@
             serverPlan,
             launchDetails,
             selectedIds,
-            minimumWordCount
+            minimumWordCount,
+            normalizedMode
         );
         const planChunks = normalizedPlan.chunks;
         if (!planChunks.length) {
@@ -16024,6 +16398,16 @@
                 opts.onEmpty(normalizedPlan);
             }
             return false;
+        }
+
+        if (normalizedMode === 'gender') {
+            let completedBefore = 0;
+            planChunks.forEach(function (entry) {
+                entry.details = Object.assign({}, entry.details || {}, {
+                    logical_session_completed_before: completedBefore
+                });
+                completedBefore += uniqueIntList(entry.session_word_ids || []).length;
+            });
         }
 
         const logicalSessionWordIds = [];
@@ -16044,7 +16428,7 @@
         const firstEntry = planChunks[0];
         if (planChunks.length > 1) {
             chunkSession = {
-                mode: 'practice',
+                mode: normalizedMode,
                 chunks: planChunks,
                 index: 0,
                 matched_count: logicalSessionWordIds.length,
@@ -16053,17 +16437,57 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
-                request_timeout_ms: opts.requestTimeoutMs,
+                request_timeout_ms: opts.continuationRequestTimeoutMs || opts.requestTimeoutMs,
                 bounded_selection_plan: true,
-                continuous: true
+                continuous: boundedModeAutomaticallyContinues(normalizedMode),
+                supports_continuation: boundedModeSupportsContinuation(normalizedMode)
             };
             const activeSession = chunkSession;
-            launchContinuousChunkSession(activeSession, {
+            if (activeSession.supports_continuation) {
+                launchContinuousChunkSession(activeSession, {
+                    source: source,
+                    requestTimeoutMs: opts.requestTimeoutMs,
+                    launchUi: opts.launchUi,
+                    launchUiCleanup: opts.launchUiCleanup,
+                    launchToken: opts.launchToken,
+                    isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
+                    onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
+                    onLaunchCommitted: function () {
+                        if (typeof opts.onLaunchCommitted === 'function') {
+                            opts.onLaunchCommitted();
+                        }
+                    },
+                    onLaunchStage: typeof opts.onLaunchStage === 'function' ? opts.onLaunchStage : null,
+                    onLaunchFailure: function () {
+                        if (chunkSession === activeSession) {
+                            chunkSession = null;
+                        }
+                        if (typeof opts.onLaunchFailure === 'function') {
+                            opts.onLaunchFailure();
+                        }
+                    },
+                    onLaunchCanceled: typeof opts.onLaunchCanceled === 'function' ? opts.onLaunchCanceled : null
+                });
+                return true;
+            }
+
+            launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
                 source: source,
                 requestTimeoutMs: opts.requestTimeoutMs,
+                chunked: true,
+                sessionStarMode: 'normal',
+                randomizeSessionCategoryOrder: false,
+                allowSessionCategoryDisplay: true,
+                skipCompatibilityFilter: true,
+                preserveCategoryOrder: true,
+                categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
+                details: firstEntry.details,
                 launchUi: opts.launchUi,
                 launchUiCleanup: opts.launchUiCleanup,
                 launchToken: opts.launchToken,
+                boundedSelectionPlan: true,
+                rejectOnLoadFailure: true,
+                suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
                 isLaunchCurrent: typeof opts.isLaunchCurrent === 'function' ? opts.isLaunchCurrent : null,
                 onLaunchRequest: typeof opts.onLaunchRequest === 'function' ? opts.onLaunchRequest : null,
                 onLaunchCommitted: function () {
@@ -16086,14 +16510,15 @@
         }
 
         chunkSession = null;
-        launchFlashcards('practice', firstEntry.category_ids, firstEntry.session_word_ids, {
+        launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, {
             source: source,
             requestTimeoutMs: opts.requestTimeoutMs,
             chunked: false,
             sessionStarMode: 'normal',
-            randomizeSessionCategoryOrder: true,
+            randomizeSessionCategoryOrder: normalizedMode === 'practice',
             allowSessionCategoryDisplay: true,
             skipCompatibilityFilter: true,
+            preserveCategoryOrder: normalizedMode !== 'practice',
             categoryLabelOverride: firstEntry.category_label_override || categoryLabelOverride,
             details: firstEntry.details,
             launchUi: opts.launchUi,
@@ -16102,8 +16527,8 @@
             boundedSelectionPlan: true,
             rejectOnLoadFailure: true,
             suppressFailureAlert: typeof opts.onLaunchFailure === 'function',
-            logicalSessionWordIds: logicalSessionWordIds,
-            logicalSessionCategoryIds: logicalSessionCategoryIds,
+            logicalSessionWordIds: normalizedMode === 'practice' ? logicalSessionWordIds : firstEntry.session_word_ids,
+            logicalSessionCategoryIds: normalizedMode === 'practice' ? logicalSessionCategoryIds : firstEntry.category_ids,
             onLaunchFailure: function () {
                 if (typeof opts.onLaunchFailure === 'function') {
                     opts.onLaunchFailure();
@@ -16385,7 +16810,7 @@
                 star_mode: 'normal',
                 details: launchDetails,
                 category_label_override: categoryLabelOverride,
-                request_timeout_ms: opts.requestTimeoutMs,
+                request_timeout_ms: opts.continuationRequestTimeoutMs || opts.requestTimeoutMs,
                 bounded_selection_plan: true,
                 continuous: false
             };
@@ -16454,14 +16879,18 @@
         const $next = $('#ll-study-results-next-chunk');
         const $suggestion = $('#ll-study-results-suggestion');
         const isContinuousSession = !!chunkSession.continuous;
-        const hasNext = !isContinuousSession && chunkSession.index < (chunkSession.chunks.length - 1);
+        const isGenderSession = normalizeMode(chunkSession.mode) === 'gender';
+        const hasNext = chunkSession.index < (chunkSession.chunks.length - 1)
+            && (!isContinuousSession || isGenderSession);
 
         if (!$actions.length || !$same.length || !$next.length) {
             return false;
         }
 
         $('#quiz-mode-buttons').hide();
-        $('#ll-gender-results-actions').hide();
+        if (!isGenderSession) {
+            $('#ll-gender-results-actions').hide();
+        }
         $('#restart-quiz').hide();
 
         const matchedCount = Math.max(0, parseInt(chunkSession.matched_count, 10) || 0);
@@ -16470,6 +16899,12 @@
         }
 
         setResultsButtonContent($same, '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="↻"></span>', i18n.repeatLabel || '');
+        if (isGenderSession) {
+            // Gender owns its adaptive same-set action (advance, retry, or
+            // fallback). The generic transport contributes only exact-scope
+            // Continue so those two decisions remain distinct.
+            $same.hide().off('click.llWordsetChunk');
+        } else {
             $same.show().prop('disabled', false).off('click').on('click.llWordsetChunk', function (e) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
@@ -16506,6 +16941,12 @@
                     categoryLabelOverride: currentEntry.category_label_override,
                     details: currentEntry.details,
                     boundedSelectionPlan: !!activeSession.bounded_selection_plan,
+                    logicalSessionWordIds: activeSession.session_word_ids,
+                    logicalSessionCategoryIds: activeSession.category_ids,
+                    boundedSessionContinuation: activeSession.supports_continuation
+                        && activeSession.index < activeSession.chunks.length - 1
+                        ? activeSession.continuation
+                        : null,
                     rejectOnLoadFailure: !!activeSession.bounded_selection_plan,
                     suppressFailureAlert: !!activeSession.bounded_selection_plan,
                     onLaunchCommitted: function () {
@@ -16522,6 +16963,7 @@
                     }
                 });
             });
+        }
 
         if ($different.length) {
             $different.hide().off('click.llWordsetChunk');
@@ -16540,6 +16982,14 @@
                 const nextIndex = previousIndex + 1;
                 const nextEntry = getChunkSessionEntry(activeSession, nextIndex);
                 if (!nextEntry) { return; }
+                if (isGenderSession && activeSession.supports_continuation) {
+                    const main = window.LLFlashcards && window.LLFlashcards.Main;
+                    $next.prop('disabled', true);
+                    if (!main || typeof main.tryContinueLogicalSession !== 'function' || !main.tryContinueLogicalSession()) {
+                        $next.prop('disabled', false);
+                    }
+                    return;
+                }
                 activeSession.pending_index = nextIndex;
                 $next.prop('disabled', true);
                 launchFlashcards(chunkSession.mode, nextEntry.category_ids, nextEntry.session_word_ids, {
@@ -16574,7 +17024,11 @@
             $next.hide().off('click.llWordsetChunk');
         }
 
-        $actions.show();
+        if (isGenderSession && !hasNext) {
+            $actions.hide();
+        } else {
+            $actions.show();
+        }
         return true;
     }
 
@@ -16789,7 +17243,16 @@
             return;
         }
 
-        const finalMode = (normalizedMode === 'gender' && !selectionHasGenderSupport(ids)) ? 'practice' : normalizedMode;
+        const hasExplicitBoundedGenderPlan = normalizedMode === 'gender'
+            && boundedSelectionPlan
+            && Number.isSafeInteger(parseInt(launchDetails.gender_level, 10))
+            && parseInt(launchDetails.gender_level, 10) >= 1
+            && parseInt(launchDetails.gender_level, 10) <= 3;
+        const finalMode = (
+            normalizedMode === 'gender'
+            && !hasExplicitBoundedGenderPlan
+            && !selectionHasGenderSupport(ids)
+        ) ? 'practice' : normalizedMode;
         const sessionIds = uniqueIntList(sessionWordIds || []);
         const providedLaunchUi = (opts.launchUi && typeof opts.launchUi === 'object') ? opts.launchUi : null;
         const hasProvidedLaunchUi = !!(providedLaunchUi &&
@@ -16904,7 +17367,10 @@
                     return sum + Math.max(0, parseInt(cat && cat.count, 10) || 0);
                 }, 0);
             }
-            if (estimatedResultsTotal < getSelectionMinimumWordCount()) {
+            const launchChunkMinimum = boundedSelectionPlan && (
+                finalMode === 'gender' || finalMode === 'self-check'
+            ) ? 1 : getSelectionMinimumWordCount();
+            if (estimatedResultsTotal < launchChunkMinimum) {
                 abortLaunch(i18n.noWordsInSelection || '');
                 return;
             }
@@ -16965,6 +17431,23 @@
             try { delete flashData.genderSessionPlanArmed; } catch (_) { /* no-op */ }
             try { delete flashData.gender_session_plan_armed; } catch (_) { /* no-op */ }
             flashData.genderLaunchSource = effectiveCategoryIds.length > 1 ? 'dashboard' : 'direct';
+            const plannedGenderLevel = parseInt(launchDetails.gender_level, 10) || 0;
+            if (
+                finalMode === 'gender'
+                && effectiveSessionIds.length > 0
+                && plannedGenderLevel >= 1
+                && plannedGenderLevel <= 3
+            ) {
+                flashData.genderSessionPlan = {
+                    level: plannedGenderLevel,
+                    word_ids: effectiveSessionIds.slice(),
+                    launch_source: 'dashboard',
+                    reason_code: 'bounded_level_chunk'
+                };
+                flashData.genderSessionPlanArmed = true;
+                flashData.gender_session_plan_armed = true;
+                flashData.genderLaunchSource = 'dashboard';
+            }
 
             flashData.launchContext = 'dashboard';
             flashData.launch_context = 'dashboard';
@@ -16995,6 +17478,11 @@
                 flashData.logical_session_category_ids = effectiveLogicalCategoryIds.slice();
                 flashData.logicalSessionTotal = effectiveLogicalSessionWordIds.length;
                 flashData.logical_session_total = effectiveLogicalSessionWordIds.length;
+                flashData.logicalSessionCompletedBefore = Math.max(
+                    0,
+                    parseInt(launchDetails.logical_session_completed_before, 10) || 0
+                );
+                flashData.logical_session_completed_before = flashData.logicalSessionCompletedBefore;
             } else if (!appendToLogicalSession) {
                 delete flashData.logicalSessionWordIds;
                 delete flashData.logical_session_word_ids;
@@ -17002,6 +17490,8 @@
                 delete flashData.logical_session_category_ids;
                 delete flashData.logicalSessionTotal;
                 delete flashData.logical_session_total;
+                delete flashData.logicalSessionCompletedBefore;
+                delete flashData.logical_session_completed_before;
             }
             if (boundedSessionContinuation) {
                 flashData.boundedSessionContinuation = boundedSessionContinuation;
@@ -17323,7 +17813,10 @@
                 selectedCats,
                 effectiveLookup
             );
-            if (availableWordCount < getSelectionMinimumWordCount()) {
+            const launchChunkMinimum = boundedSelectionPlan && (
+                finalMode === 'gender' || finalMode === 'self-check'
+            ) ? 1 : getSelectionMinimumWordCount();
+            if (availableWordCount < launchChunkMinimum) {
                 abortLaunch(i18n.noWordsInSelection || '');
                 return;
             }
@@ -17385,7 +17878,8 @@
         });
     }
 
-    function launchSelectionMode(mode) {
+    function launchSelectionMode(mode, options) {
+        const selectionOptions = (options && typeof options === 'object') ? options : {};
         clearBoundedSessionContinuation(chunkSession);
         chunkSession = null;
         const launchToken = beginFlashcardLaunch();
@@ -17404,13 +17898,17 @@
         };
         const normalizedMode = normalizeMode(mode) || 'practice';
         const minimumWordCount = getSelectionMinimumWordCount();
-        const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
+        const requestedCategoryIds = Array.isArray(selectionOptions.categoryIds)
+            ? selectionOptions.categoryIds
+            : selectedCategoryIds;
+        const selectedIds = uniqueIntList(requestedCategoryIds || []).filter(function (id) {
             return categoryIdIsLaunchable(id);
         });
-        const selectionPriorityFocus = getSelectionPriorityFilterFocus();
-        const priorityOnlyActive = !!selectionPriorityOnly && selectionPriorityFocus !== '';
-        const starredOnlyActive = !!selectionStarredOnly;
-        const hardOnlyActive = !!selectionHardOnly;
+        const ignoreSelectionFilters = !!selectionOptions.ignoreSelectionFilters;
+        const selectionPriorityFocus = ignoreSelectionFilters ? '' : getSelectionPriorityFilterFocus();
+        const priorityOnlyActive = !ignoreSelectionFilters && !!selectionPriorityOnly && selectionPriorityFocus !== '';
+        const starredOnlyActive = !ignoreSelectionFilters && !!selectionStarredOnly;
+        const hardOnlyActive = !ignoreSelectionFilters && !!selectionHardOnly;
         const criteriaKey = resolveSelectionCriteriaKey({
             starOnly: starredOnlyActive,
             hardOnly: hardOnlyActive,
@@ -17448,7 +17946,7 @@
             }
             chunkSession = null;
             launchFlashcards(normalizedMode, ids, [], withSelectionLaunchGuards({
-                source: 'wordset_selection_start',
+                source: String(selectionOptions.source || 'wordset_selection_start'),
                 chunked: false,
                 sessionStarMode: 'normal'
             }));
@@ -17468,9 +17966,7 @@
 
         const shouldUseBoundedSelectionPlan = isLoggedIn
             && !!ajaxUrl
-            && !!nonce
-            && normalizedMode !== 'learning'
-            && (criteriaKey !== '' || selectedIds.length > 8);
+            && !!nonce;
         if (shouldUseBoundedSelectionPlan) {
             requestSelectionLaunchPlan(selectedIds, criteriaKey, normalizedMode, {
                 requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
@@ -17488,124 +17984,30 @@
                     launchDetails.priority_focus = criteriaKey;
                 }
 
-                const normalizedPlan = normalizeBoundedSelectionPlanChunks(
-                    serverPlan,
-                    launchDetails,
-                    selectedIds,
-                    minimumWordCount
-                );
-                const planChunks = normalizedPlan.chunks;
-                if (!planChunks.length) {
-                    chunkSession = null;
-                    abortSelectionLaunch(normalizedPlan.invalid
-                        ? (i18n.selectionLaunchError || i18n.saveError || '')
-                        : resolveEmptyMessage());
-                    return;
-                }
-
-                const firstEntry = planChunks[0];
-                const hasMultipleChunks = planChunks.length > 1;
-                const boundedCategoryLabelOverride = criteriaKey
-                    ? resolveSelectionCriteriaLabel(criteriaKey)
-                    : '';
-                const plannedMatchCount = planChunks.reduce(function (total, entry) {
-                    return total + uniqueIntList(entry.session_word_ids || []).length;
-                }, 0);
-                const logicalSessionWordIds = [];
-                const logicalSessionCategoryIds = [];
-                planChunks.forEach(function (entry) {
-                    uniqueIntList(entry.session_word_ids || []).forEach(function (wordId) {
-                        logicalSessionWordIds.push(wordId);
-                    });
-                    uniqueIntList(entry.category_ids || []).forEach(function (categoryId) {
-                        if (logicalSessionCategoryIds.indexOf(categoryId) === -1) {
-                            logicalSessionCategoryIds.push(categoryId);
-                        }
-                    });
-                });
-
-                if (hasMultipleChunks && normalizedMode === 'practice') {
-                    chunkSession = {
-                        mode: normalizedMode,
-                        chunks: planChunks,
-                        index: 0,
-                        matched_count: plannedMatchCount,
-                        session_word_ids: logicalSessionWordIds,
-                        category_ids: logicalSessionCategoryIds,
-                        // The bounded server plan already contains the exact filtered
-                        // IDs. Reapplying runtime star/progress filtering can discard
-                        // prompt-card wrappers whose canonical progress ID differs from id.
-                        star_mode: 'normal',
-                        details: launchDetails,
-                        category_label_override: boundedCategoryLabelOverride,
-                        request_timeout_ms: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
-                        bounded_selection_plan: true,
-                        continuous: true
-                    };
-                    const activeSession = chunkSession;
-                    launchContinuousChunkSession(activeSession, withSelectionLaunchGuards({
-                        source: 'wordset_chunk_start',
-                        launchUi: launchUi,
-                        onLaunchFailure: function () {
-                            if (chunkSession === activeSession) {
-                                chunkSession = null;
-                            }
-                        }
-                    }));
-                    return;
-                }
-
-                if (hasMultipleChunks) {
-                    chunkSession = {
-                        mode: normalizedMode,
-                        chunks: planChunks,
-                        index: 0,
-                        matched_count: plannedMatchCount,
-                        // The bounded server plan already contains the exact filtered
-                        // IDs. Reapplying runtime star/progress filtering can discard
-                        // prompt-card wrappers whose canonical progress ID differs from id.
-                        star_mode: 'normal',
-                        details: launchDetails,
-                        category_label_override: boundedCategoryLabelOverride,
-                        bounded_selection_plan: true,
-                        continuous: false
-                    };
-                    const activeSession = chunkSession;
-                    launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, withSelectionLaunchGuards({
-                        source: 'wordset_chunk_start',
-                        chunked: true,
-                        sessionStarMode: 'normal',
-                        randomizeSessionCategoryOrder: true,
-                        allowSessionCategoryDisplay: true,
-                        skipCompatibilityFilter: true,
-                        categoryLabelOverride: firstEntry.category_label_override || boundedCategoryLabelOverride,
-                        details: firstEntry.details,
-                        launchUi: launchUi,
-                        boundedSelectionPlan: true,
-                        rejectOnLoadFailure: true,
-                        onLaunchFailure: function () {
-                            if (chunkSession === activeSession) {
-                                chunkSession = null;
-                            }
-                        }
-                    }));
-                    return;
-                }
-
-                chunkSession = null;
-                launchFlashcards(normalizedMode, firstEntry.category_ids, firstEntry.session_word_ids, withSelectionLaunchGuards({
-                    source: 'wordset_selection_bounded_start',
-                    chunked: false,
-                    sessionStarMode: 'normal',
-                    randomizeSessionCategoryOrder: true,
-                    allowSessionCategoryDisplay: true,
-                    skipCompatibilityFilter: true,
-                    categoryLabelOverride: firstEntry.category_label_override || boundedCategoryLabelOverride,
-                    details: firstEntry.details,
+                const launchOptions = withSelectionLaunchGuards({
+                    mode: normalizedMode,
+                    categoryIds: selectedIds,
+                    minimumWordCount: normalizedMode === 'learning' ? LEARNING_MIN_CHUNK_SIZE : minimumWordCount,
+                    requestTimeoutMs: SELECTION_LAUNCH_REQUEST_TIMEOUT_MS,
+                    source: String(selectionOptions.source || 'wordset_selection_bounded_start'),
                     launchUi: launchUi,
-                    boundedSelectionPlan: true,
-                    rejectOnLoadFailure: true
-                }));
+                    details: launchDetails,
+                    categoryLabelOverride: criteriaKey ? resolveSelectionCriteriaLabel(criteriaKey) : '',
+                    onEmpty: function (normalizedPlan) {
+                        abortSelectionLaunch(normalizedPlan && normalizedPlan.invalid
+                            ? (i18n.selectionLaunchError || i18n.saveError || '')
+                            : resolveEmptyMessage());
+                    },
+                    onLaunchRequest: noteSelectionLaunchRequest,
+                    onLaunchFailure: function () {
+                        abortSelectionLaunch(i18n.selectionLaunchError || i18n.saveError || '');
+                    }
+                });
+                if (normalizedMode === 'learning') {
+                    launchBoundedLearningSelectionPlan(serverPlan, launchOptions);
+                } else {
+                    launchBoundedSelectionPlan(serverPlan, launchOptions);
+                }
             }).fail(function (_xhr, statusText) {
                 if (!isSelectionLaunchCurrent()) {
                     return;
@@ -17778,7 +18180,9 @@
             const rawCategoryIds = item && item.category_ids && item.category_ids.length
                 ? uniqueIntList(item.category_ids)
                 : getVisibleCategoryIds();
-            let categoryIds = filterCategoryIdsForMode(preferredMode, rawCategoryIds);
+            let categoryIds = preferredMode === 'gender' && isLoggedIn && ajaxUrl && nonce
+                ? uniqueIntList(rawCategoryIds).filter(categoryIdIsLaunchable)
+                : filterCategoryIdsForMode(preferredMode, rawCategoryIds);
             if (!categoryIds.length && preferredFallbackCategoryIds.length) {
                 categoryIds = preferredFallbackCategoryIds.slice();
             }
@@ -17789,6 +18193,21 @@
                 ? uniqueIntList(item.session_word_ids)
                 : [];
             const details = (item && item.details && typeof item.details === 'object') ? item.details : {};
+            if (
+                sessionWordIds.length
+                && (preferredMode === 'learning' || preferredMode === 'gender')
+                && isLoggedIn
+                && ajaxUrl
+                && nonce
+            ) {
+                launchProgressSelectionModeWithIds(preferredMode, sessionWordIds, {
+                    categoryIds: categoryIds,
+                    details: details,
+                    launchToken: launchToken,
+                    isLaunchCurrent: recommendationLaunchIsCurrent
+                });
+                return;
+            }
             chunkSession = null;
             launchFlashcards(preferredMode, categoryIds, sessionWordIds, {
                 source: source || 'wordset_top_start_recommended',
@@ -17821,12 +18240,10 @@
                 launchWithActivity(refreshed, 'wordset_top_start_refreshed');
                 return;
             }
-            chunkSession = null;
-            launchFlashcards(preferredMode, getVisibleCategoryIds(), [], {
-                source: 'wordset_top_start_fallback',
-                chunked: false,
-                fallbackCategoryIds: recommendationScopeIds,
-                launchToken: launchToken
+            launchSelectionMode(preferredMode, {
+                categoryIds: getVisibleCategoryIds(),
+                ignoreSelectionFilters: true,
+                source: 'wordset_top_start_fallback'
             });
         });
     }
@@ -18312,10 +18729,10 @@
             const catId = parseInt($(this).attr('data-cat-id'), 10) || 0;
             if (!catId) { return; }
             if (!categoryIdIsLaunchable(catId)) { return; }
-            chunkSession = null;
-            launchFlashcards(mode, [catId], [], {
-                source: 'wordset_category_start',
-                chunked: false
+            launchSelectionMode(mode, {
+                categoryIds: [catId],
+                ignoreSelectionFilters: true,
+                source: 'wordset_category_start'
             });
         });
 
@@ -18373,8 +18790,9 @@
         $(document).on('lltools:flashcard-opened.llWordsetPage', function (_evt, detail) {
             isFlashcardOpen = true;
             pendingSummaryRefreshAfterClose = false;
-            clearTimeout(analyticsTimer);
-            analyticsTimer = null;
+            if (analyticsTimer && !(analyticsTimerOptions && analyticsTimerOptions.allowWhileFlashcardOpen)) {
+                deferProgressAnalyticsRefreshUntilClose(analyticsTimerOptions || {});
+            }
             // Clear launch-time category selection immediately once the popup is
             // confirmed open so a delayed/missed close cleanup cannot strand
             // checked cards behind a hidden selection bar.
@@ -18388,6 +18806,13 @@
                     resetResultsFollowupPrefetchState();
                 }
             }
+            hideChunkResultsActions();
+        });
+
+        $(document).on('lltools:flashcard-mode-switching.llWordsetPage', function () {
+            cancelFlashcardLaunch({ skipProgressCleanup: true });
+            clearBoundedSessionContinuation(chunkSession);
+            chunkSession = null;
             hideChunkResultsActions();
         });
 
@@ -19524,6 +19949,36 @@
             setProgressTab(tab);
         });
 
+        $root.on('keydown', '[data-ll-wordset-progress-tab]', function (evt) {
+            const key = String((evt && evt.key) || '');
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) {
+                return;
+            }
+            evt.preventDefault();
+            const tabs = $progressTabButtons.toArray();
+            const currentIndex = Math.max(0, tabs.indexOf(this));
+            let nextIndex = currentIndex;
+            if (key === 'Home') {
+                nextIndex = 0;
+            } else if (key === 'End') {
+                nextIndex = tabs.length - 1;
+            } else if (key === 'ArrowRight') {
+                nextIndex = (currentIndex + 1) % tabs.length;
+            } else {
+                nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            }
+            const nextTab = tabs[nextIndex];
+            if (!nextTab) {
+                return;
+            }
+            setProgressTab(String($(nextTab).attr('data-ll-wordset-progress-tab') || ''));
+            nextTab.focus();
+        });
+
+        $root.on('click', '[data-ll-wordset-progress-retry]', function () {
+            refreshProgressAnalyticsNow();
+        });
+
         $root.on('click', '[data-ll-wordset-progress-gender-toggle]', function (evt) {
             evt.preventDefault();
             const nextMode = isGenderProgressViewActive() ? '' : 'gender';
@@ -19665,6 +20120,7 @@
             } else if (getCurrentProgressWordRequestFilterKey()) {
                 progressSelectedWordIds = [];
                 progressSelectedAllWordFilterKey = getCurrentProgressWordRequestFilterKey();
+                progressSelectedAllWordCountIsExact = false;
                 progressSelectedAllWordCount = Math.max(
                     visibleWordIds.length,
                     Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0)
@@ -19801,13 +20257,27 @@
             handleProgressWordAudioClick(this);
         });
 
+        $(document).on('lltools:flashcard-opened.llWordsetProgress', function () {
+            isFlashcardOpen = true;
+            pendingSummaryRefreshAfterClose = false;
+            if (analyticsTimer && !(analyticsTimerOptions && analyticsTimerOptions.allowWhileFlashcardOpen)) {
+                deferProgressAnalyticsRefreshUntilClose(analyticsTimerOptions || {});
+            }
+        });
+
+        $(document).on('lltools:flashcard-closed.llWordsetProgress', function () {
+            isFlashcardOpen = false;
+            flushDeferredProgressAnalyticsRefresh();
+        });
+
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
             invalidateProgressWordIdsSnapshot();
-            if (isFlashcardOpen) {
-                deferProgressAnalyticsRefreshUntilClose({ silent: true });
-                return;
-            }
-            scheduleProgressAnalyticsRefresh(220, { silent: true });
+            // Server-acknowledged rounds should update the Progress view even
+            // when its activity modal is still open above the page.
+            scheduleProgressAnalyticsRefresh(220, {
+                silent: true,
+                allowWhileFlashcardOpen: true
+            });
         });
 
         const hasBootstrapAnalytics = (Array.isArray(analytics.words) && analytics.words.length > 0)

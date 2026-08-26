@@ -74,6 +74,40 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $this->assertSame(9, (int) ($gender_progress['seen_total'] ?? 0));
         $this->assertSame('Persisted Category', (string) ($gender_progress['category_name'] ?? ''));
         $this->assertNotSame('', (string) ($gender_progress['last_seen_at'] ?? ''));
+
+        $partial_stats = ll_tools_process_progress_events_batch($user_id, [[
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_outcome',
+            'mode' => 'gender',
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'category_name' => (string) get_term_field('name', $category_id, 'word-category'),
+            'wordset_id' => $wordset_id,
+            'is_correct' => true,
+            'had_wrong_before' => false,
+            'payload' => [
+                'gender' => [
+                    'level' => 2,
+                    'confidence' => 6,
+                    'quick_correct_streak' => 3,
+                    'seen_total' => 10,
+                    'updated_at' => 1710938460000,
+                ],
+            ],
+        ]]);
+        $this->assertSame(1, (int) ($partial_stats['processed'] ?? 0));
+
+        $updated_rows = ll_tools_get_user_word_progress_rows($user_id, [$word_id]);
+        $updated_gender = (array) (($updated_rows[$word_id] ?? [])['gender_progress'] ?? []);
+        $this->assertSame(2, (int) ($updated_gender['level'] ?? 0));
+        $this->assertSame(6, (int) ($updated_gender['confidence'] ?? 0));
+        $this->assertSame(3, (int) ($updated_gender['quick_correct_streak'] ?? 0));
+        $this->assertSame(3, (int) ($updated_gender['level1_passes'] ?? 0));
+        $this->assertSame(1, (int) ($updated_gender['level1_failures'] ?? 0));
+        $this->assertSame(4, (int) ($updated_gender['level2_correct'] ?? 0));
+        $this->assertSame(1, (int) ($updated_gender['level2_wrong'] ?? 0));
+        $this->assertSame(1, (int) ($updated_gender['dont_know_count'] ?? 0));
+        $this->assertSame(10, (int) ($updated_gender['seen_total'] ?? 0));
     }
 
     public function test_analytics_includes_gender_progress_for_marked_noun_words_only(): void

@@ -277,9 +277,9 @@ function ll_tools_render_google_classroom_integration_page(): void {
     } else {
         echo '<p>' . esc_html__('Courses are requested from Google only when you use a button below. Up to 50 active courses are shown for that exact account.', 'll-tools-text-domain') . '</p>';
         echo '<table class="widefat striped" style="max-width:900px"><thead><tr>';
-        echo '<th>' . esc_html__('Google account', 'll-tools-text-domain') . '</th>';
-        echo '<th>' . esc_html__('Connected since', 'll-tools-text-domain') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'll-tools-text-domain') . '</th>';
+        echo '<th scope="col">' . esc_html__('Google account', 'll-tools-text-domain') . '</th>';
+        echo '<th scope="col">' . esc_html__('Connected since', 'll-tools-text-domain') . '</th>';
+        echo '<th scope="col">' . esc_html__('Actions', 'll-tools-text-domain') . '</th>';
         echo '</tr></thead><tbody>';
         foreach ($connections as $connection) {
             $profile = ll_tools_google_classroom_privacy_profile_for_connection(
@@ -322,9 +322,9 @@ function ll_tools_render_google_classroom_integration_page(): void {
             echo '<p>' . esc_html__('No active courses were returned.', 'll-tools-text-domain') . '</p>';
         } else {
             echo '<table class="widefat striped" style="max-width:900px"><thead><tr>';
-            echo '<th>' . esc_html__('Course', 'll-tools-text-domain') . '</th>';
-            echo '<th>' . esc_html__('Section', 'll-tools-text-domain') . '</th>';
-            echo '<th>' . esc_html__('Google course ID', 'll-tools-text-domain') . '</th>';
+            echo '<th scope="col">' . esc_html__('Course', 'll-tools-text-domain') . '</th>';
+            echo '<th scope="col">' . esc_html__('Section', 'll-tools-text-domain') . '</th>';
+            echo '<th scope="col">' . esc_html__('Google course ID', 'll-tools-text-domain') . '</th>';
             echo '</tr></thead><tbody>';
             foreach ($courses as $course) {
                 echo '<tr>';

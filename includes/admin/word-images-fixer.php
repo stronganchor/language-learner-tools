@@ -90,11 +90,6 @@ function ll_word_images_fixer_scan_batch(int $after_id = 0): array {
     ];
 }
 
-function ll_find_words_missing_word_images(int $after_id = 0): array {
-    $batch = ll_word_images_fixer_scan_batch($after_id);
-    return (array) ($batch['candidates'] ?? []);
-}
-
 function ll_create_word_image_from_word($word_id, $attachment_id) {
     if (!function_exists('ll_tools_ensure_word_image_post_for_word')) {
         return new WP_Error('missing_helper', __('Word image helper is not available', 'll-tools-text-domain'));

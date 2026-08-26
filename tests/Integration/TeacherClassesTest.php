@@ -52,6 +52,123 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertSame([], ll_tools_teacher_class_get_student_ids((int) $class_id));
     }
 
+    public function test_privacy_membership_scan_ignores_serialized_index_false_positive(): void
+    {
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $unrelated_class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Unrelated indexed roster',
+        ]);
+        $real_class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'One-sided real roster',
+        ]);
+        $unrelated_roster = [$learner_id => 999999999];
+        update_post_meta(
+            $unrelated_class_id,
+            LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
+            $unrelated_roster
+        );
+        update_post_meta(
+            $real_class_id,
+            LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
+            [$learner_id]
+        );
+        $this->assertFalse(metadata_exists('user', $learner_id, LL_TOOLS_STUDENT_CLASS_IDS_META));
+
+        $result = ll_tools_privacy_delete_user_personal_data_verified($learner_id);
+
+        $this->assertIsArray($result);
+        $this->assertSame([999999999], ll_tools_teacher_class_get_student_ids($unrelated_class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_student_ids($real_class_id));
+    }
+
+    public function test_membership_mutations_roll_back_both_sides_when_either_meta_write_is_retained(): void
+    {
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Membership rollback class',
+        ]);
+
+        $block_roster_write = static function ($check, int $object_id, string $meta_key) use ($class_id) {
+            return $object_id === $class_id && $meta_key === LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META
+                ? false
+                : $check;
+        };
+        add_filter('update_post_metadata', $block_roster_write, 10, 3);
+        try {
+            $this->assertFalse(ll_tools_teacher_class_add_student($class_id, $learner_id));
+        } finally {
+            remove_filter('update_post_metadata', $block_roster_write, 10);
+        }
+        $this->assertSame([], ll_tools_teacher_class_get_student_ids($class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+
+        $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $learner_id));
+        $block_learner_meta_delete = static function ($check, int $object_id, string $meta_key) use ($learner_id) {
+            return $object_id === $learner_id && $meta_key === LL_TOOLS_STUDENT_CLASS_IDS_META
+                ? false
+                : $check;
+        };
+        add_filter('delete_user_metadata', $block_learner_meta_delete, 10, 3);
+        try {
+            $result = ll_tools_teacher_class_remove_student($class_id, $learner_id);
+        } finally {
+            remove_filter('delete_user_metadata', $block_learner_meta_delete, 10);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('remove_failed', $result->get_error_code());
+        $this->assertSame([$learner_id], ll_tools_teacher_class_get_student_ids($class_id));
+        $this->assertSame([$class_id], ll_tools_teacher_class_get_ids_for_student($learner_id));
+    }
+
+    public function test_privacy_fence_blocks_class_add_remove_and_delete_until_released(): void
+    {
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Membership fence class',
+        ]);
+
+        $add_lease = ll_tools_privacy_begin_user_lms_erasure($learner_id, 'class-add-fence-test');
+        $this->assertIsString($add_lease);
+        try {
+            $this->assertFalse(ll_tools_teacher_class_add_student($class_id, $learner_id));
+            $this->assertSame([], ll_tools_teacher_class_get_student_ids($class_id));
+            $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($learner_id, (string) $add_lease));
+        }
+
+        $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $learner_id));
+        $remove_lease = ll_tools_privacy_begin_user_lms_erasure($learner_id, 'class-remove-fence-test');
+        $this->assertIsString($remove_lease);
+        try {
+            $remove_result = ll_tools_teacher_class_remove_student($class_id, $learner_id);
+            $delete_result = ll_tools_teacher_class_delete($class_id);
+            $this->assertWPError($remove_result);
+            $this->assertSame('remove_failed', $remove_result->get_error_code());
+            $this->assertWPError($delete_result);
+            $this->assertSame('delete_membership_failed', $delete_result->get_error_code());
+            $this->assertTrue(ll_tools_teacher_class_exists($class_id));
+            $this->assertSame([$learner_id], ll_tools_teacher_class_get_student_ids($class_id));
+            $this->assertSame([$class_id], ll_tools_teacher_class_get_ids_for_student($learner_id));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($learner_id, (string) $remove_lease));
+        }
+
+        $delete_result = ll_tools_teacher_class_delete($class_id);
+        $this->assertIsArray($delete_result);
+        $this->assertFalse(ll_tools_teacher_class_exists($class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+    }
+
     public function test_user_deletion_unlinks_teacher_class_membership(): void
     {
         ll_tools_register_or_refresh_teacher_role();

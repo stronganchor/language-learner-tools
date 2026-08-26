@@ -223,6 +223,68 @@ final class WordsetPageDurableCacheTest extends LL_Tools_TestCase
         ll_tools_wordset_page_delete_durable_cached_payload($key);
     }
 
+    public function test_failed_lazy_payload_refresh_preserves_the_previous_identity_payload(): void
+    {
+        $token = 'private_' . md5(wp_generate_password(20, false, false));
+        $key = ll_tools_wordset_page_lazy_cards_cache_key($token);
+        $value_option = '_transient_' . $key;
+        $old_payload = [
+            'cards' => [
+                ['type' => 'category', 'data' => ['id' => 71]],
+                ['type' => 'category', 'data' => ['id' => 72]],
+            ],
+            'access_signature' => 'stale-signature',
+            'render_context' => [],
+            'batch_size' => 6,
+            'base_offset' => 6,
+            'total' => 8,
+            'user_id' => self::factory()->user->create(['role' => 'subscriber']),
+        ];
+        $refreshed_payload = array_merge($old_payload, [
+            'cards' => [null, ['type' => 'category', 'data' => ['id' => 72]]],
+            'access_signature' => 'fresh-signature',
+            'sources_complete' => true,
+        ]);
+        $deleted_refresh_once = false;
+        $delete_first_refreshed_value = static function (string $option_name) use (
+            $value_option,
+            &$deleted_refresh_once
+        ): void {
+            if ($option_name !== $value_option || $deleted_refresh_once) {
+                return;
+            }
+            $deleted_refresh_once = true;
+
+            global $wpdb;
+            $wpdb->delete($wpdb->options, ['option_name' => $value_option], ['%s']);
+            wp_cache_delete($value_option, 'options');
+        };
+
+        ll_tools_wordset_page_delete_durable_cached_payload($key);
+        try {
+            $this->assertSame(
+                $token,
+                ll_tools_wordset_page_store_lazy_cards_payload($old_payload, 120, $token)
+            );
+            add_action('updated_option', $delete_first_refreshed_value, 10, 1);
+            $this->assertSame(
+                '',
+                ll_tools_wordset_page_store_lazy_cards_payload($refreshed_payload, 120, $token, true)
+            );
+        } finally {
+            remove_action('updated_option', $delete_first_refreshed_value, 10);
+        }
+
+        $this->assertTrue($deleted_refresh_once);
+        $this->assertSame($old_payload, ll_tools_wordset_page_get_lazy_cards_payload($token));
+        $raw = get_transient($key);
+        $valid = true;
+        $this->assertSame($old_payload, ll_tools_wordset_page_decode_durable_cache_payload($raw, $valid));
+        $this->assertTrue($valid);
+
+        ll_tools_wordset_page_delete_durable_cached_payload($key);
+    }
+
     public function test_shared_dependency_default_ttl_outlives_public_static_file(): void
     {
         $static_ttl = function_exists('ll_tools_public_static_cache_ttl')

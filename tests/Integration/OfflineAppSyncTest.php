@@ -218,6 +218,358 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_privacy_fence_blocks_sessions_membership_direct_events_and_whole_offline_sync(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->createOfflineSyncFixture();
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Privacy fence class',
+        ]);
+        $session = ll_tools_offline_app_create_session($user_id, [
+            'device_id' => 'privacy-fence-device',
+            'profile_id' => 'privacy-fence-profile',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $parsed_token = ll_tools_offline_app_parse_auth_token($token);
+        $this->assertNotSame('', $token);
+        $this->assertNotSame([], $parsed_token);
+
+        $session_table = ll_tools_offline_app_session_table();
+        $last_used_before = (string) $wpdb->get_var($wpdb->prepare(
+            "SELECT last_used_at FROM {$session_table} WHERE user_id = %d AND session_key = %s",
+            $user_id,
+            (string) $parsed_token['session_key']
+        ));
+        $legacy_session_key = 'fencedlegacy' . strtolower(wp_generate_password(6, false, false));
+        $legacy_snapshot = [
+            $legacy_session_key => [
+                'secret_hash' => wp_hash_password('privacy-fence-legacy-secret'),
+                'created_at' => gmdate('Y-m-d H:i:s'),
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + HOUR_IN_SECONDS),
+                'last_used_at' => gmdate('Y-m-d H:i:s'),
+                'device_id' => 'privacy-fence-legacy-device',
+                'profile_id' => 'privacy-fence-legacy-profile',
+            ],
+        ];
+        $this->assertNotFalse(update_user_meta(
+            $user_id,
+            LL_TOOLS_OFFLINE_APP_SESSION_META,
+            $legacy_snapshot
+        ));
+        $direct_event_uuid = 'privacy-fence-direct-' . wp_generate_uuid4();
+        $offline_event_uuid = 'privacy-fence-offline-' . wp_generate_uuid4();
+        $lease = ll_tools_privacy_begin_user_lms_erasure($user_id, 'offline-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($user_id));
+            $this->assertSame([], ll_tools_offline_app_create_session($user_id));
+            $this->assertFalse(ll_tools_offline_app_import_legacy_sessions_for_user($user_id));
+            $this->assertSame(
+                $legacy_snapshot,
+                get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true)
+            );
+            $this->assertFalse(ll_tools_teacher_class_add_student($class_id, $user_id));
+
+            $direct_stats = ll_tools_process_progress_events_batch($user_id, [[
+                'event_uuid' => $direct_event_uuid,
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $fixture['word_id'],
+            ]]);
+            $this->assertTrue((bool) ($direct_stats['retryable'] ?? false));
+            $this->assertSame('progress_privacy_erasure_in_progress', $direct_stats['failure_code'] ?? '');
+
+            $response = $this->runOfflineSyncRequest([
+                'auth_token' => $token,
+                'state' => wp_json_encode([
+                    'wordset_id' => $fixture['wordset_id'],
+                    'category_ids' => [$fixture['category_id']],
+                    'starred_word_ids' => [$fixture['word_id']],
+                    'fast_transitions' => true,
+                ]),
+                'events' => wp_json_encode([[
+                    'event_uuid' => $offline_event_uuid,
+                    'event_type' => 'word_exposure',
+                    'mode' => 'practice',
+                    'word_id' => $fixture['word_id'],
+                    'category_id' => $fixture['category_id'],
+                    'wordset_id' => $fixture['wordset_id'],
+                ]]),
+            ]);
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertTrue((bool) (($response['data'] ?? [])['retryable'] ?? false));
+            $this->assertSame(
+                'progress_privacy_erasure_in_progress',
+                (string) (($response['data'] ?? [])['code'] ?? '')
+            );
+            $events_table = ll_tools_user_progress_table_names()['events'];
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$events_table} WHERE event_uuid IN (%s, %s)",
+                $direct_event_uuid,
+                $offline_event_uuid
+            )));
+            $this->assertFalse(metadata_exists('user', $user_id, LL_TOOLS_USER_WORDSET_META));
+            $this->assertFalse(metadata_exists('user', $user_id, LL_TOOLS_USER_CATEGORY_META));
+            $this->assertFalse(metadata_exists('user', $user_id, LL_TOOLS_USER_STARRED_META));
+            $this->assertSame([], ll_tools_teacher_class_get_student_ids($class_id));
+            $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($user_id));
+            $this->assertSame($last_used_before, (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT last_used_at FROM {$session_table} WHERE user_id = %d AND session_key = %s",
+                $user_id,
+                (string) $parsed_token['session_key']
+            )));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($user_id, (string) $lease));
+        }
+
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token($token, false));
+        $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $user_id));
+    }
+
+    public function test_durable_deletion_tombstone_bypasses_stale_notoptions_cache(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $option_name = ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id);
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($user_id));
+        $this->assertFalse(get_option($option_name, false));
+
+        // Model another PHP request installing the tombstone. Its cache
+        // invalidation cannot update this process's already-primed notoptions.
+        $this->assertSame(1, $wpdb->insert($wpdb->options, [
+            'option_name' => $option_name,
+            'option_value' => maybe_serialize([
+                'queued_at' => time(),
+                'post_seen_at' => 0,
+            ]),
+            'autoload' => 'no',
+        ]));
+
+        try {
+            $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($user_id));
+            $callback_ran = false;
+            $guarded = ll_tools_offline_app_run_user_data_write_locked(
+                $user_id,
+                static function () use (&$callback_ran): bool {
+                    $callback_ran = true;
+                    return true;
+                }
+            );
+            $this->assertWPError($guarded);
+            $this->assertSame('user_data_privacy_erasure_in_progress', $guarded->get_error_code());
+            $this->assertFalse($callback_ran);
+            $this->assertSame([], ll_tools_offline_app_create_session($user_id, [
+                'device_id' => 'stale-tombstone-device',
+                'profile_id' => 'stale-tombstone-profile',
+            ]));
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d',
+                $user_id
+            )));
+            $this->assertFalse(metadata_exists('user', $user_id, LL_TOOLS_OFFLINE_APP_SESSION_META));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_dequeue_deleted_user_lms_cleanup($user_id));
+        }
+    }
+
+    public function test_guarded_user_data_mutation_discards_meta_cached_before_lock(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $meta_key = 'll_tools_guarded_stale_meta';
+        $this->assertNotFalse(update_user_meta($user_id, $meta_key, ['version' => 1]));
+        $this->assertSame(['version' => 1], get_user_meta($user_id, $meta_key, true));
+
+        // Model another request committing while this request still owns the
+        // earlier nonpersistent object-cache snapshot.
+        $this->assertSame(1, $wpdb->update(
+            $wpdb->usermeta,
+            ['meta_value' => maybe_serialize(['version' => 2])],
+            ['user_id' => $user_id, 'meta_key' => $meta_key],
+            ['%s'],
+            ['%d', '%s']
+        ));
+
+        $fresh = ll_tools_offline_app_run_user_data_write_locked(
+            $user_id,
+            static fn () => get_user_meta($user_id, $meta_key, true)
+        );
+        $this->assertSame(['version' => 2], $fresh);
+
+        // Prime the replacement, then model privacy deleting it from another
+        // request. The next guarded callback must observe absence.
+        $this->assertSame(['version' => 2], get_user_meta($user_id, $meta_key, true));
+        $this->assertSame(1, $wpdb->delete(
+            $wpdb->usermeta,
+            ['user_id' => $user_id, 'meta_key' => $meta_key],
+            ['%d', '%s']
+        ));
+        $missing = ll_tools_offline_app_run_user_data_write_locked(
+            $user_id,
+            static fn (): bool => metadata_exists('user', $user_id, $meta_key)
+        );
+        $this->assertFalse($missing);
+        $this->assertFalse(metadata_exists('user', $user_id, $meta_key));
+    }
+
+    public function test_browser_study_writers_are_fenced_during_privacy_erasure(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $fixture = $this->createOfflineSyncFixture();
+        $min_words_filter = static fn (): int => 1;
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+        $lease = ll_tools_privacy_begin_user_lms_erasure($user_id, 'browser-writer-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $results = [
+                ll_tools_user_study_save_request(
+                    $user_id,
+                    $fixture['wordset_id'],
+                    [$fixture['category_id']],
+                    [$fixture['word_id']],
+                    true
+                ),
+                ll_tools_user_study_save_goals_request(
+                    $user_id,
+                    ll_tools_default_user_study_goals(),
+                    $fixture['wordset_id'],
+                    [$fixture['category_id']]
+                ),
+                ll_tools_user_study_recommendation_request(
+                    $user_id,
+                    $fixture['wordset_id'],
+                    [$fixture['category_id']],
+                    '',
+                    true
+                ),
+                ll_tools_user_study_queue_remove_request(
+                    $user_id,
+                    $fixture['wordset_id'],
+                    'missing-queue-item'
+                ),
+            ];
+
+            foreach ($results as $result) {
+                $this->assertWPError($result);
+                $this->assertSame('user_data_privacy_erasure_in_progress', $result->get_error_code());
+                $this->assertTrue((bool) ($result->get_error_data()['retryable'] ?? false));
+            }
+
+            foreach ([
+                LL_TOOLS_USER_WORDSET_META,
+                LL_TOOLS_USER_CATEGORY_META,
+                LL_TOOLS_USER_STARRED_META,
+                LL_TOOLS_USER_FAST_TRANSITIONS_META,
+                LL_TOOLS_USER_GOALS_META,
+                LL_TOOLS_USER_RECOMMENDATION_QUEUE_META,
+                LL_TOOLS_USER_LAST_RECOMMENDATION_META,
+                LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META,
+                LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META,
+            ] as $meta_key) {
+                $this->assertFalse(metadata_exists('user', $user_id, $meta_key), $meta_key);
+            }
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($user_id, (string) $lease));
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+
+        $saved = ll_tools_user_study_save_request(
+            $user_id,
+            $fixture['wordset_id'],
+            [$fixture['category_id']],
+            [$fixture['word_id']],
+            true
+        );
+        $this->assertIsArray($saved);
+        $this->assertSame($fixture['wordset_id'], (int) ($saved['state']['wordset_id'] ?? 0));
+    }
+
+    public function test_guarded_user_data_mutation_does_not_run_without_lock(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $callback_ran = false;
+        $deny_lock = static function (string $query): string {
+            return stripos($query, 'SELECT GET_LOCK(') !== false ? 'SELECT 0' : $query;
+        };
+        add_filter('query', $deny_lock);
+        try {
+            $result = ll_tools_offline_app_run_user_data_write_locked(
+                $user_id,
+                static function () use (&$callback_ran): bool {
+                    $callback_ran = true;
+                    return true;
+                }
+            );
+        } finally {
+            remove_filter('query', $deny_lock);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('user_data_mutation_lock_unavailable', $result->get_error_code());
+        $this->assertFalse($callback_ran);
+    }
+
+    public function test_stale_offline_event_with_unknown_payload_keys_is_processed_and_acknowledged(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $session = ll_tools_offline_app_create_session($user_id, [
+            'device_id' => 'stale-journal-device',
+            'profile_id' => 'stale-journal-profile',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $this->assertNotSame('', $token);
+
+        $fixture = $this->createOfflineSyncFixture();
+        $event_uuid = 'stale-offline-' . wp_generate_uuid4();
+        $response = $this->runOfflineSyncRequest([
+            'auth_token' => $token,
+            'events' => wp_json_encode([[
+                'event_uuid' => $event_uuid,
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $fixture['word_id'],
+                'category_id' => $fixture['category_id'],
+                'wordset_id' => $fixture['wordset_id'],
+                'payload' => [
+                    'recording_type' => 'question',
+                    'available_recording_types' => ['question', 'sentence'],
+                    'legacy_extension' => ['old' => str_repeat('x', 2000)],
+                    'self_check_bucket' => 'right',
+                    'device_id' => 'payload-device',
+                    'profile_id' => 'payload-profile',
+                ],
+            ]]),
+            'word_ids' => wp_json_encode([$fixture['word_id']]),
+        ]);
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $stats = (array) (($response['data'] ?? [])['stats'] ?? []);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+        $this->assertSame(0, (int) ($stats['invalid'] ?? -1));
+        $this->assertSame(0, (int) ($stats['failed'] ?? -1));
+        $this->assertSame([], array_values((array) ($stats['failed_event_uuids'] ?? [])));
+
+        $stored_payload = json_decode((string) $wpdb->get_var($wpdb->prepare(
+            'SELECT payload_json FROM ' . ll_tools_user_progress_table_names()['events'] . ' WHERE event_uuid = %s',
+            $event_uuid
+        )), true);
+        $this->assertSame([
+            'recording_type' => 'question',
+            'available_recording_types' => ['question', 'sentence'],
+        ], $stored_payload);
+    }
+
     public function test_offline_app_session_table_enforces_eight_session_limit_without_rewriting_user_meta(): void
     {
         global $wpdb;
@@ -818,6 +1170,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $first_login_data = is_array($first_login['data'] ?? null) ? $first_login['data'] : [];
             $this->assertNotSame('', (string) ($first_login_data['auth_token'] ?? ''));
             $this->assertSame($user_id, (int) (($first_login_data['user'] ?? [])['id'] ?? 0));
+            $this->assertSame(0, (int) ll_tools_offline_app_get_login_rate_limit_status($ip)['attempts']);
 
             $_POST = [
                 'identifier' => $username,
@@ -837,13 +1190,13 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $this->assertFalse((bool) ($second_login['success'] ?? true));
             $this->assertSame('Invalid login.', (string) (($second_login['data'] ?? [])['message'] ?? ''));
             $limited_status = ll_tools_offline_app_get_login_rate_limit_status($ip);
-            $this->assertTrue((bool) ($limited_status['limited'] ?? false));
-            $this->assertSame(2, (int) ($limited_status['attempts'] ?? 0));
+            $this->assertFalse((bool) ($limited_status['limited'] ?? true));
+            $this->assertSame(1, (int) ($limited_status['attempts'] ?? 0));
             $this->assertSame(2, (int) ($limited_status['limit'] ?? 0));
 
             $_POST = [
                 'identifier' => $username,
-                'password' => $password,
+                'password' => 'wrong-password-again',
             ];
             $_REQUEST = $_POST;
 
@@ -857,9 +1210,28 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             }
 
             $this->assertFalse((bool) ($third_login['success'] ?? true));
+            $this->assertSame('Invalid login.', (string) (($third_login['data'] ?? [])['message'] ?? ''));
+            $this->assertSame(2, (int) ll_tools_offline_app_get_login_rate_limit_status($ip)['attempts']);
+
+            $_POST = [
+                'identifier' => $username,
+                'password' => $password,
+            ];
+            $_REQUEST = $_POST;
+
+            try {
+                $blocked_login = $this->run_json_endpoint(static function (): void {
+                    ll_tools_offline_app_login_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertFalse((bool) ($blocked_login['success'] ?? true));
             $this->assertSame(
                 'Too many login attempts. Please try again in a few minutes.',
-                (string) (($third_login['data'] ?? [])['message'] ?? '')
+                (string) (($blocked_login['data'] ?? [])['message'] ?? '')
             );
         } finally {
             ll_tools_offline_app_reset_login_attempts($ip);
@@ -984,6 +1356,59 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             } else {
                 $_SERVER['REMOTE_ADDR'] = $previous_remote_addr;
             }
+        }
+    }
+
+    public function test_offline_sync_refunds_token_reservation_when_ip_admission_fails(): void
+    {
+        $ip = '198.51.100.29';
+        $first_token = 'llapp.1.first.token';
+        $second_token = 'llapp.1.second.token';
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 10;
+            $config['resource_unit_limit'] = 100;
+            $config['ip_request_limit'] = 1;
+            $config['ip_resource_unit_limit'] = 100;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        try {
+            ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
+            ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+
+            $first = ll_tools_offline_app_check_sync_throttle($first_token, 1, true, $ip);
+            $blocked = ll_tools_offline_app_check_sync_throttle($second_token, 1, true, $ip);
+            $second_status = ll_tools_offline_app_get_sync_throttle_status($second_token, 1, $ip);
+
+            $this->assertFalse($first['limited']);
+            $this->assertTrue($blocked['limited']);
+            $this->assertSame('ip', $blocked['scope']);
+            $this->assertSame(0, (int) (($second_status['token'] ?? [])['requests'] ?? -1));
+            $this->assertSame(0, (int) (($second_status['token'] ?? [])['resource_units'] ?? -1));
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
+            ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+        }
+    }
+
+    public function test_offline_auth_tokens_are_byte_bounded_before_validation_or_throttle_hashing(): void
+    {
+        $valid_shape = 'llapp.1.' . str_repeat('a', 32) . '.' . str_repeat('B', 64);
+        $oversized = str_repeat('x', ll_tools_offline_app_auth_token_max_bytes() + 1);
+
+        $this->assertSame($valid_shape, ll_tools_offline_app_normalize_auth_token($valid_shape));
+        $this->assertSame('', ll_tools_offline_app_normalize_auth_token($oversized));
+        $this->assertSame('', ll_tools_offline_app_sync_token_identifier($oversized));
+        $this->assertNull(ll_tools_offline_app_authenticate_token($oversized, false));
+
+        $previous_post = $_POST;
+        try {
+            $_POST = ['auth_token' => $oversized];
+            $this->assertSame('', ll_tools_offline_app_request_auth_token());
+        } finally {
+            $_POST = $previous_post;
         }
     }
 

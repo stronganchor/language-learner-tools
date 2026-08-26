@@ -2378,8 +2378,16 @@ function ll_tools_quiz_pages_catalog_loading_notice(): string {
         . ' data-nonce="' . esc_attr(wp_create_nonce('ll_quiz_catalog_warmup_' . $scope_id)) . '"'
         . ' data-scope-id="' . esc_attr($scope_id) . '"'
         . ' data-refresh-url="' . esc_url($refresh_url) . '"'
-        . ' data-retry-ms="1200" data-max-attempts="' . esc_attr((string) ll_tools_quiz_pages_catalog_warmup_max_attempts()) . '">'
-        . esc_html__('Loading quiz...', 'll-tools-text-domain')
+        . ' data-retry-ms="1200" data-max-attempts="' . esc_attr((string) ll_tools_quiz_pages_catalog_warmup_max_attempts()) . '"'
+        . ' data-request-timeout-ms="15000"'
+        . ' data-loading-message="' . esc_attr__('Loading quiz...', 'll-tools-text-domain') . '"'
+        . ' data-timeout-message="' . esc_attr__('The quiz loading request timed out.', 'll-tools-text-domain') . '"'
+        . ' data-error-message="' . esc_attr__('The quiz could not be loaded yet.', 'll-tools-text-domain') . '"'
+        . ' data-exhausted-message="' . esc_attr__('Quiz loading is taking longer than expected.', 'll-tools-text-domain') . '">'
+        . '<span data-ll-quiz-catalog-message>' . esc_html__('Loading quiz...', 'll-tools-text-domain') . '</span>'
+        . ' <button type="button" class="ll-quiz-pages-catalog-retry" data-ll-quiz-catalog-retry hidden>'
+        . esc_html__('Retry', 'll-tools-text-domain')
+        . '</button>'
         . ' <a href="' . esc_url($manual_refresh_url) . '">'
         . esc_html__('Refresh', 'll-tools-text-domain')
         . '</a></p>';

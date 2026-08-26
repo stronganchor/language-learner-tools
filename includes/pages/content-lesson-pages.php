@@ -1288,12 +1288,15 @@ function ll_tools_content_lesson_enqueue_assets(): void {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'action' => 'll_tools_content_lesson_completion',
             'nonce' => wp_create_nonce('ll_tools_content_lesson_completion'),
+            'requestTimeoutMs' => 15000,
             'i18n' => [
                 'complete' => __('Completed', 'll-tools-text-domain'),
                 'incomplete' => __('Mark complete', 'll-tools-text-domain'),
                 'saving' => __('Saving...', 'll-tools-text-domain'),
                 'saved' => __('Progress saved.', 'll-tools-text-domain'),
                 'error' => __('Lesson progress could not be saved.', 'll-tools-text-domain'),
+                'timeout' => __('Saving took too long. Please retry.', 'll-tools-text-domain'),
+                'retry' => __('Retry', 'll-tools-text-domain'),
             ],
         ]);
     }
@@ -1306,10 +1309,12 @@ function ll_tools_content_lesson_enqueue_assets(): void {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'action' => 'll_tools_save_text_document_review_note',
             'nonce' => wp_create_nonce('ll_text_document_review_note'),
+            'requestTimeoutMs' => 12000,
             'i18n' => [
                 'saving' => __('Saving review note...', 'll-tools-text-domain'),
                 'saved' => __('Review note saved.', 'll-tools-text-domain'),
                 'error' => __('Unable to save the review note.', 'll-tools-text-domain'),
+                'timeout' => __('Saving the review note timed out. Try again.', 'll-tools-text-domain'),
             ],
         ]);
     }

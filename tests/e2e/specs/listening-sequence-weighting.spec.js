@@ -65,6 +65,143 @@ test('listening initialize defers bulk category loads until after startup', asyn
   expect(result.categoryLoadCalls).toEqual([]);
 });
 
+test('bounded listening append preserves heard words and exposes the full logical total', async ({ page }) => {
+  await page.goto('about:blank');
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    const heard = [
+      { id: 101, title: 'heard-1', label: 'heard-1', __categoryName: 'CatA' },
+      { id: 102, title: 'heard-2', label: 'heard-2', __categoryName: 'CatA' }
+    ];
+    const next = [
+      { id: 201, title: 'next-1', label: 'next-1', __categoryName: 'CatB' },
+      { id: 202, title: 'next-2', label: 'next-2', __categoryName: 'CatB' }
+    ];
+    window.FlashcardLoader = { loadedCategories: ['CatA', 'CatB'] };
+    window.llToolsFlashcardsData = {
+      logicalSessionTotal: 120,
+      sessionWordIds: [201, 202],
+      categories: [{ name: 'CatA' }, { name: 'CatB' }]
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        widgetActive: true,
+        isListeningMode: true,
+        categoryNames: ['CatA'],
+        wordsByCategory: { CatA: heard, CatB: next },
+        wordsLinear: heard.slice(),
+        listeningHistory: heard.slice(),
+        listenIndex: 2,
+        listeningLoop: false,
+        listeningRapidMode: true,
+        starModeOverride: null
+      },
+      Dom: {},
+      Cards: {},
+      Results: {},
+      Util: {},
+      Modes: {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  const result = await page.evaluate(() => {
+    const Listening = window.LLFlashcards.Modes.Listening;
+    const accepted = Listening.appendBoundedSelectionChunk(['CatB']);
+    return {
+      accepted,
+      wordIds: window.LLFlashcards.State.wordsLinear.map((word) => word.id),
+      listenIndex: window.LLFlashcards.State.listenIndex,
+      categories: window.LLFlashcards.State.categoryNames.slice(),
+      progress: Listening.getProgressDisplayState()
+    };
+  });
+
+  expect(result.accepted).toBe(true);
+  expect(result.wordIds).toEqual([101, 102, 201, 202]);
+  expect(result.listenIndex).toBe(2);
+  expect(result.categories).toEqual(['CatA', 'CatB']);
+  expect(result.progress).toMatchObject({ current: 2, total: 120 });
+});
+
+test('listening requests the next bounded chunk before showing final results', async ({ page }) => {
+  await page.goto('about:blank');
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    const heard = [{ id: 301, title: 'heard', label: 'heard', __categoryName: 'CatA' }];
+    window.__llListeningContinuationCalls = 0;
+    window.__llListeningResultsCalls = 0;
+    window.FlashcardLoader = {
+      loadedCategories: ['CatA'],
+      loadResourcesForWord() { return Promise.resolve({ ready: true }); },
+      isCategoryLoaded() { return true; },
+      isCategoryLoading() { return false; }
+    };
+    window.FlashcardAudio = { pauseAllAudio() {} };
+    window.llToolsFlashcardsData = { categories: [{ name: 'CatA' }] };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+    window.LLFlashcards = {
+      State: {
+        STATES: { SHOWING_RESULTS: 'showing_results' },
+        widgetActive: true,
+        isListeningMode: true,
+        isFirstRound: false,
+        listeningPaused: false,
+        listeningLoop: true,
+        listeningRapidMode: true,
+        categoryNames: ['CatA'],
+        currentCategoryName: 'CatA',
+        currentCategory: heard,
+        wordsByCategory: { CatA: heard },
+        wordsLinear: heard.slice(),
+        listeningHistory: heard.slice(),
+        listenIndex: 1,
+        addTimeout() {},
+        transitionTo() { return true; },
+        forceTransitionTo() { return true; },
+        onStateChange() { return function () {}; }
+      },
+      Dom: { showLoading() {} },
+      Cards: {},
+      Results: {
+        showResults() { window.__llListeningResultsCalls += 1; }
+      },
+      Util: {},
+      Modes: {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+  const result = await page.evaluate(() => {
+    const Listening = window.LLFlashcards.Modes.Listening;
+    Listening.runRound({
+      FlashcardLoader: window.FlashcardLoader,
+      FlashcardAudio: window.FlashcardAudio,
+      Results: window.LLFlashcards.Results,
+      tryContinueLogicalSession() {
+        window.__llListeningContinuationCalls += 1;
+        return true;
+      }
+    });
+    return {
+      continuationCalls: window.__llListeningContinuationCalls,
+      resultsCalls: window.__llListeningResultsCalls,
+      listenIndex: window.LLFlashcards.State.listenIndex
+    };
+  });
+
+  expect(result).toEqual({
+    continuationCalls: 1,
+    resultsCalls: 0,
+    listenIndex: 1
+  });
+});
+
 test('listening category prefetch advances in bounded windows and invalidates old-session requests', async ({ page }) => {
   await page.goto('about:blank');
   const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');

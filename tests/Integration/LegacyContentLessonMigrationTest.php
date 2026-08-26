@@ -546,6 +546,44 @@ final class LegacyContentLessonMigrationTest extends LL_Tools_TestCase
         $this->assertCount(1, (array) ($audit['errors'] ?? []));
     }
 
+    public function test_completion_apply_is_fenced_during_privacy_erasure(): void
+    {
+        $wordset_id = $this->createWordset('Privacy-fenced completion apply');
+        $source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Privacy-fenced completion source',
+        ]);
+        $migration = ll_tools_migrate_legacy_lesson_post(
+            $source_id,
+            $wordset_id,
+            ['apply' => true]
+        );
+        $this->assertIsArray($migration);
+        $target_id = ll_tools_find_content_lesson_by_legacy_source($source_id);
+        $this->assertGreaterThan(0, $target_id);
+
+        $user_id = self::factory()->user->create();
+        $this->assertNotFalse(update_user_meta($user_id, 'tt_completed_lessons', [$source_id]));
+        $lease = ll_tools_privacy_begin_user_lms_erasure($user_id, 'legacy-completion-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $result = ll_tools_migrate_legacy_lesson_completions_batch(
+                $wordset_id,
+                ['after_id' => 0, 'limit' => 1, 'apply' => true]
+            );
+            $this->assertWPError($result);
+            $this->assertSame('user_data_privacy_erasure_in_progress', $result->get_error_code());
+            $this->assertFalse(metadata_exists(
+                'user',
+                $user_id,
+                LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META
+            ));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($user_id, (string) $lease));
+        }
+    }
+
     public function test_favorites_extractor_fails_closed_when_associations_exceed_limit(): void
     {
         $limit = static function (): int {

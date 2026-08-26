@@ -1,27 +1,165 @@
 # Maintenance Backlog
 
-Updated August 12, 2026 after revalidating the July 31 audit against the current
-repository and fixing every still-actionable item. The August 12 work moves
-schema repair and legacy IPA cleanup out of public request work, rejects
-oversized study payloads before decoding/hydration, completes word-editor and
-recorder dialog behavior, centralizes invitation and multisite registration
-contracts, corrects flat-category copy, and strengthens translation and
-compatibility coverage.
+Updated August 26, 2026 during the 6.7.32 stability and stable-release pass.
+The current pass fixes verified privacy/session, progress-analytics, focus,
+accessibility, release-documentation, and i18n-tooling defects while leaving
+larger storage and compatibility work below for deliberate design. No real
+Google provider authorization was attempted.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## Current Short List
 
-The active maintenance list is narrowed to changes that need product,
-compatibility, storage, live evidence, or human-language judgment. Remaining
-work is native review of machine-assisted German and residual Turkish
-admin/formal copy, any future decision to remove externally callable
-compatibility helpers, and a durable lesson-map materializer only if production
-measurements justify replacing the winning cold full scan. Keep new
-performance work evidence-led and scoped to a measured growth dimension.
+The active maintenance list is narrowed to work that needs product,
+compatibility, schema/backfill, live evidence, credentials, or human-language
+judgment:
+
+- Native review of machine-assisted German and residual Turkish admin/formal
+  copy. Automated completeness and curated high-confidence regressions do not
+  establish native fluency across the full catalogs.
+- Real Google OAuth/provider sandbox acceptance. The local browser fixture now
+  covers safe unconfigured and mocked connected states, but no local test can
+  authorize Marketplace, CourseWork, or grade-passback claims.
+- A normalized teacher-class membership table only if measured class size,
+  deserialization cost, or assignment latency justifies a dual-write/backfill
+  migration.
+- Class-wide deletion serialization. Membership add/remove and privacy unlink
+  now use a consistent user-to-class lock order, but
+  `ll_tools_teacher_class_delete()` snapshots members and deletes the class
+  without a class-scoped deletion lock. A concurrent add can leave reverse user
+  meta pointing to a deleted class. Use a shared class advisory lock or durable
+  deleting state before changing the current ordering.
+- Legacy Favorites privacy ownership. Completion migration reads the external
+  `simplefavorites` user-meta key, but LL Tools must not erase that whole key
+  because it can contain unrelated favorites. Before any future replay on a
+  site that still uses the old Favorites plugin, define an owner-aware way to
+  remove only lesson-completion associations for erased users.
+- Direct LMS writer API locking. Current browser/request handlers take the
+  learner advisory lock and recheck the privacy fence before writes, but the
+  currently unused grade-delivery identity/recipient constructors and direct
+  low-level progress/meta helpers do not establish that boundary themselves.
+  Before a new adapter or integration calls those helpers directly, wrap their
+  final lookup/write in the learner-row transaction lock, recheck the fence,
+  and add a deterministic delete/write interleaving test.
+- Resumable Audio Processor file cleanup. The recording post deletion receipt
+  becomes terminal after unchecked file unlinks and does not reliably retain a
+  failed final receipt/parent cleanup. Use explicit durable deletion phases and
+  bounded orphan cleanup rather than retrying destructive steps implicitly.
+- Completeness-aware teacher/admin progress reports. Query failures in
+  `ll_tools_user_progress_report_query_users()` and
+  `ll_tools_user_progress_report_stats_for_users()` can reach teacher-class
+  rendering as empty/zero progress. Propagate a typed incomplete result and
+  render an unavailable state instead of a valid-looking zero.
+- An explicit compatibility contract for progress events without an
+  `event_uuid`. The sanitizer and retryable-failure helper currently generate a
+  fresh UUID, so a legacy retry can bypass ledger deduplication; simply rejecting
+  missing UUIDs may break older clients. Choose a deterministic fallback or a
+  bounded compatibility sunset with tests.
+- A bounded/materialized IPA Keyboard lesson URL map. The cold
+  `ll_tools_ipa_keyboard_get_wordset_lesson_url_map()` path loads every published
+  vocabulary lesson with `posts_per_page => -1`, disables meta priming, and then
+  resolves category meta/permalinks per lesson. Replace it only with measured,
+  paged or materialized behavior that preserves category-to-lesson links.
+- A durable lesson-map materializer only if production measurements justify
+  replacing the winning cold full scan.
+
+Keep performance work evidence-led and scoped to a measured growth dimension.
+The local Google Classroom and authorized-private-wordset browser gaps are now
+closed with controlled fixtures; live provider/site assertions remain outside
+the normal regression suite.
+
+### Current verification inventory (August 26)
+
+- `PublicUiTranslationManifestTest` now includes a database-free canonical
+  source/POT key comparison backed by a temporary WP-CLI extraction. The
+  standalone command is `php scripts/check-i18n-source-pot.php`; it must be
+  green after the catalog refresh and before catalog-count or locale-coverage
+  checks are accepted. The source-frozen POT and complete Turkish/German core
+  catalogs contain 6,278 canonical keys each; both compiled MO/PHP catalogs
+  match exactly. The active public manifest and all eight active tier-2 locales
+  pass 796/796.
+- The maintenance browser contract owns both automation REST documentation and
+  all eight routes registered by `includes/api/lms-rest.php`.
+- The WordPress-backed teacher Classes invite scenario covers latest Practice
+  score/date, 30-day attempt counts, dynamic column indexes, descending order,
+  `aria-sort`, and focus retention. It requires the serial Local Playwright
+  environment and admin credentials.
+- Final Playwright discovery lists **706 tests in 108 files**. Eight serial
+  shards account for every case: 705 passed and the opt-in seeded performance
+  benchmark skipped once as expected, with zero failures.
+- Both release-scale performance profiles passed without writing history. The
+  Genç fixture (209 categories, 2,717 words) passed 10/10 scenarios; the
+  stress-2x fixture (100 categories, 5,000 words, 15,000 audio records, and
+  5,100 images/attachments) passed 8/8 scenarios.
+- Final PHPUnit result: **2,324 tests, 59,337 assertions, 8 expected skips**.
+  The standard complete suite exited successfully.
 
 ## Recently Closed
+
+- August 23 progress-event schema inventory: a 143,173-row fixed-high-water
+  scan covered all six controlled sites. The 36,867 rows on WordBoat,
+  NepaliBasics, YerelArapca, StarterEnglish, and TurkishTextbook matched the
+  first-party payload schema exactly. Zazaca's 106,306 rows contained only 23
+  early self-check events with the obsolete diagnostic key `placement`; there
+  is no current producer or external integration for it.
+  Existing rows remain untouched because derived state ignores the key. New
+  browser and offline events are rebuilt from exact per-event key unions, so
+  unknown or cross-event fields are dropped while stale journals are still
+  acknowledged. Nested payload identity can no longer bypass the explicit
+  identity-storage policy.
+
+- August 23 controlled-fleet compatibility cleanup: exact source and database
+  scans across WordBoat, Zazaca, NepaliBasics, YerelArapca, StarterEnglish, and
+  TurkishTextbook found no external consumers of the audited global helpers or
+  recorder category-page query/filter contract. The unused wrappers, unbounded
+  category media helpers, synchronous quiz/category-delete shims, and
+  first-party-unreachable pre-stream recorder branches were removed while the
+  active stream, focused, hidden, and recorder-paging paths remain covered.
+  Module splitting is closed as unnecessary without a measured route-cost or
+  ownership failure; existing route-specific asset gating is the current answer.
+
+- August 21 documentation, localization-contract, and teacher-report coverage:
+  source gettext keys are compared with the checked-in POT without regenerating
+  repository catalogs; the REST documentation contract now includes the eight
+  native LMS assignment/attempt routes and their cookie-authenticated ownership
+  boundary. The teacher Classes browser fixture now records canonical
+  `mode_session_complete` Practice results and verifies the two new report
+  columns. Its sort assertions resolve each header's live `cellIndex`, closing
+  the stale hard-coded index failure introduced when the Practice columns were
+  inserted, and also cover sort state plus retained button focus.
+
+- August 21 public admission and auth resource protection: shared counters use
+  atomic fixed-window reservations and exact-unit refunds; public login,
+  registration, username suggestions, offline login/sync, lazy cards, and vocab
+  grids bound raw inputs before expensive parsing, hashing, or queries. Generic
+  rejected-request feedback reuses a bounded stable token while ordinary
+  feedback remains one-shot.
+
+- August 21 progress/report protection: event payloads enforce exact encoded
+  byte, dynamic node, and depth budgets before and after enrichment while still
+  supporting the 1,000-category session contract. Teacher Practice reporting
+  replaces per-learner query round trips with adaptive bounded UNION batches,
+  excludes payloads above 16 KiB, keeps the aggregate query near 24 MiB, and
+  shows translated unavailable cells when a query fails instead of false zeroes.
+
+- August 21 asynchronous recovery and autosave integrity: content completion,
+  quiz-catalog warming, the Word Options modal, and other unavoidable waits now
+  settle into translated Retry/error states with generation fences and focus
+  recovery. Text-document review notes use one-flight/latest-queued browser
+  saves and server compare-and-set retries so concurrent edits cannot silently
+  overwrite each other.
+
+- August 21 Audio Processor deletion: processing and deleting share one mutex;
+  bulk work uses bounded concurrency and deadlines; the server uses user-scoped
+  pending/deleted receipts plus exact-owner leases, deletes the post before
+  unlinking files, preserves a vetoed live recording, and makes a retry
+  idempotent.
+
+- August 21 browser gap closure: local WordPress-backed fixtures now cover the
+  Google Classroom unconfigured/mocked-connected admin states and private
+  wordset access through assigned-manager lazy hydration, unassigned-user 404,
+  and anonymous 404. They intentionally make no live-provider claim.
 
 - August 12 schema, migration, and study-request protection:
   offline-session, learner-progress, dictionary, wordset-category-search, and
@@ -437,8 +575,12 @@ performance work evidence-led and scoped to a measured growth dimension.
 
 3. Keep the audited helper decisions explicit.
    - `ll_tools_dictionary_get_scope_filter_index()` is currently an internal/cache-validation helper covered by tests; keep it until dictionary filters render from a precomputed index or remove it together with the cache-validation test.
-   - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` is a legacy supported-language-map helper, not a duplicate of the wordset source/target resolver `ll_tools_get_deepl_language_codes()`. Keep it for compatibility unless a future external-usage audit proves it can be deprecated.
-   - `ll_tools_word_option_rules_get_word_posts()` is the bounded default-page compatibility wrapper over `ll_tools_word_option_rules_get_word_page()`, and `ll_find_words_missing_word_images()` is the bounded compatibility wrapper over `ll_word_images_fixer_scan_batch()`. Neither currently has an internal production caller, but keep them until an external-usage/compatibility audit proves removal is safe.
+   - The August 23 controlled-fleet source/database scan found no consumers of
+     `get_deepl_language_codes()`, `ll_tools_word_option_rules_get_word_posts()`,
+     `ll_find_words_missing_word_images()`,
+     `ll_tools_wordset_page_delete_category_for_wordset()`, or
+     `ll_tools_cleanup_invalid_quiz_pages()`. Those wrappers are removed; use
+     their bounded canonical APIs rather than recreating compatibility aliases.
 
 4. Keep architecture and operator docs current after large feature work.
    - `CODEBASE_ARCHITECTURE.md` now includes the newer cache, automation, offline, prompt-audio, teacher-class, and dictionary-source modules, plus a source-contract-guarded direct bootstrap include index. Keep refreshing narrative flow docs whenever another large workflow lands.
@@ -469,11 +611,10 @@ performance work evidence-led and scoped to a measured growth dimension.
 - One prompt card may include at most 300 bounded support-word IDs in the
   materializer. Supporting larger cards needs a nested durable support cursor
   or an explicit content-validation policy, not a higher synchronous cap.
-- The pre-stream manager recorder overview appears unreachable through current
-  internal production routing, while focused and hidden paged recorder modes
-  remain active. Retain the old global PHP helpers as compatibility-only until a
-  human review confirms that themes or integrations do not call them; removal
-  is not safe as an autonomous maintenance deletion.
+- The pre-stream manager recorder overview and its category-page query/filter
+  contract were removed after the controlled-fleet scan found no consumers.
+  Normal visible manager queues use the bounded stream; focused and hidden
+  modes plus hidden recorder paging remain active and covered.
 - Turkish full-catalog completeness is now a hard source/test/automation
   contract. The runtime blank filter remains defense in depth for interrupted
   local merges, but a scheduled upkeep run cannot close or advance its HEAD
@@ -496,6 +637,19 @@ performance work evidence-led and scoped to a measured growth dimension.
   taxonomy admin queues a notice and continues; unify it only after choosing an
   explicit mutation/error policy. Smaller game/font settings duplication is a
   low-risk future cleanup.
+- Earlier audit item 3 meant the Teacher Practice report-query scaling risk.
+  The report no longer issues one event-history query per
+  learner or accepts large event payloads into each batch. It now queries only
+  the already-paged roster with adaptive UNION batches, a 500+1 row sentinel,
+  a 16 KiB payload filter, and an approximately 24 MiB aggregate-query budget.
+  That is the bounded solution for the current Classes page, so no product or
+  schema decision is needed now. The remaining rows-examined risk is that the
+  existing `(user_id, wordset_id, created_at)` index cannot seek directly on
+  the later `event_type`, `mode`, and payload-size filters. If production
+  latency becomes material, capture `EXPLAIN`, row cardinality, and request
+  timing first; use that evidence to choose an online composite index or a
+  durable Practice summary. Either choice adds schema, backfill, invalidation,
+  and rollback work and should not be made from local file size alone.
 - Teacher-class membership remains duplicated in serialized class/user meta.
   Large classes still deserialize the complete member-ID array for counts and
   pass it to assignment exclusion before bounded progress hydration. A future
@@ -503,6 +657,11 @@ performance work evidence-led and scoped to a measured growth dimension.
   keyset progress/assignment queries while preserving a tested dual-write,
   backfill, and rollback window; do not replace the bounded admin path with a
   full progress scan to recover class-wide page metrics.
+- Audio Processor deletion captures paths before deleting the post, but an
+  unlink failure after a successful post deletion can still leave an orphaned
+  file. Keep that rare cleanup out of the interactive request unless it is
+  observed in operation; if needed, add a bounded uploads audit/cleanup job with
+  dry-run and explicit path-scope verification.
 - Offline app service-worker/install behavior is still a future coverage item
   only if a browser PWA/service-worker runtime is added; the current offline app
   path is a local-first web/APK shell and does not register a service worker.
@@ -547,14 +706,7 @@ performance work evidence-led and scoped to a measured growth dimension.
      `/learn/<wordset>/...`, with old root pretty URLs preserved through narrow
      redirects.
 
-2. Split the largest modules along existing ownership boundaries.
-   - `includes/pages/wordset-pages.php` (roughly 27k lines as measured July 17, 2026): routing, teacher classes, settings, render helpers, analytics payloads, games launch, and mixed-grid rendering are packed together.
-   - `includes/admin/export-import.php` (roughly 16.6k lines as measured July 17, 2026): import preview, undo, export, offline-ish payload work, and admin rendering should become smaller services/controllers.
-   - `includes/shortcodes/word-grid-shortcode.php` (roughly 11.3k lines as measured July 17, 2026): rendering, inline edit handling, media selection, REST/AJAX helpers, and lesson-grid behavior need clearer boundaries.
-   - `includes/shortcodes/audio-recording-shortcode.php` (roughly 10.2k lines as measured July 17, 2026): recorder UI, queue construction, upload handling, prompt-card handling, and translation helpers should be separated.
-   - `js/wordset-pages.js` and `js/wordset-games.js` are both large enough to make targeted game/page work riskier than it needs to be.
-
-3. Continue the tier-2 public UI translation rollout deliberately.
+2. Continue the tier-2 public UI translation rollout deliberately.
    - Run a QA pass over `languages/tier2-public-ui-strings.json` to reduce the
      public string set by removing unnecessary copy, replacing text with icons
      where appropriate, and reusing existing strings where the context allows.

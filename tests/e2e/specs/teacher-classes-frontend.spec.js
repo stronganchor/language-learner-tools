@@ -460,12 +460,22 @@ async function loginAsUser(page, username, password, targetPath) {
   await expect(page.locator('#loginform')).toBeVisible({ timeout: 30000 });
   await page.fill('#user_login', username);
   await page.fill('#user_pass', password);
-  await Promise.all([
-    page.waitForURL((url) => loginTargetMatches(url.toString(), targetPath), {
-      timeout: 60000
-    }),
-    page.click('#wp-submit')
-  ]);
+  const targetNavigation = page.waitForURL(
+    (url) => loginTargetMatches(url.toString(), targetPath),
+    { timeout: 60000, waitUntil: 'commit' }
+  ).then(() => null, (error) => error);
+  await page.locator('#loginform').evaluate((form) => {
+    HTMLFormElement.prototype.submit.call(form);
+  });
+  const navigationError = await targetNavigation;
+  if (navigationError) {
+    const cookies = await page.context().cookies();
+    const authenticated = cookies.some((cookie) => cookie.name.startsWith('wordpress_logged_in_'));
+    if (!authenticated) {
+      throw navigationError;
+    }
+    await page.goto(targetPath, { waitUntil: 'commit', timeout: 90000 });
+  }
   await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
   await expect.poll(() => loginTargetMatches(page.url(), targetPath), { timeout: 60000 }).toBe(true);
 }
@@ -544,19 +554,29 @@ async function deleteClassFromAdmin(page, classId, className) {
 }
 
 async function cleanupTeacherTest(page, classId, className, fixtures, bodyError) {
+  const cleanupErrors = [];
   try {
     await deleteClassFromAdmin(page, classId, className);
-    await deleteTeacherFixtures(page, fixtures);
-  } catch (cleanupError) {
-    if (bodyError) {
-      throw new AggregateError(
-        [bodyError, cleanupError],
-        'Teacher class test and cleanup both failed.',
-        { cause: bodyError }
-      );
-    }
-    throw cleanupError;
+  } catch (error) {
+    cleanupErrors.push(error);
   }
+  try {
+    await deleteTeacherFixtures(page, fixtures);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  if (cleanupErrors.length === 0) {
+    return;
+  }
+  if (bodyError) {
+    throw new AggregateError(
+      [bodyError, ...cleanupErrors],
+      'Teacher class test and cleanup both failed.',
+      { cause: bodyError }
+    );
+  }
+  throw new AggregateError(cleanupErrors, 'Teacher class cleanup failed.');
 }
 
 async function registerLearnerFromSignupLink(page, signupUrl, learner) {
@@ -600,11 +620,11 @@ async function rememberRegisteredLearnerId(page, fixtures) {
   fixtures.registeredLearnerUserId = registeredLearner.id;
 }
 
-async function recordLearnerProgress(page, fixtures, learner, wordIds) {
+async function recordLearnerProgress(page, fixtures, learner, wordIds, practiceResults = []) {
   const wordsetPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}`;
   await loginAsUser(page, learner.username, learner.password, wordsetPath);
 
-  const result = await page.evaluate(async ({ categoryId, eventWordIds, wordsetId }) => {
+  const result = await page.evaluate(async ({ categoryId, eventWordIds, resultPayloads, wordsetId }) => {
     const config = window.llWordsetPageData || {};
     if (!config.ajaxUrl || !config.nonce) {
       return { ok: false, message: 'missing-progress-config' };
@@ -620,6 +640,26 @@ async function recordLearnerProgress(page, fixtures, learner, wordIds) {
       wordset_id: wordsetId,
       client_created_at: createdAt
     }));
+    resultPayloads.forEach((practiceResult, index) => {
+      events.push({
+        event_uuid: `e2e-result-${Date.now()}-${Math.floor(Math.random() * 100000)}-${index}`,
+        event_type: 'mode_session_complete',
+        mode: 'practice',
+        category_id: categoryId,
+        wordset_id: wordsetId,
+        client_created_at: createdAt,
+        payload: {
+          category_ids: [categoryId],
+          result: {
+            schema: 1,
+            kind: 'practice_first_try',
+            score_given: practiceResult.scoreGiven,
+            score_maximum: practiceResult.scoreMaximum,
+            score_basis: 'first_try_distinct_words'
+          }
+        }
+      });
+    });
 
     const params = new URLSearchParams();
     params.set('action', 'll_user_study_progress_batch');
@@ -646,6 +686,7 @@ async function recordLearnerProgress(page, fixtures, learner, wordIds) {
   }, {
     categoryId: fixtures.categoryId,
     eventWordIds: wordIds,
+    resultPayloads: practiceResults,
     wordsetId: fixtures.wordsetId
   });
 
@@ -653,7 +694,7 @@ async function recordLearnerProgress(page, fixtures, learner, wordIds) {
     throw new Error(`Failed to seed learner progress: HTTP ${result.status || 'unknown'} ${JSON.stringify(result.data || result.message)}`);
   }
 
-  expect(result.data.data.stats.processed).toBe(wordIds.length);
+  expect(result.data.data.stats.processed).toBe(wordIds.length + practiceResults.length);
 }
 
 test('teacher can create a frontend class and stays on the new class', async ({ page }) => {
@@ -843,11 +884,16 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     await recordLearnerProgress(page, fixtures, {
       password: fixtures.registeredLearnerPassword,
       username: fixtures.registeredLearnerUsername
-    }, fixtures.wordIds);
+    }, fixtures.wordIds, [
+      { scoreGiven: 2, scoreMaximum: 3 },
+      { scoreGiven: 1, scoreMaximum: 3 }
+    ]);
     await recordLearnerProgress(page, fixtures, {
       password: fixtures.existingLearnerPassword,
       username: fixtures.existingLearnerUsername
-    }, fixtures.wordIds.slice(0, 1));
+    }, fixtures.wordIds.slice(0, 1), [
+      { scoreGiven: 1, scoreMaximum: 1 }
+    ]);
 
     await loginAsUser(page, fixtures.teacherUsername, fixtures.teacherPassword, selectedClassPath());
     await expect(root).toBeVisible({ timeout: 60000 });
@@ -859,6 +905,46 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     const table = root.locator('[data-ll-teacher-classes-progress-table]');
     await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(2);
+    const registeredLearnerRow = table.locator('tbody tr').filter({
+      has: page.getByText(fixtures.registeredLearnerEmail, { exact: true })
+    });
+    const existingLearnerRow = table.locator('tbody tr').filter({
+      has: page.getByText(fixtures.existingLearnerEmail, { exact: true })
+    });
+    const latestPracticeSort = table.locator('[data-ll-teacher-classes-sort="latest_practice"]');
+    const attemptsSort = table.locator('[data-ll-teacher-classes-sort="practice_attempts_30d"]');
+    const latestPracticeColumnIndex = await latestPracticeSort.evaluate((button) => button.closest('th').cellIndex);
+    const attemptsColumnIndex = await attemptsSort.evaluate((button) => button.closest('th').cellIndex);
+
+    await expect(registeredLearnerRow.locator('td').nth(latestPracticeColumnIndex)).toContainText('1 / 3 (33.3%)');
+    await expect(existingLearnerRow.locator('td').nth(latestPracticeColumnIndex)).toContainText('1 / 1 (100%)');
+    await expect(registeredLearnerRow.locator('td').nth(latestPracticeColumnIndex).locator('time')).toContainText('Recorded ');
+    await expect(registeredLearnerRow.locator('td').nth(latestPracticeColumnIndex).locator('time')).toHaveAttribute(
+      'datetime',
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/
+    );
+    await expect(registeredLearnerRow.locator('td').nth(attemptsColumnIndex)).toHaveText('2');
+    await expect(existingLearnerRow.locator('td').nth(attemptsColumnIndex)).toHaveText('1');
+
+    await latestPracticeSort.focus();
+    await expect(latestPracticeSort).toBeFocused();
+    await latestPracticeSort.press('Enter');
+    await expect(latestPracticeSort).toBeFocused();
+    await expect(table).toHaveAttribute('data-sort-key', 'latest_practice');
+    await expect(table).toHaveAttribute('data-sort-direction', 'desc');
+    await expect(latestPracticeSort.locator('xpath=ancestor::th[1]')).toHaveAttribute('aria-sort', 'descending');
+    await expect(table.locator('tbody tr').first()).toContainText(fixtures.existingLearnerEmail);
+
+    await attemptsSort.focus();
+    await expect(attemptsSort).toBeFocused();
+    await attemptsSort.press('Enter');
+    await expect(attemptsSort).toBeFocused();
+    await expect(table).toHaveAttribute('data-sort-key', 'practice_attempts_30d');
+    await expect(table).toHaveAttribute('data-sort-direction', 'desc');
+    await expect(attemptsSort.locator('xpath=ancestor::th[1]')).toHaveAttribute('aria-sort', 'descending');
+    await expect(latestPracticeSort.locator('xpath=ancestor::th[1]')).toHaveAttribute('aria-sort', 'none');
+    await expect(table.locator('tbody tr').first()).toContainText(fixtures.registeredLearnerEmail);
+
     const roundsSort = table.locator('[data-ll-teacher-classes-sort="rounds_30d"]');
     const roundsColumnIndex = await roundsSort.evaluate((button) => {
       const header = button.closest('th');
@@ -872,9 +958,6 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     await expect(table.locator('tbody tr').first().locator('td').nth(roundsColumnIndex)).toHaveText('3');
     await expect(table.locator('tbody tr').nth(1).locator('td').nth(roundsColumnIndex)).toHaveText('1');
 
-    const existingLearnerRow = table.locator('tbody tr').filter({
-      has: page.getByText(fixtures.existingLearnerEmail, { exact: true })
-    });
     const removeForm = existingLearnerRow.locator('form:has(input[name="action"][value="ll_tools_teacher_remove_class_student"])');
     await expect(removeForm).toHaveCount(1);
 

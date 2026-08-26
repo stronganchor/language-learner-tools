@@ -6,10 +6,15 @@ const progressSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/content-lesson-progress.js'),
   'utf8'
 );
+const progressCss = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/content-lesson-pages.css'),
+  'utf8'
+);
 
-async function mountProgressControl(page) {
+async function mountProgressControl(page, options = {}) {
   await page.goto('https://example.test/');
   await page.setContent(`
+    <style>${progressCss}</style>
     <div class="ll-content-lesson-progress">
       <button
         type="button"
@@ -20,23 +25,26 @@ async function mountProgressControl(page) {
         <span class="ll-content-lesson-progress-button__icon">○</span>
         <span data-ll-content-lesson-progress-label>Mark complete</span>
       </button>
-      <span data-ll-content-lesson-progress-status data-state="idle"></span>
+      <span class="ll-content-lesson-progress-status" data-ll-content-lesson-progress-status data-state="idle"></span>
     </div>
   `);
-  await page.evaluate(() => {
+  await page.evaluate((requestTimeoutMs) => {
     window.llToolsContentLessonProgress = {
       ajaxUrl: 'https://example.test/wp-admin/admin-ajax.php',
       nonce: 'progress-nonce',
       action: 'll_tools_content_lesson_completion',
+      requestTimeoutMs,
       i18n: {
         complete: 'Completed',
         incomplete: 'Mark complete',
         saving: 'Saving...',
         saved: 'Progress saved.',
-        error: 'Lesson progress could not be saved.'
+        error: 'Lesson progress could not be saved.',
+        timeout: 'Saving took too long. Please retry.',
+        retry: 'Retry'
       }
     };
-  });
+  }, Number(options.requestTimeoutMs || 1000));
   await page.addScriptTag({ content: progressSource });
 }
 
@@ -102,6 +110,44 @@ test('content lesson completion keeps its prior state when saving fails', async 
   await expect(status).toHaveText('Completion is blocked.');
   await expect(button).toHaveAttribute('aria-pressed', 'false');
   await expect(button).toHaveAttribute('data-completed', '0');
-  await expect(button.locator('[data-ll-content-lesson-progress-label]')).toHaveText('Mark complete');
+  await expect(button.locator('[data-ll-content-lesson-progress-label]')).toHaveText('Retry');
   await expect(button).toBeEnabled();
+});
+
+test('content lesson completion times out, restores retry, and fences the stale attempt', async ({ page }) => {
+  let attempt = 0;
+  await page.route('https://example.test/**', async (route) => {
+    if (!route.request().url().includes('/wp-admin/admin-ajax.php')) {
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html>' });
+      return;
+    }
+    attempt += 1;
+    if (attempt === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { completed: true } })
+    });
+  });
+
+  await mountProgressControl(page, { requestTimeoutMs: 40 });
+  const button = page.locator('[data-ll-content-lesson-progress]');
+  const status = page.locator('[data-ll-content-lesson-progress-status]');
+  const label = button.locator('[data-ll-content-lesson-progress-label]');
+
+  await button.click();
+  await expect(status).toHaveAttribute('data-state', 'timeout');
+  await expect(status).toHaveText('Saving took too long. Please retry.');
+  await expect(status).toHaveCSS('color', 'rgb(159, 36, 29)');
+  await expect(label).toHaveText('Retry');
+  await expect(button).toBeEnabled();
+  await expect(button).toHaveAttribute('data-completed', '0');
+
+  await button.click();
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  await expect(label).toHaveText('Completed');
+  await expect(button).toHaveAttribute('data-completed', '1');
+  expect(attempt).toBe(2);
 });

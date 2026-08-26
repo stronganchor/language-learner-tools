@@ -21,7 +21,14 @@
         var refreshUrl = status.dataset.refreshUrl || window.location.href;
         var retryMs = Math.max(250, Math.min(5000, Number(status.dataset.retryMs) || 1200));
         var maxAttempts = Math.max(1, Math.min(600, Number(status.dataset.maxAttempts) || 120));
+        var requestTimeoutMs = Math.max(25, Math.min(120000, Number(status.dataset.requestTimeoutMs) || 15000));
+        var message = status.querySelector('[data-ll-quiz-catalog-message]');
+        var retryButton = status.querySelector('[data-ll-quiz-catalog-retry]');
         var attempts = 0;
+        var generation = 0;
+        var latestRequest = 0;
+        var scheduledTimer = 0;
+        var activeController = null;
 
         if (!ajaxUrl || !action || !nonce || !scopeId || typeof window.fetch !== 'function') {
             return;
@@ -29,31 +36,80 @@
 
         status.dataset.llQuizCatalogStarted = '1';
 
-        function schedule() {
-            if (attempts >= maxAttempts) {
-                return;
+        function setMessage(state, text) {
+            status.dataset.state = state;
+            if (message) {
+                message.textContent = text;
             }
-            window.setTimeout(requestStatus, retryMs);
         }
 
-        function requestStatus() {
+        function showExhausted() {
+            setMessage('exhausted', status.dataset.exhaustedMessage || 'Quiz loading is taking longer than expected.');
+            if (retryButton) {
+                retryButton.hidden = false;
+            }
+        }
+
+        function schedule(currentGeneration) {
+            if (currentGeneration !== generation) {
+                return;
+            }
+            if (attempts >= maxAttempts) {
+                showExhausted();
+                return;
+            }
+            scheduledTimer = window.setTimeout(function () {
+                requestStatus(currentGeneration);
+            }, retryMs);
+        }
+
+        function requestStatus(currentGeneration) {
+            if (currentGeneration !== generation) {
+                return;
+            }
             attempts += 1;
+            latestRequest += 1;
+            var requestId = latestRequest;
+            var timedOut = false;
+            var timeoutId = 0;
+            var controller = typeof window.AbortController === 'function' ? new window.AbortController() : null;
             var body = new window.URLSearchParams();
             body.set('action', action);
             body.set('nonce', nonce);
             body.set('scope_id', scopeId);
 
-            window.fetch(ajaxUrl, {
+            if (retryButton) {
+                retryButton.hidden = true;
+            }
+            setMessage('loading', status.dataset.loadingMessage || 'Loading quiz...');
+            activeController = controller;
+
+            var request = window.fetch(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
-                body: body.toString()
+                body: body.toString(),
+                signal: controller ? controller.signal : undefined
             }).then(function (response) {
                 if (!response.ok) {
                     throw new Error('quiz_catalog_warmup_failed');
                 }
                 return response.json();
-            }).then(function (payload) {
+            });
+            var deadline = new Promise(function (resolve, reject) {
+                timeoutId = window.setTimeout(function () {
+                    timedOut = true;
+                    if (controller) {
+                        controller.abort();
+                    }
+                    reject(new Error('quiz_catalog_warmup_timeout'));
+                }, requestTimeoutMs);
+            });
+
+            Promise.race([request, deadline]).then(function (payload) {
+                if (currentGeneration !== generation || requestId !== latestRequest) {
+                    return;
+                }
                 var data = payload && payload.success && payload.data ? payload.data : {};
                 if (data.ready) {
                     window.location.href = refreshUrl;
@@ -62,11 +118,42 @@
                 if (Number(data.retry_after_ms) > 0) {
                     retryMs = Math.max(250, Math.min(5000, Number(data.retry_after_ms)));
                 }
-                schedule();
-            }).catch(schedule);
+                schedule(currentGeneration);
+            }).catch(function () {
+                if (currentGeneration !== generation || requestId !== latestRequest) {
+                    return;
+                }
+                setMessage(
+                    timedOut ? 'timeout' : 'error',
+                    timedOut
+                        ? (status.dataset.timeoutMessage || 'The quiz loading request timed out.')
+                        : (status.dataset.errorMessage || 'The quiz could not be loaded yet.')
+                );
+                schedule(currentGeneration);
+            }).finally(function () {
+                window.clearTimeout(timeoutId);
+                if (currentGeneration === generation && requestId === latestRequest && activeController === controller) {
+                    activeController = null;
+                }
+            });
         }
 
-        requestStatus();
+        function restart() {
+            generation += 1;
+            latestRequest += 1;
+            attempts = 0;
+            window.clearTimeout(scheduledTimer);
+            if (activeController) {
+                activeController.abort();
+                activeController = null;
+            }
+            requestStatus(generation);
+        }
+
+        if (retryButton) {
+            retryButton.addEventListener('click', restart);
+        }
+        restart();
     }
 
     function initializeCatalogWarmups() {

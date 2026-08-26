@@ -64,6 +64,10 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertIsString($localized_messages);
             $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_messages);
             $this->assertStringContainsString('closeQuizConfirm', $localized_messages);
+            $this->assertStringContainsString(
+                'Exit this activity? Completed rounds are saved, but this activity will restart.',
+                $localized_messages
+            );
             $this->assertStringContainsString('playAudio', $localized_messages);
             $this->assertStringContainsString('playWordAudio', $localized_messages);
             $this->assertStringContainsString('playOptionAudio', $localized_messages);

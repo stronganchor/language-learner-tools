@@ -183,16 +183,24 @@ function restMethodsFromDefinition(definition) {
   return ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].filter((method) => methods.has(method));
 }
 
-function collectRegisteredLlToolsRestRoutes() {
-  const sourceFiles = [
-    path.join(repoRoot, 'includes', 'api', 'automation-rest.php'),
-    path.join(repoRoot, 'includes', 'lib', 'site-sync.php')
-  ];
+const automationRestSourceFiles = [
+  path.join(repoRoot, 'includes', 'api', 'automation-rest.php'),
+  path.join(repoRoot, 'includes', 'lib', 'site-sync.php')
+];
+const lmsRestSourceFiles = [
+  path.join(repoRoot, 'includes', 'api', 'lms-rest.php')
+];
+
+function collectRegisteredLlToolsRestRoutes(sourceFiles = automationRestSourceFiles) {
   const routeRegex = /register_rest_route\(\s*['"]ll-tools\/v1['"]\s*,\s*['"]([^'"]+)['"]\s*,\s*\[([\s\S]*?)\]\s*\);/g;
   const routes = [];
 
   for (const file of sourceFiles) {
-    const source = fs.readFileSync(file, 'utf8');
+    // LMS UUID routes concatenate one shared regex variable inside the quoted
+    // route. Collapse that exact static expression before extracting paths so
+    // the documentation contract sees the whole registered route.
+    const source = fs.readFileSync(file, 'utf8')
+      .replace(/'\s*\.\s*\$uuid_pattern\s*\.\s*'/g, 'LL_TOOLS_UUID_PATTERN');
     let match;
     routeRegex.lastIndex = 0;
 
@@ -309,6 +317,23 @@ test('performance fixture reset refuses untagged slug collisions', async () => {
   expect(resetBlock).not.toContain('update_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY');
 });
 
+test('quiz popup fixture marks inserted objects before expensive lifecycle hooks can be interrupted', async () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'e2e', 'fixtures', 'seed-quiz-popup-text-translation-options.php'),
+    'utf8'
+  );
+  const insertTermStart = source.indexOf('function ll_tools_qptto_insert_term(');
+  const insertTermEnd = source.indexOf('\nfunction ', insertTermStart + 1);
+  const insertTermBlock = source.slice(insertTermStart, insertTermEnd === -1 ? source.length : insertTermEnd);
+
+  expect(insertTermStart).toBeGreaterThanOrEqual(0);
+  expect(insertTermBlock).toContain("add_action('created_term', $tag_created_term, -1000, 4)");
+  expect(insertTermBlock).toContain('ll_tools_qptto_tag_term((int) $term_id, $fixture_version)');
+  expect(insertTermBlock.indexOf("add_action('created_term'")).toBeLessThan(insertTermBlock.indexOf('wp_insert_term('));
+  expect(insertTermBlock).toContain("remove_action('created_term', $tag_created_term, -1000)");
+  expect((source.match(/'meta_input'\s*=>/g) || []).length).toBeGreaterThanOrEqual(3);
+});
+
 test('AI context router and workflow docs cover configured context packs', async () => {
   const packNames = collectContextPackNames();
   const contextReadme = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'README.md'), 'utf8');
@@ -413,10 +438,10 @@ test('Turkish translation avoids high-risk tone and glossary regressions', async
       name: 'word image glossary',
       regex: /kelime\s+g\u00f6r\u00fcnt/iu
     },
-    {
-      name: 'quiz glossary',
-      regex: /\b[Ss]\u0131nav\b/u
-    },
+    // Quiz/exam terminology must be checked against its source msgid. The
+    // parser-backed PHPUnit catalog contract rejects sınav/test only when the
+    // English source actually means the lightweight quiz feature; a blanket
+    // line scan would also reject correct translations of "exam grades".
     {
       name: 'English entity fallback',
       regex: /msgstr\s+"(?:Word Audio|Flashcard G\u00f6r\u00fcnt\u00fc)"/u
@@ -847,15 +872,28 @@ test('REST automation docs cover corpus text routes exposed by status', async ()
   }
 });
 
-test('REST automation docs cover every registered ll-tools route', async () => {
-  const docs = fs.readFileSync(path.join(repoRoot, 'docs', 'REST_AUTOMATION.md'), 'utf8');
-  const registeredRoutes = collectRegisteredLlToolsRestRoutes();
-  const missing = registeredRoutes.filter((route) => !docs.includes(`\`${route}\``));
+test('REST contract docs cover every registered ll-tools automation and LMS route', async () => {
+  const docContracts = [
+    {
+      docsPath: 'docs/REST_AUTOMATION.md',
+      sourceFiles: automationRestSourceFiles
+    },
+    {
+      docsPath: 'docs/LMS_INTEGRATION_PLAN.md',
+      sourceFiles: lmsRestSourceFiles
+    }
+  ];
 
-  expect(
-    missing,
-    `docs/REST_AUTOMATION.md is missing registered REST routes:\n${missing.join('\n')}`
-  ).toEqual([]);
+  for (const contract of docContracts) {
+    const docs = fs.readFileSync(path.join(repoRoot, contract.docsPath), 'utf8');
+    const registeredRoutes = collectRegisteredLlToolsRestRoutes(contract.sourceFiles);
+    const missing = registeredRoutes.filter((route) => !docs.includes(`\`${route}\``));
+
+    expect(
+      missing,
+      `${contract.docsPath} is missing registered REST routes:\n${missing.join('\n')}`
+    ).toEqual([]);
+  }
 });
 
 test('automation status route map matches the registered ll-tools REST paths', async () => {

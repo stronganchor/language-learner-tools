@@ -2463,7 +2463,46 @@ function ll_tools_migrate_legacy_lesson_completions_batch(
     $unmapped_source_ids = [];
 
     foreach ($user_ids as $user_id) {
-        $user_completion_meta = $completion_meta_snapshot[$user_id];
+        $mutation_lock = '';
+        if (!empty($args['apply'])) {
+            if (
+                !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+                || !function_exists('ll_tools_offline_app_release_user_session_lock')
+                || !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+            ) {
+                return new WP_Error(
+                    'user_data_mutation_lock_unavailable',
+                    __('User completion metadata could not be updated safely.', 'll-tools-text-domain'),
+                    ['user_id' => $user_id, 'retryable' => true]
+                );
+            }
+            $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+            if ($mutation_lock === '') {
+                return new WP_Error(
+                    'user_data_mutation_lock_unavailable',
+                    __('User completion metadata could not be updated safely.', 'll-tools-text-domain'),
+                    ['user_id' => $user_id, 'retryable' => true]
+                );
+            }
+        }
+
+        try {
+            if ($mutation_lock !== '' && ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+                return new WP_Error(
+                    'user_data_privacy_erasure_in_progress',
+                    __('User completion metadata could not be updated safely.', 'll-tools-text-domain'),
+                    ['user_id' => $user_id, 'retryable' => true]
+                );
+            }
+            if ($mutation_lock !== '') {
+                $fresh_completion_meta = ll_tools_legacy_lesson_completion_meta_snapshot([$user_id]);
+                if (is_wp_error($fresh_completion_meta)) {
+                    return $fresh_completion_meta;
+                }
+                $user_completion_meta = $fresh_completion_meta[$user_id];
+            } else {
+                $user_completion_meta = $completion_meta_snapshot[$user_id];
+            }
         $favorite_ids = ll_tools_extract_legacy_favorite_post_ids(
             $user_completion_meta['simplefavorites']['raw']
         );
@@ -2560,6 +2599,11 @@ function ll_tools_migrate_legacy_lesson_completions_batch(
                     $user_id
                 );
                 break;
+            }
+        }
+        } finally {
+            if ($mutation_lock !== '') {
+                ll_tools_offline_app_release_user_session_lock($mutation_lock);
             }
         }
     }

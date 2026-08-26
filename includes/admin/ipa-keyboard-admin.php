@@ -4486,6 +4486,22 @@ function ll_tools_ipa_orthography_migrate_implicit_profiles(): int {
     $profile_meta_key = ll_tools_ipa_orthography_profile_meta_key();
     $language_codes = ['zza', 'diq', 'kiu', 'zazaki', 'zaza'];
     $placeholders = implode(',', array_fill(0, count($language_codes), '%s'));
+    $wpdb->last_error = '';
+    $matching_wordset_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT tt.term_id
+         FROM {$wpdb->term_taxonomy} tt
+         INNER JOIN {$wpdb->termmeta} language_meta
+            ON language_meta.term_id = tt.term_id
+           AND language_meta.meta_key = %s
+         WHERE tt.taxonomy = %s
+           AND LOWER(TRIM(language_meta.meta_value)) IN ({$placeholders})",
+        array_merge(['ll_language', 'wordset'], $language_codes)
+    ));
+    if ($wpdb->last_error !== '') {
+        return 0;
+    }
+    $matching_wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $matching_wordset_ids))));
+
     $updated = $wpdb->query($wpdb->prepare(
         "UPDATE {$wpdb->termmeta} profile_meta
          INNER JOIN {$wpdb->term_taxonomy} tt
@@ -4528,6 +4544,11 @@ function ll_tools_ipa_orthography_migrate_implicit_profiles(): int {
         )
     );
     $result = $wpdb->query($sql);
+    // The UPDATE has already committed even if the following INSERT fails, so
+    // always evict the raw-SQL targets after that first successful write.
+    foreach ($matching_wordset_ids as $wordset_id) {
+        wp_cache_delete($wordset_id, 'term_meta');
+    }
     if ($result === false) {
         return 0;
     }

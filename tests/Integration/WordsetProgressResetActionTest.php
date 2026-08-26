@@ -79,6 +79,33 @@ final class WordsetProgressResetActionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_progress_reset_is_fenced_during_privacy_erasure(): void
+    {
+        $fixture = $this->createProgressResetFixture(1);
+        $userId = (int) $fixture['user_id'];
+        $categoryId = (int) $fixture['category_ids'][0];
+        $wordId = (int) $fixture['studied_word_ids_by_category'][$categoryId];
+        wp_set_current_user($userId);
+        $lease = ll_tools_privacy_begin_user_lms_erasure($userId, 'progress-reset-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $redirectUrl = $this->runProgressResetRequest((string) $fixture['wordset_slug'], [
+                'll_wordset_progress_reset_action' => 'category',
+                'll_wordset_progress_reset_wordset_id' => (string) $fixture['wordset_id'],
+                'll_wordset_progress_reset_category_id' => (string) $categoryId,
+                'll_wordset_progress_reset_nonce' => wp_create_nonce('ll_wordset_progress_reset_' . (int) $fixture['wordset_id']),
+            ]);
+
+            $query = $this->parseRedirectQuery($redirectUrl);
+            $this->assertSame('error', (string) ($query['ll_wordset_progress_reset'] ?? ''));
+            $this->assertSame('mutation', (string) ($query['ll_wordset_progress_reset_error'] ?? ''));
+            $this->assertArrayHasKey($wordId, ll_tools_get_user_word_progress_rows($userId, [$wordId]));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($userId, (string) $lease));
+        }
+    }
+
     public function test_progress_reset_redirects_permission_error_for_logged_out_user(): void
     {
         $fixture = $this->createProgressResetFixture(1);

@@ -91,7 +91,7 @@ test('quiz popup blocks selection and confirms before backspace or browser-back 
     }, 0);
   });
   const cancelDialog = await cancelDialogPromise;
-  expect(cancelDialog.message()).toContain('Close this quiz?');
+  expect(cancelDialog.message()).toBe('Exit this activity? Completed rounds are saved, but this activity will restart.');
   await cancelDialog.dismiss();
 
   await expect(popup).toBeVisible();
@@ -102,7 +102,7 @@ test('quiz popup blocks selection and confirms before backspace or browser-back 
     window.setTimeout(() => window.history.back(), 0);
   });
   const acceptDialog = await acceptDialogPromise;
-  expect(acceptDialog.message()).toContain('Close this quiz?');
+  expect(acceptDialog.message()).toBe('Exit this activity? Completed rounds are saved, but this activity will restart.');
   await acceptDialog.accept();
 
   await expect(popup).toBeHidden({ timeout: 30000 });
