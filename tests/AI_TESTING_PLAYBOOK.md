@@ -174,6 +174,21 @@ uses a temporary WP-CLI extraction and fails when canonical source gettext keys
 are missing from or stale in the checked-in POT; it never regenerates the
 repository catalog.
 
+The source guard resolves `WP_CLI_PHAR`, then `WP_CLI`, then a readable
+Local-bundled PHAR, and finally `wp` on `PATH`. When autodiscovery is not usable,
+set exactly one explicit override in the current PowerShell session:
+
+```powershell
+$env:WP_CLI = 'C:\path\to\wp.bat'
+# Or, instead of WP_CLI:
+$env:WP_CLI_PHAR = 'C:\path\to\wp-cli.phar'
+php scripts/check-i18n-source-pot.php
+```
+
+An explicit PHAR must be readable and takes precedence over `WP_CLI` when both
+are set. Keep `WP_CLI` to one executable or command path; do not embed arguments
+in it.
+
 A matching HEAD is not sufficient reason for scheduled upkeep to skip when
 this command reports missing, blank, partial, fuzzy, stale, duplicate,
 structurally invalid, or uncompiled entries. Every locale configured under

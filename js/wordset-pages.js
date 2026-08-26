@@ -51,6 +51,10 @@
         250,
         Math.min(120000, parseInt(cfg.selectionLaunchRequestTimeoutMs, 10) || 30000)
     );
+    const PROGRESS_ANALYTICS_REQUEST_TIMEOUT_MS = Math.max(
+        250,
+        Math.min(120000, parseInt(cfg.progressAnalyticsRequestTimeoutMs, 10) || 30000)
+    );
     const LARGE_PROGRESS_SELECTION_WORD_COUNT = 1000;
     const PROGRESS_WORD_AUTOLOAD_VIEWPORT_OFFSET_PX = 360;
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
@@ -117,7 +121,11 @@
     let stateSaveLatestToken = 0;
     let goalsSaveRequestToken = 0;
     let analyticsTimer = null;
+    let analyticsTimerOptions = null;
     let analyticsRequestToken = 0;
+    let analyticsInFlightRequest = null;
+    let analyticsInFlightOptions = null;
+    let queuedAnalyticsRefreshOptions = null;
     let analyticsTab = 'categories';
     const progressTabStorageKey = 'llToolsWordsetProgressTab:' + String(wordsetId || 0);
     let analyticsWordSearchQuery = '';
@@ -756,6 +764,7 @@
     const $progressRoot = $root.find('[data-ll-wordset-progress-root]');
     const $progressScope = $root.find('[data-ll-wordset-progress-scope]');
     const $progressStatus = $root.find('[data-ll-wordset-progress-status]');
+    const $progressRetry = $root.find('[data-ll-wordset-progress-retry]');
     const $progressSummary = $root.find('[data-ll-wordset-progress-summary]');
     const $progressGender = $root.find('[data-ll-wordset-progress-gender]');
     const $progressGenderToggle = $root.find('[data-ll-wordset-progress-gender-toggle]');
@@ -7290,7 +7299,10 @@
         $progressTabButtons.each(function () {
             const tab = String($(this).attr('data-ll-wordset-progress-tab') || '');
             const active = tab === analyticsTab;
-            $(this).toggleClass('active', active).attr('aria-selected', active ? 'true' : 'false');
+            $(this)
+                .toggleClass('active', active)
+                .attr('aria-selected', active ? 'true' : 'false')
+                .attr('tabindex', active ? '0' : '-1');
         });
         $progressPanels.each(function () {
             const panel = String($(this).attr('data-ll-wordset-progress-panel') || '');
@@ -7376,6 +7388,7 @@
         if (!$progressStatus.length) { return; }
         const text = String(message || '').trim();
         $progressStatus.removeClass('is-loading is-error');
+        $progressRetry.prop('hidden', stateClass !== 'error');
         if (!text) {
             $progressStatus.text('').hide();
             return;
@@ -7390,14 +7403,24 @@
 
     function deferProgressAnalyticsRefreshUntilClose(options) {
         const opts = (options && typeof options === 'object') ? options : {};
-        pendingProgressAnalyticsRefreshAfterClose = true;
-        pendingProgressAnalyticsRefreshOptions = Object.assign(
-            {},
-            pendingProgressAnalyticsRefreshOptions || {},
-            opts
+        const preserveAllowedTimer = !!(
+            analyticsTimer
+            && analyticsTimerOptions
+            && analyticsTimerOptions.allowWhileFlashcardOpen
         );
-        clearTimeout(analyticsTimer);
-        analyticsTimer = null;
+        const deferredOptions = preserveAllowedTimer
+            ? opts
+            : mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, opts);
+        pendingProgressAnalyticsRefreshAfterClose = true;
+        pendingProgressAnalyticsRefreshOptions = mergeProgressAnalyticsRefreshOptions(
+            pendingProgressAnalyticsRefreshOptions,
+            deferredOptions
+        );
+        if (!preserveAllowedTimer) {
+            clearTimeout(analyticsTimer);
+            analyticsTimer = null;
+            analyticsTimerOptions = null;
+        }
     }
 
     function flushDeferredProgressAnalyticsRefresh() {
@@ -7413,14 +7436,46 @@
         scheduleProgressAnalyticsRefresh(120, opts);
     }
 
+    function mergeProgressAnalyticsRefreshOptions(current, incoming) {
+        const next = (incoming && typeof incoming === 'object') ? incoming : null;
+        if (!current || typeof current !== 'object') {
+            return Object.assign({}, next || {});
+        }
+        if (!next) { return Object.assign({}, current); }
+        const merged = Object.assign({}, current, next);
+        merged.silent = !!current.silent && !!next.silent;
+        merged.showWordLoading = !!current.showWordLoading || !!next.showWordLoading;
+        merged.allowWhileFlashcardOpen = !!current.allowWhileFlashcardOpen || !!next.allowWhileFlashcardOpen;
+        return merged;
+    }
+
     function refreshProgressAnalyticsNow(options) {
-        const opts = (options && typeof options === 'object') ? options : {};
+        const requestedOptions = (options && typeof options === 'object') ? options : {};
+        const opts = mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, requestedOptions);
         if (!$progressRoot.length || !isLoggedIn || !ajaxUrl || !nonce) {
             return $.Deferred().resolve(null).promise();
         }
+        clearTimeout(analyticsTimer);
+        analyticsTimer = null;
+        analyticsTimerOptions = null;
         if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
             deferProgressAnalyticsRefreshUntilClose(opts);
             return $.Deferred().resolve(null).promise();
+        }
+        if (analyticsInFlightRequest) {
+            queuedAnalyticsRefreshOptions = mergeProgressAnalyticsRefreshOptions(
+                mergeProgressAnalyticsRefreshOptions(
+                    analyticsInFlightOptions,
+                    queuedAnalyticsRefreshOptions
+                ),
+                opts
+            );
+            // The current response belongs to the state that was visible when
+            // it started. A queued refresh means that state is already stale,
+            // so do not render its payload or transient error before the
+            // trailing request resolves.
+            analyticsRequestToken += 1;
+            return analyticsInFlightRequest;
         }
         const token = ++analyticsRequestToken;
         progressWordPageRequestToken += 1;
@@ -7478,7 +7533,16 @@
         }
         appendProgressWordRequestFilter(analyticsRequestData, wordFilterPayload);
 
-        return $.post(ajaxUrl, analyticsRequestData).done(function (res) {
+        const request = $.post(ajaxUrl, analyticsRequestData);
+        analyticsInFlightRequest = request;
+        analyticsInFlightOptions = Object.assign({}, opts);
+        const requestTimeoutTimer = setTimeout(function () {
+            if (analyticsInFlightRequest !== request || typeof request.abort !== 'function') {
+                return;
+            }
+            try { request.abort('timeout'); } catch (_) { /* no-op */ }
+        }, PROGRESS_ANALYTICS_REQUEST_TIMEOUT_MS);
+        return request.done(function (res) {
             if (token !== analyticsRequestToken) { return; }
             if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose(opts);
@@ -7539,10 +7603,22 @@
             }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).always(function () {
-            if (token !== analyticsRequestToken) { return; }
-            if (opts.showWordLoading) {
+            clearTimeout(requestTimeoutTimer);
+            const ownsInFlightRequest = analyticsInFlightRequest === request;
+            if (ownsInFlightRequest) {
+                analyticsInFlightRequest = null;
+                analyticsInFlightOptions = null;
+            }
+            if (token === analyticsRequestToken && opts.showWordLoading) {
                 setProgressWordLoading(false);
             }
+            if (!ownsInFlightRequest || !queuedAnalyticsRefreshOptions) {
+                return;
+            }
+
+            const queuedOptions = queuedAnalyticsRefreshOptions;
+            queuedAnalyticsRefreshOptions = null;
+            scheduleProgressAnalyticsRefresh(80, queuedOptions);
         });
     }
 
@@ -7550,10 +7626,13 @@
         if (!$progressRoot.length) { return; }
         const ms = Math.max(80, parseInt(delay, 10) || 250);
         const opts = (options && typeof options === 'object') ? options : {};
+        analyticsTimerOptions = mergeProgressAnalyticsRefreshOptions(analyticsTimerOptions, opts);
         clearTimeout(analyticsTimer);
         analyticsTimer = setTimeout(function () {
+            const scheduledOptions = analyticsTimerOptions || {};
             analyticsTimer = null;
-            refreshProgressAnalyticsNow(opts);
+            analyticsTimerOptions = null;
+            refreshProgressAnalyticsNow(scheduledOptions);
         }, ms);
     }
 
@@ -18711,8 +18790,9 @@
         $(document).on('lltools:flashcard-opened.llWordsetPage', function (_evt, detail) {
             isFlashcardOpen = true;
             pendingSummaryRefreshAfterClose = false;
-            clearTimeout(analyticsTimer);
-            analyticsTimer = null;
+            if (analyticsTimer && !(analyticsTimerOptions && analyticsTimerOptions.allowWhileFlashcardOpen)) {
+                deferProgressAnalyticsRefreshUntilClose(analyticsTimerOptions || {});
+            }
             // Clear launch-time category selection immediately once the popup is
             // confirmed open so a delayed/missed close cleanup cannot strand
             // checked cards behind a hidden selection bar.
@@ -19869,6 +19949,36 @@
             setProgressTab(tab);
         });
 
+        $root.on('keydown', '[data-ll-wordset-progress-tab]', function (evt) {
+            const key = String((evt && evt.key) || '');
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) {
+                return;
+            }
+            evt.preventDefault();
+            const tabs = $progressTabButtons.toArray();
+            const currentIndex = Math.max(0, tabs.indexOf(this));
+            let nextIndex = currentIndex;
+            if (key === 'Home') {
+                nextIndex = 0;
+            } else if (key === 'End') {
+                nextIndex = tabs.length - 1;
+            } else if (key === 'ArrowRight') {
+                nextIndex = (currentIndex + 1) % tabs.length;
+            } else {
+                nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            }
+            const nextTab = tabs[nextIndex];
+            if (!nextTab) {
+                return;
+            }
+            setProgressTab(String($(nextTab).attr('data-ll-wordset-progress-tab') || ''));
+            nextTab.focus();
+        });
+
+        $root.on('click', '[data-ll-wordset-progress-retry]', function () {
+            refreshProgressAnalyticsNow();
+        });
+
         $root.on('click', '[data-ll-wordset-progress-gender-toggle]', function (evt) {
             evt.preventDefault();
             const nextMode = isGenderProgressViewActive() ? '' : 'gender';
@@ -20145,6 +20255,19 @@
             evt.preventDefault();
             evt.stopPropagation();
             handleProgressWordAudioClick(this);
+        });
+
+        $(document).on('lltools:flashcard-opened.llWordsetProgress', function () {
+            isFlashcardOpen = true;
+            pendingSummaryRefreshAfterClose = false;
+            if (analyticsTimer && !(analyticsTimerOptions && analyticsTimerOptions.allowWhileFlashcardOpen)) {
+                deferProgressAnalyticsRefreshUntilClose(analyticsTimerOptions || {});
+            }
+        });
+
+        $(document).on('lltools:flashcard-closed.llWordsetProgress', function () {
+            isFlashcardOpen = false;
+            flushDeferredProgressAnalyticsRefresh();
         });
 
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {

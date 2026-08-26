@@ -62,6 +62,34 @@ async function requestImmediateSave(input) {
   await input.dispatchEvent('change');
 }
 
+async function dispatchBeforeUnload(page) {
+  return page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+}
+
+test('review-note autosave warns while an edit is pending or saving and clears after settlement', async ({ page }) => {
+  await mountReviewNote(page);
+  const input = page.locator('[data-ll-text-document-review-note-input]');
+
+  expect(await dispatchBeforeUnload(page)).toBe(false);
+  await input.fill('Pending edit.');
+  expect(await dispatchBeforeUnload(page)).toBe(true);
+
+  await requestImmediateSave(input);
+  await expect.poll(() => page.evaluate(() => window.__reviewNoteCalls.length)).toBe(1);
+  expect(await dispatchBeforeUnload(page)).toBe(true);
+
+  await page.evaluate(() => window.__resolveReviewNote(0, {
+    success: true,
+    data: { note: 'Pending edit.' }
+  }));
+  await expect.poll(() => input.getAttribute('data-original-value')).toBe('Pending edit.');
+  await expect.poll(() => dispatchBeforeUnload(page)).toBe(false);
+});
+
 test('review-note autosave serializes edits and sends the saved value as the next CAS base', async ({ page }) => {
   await mountReviewNote(page);
   const input = page.locator('[data-ll-text-document-review-note-input]');

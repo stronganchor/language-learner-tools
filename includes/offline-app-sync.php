@@ -174,6 +174,37 @@ if (!function_exists('ll_tools_offline_app_normalize_auth_token')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_parse_auth_token')) {
+    /**
+     * Parse the bounded bearer-token envelope without authenticating its secret.
+     *
+     * @return array{token:string,user_id:int,session_key:string,secret:string}|array{}
+     */
+    function ll_tools_offline_app_parse_auth_token($raw): array {
+        $token = ll_tools_offline_app_normalize_auth_token($raw);
+        if (
+            $token === ''
+            || !preg_match('/^llapp\.(\d+)\.([a-z0-9]+)\.([A-Za-z0-9]+)$/', $token, $matches)
+        ) {
+            return [];
+        }
+
+        $user_id = (int) $matches[1];
+        $session_key = sanitize_key((string) $matches[2]);
+        $secret = (string) $matches[3];
+        if ($user_id <= 0 || $session_key === '' || $secret === '') {
+            return [];
+        }
+
+        return [
+            'token' => $token,
+            'user_id' => $user_id,
+            'session_key' => $session_key,
+            'secret' => $secret,
+        ];
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_request_auth_token')) {
     function ll_tools_offline_app_request_auth_token(): string {
         return ll_tools_offline_app_normalize_auth_token($_POST['auth_token'] ?? '');
@@ -1197,7 +1228,23 @@ if (!function_exists('ll_tools_offline_app_acquire_user_session_lock')) {
         }
         $lock_name = 'll_tools_offline_' . substr(hash('sha256', (string) $user_id), 0, 32);
         $acquired = (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $lock_name, 5));
-        return $acquired === 1 ? $lock_name : '';
+        if ($acquired !== 1) {
+            return '';
+        }
+
+        // This request may have populated user meta before waiting for the
+        // advisory lock. Another PHP process cannot invalidate that local
+        // cache, so every lock owner must start from the committed snapshot.
+        if (function_exists('ll_tools_user_progress_clear_user_cache')) {
+            ll_tools_user_progress_clear_user_cache($user_id);
+        } else {
+            wp_cache_delete($user_id, 'user_meta');
+            if (function_exists('clean_user_cache')) {
+                clean_user_cache($user_id);
+            }
+        }
+
+        return $lock_name;
     }
 }
 
@@ -1207,6 +1254,85 @@ if (!function_exists('ll_tools_offline_app_release_user_session_lock')) {
         if ($lock_name !== '') {
             $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
         }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_user_data_write_is_fenced')) {
+    function ll_tools_offline_app_user_data_write_is_fenced(int $user_id): bool {
+        return $user_id <= 0
+            || (
+                function_exists('ll_tools_privacy_user_lms_deletion_is_pending')
+                && ll_tools_privacy_user_lms_deletion_is_pending($user_id)
+            );
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_user_data_write_error')) {
+    function ll_tools_offline_app_user_data_write_error(string $code): WP_Error {
+        $code = in_array($code, [
+            'user_data_mutation_lock_unavailable',
+            'user_data_privacy_erasure_in_progress',
+        ], true) ? $code : 'user_data_mutation_lock_unavailable';
+
+        return new WP_Error(
+            $code,
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            [
+                'status' => 503,
+                'retryable' => true,
+                'retry_after' => 60,
+            ]
+        );
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+    /**
+     * Serialize one complete personal-data mutation against privacy erasure.
+     *
+     * Callers must keep every personal-data read and write used to build the
+     * mutation inside the callback. The callback must return normally rather
+     * than sending JSON or exiting so the advisory lock is always released.
+     *
+     * @return mixed|WP_Error
+     */
+    function ll_tools_offline_app_run_user_data_write_locked(int $user_id, callable $callback) {
+        if ($user_id <= 0) {
+            return ll_tools_offline_app_user_data_write_error('user_data_mutation_lock_unavailable');
+        }
+
+        $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($lock_name === '') {
+            return ll_tools_offline_app_user_data_write_error('user_data_mutation_lock_unavailable');
+        }
+
+        try {
+            if (ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+                return ll_tools_offline_app_user_data_write_error('user_data_privacy_erasure_in_progress');
+            }
+            return $callback();
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($lock_name);
+        }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_send_user_data_write_error')) {
+    function ll_tools_offline_app_send_user_data_write_error(WP_Error $error): void {
+        $data = $error->get_error_data();
+        $retry_after = is_array($data)
+            ? max(1, min(HOUR_IN_SECONDS, (int) ($data['retry_after'] ?? 60)))
+            : 60;
+        if (!headers_sent()) {
+            header('Retry-After: ' . $retry_after);
+        }
+
+        wp_send_json_error([
+            'code' => $error->get_error_code(),
+            'message' => $error->get_error_message(),
+            'retryable' => true,
+            'retry_after' => $retry_after,
+        ], 503);
     }
 }
 
@@ -1222,8 +1348,90 @@ if (!function_exists('ll_tools_offline_app_count_user_sessions')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_privacy_erase_user_sessions_locked')) {
+    /**
+     * Delete and verify every current and legacy offline session for one user.
+     *
+     * The caller must hold the per-user offline session lock. Privacy erasure
+     * also calls this inside the user-row transaction so session credentials
+     * and the progress/meta state they authorize share one rollback boundary.
+     *
+     * @return array{removed:int}|WP_Error
+     */
+    function ll_tools_offline_app_privacy_erase_user_sessions_locked(int $user_id) {
+        global $wpdb;
+
+        if ($user_id <= 0) {
+            return new WP_Error('offline_session_privacy_invalid_user');
+        }
+        if (!ll_tools_offline_app_session_schema_ready()) {
+            return new WP_Error(
+                'offline_session_privacy_schema_unavailable',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
+        }
+
+        $table = ll_tools_offline_app_session_table();
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $wpdb->last_error = '';
+            $before_count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d",
+                $user_id
+            ));
+            if (!is_numeric($before_count) || (string) $wpdb->last_error !== '') {
+                return new WP_Error(
+                    'offline_session_privacy_read_failed',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                );
+            }
+            $before_count = max(0, (int) $before_count);
+            $legacy_existed = metadata_exists('user', $user_id, LL_TOOLS_OFFLINE_APP_SESSION_META);
+
+            $wpdb->last_error = '';
+            $deleted = $wpdb->delete($table, ['user_id' => $user_id], ['%d']);
+            if ($deleted === false || (string) $wpdb->last_error !== '') {
+                return new WP_Error(
+                    'offline_session_privacy_delete_failed',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                );
+            }
+
+            if ($legacy_existed) {
+                delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META);
+                wp_cache_delete($user_id, 'user_meta');
+            }
+
+            $wpdb->last_error = '';
+            $remaining_count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d",
+                $user_id
+            ));
+            wp_cache_delete($user_id, 'user_meta');
+            $legacy_remains = metadata_exists('user', $user_id, LL_TOOLS_OFFLINE_APP_SESSION_META);
+            if (
+                !is_numeric($remaining_count)
+                || (string) $wpdb->last_error !== ''
+                || (int) $remaining_count !== 0
+                || $legacy_remains
+            ) {
+                return new WP_Error(
+                    'offline_session_privacy_retained',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                );
+            }
+
+            return [
+                'removed' => $before_count + ($legacy_existed ? 1 : 0),
+            ];
+        } finally {
+            $wpdb->suppress_errors($previous_suppress_errors);
+        }
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_import_legacy_sessions_for_user')) {
-    function ll_tools_offline_app_import_legacy_sessions_for_user(int $user_id): bool {
+    function ll_tools_offline_app_import_legacy_sessions_for_user(int $user_id, bool $session_lock_held = false): bool {
         global $wpdb;
 
         if ($user_id <= 0 || !ll_tools_offline_app_session_schema_ready()) {
@@ -1234,11 +1442,17 @@ if (!function_exists('ll_tools_offline_app_import_legacy_sessions_for_user')) {
             return true;
         }
 
-        $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
-        if ($lock_name === '') {
-            return false;
+        $lock_name = '';
+        if (!$session_lock_held) {
+            $lock_name = ll_tools_offline_app_acquire_user_session_lock($user_id);
+            if ($lock_name === '') {
+                return false;
+            }
         }
         try {
+            if (ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+                return false;
+            }
             $raw = get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true);
             if (!is_array($raw) || empty($raw)) {
                 return true;
@@ -1329,21 +1543,25 @@ if (!function_exists('ll_tools_offline_app_import_legacy_sessions_for_user')) {
             delete_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, $raw);
             return get_user_meta($user_id, LL_TOOLS_OFFLINE_APP_SESSION_META, true) !== $raw;
         } finally {
-            ll_tools_offline_app_release_user_session_lock($lock_name);
+            if (!$session_lock_held) {
+                ll_tools_offline_app_release_user_session_lock($lock_name);
+            }
         }
     }
 }
 
 if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
     function ll_tools_offline_app_sessions_for_user(int $user_id): array {
-        if ($user_id <= 0) {
+        if ($user_id <= 0 || ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
             return [];
         }
         if (!ll_tools_offline_app_session_schema_ready()) {
             return ll_tools_offline_app_sanitize_legacy_sessions($user_id);
         }
 
-        ll_tools_offline_app_import_legacy_sessions_for_user($user_id);
+        if (!ll_tools_offline_app_import_legacy_sessions_for_user($user_id)) {
+            return [];
+        }
         global $wpdb;
         $table = ll_tools_offline_app_session_table();
         $now = gmdate('Y-m-d H:i:s');
@@ -1393,7 +1611,7 @@ if (!function_exists('ll_tools_offline_app_sessions_for_user')) {
 if (!function_exists('ll_tools_offline_app_create_session')) {
     function ll_tools_offline_app_create_session(int $user_id, array $context = []): array {
         global $wpdb;
-        if ($user_id <= 0) {
+        if ($user_id <= 0 || ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
             return [];
         }
         if (!ll_tools_offline_app_session_schema_ready()) {
@@ -1422,6 +1640,11 @@ if (!function_exists('ll_tools_offline_app_create_session')) {
             return [];
         }
         try {
+            // The privacy fence is established before erasure waits on this
+            // same lock. Rechecking here closes the check/wait race.
+            if (ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+                return [];
+            }
             $table = ll_tools_offline_app_session_table();
             if ($wpdb->query('START TRANSACTION') === false) {
                 return [];
@@ -1483,28 +1706,29 @@ if (!function_exists('ll_tools_offline_app_create_session')) {
 }
 
 if (!function_exists('ll_tools_offline_app_authenticate_token')) {
-    function ll_tools_offline_app_authenticate_token(string $token, bool $touch = true): ?array {
-        $token = ll_tools_offline_app_normalize_auth_token($token);
-        if ($token === '') {
-            return null;
-        }
-        if (!preg_match('/^llapp\.(\d+)\.([a-z0-9]+)\.([A-Za-z0-9]+)$/', $token, $matches)) {
+    function ll_tools_offline_app_authenticate_token(
+        string $token,
+        bool $touch = true,
+        bool $session_lock_held = false
+    ): ?array {
+        $parsed_token = ll_tools_offline_app_parse_auth_token($token);
+        if ($parsed_token === []) {
             return null;
         }
 
-        $user_id = (int) $matches[1];
-        $session_key = sanitize_key((string) $matches[2]);
-        $secret = (string) $matches[3];
-        if ($user_id <= 0 || $session_key === '' || $secret === '') {
-            return null;
-        }
+        $user_id = (int) $parsed_token['user_id'];
+        $session_key = (string) $parsed_token['session_key'];
+        $secret = (string) $parsed_token['secret'];
 
         global $wpdb;
         $session = null;
         $table_session = false;
         $legacy_import_succeeded = true;
         if (ll_tools_offline_app_session_schema_ready()) {
-            $legacy_import_succeeded = ll_tools_offline_app_import_legacy_sessions_for_user($user_id);
+            $legacy_import_succeeded = ll_tools_offline_app_import_legacy_sessions_for_user(
+                $user_id,
+                $session_lock_held
+            );
             $table = ll_tools_offline_app_session_table();
             $row = $wpdb->get_row($wpdb->prepare(
                 "SELECT id, secret_hash, created_at, expires_at, last_used_at, device_id, profile_id
@@ -2021,29 +2245,90 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
             ], 429);
         }
 
-        $auth = ll_tools_offline_app_require_authenticated_user();
-        $user_id = (int) ($auth['user_id'] ?? 0);
-
-        // Fail before parse_state_request() can persist user meta. The batch
-        // processor repeats this cached guard for non-AJAX callers.
-        if (!empty($events)) {
-            $schema_status = ll_tools_user_progress_runtime_schema_status();
-            if (empty($schema_status['ready'])) {
-                $stats = ll_tools_user_progress_core_engine_failure_stats($events, $schema_status);
-                ll_tools_user_progress_send_retryable_failure($stats);
-            }
-
-            $core_engine_status = ll_tools_user_progress_core_engine_status();
-            if (empty($core_engine_status['ready'])) {
-                $stats = ll_tools_user_progress_core_engine_failure_stats($events, $core_engine_status);
-                ll_tools_user_progress_send_retryable_failure($stats);
-            }
+        $parsed_token = ll_tools_offline_app_parse_auth_token($token);
+        if ($parsed_token === []) {
+            wp_send_json_error(['message' => __('Sign in required.', 'll-tools-text-domain')], 401);
         }
 
-        $state = ll_tools_offline_app_parse_state_request($user_id);
-        $stats = ll_tools_process_progress_events_batch($user_id, $events);
+        $user_id = (int) $parsed_token['user_id'];
+        $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($mutation_lock === '') {
+            ll_tools_user_progress_send_retryable_failure(
+                ll_tools_user_progress_core_engine_failure_stats($events, [
+                    'failure_code' => 'progress_mutation_lock_unavailable',
+                ])
+            );
+        }
 
-        wp_send_json_success(ll_tools_offline_app_build_sync_response($user_id, $state, $stats, $requested_word_ids));
+        $auth_failed = false;
+        $access_denied = false;
+        $retryable_failure = null;
+        $response = null;
+        try {
+            // Privacy establishes its fence before waiting on this same lock.
+            // A request already holding the lock finishes first and is erased;
+            // a waiter observes the fence before any token touch or state write.
+            if (ll_tools_offline_app_user_data_write_is_fenced($user_id)) {
+                $retryable_failure = ll_tools_user_progress_core_engine_failure_stats($events, [
+                    'failure_code' => 'progress_privacy_erasure_in_progress',
+                ]);
+            } else {
+                $auth = ll_tools_offline_app_authenticate_token($token, true, true);
+                if (!$auth) {
+                    $auth_failed = true;
+                } elseif (!ll_tools_user_study_can_access($user_id)) {
+                    $access_denied = true;
+                } else {
+                    wp_set_current_user($user_id);
+
+                    // Fail before parse_state_request() can persist user meta.
+                    if (!empty($events)) {
+                        $schema_status = ll_tools_user_progress_runtime_schema_status();
+                        if (empty($schema_status['ready'])) {
+                            $retryable_failure = ll_tools_user_progress_core_engine_failure_stats($events, $schema_status);
+                        } else {
+                            $core_engine_status = ll_tools_user_progress_core_engine_status();
+                            if (empty($core_engine_status['ready'])) {
+                                $retryable_failure = ll_tools_user_progress_core_engine_failure_stats(
+                                    $events,
+                                    $core_engine_status
+                                );
+                            }
+                        }
+                    }
+
+                    if (!is_array($retryable_failure)) {
+                        $state = ll_tools_offline_app_parse_state_request($user_id);
+                        $stats = ll_tools_process_progress_events_batch_locked($user_id, $events);
+                        $response = ll_tools_offline_app_build_sync_response(
+                            $user_id,
+                            $state,
+                            $stats,
+                            $requested_word_ids
+                        );
+                    }
+                }
+            }
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($mutation_lock);
+        }
+
+        if ($auth_failed) {
+            wp_send_json_error(['message' => __('Sign in required.', 'll-tools-text-domain')], 401);
+        }
+        if ($access_denied) {
+            wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+        }
+        if (is_array($retryable_failure)) {
+            ll_tools_user_progress_send_retryable_failure($retryable_failure);
+        }
+        if (!is_array($response)) {
+            wp_send_json_error([
+                'message' => __('Sync failed. Your local progress is still saved.', 'll-tools-text-domain'),
+            ], 503);
+        }
+
+        wp_send_json_success($response);
     }
 }
 add_action('wp_ajax_nopriv_ll_tools_offline_app_sync', 'll_tools_offline_app_sync_ajax');

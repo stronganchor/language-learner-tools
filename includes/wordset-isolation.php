@@ -2429,8 +2429,18 @@ function ll_tools_wordset_isolation_migration_write_user_meta(
         return true;
     }
 
-    update_user_meta($user_id, $meta_key, $expected, $before);
-    if (get_user_meta($user_id, $meta_key, true) !== $expected) {
+    $updated = function_exists('ll_tools_user_progress_compare_and_swap_user_meta')
+        && ll_tools_user_progress_compare_and_swap_user_meta(
+            $user_id,
+            $meta_key,
+            $before,
+            $expected
+        );
+    if (!$updated && !metadata_exists('user', $user_id, $meta_key)) {
+        // Privacy erasure won the race. The migration must not recreate data.
+        return true;
+    }
+    if (!$updated || get_user_meta($user_id, $meta_key, true) !== $expected) {
         ll_tools_wordset_isolation_migration_fail($state, sprintf(
             /* translators: %d is a WordPress user ID. */
             __('Isolated category data could not be saved for user %d.', 'll-tools-text-domain'),

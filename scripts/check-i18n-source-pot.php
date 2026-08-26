@@ -11,14 +11,30 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/check-public-i18n.php';
 
+function ll_tools_i18n_source_pot_wp_cli_guidance(): string
+{
+    return 'Set WP_CLI to a usable WP-CLI executable, or set WP_CLI_PHAR to a readable wp-cli.phar file.';
+}
+
 /**
  * @return array<int, string>
  */
 function ll_tools_i18n_source_pot_wp_cli_command(): array
 {
     $explicit_phar = trim((string) getenv('WP_CLI_PHAR'));
-    if ($explicit_phar !== '' && is_file($explicit_phar)) {
+    if ($explicit_phar !== '') {
+        if (!is_file($explicit_phar) || !is_readable($explicit_phar)) {
+            throw new RuntimeException(
+                'WP_CLI_PHAR does not point to a readable file: ' . $explicit_phar . '. '
+                . ll_tools_i18n_source_pot_wp_cli_guidance()
+            );
+        }
         return [PHP_BINARY, '-d', 'memory_limit=512M', $explicit_phar];
+    }
+
+    $explicit_binary = trim((string) getenv('WP_CLI'));
+    if ($explicit_binary !== '') {
+        return [$explicit_binary];
     }
 
     $relative_phar_path = implode(DIRECTORY_SEPARATOR, [
@@ -54,14 +70,9 @@ function ll_tools_i18n_source_pot_wp_cli_command(): array
 
     $phar_candidates = array_values(array_unique($phar_candidates));
     foreach ($phar_candidates as $candidate) {
-        if (is_file($candidate)) {
+        if (is_file($candidate) && is_readable($candidate)) {
             return [PHP_BINARY, '-d', 'memory_limit=512M', $candidate];
         }
-    }
-
-    $explicit_binary = trim((string) getenv('WP_CLI'));
-    if ($explicit_binary !== '') {
-        return [$explicit_binary];
     }
 
     return ['wp'];
@@ -84,7 +95,10 @@ function ll_tools_i18n_source_pot_run_command(array $command): array
         $pipes
     );
     if (!is_resource($process)) {
-        throw new RuntimeException('Unable to start WP-CLI for the source POT freshness check.');
+        throw new RuntimeException(
+            'Unable to start WP-CLI for the source POT freshness check. '
+            . ll_tools_i18n_source_pot_wp_cli_guidance()
+        );
     }
 
     fclose($pipes[0]);
@@ -157,6 +171,8 @@ function ll_tools_i18n_compare_source_to_checked_pot(string $root_dir): array
             throw new RuntimeException(
                 'WP-CLI could not generate the temporary source POT'
                 . ($diagnostic !== '' ? ': ' . $diagnostic : '.')
+                . PHP_EOL
+                . ll_tools_i18n_source_pot_wp_cli_guidance()
             );
         }
 

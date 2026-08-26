@@ -874,6 +874,20 @@ function Invoke-BumpWorkflow {
     }
 }
 
+function Assert-PublishTreeMatchesOriginDev {
+    Invoke-Git -Arguments @(
+        'fetch',
+        'origin',
+        '+refs/heads/dev:refs/remotes/origin/dev'
+    ) | Out-Null
+
+    $devCommit = Get-CommitForRef -RefName 'origin/dev'
+    $differences = @(Invoke-Git -Arguments @('diff', '--name-status', "$devCommit..HEAD", '--'))
+    if ($differences.Count -gt 0) {
+        throw "Stable publish requires HEAD to match the freshly fetched origin/dev tracked tree.`n$($differences -join [Environment]::NewLine)"
+    }
+}
+
 function Invoke-PublishWorkflow {
     param(
         [Parameter(Mandatory = $true)]
@@ -893,6 +907,7 @@ function Invoke-PublishWorkflow {
     if (-not $versionData.VersionsMatch) {
         throw "Publish mode requires the Version header and LL_TOOLS_VERSION to match. Run the bump workflow first to synchronize them."
     }
+    Assert-PublishTreeMatchesOriginDev
     $versionToPublish = $versionData.Version
     $tagName = "v$versionToPublish"
     $repoSlug = Get-OriginRepoSlug

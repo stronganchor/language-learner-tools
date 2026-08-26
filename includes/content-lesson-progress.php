@@ -480,20 +480,33 @@ function ll_tools_update_content_lesson_completion_request(
         );
     }
 
-    if (!ll_tools_set_content_lesson_completion($user_id, $lesson_id, $completed)) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
         return new WP_Error(
-            'content_lesson_completion_write_failed',
-            __('Lesson progress could not be saved.', 'll-tools-text-domain')
+            'user_data_mutation_lock_unavailable',
+            __('Lesson progress could not be saved.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
         );
     }
 
-    return [
-        'lesson_id' => $lesson_id,
-        'completed' => ll_tools_user_completed_content_lesson(
-            $lesson_id,
-            $user_id
-        ),
-    ];
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static function () use ($user_id, $lesson_id, $completed) {
+            if (!ll_tools_set_content_lesson_completion($user_id, $lesson_id, $completed)) {
+                return new WP_Error(
+                    'content_lesson_completion_write_failed',
+                    __('Lesson progress could not be saved.', 'll-tools-text-domain')
+                );
+            }
+
+            return [
+                'lesson_id' => $lesson_id,
+                'completed' => ll_tools_user_completed_content_lesson(
+                    $lesson_id,
+                    $user_id
+                ),
+            ];
+        }
+    );
 }
 
 function ll_tools_content_lesson_completion_ajax(): void {
@@ -524,6 +537,11 @@ function ll_tools_content_lesson_completion_ajax(): void {
             $status = 400;
         } elseif ($result->get_error_code() === 'content_lesson_completion_forbidden') {
             $status = 403;
+        } elseif (in_array($result->get_error_code(), [
+            'user_data_mutation_lock_unavailable',
+            'user_data_privacy_erasure_in_progress',
+        ], true)) {
+            ll_tools_offline_app_send_user_data_write_error($result);
         }
         wp_send_json_error([
             'message' => $result->get_error_message(),

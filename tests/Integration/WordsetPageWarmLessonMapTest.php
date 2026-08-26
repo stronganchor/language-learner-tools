@@ -3,6 +3,102 @@ declare(strict_types=1);
 
 final class WordsetPageWarmLessonMapTest extends LL_Tools_TestCase
 {
+    public function test_canonical_lesson_reconciliation_is_a_no_op_until_content_drifts(): void
+    {
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+
+        $wordset = wp_insert_term(
+            'No-op lesson wordset ' . wp_generate_password(10, false, false),
+            'wordset'
+        );
+        $category = wp_insert_term(
+            'No-op lesson category ' . wp_generate_password(10, false, false),
+            'word-category'
+        );
+        $this->assertNotWPError($wordset);
+        $this->assertNotWPError($category);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $category_id = (int) ($category['term_id'] ?? 0);
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY, $wordset_id);
+
+        $created = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+        $this->assertIsArray($created);
+        $lesson_id = (int) ($created['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $lesson_id);
+        $this->assertSame('created', (string) ($created['status'] ?? ''));
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+
+        $save_count = 0;
+        $count_save = static function () use (&$save_count): void {
+            $save_count++;
+        };
+        $before_no_op_epoch = ll_tools_get_wordset_cache_epoch();
+        add_action('save_post_ll_vocab_lesson', $count_save, 100, 0);
+        try {
+            $unchanged = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+            ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+        } finally {
+            remove_action('save_post_ll_vocab_lesson', $count_save, 100);
+        }
+
+        $this->assertIsArray($unchanged);
+        $this->assertSame($lesson_id, (int) ($unchanged['post_id'] ?? 0));
+        $this->assertSame('updated', (string) ($unchanged['status'] ?? ''));
+        $this->assertSame(0, $save_count);
+        $this->assertSame($before_no_op_epoch, ll_tools_get_wordset_cache_epoch());
+
+        add_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, ['unexpected' => '999999']);
+        add_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (object) ['unexpected' => '999998']);
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+        $before_duplicate_repair_epoch = ll_tools_get_wordset_cache_epoch();
+        $duplicate_repair = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+
+        $this->assertIsArray($duplicate_repair);
+        $this->assertSame($lesson_id, (int) ($duplicate_repair['post_id'] ?? 0));
+        $this->assertSame(
+            [(string) $category_id, (string) $category_id],
+            array_values(array_map('strval', (array) get_post_meta(
+                $lesson_id,
+                LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+                false
+            )))
+        );
+        $this->assertSame(
+            [(string) $wordset_id, (string) $wordset_id],
+            array_values(array_map('strval', (array) get_post_meta(
+                $lesson_id,
+                LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                false
+            )))
+        );
+        $this->assertGreaterThan($before_duplicate_repair_epoch, ll_tools_get_wordset_cache_epoch());
+
+        wp_update_post([
+            'ID' => $lesson_id,
+            'post_title' => 'Outdated lesson title',
+        ]);
+        ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+        $before_repair_epoch = ll_tools_get_wordset_cache_epoch();
+        $save_count = 0;
+        add_action('save_post_ll_vocab_lesson', $count_save, 100, 0);
+        try {
+            $repaired = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+            ll_tools_finalize_wordset_page_lesson_cache_invalidation();
+        } finally {
+            remove_action('save_post_ll_vocab_lesson', $count_save, 100);
+        }
+
+        $this->assertIsArray($repaired);
+        $this->assertSame($lesson_id, (int) ($repaired['post_id'] ?? 0));
+        $this->assertSame(1, $save_count);
+        $this->assertSame(
+            ll_tools_get_vocab_lesson_title(get_term($category_id, 'word-category'), get_term($wordset_id, 'wordset')),
+            (string) get_post_field('post_title', $lesson_id)
+        );
+        $this->assertGreaterThan($before_repair_epoch, ll_tools_get_wordset_cache_epoch());
+    }
+
     public function test_published_lesson_map_rotates_after_status_and_restore_lifecycle(): void
     {
         ll_tools_finalize_wordset_page_lesson_cache_invalidation();

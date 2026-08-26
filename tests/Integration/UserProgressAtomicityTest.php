@@ -352,6 +352,55 @@ final class UserProgressAtomicityTest extends LL_Tools_TestCase
         $this->assertSame(3, (int) $payload['units']);
     }
 
+    public function test_unresolved_category_study_is_invalid_and_never_journaled(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $event_uuid = 'atomic-unresolved-category-' . wp_generate_uuid4();
+        $category_name = 'Definitely Missing Category ' . wp_generate_password(10, false, false);
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [[
+            'event_uuid' => $event_uuid,
+            'event_type' => 'category_study',
+            'mode' => 'listening',
+            'category_id' => 0,
+            'category_name' => $category_name,
+            'payload' => ['units' => 2],
+        ]]);
+
+        $this->assertSame(1, $stats['received']);
+        $this->assertSame(0, $stats['processed']);
+        $this->assertSame(0, $stats['duplicates']);
+        $this->assertSame(1, $stats['invalid']);
+        $this->assertSame(0, $stats['failed']);
+        $this->assertSame([], $stats['failed_event_uuids']);
+        $this->assertSame(0, $this->ledgerCount($event_uuid));
+        $this->assertSame([], ll_tools_get_user_category_progress($user_id));
+    }
+
+    public function test_privacy_fence_blocks_server_progress_event_until_released(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $event_uuid = 'atomic-server-fence-' . wp_generate_uuid4();
+        $event = [
+            'event_uuid' => $event_uuid,
+            'event_type' => 'stt_api_call',
+            'mode' => 'speaking',
+            'payload' => ['provider' => 'test-provider'],
+        ];
+        $lease = ll_tools_privacy_begin_user_lms_erasure($user_id, 'server-event-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $this->assertFalse(ll_tools_record_server_progress_event($user_id, $event));
+            $this->assertSame(0, $this->ledgerCount($event_uuid));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($user_id, (string) $lease));
+        }
+
+        $this->assertTrue(ll_tools_record_server_progress_event($user_id, $event));
+        $this->assertSame(1, $this->ledgerCount($event_uuid));
+    }
+
     public function test_user_lock_discards_meta_snapshot_primed_before_a_newer_database_value(): void
     {
         global $wpdb;
@@ -389,6 +438,72 @@ final class UserProgressAtomicityTest extends LL_Tools_TestCase
         $this->assertSame(1, $stats['processed']);
         $progress = ll_tools_get_user_category_progress($user_id);
         $this->assertSame(6, (int) $progress[$category_id]['exposure_total']);
+    }
+
+    public function test_user_meta_compare_and_swap_updates_scalar_without_inserting(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $meta_key = 'll_tools_atomic_scalar_cas';
+        $this->assertNotFalse(update_user_meta($user_id, $meta_key, 7));
+
+        $this->assertTrue(ll_tools_user_progress_compare_and_swap_user_meta(
+            $user_id,
+            $meta_key,
+            7,
+            8
+        ));
+        $this->assertSame(8, (int) get_user_meta($user_id, $meta_key, true));
+    }
+
+    public function test_user_meta_compare_and_swap_rejects_duplicate_baseline_rows(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $meta_key = 'll_tools_atomic_duplicate_cas';
+        $before = ['version' => 1];
+        $this->assertNotFalse(add_user_meta($user_id, $meta_key, $before, false));
+        $this->assertNotFalse(add_user_meta($user_id, $meta_key, $before, false));
+
+        $this->assertFalse(ll_tools_user_progress_compare_and_swap_user_meta(
+            $user_id,
+            $meta_key,
+            $before,
+            ['version' => 2]
+        ));
+        $this->assertSame(2, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s",
+            $user_id,
+            $meta_key
+        )));
+    }
+
+    public function test_user_meta_compare_and_swap_clears_cache_after_concurrent_deletion(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $meta_key = 'll_tools_atomic_deleted_cas';
+        $before = ['version' => 1];
+        $this->assertNotFalse(update_user_meta($user_id, $meta_key, $before));
+        $this->assertSame($before, get_user_meta($user_id, $meta_key, true));
+
+        // Model privacy erasure in another request. Its cache invalidation
+        // cannot clear the already-primed cache in this PHP process.
+        $this->assertSame(1, $wpdb->delete(
+            $wpdb->usermeta,
+            ['user_id' => $user_id, 'meta_key' => $meta_key],
+            ['%d', '%s']
+        ));
+
+        $this->assertFalse(ll_tools_user_progress_compare_and_swap_user_meta(
+            $user_id,
+            $meta_key,
+            $before,
+            ['version' => 2]
+        ));
+        $this->assertFalse(metadata_exists('user', $user_id, $meta_key));
+        $this->assertSame('', get_user_meta($user_id, $meta_key, true));
     }
 
     public function test_savepoint_success_clears_meta_repopulated_by_update_hook(): void

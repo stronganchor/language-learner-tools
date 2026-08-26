@@ -479,6 +479,11 @@ final class IpaOrthographyConversionTest extends LL_Tools_TestCase
         $other_wordset_id = $this->createWordset('Other Language Profile');
         update_term_meta($other_wordset_id, 'll_language', 'tr');
 
+        wp_cache_delete($existing_wordset_id, 'term_meta');
+        $this->assertSame(
+            '',
+            (string) get_term_meta($existing_wordset_id, ll_tools_ipa_orthography_profile_meta_key(), true)
+        );
         $this->assertSame(1, ll_tools_ipa_orthography_migrate_implicit_profiles());
         $this->assertSame(
             'zazaki_genc_palu',

@@ -21,6 +21,7 @@
     var lastFocusedEl = null;
     var frameShellEl = null;
     var frameReady = false;
+    var frameKeydownDocument = null;
     var loadAttempt = 0;
     var loadTimer = 0;
     var backgroundState = [];
@@ -273,8 +274,35 @@
         window.clearTimeout(loadTimer);
         loadTimer = 0;
         if (iframeEl && !frameReady) {
+            detachFrameKeydown();
             iframeEl.remove();
             iframeEl = null;
+        }
+    }
+
+    function handleFrameKeydown(event) {
+        if (isOpen() && event.key === 'Escape') {
+            event.preventDefault();
+            closeModal();
+        }
+    }
+
+    function detachFrameKeydown() {
+        if (frameKeydownDocument) {
+            frameKeydownDocument.removeEventListener('keydown', handleFrameKeydown);
+            frameKeydownDocument = null;
+        }
+    }
+
+    function attachFrameKeydown() {
+        detachFrameKeydown();
+        try {
+            frameKeydownDocument = iframeEl ? iframeEl.contentDocument : null;
+        } catch (_) {
+            frameKeydownDocument = null;
+        }
+        if (frameKeydownDocument) {
+            frameKeydownDocument.addEventListener('keydown', handleFrameKeydown);
         }
     }
 
@@ -335,6 +363,7 @@
             window.clearTimeout(loadTimer);
             loadTimer = 0;
             frameReady = true;
+            attachFrameKeydown();
             iframeEl.hidden = false;
             loadingEl.hidden = true;
             errorEl.hidden = true;

@@ -49,6 +49,36 @@ async function gotoAdminPath(page, targetPath) {
   ), null, { timeout: 60000 });
 }
 
+async function clickAndWaitForAdminNavigation(page, button, urlPredicate, timeout = 120000) {
+  const retryableGatewayStatuses = new Set([502, 503, 504]);
+  const responsePromise = page.waitForResponse((response) => {
+    const request = response.request();
+    if (!request.isNavigationRequest() || request.frame() !== page.mainFrame()) {
+      return false;
+    }
+
+    try {
+      return urlPredicate(new URL(response.url()));
+    } catch (_) {
+      return false;
+    }
+  }, { timeout });
+
+  const [response] = await Promise.all([
+    responsePromise,
+    button.click({ timeout, noWaitAfter: true })
+  ]);
+  const status = response && typeof response.status === 'function' ? response.status() : 0;
+  if (retryableGatewayStatuses.has(status)) {
+    // The mutating POST already succeeded and redirected. Recover only the
+    // idempotent destination GET; never resubmit the form action.
+    await gotoAdminPath(page, response.url());
+    return;
+  }
+
+  await page.waitForLoadState('domcontentloaded', { timeout: 60000 }).catch(() => {});
+}
+
 async function dismissAdminEmailVerification(page) {
   if (!/action=confirm_admin_email/.test(page.url())) {
     return;
@@ -210,6 +240,7 @@ async function deleteWpPage(page, pageId) {
 
 module.exports = {
   adminRest,
+  clickAndWaitForAdminNavigation,
   createWpPage,
   deleteWpPage,
   dismissAdminEmailVerification,

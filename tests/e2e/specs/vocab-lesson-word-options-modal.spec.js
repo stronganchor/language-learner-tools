@@ -112,7 +112,9 @@ test('word options modal times out recoverably and isolates keyboard focus', asy
   await page.keyboard.press('Shift+Tab');
   await expect.poll(() => page.evaluate(() => document.activeElement && document.activeElement.tagName)).toBe('IFRAME');
 
-  await close.focus();
+  const frameControl = page.frameLocator('.ll-vocab-lesson-word-options-modal__frame').locator('#frame-control');
+  await frameControl.focus();
+  await expect(frameControl).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(modal).toBeHidden();
   await expect(background).not.toHaveAttribute('inert', '');

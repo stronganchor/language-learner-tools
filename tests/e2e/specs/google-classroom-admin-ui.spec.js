@@ -114,6 +114,9 @@ test('Classroom admin shows safe unconfigured and locally mocked connected state
     await expect(page.getByText('E2E Archived Course', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('cell', { name: 'e2e-course-hebrew', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'e2e-course-greek', exact: true })).toBeVisible();
+    expect(await page.locator('.ll-tools-google-classroom table thead th').evaluateAll((headers) =>
+      headers.map((header) => header.getAttribute('scope'))
+    )).toEqual(['col', 'col', 'col', 'col', 'col', 'col']);
 
     await page.goto(`${adminPath}&ll_tools_gc_notice=authorization_failed`, {
       waitUntil: 'domcontentloaded'

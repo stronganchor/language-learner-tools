@@ -27,6 +27,70 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertSame($comparison['generated_count'], $comparison['checked_count']);
     }
 
+    public function test_source_pot_wp_cli_command_prefers_explicit_binary_over_local_autodiscovery(): void
+    {
+        $temp_root = sys_get_temp_dir() . DIRECTORY_SEPARATOR
+            . 'll-tools-wp-cli-discovery-' . bin2hex(random_bytes(6));
+        $directory_parts = ['Programs', 'Local', 'resources', 'extraResources', 'bin', 'wp-cli'];
+        $created_directories = [$temp_root];
+        $phar_directory = $temp_root;
+        foreach ($directory_parts as $directory_part) {
+            $phar_directory .= DIRECTORY_SEPARATOR . $directory_part;
+            $created_directories[] = $phar_directory;
+        }
+        $fake_local_phar = $phar_directory . DIRECTORY_SEPARATOR . 'wp-cli.phar';
+        $environment = $this->captureProcessEnvironment([
+            'WP_CLI',
+            'WP_CLI_PHAR',
+            'LOCALAPPDATA',
+            'USERPROFILE',
+            'USERNAME',
+        ]);
+
+        try {
+            $this->assertTrue(mkdir($phar_directory, 0777, true));
+            $this->assertNotFalse(file_put_contents($fake_local_phar, 'fake wp-cli phar'));
+            putenv('WP_CLI=ll-tools-explicit-wp-cli');
+            putenv('WP_CLI_PHAR');
+            putenv('LOCALAPPDATA=' . $temp_root);
+            putenv('USERPROFILE=');
+            putenv('USERNAME=invalid!');
+
+            $this->assertSame(
+                ['ll-tools-explicit-wp-cli'],
+                ll_tools_i18n_source_pot_wp_cli_command()
+            );
+        } finally {
+            $this->restoreProcessEnvironment($environment);
+            @unlink($fake_local_phar);
+            foreach (array_reverse($created_directories) as $created_directory) {
+                @rmdir($created_directory);
+            }
+        }
+    }
+
+    public function test_source_pot_wp_cli_command_rejects_unreadable_explicit_phar_with_guidance(): void
+    {
+        $environment = $this->captureProcessEnvironment(['WP_CLI', 'WP_CLI_PHAR']);
+
+        try {
+            putenv('WP_CLI=ll-tools-explicit-wp-cli');
+            putenv('WP_CLI_PHAR=' . $this->pluginRoot());
+            $error = null;
+            try {
+                ll_tools_i18n_source_pot_wp_cli_command();
+            } catch (RuntimeException $caught) {
+                $error = $caught;
+            }
+
+            $this->assertInstanceOf(RuntimeException::class, $error);
+            $this->assertStringContainsString('WP_CLI_PHAR does not point to a readable file', $error->getMessage());
+            $this->assertStringContainsString('Set WP_CLI to a usable WP-CLI executable', $error->getMessage());
+        } finally {
+            $this->restoreProcessEnvironment($environment);
+        }
+    }
+
     public function test_manifest_matches_current_public_pot_selection(): void
     {
         $root = $this->pluginRoot();
@@ -1056,6 +1120,33 @@ PHP;
         $this->assertSame(1, $coverage['stale']);
         $this->assertSame(1, $coverage['duplicates']);
         $this->assertSame(1, $coverage['fuzzy']);
+    }
+
+    /**
+     * @param array<int, string> $names
+     * @return array<string, string|false>
+     */
+    private function captureProcessEnvironment(array $names): array
+    {
+        $environment = [];
+        foreach ($names as $name) {
+            $environment[$name] = getenv($name);
+        }
+        return $environment;
+    }
+
+    /**
+     * @param array<string, string|false> $environment
+     */
+    private function restoreProcessEnvironment(array $environment): void
+    {
+        foreach ($environment as $name => $value) {
+            if ($value === false) {
+                putenv($name);
+                continue;
+            }
+            putenv($name . '=' . $value);
+        }
     }
 
     private function pluginRoot(): string

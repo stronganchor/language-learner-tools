@@ -168,6 +168,22 @@ php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --detai
 
 The source-POT guard asks WP-CLI to extract into the system temporary directory
 and compares canonical context/msgid/plural keys without changing `languages/`.
+It resolves an explicit readable `WP_CLI_PHAR` first, then an explicit `WP_CLI`
+executable, then a readable Local-bundled PHAR, and finally `wp` on `PATH`. If
+autodiscovery is unavailable, choose one override for the current PowerShell
+session before running the guard:
+
+```powershell
+$env:WP_CLI = 'C:\path\to\wp.bat'
+# Or, instead of WP_CLI:
+$env:WP_CLI_PHAR = 'C:\path\to\wp-cli.phar'
+php scripts/check-i18n-source-pot.php
+```
+
+`WP_CLI_PHAR` must name a readable file and takes precedence when both
+overrides are set. `WP_CLI` should name one executable or command, not a
+shell command containing multiple arguments.
+
 The locale checks treat missing, blank, partial, fuzzy, stale, duplicate,
 structurally invalid, or uncompiled current POT entries as failures. They
 compare compiled MO and PHP messages with each PO;
@@ -329,6 +345,9 @@ discovery lists 479 tests in 97 spec files. The August 6 release audit
 exercised 597 tests. The August 21 source-frozen discovery listed 692 tests in
 108 files; the final accounting was 691 passing cases and one expected opt-in
 performance skip, including focused green reruns for three corrected failures.
+The August 26 stability pass discovered 706 tests in the same 108 files; eight
+serial shards completed with 705 passed, one expected opt-in performance skip,
+and zero failures.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35

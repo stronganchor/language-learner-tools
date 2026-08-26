@@ -317,6 +317,23 @@ test('performance fixture reset refuses untagged slug collisions', async () => {
   expect(resetBlock).not.toContain('update_term_meta((int) $term->term_id, LL_TOOLS_PERF_FIXTURE_META_KEY');
 });
 
+test('quiz popup fixture marks inserted objects before expensive lifecycle hooks can be interrupted', async () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, 'tests', 'e2e', 'fixtures', 'seed-quiz-popup-text-translation-options.php'),
+    'utf8'
+  );
+  const insertTermStart = source.indexOf('function ll_tools_qptto_insert_term(');
+  const insertTermEnd = source.indexOf('\nfunction ', insertTermStart + 1);
+  const insertTermBlock = source.slice(insertTermStart, insertTermEnd === -1 ? source.length : insertTermEnd);
+
+  expect(insertTermStart).toBeGreaterThanOrEqual(0);
+  expect(insertTermBlock).toContain("add_action('created_term', $tag_created_term, -1000, 4)");
+  expect(insertTermBlock).toContain('ll_tools_qptto_tag_term((int) $term_id, $fixture_version)');
+  expect(insertTermBlock.indexOf("add_action('created_term'")).toBeLessThan(insertTermBlock.indexOf('wp_insert_term('));
+  expect(insertTermBlock).toContain("remove_action('created_term', $tag_created_term, -1000)");
+  expect((source.match(/'meta_input'\s*=>/g) || []).length).toBeGreaterThanOrEqual(3);
+});
+
 test('AI context router and workflow docs cover configured context packs', async () => {
   const packNames = collectContextPackNames();
   const contextReadme = fs.readFileSync(path.join(repoRoot, 'docs', 'ai-context', 'README.md'), 'utf8');

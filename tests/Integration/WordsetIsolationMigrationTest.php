@@ -1204,6 +1204,8 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
 
     public function test_deleted_category_recommendation_cleanup_preserves_a_concurrent_queue_write(): void
     {
+        global $wpdb;
+
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
 
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -1229,25 +1231,39 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $concurrent_value = [(string) $wordset_id => [$concurrent_activity]];
         $interleave = null;
         $observed_previous = null;
-        $interleave = static function ($check, $object_id, $meta_key, $meta_value, $previous_value) use (&$interleave, &$observed_previous, $user_id, $concurrent_value) {
-            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) {
-                return $check;
+        $interleave = static function (string $query) use ($wpdb, &$interleave, &$observed_previous, $user_id, $concurrent_value): string {
+            if (
+                stripos($query, 'SELECT umeta_id, meta_value') === false
+                || stripos($query, "FROM {$wpdb->usermeta}") === false
+                || stripos($query, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) === false
+            ) {
+                return $query;
             }
-            remove_filter('update_user_metadata', $interleave, 10);
-            $observed_previous = $previous_value;
-            update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $concurrent_value);
-            return $check;
+            remove_filter('query', $interleave, 10);
+            $observed_previous = maybe_unserialize((string) $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s LIMIT 1",
+                $user_id,
+                LL_TOOLS_USER_RECOMMENDATION_QUEUE_META
+            )));
+            $wpdb->update(
+                $wpdb->usermeta,
+                ['meta_value' => maybe_serialize($concurrent_value)],
+                ['user_id' => $user_id, 'meta_key' => LL_TOOLS_USER_RECOMMENDATION_QUEUE_META],
+                ['%s'],
+                ['%d', '%s']
+            );
+            return $query;
         };
 
         $state = ll_tools_wordset_isolation_migration_new_state();
         $state['status'] = 'running';
         $state['phase'] = 'users';
         $state['cursor'] = 77;
-        add_filter('update_user_metadata', $interleave, 10, 5);
+        add_filter('query', $interleave, 10, 1);
         try {
             $processed = ll_tools_wordset_isolation_migration_process_user($user_id, $state);
         } finally {
-            remove_filter('update_user_metadata', $interleave, 10);
+            remove_filter('query', $interleave, 10);
         }
 
         $this->assertFalse($processed);
@@ -1502,12 +1518,20 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $observed_previous = null;
         $raw_interleave_writes = null;
         $interleave = null;
-        $interleave = static function ($check, $object_id, $meta_key, $meta_value, $previous_value) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value) {
-            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) {
-                return $check;
+        $interleave = static function (string $query) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value): string {
+            if (
+                stripos($query, 'SELECT umeta_id, meta_value') === false
+                || stripos($query, "FROM {$wpdb->usermeta}") === false
+                || stripos($query, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META) === false
+            ) {
+                return $query;
             }
-            remove_filter('update_user_metadata', $interleave, 10);
-            $observed_previous = $previous_value;
+            remove_filter('query', $interleave, 10);
+            $observed_previous = maybe_unserialize((string) $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s LIMIT 1",
+                $user_id,
+                LL_TOOLS_USER_RECOMMENDATION_QUEUE_META
+            )));
             // Simulate another PHP request: update the row without invalidating
             // this request's user-meta cache.
             $raw_interleave_writes = $wpdb->update(
@@ -1520,13 +1544,13 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
                 ['%s'],
                 ['%d', '%s']
             );
-            return $check;
+            return $query;
         };
-        add_filter('update_user_metadata', $interleave, 10, 5);
+        add_filter('query', $interleave, 10, 1);
         try {
             $queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
         } finally {
-            remove_filter('update_user_metadata', $interleave, 10);
+            remove_filter('query', $interleave, 10);
         }
 
         $this->assertSame($before, $observed_previous);
@@ -1569,12 +1593,20 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $observed_previous = null;
         $raw_interleave_writes = null;
         $interleave = null;
-        $interleave = static function ($delete, $object_id, $meta_key, $meta_value) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value) {
-            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_LAST_RECOMMENDATION_META) {
-                return $delete;
+        $interleave = static function (string $query) use ($wpdb, &$interleave, &$observed_previous, &$raw_interleave_writes, $user_id, $concurrent_value): string {
+            if (
+                stripos($query, 'SELECT umeta_id, meta_value') === false
+                || stripos($query, "FROM {$wpdb->usermeta}") === false
+                || stripos($query, LL_TOOLS_USER_LAST_RECOMMENDATION_META) === false
+            ) {
+                return $query;
             }
-            remove_filter('delete_user_metadata', $interleave, 10);
-            $observed_previous = $meta_value;
+            remove_filter('query', $interleave, 10);
+            $observed_previous = maybe_unserialize((string) $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s LIMIT 1",
+                $user_id,
+                LL_TOOLS_USER_LAST_RECOMMENDATION_META
+            )));
             $raw_interleave_writes = $wpdb->update(
                 $wpdb->usermeta,
                 ['meta_value' => maybe_serialize($concurrent_value)],
@@ -1585,13 +1617,13 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
                 ['%s'],
                 ['%d', '%s']
             );
-            return $delete;
+            return $query;
         };
-        add_filter('delete_user_metadata', $interleave, 10, 5);
+        add_filter('query', $interleave, 10, 1);
         try {
             $activity = ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id);
         } finally {
-            remove_filter('delete_user_metadata', $interleave, 10);
+            remove_filter('query', $interleave, 10);
         }
 
         $this->assertSame($before, $observed_previous);
@@ -3069,6 +3101,8 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
 
     public function test_user_meta_compare_and_swap_preserves_a_concurrent_write_and_stops_cursor(): void
     {
+        global $wpdb;
+
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
         $wordset_id = $this->ensure_term('wordset', 'Concurrent User Repair Wordset', 'concurrent-user-repair-wordset');
@@ -3085,20 +3119,29 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
 
         $concurrent_value = [$category_id, 999999];
         $interleave = null;
-        $interleave = static function ($check, $object_id, $meta_key) use (&$interleave, $user_id, $concurrent_value) {
-            if ((int) $object_id !== $user_id || $meta_key !== LL_TOOLS_USER_CATEGORY_META) {
-                return $check;
+        $interleave = static function (string $query) use (&$interleave, $wpdb, $user_id, $concurrent_value): string {
+            if (
+                stripos($query, 'SELECT umeta_id, meta_value') === false
+                || stripos($query, "FROM {$wpdb->usermeta}") === false
+                || stripos($query, LL_TOOLS_USER_CATEGORY_META) === false
+            ) {
+                return $query;
             }
-            remove_filter('update_user_metadata', $interleave, 10);
-            update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, $concurrent_value);
-            add_filter('update_user_metadata', $interleave, 10, 3);
-            return true;
+            remove_filter('query', $interleave, 10);
+            $wpdb->update(
+                $wpdb->usermeta,
+                ['meta_value' => maybe_serialize($concurrent_value)],
+                ['user_id' => $user_id, 'meta_key' => LL_TOOLS_USER_CATEGORY_META],
+                ['%s'],
+                ['%d', '%s']
+            );
+            return $query;
         };
-        add_filter('update_user_metadata', $interleave, 10, 3);
+        add_filter('query', $interleave, 10, 1);
         try {
             $result = ll_tools_run_wordset_isolation_migration_batch();
         } finally {
-            remove_filter('update_user_metadata', $interleave, 10);
+            remove_filter('query', $interleave, 10);
         }
 
         $this->assertSame('failed', $result['status']);
@@ -3106,6 +3149,38 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertLessThan($user_id, (int) $result['cursor']);
         $this->assertSame($concurrent_value, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
         $this->assertSame(0, ll_tools_get_wordset_isolation_migration_version());
+    }
+
+    public function test_user_meta_repair_treats_privacy_deleted_baseline_as_safe_skip(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $before = [111, 222];
+        $expected = [333, 444];
+        $this->assertNotFalse(update_user_meta(
+            $user_id,
+            LL_TOOLS_USER_CATEGORY_META,
+            $before
+        ));
+        $this->assertSame($before, get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true));
+        $this->assertSame(1, $wpdb->delete(
+            $wpdb->usermeta,
+            ['user_id' => $user_id, 'meta_key' => LL_TOOLS_USER_CATEGORY_META],
+            ['%d', '%s']
+        ));
+
+        $state = ll_tools_wordset_isolation_migration_new_state();
+        $this->assertTrue(ll_tools_wordset_isolation_migration_write_user_meta(
+            $user_id,
+            LL_TOOLS_USER_CATEGORY_META,
+            $before,
+            $expected,
+            $state
+        ));
+        $this->assertFalse(metadata_exists('user', $user_id, LL_TOOLS_USER_CATEGORY_META));
+        $this->assertSame(0, (int) ($state['counters']['user_data_repaired'] ?? 0));
+        $this->assertSame([], (array) ($state['errors'] ?? []));
     }
 
     public function test_user_category_copy_failure_stops_the_cursor_without_legacy_success(): void

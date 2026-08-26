@@ -1081,30 +1081,126 @@ if (!function_exists('ll_tools_privacy_export_offline_sessions')) {
     }
 }
 
-if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
-    function ll_tools_privacy_delete_user_personal_data(int $user_id): bool {
+if (!function_exists('ll_tools_privacy_local_erasure_engine_status')) {
+    /**
+     * Verify every table covered by the local privacy rollback is transactional.
+     *
+     * @return array{ready:bool,engines:array<string,string>,details:array<int,string>}
+     */
+    function ll_tools_privacy_local_erasure_engine_status(): array {
+        global $wpdb;
+
+        $progress_tables = ll_tools_user_progress_table_names();
+        $tables = [
+            'users' => (string) $wpdb->users,
+            'usermeta' => (string) $wpdb->usermeta,
+            'posts' => (string) $wpdb->posts,
+            'postmeta' => (string) $wpdb->postmeta,
+            'offline_sessions' => (string) ll_tools_offline_app_session_table(),
+            'progress_words' => (string) ($progress_tables['words'] ?? ''),
+            'progress_events' => (string) ($progress_tables['events'] ?? ''),
+        ];
+        $engines = [];
+        $details = [];
+        foreach ($tables as $table_key => $table) {
+            if ($table === '') {
+                $engines[$table_key] = '';
+                $details[] = $table_key . ': table unavailable';
+                continue;
+            }
+
+            $wpdb->last_error = '';
+            $table_status = $wpdb->get_row(
+                $wpdb->prepare('SHOW TABLE STATUS LIKE %s', $wpdb->esc_like($table)),
+                ARRAY_A
+            );
+            $query_error = (string) $wpdb->last_error;
+            $engine = is_array($table_status) ? trim((string) ($table_status['Engine'] ?? '')) : '';
+            $engine = trim((string) apply_filters(
+                'll_tools_privacy_erasure_table_engine',
+                $engine,
+                $table_key,
+                $table,
+                $table_status,
+                $query_error
+            ));
+            $engines[$table_key] = $engine;
+            if ($query_error !== '') {
+                $details[] = $table . ': ' . $query_error;
+            } elseif (!is_array($table_status) || $engine === '') {
+                $details[] = $table . ': engine metadata unavailable';
+            } elseif (strcasecmp($engine, 'InnoDB') !== 0) {
+                $details[] = $table . ': ' . $engine;
+            }
+        }
+
+        return [
+            'ready' => $details === [],
+            'engines' => $engines,
+            'details' => $details,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_privacy_delete_user_personal_data_verified')) {
+    /**
+     * Transactionally erase and verify local study/session/class data.
+     *
+     * Lock ordering is always offline-session advisory lock, then the user row.
+     * Direct/offline progress writers use the same order, so a writer either
+     * completes before this transaction and is erased or observes the fence.
+     *
+     * @param bool $allow_missing_user Permit durable post-delete cleanup after
+     *                                 the WordPress user row is already gone.
+     * @return array{removed:int}|WP_Error
+     */
+    function ll_tools_privacy_delete_user_personal_data_verified(
+        int $user_id,
+        bool $allow_missing_user = false
+    ) {
         global $wpdb;
 
         if ($user_id <= 0) {
-            return false;
+            return new WP_Error('ll_tools_privacy_invalid_user');
         }
-
-        $removed = false;
-        if (function_exists('ll_tools_teacher_class_unlink_student')) {
-            $removed = ll_tools_teacher_class_unlink_student($user_id) || $removed;
+        if (
+            !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+            || !function_exists('ll_tools_offline_app_release_user_session_lock')
+            || !function_exists('ll_tools_offline_app_privacy_erase_user_sessions_locked')
+            || !function_exists('ll_tools_teacher_class_unlink_student_verified')
+            || !function_exists('ll_tools_user_progress_begin_event_transaction')
+            || !function_exists('ll_tools_user_progress_lock_user_for_event')
+        ) {
+            return new WP_Error(
+                'll_tools_privacy_erasure_runtime_unavailable',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
         }
-        $tables = function_exists('ll_tools_user_progress_table_names')
-            ? ll_tools_user_progress_table_names()
-            : [];
-
-        if (!empty($tables['words'])) {
-            $deleted_words = $wpdb->delete($tables['words'], ['user_id' => $user_id], ['%d']);
-            $removed = $removed || (!empty($deleted_words));
+        $schema_status = function_exists('ll_tools_user_progress_runtime_schema_status')
+            ? ll_tools_user_progress_runtime_schema_status()
+            : ['ready' => false];
+        if (empty($schema_status['ready'])) {
+            return new WP_Error(
+                'll_tools_privacy_progress_schema_unavailable',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
         }
-
-        if (!empty($tables['events'])) {
-            $deleted_events = $wpdb->delete($tables['events'], ['user_id' => $user_id], ['%d']);
-            $removed = $removed || (!empty($deleted_events));
+        $engine_status = function_exists('ll_tools_user_progress_core_engine_status')
+            ? ll_tools_user_progress_core_engine_status(true)
+            : ['ready' => false];
+        if (empty($engine_status['ready'])) {
+            return new WP_Error(
+                'll_tools_privacy_transactional_engine_unavailable',
+                __('LL Tools personal data cannot be erased safely while transactional storage is unavailable.', 'll-tools-text-domain')
+            );
+        }
+        $erasure_engine_status = ll_tools_privacy_local_erasure_engine_status();
+        if (empty($erasure_engine_status['ready'])) {
+            return new WP_Error(
+                'll_tools_privacy_transactional_engine_unavailable',
+                __('LL Tools personal data cannot be erased safely while transactional storage is unavailable.', 'll-tools-text-domain'),
+                ['details' => (array) ($erasure_engine_status['details'] ?? [])]
+            );
         }
 
         $meta_keys = [
@@ -1122,24 +1218,177 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
             defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META') ? LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META : 'll_user_study_recommendation_deferrals',
             defined('LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META') ? LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META : 'll_tools_completed_content_lessons',
             'tt_completed_lessons',
-            defined('LL_TOOLS_OFFLINE_APP_SESSION_META') ? LL_TOOLS_OFFLINE_APP_SESSION_META : '',
-            defined('LL_TOOLS_STUDENT_CLASS_IDS_META') ? LL_TOOLS_STUDENT_CLASS_IDS_META : '',
         ];
+        $meta_keys = array_values(array_unique(array_filter(array_map('strval', $meta_keys))));
 
-        foreach ($meta_keys as $meta_key) {
-            $meta_key = (string) $meta_key;
-            if ($meta_key === '') {
-                continue;
-            }
-            $existing = get_user_meta($user_id, $meta_key, true);
-            if ($existing === '' || $existing === [] || $existing === null) {
-                continue;
-            }
-            delete_user_meta($user_id, $meta_key);
-            $removed = true;
+        $session_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+        if ($session_lock === '') {
+            return new WP_Error(
+                'll_tools_privacy_mutation_lock_unavailable',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
         }
 
-        return $removed;
+        $transaction = null;
+        $class_ids = [];
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        $clear_caches = static function () use ($user_id, &$class_ids): void {
+            if (function_exists('ll_tools_user_progress_clear_user_cache')) {
+                ll_tools_user_progress_clear_user_cache($user_id);
+            } else {
+                wp_cache_delete($user_id, 'user_meta');
+                clean_user_cache($user_id);
+            }
+            foreach (array_values(array_unique(array_map('intval', $class_ids))) as $class_id) {
+                if ($class_id > 0) {
+                    clean_post_cache($class_id);
+                }
+            }
+        };
+        $rollback = static function (WP_Error $error) use (&$transaction, $user_id, $clear_caches): WP_Error {
+            if (is_array($transaction)) {
+                ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+                $transaction = null;
+            }
+            $clear_caches();
+            return $error;
+        };
+
+        try {
+            $transaction = ll_tools_user_progress_begin_event_transaction();
+            if (!is_array($transaction)) {
+                return new WP_Error(
+                    'll_tools_privacy_transaction_start_failed',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                );
+            }
+            if (!ll_tools_user_progress_lock_user_for_event($user_id)) {
+                $wpdb->last_error = '';
+                $existing_user_id = $wpdb->get_var($wpdb->prepare(
+                    "SELECT ID FROM {$wpdb->users} WHERE ID = %d",
+                    $user_id
+                ));
+                if (
+                    !$allow_missing_user
+                    || $existing_user_id !== null
+                    || (string) $wpdb->last_error !== ''
+                ) {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_user_lock_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+            }
+
+            $removed = 0;
+            $session_erasure = ll_tools_offline_app_privacy_erase_user_sessions_locked($user_id);
+            if (is_wp_error($session_erasure)) {
+                return $rollback($session_erasure);
+            }
+            $removed += max(0, (int) ($session_erasure['removed'] ?? 0));
+
+            $class_erasure = ll_tools_teacher_class_unlink_student_verified($user_id);
+            if (is_wp_error($class_erasure)) {
+                $error_data = $class_erasure->get_error_data();
+                if (is_array($error_data) && !empty($error_data['class_ids'])) {
+                    $class_ids = array_values(array_map('intval', (array) $error_data['class_ids']));
+                }
+                return $rollback($class_erasure);
+            }
+            $class_ids = array_values(array_map('intval', (array) ($class_erasure['class_ids'] ?? [])));
+            $removed += max(0, (int) ($class_erasure['removed'] ?? 0));
+
+            $tables = ll_tools_user_progress_table_names();
+            foreach (['words', 'events'] as $table_key) {
+                $table = (string) ($tables[$table_key] ?? '');
+                if ($table === '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_progress_table_unavailable',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+
+                $wpdb->last_error = '';
+                $before_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$table} WHERE user_id = %d",
+                    $user_id
+                ));
+                if (!is_numeric($before_count) || (string) $wpdb->last_error !== '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_progress_read_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+
+                $wpdb->last_error = '';
+                $deleted = $wpdb->delete($table, ['user_id' => $user_id], ['%d']);
+                if ($deleted === false || (string) $wpdb->last_error !== '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_progress_delete_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+
+                $wpdb->last_error = '';
+                $remaining_count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$table} WHERE user_id = %d",
+                    $user_id
+                ));
+                if (
+                    !is_numeric($remaining_count)
+                    || (string) $wpdb->last_error !== ''
+                    || (int) $remaining_count !== 0
+                ) {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_progress_retained',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+                $removed += max(0, (int) $before_count);
+            }
+
+            foreach ($meta_keys as $meta_key) {
+                if (!metadata_exists('user', $user_id, $meta_key)) {
+                    continue;
+                }
+                delete_user_meta($user_id, $meta_key);
+                wp_cache_delete($user_id, 'user_meta');
+                if (metadata_exists('user', $user_id, $meta_key)) {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_user_meta_retained',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+                $removed++;
+            }
+
+            if (!ll_tools_user_progress_commit_event_transaction($transaction)) {
+                return $rollback(new WP_Error(
+                    'll_tools_privacy_transaction_commit_failed',
+                    __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                ));
+            }
+            $transaction = null;
+            $clear_caches();
+
+            return ['removed' => $removed];
+        } finally {
+            if (is_array($transaction)) {
+                ll_tools_user_progress_rollback_event_transaction($transaction, $user_id);
+                $transaction = null;
+                $clear_caches();
+            }
+            $wpdb->suppress_errors($previous_suppress_errors);
+            ll_tools_offline_app_release_user_session_lock($session_lock);
+        }
+    }
+}
+
+if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
+    /** Preserve the existing boolean helper contract for direct callers. */
+    function ll_tools_privacy_delete_user_personal_data(int $user_id): bool {
+        $result = ll_tools_privacy_delete_user_personal_data_verified($user_id);
+        return !is_wp_error($result) && (int) ($result['removed'] ?? 0) > 0;
     }
 }
 
@@ -1286,7 +1535,11 @@ if (!function_exists('ll_tools_privacy_erase_personal_data')) {
             }
         }
 
-        $removed = ll_tools_privacy_delete_user_personal_data($user_id) || $removed;
+        $personal_erasure = ll_tools_privacy_delete_user_personal_data_verified($user_id);
+        if (is_wp_error($personal_erasure)) {
+            return $abort_erasure($personal_erasure);
+        }
+        $removed = $removed || (int) ($personal_erasure['removed'] ?? 0) > 0;
         if (!ll_tools_privacy_finish_user_lms_erasure($user_id, $erasure_call_token)) {
             return new WP_Error(
                 'lms_privacy_erasure_fence_release_failed',
@@ -1331,6 +1584,41 @@ function ll_tools_privacy_deleted_user_lms_cleanup_option_name(int $user_id): st
 
 function ll_tools_privacy_user_lms_erasure_option_name(int $user_id): string {
     return LL_TOOLS_LMS_PRIVACY_ERASURE_OPTION_PREFIX . max(0, $user_id);
+}
+
+/** @return array{exists:bool,raw:string,value:mixed}|WP_Error */
+function ll_tools_privacy_deleted_user_lms_cleanup_row(int $user_id) {
+    global $wpdb;
+
+    if ($user_id <= 0) {
+        return new WP_Error('lms_deleted_user_cleanup_tombstone_read_failed');
+    }
+    $wpdb->last_error = '';
+    $raw = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id)
+    ));
+    if ((string) $wpdb->last_error !== '') {
+        return new WP_Error('lms_deleted_user_cleanup_tombstone_read_failed');
+    }
+    if ($raw === null) {
+        return ['exists' => false, 'raw' => '', 'value' => false];
+    }
+    return [
+        'exists' => true,
+        'raw' => (string) $raw,
+        'value' => maybe_unserialize($raw),
+    ];
+}
+
+function ll_tools_privacy_deleted_user_lms_cleanup_cache_forget(int $user_id): void {
+    wp_cache_delete(ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id), 'options');
+    $notoptions = wp_cache_get('notoptions', 'options');
+    $option_name = ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id);
+    if (is_array($notoptions) && isset($notoptions[$option_name])) {
+        unset($notoptions[$option_name]);
+        wp_cache_set('notoptions', $notoptions, 'options');
+    }
 }
 
 function ll_tools_privacy_user_lms_erasure_fence_ttl(int $user_id): int {
@@ -1598,7 +1886,9 @@ function ll_tools_privacy_user_lms_deletion_is_pending(int $user_id): bool {
     if ($user_id <= 0) {
         return true;
     }
-    return get_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id), false) !== false
+    $tombstone = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    return is_wp_error($tombstone)
+        || !empty($tombstone['exists'])
         || ll_tools_privacy_user_lms_erasure_is_active($user_id);
 }
 
@@ -1665,17 +1955,32 @@ function ll_tools_privacy_queue_deleted_user_lms_cleanup(int $user_id): bool {
     }
     $option_name = ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id);
     if (add_option($option_name, ['queued_at' => time(), 'post_seen_at' => 0], '', false)) {
+        ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($user_id);
         return true;
     }
-    return get_option($option_name, false) !== false;
+    $row = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    return !is_wp_error($row) && !empty($row['exists']);
 }
 
 function ll_tools_privacy_dequeue_deleted_user_lms_cleanup(int $user_id): bool {
+    global $wpdb;
+
     $option_name = ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id);
-    if (get_option($option_name, false) === false) {
+    $row = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    if (is_wp_error($row)) {
+        return false;
+    }
+    if (empty($row['exists'])) {
         return true;
     }
-    return delete_option($option_name);
+    $wpdb->last_error = '';
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+        $option_name,
+        (string) $row['raw']
+    ));
+    ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($user_id);
+    return $deleted === 1 && (string) $wpdb->last_error === '';
 }
 
 /** Reschedule one bounded keyset page after activation or a cron-write failure. */
@@ -1711,6 +2016,8 @@ function ll_tools_privacy_maybe_resume_deleted_user_lms_cleanup(): void {
 
 /** Durable per-site proof that WordPress completed removal from this site. */
 function ll_tools_privacy_deleted_user_post_seen(int $user_id, bool $mark = false): bool {
+    global $wpdb;
+
     if ($user_id <= 0) {
         return false;
     }
@@ -1719,18 +2026,40 @@ function ll_tools_privacy_deleted_user_post_seen(int $user_id, bool $mark = fals
         if (!ll_tools_privacy_queue_deleted_user_lms_cleanup($user_id)) {
             return false;
         }
-        $current = get_option($option_name, false);
-        $queued_at = is_array($current)
-            ? max(1, (int) ($current['queued_at'] ?? 0))
-            : max(1, (int) $current);
-        $payload = [
-            'queued_at' => $queued_at,
-            'post_seen_at' => time(),
-        ];
-        update_option($option_name, $payload, false);
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            $row = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+            if (is_wp_error($row) || empty($row['exists'])) {
+                return false;
+            }
+            $current = $row['value'];
+            if (is_array($current) && (int) ($current['post_seen_at'] ?? 0) > 0) {
+                break;
+            }
+            $queued_at = is_array($current)
+                ? max(1, (int) ($current['queued_at'] ?? 0))
+                : max(1, (int) $current);
+            $payload = [
+                'queued_at' => $queued_at,
+                'post_seen_at' => time(),
+            ];
+            $wpdb->last_error = '';
+            $updated = $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                maybe_serialize($payload),
+                $option_name,
+                (string) $row['raw']
+            ));
+            ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($user_id);
+            if ($updated === 1 && (string) $wpdb->last_error === '') {
+                break;
+            }
+        }
     }
-    $current = get_option($option_name, false);
-    return is_array($current) && (int) ($current['post_seen_at'] ?? 0) > 0;
+    $row = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    return !is_wp_error($row)
+        && !empty($row['exists'])
+        && is_array($row['value'])
+        && (int) ($row['value']['post_seen_at'] ?? 0) > 0;
 }
 
 /**
@@ -1759,9 +2088,10 @@ function ll_tools_privacy_prepare_network_deleted_user_lms_cleanup(int $user_id)
             if (!ll_tools_privacy_queue_deleted_user_lms_cleanup($user_id)) {
                 continue;
             }
-            if (wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]) === false) {
-                wp_schedule_single_event(time() + MINUTE_IN_SECONDS, LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]);
-            }
+            // Establish the site-local writer barrier while membership and the
+            // user row are still available. The durable worker keeps retrying
+            // if a previously admitted writer outlives this bounded attempt.
+            ll_tools_privacy_cleanup_deleted_user_lms_data($user_id);
         } finally {
             if ($switched) {
                 restore_current_blog();
@@ -1801,7 +2131,8 @@ function ll_tools_privacy_prepare_removed_user_lms_cleanup(int $user_id, int $bl
         return;
     }
 
-    if (get_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id), false) !== false) {
+    $tombstone = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    if (!is_wp_error($tombstone) && !empty($tombstone['exists'])) {
         return;
     }
 
@@ -1849,7 +2180,28 @@ function ll_tools_privacy_cleanup_deleted_user_lms_data(int $user_id): void {
     }
     // Cron is only a continuation consumer. It must never recreate a completed
     // tombstone if a stale/in-flight event arrives after successful dequeue.
-    if (get_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id), false) === false) {
+    $tombstone = ll_tools_privacy_deleted_user_lms_cleanup_row($user_id);
+    if (is_wp_error($tombstone)) {
+        if (wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]) === false) {
+            wp_schedule_single_event(time() + MINUTE_IN_SECONDS, LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]);
+        }
+        return;
+    }
+    if (empty($tombstone['exists'])) {
+        return;
+    }
+
+    // The durable tombstone is installed before account/site deletion begins.
+    // Taking the same per-user advisory lock drains any writer admitted before
+    // that fence. Post-delete retries may safely omit the vanished user-row
+    // lock because the tombstone rejects every new LL Tools writer.
+    $local_erasure = function_exists('ll_tools_privacy_delete_user_personal_data_verified')
+        ? ll_tools_privacy_delete_user_personal_data_verified($user_id, true)
+        : new WP_Error('ll_tools_privacy_erasure_runtime_unavailable');
+    if (is_wp_error($local_erasure)) {
+        if (wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]) === false) {
+            wp_schedule_single_event(time() + MINUTE_IN_SECONDS, LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]);
+        }
         return;
     }
 
@@ -1913,9 +2265,9 @@ function ll_tools_privacy_cleanup_deleted_user_lms_data(int $user_id): void {
         wp_schedule_single_event(time() + MINUTE_IN_SECONDS, LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$user_id]);
     }
 }
-add_action('delete_user', 'll_tools_privacy_prepare_deleted_user_lms_cleanup', 20, 1);
-add_action('wpmu_delete_user', 'll_tools_privacy_prepare_network_deleted_user_lms_cleanup', 20, 1);
-add_action('remove_user_from_blog', 'll_tools_privacy_prepare_removed_user_lms_cleanup', 20, 2);
+add_action('delete_user', 'll_tools_privacy_prepare_deleted_user_lms_cleanup', 1, 1);
+add_action('wpmu_delete_user', 'll_tools_privacy_prepare_network_deleted_user_lms_cleanup', 1, 1);
+add_action('remove_user_from_blog', 'll_tools_privacy_prepare_removed_user_lms_cleanup', 1, 2);
 add_action('deleted_user', 'll_tools_privacy_cleanup_after_deleted_user', 20, 1);
 add_action(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, 'll_tools_privacy_cleanup_deleted_user_lms_data', 10, 1);
 add_action(LL_TOOLS_LMS_DELETED_USER_CLEANUP_RESUME_HOOK, 'll_tools_privacy_resume_deleted_user_lms_cleanup', 10, 1);

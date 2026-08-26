@@ -67,6 +67,53 @@ final class VocabLessonFailOpenMaintenanceTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_enabled_wordset_lookup_fails_open_when_bulk_term_query_fails(): void
+    {
+        global $wpdb;
+
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $wordset = wp_insert_term(
+            'Vocab lookup fail-open wordset ' . $suffix,
+            'wordset',
+            ['slug' => 'vocab-lookup-fail-open-wordset-' . $suffix]
+        );
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        $stale_id = $wordset_id + 1000000;
+        $configured_ids = [$stale_id, $wordset_id];
+
+        $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+        try {
+            update_option('ll_vocab_lesson_wordsets', $configured_ids, false);
+        } finally {
+            unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
+        }
+
+        $injected = false;
+        $query_fault = static function (string $query) use ($wpdb, &$injected): string {
+            if (
+                !$injected
+                && strpos($query, "FROM {$wpdb->terms} AS t") !== false
+                && strpos($query, "INNER JOIN {$wpdb->term_taxonomy} AS tt") !== false
+                && stripos($query, "tt.taxonomy IN ('wordset')") !== false
+            ) {
+                $injected = true;
+                return "SELECT t.term_id FROM {$wpdb->terms}_ll_tools_vocab_lookup_missing AS t";
+            }
+            return $query;
+        };
+
+        $resolved_ids = $this->withFailedQuery(
+            $query_fault,
+            $injected,
+            static function (): array {
+                return ll_tools_get_vocab_lesson_wordset_ids();
+            }
+        );
+
+        $this->assertSame($configured_ids, $resolved_ids);
+    }
+
     public function test_cleanup_batch_does_not_trash_or_advance_past_incomplete_eligibility(): void
     {
         [$wordsetId, $categoryId] = $this->createFixture(false);

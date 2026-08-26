@@ -9,6 +9,7 @@ final class VocabLessonSettingsAccessTest extends LL_Tools_TestCase
             set_current_screen('front');
         }
         delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        delete_option('ll_vocab_lesson_wordsets');
         delete_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
         wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
         unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
@@ -115,6 +116,73 @@ final class VocabLessonSettingsAccessTest extends LL_Tools_TestCase
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
     }
 
+    public function test_enabled_wordset_lookup_filters_stale_ids_in_one_query_and_preserves_order(): void
+    {
+        global $wpdb;
+
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $first_id = $this->ensure_term(
+            'wordset',
+            'Filtered Vocab Wordset First ' . $suffix,
+            'filtered-vocab-wordset-first-' . $suffix
+        );
+        $second_id = $this->ensure_term(
+            'wordset',
+            'Filtered Vocab Wordset Second ' . $suffix,
+            'filtered-vocab-wordset-second-' . $suffix
+        );
+        $stale_ids = range(9000000, 9000199);
+        $configured_ids = array_merge([$second_id], $stale_ids, [$first_id, $second_id, 0, -1]);
+        $this->storeEnabledWordsets($configured_ids);
+
+        $lookup_queries = [];
+        $query_observer = static function (string $query) use (&$lookup_queries, $wpdb): string {
+            if (
+                strpos($query, "FROM {$wpdb->terms} AS t") !== false
+                && strpos($query, "INNER JOIN {$wpdb->term_taxonomy} AS tt") !== false
+                && stripos($query, "tt.taxonomy IN ('wordset')") !== false
+            ) {
+                $lookup_queries[] = $query;
+            }
+            return $query;
+        };
+        add_filter('query', $query_observer);
+        try {
+            $resolved_ids = ll_tools_get_vocab_lesson_wordset_ids();
+        } finally {
+            remove_filter('query', $query_observer);
+        }
+
+        $this->assertSame([$second_id, $first_id], $resolved_ids);
+        $this->assertCount(1, $lookup_queries, 'Stale IDs should be resolved by one set-based taxonomy query.');
+        $this->assertSame($configured_ids, get_option('ll_vocab_lesson_wordsets'));
+    }
+
+    public function test_deleting_wordset_prunes_deleted_and_current_stale_ids_without_queueing_sync(): void
+    {
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $deleted_id = $this->ensure_term(
+            'wordset',
+            'Deleted Vocab Wordset ' . $suffix,
+            'deleted-vocab-wordset-' . $suffix
+        );
+        $retained_id = $this->ensure_term(
+            'wordset',
+            'Retained Vocab Wordset ' . $suffix,
+            'retained-vocab-wordset-' . $suffix
+        );
+        $this->storeEnabledWordsets([9100001, $retained_id, $deleted_id, 9100002]);
+        delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+
+        $deleted = wp_delete_term($deleted_id, 'wordset');
+
+        $this->assertTrue($deleted);
+        $this->assertSame([$retained_id], get_option('ll_vocab_lesson_wordsets'));
+        $this->assertSame([], ll_tools_get_vocab_lesson_reconciliation_state());
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
@@ -127,6 +195,21 @@ final class VocabLessonSettingsAccessTest extends LL_Tools_TestCase
         $this->assertIsArray($created);
 
         return (int) $created['term_id'];
+    }
+
+    private function storeEnabledWordsets(array $wordset_ids): void
+    {
+        $previous_skip_auto_sync = !empty($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
+        $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+        try {
+            update_option('ll_vocab_lesson_wordsets', $wordset_ids, false);
+        } finally {
+            if ($previous_skip_auto_sync) {
+                $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+            } else {
+                unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
+            }
+        }
     }
 
     private function capture_wp_die_message(callable $callback): string

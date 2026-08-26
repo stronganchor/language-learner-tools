@@ -150,7 +150,23 @@ function ll_tools_qptto_tag_term(int $term_id, string $fixture_version): void {
 }
 
 function ll_tools_qptto_insert_term(string $taxonomy, string $name, string $slug, string $fixture_version): int {
-    $insert = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
+    // Mark the term before taxonomy-specific created_* hooks run. Those hooks
+    // can perform cache work and an interrupted CLI process must not leave an
+    // unowned slug collision that the next fixture run cannot safely reclaim.
+    $tag_created_term = static function ($term_id, $tt_id, $created_taxonomy, $args) use ($taxonomy, $slug, $fixture_version): void {
+        unset($tt_id);
+        if ((string) $created_taxonomy !== $taxonomy || sanitize_title((string) ($args['slug'] ?? '')) !== $slug) {
+            return;
+        }
+
+        ll_tools_qptto_tag_term((int) $term_id, $fixture_version);
+    };
+    add_action('created_term', $tag_created_term, -1000, 4);
+    try {
+        $insert = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
+    } finally {
+        remove_action('created_term', $tag_created_term, -1000);
+    }
     if (is_wp_error($insert)) {
         ll_tools_qptto_fail(sprintf('Unable to create %s term %s: %s', $taxonomy, $slug, $insert->get_error_message()));
     }
@@ -211,6 +227,10 @@ function ll_tools_qptto_create_audio(int $word_id, string $slug, string $title, 
         'post_title' => $title . ' fixture audio',
         'post_name' => sanitize_title($slug . '-audio'),
         'post_content' => '',
+        'meta_input' => [
+            LL_TOOLS_QPTTO_FIXTURE_META_KEY => LL_TOOLS_QPTTO_FIXTURE_KEY,
+            LL_TOOLS_QPTTO_FIXTURE_VERSION_META_KEY => $fixture_version,
+        ],
     ], true);
 
     if (is_wp_error($audio_id) || (int) $audio_id <= 0) {
@@ -245,6 +265,10 @@ function ll_tools_qptto_create_word(array $word, int $wordset_id, int $category_
         'post_title' => $translation,
         'post_name' => $slug,
         'post_content' => '',
+        'meta_input' => [
+            LL_TOOLS_QPTTO_FIXTURE_META_KEY => LL_TOOLS_QPTTO_FIXTURE_KEY,
+            LL_TOOLS_QPTTO_FIXTURE_VERSION_META_KEY => $fixture_version,
+        ],
     ], true);
 
     if (is_wp_error($word_id) || (int) $word_id <= 0) {
@@ -362,6 +386,10 @@ function ll_tools_qptto_run(): array {
         'post_title' => sanitize_text_field((string) ($page['title'] ?? 'LL E2E Quiz Popup Translation Options')),
         'post_name' => $page_slug,
         'post_content' => sprintf('[quiz_pages_grid wordset="%s" popup="yes" mode="%s"]', esc_attr($wordset_slug), esc_attr($mode)),
+        'meta_input' => [
+            LL_TOOLS_QPTTO_FIXTURE_META_KEY => LL_TOOLS_QPTTO_FIXTURE_KEY,
+            LL_TOOLS_QPTTO_FIXTURE_VERSION_META_KEY => $fixture_version,
+        ],
     ], true);
 
     if (is_wp_error($page_id) || (int) $page_id <= 0) {

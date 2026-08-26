@@ -251,6 +251,7 @@ function buildProgressPageMarkup() {
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="progress" data-ll-wordset-id="77">
       <section class="ll-wordset-progress-view" data-ll-wordset-progress-root>
         <div data-ll-wordset-progress-status></div>
+        <button type="button" data-ll-wordset-progress-retry hidden>Retry</button>
         <div data-ll-wordset-progress-scope></div>
         <div class="ll-wordset-progress-summary is-loading" data-ll-wordset-progress-summary aria-busy="true">
           ${['mastered', 'studied', 'new', 'starred', 'hard'].map((key) => `
@@ -263,12 +264,12 @@ function buildProgressPageMarkup() {
         </div>
         <div data-ll-wordset-progress-graph></div>
 
-        <div role="tablist">
-          <button type="button" data-ll-wordset-progress-tab="categories">Categories</button>
-          <button type="button" data-ll-wordset-progress-tab="words">Words</button>
+        <div role="tablist" aria-label="Progress">
+          <button type="button" id="ll-wordset-progress-tab-categories" data-ll-wordset-progress-tab="categories" role="tab" aria-controls="ll-wordset-progress-panel-categories" aria-selected="true" tabindex="0">Categories</button>
+          <button type="button" id="ll-wordset-progress-tab-words" data-ll-wordset-progress-tab="words" role="tab" aria-controls="ll-wordset-progress-panel-words" aria-selected="false" tabindex="-1">Words</button>
         </div>
 
-        <div data-ll-wordset-progress-panel="categories">
+        <div id="ll-wordset-progress-panel-categories" data-ll-wordset-progress-panel="categories" role="tabpanel" aria-labelledby="ll-wordset-progress-tab-categories">
           <input type="search" data-ll-wordset-progress-category-search />
           <span data-ll-wordset-progress-category-search-loading hidden></span>
           <table class="ll-wordset-progress-table">
@@ -276,7 +277,7 @@ function buildProgressPageMarkup() {
           </table>
         </div>
 
-        <div data-ll-wordset-progress-panel="words" hidden>
+        <div id="ll-wordset-progress-panel-words" data-ll-wordset-progress-panel="words" role="tabpanel" aria-labelledby="ll-wordset-progress-tab-words" hidden>
           <input type="search" data-ll-wordset-progress-search />
           <span data-ll-wordset-progress-search-loading hidden></span>
           <button type="button" data-ll-wordset-progress-clear-filters hidden>Clear</button>
@@ -985,7 +986,7 @@ async function prepareExplicitProgressSelection(page, options = {}) {
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(selectedWordIds.length);
 
   const selectAll = page.locator('[data-ll-wordset-progress-select-all]');
@@ -1047,7 +1048,7 @@ async function prepareAllFilteredProgressSelection(page, options = {}) {
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
   await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
 
@@ -1206,8 +1207,15 @@ test('progress summary counts stay blank while initial analytics loads', async (
   await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['3', '6', '11', '4', '2']);
 });
 
-test('acknowledged progress refreshes before an activity closes', async ({ page }) => {
+test('acknowledged progress refreshes stay single-flight and coalesce before an activity closes', async ({ page }) => {
   await mountProgressPage(page);
+
+  const readAnalyticsRequestState = () => page.evaluate(() => ({
+    total: Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0,
+    pending: Array.isArray(window.__llAnalyticsRequests)
+      ? window.__llAnalyticsRequests.filter((entry) => entry.deferred && entry.deferred.state() === 'pending').length
+      : 0
+  }));
 
   await expect.poll(async () => {
     return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
@@ -1236,8 +1244,29 @@ test('acknowledged progress refreshes before an activity closes', async ({ page 
   }).toBe(2);
   await expect(page.locator('body')).toHaveClass(/ll-tools-flashcard-open/);
 
+  for (let update = 0; update < 3; update += 1) {
+    await page.evaluate((received) => {
+      window.jQuery(document).trigger('lltools:progress-updated', [{
+        stats: { received, processed: received }
+      }]);
+    }, update + 2);
+    await page.waitForTimeout(350);
+    expect(await readAnalyticsRequestState()).toEqual({ total: 2, pending: 1 });
+  }
+
   await page.evaluate((payload) => {
+    window.__staleAnalyticsRendered = false;
+    const summary = document.querySelector('[data-ll-wordset-progress-summary]');
+    window.__staleAnalyticsObserver = new MutationObserver(() => {
+      const values = Array.from(document.querySelectorAll('.ll-wordset-progress-kpi-value'))
+        .map((node) => String(node.textContent || '').trim());
+      if (values[0] === '4' || values[1] === '6' || values[2] === '10') {
+        window.__staleAnalyticsRendered = true;
+      }
+    });
+    window.__staleAnalyticsObserver.observe(summary, { childList: true, subtree: true, characterData: true });
     window.__resolveAnalyticsRequest(1, payload);
+    document.querySelector('[data-ll-wordset-progress-retry]').click();
   }, buildAnalytics({
     totalWords: 20,
     masteredWords: 4,
@@ -1245,8 +1274,75 @@ test('acknowledged progress refreshes before an activity closes', async ({ page 
     newWords: 10
   }));
 
-  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['4', '6', '10', '0', '0']);
+  await expect.poll(readAnalyticsRequestState).toEqual({ total: 3, pending: 1 });
+  expect(await page.evaluate(() => window.__staleAnalyticsRendered)).toBe(false);
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(2, payload);
+  }, buildAnalytics({
+    totalWords: 20,
+    masteredWords: 6,
+    studiedWords: 13,
+    newWords: 7
+  }));
+
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['6', '7', '7', '0', '0']);
+  await page.waitForTimeout(350);
+  expect(await page.evaluate(() => {
+    if (window.__staleAnalyticsObserver) {
+      window.__staleAnalyticsObserver.disconnect();
+    }
+    return window.__staleAnalyticsRendered;
+  })).toBe(false);
+  expect(await readAnalyticsRequestState()).toEqual({ total: 3, pending: 0 });
   await expect(page.locator('body')).toHaveClass(/ll-tools-flashcard-open/);
+});
+
+test('a queued analytics failure clears the active word-filter loading state', async ({ page }) => {
+  await mountProgressPage(page, {
+    config: {
+      progressAnalyticsRequestTimeoutMs: 1500
+    }
+  });
+
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate((payload) => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 20,
+    words: buildProgressWords(1, 20)
+  }));
+
+  await page.getByRole('tab', { name: 'Words' }).click();
+  await page.locator('[data-ll-wordset-progress-search]').fill('queued filter');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await expect.poll(() => page.locator('[data-ll-wordset-progress-search-loading]').evaluate((node) => node.hidden)).toBe(false);
+
+  await page.evaluate((payload) => {
+    document.body.classList.add('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-opened', [{ mode: 'practice' }]);
+    window.jQuery(document).trigger('lltools:progress-updated', [{
+      stats: { received: 1, processed: 1 }
+    }]);
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({ totalWords: 1, words: buildProgressWords(1, 1) }));
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests[2].aborted)).toBe(true);
+
+  await expect.poll(() => page.locator('[data-ll-wordset-progress-search-loading]').evaluate((node) => node.hidden)).toBe(true);
+  await expect(page.locator('[data-ll-wordset-progress-words-body]')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('[data-ll-wordset-progress-retry]')).toBeVisible();
+
+  await page.locator('[data-ll-wordset-progress-retry]').click();
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  await page.evaluate(() => {
+    document.body.classList.remove('ll-tools-flashcard-open');
+    window.jQuery(document).trigger('lltools:flashcard-closed');
+  });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(4);
+  await page.evaluate((payload) => window.__resolveAnalyticsRequest(3, payload), buildAnalytics({
+    totalWords: 1,
+    words: buildProgressWords(1, 1)
+  }));
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toBeHidden();
 });
 
 test('progress graph and tables preview their loaded shape while initial analytics loads', async ({ page }) => {
@@ -1290,7 +1386,7 @@ test('progress graph and tables preview their loaded shape while initial analyti
   }).toBe('none');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   const wordLoadingRows = page.locator('[data-ll-wordset-progress-loading-kind="words"]');
   await expect(wordLoadingRows).toHaveCount(5);
   await expect(wordLoadingRows.first()).toHaveAttribute('aria-hidden', 'true');
@@ -1384,7 +1480,7 @@ test('progress empty messages appear only after an authoritative empty response'
   await expect(page.locator('[data-ll-wordset-progress-graph]')).toHaveText('No activity yet.');
   await expect(page.locator('[data-ll-wordset-progress-categories-body]')).toHaveText('No data yet.');
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await expect(page.locator('[data-ll-wordset-progress-words-body]')).toHaveText('No data yet.');
   await expect(page.locator('[data-ll-wordset-progress-words-body]')).not.toHaveAttribute('aria-busy', 'true');
   await page.evaluate(() => {
@@ -1413,6 +1509,40 @@ test('progress empty messages appear only after an authoritative empty response'
   await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveText('Progress unavailable.');
 });
 
+test('progress tabs expose relationships and support roving keyboard navigation', async ({ page }) => {
+  await mountProgressPage(page);
+
+  const categoriesTab = page.getByRole('tab', {name: 'Categories'});
+  const wordsTab = page.getByRole('tab', {name: 'Words'});
+  const categoriesPanel = page.locator('#ll-wordset-progress-panel-categories');
+  const wordsPanel = page.locator('#ll-wordset-progress-panel-words');
+
+  await expect(categoriesPanel).toHaveAttribute('role', 'tabpanel');
+  await expect(wordsPanel).toHaveAttribute('role', 'tabpanel');
+  await expect(categoriesTab).toHaveAttribute('aria-controls', 'll-wordset-progress-panel-categories');
+  await expect(wordsTab).toHaveAttribute('aria-controls', 'll-wordset-progress-panel-words');
+  await expect(categoriesPanel).toHaveAttribute('aria-labelledby', 'll-wordset-progress-tab-categories');
+  await expect(wordsPanel).toHaveAttribute('aria-labelledby', 'll-wordset-progress-tab-words');
+  await expect(categoriesTab).toHaveAttribute('tabindex', '0');
+  await expect(wordsTab).toHaveAttribute('tabindex', '-1');
+
+  await categoriesTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(wordsTab).toBeFocused();
+  await expect(wordsTab).toHaveAttribute('aria-selected', 'true');
+  await expect(categoriesTab).toHaveAttribute('tabindex', '-1');
+  await expect(wordsPanel).toBeVisible();
+  await expect(categoriesPanel).toBeHidden();
+
+  await page.keyboard.press('Home');
+  await expect(categoriesTab).toBeFocused();
+  await expect(categoriesTab).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('End');
+  await expect(wordsTab).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(categoriesTab).toBeFocused();
+});
+
 test('progress analytics failure settles skeletons without claiming the data is empty', async ({ page }) => {
   await mountProgressPage(page, {
     config: {
@@ -1424,7 +1554,7 @@ test('progress analytics failure settles skeletons without claiming the data is 
     return page.evaluate(() => Array.isArray(window.__llAnalyticsRequests) ? window.__llAnalyticsRequests.length : 0);
   }).toBe(1);
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await expect(page.locator('[data-ll-wordset-progress-loading-row]')).toHaveCount(10);
   await page.evaluate(() => {
     window.__rejectAnalyticsRequest(0);
@@ -1440,6 +1570,23 @@ test('progress analytics failure settles skeletons without claiming the data is 
   await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveClass(/is-error/);
   await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveText('Progress unavailable.');
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+
+  const retry = page.getByRole('button', {name: 'Retry'});
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(retry).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveText('Loading progress...');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate((payload) => {
+    window.__resolveAnalyticsRequest(1, payload);
+  }, buildAnalytics({
+    totalWords: 20,
+    masteredWords: 2,
+    studiedWords: 5,
+    newWords: 15
+  }));
+  await expect(page.locator('.ll-wordset-progress-kpi-value')).toHaveText(['2', '3', '15', '0', '0']);
+  await expect(retry).toBeHidden();
 });
 
 test('progress words load in bounded pages', async ({ page }) => {
@@ -1480,7 +1627,7 @@ test('progress words load in bounded pages', async ({ page }) => {
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
 
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(30);
   await expect(page.locator('[data-ll-wordset-progress-words-loaded]')).toHaveText('Showing 30 of 45 words');
@@ -1567,7 +1714,7 @@ test('progress starred filter requests matching word pages directly', async ({ p
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
 
   await expect.poll(async () => {
@@ -1667,7 +1814,7 @@ test('progress filter option counts use full matching totals instead of loaded r
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
 
   await expect(page.locator('[data-ll-wordset-progress-column-filter-options="status"] .ll-wordset-progress-filter-option__count'))
     .toHaveText([' (7)', ' (28)', ' (65)']);
@@ -1716,7 +1863,7 @@ test('progress select all enters loading state immediately while a filter applie
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await expect(page.locator('[data-ll-wordset-progress-select-all]')).toHaveText('Select all');
 
   await page.locator('[data-ll-wordset-progress-kpi-filter="starred"]').click();
@@ -1811,7 +1958,7 @@ async function assertFilteredProgressPracticeLaunch(page, options) {
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   await page.locator(`[data-ll-wordset-progress-kpi-filter="${filterKey}"]`).click();
 
   await expect.poll(async () => {
@@ -3017,7 +3164,7 @@ test('progress unstar updates the visible row without reloading analytics', asyn
     }
   }));
 
-  await page.getByRole('button', { name: 'Words' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
   const firstRow = page.locator('[data-ll-wordset-progress-words-body] tr').first();
   const firstStar = firstRow.locator('[data-ll-wordset-progress-word-star]');
   await expect(firstStar).toHaveAttribute('aria-pressed', 'true');

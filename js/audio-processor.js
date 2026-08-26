@@ -1178,7 +1178,7 @@
                 deleteReviewRecording(postId);
             } else if (e.target.classList.contains('ll-delete-recording') || e.target.closest('.ll-delete-recording')) {
                 const btn = e.target.classList.contains('ll-delete-recording') ? e.target : e.target.closest('.ll-delete-recording');
-                const postId = parseInt(btn.dataset.id);
+                const postId = parseInt(btn.dataset.postId || btn.dataset.id);
                 deleteRecording(postId, btn);
             } else if (e.target.classList.contains('ll-edit-word-title-btn') || e.target.closest('.ll-edit-word-title-btn')) {
                 const btn = e.target.classList.contains('ll-edit-word-title-btn') ? e.target : e.target.closest('.ll-edit-word-title-btn');
@@ -2271,6 +2271,30 @@
         state.reviewData.delete(postId);
     }
 
+    function getIndividualRemovalFocusTarget(container, itemSelector, actionSelector) {
+        const parent = container && container.parentElement;
+        if (!parent) {
+            return null;
+        }
+        const items = Array.from(parent.children).filter(child => child.matches(itemSelector));
+        const index = items.indexOf(container);
+        const neighbor = index >= 0 ? (items[index + 1] || items[index - 1] || null) : null;
+        return neighbor ? (neighbor.querySelector(actionSelector) || neighbor.querySelector('button, input, select, a[href]')) : null;
+    }
+
+    function restoreFocusAfterIndividualRemoval(target) {
+        const fallback = document.getElementById('ll-delete-status')
+            || document.querySelector('.ll-audio-processor-tab.is-active');
+        const focusTarget = target && target.isConnected ? target : fallback;
+        if (!focusTarget || typeof focusTarget.focus !== 'function') {
+            return;
+        }
+        if (focusTarget === fallback && !focusTarget.hasAttribute('tabindex')) {
+            focusTarget.setAttribute('tabindex', '-1');
+        }
+        focusTarget.focus({ preventScroll: true });
+    }
+
     async function deleteRecording(postId, button) {
         if (state.processing || state.saving || state.deleting) return;
 
@@ -2283,6 +2307,10 @@
             return;
         }
 
+        const shouldRestoreFocus = item.contains(document.activeElement);
+        const focusTarget = shouldRestoreFocus
+            ? getIndividualRemovalFocusTarget(item, '.ll-recording-item', '.ll-delete-recording')
+            : null;
         setIndividualDeleteButtonBusy(button, true);
         setDeletingState(true);
         announceDeleteStatus(formatText(t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'), [0, 1]));
@@ -2303,6 +2331,9 @@
         if (success) {
             removeRecordingItem(postId);
             announceDeleteStatus(t('deleteSingleSuccess', 'Recording deleted.'));
+            if (shouldRestoreFocus) {
+                restoreFocusAfterIndividualRemoval(focusTarget);
+            }
             if (document.querySelectorAll('.ll-recording-item').length === 0) {
                 window.setTimeout(() => location.reload(), 300);
             }
@@ -2331,6 +2362,10 @@
         }
 
         const deleteBtn = reviewFile.querySelector('.ll-delete-review-btn');
+        const shouldRestoreFocus = reviewFile.contains(document.activeElement);
+        const focusTarget = shouldRestoreFocus
+            ? getIndividualRemovalFocusTarget(reviewFile, '.ll-review-file', '.ll-delete-review-btn')
+            : null;
         setIndividualDeleteButtonBusy(deleteBtn, true);
         setDeletingState(true);
         announceDeleteStatus(formatText(t('deleteProgressTemplate', 'Deleting %1$d of %2$d...'), [0, 1]));
@@ -2352,6 +2387,9 @@
             state.reviewData.delete(postId);
             reviewFile.remove();
             announceDeleteStatus(t('deleteSingleSuccess', 'Recording deleted.'));
+            if (shouldRestoreFocus) {
+                restoreFocusAfterIndividualRemoval(focusTarget);
+            }
             if (state.reviewData.size === 0) {
                 window.setTimeout(() => location.reload(), 300);
             }

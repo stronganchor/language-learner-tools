@@ -1,12 +1,10 @@
 # Maintenance Backlog
 
-Updated August 23, 2026 after the weekly review and controlled-fleet follow-up
-for plugin 6.7.30. The current pass replaces legacy progress payload extension
-compatibility with the inventoried first-party schema, removes helpers and a
-pre-stream recorder path that no controlled integration consumes, closes
-unmeasured module splitting as unnecessary, and adds a privacy-preserving live
-payload audit tool. The six controlled sites were inspected read-only before
-these decisions. No real Google provider authorization was attempted.
+Updated August 26, 2026 during the 6.7.32 stability and stable-release pass.
+The current pass fixes verified privacy/session, progress-analytics, focus,
+accessibility, release-documentation, and i18n-tooling defects while leaving
+larger storage and compatibility work below for deliberate design. No real
+Google provider authorization was attempted.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -26,6 +24,43 @@ judgment:
 - A normalized teacher-class membership table only if measured class size,
   deserialization cost, or assignment latency justifies a dual-write/backfill
   migration.
+- Class-wide deletion serialization. Membership add/remove and privacy unlink
+  now use a consistent user-to-class lock order, but
+  `ll_tools_teacher_class_delete()` snapshots members and deletes the class
+  without a class-scoped deletion lock. A concurrent add can leave reverse user
+  meta pointing to a deleted class. Use a shared class advisory lock or durable
+  deleting state before changing the current ordering.
+- Legacy Favorites privacy ownership. Completion migration reads the external
+  `simplefavorites` user-meta key, but LL Tools must not erase that whole key
+  because it can contain unrelated favorites. Before any future replay on a
+  site that still uses the old Favorites plugin, define an owner-aware way to
+  remove only lesson-completion associations for erased users.
+- Direct LMS writer API locking. Current browser/request handlers take the
+  learner advisory lock and recheck the privacy fence before writes, but the
+  currently unused grade-delivery identity/recipient constructors and direct
+  low-level progress/meta helpers do not establish that boundary themselves.
+  Before a new adapter or integration calls those helpers directly, wrap their
+  final lookup/write in the learner-row transaction lock, recheck the fence,
+  and add a deterministic delete/write interleaving test.
+- Resumable Audio Processor file cleanup. The recording post deletion receipt
+  becomes terminal after unchecked file unlinks and does not reliably retain a
+  failed final receipt/parent cleanup. Use explicit durable deletion phases and
+  bounded orphan cleanup rather than retrying destructive steps implicitly.
+- Completeness-aware teacher/admin progress reports. Query failures in
+  `ll_tools_user_progress_report_query_users()` and
+  `ll_tools_user_progress_report_stats_for_users()` can reach teacher-class
+  rendering as empty/zero progress. Propagate a typed incomplete result and
+  render an unavailable state instead of a valid-looking zero.
+- An explicit compatibility contract for progress events without an
+  `event_uuid`. The sanitizer and retryable-failure helper currently generate a
+  fresh UUID, so a legacy retry can bypass ledger deduplication; simply rejecting
+  missing UUIDs may break older clients. Choose a deterministic fallback or a
+  bounded compatibility sunset with tests.
+- A bounded/materialized IPA Keyboard lesson URL map. The cold
+  `ll_tools_ipa_keyboard_get_wordset_lesson_url_map()` path loads every published
+  vocabulary lesson with `posts_per_page => -1`, disables meta priming, and then
+  resolves category meta/permalinks per lesson. Replace it only with measured,
+  paged or materialized behavior that preserves category-to-lesson links.
 - A durable lesson-map materializer only if production measurements justify
   replacing the winning cold full scan.
 
@@ -34,29 +69,31 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (August 23)
+### Current verification inventory (August 26)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical
   source/POT key comparison backed by a temporary WP-CLI extraction. The
   standalone command is `php scripts/check-i18n-source-pot.php`; it must be
   green after the catalog refresh and before catalog-count or locale-coverage
   checks are accepted. The source-frozen POT and complete Turkish/German core
-  catalogs contain 6,275 canonical keys each; the active public manifest and
-  all eight active tier-2 locales pass 796/796.
+  catalogs contain 6,278 canonical keys each; both compiled MO/PHP catalogs
+  match exactly. The active public manifest and all eight active tier-2 locales
+  pass 796/796.
 - The maintenance browser contract owns both automation REST documentation and
   all eight routes registered by `includes/api/lms-rest.php`.
 - The WordPress-backed teacher Classes invite scenario covers latest Practice
   score/date, 30-day attempt counts, dynamic column indexes, descending order,
   `aria-sort`, and focus retention. It requires the serial Local Playwright
   environment and admin credentials.
-- Final Playwright discovery lists **692 tests in 108 files**. Eight serial
-  shards accounted for every case: 688 passed on their initial shard, one
-  opt-in seeded performance benchmark skipped as expected, and three concrete
-  failures were corrected and passed focused reruns. The route normalization,
-  cache-warming Retry, and teacher-login/cleanup corrections therefore produce
-  a final accounting of 691 passing cases plus one expected skip.
-- Final PHPUnit result: **2,288 tests, 58,763 assertions, 8 expected skips** in
-  12 minutes 13 seconds. The standard complete suite exited successfully.
+- Final Playwright discovery lists **706 tests in 108 files**. Eight serial
+  shards account for every case: 705 passed and the opt-in seeded performance
+  benchmark skipped once as expected, with zero failures.
+- Both release-scale performance profiles passed without writing history. The
+  Genç fixture (209 categories, 2,717 words) passed 10/10 scenarios; the
+  stress-2x fixture (100 categories, 5,000 words, 15,000 audio records, and
+  5,100 images/attachments) passed 8/8 scenarios.
+- Final PHPUnit result: **2,324 tests, 59,337 assertions, 8 expected skips**.
+  The standard complete suite exited successfully.
 
 ## Recently Closed
 

@@ -9,6 +9,7 @@
     const saveDelayMs = 700;
     const configuredTimeoutMs = parseInt(config.requestTimeoutMs || '12000', 10);
     const requestTimeoutMs = Math.max(50, Math.min(60000, Number.isFinite(configuredTimeoutMs) ? configuredTimeoutMs : 12000));
+    const noteStates = [];
 
     if (!ajaxUrl || !nonce) {
         return;
@@ -171,12 +172,14 @@
         }
         let timer = null;
         const state = {
+            input: input,
             inFlight: false,
             queued: false,
             blockedByConflict: false,
             generation: 0,
             statusTimer: null
         };
+        noteStates.push(state);
         input.dataset.originalValue = input.value || '';
 
         function requestSave() {
@@ -209,4 +212,16 @@
     }
 
     document.querySelectorAll('[data-ll-text-document-review-note]').forEach(initNote);
+
+    window.addEventListener('beforeunload', function (event) {
+        const hasUnsavedNote = noteStates.some(function (state) {
+            return state.inFlight
+                || (state.input.value || '') !== (state.input.dataset.originalValue || '');
+        });
+        if (!hasUnsavedNote) {
+            return;
+        }
+        event.preventDefault();
+        event.returnValue = '';
+    });
 }());

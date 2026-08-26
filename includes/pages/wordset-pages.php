@@ -2950,21 +2950,29 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
         if (!function_exists('ll_tools_get_user_study_goals') || !function_exists('ll_tools_save_user_study_goals')) {
             return new WP_Error('hide_unavailable', __('Unable to hide this category right now.', 'll-tools-text-domain'));
         }
-        $goals = ll_tools_get_user_study_goals();
-        $ignored_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])), static function (int $ignored_id): bool {
-            return $ignored_id > 0;
-        })));
-        if (!in_array($category_id, $ignored_ids, true)) {
-            $ignored_ids[] = $category_id;
+        if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+            return new WP_Error('user_data_mutation_lock_unavailable', __('Unable to hide this category right now.', 'll-tools-text-domain'));
         }
-        $goals['ignored_category_ids'] = $ignored_ids;
-        ll_tools_save_user_study_goals($goals);
+        return ll_tools_offline_app_run_user_data_write_locked(
+            get_current_user_id(),
+            static function () use ($category_id, $wordset_id): array {
+                $goals = ll_tools_get_user_study_goals();
+                $ignored_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])), static function (int $ignored_id): bool {
+                    return $ignored_id > 0;
+                })));
+                if (!in_array($category_id, $ignored_ids, true)) {
+                    $ignored_ids[] = $category_id;
+                }
+                $goals['ignored_category_ids'] = $ignored_ids;
+                ll_tools_save_user_study_goals($goals);
 
-        return [
-            'result' => 'hidden',
-            'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
-        ];
+                return [
+                    'result' => 'hidden',
+                    'wordset_id' => $wordset_id,
+                    'category_id' => $category_id,
+                ];
+            }
+        );
     }
 
     $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
@@ -3128,11 +3136,22 @@ function ll_tools_wordset_page_handle_inactive_category_action_ajax(): void {
     $result = ll_tools_wordset_page_process_inactive_category_action($action, $wordset_id, $wordset_id, $category_id, $nonce);
     if (is_wp_error($result)) {
         $code = $result->get_error_code();
-        $status = in_array($code, ['permission', 'nonce'], true) ? 403 : (in_array($code, ['delete_blocked', 'category_delete_busy'], true) ? 409 : 400);
-        wp_send_json_error([
+        $retryable = in_array($code, [
+            'user_data_mutation_lock_unavailable',
+            'user_data_privacy_erasure_in_progress',
+        ], true);
+        $status = $retryable
+            ? 503
+            : (in_array($code, ['permission', 'nonce'], true) ? 403 : (in_array($code, ['delete_blocked', 'category_delete_busy'], true) ? 409 : 400));
+        $error_data = [
             'code' => $code,
             'message' => $result->get_error_message() ?: __('Unable to update this category right now.', 'll-tools-text-domain'),
-        ], $status);
+        ];
+        if ($retryable) {
+            $error_data['retryable'] = true;
+            $error_data['retry_after'] = 60;
+        }
+        wp_send_json_error($error_data, $status);
     }
 
     $message = (string) ($result['message'] ?? __('Category updated.', 'll-tools-text-domain'));
@@ -5172,14 +5191,21 @@ function ll_tools_wordset_page_collect_gender_supported_lookup(int $wordset_id, 
     return ll_tools_wordset_page_store_cached_payload($cache_key, $supported_lookup, $cache_ttl, $request_cache);
 }
 
-function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limit = 2, array $args = []): array {
+function ll_tools_get_wordset_page_categories(
+    int $wordset_id,
+    int $preview_limit = 2,
+    array $args = [],
+    ?bool &$complete = null
+): array {
     global $wpdb;
 
     static $category_request_cache = [];
 
+    $complete = true;
     $wpdb->last_error = '';
     $wordset = get_term($wordset_id, 'wordset');
     if (!$wordset || is_wp_error($wordset) || $wpdb->last_error !== '') {
+        $complete = false;
         return [];
     }
 
@@ -5438,6 +5464,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         return ll_tools_wordset_page_store_cached_payload($category_cache_key, $items, $category_cache_ttl, $category_request_cache);
     }
 
+    $complete = $sources_complete;
     return $items;
 }
 
@@ -5655,8 +5682,18 @@ function ll_tools_wordset_page_authenticated_payload_cache_is_reusable(
     return $valid && $decoded === $payload;
 }
 
-function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl = 0, string $preferred_token = ''): string {
+function &ll_tools_wordset_page_lazy_cards_payload_request_cache(): array {
     static $request_cache = [];
+    return $request_cache;
+}
+
+function ll_tools_wordset_page_store_lazy_cards_payload(
+    array $payload,
+    int $ttl = 0,
+    string $preferred_token = '',
+    bool $preserve_existing_on_failure = false
+): string {
+    $request_cache =& ll_tools_wordset_page_lazy_cards_payload_request_cache();
 
     $token = sanitize_key($preferred_token);
     if ($token === '') {
@@ -5688,6 +5725,7 @@ function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl
         $ttl = max($ttl, $dependency_ttl_floor);
     }
 
+    $cached = null;
     if ($preferred_token !== '') {
         $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
         if (ll_tools_wordset_page_authenticated_payload_cache_is_reusable($cache_key, $payload, $cached, $ttl)) {
@@ -5709,6 +5747,26 @@ function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl
         $durable_stored
     );
     if (!$durable_stored) {
+        if ($preserve_existing_on_failure && is_array($cached)) {
+            // A refresh must never trade a readable old identity sequence for
+            // a missing token. Restore the prior payload where the backend is
+            // writable and keep it in request/object cache otherwise so this
+            // response remains safe and a later request can reconcile again.
+            $restored = false;
+            ll_tools_wordset_page_store_cached_payload(
+                $cache_key,
+                $cached,
+                $ttl,
+                $request_cache,
+                'll_tools',
+                $restored
+            );
+            if (!$restored) {
+                $request_cache[$cache_key] = $cached;
+                wp_cache_set($cache_key, $cached, 'll_tools', $ttl);
+            }
+            return '';
+        }
         ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
         return '';
     }
@@ -5717,7 +5775,7 @@ function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl
 }
 
 function ll_tools_wordset_page_get_lazy_cards_payload(string $token): ?array {
-    static $request_cache = [];
+    $request_cache =& ll_tools_wordset_page_lazy_cards_payload_request_cache();
 
     $token = sanitize_key($token);
     if ($token === '') {
@@ -5926,6 +5984,65 @@ function ll_tools_wordset_page_collect_lazy_card_ids(array $cards): array {
         'category_ids' => $category_ids,
         'content_ids' => $content_ids,
     ];
+}
+
+/**
+ * Keep an already-rendered page's deferred card order while refreshing each
+ * surviving card from the current authorized wordset payload.
+ *
+ * Null tombstones deliberately preserve removed card positions so the
+ * browser's existing numeric cursor can advance without skipping or
+ * duplicating a neighboring card. Newly added cards wait for a page reload.
+ */
+function ll_tools_wordset_page_reconcile_stale_lazy_cards_payload(array $stale, array $fresh): array {
+    $card_identity = static function ($card): string {
+        if (!is_array($card) || !isset($card['data']) || !is_array($card['data'])) {
+            return '';
+        }
+
+        $type = (string) ($card['type'] ?? '');
+        if ($type !== 'category' && $type !== 'content') {
+            return '';
+        }
+
+        $id = isset($card['data']['id']) ? (int) $card['data']['id'] : 0;
+        return $id > 0 ? $type . ':' . $id : '';
+    };
+
+    $fresh_cards = isset($fresh['cards']) && is_array($fresh['cards'])
+        ? array_values($fresh['cards'])
+        : [];
+    $fresh_by_identity = [];
+    foreach ($fresh_cards as $fresh_card) {
+        $identity = $card_identity($fresh_card);
+        if ($identity !== '' && !isset($fresh_by_identity[$identity])) {
+            $fresh_by_identity[$identity] = $fresh_card;
+        }
+    }
+
+    $stale_cards = isset($stale['cards']) && is_array($stale['cards'])
+        ? array_values($stale['cards'])
+        : [];
+    $reconciled_cards = [];
+    foreach ($stale_cards as $stale_card) {
+        $identity = $card_identity($stale_card);
+        $reconciled_cards[] = $identity !== '' && isset($fresh_by_identity[$identity])
+            ? $fresh_by_identity[$identity]
+            : null;
+    }
+
+    $base_offset = max(0, (int) ($stale['base_offset'] ?? 0));
+    $configured_batch_size = ll_tools_wordset_page_get_lazy_card_batch_size();
+    $stale_batch_size = isset($stale['batch_size'])
+        ? max(1, (int) $stale['batch_size'])
+        : $configured_batch_size;
+
+    $fresh['cards'] = $reconciled_cards;
+    $fresh['base_offset'] = $base_offset;
+    $fresh['total'] = $base_offset + count($stale_cards);
+    $fresh['batch_size'] = min($stale_batch_size, $configured_batch_size);
+
+    return $fresh;
 }
 
 function ll_tools_wordset_page_payload_access_signature(int $wordset_id, int $user_id = 0): string {
@@ -6571,6 +6688,7 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
             'base_offset' => 0,
             'total' => 0,
+            'sources_complete' => false,
             'user_id' => get_current_user_id(),
         ];
     }
@@ -6585,6 +6703,7 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
             'base_offset' => 0,
             'total' => 0,
+            'sources_complete' => false,
             'user_id' => get_current_user_id(),
         ];
     }
@@ -6598,13 +6717,17 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
             'base_offset' => 0,
             'total' => 0,
+            'sources_complete' => false,
             'user_id' => get_current_user_id(),
         ];
     }
 
+    $payload_user_id = (int) get_current_user_id();
+    $start_access_signature = ll_tools_wordset_page_payload_access_signature($wordset_id, $payload_user_id);
+    $categories_complete = true;
     $categories = ll_tools_get_wordset_page_categories($wordset_id, $preview_limit, [
         'defer_previews' => true,
-    ]);
+    ], $categories_complete);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $mode_labels = [
@@ -6873,10 +6996,14 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         $wordset_id,
         $visible_category_ids
     );
+    $end_access_signature = ll_tools_wordset_page_payload_access_signature($wordset_id, $payload_user_id);
+    $generation_stable = $start_access_signature !== ''
+        && $end_access_signature !== ''
+        && hash_equals($start_access_signature, $end_access_signature);
 
     return [
         'wordset_id' => $wordset_id,
-        'access_signature' => ll_tools_wordset_page_payload_access_signature($wordset_id, (int) get_current_user_id()),
+        'access_signature' => $end_access_signature,
         'cards' => array_values($mixed_lesson_cards),
         'render_context' => [
             'category_progress_lookup' => $category_progress_lookup,
@@ -6892,7 +7019,8 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         'base_offset' => 0,
         'total' => count($mixed_lesson_cards),
         'content_lessons_complete' => $content_lessons_complete,
-        'user_id' => get_current_user_id(),
+        'sources_complete' => $categories_complete && $content_lessons_complete && $generation_stable,
+        'user_id' => $payload_user_id,
     ];
 }
 
@@ -12394,11 +12522,24 @@ function ll_tools_wordset_page_handle_progress_reset_action(): void {
         $category_ids_to_reset = $scope_category_ids;
     }
 
-    if (function_exists('ll_tools_reset_user_progress')) {
-        ll_tools_reset_user_progress(get_current_user_id(), [
-            'wordset_id' => $wordset_id,
-            'category_ids' => $category_ids_to_reset,
-        ]);
+    $reset_result = function_exists('ll_tools_offline_app_run_user_data_write_locked')
+        ? ll_tools_offline_app_run_user_data_write_locked(
+            get_current_user_id(),
+            static fn (): array => ll_tools_reset_user_progress(get_current_user_id(), [
+                'wordset_id' => $wordset_id,
+                'category_ids' => $category_ids_to_reset,
+            ])
+        )
+        : new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Unable to reset progress right now.', 'll-tools-text-domain')
+        );
+    if (is_wp_error($reset_result)) {
+        wp_safe_redirect(add_query_arg(array_merge($redirect_params, [
+            'll_wordset_progress_reset' => 'error',
+            'll_wordset_progress_reset_error' => 'mutation',
+        ]), $base_redirect));
+        exit;
     }
 
     wp_safe_redirect(add_query_arg(array_merge($redirect_params, [
@@ -24471,9 +24612,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         if (function_exists('ll_tools_get_user_recommendation_queue')) {
             $recommendation_queue = ll_tools_get_user_recommendation_queue(get_current_user_id(), $wordset_id);
         }
-        if ($recommendation_catalog_loaded && empty($recommendation_queue) && !$defer_main_recommendation_refresh && function_exists('ll_tools_refresh_user_recommendation_queue')) {
-            $recommendation_queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $visible_category_ids, $study_categories, 8);
-        }
         if (function_exists('ll_tools_recommendation_queue_pick_next')) {
             $next_activity = ll_tools_recommendation_queue_pick_next($recommendation_queue);
         }
@@ -25793,7 +25931,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 <section class="ll-wordset-progress-view" data-ll-wordset-progress-root>
                     <div class="ll-wordset-progress-head">
                         <span class="ll-wordset-progress-scope" data-ll-wordset-progress-scope></span>
-                        <p class="ll-wordset-progress-status" data-ll-wordset-progress-status role="status" aria-live="polite" aria-atomic="true"><?php echo esc_html__('Loading progress...', 'll-tools-text-domain'); ?></p>
+                        <div class="ll-wordset-progress-feedback">
+                            <p class="ll-wordset-progress-status" data-ll-wordset-progress-status role="status" aria-live="polite" aria-atomic="true"><?php echo esc_html__('Loading progress...', 'll-tools-text-domain'); ?></p>
+                            <button type="button" class="ll-wordset-progress-retry" data-ll-wordset-progress-retry hidden><?php echo esc_html__('Retry', 'll-tools-text-domain'); ?></button>
+                        </div>
                     </div>
 
                     <div class="ll-wordset-progress-graph-wrap">
@@ -25856,11 +25997,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     <?php endif; ?>
 
                     <div class="ll-wordset-progress-tabs" role="tablist" aria-label="<?php echo esc_attr__('Progress', 'll-tools-text-domain'); ?>">
-                        <button type="button" class="ll-wordset-progress-tab active" data-ll-wordset-progress-tab="categories" aria-selected="true"><?php echo esc_html__('Categories', 'll-tools-text-domain'); ?></button>
-                        <button type="button" class="ll-wordset-progress-tab" data-ll-wordset-progress-tab="words" aria-selected="false"><?php echo esc_html__('Words', 'll-tools-text-domain'); ?></button>
+                        <button type="button" id="ll-wordset-progress-tab-categories" class="ll-wordset-progress-tab active" data-ll-wordset-progress-tab="categories" role="tab" aria-controls="ll-wordset-progress-panel-categories" aria-selected="true" tabindex="0"><?php echo esc_html__('Categories', 'll-tools-text-domain'); ?></button>
+                        <button type="button" id="ll-wordset-progress-tab-words" class="ll-wordset-progress-tab" data-ll-wordset-progress-tab="words" role="tab" aria-controls="ll-wordset-progress-panel-words" aria-selected="false" tabindex="-1"><?php echo esc_html__('Words', 'll-tools-text-domain'); ?></button>
                     </div>
 
-                    <div class="ll-wordset-progress-panel" data-ll-wordset-progress-panel="categories">
+                    <div id="ll-wordset-progress-panel-categories" class="ll-wordset-progress-panel" data-ll-wordset-progress-panel="categories" role="tabpanel" aria-labelledby="ll-wordset-progress-tab-categories">
                         <div class="ll-wordset-progress-category-tools">
                             <?php if ($progress_reset_nonce !== '' && $progress_reset_all_enabled) : ?>
                                 <div class="ll-wordset-progress-reset-actions">
@@ -25965,7 +26106,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </div>
                     </div>
 
-                    <div class="ll-wordset-progress-panel" data-ll-wordset-progress-panel="words" hidden>
+                    <div id="ll-wordset-progress-panel-words" class="ll-wordset-progress-panel" data-ll-wordset-progress-panel="words" role="tabpanel" aria-labelledby="ll-wordset-progress-tab-words" hidden>
                         <div class="ll-wordset-progress-search-tools">
                             <div class="ll-wordset-progress-search">
                                 <label class="screen-reader-text" for="ll-wordset-progress-search-input"><?php echo esc_html__('Search words', 'll-tools-text-domain'); ?></label>
@@ -26970,6 +27111,7 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
 
     $payload = ll_tools_wordset_page_get_lazy_cards_payload($token);
     $used_fallback_payload = false;
+    $reconciled_stale_payload = false;
     if (!is_array($payload) && $wordset_id > 0 && is_user_logged_in()) {
         $payload = ll_tools_wordset_page_build_lazy_cards_fallback_payload($wordset_id, $preview_limit);
         $used_fallback_payload = true;
@@ -26995,14 +27137,53 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     }
 
     $cards = (isset($payload['cards']) && is_array($payload['cards'])) ? array_values($payload['cards']) : [];
-    if (!ll_tools_wordset_page_payload_scope_is_current(
+    $payload_scope_is_current = ll_tools_wordset_page_payload_scope_is_current(
         $wordset_id,
         (string) ($payload['access_signature'] ?? ''),
         $payload_user_id
-    )) {
+    );
+    if (
+        !$used_fallback_payload
+        && !$payload_scope_is_current
+        && is_user_logged_in()
+        && $payload_user_id === get_current_user_id()
+    ) {
+        // A concurrent lesson/category maintenance request can rotate a broad
+        // generation after this authenticated page rendered. Refresh its old
+        // lazy-shell identities from the current wordset without changing the
+        // browser's cursor order. The fallback performs a fresh permission
+        // check and returns an empty signature when access was revoked, so the
+        // second validation remains fail-closed.
+        $fresh_payload = ll_tools_wordset_page_build_lazy_cards_fallback_payload($wordset_id, $preview_limit);
+        $payload = ll_tools_wordset_page_reconcile_stale_lazy_cards_payload($payload, $fresh_payload);
+        $used_fallback_payload = true;
+        $reconciled_stale_payload = true;
+        $payload_user_id = isset($payload['user_id']) ? (int) $payload['user_id'] : 0;
+        $cards = (isset($payload['cards']) && is_array($payload['cards'])) ? array_values($payload['cards']) : [];
+        $payload_scope_is_current = ll_tools_wordset_page_payload_scope_is_current(
+            $wordset_id,
+            (string) ($payload['access_signature'] ?? ''),
+            $payload_user_id
+        );
+    }
+    if (!$payload_scope_is_current) {
         wp_send_json_error([
             'message' => __('Could not load more cards right now.', 'll-tools-text-domain'),
         ], 403);
+    }
+    if (array_key_exists('sources_complete', $payload) && empty($payload['sources_complete'])) {
+        if (!headers_sent()) {
+            header('Retry-After: 2');
+        }
+        wp_send_json_error([
+            'code' => 'source_incomplete',
+            'message' => __('Card previews are still being prepared. Please try again in a moment.', 'll-tools-text-domain'),
+        ], 503);
+    }
+    if ($reconciled_stale_payload) {
+        // Best-effort refresh avoids rebuilding the complete current wordset
+        // for every remaining batch under the authenticated page's token.
+        ll_tools_wordset_page_store_lazy_cards_payload($payload, 0, $token, true);
     }
     $base_offset = max(0, (int) ($payload['base_offset'] ?? 0));
     $payload_total = max(0, (int) ($payload['total'] ?? 0));

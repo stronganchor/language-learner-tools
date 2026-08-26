@@ -723,6 +723,43 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertContains($inactive_category_id, array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])));
     }
 
+    public function test_inactive_category_hide_is_fenced_during_privacy_erasure(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $inactive_category_id = (int) $fixture['inactive_category_id'];
+        $subscriber_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber_id);
+        $nonce = wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $inactive_category_id);
+        $lease = ll_tools_privacy_begin_user_lms_erasure($subscriber_id, 'inactive-category-fence-test');
+        $this->assertIsString($lease);
+
+        try {
+            $blocked = ll_tools_wordset_page_process_inactive_category_action(
+                'hide',
+                $wordset_id,
+                $wordset_id,
+                $inactive_category_id,
+                $nonce
+            );
+            $this->assertWPError($blocked);
+            $this->assertSame('user_data_privacy_erasure_in_progress', $blocked->get_error_code());
+            $this->assertFalse(metadata_exists('user', $subscriber_id, LL_TOOLS_USER_GOALS_META));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($subscriber_id, (string) $lease));
+        }
+
+        $saved = ll_tools_wordset_page_process_inactive_category_action(
+            'hide',
+            $wordset_id,
+            $wordset_id,
+            $inactive_category_id,
+            $nonce
+        );
+        $this->assertIsArray($saved);
+        $this->assertSame('hidden', $saved['result']);
+    }
+
     public function test_inactive_category_action_process_deletes_empty_owned_category(): void
     {
         $fixture = $this->createWordsetFixture();

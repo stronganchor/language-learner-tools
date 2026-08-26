@@ -6203,6 +6203,42 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: #b91c1c;
 }
 
+.ll-wordset-progress-feedback {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 18px;
+}
+
+.ll-wordset-page button.ll-wordset-progress-retry {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 28px !important;
+    padding: 4px 9px !important;
+    border: 1px solid #b91c1c !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #991b1b !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-retry[hidden] {
+    display: none !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-retry:hover,
+.ll-wordset-page button.ll-wordset-progress-retry:focus-visible {
+    background: #fef2f2 !important;
+    outline: 2px solid #991b1b;
+    outline-offset: 2px;
+}
+
 .ll-wordset-progress-reset-notice {
     max-width: var(--ll-wp-main-shell-max-width);
     margin: 0 auto 12px;

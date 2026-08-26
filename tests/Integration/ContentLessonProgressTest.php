@@ -210,6 +210,44 @@ final class ContentLessonProgressTest extends LL_Tools_TestCase
         $this->assertFalse((bool) $cleared['completed']);
     }
 
+    public function test_completion_request_is_fenced_during_privacy_erasure(): void
+    {
+        $wordset_id = $this->createWordset('Privacy fenced completion');
+        $lesson_id = $this->createLesson($wordset_id, 'Privacy fenced lesson');
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'public');
+
+        $lease = ll_tools_privacy_begin_user_lms_erasure($user_id, 'content-completion-fence-test');
+        $this->assertIsString($lease);
+        try {
+            $blocked = ll_tools_update_content_lesson_completion_request(
+                $user_id,
+                $lesson_id,
+                true
+            );
+            $this->assertWPError($blocked);
+            $this->assertSame(
+                'user_data_privacy_erasure_in_progress',
+                $blocked->get_error_code()
+            );
+            $this->assertFalse(metadata_exists(
+                'user',
+                $user_id,
+                LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META
+            ));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_finish_user_lms_erasure($user_id, $lease));
+        }
+
+        $saved = ll_tools_update_content_lesson_completion_request(
+            $user_id,
+            $lesson_id,
+            true
+        );
+        $this->assertIsArray($saved);
+        $this->assertTrue((bool) ($saved['completed'] ?? false));
+    }
+
     public function test_prerequisite_status_rows_are_bounded_linked_and_completion_aware(): void
     {
         $wordset_id = $this->createWordset('Progress prerequisites');

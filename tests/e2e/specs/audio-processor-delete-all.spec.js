@@ -156,6 +156,46 @@ test('audio review Delete All bounds concurrency and retries only failed recordi
   expect(allCalls.filter((id) => id !== 5)).toHaveLength(4);
 });
 
+test('individual queue deletion moves focus to the next surviving recording action', async ({ page }) => {
+  const recordingCount = 3;
+  await page.goto('about:blank');
+  await page.setContent(buildMarkup(recordingCount));
+  await page.evaluate((count) => {
+    window.llAudioProcessor = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      nonce: 'delete-nonce',
+      recordingTypes: [],
+      recordingTypeIcons: {},
+      recordings: Array.from({length: count}, (_, index) => ({
+        id: index + 1,
+        title: `Recording ${index + 1}`,
+        wordText: `Recording ${index + 1}`,
+        translationText: '',
+        storeInTitle: true,
+        parentWordId: 150 + index,
+        audioUrl: `/audio-${index + 1}.wav`,
+        categories: [],
+        wordsets: [],
+        recordingType: ''
+      })),
+      i18n: {
+        deleteSingleConfirmTemplate: 'Delete "%s"?',
+        deleteProgressTemplate: 'Deleting %1$d of %2$d...',
+        deleteSingleSuccess: 'Recording deleted.'
+      }
+    };
+    window.fetch = () => Promise.resolve({json: async () => ({success: true})});
+  }, recordingCount);
+
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.addScriptTag({path: audioProcessorJsPath});
+  await page.evaluate(() => document.dispatchEvent(new Event('DOMContentLoaded', {bubbles: true})));
+
+  await page.locator('.ll-delete-recording[data-post-id="1"]').click();
+  await expect(page.locator('.ll-recording-item[data-id="1"]')).toHaveCount(0);
+  await expect(page.locator('.ll-delete-recording[data-post-id="2"]')).toBeFocused();
+});
+
 test('remove is synchronous and individual deletion holds the shared delete mutex', async ({ page }) => {
   const recordingCount = 4;
   await page.goto('about:blank');
@@ -265,6 +305,7 @@ test('remove is synchronous and individual deletion holds the shared delete mute
 
   await expect(page.locator('.ll-review-file[data-post-id="2"]')).toHaveCount(0);
   await expect(page.locator('.ll-review-file[data-post-id="1"]')).toHaveCount(0);
+  await expect(page.locator('.ll-delete-review-btn[data-post-id="3"]')).toBeFocused();
 
   const failedIndividualDelete = page.locator('.ll-delete-review-btn[data-post-id="4"]');
   await failedIndividualDelete.click();

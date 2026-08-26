@@ -86,14 +86,50 @@ final class ReleasePluginScriptTest extends LL_Tools_TestCase
     public function test_stable_publish_builds_and_validates_the_archive_before_pushing_main(): void
     {
         $publishWorkflow = $this->extractPowerShellFunction($this->releaseScriptContents(), 'Invoke-PublishWorkflow');
+        $equivalencePosition = strpos($publishWorkflow, 'Assert-PublishTreeMatchesOriginDev');
         $buildPosition = strpos($publishWorkflow, "Build-ReleaseZipFromRef -RefName 'HEAD'");
         $pushPosition = strpos($publishWorkflow, "@('push', '--atomic', 'origin', \$BranchName, \$tagName)");
 
+        $this->assertNotFalse($equivalencePosition, 'Stable publish should verify the freshly fetched dev tree.');
         $this->assertNotFalse($buildPosition, 'Stable publish should build the release archive.');
         $this->assertNotFalse($pushPosition, 'Stable publish should push main.');
+        $this->assertLessThan($buildPosition, $equivalencePosition, 'Dev tree equivalence must pass before archive construction.');
         $this->assertLessThan($pushPosition, $buildPosition, 'Archive validation must finish before main is pushed.');
         $this->assertStringContainsString('$tagCreated = $false', $publishWorkflow);
         $this->assertMatchesRegularExpression('/catch\s*\{.*?if \(\$tagCreated\).*?@\(\x27tag\x27, \x27-d\x27, \$tagName\)/s', $publishWorkflow);
+    }
+
+    public function test_stable_publish_fetches_and_compares_the_exact_origin_dev_tree(): void
+    {
+        $guard = $this->extractPowerShellFunction($this->releaseScriptContents(), 'Assert-PublishTreeMatchesOriginDev');
+
+        $this->assertStringContainsString("'+refs/heads/dev:refs/remotes/origin/dev'", $guard);
+        $this->assertStringContainsString("Get-CommitForRef -RefName 'origin/dev'", $guard);
+        $this->assertStringContainsString("@('diff', '--name-status', \"\$devCommit..HEAD\", '--')", $guard);
+        $this->assertStringContainsString('Stable publish requires HEAD to match the freshly fetched origin/dev tracked tree.', $guard);
+    }
+
+    public function test_stable_release_instructions_require_rollback_aware_dev_tree_equivalence(): void
+    {
+        $instructions = (string) file_get_contents(dirname(__DIR__, 2) . '/RELEASING.md');
+        $mainSectionStart = strpos($instructions, '### Main branch');
+        $mainSectionEnd = strpos($instructions, '## What The Script Does', $mainSectionStart ?: 0);
+
+        $this->assertNotFalse($mainSectionStart, 'Release instructions should include the main-branch workflow.');
+        $this->assertNotFalse($mainSectionEnd, 'Release instructions should delimit the main-branch workflow.');
+        $mainSection = substr($instructions, $mainSectionStart, $mainSectionEnd - $mainSectionStart);
+
+        $rollbackPosition = strpos($mainSection, 'git log --oneline dev..main');
+        $equivalencePosition = strpos($mainSection, 'git diff --exit-code dev..main -- .');
+        $publishPosition = strpos($mainSection, 'Run `release-plugin.bat` again.');
+
+        $this->assertNotFalse($rollbackPosition, 'Inspect main-only rollback history before merging dev.');
+        $this->assertNotFalse($equivalencePosition, 'Require exact dev/main tracked-tree equivalence.');
+        $this->assertNotFalse($publishPosition, 'Keep the stable publish step explicit.');
+        $this->assertLessThan($equivalencePosition, $rollbackPosition, 'Rollback handling must precede the tree-equivalence gate.');
+        $this->assertLessThan($publishPosition, $equivalencePosition, 'Tree equivalence must be verified before stable publish.');
+        $this->assertStringContainsString('git revert <rollback-commit>', $mainSection);
+        $this->assertStringContainsString('Do not assume another merge of `dev` will restore unchanged paths.', $mainSection);
     }
 
     public function test_release_builders_reject_repository_only_paths_and_remove_unvalidated_output(): void

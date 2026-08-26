@@ -9,6 +9,8 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_install_lms_assignment_schema());
         $this->assertTrue(ll_tools_install_grade_delivery_schema());
         $this->assertTrue(ll_tools_install_google_classroom_schema());
+        $this->assertTrue(ll_tools_install_user_progress_schema());
+        $this->assertTrue(ll_tools_install_offline_app_session_schema());
         wp_clear_scheduled_hook(LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK);
     }
 
@@ -20,6 +22,7 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         remove_all_filters('ll_tools_lms_privacy_erasure_fence_ttl');
         remove_all_filters('ll_tools_lms_privacy_erasure_call_ttl');
         remove_all_filters('ll_tools_lms_privacy_erasure_job_token');
+        remove_all_filters('ll_tools_privacy_erasure_table_engine');
         wp_clear_scheduled_hook(LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK);
         foreach (ll_tools_privacy_deleted_user_lms_cleanup_queue() as $userId => $queuedAt) {
             wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
@@ -123,9 +126,9 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
             'disconnected_at' => null,
         ]));
 
-        $this->assertNotFalse(has_action('delete_user', 'll_tools_privacy_prepare_deleted_user_lms_cleanup'));
-        $this->assertNotFalse(has_action('wpmu_delete_user', 'll_tools_privacy_prepare_network_deleted_user_lms_cleanup'));
-        $this->assertNotFalse(has_action('remove_user_from_blog', 'll_tools_privacy_prepare_removed_user_lms_cleanup'));
+        $this->assertSame(1, has_action('delete_user', 'll_tools_privacy_prepare_deleted_user_lms_cleanup'));
+        $this->assertSame(1, has_action('wpmu_delete_user', 'll_tools_privacy_prepare_network_deleted_user_lms_cleanup'));
+        $this->assertSame(1, has_action('remove_user_from_blog', 'll_tools_privacy_prepare_removed_user_lms_cleanup'));
         $this->assertNotFalse(has_action('remove_user_from_blog', 'll_tools_teacher_class_cleanup_removed_user'));
         $this->assertNotFalse(has_action('deleted_user', 'll_tools_privacy_cleanup_after_deleted_user'));
         $this->assertNotFalse(has_action(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, 'll_tools_privacy_cleanup_deleted_user_lms_data'));
@@ -162,6 +165,91 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey($userId, ll_tools_privacy_deleted_user_lms_cleanup_queue());
         $this->assertFalse(get_option(ll_tools_privacy_user_lms_erasure_option_name($userId), false));
         $this->assertFalse(ll_tools_privacy_deleted_user_post_seen($userId));
+    }
+
+    public function test_account_deletion_tombstone_cleans_a_writer_that_outlives_the_first_barrier(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLocalPrivacyFixture('account-delete-race');
+        $userId = (int) $fixture['user_id'];
+        $sessionTable = ll_tools_offline_app_session_table();
+        $progressTables = ll_tools_user_progress_table_names();
+        $sessionRows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$sessionTable} WHERE user_id = %d",
+            $userId
+        ), ARRAY_A);
+        $wordRows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$progressTables['words']} WHERE user_id = %d",
+            $userId
+        ), ARRAY_A);
+        $eventRows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$progressTables['events']} WHERE user_id = %d",
+            $userId
+        ), ARRAY_A);
+        $this->assertNotEmpty($sessionRows);
+        $this->assertNotEmpty($wordRows);
+        $this->assertNotEmpty($eventRows);
+
+        if (!function_exists('wp_delete_user')) {
+            require_once ABSPATH . 'wp-admin/includes/user.php';
+        }
+        $denyBarrier = static function (string $query): string {
+            return stripos($query, 'SELECT GET_LOCK(') !== false ? 'SELECT 0' : $query;
+        };
+        add_filter('query', $denyBarrier);
+        try {
+            $this->assertTrue(wp_delete_user($userId));
+        } finally {
+            remove_filter('query', $denyBarrier);
+        }
+
+        $this->assertFalse(get_userdata($userId));
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertContains(
+            $userId,
+            ll_tools_teacher_class_get_student_ids((int) $fixture['class_id'])
+        );
+
+        // Model a request that passed the fence before deletion and commits
+        // only after core and priority-10 cleanup have finished.
+        foreach ($sessionRows as $row) {
+            $this->assertSame(1, $wpdb->insert($sessionTable, $row));
+        }
+        foreach ($wordRows as $row) {
+            $this->assertSame(1, $wpdb->insert($progressTables['words'], $row));
+        }
+        foreach ($eventRows as $row) {
+            $this->assertSame(1, $wpdb->insert($progressTables['events'], $row));
+        }
+        $this->assertSame(1, $wpdb->insert($wpdb->usermeta, [
+            'user_id' => $userId,
+            'meta_key' => LL_TOOLS_USER_GOALS_META,
+            'meta_value' => maybe_serialize(['daily_minutes' => 45]),
+        ]));
+
+        ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$sessionTable} WHERE user_id = %d",
+            $userId
+        )));
+        foreach (['words', 'events'] as $tableKey) {
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$progressTables[$tableKey]} WHERE user_id = %d",
+                $userId
+            )));
+        }
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d",
+            $userId
+        )));
+        $this->assertNotContains(
+            $userId,
+            ll_tools_teacher_class_get_student_ids((int) $fixture['class_id'])
+        );
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
     }
 
     public function test_manual_erasure_lease_expiry_and_call_ownership_are_fail_safe(): void
@@ -279,6 +367,123 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         )));
     }
 
+    public function test_manual_privacy_erasure_revokes_real_tokens_and_verifies_local_data_removal(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLocalPrivacyFixture('complete');
+        $legacyKey = 'legacy' . strtolower(wp_generate_password(8, false, false));
+        $this->assertNotFalse(update_user_meta($fixture['user_id'], LL_TOOLS_OFFLINE_APP_SESSION_META, [
+            $legacyKey => [
+                'secret_hash' => wp_hash_password('legacy-secret'),
+                'created_at' => gmdate('Y-m-d H:i:s'),
+                'expires_at' => gmdate('Y-m-d H:i:s', time() + HOUR_IN_SECONDS),
+                'last_used_at' => gmdate('Y-m-d H:i:s'),
+                'device_id' => 'privacy-legacy-device',
+                'profile_id' => 'privacy-legacy-profile',
+            ],
+        ]));
+
+        $result = ll_tools_privacy_erase_personal_data($fixture['email'], 1);
+
+        $this->assertIsArray($result);
+        $this->assertTrue($result['items_removed']);
+        $this->assertTrue($result['done']);
+        $this->assertFalse($result['items_retained']);
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($fixture['user_id']));
+        $this->assertNull(ll_tools_offline_app_authenticate_token($fixture['token'], false));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d',
+            $fixture['user_id']
+        )));
+        $this->assertFalse(metadata_exists('user', $fixture['user_id'], LL_TOOLS_OFFLINE_APP_SESSION_META));
+
+        $progressTables = ll_tools_user_progress_table_names();
+        foreach (['words', 'events'] as $tableKey) {
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$progressTables[$tableKey]} WHERE user_id = %d",
+                $fixture['user_id']
+            )));
+        }
+        $this->assertFalse(metadata_exists('user', $fixture['user_id'], LL_TOOLS_USER_GOALS_META));
+        $this->assertFalse(metadata_exists('user', $fixture['user_id'], LL_TOOLS_USER_FAST_TRANSITIONS_META));
+        $this->assertFalse(metadata_exists('user', $fixture['user_id'], LL_TOOLS_STUDENT_CLASS_IDS_META));
+        $this->assertNotContains(
+            $fixture['user_id'],
+            ll_tools_teacher_class_get_student_ids($fixture['class_id'])
+        );
+    }
+
+    public function test_local_privacy_erasure_rolls_back_every_surface_when_progress_delete_fails(): void
+    {
+        $fixture = $this->createLocalPrivacyFixture('delete-failure');
+        $eventsTable = ll_tools_user_progress_table_names()['events'];
+        $queryFault = static function (string $query) use ($eventsTable): string {
+            if (
+                stripos($query, 'DELETE FROM') !== false
+                && stripos($query, $eventsTable) !== false
+            ) {
+                return 'DELETE FROM ll_tools_missing_privacy_progress_events';
+            }
+            return $query;
+        };
+
+        add_filter('query', $queryFault);
+        try {
+            $result = ll_tools_privacy_erase_personal_data($fixture['email'], 1);
+        } finally {
+            remove_filter('query', $queryFault);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_privacy_progress_delete_failed', $result->get_error_code());
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($fixture['user_id']));
+        $this->assertLocalPrivacyFixturePresent($fixture);
+    }
+
+    public function test_local_privacy_erasure_rolls_back_when_user_meta_is_retained(): void
+    {
+        $fixture = $this->createLocalPrivacyFixture('meta-failure');
+        $metaFault = static function ($delete, int $objectId, string $metaKey) use ($fixture) {
+            if ($objectId === $fixture['user_id'] && $metaKey === LL_TOOLS_USER_GOALS_META) {
+                return false;
+            }
+            return $delete;
+        };
+
+        add_filter('delete_user_metadata', $metaFault, 10, 3);
+        try {
+            $result = ll_tools_privacy_erase_personal_data($fixture['email'], 1);
+        } finally {
+            remove_filter('delete_user_metadata', $metaFault, 10);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_privacy_user_meta_retained', $result->get_error_code());
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($fixture['user_id']));
+        $this->assertLocalPrivacyFixturePresent($fixture);
+    }
+
+    public function test_local_privacy_erasure_fails_before_mutation_when_any_rollback_table_is_non_transactional(): void
+    {
+        $fixture = $this->createLocalPrivacyFixture('engine-failure');
+        $engineFault = static function (string $engine, string $tableKey): string {
+            return $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        };
+
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        try {
+            $result = ll_tools_privacy_erase_personal_data($fixture['email'], 1);
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_privacy_transactional_engine_unavailable', $result->get_error_code());
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($fixture['user_id']));
+        $this->assertLocalPrivacyFixturePresent($fixture);
+    }
+
     public function test_activation_reschedules_an_existing_pending_delivery(): void
     {
         global $wpdb;
@@ -316,5 +521,86 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
 
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK));
         $wpdb->delete($table, ['dedupe_key' => hash('sha256', 'activation-pending-delivery')], ['%s']);
+    }
+
+    /** @return array{user_id:int,email:string,word_id:int,class_id:int,token:string,event_uuid:string} */
+    private function createLocalPrivacyFixture(string $slug): array
+    {
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $email = 'privacy-' . sanitize_key($slug) . '-' . $suffix . '@example.test';
+        $userId = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_email' => $email,
+        ]);
+        $wordId = (int) self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Privacy progress word',
+        ]);
+        $eventUuid = 'privacy-' . sanitize_key($slug) . '-' . wp_generate_uuid4();
+        $stats = ll_tools_process_progress_events_batch($userId, [[
+            'event_uuid' => $eventUuid,
+            'event_type' => 'word_exposure',
+            'mode' => 'practice',
+            'word_id' => $wordId,
+        ]]);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+        $this->assertNotFalse(update_user_meta($userId, LL_TOOLS_USER_GOALS_META, ['daily_minutes' => 10]));
+        $this->assertNotFalse(update_user_meta($userId, LL_TOOLS_USER_FAST_TRANSITIONS_META, 1));
+
+        $classId = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Privacy class',
+        ]);
+        $this->assertTrue(ll_tools_teacher_class_add_student($classId, $userId));
+
+        $session = ll_tools_offline_app_create_session($userId, [
+            'device_id' => 'privacy-device',
+            'profile_id' => 'privacy-profile',
+        ]);
+        $token = (string) ($session['token'] ?? '');
+        $this->assertNotSame('', $token);
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token($token, false));
+
+        return [
+            'user_id' => $userId,
+            'email' => $email,
+            'word_id' => $wordId,
+            'class_id' => $classId,
+            'token' => $token,
+            'event_uuid' => $eventUuid,
+        ];
+    }
+
+    /** @param array{user_id:int,class_id:int,token:string,event_uuid:string} $fixture */
+    private function assertLocalPrivacyFixturePresent(array $fixture): void
+    {
+        global $wpdb;
+
+        $this->assertIsArray(ll_tools_offline_app_authenticate_token($fixture['token'], false));
+        $this->assertGreaterThan(0, (int) $wpdb->get_var($wpdb->prepare(
+            'SELECT COUNT(*) FROM ' . ll_tools_offline_app_session_table() . ' WHERE user_id = %d',
+            $fixture['user_id']
+        )));
+        $progressTables = ll_tools_user_progress_table_names();
+        $this->assertGreaterThan(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$progressTables['words']} WHERE user_id = %d",
+            $fixture['user_id']
+        )));
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$progressTables['events']} WHERE event_uuid = %s",
+            $fixture['event_uuid']
+        )));
+        $this->assertTrue(metadata_exists('user', $fixture['user_id'], LL_TOOLS_USER_GOALS_META));
+        $this->assertTrue(metadata_exists('user', $fixture['user_id'], LL_TOOLS_USER_FAST_TRANSITIONS_META));
+        $this->assertContains(
+            $fixture['user_id'],
+            ll_tools_teacher_class_get_student_ids($fixture['class_id'])
+        );
+        $this->assertContains(
+            $fixture['class_id'],
+            ll_tools_teacher_class_get_ids_for_student($fixture['user_id'])
+        );
     }
 }

@@ -1927,7 +1927,12 @@ function ll_tools_get_user_study_goals($user_id = 0): array {
         $repaired = $raw;
         $repaired['ignored_category_ids'] = $normalized['ignored_category_ids'];
         $repaired['placement_known_category_ids'] = $normalized['placement_known_category_ids'];
-        update_user_meta($uid, LL_TOOLS_USER_GOALS_META, $repaired);
+        ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_GOALS_META,
+            $raw,
+            $repaired
+        );
     }
 
     return $normalized;
@@ -2031,7 +2036,12 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
     }
     if ($repaired_raw !== $raw) {
         ll_tools_user_progress_prepare_source_read();
-        update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $repaired_raw);
+        ll_tools_user_progress_compare_and_swap_user_meta(
+            $uid,
+            LL_TOOLS_USER_CATEGORY_PROGRESS_META,
+            $raw,
+            $repaired_raw
+        );
         if (ll_tools_user_progress_capture_source_error('category_progress_repair') instanceof WP_Error) {
             return [];
         }
@@ -3794,6 +3804,8 @@ function ll_tools_user_progress_stats_are_retryable_failure(array $stats): bool 
         && in_array((string) ($stats['failure_code'] ?? ''), [
             'progress_schema_unavailable',
             'progress_transactional_engine_unavailable',
+            'progress_mutation_lock_unavailable',
+            'progress_privacy_erasure_in_progress',
         ], true);
 }
 
@@ -3818,7 +3830,49 @@ function ll_tools_user_progress_send_retryable_failure(array $stats): void {
     ], 503);
 }
 
+/**
+ * Serialize a direct progress batch against offline sync and privacy erasure.
+ */
 function ll_tools_process_progress_events_batch(int $user_id, array $events): array {
+    if ($events === []) {
+        return ll_tools_process_progress_events_batch_locked($user_id, $events);
+    }
+    if (
+        !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        || !function_exists('ll_tools_offline_app_release_user_session_lock')
+    ) {
+        return ll_tools_user_progress_core_engine_failure_stats($events, [
+            'failure_code' => 'progress_mutation_lock_unavailable',
+        ]);
+    }
+
+    $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($user_id);
+    if ($mutation_lock === '') {
+        return ll_tools_user_progress_core_engine_failure_stats($events, [
+            'failure_code' => 'progress_mutation_lock_unavailable',
+        ]);
+    }
+
+    try {
+        if (
+            function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+            && ll_tools_offline_app_user_data_write_is_fenced($user_id)
+        ) {
+            return ll_tools_user_progress_core_engine_failure_stats($events, [
+                'failure_code' => 'progress_privacy_erasure_in_progress',
+            ]);
+        }
+
+        return ll_tools_process_progress_events_batch_locked($user_id, $events);
+    } finally {
+        ll_tools_offline_app_release_user_session_lock($mutation_lock);
+    }
+}
+
+/**
+ * Process a batch while the caller holds the per-user mutation/session lock.
+ */
+function ll_tools_process_progress_events_batch_locked(int $user_id, array $events): array {
     global $wpdb;
 
     ll_tools_user_progress_clear_source_error();
@@ -3898,6 +3952,12 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             $source_failure = true;
             $stats['failed']++;
             $failed_event_uuids[$event['event_uuid']] = true;
+            continue;
+        }
+        if ($event['event_type'] === 'category_study' && (int) $event['category_id'] <= 0) {
+            // A retry cannot repair an event that identifies no category. Do
+            // not journal/acknowledge it as processed without derived state.
+            $stats['invalid']++;
             continue;
         }
 
@@ -4032,7 +4092,23 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         return false;
     }
 
+    if (
+        !function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        || !function_exists('ll_tools_offline_app_release_user_session_lock')
+        || !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+    ) {
+        return false;
+    }
+    $mutation_lock = ll_tools_offline_app_acquire_user_session_lock($uid);
+    if ($mutation_lock === '') {
+        return false;
+    }
+
     try {
+        if (ll_tools_offline_app_user_data_write_is_fenced($uid)) {
+            return false;
+        }
+
         $word_id = max(0, (int) ($event['word_id'] ?? 0));
         $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
         if ($wordset_id <= 0 && $word_id > 0) {
@@ -4108,6 +4184,7 @@ function ll_tools_record_server_progress_event(int $user_id, array $event): bool
         return true;
     } finally {
         ll_tools_user_progress_clear_source_error();
+        ll_tools_offline_app_release_user_session_lock($mutation_lock);
     }
 }
 
@@ -8544,19 +8621,101 @@ function ll_tools_user_progress_compare_and_swap_user_meta(
     $expected,
     bool $delete_expected = false
 ): bool {
+    global $wpdb;
+
+    if ($user_id <= 0 || $meta_key === '') {
+        return false;
+    }
     if (!$delete_expected && $before === $expected) {
         return true;
     }
 
-    if ($delete_expected) {
-        delete_user_meta($user_id, $meta_key, $before);
-        wp_cache_delete($user_id, 'user_meta');
-        return !metadata_exists('user', $user_id, $meta_key);
+    $before_stored = (string) maybe_serialize($before);
+    $expected_stored = (string) maybe_serialize($expected);
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT umeta_id, meta_value
+         FROM {$wpdb->usermeta}
+         WHERE user_id = %d
+           AND meta_key = %s
+         ORDER BY umeta_id ASC
+         LIMIT 2",
+        $user_id,
+        $meta_key
+    ), ARRAY_A);
+    // The SELECT intentionally bypasses WordPress metadata APIs. Another
+    // request may have replaced or deleted this row while this request still
+    // owns a stale user-meta cache snapshot, so every caller retry/readback
+    // must start from the database result we just observed.
+    wp_cache_delete($user_id, 'user_meta');
+    if (!is_array($rows) || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+    if ($rows === []) {
+        // A concurrent erasure already removed the baseline. Never recreate it.
+        return false;
+    }
+    if (count($rows) !== 1 || (string) ($rows[0]['meta_value'] ?? '') !== $before_stored) {
+        return false;
+    }
+    $meta_id = (int) ($rows[0]['umeta_id'] ?? 0);
+    if ($meta_id <= 0) {
+        return false;
     }
 
-    update_user_meta($user_id, $meta_key, $expected, $before);
+    $wpdb->last_error = '';
+    if ($delete_expected) {
+        $deleted = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->usermeta}
+             WHERE umeta_id = %d
+               AND user_id = %d
+               AND meta_key = %s
+               AND meta_value = %s",
+            $meta_id,
+            $user_id,
+            $meta_key,
+            $before_stored
+        ));
+        wp_cache_delete($user_id, 'user_meta');
+        return $deleted !== false
+            && $deleted > 0
+            && (string) $wpdb->last_error === ''
+            && !metadata_exists('user', $user_id, $meta_key);
+    }
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->usermeta}
+         SET meta_value = %s
+         WHERE umeta_id = %d
+           AND user_id = %d
+           AND meta_key = %s
+           AND meta_value = %s",
+        $expected_stored,
+        $meta_id,
+        $user_id,
+        $meta_key,
+        $before_stored
+    ));
     wp_cache_delete($user_id, 'user_meta');
-    return get_user_meta($user_id, $meta_key, true) === $expected;
+    if ($updated === false || $updated <= 0 || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+
+    $wpdb->last_error = '';
+    $stored = $wpdb->get_var($wpdb->prepare(
+        "SELECT meta_value
+         FROM {$wpdb->usermeta}
+         WHERE umeta_id = %d
+           AND user_id = %d
+           AND meta_key = %s",
+        $meta_id,
+        $user_id,
+        $meta_key
+    ));
+    wp_cache_delete($user_id, 'user_meta');
+    return $stored !== null
+        && (string) $wpdb->last_error === ''
+        && (string) $stored === $expected_stored;
 }
 
 function ll_tools_get_user_recommendation_queue($user_id = 0, $wordset_id = 0): array {
@@ -11285,34 +11444,68 @@ function ll_tools_user_progress_batch_ajax() {
     if (is_wp_error($events)) {
         ll_tools_user_study_send_request_collection_error($events);
     }
-    $stats = ll_tools_process_progress_events_batch(get_current_user_id(), $events);
-    if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
-        ll_tools_user_progress_send_retryable_failure($stats);
-    }
-
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
     if (is_wp_error($category_ids)) {
         ll_tools_user_study_send_request_collection_error($category_ids);
     }
 
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    $queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $category_ids, $categories, 8);
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $category_ids, $categories);
+    $user_id = get_current_user_id();
+    $result = null;
+    $mutation_lock = function_exists('ll_tools_offline_app_acquire_user_session_lock')
+        ? ll_tools_offline_app_acquire_user_session_lock($user_id)
+        : '';
+    if ($mutation_lock === '') {
+        $result = [
+            'stats' => ll_tools_user_progress_core_engine_failure_stats($events, [
+                'failure_code' => 'progress_mutation_lock_unavailable',
+            ]),
+        ];
+    } else {
+        try {
+            if (
+                !function_exists('ll_tools_offline_app_user_data_write_is_fenced')
+                || ll_tools_offline_app_user_data_write_is_fenced($user_id)
+            ) {
+                $result = [
+                    'stats' => ll_tools_user_progress_core_engine_failure_stats($events, [
+                        'failure_code' => 'progress_privacy_erasure_in_progress',
+                    ]),
+                ];
+            } else {
+                $stats = ll_tools_process_progress_events_batch_locked($user_id, $events);
+                if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
+                    $result = ['stats' => $stats];
+                } else {
+                    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                        ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                        : [];
+                    $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, $category_ids, $categories, 8);
+                    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+                    if (!$recommendation) {
+                        $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, $category_ids, $categories);
+                    }
+                    if ($recommendation) {
+                        ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+                    }
+
+                    $result = [
+                        'stats' => $stats,
+                        'next_activity' => $recommendation,
+                        'recommendation_queue' => $queue,
+                    ];
+                }
+            }
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($mutation_lock);
+        }
     }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, get_current_user_id(), $wordset_id);
+    $stats = (array) ($result['stats'] ?? []);
+    if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
+        ll_tools_user_progress_send_retryable_failure($stats);
     }
 
-    wp_send_json_success([
-        'stats' => $stats,
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_progress_batch', 'll_tools_user_progress_batch_ajax');
 
@@ -11334,6 +11527,57 @@ function ll_tools_user_progress_sync_snapshot_ajax() {
 }
 add_action('wp_ajax_ll_user_study_sync_snapshot', 'll_tools_user_progress_sync_snapshot_ajax');
 
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_save_goals_request(
+    int $user_id,
+    array $goals_raw,
+    int $wordset_id,
+    array $category_ids
+) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static function () use ($user_id, $goals_raw, $wordset_id, $category_ids): array {
+            $goals = ll_tools_save_user_study_goals($goals_raw, $user_id);
+            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                : [];
+            $queue = ll_tools_refresh_user_recommendation_queue(
+                $user_id,
+                $wordset_id,
+                $category_ids,
+                $categories,
+                8
+            );
+            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+            if (!$recommendation) {
+                $recommendation = ll_tools_build_next_activity_recommendation(
+                    $user_id,
+                    $wordset_id,
+                    $category_ids,
+                    $categories
+                );
+            }
+            if ($recommendation) {
+                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+            }
+
+            return [
+                'goals' => $goals,
+                'next_activity' => $recommendation,
+                'recommendation_queue' => $queue,
+            ];
+        }
+    );
+}
+
 function ll_tools_user_study_save_goals_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -11345,31 +11589,22 @@ function ll_tools_user_study_save_goals_ajax() {
         ll_tools_user_study_send_request_collection_error($goals_raw);
     }
 
-    $goals = ll_tools_save_user_study_goals($goals_raw, get_current_user_id());
-
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $category_ids = ll_tools_user_study_parse_request_id_collection($_POST['category_ids'] ?? [], 'category_ids');
     if (is_wp_error($category_ids)) {
         ll_tools_user_study_send_request_collection_error($category_ids);
     }
-
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    $queue = ll_tools_refresh_user_recommendation_queue(get_current_user_id(), $wordset_id, $category_ids, $categories, 8);
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation(get_current_user_id(), $wordset_id, $category_ids, $categories);
-    }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, get_current_user_id(), $wordset_id);
+    $result = ll_tools_user_study_save_goals_request(
+        get_current_user_id(),
+        $goals_raw,
+        $wordset_id,
+        $category_ids
+    );
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
     }
 
-    wp_send_json_success([
-        'goals' => $goals,
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_save_goals', 'll_tools_user_study_save_goals_ajax');
 
@@ -11471,6 +11706,34 @@ function ll_tools_user_study_recommendation_payload(
     ];
 }
 
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_recommendation_request(
+    int $user_id,
+    int $wordset_id,
+    array $category_ids,
+    string $preferred_mode = '',
+    bool $force_refresh = true
+) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static fn (): array => ll_tools_user_study_recommendation_payload(
+            $user_id,
+            $wordset_id,
+            $category_ids,
+            $preferred_mode,
+            $force_refresh
+        )
+    );
+}
+
 function ll_tools_user_study_recommendation_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -11484,16 +11747,76 @@ function ll_tools_user_study_recommendation_ajax() {
     }
     $preferred_mode = sanitize_key((string) ($_POST['preferred_mode'] ?? ''));
     $force_refresh = !isset($_POST['refresh']) || !empty($_POST['refresh']);
-
-    wp_send_json_success(ll_tools_user_study_recommendation_payload(
+    $result = ll_tools_user_study_recommendation_request(
         get_current_user_id(),
         $wordset_id,
         $category_ids,
         $preferred_mode,
         $force_refresh
-    ));
+    );
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
+    }
+
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_recommendation', 'll_tools_user_study_recommendation_ajax');
+
+/** @return array<string,mixed>|WP_Error */
+function ll_tools_user_study_queue_remove_request(int $user_id, int $wordset_id, string $queue_id) {
+    if (!function_exists('ll_tools_offline_app_run_user_data_write_locked')) {
+        return new WP_Error(
+            'user_data_mutation_lock_unavailable',
+            __('Something went wrong. Please try again.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return ll_tools_offline_app_run_user_data_write_locked(
+        $user_id,
+        static function () use ($user_id, $wordset_id, $queue_id): array {
+            $removed_signature = '';
+            $removed_activity = null;
+            if ($wordset_id > 0 && $queue_id !== '') {
+                $current_queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
+                foreach ((array) $current_queue as $activity) {
+                    if (!is_array($activity)) {
+                        continue;
+                    }
+                    $current_id = sanitize_key((string) ($activity['queue_id'] ?? ''));
+                    if ($current_id === '' || $current_id !== $queue_id) {
+                        continue;
+                    }
+                    $removed_signature = ll_tools_recommendation_activity_queue_id($activity);
+                    $removed_activity = $activity;
+                    break;
+                }
+            }
+
+            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
+                ? ll_tools_user_study_categories_for_wordset($wordset_id)
+                : [];
+            if (is_array($removed_activity) && function_exists('ll_tools_defer_user_recommendation_activity')) {
+                ll_tools_defer_user_recommendation_activity($removed_activity, $user_id, $wordset_id);
+            } elseif ($removed_signature !== '') {
+                ll_tools_add_user_recommendation_dismissed_signature($removed_signature, $user_id, $wordset_id);
+            }
+            $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, [], $categories, 8);
+            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
+            if (!$recommendation) {
+                $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, [], $categories);
+            }
+            if ($recommendation) {
+                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
+            }
+
+            return [
+                'next_activity' => $recommendation,
+                'recommendation_queue' => $queue,
+            ];
+        }
+    );
+}
 
 function ll_tools_user_study_queue_remove_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
@@ -11504,46 +11827,12 @@ function ll_tools_user_study_queue_remove_ajax() {
     $uid = get_current_user_id();
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     $queue_id = isset($_POST['queue_id']) ? sanitize_key((string) $_POST['queue_id']) : '';
-    $removed_signature = '';
-    $removed_activity = null;
-    if ($wordset_id > 0 && $queue_id !== '') {
-        $current_queue = ll_tools_get_user_recommendation_queue($uid, $wordset_id);
-        foreach ((array) $current_queue as $activity) {
-            if (!is_array($activity)) {
-                continue;
-            }
-            $current_id = sanitize_key((string) ($activity['queue_id'] ?? ''));
-            if ($current_id === '' || $current_id !== $queue_id) {
-                continue;
-            }
-            $removed_signature = ll_tools_recommendation_activity_queue_id($activity);
-            $removed_activity = $activity;
-            break;
-        }
+    $result = ll_tools_user_study_queue_remove_request($uid, $wordset_id, $queue_id);
+    if (is_wp_error($result)) {
+        ll_tools_offline_app_send_user_data_write_error($result);
     }
 
-    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-        : [];
-    if (is_array($removed_activity) && function_exists('ll_tools_defer_user_recommendation_activity')) {
-        ll_tools_defer_user_recommendation_activity($removed_activity, $uid, $wordset_id);
-    } elseif ($removed_signature !== '') {
-        ll_tools_add_user_recommendation_dismissed_signature($removed_signature, $uid, $wordset_id);
-    }
-    $queue = ll_tools_refresh_user_recommendation_queue($uid, $wordset_id, [], $categories, 8);
-
-    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-    if (!$recommendation) {
-        $recommendation = ll_tools_build_next_activity_recommendation($uid, $wordset_id, [], $categories);
-    }
-    if ($recommendation) {
-        ll_tools_save_user_last_recommendation_activity($recommendation, $uid, $wordset_id);
-    }
-
-    wp_send_json_success([
-        'next_activity' => $recommendation,
-        'recommendation_queue' => $queue,
-    ]);
+    wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_user_study_queue_remove', 'll_tools_user_study_queue_remove_ajax');
 
