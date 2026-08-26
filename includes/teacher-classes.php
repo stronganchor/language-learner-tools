@@ -678,8 +678,25 @@ if (!function_exists('ll_tools_teacher_class_cleanup_deleted_user')) {
         ll_tools_teacher_class_unlink_student($user_id);
     }
 }
+
+if (!function_exists('ll_tools_teacher_class_cleanup_removed_user')) {
+    /** Unlink site-local class membership before WordPress removes site caps. */
+    function ll_tools_teacher_class_cleanup_removed_user(int $user_id, int $blog_id): void {
+        if (
+            $user_id <= 0
+            || $blog_id <= 0
+            || !is_multisite()
+            || get_current_blog_id() !== $blog_id
+        ) {
+            return;
+        }
+
+        ll_tools_teacher_class_unlink_student($user_id);
+    }
+}
 add_action('delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
 add_action('wpmu_delete_user', 'll_tools_teacher_class_cleanup_deleted_user', 10, 1);
+add_action('remove_user_from_blog', 'll_tools_teacher_class_cleanup_removed_user', 10, 2);
 
 if (!function_exists('ll_tools_teacher_class_delete')) {
     function ll_tools_teacher_class_delete(int $class_id) {
@@ -791,6 +808,114 @@ if (!function_exists('ll_tools_teacher_class_user_option_label')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_practice_result_display_data')) {
+    function ll_tools_teacher_class_practice_result_display_data(array $student_row): array {
+        $display = [
+            'score_label' => '',
+            'date_label' => '',
+            'datetime' => '',
+            'sort_value' => '',
+            'attempts_30d' => max(0, (int) ($student_row['practice_attempts_30d'] ?? 0)),
+            'attempts_30d_label' => '',
+        ];
+        $display['attempts_30d_label'] = !empty($student_row['practice_attempts_30d_truncated'])
+            ? sprintf(
+                /* translators: %d: minimum number of practice attempts */
+                _x('%d+', 'minimum practice attempt count', 'll-tools-text-domain'),
+                $display['attempts_30d']
+            )
+            : number_format_i18n($display['attempts_30d']);
+
+        $latest_result = isset($student_row['latest_practice_result']) && is_array($student_row['latest_practice_result'])
+            ? $student_row['latest_practice_result']
+            : null;
+        if (!is_array($latest_result)) {
+            return $display;
+        }
+
+        $score_given = max(0, (int) ($latest_result['score_given'] ?? 0));
+        $score_maximum = max(0, (int) ($latest_result['score_maximum'] ?? 0));
+        if ($score_maximum <= 0 || $score_given > $score_maximum) {
+            return $display;
+        }
+
+        $percentage = max(0, min(100, (float) ($latest_result['percentage'] ?? 0)));
+        $percentage_decimals = abs($percentage - round($percentage)) < 0.05 ? 0 : 1;
+        $percentage_label = number_format_i18n($percentage, $percentage_decimals);
+        $display['sort_value'] = (string) $percentage;
+        $display['score_label'] = sprintf(
+            /* translators: 1: correct words, 2: total words, 3: percentage */
+            _x('%1$d / %2$d (%3$s%%)', 'practice result score', 'll-tools-text-domain'),
+            $score_given,
+            $score_maximum,
+            $percentage_label
+        );
+
+        $created_at = isset($latest_result['created_at']) ? (string) $latest_result['created_at'] : '';
+        $created_timestamp = $created_at !== '' ? strtotime($created_at . ' UTC') : false;
+        if ($created_timestamp !== false) {
+            $display['datetime'] = gmdate('c', $created_timestamp);
+            $display['date_label'] = sprintf(
+                /* translators: %s: UTC date and time */
+                __('Recorded %s UTC', 'll-tools-text-domain'),
+                gmdate('Y-m-d H:i', $created_timestamp)
+            );
+        }
+
+        return $display;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_render_frontend_practice_help')) {
+    function ll_tools_teacher_class_render_frontend_practice_help(): void {
+        ?>
+        <p class="ll-teacher-classes__practice-help">
+            <?php echo esc_html__('Latest practice shows the number of distinct words answered correctly on the first try. These formative results support learning and are not verified exam grades.', 'll-tools-text-domain'); ?>
+        </p>
+        <?php
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_render_frontend_practice_headers')) {
+    function ll_tools_teacher_class_render_frontend_practice_headers(): void {
+        ?>
+        <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+            <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="latest_practice" data-sort-type="number" data-sort-default="desc">
+                <span><?php echo esc_html__('Latest practice', 'll-tools-text-domain'); ?></span>
+                <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+            </button>
+        </th>
+        <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+            <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="practice_attempts_30d" data-sort-type="number" data-sort-default="desc">
+                <span><?php echo esc_html__('30d attempts', 'll-tools-text-domain'); ?></span>
+                <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+            </button>
+        </th>
+        <?php
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
+    function ll_tools_teacher_class_render_frontend_practice_cells(array $student_row): void {
+        $display = ll_tools_teacher_class_practice_result_display_data($student_row);
+        ?>
+        <td data-sort-value="<?php echo esc_attr((string) ($display['sort_value'] ?? '')); ?>">
+            <?php if (!empty($display['score_label'])) : ?>
+                <span class="ll-teacher-classes__practice-result">
+                    <strong class="ll-teacher-classes__practice-score"><?php echo esc_html((string) $display['score_label']); ?></strong>
+                    <?php if (!empty($display['date_label'])) : ?>
+                        <time class="ll-teacher-classes__practice-date" datetime="<?php echo esc_attr((string) ($display['datetime'] ?? '')); ?>"><?php echo esc_html((string) $display['date_label']); ?></time>
+                    <?php endif; ?>
+                </span>
+            <?php else : ?>
+                <span class="ll-teacher-classes__practice-empty" aria-label="<?php echo esc_attr__('No practice result', 'll-tools-text-domain'); ?>">&mdash;</span>
+            <?php endif; ?>
+        </td>
+        <td data-sort-value="<?php echo esc_attr((string) ($display['attempts_30d'] ?? 0)); ?>"><?php echo esc_html((string) ($display['attempts_30d_label'] ?? '0')); ?></td>
+        <?php
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
     function ll_tools_teacher_class_student_progress_rows(array $student_ids, int $wordset_id = 0, array $args = []): array {
         $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
@@ -831,6 +956,9 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
         $stats = function_exists('ll_tools_user_progress_report_stats_for_users')
             ? ll_tools_user_progress_report_stats_for_users($hydrated_student_ids, $resolved_wordset_id)
             : [];
+        $practice_results = ($resolved_wordset_id > 0 && function_exists('ll_tools_user_progress_report_practice_results_for_users'))
+            ? ll_tools_user_progress_report_practice_results_for_users($hydrated_student_ids, $resolved_wordset_id)
+            : [];
 
         $rows = [];
         foreach ($users as $user) {
@@ -840,6 +968,9 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
 
             $user_id = (int) $user->ID;
             $row_stats = isset($stats[$user_id]) && is_array($stats[$user_id]) ? $stats[$user_id] : [];
+            $practice_summary = isset($practice_results[$user_id]) && is_array($practice_results[$user_id])
+                ? $practice_results[$user_id]
+                : [];
             $current_wordset_name = $resolved_wordset_name;
             if ($current_wordset_name === '' && function_exists('ll_tools_user_progress_report_user_wordset_id')) {
                 $current_wordset_id = ll_tools_user_progress_report_user_wordset_id($user_id);
@@ -852,6 +983,11 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
                 'user' => $user,
                 'stats' => $row_stats,
                 'wordset_name' => $current_wordset_name,
+                'latest_practice_result' => isset($practice_summary['latest_result']) && is_array($practice_summary['latest_result'])
+                    ? $practice_summary['latest_result']
+                    : null,
+                'practice_attempts_30d' => max(0, (int) ($practice_summary['attempts_30d'] ?? 0)),
+                'practice_attempts_30d_truncated' => !empty($practice_summary['attempts_30d_truncated']),
                 'last_activity' => function_exists('ll_tools_user_progress_report_last_activity')
                     ? ll_tools_user_progress_report_last_activity($row_stats)
                     : '',

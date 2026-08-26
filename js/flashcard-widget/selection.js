@@ -2216,8 +2216,11 @@
         return optionsReadyPromise;
     }
 
-    function fillQuizOptions(targetWord) {
+    function fillQuizOptions(targetWord, options) {
         let chosen = [];
+        const fillOptions = (options && typeof options === 'object') ? options : {};
+        const excludedOptionWordIds = normalizeWordIdSet(fillOptions.excludedOptionWordIds);
+        const targetWordId = normalizeWordId(targetWord && targetWord.id);
         const $layoutContainer = jQuery('#ll-tools-flashcard');
         const $layoutContent = jQuery('#ll-tools-flashcard-content');
         $layoutContainer.removeClass('ll-gender-options-layout');
@@ -2398,6 +2401,14 @@
             if (!candidate || typeof candidate !== 'object') return false;
             const candidateId = String(candidate.id || '');
             if (!candidateId) return false;
+            const normalizedCandidateId = normalizeWordId(candidate.id);
+            if (
+                normalizedCandidateId &&
+                normalizedCandidateId !== targetWordId &&
+                excludedOptionWordIds.has(normalizedCandidateId)
+            ) {
+                return false;
+            }
 
             const enforceSimilarity = !rules || rules.enforceSimilarity !== false;
             const enforceTextUniqueness = !rules || rules.enforceTextUniqueness !== false;

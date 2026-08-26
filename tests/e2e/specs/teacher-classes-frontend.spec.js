@@ -859,12 +859,18 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
     const table = root.locator('[data-ll-teacher-classes-progress-table]');
     await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(2);
-    await table.locator('[data-ll-teacher-classes-sort="rounds_30d"]').click();
+    const roundsSort = table.locator('[data-ll-teacher-classes-sort="rounds_30d"]');
+    const roundsColumnIndex = await roundsSort.evaluate((button) => {
+      const header = button.closest('th');
+      return header ? header.cellIndex : -1;
+    });
+    expect(roundsColumnIndex).toBeGreaterThanOrEqual(0);
+    await roundsSort.click();
     await expect(table).toHaveAttribute('data-sort-key', 'rounds_30d');
     await expect(table).toHaveAttribute('data-sort-direction', 'desc');
     await expect(table.locator('tbody tr').first()).toContainText(fixtures.registeredLearnerEmail);
-    await expect(table.locator('tbody tr').first().locator('td').nth(2)).toHaveText('3');
-    await expect(table.locator('tbody tr').nth(1).locator('td').nth(2)).toHaveText('1');
+    await expect(table.locator('tbody tr').first().locator('td').nth(roundsColumnIndex)).toHaveText('3');
+    await expect(table.locator('tbody tr').nth(1).locator('td').nth(roundsColumnIndex)).toHaveText('1');
 
     const existingLearnerRow = table.locator('tbody tr').filter({
       has: page.getByText(fixtures.existingLearnerEmail, { exact: true })
