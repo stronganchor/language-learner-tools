@@ -99,7 +99,7 @@ if (!function_exists('ll_tools_user_progress_report_query_users')) {
     /**
      * Query one report page while keeping progress-user intersection in SQL.
      *
-     * @return array{users:WP_User[],user_ids:int[],total:int,page:int,per_page:int}
+     * @return array{users:WP_User[],user_ids:int[],total:int,page:int,per_page:int,query_failed:bool,failure_stage:string}
      */
     function ll_tools_user_progress_report_query_users(
         int $wordset_id = 0,
@@ -120,6 +120,8 @@ if (!function_exists('ll_tools_user_progress_report_query_users')) {
                 'total' => 0,
                 'page' => $page,
                 'per_page' => $per_page,
+                'query_failed' => true,
+                'failure_stage' => 'schema',
             ];
         }
 
@@ -162,7 +164,20 @@ if (!function_exists('ll_tools_user_progress_report_query_users')) {
         $from_sql = " FROM {$wpdb->users} users
                       INNER JOIN ({$tracked_sql}) tracked_users
                          ON tracked_users.user_id = users.ID";
-        $total = max(0, (int) $wpdb->get_var("SELECT COUNT(*){$from_sql}{$search_sql}"));
+        $wpdb->last_error = '';
+        $total_result = $wpdb->get_var("SELECT COUNT(*){$from_sql}{$search_sql}");
+        if ($total_result === null || (string) $wpdb->last_error !== '') {
+            return [
+                'users' => [],
+                'user_ids' => [],
+                'total' => 0,
+                'page' => $page,
+                'per_page' => $per_page,
+                'query_failed' => true,
+                'failure_stage' => 'count',
+            ];
+        }
+        $total = max(0, (int) $total_result);
         $offset = ($page - 1) * $per_page;
         $ids_sql = $wpdb->prepare(
             "SELECT users.ID{$from_sql}{$search_sql}
@@ -171,15 +186,40 @@ if (!function_exists('ll_tools_user_progress_report_query_users')) {
             $per_page,
             $offset
         );
-        $user_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($ids_sql))));
+        $wpdb->last_error = '';
+        $user_id_rows = $wpdb->get_col($ids_sql);
+        if (!is_array($user_id_rows) || (string) $wpdb->last_error !== '') {
+            return [
+                'users' => [],
+                'user_ids' => [],
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $per_page,
+                'query_failed' => true,
+                'failure_stage' => 'ids',
+            ];
+        }
+        $user_ids = array_values(array_filter(array_map('intval', $user_id_rows)));
         $users = [];
         if (!empty($user_ids)) {
+            $wpdb->last_error = '';
             $users = get_users([
                 'include' => $user_ids,
                 'orderby' => 'include',
                 'count_total' => false,
                 'fields' => 'all',
             ]);
+            if (!is_array($users) || (string) $wpdb->last_error !== '') {
+                return [
+                    'users' => [],
+                    'user_ids' => [],
+                    'total' => $total,
+                    'page' => $page,
+                    'per_page' => $per_page,
+                    'query_failed' => true,
+                    'failure_stage' => 'users',
+                ];
+            }
             $users = array_values(array_filter((array) $users, static function ($user): bool {
                 return $user instanceof WP_User;
             }));
@@ -191,6 +231,8 @@ if (!function_exists('ll_tools_user_progress_report_query_users')) {
             'total' => $total,
             'page' => $page,
             'per_page' => $per_page,
+            'query_failed' => false,
+            'failure_stage' => '',
         ];
     }
 }
@@ -377,6 +419,17 @@ if (!function_exists('ll_tools_user_progress_report_login_looks_generated')) {
 
 if (!function_exists('ll_tools_user_progress_report_assess_bot_risk')) {
     function ll_tools_user_progress_report_assess_bot_risk(WP_User $user, array $stats): array {
+        if (!empty($stats['query_failed'])) {
+            return [
+                'flagged' => false,
+                'score' => 0,
+                'level' => 'unavailable',
+                'label' => __('Unavailable', 'll-tools-text-domain'),
+                'reasons' => [],
+                'query_failed' => true,
+            ];
+        }
+
         $user_login = strtolower((string) $user->user_login);
         $display_name = strtolower((string) $user->display_name);
         $user_email = strtolower((string) $user->user_email);
@@ -692,9 +745,12 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
         $per_page = 20;
 
         $user_page = ll_tools_user_progress_report_query_users($wordset_id, $search, $paged, $per_page);
+        $report_query_failed = !empty($user_page['query_failed']);
         $users = (array) ($user_page['users'] ?? []);
         $page_user_ids = array_values(array_map('intval', (array) ($user_page['user_ids'] ?? [])));
-        $stats = ll_tools_user_progress_report_stats_for_users($page_user_ids, $wordset_id);
+        $stats = $report_query_failed
+            ? []
+            : ll_tools_user_progress_report_stats_for_users($page_user_ids, $wordset_id);
 
         $detail_user = ($selected_user_id > 0) ? get_userdata($selected_user_id) : null;
         $detail_wordset_id = $wordset_id;
@@ -712,8 +768,15 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                 [(int) $detail_user->ID],
                 $detail_wordset_id > 0 ? $detail_wordset_id : $wordset_id
             );
-            $detail_stats = is_array($detail_stats) ? ($detail_stats[(int) $detail_user->ID] ?? []) : [];
+            $detail_stats = is_array($detail_stats) && isset($detail_stats[(int) $detail_user->ID])
+                ? (array) $detail_stats[(int) $detail_user->ID]
+                : ['query_failed' => true];
         }
+        $detail_stats_query_failed = !empty($detail_stats['query_failed']);
+        $detail_words_query_failed = !empty($detail_stats['words_query_failed'])
+            || ($detail_stats_query_failed && !array_key_exists('words_query_failed', $detail_stats));
+        $detail_events_query_failed = !empty($detail_stats['events_query_failed'])
+            || ($detail_stats_query_failed && !array_key_exists('events_query_failed', $detail_stats));
         $detail_bot_risk = ($detail_user instanceof WP_User)
             ? ll_tools_user_progress_report_assess_bot_risk($detail_user, $detail_stats)
             : [];
@@ -723,6 +786,17 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
         $detail_daily = (is_array($detail_analytics) && isset($detail_analytics['daily_activity']) && is_array($detail_analytics['daily_activity']))
             ? $detail_analytics['daily_activity']
             : [];
+        $detail_stt_total_display = ll_tools_user_progress_report_stat_display_data($detail_stats, 'stt_calls_total');
+        $detail_stt_7d_display = ll_tools_user_progress_report_stat_display_data($detail_stats, 'stt_calls_7d');
+        $detail_last_stt_display = ll_tools_user_progress_report_stat_display_data($detail_stats, 'last_stt_api_call_at');
+        $detail_word_stat_value = static function (string $metric) use ($detail_summary, $detail_words_query_failed): string {
+            return $detail_words_query_failed
+                ? __('Unavailable', 'll-tools-text-domain')
+                : (string) max(0, (int) ($detail_summary[$metric] ?? 0));
+        };
+        $detail_rounds_window_value = $detail_events_query_failed
+            ? __('Unavailable', 'll-tools-text-domain')
+            : (string) max(0, (int) ($detail_daily['max_rounds'] ?? 0));
         $delete_confirm_text = __('Delete this learner account permanently? This also removes its LL Tools progress data.', 'll-tools-text-domain');
         ?>
         <div class="wrap">
@@ -751,6 +825,11 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                     color: #1d2327;
                     background: #f6f7f7;
                     border-color: #dcdcde;
+                }
+                .ll-tools-user-progress-risk-unavailable {
+                    color: #50575e;
+                    background: #f6f7f7;
+                    border-color: #a7aaad;
                 }
                 .ll-tools-user-progress-risk-watch {
                     color: #674d00;
@@ -843,7 +922,11 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($users)) : ?>
+                    <?php if ($report_query_failed) : ?>
+                        <tr>
+                            <td colspan="14"><?php esc_html_e('Unavailable', 'll-tools-text-domain'); ?></td>
+                        </tr>
+                    <?php elseif (empty($users)) : ?>
                         <tr>
                             <td colspan="14"><?php esc_html_e('No learner progress data matched the current filters.', 'll-tools-text-domain'); ?></td>
                         </tr>
@@ -854,15 +937,17 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                                 continue;
                             }
 
-                            $row_stats = $stats[(int) $user->ID] ?? [
-                                'studied_words' => 0,
-                                'mastered_words' => 0,
-                                'hard_words' => 0,
-                                'rounds_30d' => 0,
-                                'outcomes_30d' => 0,
-                                'last_progress_at' => '',
-                                'last_event_at' => '',
-                            ];
+                            $row_stats = isset($stats[(int) $user->ID]) && is_array($stats[(int) $user->ID])
+                                ? $stats[(int) $user->ID]
+                                : ['query_failed' => true];
+                            $rounds_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'rounds_30d');
+                            $outcomes_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'outcomes_30d');
+                            $stt_total_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'stt_calls_total');
+                            $stt_30d_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'stt_calls_30d');
+                            $studied_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'studied_words');
+                            $mastered_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'mastered_words');
+                            $hard_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'hard_words');
+                            $last_activity_display = ll_tools_user_progress_report_stat_display_data($row_stats, 'last_activity');
                             $current_wordset_id = ll_tools_user_progress_report_user_wordset_id((int) $user->ID);
                             $bot_risk = ll_tools_user_progress_report_assess_bot_risk($user, $row_stats);
                             $delete_status = ll_tools_user_progress_report_direct_delete_status($user);
@@ -889,14 +974,14 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                                         <span class="description"><?php echo esc_html(implode('; ', array_slice((array) $bot_risk['reasons'], 0, 2))); ?></span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['outcomes_30d'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['stt_calls_total'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['stt_calls_30d'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['hard_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html(ll_tools_user_progress_report_last_activity($row_stats)); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($rounds_display['sort_value']); ?>"><?php echo esc_html($rounds_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($outcomes_display['sort_value']); ?>"><?php echo esc_html($outcomes_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($stt_total_display['sort_value']); ?>"><?php echo esc_html($stt_total_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($stt_30d_display['sort_value']); ?>"><?php echo esc_html($stt_30d_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($studied_display['sort_value']); ?>"><?php echo esc_html($studied_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($mastered_display['sort_value']); ?>"><?php echo esc_html($mastered_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($hard_display['sort_value']); ?>"><?php echo esc_html($hard_display['label']); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($last_activity_display['sort_value']); ?>"><?php echo esc_html($last_activity_display['label']); ?></td>
                                 <td>
                                     <div class="ll-tools-user-progress-actions">
                                         <a class="button button-small" href="<?php echo esc_url($detail_url); ?>"><?php esc_html_e('View', 'll-tools-text-domain'); ?></a>
@@ -931,7 +1016,7 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
             <?php
             $total_users = max(0, (int) ($user_page['total'] ?? 0));
             $total_pages = $per_page > 0 ? (int) ceil($total_users / $per_page) : 1;
-            if ($total_pages > 1) :
+            if (!$report_query_failed && $total_pages > 1) :
                 echo '<div class="tablenav"><div class="tablenav-pages">';
                 echo wp_kses_post(paginate_links([
                     'base' => add_query_arg([
@@ -983,7 +1068,9 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                         <?php endif; ?>
                         <?php echo esc_html((string) ($detail_bot_risk['label'] ?? __('No flag', 'll-tools-text-domain'))); ?>
                     </span>
-                    <?php if (!empty($detail_bot_risk['reasons'])) : ?>
+                    <?php if (!empty($detail_bot_risk['query_failed'])) : ?>
+                        <p class="description"><?php esc_html_e('Unavailable', 'll-tools-text-domain'); ?></p>
+                    <?php elseif (!empty($detail_bot_risk['reasons'])) : ?>
                         <p class="description"><?php echo esc_html(implode('; ', (array) $detail_bot_risk['reasons'])); ?></p>
                     <?php else : ?>
                         <p class="description"><?php esc_html_e('No current bot-risk signals were detected from this account profile and recent study activity.', 'll-tools-text-domain'); ?></p>
@@ -995,33 +1082,36 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                         <tbody>
                             <tr>
                                 <th><?php esc_html_e('Total words in scope', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['total_words'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-word-stat="total_words"><?php echo esc_html($detail_word_stat_value('total_words')); ?></td>
                                 <th><?php esc_html_e('Studied', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['studied_words'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-word-stat="studied_words"><?php echo esc_html($detail_word_stat_value('studied_words')); ?></td>
                                 <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['mastered_words'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-word-stat="mastered_words"><?php echo esc_html($detail_word_stat_value('mastered_words')); ?></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('New', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['new_words'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-word-stat="new_words"><?php echo esc_html($detail_word_stat_value('new_words')); ?></td>
                                 <th><?php esc_html_e('Hard', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['hard_words'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-word-stat="hard_words"><?php echo esc_html($detail_word_stat_value('hard_words')); ?></td>
                                 <th><?php esc_html_e('30d rounds window', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_daily['max_rounds'] ?? 0))); ?></td>
+                                <td data-ll-tools-detail-rounds-stat="1"><?php echo esc_html($detail_rounds_window_value); ?></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('STT calls', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_stats['stt_calls_total'] ?? 0))); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($detail_stt_total_display['sort_value']); ?>"><?php echo esc_html($detail_stt_total_display['label']); ?></td>
                                 <th><?php esc_html_e('7d STT calls', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($detail_stats['stt_calls_7d'] ?? 0))); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($detail_stt_7d_display['sort_value']); ?>"><?php echo esc_html($detail_stt_7d_display['label']); ?></td>
                                 <th><?php esc_html_e('Last STT call (UTC)', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) ($detail_stats['last_stt_api_call_at'] ?? '')); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($detail_last_stt_display['sort_value']); ?>"><?php echo esc_html($detail_last_stt_display['label']); ?></td>
                             </tr>
                         </tbody>
                     </table>
 
-                    <?php if (!empty($detail_analytics)) : ?>
+                    <?php if ($detail_words_query_failed || !empty($detail_analytics)) : ?>
                     <h3><?php esc_html_e('Categories', 'll-tools-text-domain'); ?></h3>
+                    <?php if ($detail_words_query_failed) : ?>
+                        <p class="description" data-ll-tools-detail-categories-unavailable="1"><?php esc_html_e('Unavailable', 'll-tools-text-domain'); ?></p>
+                    <?php else : ?>
                     <table class="widefat striped" style="margin-bottom: 24px;">
                         <thead>
                             <tr>
@@ -1054,9 +1144,13 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                         </tbody>
                     </table>
                     <?php endif; ?>
+                    <?php endif; ?>
 
-                    <?php if (!empty($detail_analytics)) : ?>
+                    <?php if ($detail_words_query_failed || !empty($detail_analytics)) : ?>
                     <h3><?php esc_html_e('Words Needing Attention', 'll-tools-text-domain'); ?></h3>
+                    <?php if ($detail_words_query_failed) : ?>
+                        <p class="description" data-ll-tools-detail-attention-unavailable="1"><?php esc_html_e('Unavailable', 'll-tools-text-domain'); ?></p>
+                    <?php else : ?>
                     <table class="widefat striped">
                         <thead>
                             <tr>
@@ -1096,6 +1190,7 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                             <?php endif; ?>
                         </tbody>
                     </table>
+                    <?php endif; ?>
                     <?php endif; ?>
                 <?php endif; ?>
             <?php endif; ?>

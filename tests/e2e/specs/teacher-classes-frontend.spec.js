@@ -623,6 +623,11 @@ async function rememberRegisteredLearnerId(page, fixtures) {
 async function recordLearnerProgress(page, fixtures, learner, wordIds, practiceResults = []) {
   const wordsetPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}`;
   await loginAsUser(page, learner.username, learner.password, wordsetPath);
+  await expect(page.locator('[data-ll-wordset-page]')).toBeVisible({ timeout: 60000 });
+  await page.waitForFunction(() => {
+    const config = window.llWordsetPageData || {};
+    return !!(config.ajaxUrl && config.nonce);
+  }, null, { timeout: 60000 });
 
   const result = await page.evaluate(async ({ categoryId, eventWordIds, resultPayloads, wordsetId }) => {
     const config = window.llWordsetPageData || {};
@@ -951,12 +956,28 @@ test('signup invite feeds class progress sorting and learner removal', async ({ 
       return header ? header.cellIndex : -1;
     });
     expect(roundsColumnIndex).toBeGreaterThanOrEqual(0);
+    await table.locator('tbody').evaluate((tbody, unavailableColumnIndex) => {
+      const columnCount = tbody.closest('table').tHead.rows[0].cells.length;
+      const unavailableRow = document.createElement('tr');
+      unavailableRow.setAttribute('data-test-unavailable-row', '1');
+      for (let index = 0; index < columnCount; index += 1) {
+        unavailableRow.appendChild(document.createElement('td'));
+      }
+      unavailableRow.cells[0].textContent = 'Unavailable learner';
+      unavailableRow.cells[unavailableColumnIndex].setAttribute('data-sort-value', '');
+      unavailableRow.cells[unavailableColumnIndex].textContent = 'Unavailable';
+      tbody.appendChild(unavailableRow);
+    }, roundsColumnIndex);
     await roundsSort.click();
     await expect(table).toHaveAttribute('data-sort-key', 'rounds_30d');
     await expect(table).toHaveAttribute('data-sort-direction', 'desc');
     await expect(table.locator('tbody tr').first()).toContainText(fixtures.registeredLearnerEmail);
     await expect(table.locator('tbody tr').first().locator('td').nth(roundsColumnIndex)).toHaveText('3');
     await expect(table.locator('tbody tr').nth(1).locator('td').nth(roundsColumnIndex)).toHaveText('1');
+    await expect(table.locator('tbody tr').last()).toHaveAttribute('data-test-unavailable-row', '1');
+    await roundsSort.click();
+    await expect(table).toHaveAttribute('data-sort-direction', 'asc');
+    await expect(table.locator('tbody tr').last()).toHaveAttribute('data-test-unavailable-row', '1');
 
     const removeForm = existingLearnerRow.locator('form:has(input[name="action"][value="ll_tools_teacher_remove_class_student"])');
     await expect(removeForm).toHaveCount(1);

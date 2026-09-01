@@ -480,6 +480,11 @@ final class ContentLessonProgressTest extends LL_Tools_TestCase
             'tt_completed_lessons',
             $legacy_completion_data
         );
+        $external_favorites = [[
+            'site_id' => 1,
+            'posts' => [$lesson_id, 54321],
+        ]];
+        update_user_meta($user_id, 'simplefavorites', $external_favorites);
 
         $export = ll_tools_privacy_export_study_settings(
             'content-lesson-progress@example.test'
@@ -515,6 +520,80 @@ final class ContentLessonProgressTest extends LL_Tools_TestCase
                 'tt_completed_lessons'
             )
         );
+        $this->assertSame($external_favorites, get_user_meta($user_id, 'simplefavorites', true));
+        $this->assertSame(
+            '1',
+            (string) get_user_meta($user_id, LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META, true)
+        );
+    }
+
+    public function test_privacy_erasure_rolls_back_when_the_external_favorites_meta_read_fails(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = 4711;
+        $lesson_id = $this->createLesson(0, 'Privacy usermeta rollback lesson');
+        $completion_data = [$lesson_id];
+        $external_favorites = [[
+            'site_id' => 1,
+            'posts' => [$lesson_id, 54321],
+        ]];
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta(
+            $user_id,
+            LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META,
+            $completion_data
+        );
+        update_user_meta($user_id, 'simplefavorites', $external_favorites);
+        delete_user_meta($user_id, LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META);
+        wp_cache_delete($user_id, 'user_meta');
+
+        $injected = false;
+        $usermeta_table = (string) $wpdb->usermeta;
+        $query_filter = static function (string $query) use (&$injected, $usermeta_table): string {
+            if (
+                !$injected
+                && stripos($query, "FROM {$usermeta_table}") !== false
+                && stripos($query, 'simplefavorites') !== false
+                && stripos($query, 'FOR UPDATE') !== false
+            ) {
+                $injected = true;
+                return 'SELECT umeta_id FROM ll_tools_missing_usermeta_table';
+            }
+
+            return $query;
+        };
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $query_filter);
+        try {
+            $result = ll_tools_privacy_delete_user_personal_data_verified($user_id);
+        } finally {
+            remove_filter('query', $query_filter);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            wp_cache_delete($user_id, 'user_meta');
+        }
+
+        $this->assertTrue($injected, 'Expected the direct simplefavorites metadata read to fail.');
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_privacy_user_meta_read_failed', $result->get_error_code());
+        $this->assertSame(
+            $wordset_id,
+            (int) get_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, true),
+            'A user-meta deletion earlier in the transaction must be rolled back.'
+        );
+        $this->assertSame(
+            $completion_data,
+            get_user_meta($user_id, LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META, true)
+        );
+        $this->assertSame($external_favorites, get_user_meta($user_id, 'simplefavorites', true));
+        $this->assertFalse(metadata_exists(
+            'user',
+            $user_id,
+            LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META
+        ));
     }
 
     public function test_content_lesson_save_rejects_a_dependency_cycle(): void

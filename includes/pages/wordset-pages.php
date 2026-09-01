@@ -12692,6 +12692,11 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
             'hard_words' => 0,
         ];
     $summary['students'] = $student_total;
+    $summary_stat_value = static function (string $metric) use ($summary): string {
+        return !empty($summary['query_failed'])
+            ? __('Unavailable', 'll-tools-text-domain')
+            : (string) max(0, (int) ($summary[$metric] ?? 0));
+    };
     $selected_teacher_user = ($selected_class instanceof WP_Post)
         ? get_userdata((int) $selected_class->post_author)
         : null;
@@ -12998,19 +13003,19 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                                 <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Students', 'll-tools-text-domain'); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
-                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['rounds_30d'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html($summary_stat_value('rounds_30d')); ?></span>
                                 <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page 30d rounds', 'll-tools-text-domain') : __('30d rounds', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
-                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['studied_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html($summary_stat_value('studied_words')); ?></span>
                                 <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page studied', 'll-tools-text-domain') : __('Studied', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
-                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['mastered_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html($summary_stat_value('mastered_words')); ?></span>
                                 <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page mastered', 'll-tools-text-domain') : __('Mastered', 'll-tools-text-domain')); ?></span>
                             </div>
                             <div class="ll-teacher-classes__stat">
-                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['hard_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html($summary_stat_value('hard_words')); ?></span>
                                 <span class="ll-teacher-classes__stat-label"><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page hard', 'll-tools-text-domain') : __('Hard', 'll-tools-text-domain')); ?></span>
                             </div>
                         </div>
@@ -13165,27 +13170,17 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                                         <?php foreach ($student_rows as $row) : ?>
                                             <?php
                                             $user = $row['user'] ?? null;
-                                            $row_stats = (array) ($row['stats'] ?? []);
                                             if (!($user instanceof WP_User)) {
                                                 continue;
                                             }
                                             $learner_label = ll_tools_teacher_class_user_label($user);
                                             $email = (string) $user->user_email;
-                                            $rounds_30d = max(0, (int) ($row_stats['rounds_30d'] ?? 0));
-                                            $studied_words = max(0, (int) ($row_stats['studied_words'] ?? 0));
-                                            $mastered_words = max(0, (int) ($row_stats['mastered_words'] ?? 0));
-                                            $hard_words = max(0, (int) ($row_stats['hard_words'] ?? 0));
-                                            $last_activity = (string) ($row['last_activity'] ?? '');
                                             ?>
                                             <tr>
                                                 <td data-sort-value="<?php echo esc_attr($learner_label); ?>"><?php echo esc_html($learner_label); ?></td>
                                                 <td data-sort-value="<?php echo esc_attr($email); ?>"><a href="mailto:<?php echo esc_attr($email); ?>"><?php echo esc_html($email); ?></a></td>
                                                 <?php ll_tools_teacher_class_render_frontend_practice_cells($row); ?>
-                                                <td data-sort-value="<?php echo esc_attr((string) $rounds_30d); ?>"><?php echo esc_html((string) $rounds_30d); ?></td>
-                                                <td data-sort-value="<?php echo esc_attr((string) $studied_words); ?>"><?php echo esc_html((string) $studied_words); ?></td>
-                                                <td data-sort-value="<?php echo esc_attr((string) $mastered_words); ?>"><?php echo esc_html((string) $mastered_words); ?></td>
-                                                <td data-sort-value="<?php echo esc_attr((string) $hard_words); ?>"><?php echo esc_html((string) $hard_words); ?></td>
-                                                <td data-sort-value="<?php echo esc_attr($last_activity); ?>"><?php echo esc_html($last_activity); ?></td>
+                                                <?php ll_tools_teacher_class_render_frontend_progress_cells($row); ?>
                                                 <td>
                                                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Remove %s from this class?', 'll-tools-text-domain'), $learner_label)); ?>');">
                                                         <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />
@@ -21216,6 +21211,33 @@ function ll_tools_wordset_page_build_recorder_queue_summary_group(
 /**
  * @return array<string,mixed>
  */
+function ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
+    int $wordset_id,
+    int $recorder_user_id,
+    array $catalog,
+    string $include_types_csv = '',
+    string $exclude_types_csv = ''
+): array {
+    $catalog = ll_tools_wordset_page_normalize_recorder_queue_summary_categories($catalog);
+    $generation = ll_tools_wordset_page_get_recorder_queue_summary_generation(
+        $wordset_id,
+        $recorder_user_id,
+        $catalog,
+        $include_types_csv,
+        $exclude_types_csv
+    );
+
+    return [
+        'complete' => true,
+        'generation' => $generation,
+        'cache_key' => ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($generation),
+        'categories' => $catalog,
+    ];
+}
+
+/**
+ * @return array<string,mixed>
+ */
 function ll_tools_wordset_page_get_recorder_queue_summary_manifest_scope(
     int $wordset_id,
     int $recorder_user_id,
@@ -21250,19 +21272,13 @@ function ll_tools_wordset_page_get_recorder_queue_summary_manifest_scope(
         }
     }
 
-    $generation = ll_tools_wordset_page_get_recorder_queue_summary_generation(
+    return ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
         $wordset_id,
         $recorder_user_id,
         $catalog,
         $include_types_csv,
         $exclude_types_csv
     );
-    return [
-        'complete' => true,
-        'generation' => $generation,
-        'cache_key' => ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($generation),
-        'categories' => $catalog,
-    ];
 }
 
 function ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key(string $generation): string {
@@ -21271,6 +21287,22 @@ function ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key(str
         'generation' => $generation,
         'locale' => sanitize_key((string) get_locale()),
     ]);
+}
+
+/**
+ * Manifest cards only need their exact count and two-item preview. Keep the
+ * richer item payload in the authoritative per-category cache instead of
+ * duplicating it in every rewrite of the growing aggregate manifest.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_wordset_page_compact_recorder_queue_summary_manifest_group($group): ?array {
+    if (!is_array($group)) {
+        return null;
+    }
+
+    unset($group['items']);
+    return $group;
 }
 
 /**
@@ -21310,7 +21342,9 @@ function ll_tools_wordset_page_normalize_recorder_queue_summary_manifest_payload
         $normalized['entries'][$slug] = [
             'source_signature' => $source_signature,
             'complete' => true,
-            'group' => $entry['group'],
+            'group' => is_array($entry['group'])
+                ? ll_tools_wordset_page_compact_recorder_queue_summary_manifest_group($entry['group'])
+                : null,
             'observed_at' => max(0.0, (float) ($entry['observed_at'] ?? 0.0)),
         ];
     }
@@ -21390,16 +21424,17 @@ function ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
             $payload['entries'][$slug] = $new_entry;
         }
         $payload['updated_at'] = time();
-        $durable_stored = false;
         ll_tools_wordset_page_store_cached_payload(
             $cache_key,
             $payload,
             $retention_ttl,
             $request_cache,
-            'll_tools',
-            $durable_stored
+            'll_tools'
         );
-        return $durable_stored;
+        // This aggregate is an optional acceleration layer. Per-category
+        // durable caches remain authoritative, so a synchronous full-payload
+        // readback would add work without affecting correctness.
+        return true;
     } finally {
         ll_tools_wordset_page_release_cache_rebuild_lock($cache_key);
     }
@@ -21446,13 +21481,15 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
     );
     $now = time();
     $groups = [];
-    $manifest_scope = ll_tools_wordset_page_get_recorder_queue_summary_manifest_scope(
-        $wordset_id,
-        $recorder_user_id,
-        $categories,
-        $include_types_csv,
-        $exclude_types_csv
-    );
+    $manifest_scope = is_array($options['manifest_scope'] ?? null)
+        ? $options['manifest_scope']
+        : ll_tools_wordset_page_get_recorder_queue_summary_manifest_scope(
+            $wordset_id,
+            $recorder_user_id,
+            $categories,
+            $include_types_csv,
+            $exclude_types_csv
+        );
     $manifest_payload = !empty($manifest_scope['complete'])
         ? ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload(
             (string) ($manifest_scope['cache_key'] ?? ''),
@@ -22384,6 +22421,15 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
         $include_types = trim((string) ($config['include_recording_types'] ?? ''));
         $exclude_types = trim((string) ($config['exclude_recording_types'] ?? ''));
     }
+    $manifest_scope = $category_catalog_complete
+        ? ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
+            $wordset_id,
+            $recorder_user_id,
+            $categories,
+            $include_types,
+            $exclude_types
+        )
+        : ['complete' => false];
     $status = [];
     $states = [];
     $groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
@@ -22394,7 +22440,8 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
         $exclude_types,
         count($selected_categories),
         $status,
-        $states
+        $states,
+        ['manifest_scope' => $manifest_scope]
     );
     $group_lookup = [];
     foreach ($groups as $group) {
@@ -22466,13 +22513,15 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
         'catalogComplete' => $category_catalog_complete,
         'sourceTotal' => count($categories),
         'batchSize' => ll_tools_wordset_page_get_recorder_queue_summary_batch_size(),
-        'generation' => ll_tools_wordset_page_get_recorder_queue_summary_generation(
-            $wordset_id,
-            $recorder_user_id,
-            $categories,
-            $include_types,
-            $exclude_types
-        ),
+        'generation' => !empty($manifest_scope['complete'])
+            ? (string) ($manifest_scope['generation'] ?? '')
+            : ll_tools_wordset_page_get_recorder_queue_summary_generation(
+                $wordset_id,
+                $recorder_user_id,
+                $categories,
+                $include_types,
+                $exclude_types
+            ),
         'status' => $status,
     ];
 }

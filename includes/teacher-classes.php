@@ -291,6 +291,234 @@ if (!function_exists('ll_tools_teacher_class_user_is_student')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_deletion_lease_option_name')) {
+    function ll_tools_teacher_class_deletion_lease_option_name(int $class_id): string {
+        return 'll_tools_teacher_class_delete_' . max(0, $class_id);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_deletion_lease_ttl')) {
+    function ll_tools_teacher_class_deletion_lease_ttl(int $class_id): int {
+        return max(MINUTE_IN_SECONDS, min(30 * MINUTE_IN_SECONDS, (int) apply_filters(
+            'll_tools_teacher_class_deletion_lease_ttl',
+            5 * MINUTE_IN_SECONDS,
+            $class_id
+        )));
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_read_deletion_lease')) {
+    /**
+     * Read the lease directly so membership checks cannot use a stale options
+     * cache populated before a concurrent deletion began.
+     *
+     * @return array{active:bool,option_name:string,value:string,expires_at:int}|WP_Error
+     */
+    function ll_tools_teacher_class_read_deletion_lease(int $class_id) {
+        global $wpdb;
+
+        if ($class_id <= 0) {
+            return new WP_Error('teacher_class_deletion_lease_invalid');
+        }
+
+        $option_name = ll_tools_teacher_class_deletion_lease_option_name($class_id);
+        $wpdb->last_error = '';
+        $stored_value = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+            $option_name
+        ));
+        if ((string) $wpdb->last_error !== '') {
+            return new WP_Error('teacher_class_deletion_lease_read_failed');
+        }
+
+        $value = $stored_value === null ? '' : (string) $stored_value;
+        $separator = strpos($value, '|');
+        $expires_at = $separator === false ? 0 : (int) substr($value, 0, $separator);
+
+        return [
+            'active' => $value !== '' && $expires_at > time(),
+            'option_name' => $option_name,
+            'value' => $value,
+            'expires_at' => $expires_at,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_acquire_deletion_lease')) {
+    /**
+     * Acquire an expiring exact-owner lease for one class deletion.
+     *
+     * @return array{acquired:bool,option_name:string,value:string,token:string,expires_at:int,error:string}
+     */
+    function ll_tools_teacher_class_acquire_deletion_lease(int $class_id): array {
+        global $wpdb;
+
+        $empty = [
+            'acquired' => false,
+            'option_name' => '',
+            'value' => '',
+            'token' => '',
+            'expires_at' => 0,
+            'error' => 'invalid',
+        ];
+        if ($class_id <= 0) {
+            return $empty;
+        }
+
+        $option_name = ll_tools_teacher_class_deletion_lease_option_name($class_id);
+        $token = function_exists('wp_generate_uuid4')
+            ? wp_generate_uuid4()
+            : hash('sha256', $class_id . '|' . microtime(true) . '|' . wp_rand());
+        $expires_at = time() + ll_tools_teacher_class_deletion_lease_ttl($class_id);
+        $value = $expires_at . '|' . $token;
+        $lease = [
+            'acquired' => true,
+            'option_name' => $option_name,
+            'value' => $value,
+            'token' => $token,
+            'expires_at' => $expires_at,
+            'error' => '',
+        ];
+
+        if (add_option($option_name, $value, '', false)) {
+            return $lease;
+        }
+
+        $current = ll_tools_teacher_class_read_deletion_lease($class_id);
+        if (is_wp_error($current)) {
+            $empty['option_name'] = $option_name;
+            $empty['error'] = 'read_failed';
+            return $empty;
+        }
+        if (!empty($current['active'])) {
+            $empty['option_name'] = $option_name;
+            $empty['error'] = 'busy';
+            return $empty;
+        }
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $value,
+            $option_name,
+            (string) ($current['value'] ?? '')
+        ));
+        wp_cache_delete($option_name, 'options');
+        if ($updated !== 1) {
+            $empty['option_name'] = $option_name;
+            $empty['error'] = 'busy';
+            return $empty;
+        }
+
+        return $lease;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_refresh_deletion_lease')) {
+    /** Refresh only the lease still owned by this exact deletion request. */
+    function ll_tools_teacher_class_refresh_deletion_lease(int $class_id, array &$lease): bool {
+        global $wpdb;
+
+        $option_name = (string) ($lease['option_name'] ?? '');
+        $value = (string) ($lease['value'] ?? '');
+        $token = (string) ($lease['token'] ?? '');
+        if (
+            $class_id <= 0
+            || $option_name !== ll_tools_teacher_class_deletion_lease_option_name($class_id)
+            || $value === ''
+            || $token === ''
+        ) {
+            return false;
+        }
+
+        $expires_at = time() + ll_tools_teacher_class_deletion_lease_ttl($class_id);
+        $next_value = $expires_at . '|' . $token;
+        if ($next_value === $value) {
+            $current = ll_tools_teacher_class_read_deletion_lease($class_id);
+            return is_array($current)
+                && !empty($current['active'])
+                && hash_equals($value, (string) ($current['value'] ?? ''));
+        }
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = %s
+             WHERE option_name = %s AND option_value = %s",
+            $next_value,
+            $option_name,
+            $value
+        ));
+        wp_cache_delete($option_name, 'options');
+        if ($updated !== 1) {
+            return false;
+        }
+
+        $lease['value'] = $next_value;
+        $lease['expires_at'] = $expires_at;
+        return true;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_release_deletion_lease')) {
+    /** Release only the exact lease still owned by this deletion request. */
+    function ll_tools_teacher_class_release_deletion_lease(array &$lease): void {
+        global $wpdb;
+
+        $option_name = (string) ($lease['option_name'] ?? '');
+        $value = (string) ($lease['value'] ?? '');
+        if ($option_name !== '' && $value !== '') {
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s",
+                $option_name,
+                $value
+            ));
+            wp_cache_delete($option_name, 'options');
+        }
+        $lease = [];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_deletion_lease_allows_mutation')) {
+    /**
+     * Allow normal mutations when no deletion is active, or the exact deletion
+     * owner while it removes the roster. Database read failures fail closed.
+     */
+    function ll_tools_teacher_class_deletion_lease_allows_mutation(int $class_id, array $lease = []): bool {
+        $current = ll_tools_teacher_class_read_deletion_lease($class_id);
+        if (is_wp_error($current)) {
+            return false;
+        }
+        if (empty($current['active'])) {
+            return true;
+        }
+
+        $expected_option_name = (string) ($lease['option_name'] ?? '');
+        $expected_value = (string) ($lease['value'] ?? '');
+        return $expected_option_name !== ''
+            && $expected_option_name === (string) ($current['option_name'] ?? '')
+            && $expected_value !== ''
+            && hash_equals((string) ($current['value'] ?? ''), $expected_value);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_deletion_lease_is_owned')) {
+    /** Verify that the supplied lease is still the active exact owner. */
+    function ll_tools_teacher_class_deletion_lease_is_owned(int $class_id, array $lease): bool {
+        $current = ll_tools_teacher_class_read_deletion_lease($class_id);
+        if (is_wp_error($current) || empty($current['active'])) {
+            return false;
+        }
+
+        $option_name = (string) ($lease['option_name'] ?? '');
+        $value = (string) ($lease['value'] ?? '');
+        return $option_name !== ''
+            && $option_name === (string) ($current['option_name'] ?? '')
+            && $value !== ''
+            && hash_equals((string) ($current['value'] ?? ''), $value);
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_begin_student_membership_mutation')) {
     /**
      * Start a membership mutation using the privacy-safe lock order.
@@ -414,6 +642,46 @@ if (!function_exists('ll_tools_teacher_class_lock_for_membership_mutation')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_establish_deletion_barrier')) {
+    /**
+     * Wait for membership mutations that reached the class row before the
+     * deletion lease was published. The class row is released before deletion
+     * waits on any learner, preserving the privacy order of user then class.
+     */
+    function ll_tools_teacher_class_establish_deletion_barrier(int $class_id, array $lease): bool {
+        if (
+            $class_id <= 0
+            || !function_exists('ll_tools_user_progress_begin_event_transaction')
+            || !function_exists('ll_tools_user_progress_commit_event_transaction')
+            || !function_exists('ll_tools_user_progress_rollback_event_transaction')
+        ) {
+            return false;
+        }
+
+        $transaction = ll_tools_user_progress_begin_event_transaction();
+        if (!is_array($transaction)) {
+            return false;
+        }
+
+        $committed = false;
+        try {
+            if (!ll_tools_teacher_class_lock_for_membership_mutation($class_id)) {
+                return false;
+            }
+            if (!ll_tools_teacher_class_deletion_lease_is_owned($class_id, $lease)) {
+                return false;
+            }
+
+            $committed = ll_tools_user_progress_commit_event_transaction($transaction);
+            return $committed;
+        } finally {
+            if (!$committed) {
+                ll_tools_user_progress_rollback_event_transaction($transaction, 0);
+            }
+        }
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_mutate_student_membership')) {
     /**
      * Atomically update both sides of one learner/class membership.
@@ -426,7 +694,8 @@ if (!function_exists('ll_tools_teacher_class_mutate_student_membership')) {
     function ll_tools_teacher_class_mutate_student_membership(
         int $class_id,
         int $user_id,
-        bool $add
+        bool $add,
+        array $deletion_lease = []
     ): bool {
         if ($class_id <= 0 || $user_id <= 0) {
             return false;
@@ -439,6 +708,9 @@ if (!function_exists('ll_tools_teacher_class_mutate_student_membership')) {
 
         try {
             if (!ll_tools_teacher_class_lock_for_membership_mutation($class_id)) {
+                return false;
+            }
+            if (!ll_tools_teacher_class_deletion_lease_allows_mutation($class_id, $deletion_lease)) {
                 return false;
             }
             if (!ll_tools_teacher_class_exists($class_id) || !get_userdata($user_id)) {
@@ -1031,37 +1303,109 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
             return new WP_Error('missing_class', __('This class no longer exists.', 'll-tools-text-domain'));
         }
 
-        $class_name = ll_tools_teacher_class_get_name($class_id);
-        $student_ids = ll_tools_teacher_class_get_student_ids($class_id);
-        foreach ($student_ids as $student_id) {
-            $student_id = (int) $student_id;
-            if ($student_id <= 0) {
-                continue;
-            }
-            if (!get_userdata($student_id)) {
-                continue;
+        $lease = ll_tools_teacher_class_acquire_deletion_lease($class_id);
+        if (empty($lease['acquired'])) {
+            $error_code = ($lease['error'] ?? '') === 'busy'
+                ? 'delete_in_progress'
+                : 'delete_lock_failed';
+            return new WP_Error($error_code, __('The class could not be deleted.', 'll-tools-text-domain'));
+        }
+
+        try {
+            // The lease is visible before this barrier. A mutation already past
+            // its lease check must commit before the barrier takes the row; a
+            // later mutation observes the lease after taking that same row.
+            if (!ll_tools_teacher_class_establish_deletion_barrier($class_id, $lease)) {
+                return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
             }
 
-            if (!ll_tools_teacher_class_mutate_student_membership($class_id, $student_id, false)) {
-                return new WP_Error(
-                    'delete_membership_failed',
-                    __('The class membership could not be updated.', 'll-tools-text-domain')
+            clean_post_cache($class_id);
+            $class_name = ll_tools_teacher_class_get_name($class_id);
+            $student_ids = ll_tools_teacher_class_normalize_ids(
+                get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
+            );
+
+            foreach ($student_ids as $student_id) {
+                $student_id = (int) $student_id;
+                if ($student_id <= 0 || !get_userdata($student_id)) {
+                    continue;
+                }
+                if (!ll_tools_teacher_class_refresh_deletion_lease($class_id, $lease)) {
+                    return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+                }
+                if (!ll_tools_teacher_class_mutate_student_membership(
+                    $class_id,
+                    $student_id,
+                    false,
+                    $lease
+                )) {
+                    return new WP_Error(
+                        'delete_membership_failed',
+                        __('The class membership could not be updated.', 'll-tools-text-domain')
+                    );
+                }
+            }
+
+            if (!ll_tools_teacher_class_refresh_deletion_lease($class_id, $lease)) {
+                return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+            }
+
+            $transaction = ll_tools_user_progress_begin_event_transaction();
+            if (!is_array($transaction)) {
+                return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+            }
+
+            $committed = false;
+            try {
+                if (!ll_tools_teacher_class_lock_for_membership_mutation($class_id)) {
+                    return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+                }
+                if (!ll_tools_teacher_class_deletion_lease_is_owned($class_id, $lease)) {
+                    return new WP_Error('delete_lock_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+                }
+
+                // Re-read under the final class-row lock. This catches any
+                // mutation that began while an expired lease was being taken
+                // over instead of deleting a class with a live reverse link.
+                clean_post_cache($class_id);
+                $remaining_student_ids = ll_tools_teacher_class_normalize_ids(
+                    get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true)
                 );
+                foreach ($remaining_student_ids as $remaining_student_id) {
+                    if (get_userdata((int) $remaining_student_id)) {
+                        return new WP_Error(
+                            'delete_membership_failed',
+                            __('The class membership could not be updated.', 'll-tools-text-domain')
+                        );
+                    }
+                }
+
+                delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META);
+                delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META);
+                $deleted = wp_delete_post($class_id, true);
+                if (!($deleted instanceof WP_Post)) {
+                    return new WP_Error('delete_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+                }
+
+                $committed = ll_tools_user_progress_commit_event_transaction($transaction);
+                if (!$committed) {
+                    return new WP_Error('delete_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+                }
+            } finally {
+                if (!$committed) {
+                    ll_tools_user_progress_rollback_event_transaction($transaction, 0);
+                    clean_post_cache($class_id);
+                }
             }
-        }
 
-        delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META);
-        delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META);
-        $deleted = wp_delete_post($class_id, true);
-        if (!($deleted instanceof WP_Post)) {
-            return new WP_Error('delete_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
+            return [
+                'class_id' => $class_id,
+                'class_name' => $class_name,
+                'student_count' => count($student_ids),
+            ];
+        } finally {
+            ll_tools_teacher_class_release_deletion_lease($lease);
         }
-
-        return [
-            'class_id' => $class_id,
-            'class_name' => $class_name,
-            'student_count' => count($student_ids),
-        ];
     }
 }
 
@@ -1261,6 +1605,54 @@ if (!function_exists('ll_tools_teacher_class_render_frontend_practice_cells')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_progress_stat_display_data')) {
+    function ll_tools_teacher_class_progress_stat_display_data(array $student_row, string $metric): array {
+        $stats = isset($student_row['stats']) && is_array($student_row['stats'])
+            ? $student_row['stats']
+            : [];
+
+        if (function_exists('ll_tools_user_progress_report_stat_display_data')) {
+            return ll_tools_user_progress_report_stat_display_data($stats, $metric);
+        }
+
+        $query_failed = !empty($student_row['stats_query_failed']) || !empty($stats['query_failed']);
+        if ($query_failed) {
+            return [
+                'label' => __('Unavailable', 'll-tools-text-domain'),
+                'sort_value' => '',
+                'query_failed' => true,
+            ];
+        }
+
+        $value = $metric === 'last_activity'
+            ? (string) ($student_row['last_activity'] ?? '')
+            : (string) max(0, (int) ($stats[$metric] ?? 0));
+
+        return [
+            'label' => $value,
+            'sort_value' => $value,
+            'query_failed' => false,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_render_frontend_progress_cells')) {
+    function ll_tools_teacher_class_render_frontend_progress_cells(array $student_row): void {
+        foreach (['rounds_30d', 'studied_words', 'mastered_words', 'hard_words', 'last_activity'] as $metric) {
+            $display = ll_tools_teacher_class_progress_stat_display_data($student_row, $metric);
+            ?>
+            <td data-sort-value="<?php echo esc_attr((string) ($display['sort_value'] ?? '')); ?>">
+                <?php if (!empty($display['query_failed'])) : ?>
+                    <span aria-label="<?php echo esc_attr__('Unavailable', 'll-tools-text-domain'); ?>"><?php echo esc_html((string) ($display['label'] ?? '')); ?></span>
+                <?php else : ?>
+                    <?php echo esc_html((string) ($display['label'] ?? '')); ?>
+                <?php endif; ?>
+            </td>
+            <?php
+        }
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
     function ll_tools_teacher_class_student_progress_rows(array $student_ids, int $wordset_id = 0, array $args = []): array {
         $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
@@ -1327,6 +1719,7 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
             $rows[] = [
                 'user' => $user,
                 'stats' => $row_stats,
+                'stats_query_failed' => !empty($row_stats['query_failed']),
                 'wordset_name' => $current_wordset_name,
                 'latest_practice_result' => isset($practice_summary['latest_result']) && is_array($practice_summary['latest_result'])
                     ? $practice_summary['latest_result']
@@ -1348,6 +1741,9 @@ if (!function_exists('ll_tools_teacher_class_progress_summary')) {
     function ll_tools_teacher_class_progress_summary(array $student_rows): array {
         $summary = [
             'students' => count($student_rows),
+            'stats_available_students' => 0,
+            'stats_unavailable_students' => 0,
+            'query_failed' => false,
             'rounds_30d' => 0,
             'studied_words' => 0,
             'mastered_words' => 0,
@@ -1356,6 +1752,13 @@ if (!function_exists('ll_tools_teacher_class_progress_summary')) {
 
         foreach ($student_rows as $row) {
             $row_stats = (array) ($row['stats'] ?? []);
+            if (!empty($row['stats_query_failed']) || !empty($row_stats['query_failed'])) {
+                $summary['stats_unavailable_students']++;
+                $summary['query_failed'] = true;
+                continue;
+            }
+
+            $summary['stats_available_students']++;
             $summary['rounds_30d'] += max(0, (int) ($row_stats['rounds_30d'] ?? 0));
             $summary['studied_words'] += max(0, (int) ($row_stats['studied_words'] ?? 0));
             $summary['mastered_words'] += max(0, (int) ($row_stats['mastered_words'] ?? 0));

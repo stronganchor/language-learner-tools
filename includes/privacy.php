@@ -1142,6 +1142,44 @@ if (!function_exists('ll_tools_privacy_local_erasure_engine_status')) {
     }
 }
 
+if (!function_exists('ll_tools_privacy_user_meta_exists_locked')) {
+    /**
+     * Read one exact user-meta key with an error-detecting transactional lock.
+     *
+     * Callers must already own the user row lock and an open transaction. The
+     * direct query intentionally bypasses the metadata cache so a storage read
+     * failure cannot be mistaken for an absent key during privacy erasure.
+     *
+     * @return bool|WP_Error
+     */
+    function ll_tools_privacy_user_meta_exists_locked(int $user_id, string $meta_key) {
+        global $wpdb;
+
+        $wpdb->last_error = '';
+        $meta_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT umeta_id
+             FROM {$wpdb->usermeta}
+             WHERE user_id = %d AND meta_key = %s
+             ORDER BY umeta_id ASC
+             LIMIT 1
+             FOR UPDATE",
+            $user_id,
+            $meta_key
+        ));
+        if (
+            (string) $wpdb->last_error !== ''
+            || ($meta_id !== null && (!is_numeric($meta_id) || (int) $meta_id <= 0))
+        ) {
+            return new WP_Error(
+                'll_tools_privacy_user_meta_read_failed',
+                __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+            );
+        }
+
+        return $meta_id !== null;
+    }
+}
+
 if (!function_exists('ll_tools_privacy_delete_user_personal_data_verified')) {
     /**
      * Transactionally erase and verify local study/session/class data.
@@ -1348,18 +1386,117 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data_verified')) {
             }
 
             foreach ($meta_keys as $meta_key) {
-                if (!metadata_exists('user', $user_id, $meta_key)) {
+                $meta_exists = ll_tools_privacy_user_meta_exists_locked($user_id, $meta_key);
+                if (is_wp_error($meta_exists)) {
+                    return $rollback($meta_exists);
+                }
+                if (!$meta_exists) {
                     continue;
                 }
-                delete_user_meta($user_id, $meta_key);
+
+                $wpdb->last_error = '';
+                $deleted = $wpdb->delete(
+                    $wpdb->usermeta,
+                    ['user_id' => $user_id, 'meta_key' => $meta_key],
+                    ['%d', '%s']
+                );
+                if ($deleted === false || (int) $deleted < 1 || (string) $wpdb->last_error !== '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_user_meta_delete_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
                 wp_cache_delete($user_id, 'user_meta');
-                if (metadata_exists('user', $user_id, $meta_key)) {
+                $meta_retained = ll_tools_privacy_user_meta_exists_locked($user_id, $meta_key);
+                if (is_wp_error($meta_retained)) {
+                    return $rollback($meta_retained);
+                }
+                if ($meta_retained) {
                     return $rollback(new WP_Error(
                         'll_tools_privacy_user_meta_retained',
                         __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
                     ));
                 }
                 $removed++;
+            }
+
+            // `simplefavorites` is owned by another plugin and may contain
+            // unrelated favorites, so LL Tools must not delete or rewrite it.
+            // Persist a narrow LL-owned sunset marker instead: future legacy
+            // completion replay ignores this source while canonical progress
+            // and all post-erasure LL Tools activity continue normally.
+            $legacy_favorites_exist = ll_tools_privacy_user_meta_exists_locked($user_id, 'simplefavorites');
+            if (is_wp_error($legacy_favorites_exist)) {
+                return $rollback($legacy_favorites_exist);
+            }
+            if ($legacy_favorites_exist) {
+                $legacy_favorites_erasure_meta = defined('LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META')
+                    ? trim((string) LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META)
+                    : '';
+                if ($legacy_favorites_erasure_meta === '' || $legacy_favorites_erasure_meta === 'simplefavorites') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_legacy_favorites_fence_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+
+                $wpdb->last_error = '';
+                $marker_deleted = $wpdb->delete(
+                    $wpdb->usermeta,
+                    ['user_id' => $user_id, 'meta_key' => $legacy_favorites_erasure_meta],
+                    ['%d', '%s']
+                );
+                if ($marker_deleted === false || (string) $wpdb->last_error !== '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_legacy_favorites_fence_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+
+                $wpdb->last_error = '';
+                $marker_inserted = $wpdb->insert(
+                    $wpdb->usermeta,
+                    [
+                        'user_id' => $user_id,
+                        'meta_key' => $legacy_favorites_erasure_meta,
+                        'meta_value' => '1',
+                    ],
+                    ['%d', '%s', '%s']
+                );
+                if ($marker_inserted !== 1 || (string) $wpdb->last_error !== '') {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_legacy_favorites_fence_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
+                wp_cache_delete($user_id, 'user_meta');
+
+                $wpdb->last_error = '';
+                $marker_rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT umeta_id,
+                            LEFT(meta_value, 2) AS meta_value_prefix,
+                            OCTET_LENGTH(meta_value) AS meta_value_length
+                     FROM {$wpdb->usermeta}
+                     WHERE user_id = %d AND meta_key = %s
+                     ORDER BY umeta_id ASC
+                     LIMIT 2
+                     FOR UPDATE",
+                    $user_id,
+                    $legacy_favorites_erasure_meta
+                ), ARRAY_A);
+                if (
+                    !is_array($marker_rows)
+                    || (string) $wpdb->last_error !== ''
+                    || count($marker_rows) !== 1
+                    || (int) ($marker_rows[0]['umeta_id'] ?? 0) <= 0
+                    || (string) ($marker_rows[0]['meta_value_prefix'] ?? '') !== '1'
+                    || (int) ($marker_rows[0]['meta_value_length'] ?? 0) !== 1
+                ) {
+                    return $rollback(new WP_Error(
+                        'll_tools_privacy_legacy_favorites_fence_failed',
+                        __('LL Tools personal data could not be erased safely.', 'll-tools-text-domain')
+                    ));
+                }
             }
 
             if (!ll_tools_user_progress_commit_event_transaction($transaction)) {

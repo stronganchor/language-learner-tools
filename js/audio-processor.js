@@ -2421,9 +2421,16 @@
         // deliberately secondary so Delete All can never snapshot this item.
         state.reviewData.delete(postId);
 
-        reviewFile.style.opacity = '0';
-        reviewFile.style.transform = 'translateY(-10px)';
-        reviewFile.style.transition = 'all 0.3s ease';
+        const reducedMotion = typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const removalDelayMs = reducedMotion ? 0 : 300;
+        if (reducedMotion) {
+            reviewFile.style.transition = 'none';
+        } else {
+            reviewFile.style.transition = 'all 0.3s ease';
+            reviewFile.style.opacity = '0';
+            reviewFile.style.transform = 'translateY(-10px)';
+        }
         reviewFile.setAttribute('aria-hidden', 'true');
         reviewFile.querySelectorAll('button, input, select, audio').forEach(control => {
             control.disabled = true;
@@ -2436,7 +2443,7 @@
             if (batchIsEmpty) {
                 location.reload();
             }
-        }, 300);
+        }, removalDelayMs);
     }
 
     async function deleteAllReviewRecordings() {

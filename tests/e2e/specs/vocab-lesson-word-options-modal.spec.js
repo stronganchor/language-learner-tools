@@ -130,6 +130,29 @@ test('word options PHP localization wires recovery copy and deadline', async () 
   expect(editorSource).toContain('data-ll-word-options-ready="1"');
 });
 
+test('word options modal stops decorative motion when reduced motion is requested', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setContent(`
+    <style>${modalCss}</style>
+    <button class="ll-vocab-lesson-word-options-modal__close" type="button">Close</button>
+    <span class="ll-vocab-lesson-word-options-modal__loading-dot"></span>
+  `);
+
+  const motion = await page.evaluate(() => {
+    const close = getComputedStyle(document.querySelector('.ll-vocab-lesson-word-options-modal__close'));
+    const dot = getComputedStyle(document.querySelector('.ll-vocab-lesson-word-options-modal__loading-dot'));
+    return {
+      closeTransitionDuration: close.transitionDuration,
+      dotAnimationName: dot.animationName
+    };
+  });
+
+  expect(motion).toEqual({
+    closeTransitionDuration: '0s',
+    dotAnimationName: 'none'
+  });
+});
+
 test('word options modal rejects a fast error document without the editor readiness marker', async ({page}) => {
   await page.route('https://word-options-error.test/**', async (route) => {
     const url = new URL(route.request().url());

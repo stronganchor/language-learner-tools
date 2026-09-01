@@ -577,6 +577,71 @@ function ll_tools_grade_delivery_user_write_allowed(int $user_id): bool {
         );
 }
 
+/**
+ * Recheck both privacy fences with a current read after the learner row lock.
+ * A normal SELECT can keep an older repeatable-read snapshot after a concurrent
+ * deletion request publishes its fence.
+ */
+function ll_tools_grade_delivery_user_write_allowed_under_lock(int $user_id): bool {
+    global $wpdb;
+
+    if (
+        $user_id <= 0
+        || !function_exists('ll_tools_privacy_deleted_user_lms_cleanup_option_name')
+        || !function_exists('ll_tools_privacy_user_lms_erasure_option_name')
+    ) {
+        return false;
+    }
+    $tombstone_name = ll_tools_privacy_deleted_user_lms_cleanup_option_name($user_id);
+    $erasure_name = ll_tools_privacy_user_lms_erasure_option_name($user_id);
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT option_name, option_value
+         FROM {$wpdb->options}
+         WHERE option_name IN (%s, %s)
+         ORDER BY option_name ASC
+         FOR UPDATE",
+        $tombstone_name,
+        $erasure_name
+    ), ARRAY_A);
+    if (!is_array($rows) || (string) $wpdb->last_error !== '') {
+        return false;
+    }
+
+    foreach ($rows as $row) {
+        $option_name = (string) ($row['option_name'] ?? '');
+        if ($option_name === $tombstone_name) {
+            return false;
+        }
+        if ($option_name !== $erasure_name) {
+            continue;
+        }
+        $value = maybe_unserialize($row['option_value'] ?? 0);
+        if (is_array($value)) {
+            if ((int) ($value['fence_expires_at'] ?? 0) >= time()) {
+                return false;
+            }
+            continue;
+        }
+        $started_at = (int) $value;
+        $ttl = function_exists('ll_tools_privacy_user_lms_erasure_fence_ttl')
+            ? ll_tools_privacy_user_lms_erasure_fence_ttl($user_id)
+            : 30 * MINUTE_IN_SECONDS;
+        if ($started_at > 0 && $started_at >= time() - $ttl) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function ll_tools_grade_delivery_write_error(string $code): WP_Error {
+    return new WP_Error(
+        $code,
+        __('External grade delivery is temporarily unavailable while storage is being prepared.', 'll-tools-text-domain'),
+        ['status' => 503, 'retryable' => true]
+    );
+}
+
 /** Reject loosely shaped provider mappings before any callback or write. */
 function ll_tools_grade_delivery_has_exact_keys(array $value, array $keys): bool {
     $actual = array_keys($value);
@@ -591,6 +656,11 @@ function ll_tools_grade_delivery_create_external_identity(array $mapping) {
 
     if (empty(ll_tools_grade_delivery_runtime_schema_status()['ready'])) {
         return ll_tools_grade_delivery_schema_error();
+    }
+    if (!function_exists('ll_tools_lms_assignment_schema_is_available') || !ll_tools_lms_assignment_schema_is_available()) {
+        return function_exists('ll_tools_lms_assignment_schema_error')
+            ? ll_tools_lms_assignment_schema_error()
+            : new WP_Error('lms_assignment_schema_unavailable', __('Assignments are temporarily unavailable.', 'll-tools-text-domain'));
     }
     if (!ll_tools_grade_delivery_has_exact_keys($mapping, ['adapter', 'connection_key_hash', 'subject_key_hash', 'learner_user_id'])) {
         return new WP_Error('invalid_external_identity_mapping', __('The external identity mapping is invalid.', 'll-tools-text-domain'));
@@ -614,53 +684,104 @@ function ll_tools_grade_delivery_create_external_identity(array $mapping) {
         return $validated;
     }
 
-    $table = ll_tools_grade_delivery_table_names()['identities'];
-    $existing = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, learner_user_id, status FROM {$table} WHERE adapter = %s AND connection_key_hash = %s AND subject_key_hash = %s LIMIT 1",
-        $canonical['adapter'],
-        $canonical['connection_key_hash'],
-        $canonical['subject_key_hash']
-    ), ARRAY_A);
-    if (is_array($existing)) {
-        if (
-            (int) ($existing['learner_user_id'] ?? 0) === $canonical['learner_user_id']
-            && (string) ($existing['status'] ?? '') === 'active'
-        ) {
-            return (int) $existing['id'];
-        }
-        return new WP_Error('external_identity_mapping_conflict', __('The external identity is already mapped differently.', 'll-tools-text-domain'));
+    if (
+        !function_exists('ll_tools_lms_assignment_begin_transaction')
+        || !function_exists('ll_tools_lms_assignment_commit_transaction')
+        || !function_exists('ll_tools_lms_assignment_rollback_transaction')
+        || !function_exists('ll_tools_lms_assignment_lock_user')
+    ) {
+        return ll_tools_grade_delivery_write_error('external_identity_mapping_write_failed');
     }
-    $now = ll_tools_grade_delivery_now_mysql();
-    if (!ll_tools_grade_delivery_user_write_allowed($canonical['learner_user_id'])) {
-        return new WP_Error('invalid_external_identity_mapping', __('The external identity mapping is invalid.', 'll-tools-text-domain'));
-    }
-    $inserted = $wpdb->insert($table, [
-        'adapter' => $canonical['adapter'],
-        'connection_key_hash' => $canonical['connection_key_hash'],
-        'subject_key_hash' => $canonical['subject_key_hash'],
-        'learner_user_id' => $canonical['learner_user_id'],
-        'status' => 'active',
-        'created_at' => $now,
-        'updated_at' => $now,
-    ], ['%s', '%s', '%s', '%d', '%s', '%s', '%s']);
-    if ($inserted !== false) {
-        return (int) $wpdb->insert_id;
+    $transaction = ll_tools_lms_assignment_begin_transaction();
+    if ($transaction === null) {
+        return ll_tools_grade_delivery_write_error('external_identity_mapping_write_failed');
     }
 
-    $existing = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, learner_user_id, status FROM {$table} WHERE adapter = %s AND connection_key_hash = %s AND subject_key_hash = %s LIMIT 1",
-        $canonical['adapter'],
-        $canonical['connection_key_hash'],
-        $canonical['subject_key_hash']
-    ), ARRAY_A);
-    if (
-        is_array($existing)
-        && (int) ($existing['learner_user_id'] ?? 0) === $canonical['learner_user_id']
-        && (string) ($existing['status'] ?? '') === 'active'
-    ) {
+    $table = ll_tools_grade_delivery_table_names()['identities'];
+    try {
+        if (
+            !ll_tools_lms_assignment_lock_user($canonical['learner_user_id'])
+            || !ll_tools_grade_delivery_user_write_allowed_under_lock($canonical['learner_user_id'])
+        ) {
+            throw new DomainException('invalid_external_identity_mapping');
+        }
+
+        $wpdb->last_error = '';
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, learner_user_id, status FROM {$table} WHERE adapter = %s AND connection_key_hash = %s AND subject_key_hash = %s LIMIT 1 FOR UPDATE",
+            $canonical['adapter'],
+            $canonical['connection_key_hash'],
+            $canonical['subject_key_hash']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('external_identity_mapping_read_failed');
+        }
+        if (is_array($existing)) {
+            if (
+                (int) ($existing['learner_user_id'] ?? 0) !== $canonical['learner_user_id']
+                || (string) ($existing['status'] ?? '') !== 'active'
+            ) {
+                throw new DomainException('external_identity_mapping_conflict');
+            }
+            if (!ll_tools_lms_assignment_commit_transaction($transaction)) {
+                throw new RuntimeException('external_identity_mapping_commit_failed');
+            }
+            return (int) $existing['id'];
+        }
+
+        $now = ll_tools_grade_delivery_now_mysql();
+        $inserted = $wpdb->insert($table, [
+            'adapter' => $canonical['adapter'],
+            'connection_key_hash' => $canonical['connection_key_hash'],
+            'subject_key_hash' => $canonical['subject_key_hash'],
+            'learner_user_id' => $canonical['learner_user_id'],
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], ['%s', '%s', '%s', '%d', '%s', '%s', '%s']);
+        if ($inserted === 1) {
+            $identity_id = (int) $wpdb->insert_id;
+            if ($identity_id <= 0 || !ll_tools_lms_assignment_commit_transaction($transaction)) {
+                throw new RuntimeException('external_identity_mapping_commit_failed');
+            }
+            return $identity_id;
+        }
+
+        // A writer that does not yet honor the learner lock may have won the
+        // unique mapping race. Only accept the exact active mapping.
+        $wpdb->last_error = '';
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, learner_user_id, status FROM {$table} WHERE adapter = %s AND connection_key_hash = %s AND subject_key_hash = %s LIMIT 1 FOR UPDATE",
+            $canonical['adapter'],
+            $canonical['connection_key_hash'],
+            $canonical['subject_key_hash']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('external_identity_mapping_read_failed');
+        }
+        if (
+            !is_array($existing)
+            || (int) ($existing['learner_user_id'] ?? 0) !== $canonical['learner_user_id']
+            || (string) ($existing['status'] ?? '') !== 'active'
+        ) {
+            throw is_array($existing)
+                ? new DomainException('external_identity_mapping_conflict')
+                : new RuntimeException('external_identity_mapping_write_failed');
+        }
+        if (!ll_tools_lms_assignment_commit_transaction($transaction)) {
+            throw new RuntimeException('external_identity_mapping_commit_failed');
+        }
         return (int) $existing['id'];
+    } catch (DomainException $error) {
+        ll_tools_lms_assignment_rollback_transaction($transaction);
+        if ($error->getMessage() === 'external_identity_mapping_conflict') {
+            return new WP_Error('external_identity_mapping_conflict', __('The external identity is already mapped differently.', 'll-tools-text-domain'));
+        }
+        return new WP_Error('invalid_external_identity_mapping', __('The external identity mapping is invalid.', 'll-tools-text-domain'));
+    } catch (Throwable $error) {
+        ll_tools_lms_assignment_rollback_transaction($transaction);
+        return ll_tools_grade_delivery_write_error('external_identity_mapping_write_failed');
     }
-    return new WP_Error('external_identity_mapping_conflict', __('The external identity is already mapped differently.', 'll-tools-text-domain'));
 }
 
 /** @return int|WP_Error */
@@ -775,6 +896,11 @@ function ll_tools_grade_delivery_create_recipient(array $mapping) {
     if (empty(ll_tools_grade_delivery_runtime_schema_status()['ready'])) {
         return ll_tools_grade_delivery_schema_error();
     }
+    if (!function_exists('ll_tools_lms_assignment_schema_is_available') || !ll_tools_lms_assignment_schema_is_available()) {
+        return function_exists('ll_tools_lms_assignment_schema_error')
+            ? ll_tools_lms_assignment_schema_error()
+            : new WP_Error('lms_assignment_schema_unavailable', __('Assignments are temporarily unavailable.', 'll-tools-text-domain'));
+    }
     if (!ll_tools_grade_delivery_has_exact_keys($mapping, ['destination_id', 'external_identity_id', 'learner_user_id', 'recipient_key_hash'])) {
         return new WP_Error('invalid_grade_recipient_mapping', __('The external grade recipient mapping is invalid.', 'll-tools-text-domain'));
     }
@@ -825,52 +951,147 @@ function ll_tools_grade_delivery_create_recipient(array $mapping) {
         return $validated;
     }
 
-    $now = ll_tools_grade_delivery_now_mysql();
-    $existing = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, external_identity_id, recipient_key_hash, status FROM {$tables['recipients']} WHERE destination_id = %d AND learner_user_id = %d LIMIT 1",
-        $canonical['destination_id'],
-        $canonical['learner_user_id']
-    ), ARRAY_A);
-    if (is_array($existing)) {
-        if (
-            (int) ($existing['external_identity_id'] ?? 0) === $canonical['external_identity_id']
-            && hash_equals((string) ($existing['recipient_key_hash'] ?? ''), $canonical['recipient_key_hash'])
-            && (string) ($existing['status'] ?? '') === 'active'
-        ) {
-            return (int) $existing['id'];
-        }
-        return new WP_Error('grade_recipient_mapping_conflict', __('The external grade recipient is already mapped differently.', 'll-tools-text-domain'));
+    if (
+        !function_exists('ll_tools_lms_assignment_begin_transaction')
+        || !function_exists('ll_tools_lms_assignment_commit_transaction')
+        || !function_exists('ll_tools_lms_assignment_rollback_transaction')
+        || !function_exists('ll_tools_lms_assignment_lock_user')
+    ) {
+        return ll_tools_grade_delivery_write_error('grade_recipient_mapping_write_failed');
     }
-    if (!ll_tools_grade_delivery_user_write_allowed($canonical['learner_user_id'])) {
-        return new WP_Error('invalid_grade_recipient_mapping', __('The external grade recipient mapping is invalid.', 'll-tools-text-domain'));
-    }
-    $inserted = $wpdb->insert($tables['recipients'], [
-        'destination_id' => $canonical['destination_id'],
-        'external_identity_id' => $canonical['external_identity_id'],
-        'learner_user_id' => $canonical['learner_user_id'],
-        'recipient_key_hash' => $canonical['recipient_key_hash'],
-        'status' => 'active',
-        'created_at' => $now,
-        'updated_at' => $now,
-    ], ['%d', '%d', '%d', '%s', '%s', '%s', '%s']);
-    if ($inserted !== false) {
-        return (int) $wpdb->insert_id;
+    $transaction = ll_tools_lms_assignment_begin_transaction();
+    if ($transaction === null) {
+        return ll_tools_grade_delivery_write_error('grade_recipient_mapping_write_failed');
     }
 
-    $existing = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, external_identity_id, recipient_key_hash, status FROM {$tables['recipients']} WHERE destination_id = %d AND learner_user_id = %d LIMIT 1",
-        $canonical['destination_id'],
-        $canonical['learner_user_id']
-    ), ARRAY_A);
-    if (
-        is_array($existing)
-        && (int) ($existing['external_identity_id'] ?? 0) === $canonical['external_identity_id']
-        && hash_equals((string) ($existing['recipient_key_hash'] ?? ''), $canonical['recipient_key_hash'])
-        && (string) ($existing['status'] ?? '') === 'active'
-    ) {
+    try {
+        if (
+            !ll_tools_lms_assignment_lock_user($canonical['learner_user_id'])
+            || !ll_tools_grade_delivery_user_write_allowed_under_lock($canonical['learner_user_id'])
+        ) {
+            throw new DomainException('invalid_grade_recipient_mapping');
+        }
+
+        // Privacy erasure uses the same learner-row lock before removing these
+        // mappings. Re-read them after acquiring it, without invoking the
+        // provider validator a second time while the transaction is open.
+        $wpdb->last_error = '';
+        $locked_destination = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$tables['destinations']} WHERE id = %d AND status = 'active' LIMIT 1 FOR UPDATE",
+            $canonical['destination_id']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('grade_recipient_mapping_read_failed');
+        }
+        $wpdb->last_error = '';
+        $locked_identity = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$tables['identities']} WHERE id = %d AND status = 'active' LIMIT 1 FOR UPDATE",
+            $canonical['external_identity_id']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('grade_recipient_mapping_read_failed');
+        }
+        if (!is_array($locked_destination) || !is_array($locked_identity)) {
+            throw new DomainException('grade_recipient_mapping_missing');
+        }
+        $locked_validation_mapping = $canonical + [
+            'adapter' => (string) $locked_destination['adapter'],
+            'connection_key_hash' => (string) $locked_destination['connection_key_hash'],
+            'destination_key_hash' => (string) $locked_destination['destination_key_hash'],
+            'subject_key_hash' => (string) $locked_identity['subject_key_hash'],
+            'assignment_id' => (int) $locked_destination['assignment_id'],
+            'revision_id' => (int) $locked_destination['revision_id'],
+        ];
+        if (
+            (string) ($locked_destination['adapter'] ?? '') !== (string) ($locked_identity['adapter'] ?? '')
+            || !hash_equals((string) ($locked_destination['connection_key_hash'] ?? ''), (string) ($locked_identity['connection_key_hash'] ?? ''))
+            || (int) ($locked_identity['learner_user_id'] ?? 0) !== $canonical['learner_user_id']
+            || $locked_validation_mapping !== $validation_mapping
+        ) {
+            throw new DomainException('grade_recipient_scope_mismatch');
+        }
+
+        $wpdb->last_error = '';
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, external_identity_id, recipient_key_hash, status FROM {$tables['recipients']} WHERE destination_id = %d AND learner_user_id = %d LIMIT 1 FOR UPDATE",
+            $canonical['destination_id'],
+            $canonical['learner_user_id']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('grade_recipient_mapping_read_failed');
+        }
+        if (is_array($existing)) {
+            if (
+                (int) ($existing['external_identity_id'] ?? 0) !== $canonical['external_identity_id']
+                || !hash_equals((string) ($existing['recipient_key_hash'] ?? ''), $canonical['recipient_key_hash'])
+                || (string) ($existing['status'] ?? '') !== 'active'
+            ) {
+                throw new DomainException('grade_recipient_mapping_conflict');
+            }
+            if (!ll_tools_lms_assignment_commit_transaction($transaction)) {
+                throw new RuntimeException('grade_recipient_mapping_commit_failed');
+            }
+            return (int) $existing['id'];
+        }
+
+        $now = ll_tools_grade_delivery_now_mysql();
+        $inserted = $wpdb->insert($tables['recipients'], [
+            'destination_id' => $canonical['destination_id'],
+            'external_identity_id' => $canonical['external_identity_id'],
+            'learner_user_id' => $canonical['learner_user_id'],
+            'recipient_key_hash' => $canonical['recipient_key_hash'],
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], ['%d', '%d', '%d', '%s', '%s', '%s', '%s']);
+        if ($inserted === 1) {
+            $recipient_id = (int) $wpdb->insert_id;
+            if ($recipient_id <= 0 || !ll_tools_lms_assignment_commit_transaction($transaction)) {
+                throw new RuntimeException('grade_recipient_mapping_commit_failed');
+            }
+            return $recipient_id;
+        }
+
+        $wpdb->last_error = '';
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, external_identity_id, recipient_key_hash, status FROM {$tables['recipients']} WHERE destination_id = %d AND learner_user_id = %d LIMIT 1 FOR UPDATE",
+            $canonical['destination_id'],
+            $canonical['learner_user_id']
+        ), ARRAY_A);
+        if ((string) $wpdb->last_error !== '') {
+            throw new RuntimeException('grade_recipient_mapping_read_failed');
+        }
+        if (
+            !is_array($existing)
+            || (int) ($existing['external_identity_id'] ?? 0) !== $canonical['external_identity_id']
+            || !hash_equals((string) ($existing['recipient_key_hash'] ?? ''), $canonical['recipient_key_hash'])
+            || (string) ($existing['status'] ?? '') !== 'active'
+        ) {
+            throw is_array($existing)
+                ? new DomainException('grade_recipient_mapping_conflict')
+                : new RuntimeException('grade_recipient_mapping_write_failed');
+        }
+        if (!ll_tools_lms_assignment_commit_transaction($transaction)) {
+            throw new RuntimeException('grade_recipient_mapping_commit_failed');
+        }
         return (int) $existing['id'];
+    } catch (DomainException $error) {
+        ll_tools_lms_assignment_rollback_transaction($transaction);
+        $code = $error->getMessage();
+        if ($code === 'grade_recipient_mapping_missing') {
+            return new WP_Error($code, __('The external grade recipient mapping is incomplete.', 'll-tools-text-domain'));
+        }
+        if ($code === 'grade_recipient_scope_mismatch') {
+            return new WP_Error($code, __('The external grade recipient does not match the destination scope.', 'll-tools-text-domain'));
+        }
+        if ($code === 'grade_recipient_mapping_conflict') {
+            return new WP_Error($code, __('The external grade recipient is already mapped differently.', 'll-tools-text-domain'));
+        }
+        return new WP_Error('invalid_grade_recipient_mapping', __('The external grade recipient mapping is invalid.', 'll-tools-text-domain'));
+    } catch (Throwable $error) {
+        ll_tools_lms_assignment_rollback_transaction($transaction);
+        return ll_tools_grade_delivery_write_error('grade_recipient_mapping_write_failed');
     }
-    return new WP_Error('grade_recipient_mapping_conflict', __('The external grade recipient is already mapped differently.', 'll-tools-text-domain'));
 }
 
 /** @return array<string,mixed>|WP_Error */

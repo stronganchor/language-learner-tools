@@ -21,12 +21,15 @@ async function loginAs(page, user) {
   await expect(page.locator('#loginform')).toBeVisible({ timeout: 30000 });
   await page.locator('#user_login').fill(user.login);
   await page.locator('#user_pass').fill(user.password);
-  await Promise.all([
-    page.waitForURL((url) => !/\/wp-login\.php(?:$|[?\/])/.test(url.toString()), {
-      timeout: 60000
-    }),
-    page.locator('#wp-submit').click()
-  ]);
+  const loginResponsePromise = page.waitForResponse(
+    (response) => response.request().method() === 'POST'
+      && /\/wp-login\.php(?:$|[?\/])/.test(response.url()),
+    { timeout: 60000 }
+  );
+  await page.locator('#wp-submit').click({ noWaitAfter: true });
+  const loginResponse = await loginResponsePromise;
+  expect(loginResponse.status()).toBeGreaterThanOrEqual(300);
+  expect(loginResponse.status()).toBeLessThan(400);
 }
 
 function isPrivateLazyCardsResponse(response, wordsetId) {
@@ -58,11 +61,31 @@ test('private wordset route and lazy cards admit only the assigned manager', asy
     expect(fixture.categoryCount).toBeGreaterThan(18);
     await loginAs(page, fixture.manager);
 
+    const managerHubResponse = await page.goto(fixture.hubPagePath, { waitUntil: 'domcontentloaded' });
+    expect(managerHubResponse && managerHubResponse.status()).toBe(200);
+    const managerHubCard = page.locator(
+      `.ll-wordset-buttons-shortcode__item[data-ll-wordset-id="${fixture.wordsetId}"]`
+    );
+    const managerHubLink = page.locator(
+      `.ll-wordset-buttons-shortcode__button[data-ll-wordset-id="${fixture.wordsetId}"]`
+    );
+    await expect(managerHubLink).toBeVisible({ timeout: 120000 });
+    await expect(managerHubLink).toHaveAttribute('data-ll-wordset-card-state', 'ready', { timeout: 120000 });
+    await expect(managerHubCard).toContainText(fixture.wordsetName);
+    await expect(managerHubCard).toContainText(`${fixture.categoryCount} lessons`);
+    await expect(managerHubLink).toHaveClass(/ll-wordset-buttons-shortcode__button--private/);
+    await expect(managerHubCard.locator('.ll-wordset-buttons-shortcode__privacy-badge')).toBeVisible();
+    const managerHubHref = await managerHubLink.getAttribute('href');
+    expect(new URL(managerHubHref, page.url()).pathname).toBe(new URL(fixture.pagePath, page.url()).pathname);
+
     const lazyResponsePromise = page.waitForResponse(
       (response) => isPrivateLazyCardsResponse(response, fixture.wordsetId),
       { timeout: 90000 }
     );
-    const managerResponse = await page.goto(fixture.pagePath, { waitUntil: 'domcontentloaded' });
+    const [managerResponse] = await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 90000 }),
+      managerHubLink.click()
+    ]);
     expect(managerResponse && managerResponse.status()).toBe(200);
     await expect(page.locator('.ll-wordset-page:not(.ll-wordset-page--missing)')).toBeVisible({ timeout: 60000 });
     await expect(page.getByRole('heading', { name: fixture.wordsetName, exact: true })).toBeVisible();
@@ -96,6 +119,16 @@ test('private wordset route and lazy cards admit only the assigned manager', asy
     await expect(page.locator('.ll-wordset-page--missing')).toHaveCount(0);
 
     await loginAs(page, fixture.outsider);
+    const outsiderHubResponse = await page.goto(fixture.hubPagePath, { waitUntil: 'domcontentloaded' });
+    expect(outsiderHubResponse && outsiderHubResponse.status()).toBe(200);
+    const outsiderHubTarget = page.locator(
+      `.ll-wordset-buttons-shortcode__button[data-ll-wordset-id="${fixture.wordsetId}"]`
+    );
+    await expect(outsiderHubTarget).toHaveCount(0);
+    await page.waitForTimeout(1000);
+    await expect(outsiderHubTarget).toHaveCount(0);
+    await expect(page.getByText(fixture.wordsetName, { exact: true })).toHaveCount(0);
+
     let outsiderLazyRequests = 0;
     const outsiderRequestListener = (request) => {
       const postData = request.postData() || '';
@@ -115,6 +148,16 @@ test('private wordset route and lazy cards admit only the assigned manager', asy
     page.off('request', outsiderRequestListener);
 
     await page.context().clearCookies();
+    const anonymousHubResponse = await page.goto(fixture.hubPagePath, { waitUntil: 'domcontentloaded' });
+    expect(anonymousHubResponse && anonymousHubResponse.status()).toBe(200);
+    const anonymousHubTarget = page.locator(
+      `.ll-wordset-buttons-shortcode__button[data-ll-wordset-id="${fixture.wordsetId}"]`
+    );
+    await expect(anonymousHubTarget).toHaveCount(0);
+    await page.waitForTimeout(1000);
+    await expect(anonymousHubTarget).toHaveCount(0);
+    await expect(page.getByText(fixture.wordsetName, { exact: true })).toHaveCount(0);
+
     let anonymousLazyRequests = 0;
     const anonymousRequestListener = (request) => {
       const postData = request.postData() || '';

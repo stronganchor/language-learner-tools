@@ -1917,6 +1917,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             $_REQUEST = [];
             remove_filter('pre_delete_post', $veto, 10);
             delete_transient($receipt_key);
+            delete_option($receipt_key);
             ll_tools_public_ajax_reset_client_leases(
                 ll_audio_processor_delete_lease_prefix(),
                 (string) $audio_id
@@ -1928,6 +1929,135 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
                 @rmdir($fixture_dir);
             }
             wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_safe_delete_path_rejects_case_distinct_uploads_sibling_on_unix(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $this->markTestSkipped('Case-distinct sibling containment is a Unix filesystem contract.');
+        }
+
+        $uploads = wp_get_upload_dir();
+        if (!empty($uploads['error']) || empty($uploads['basedir'])) {
+            $this->markTestSkipped('Uploads directory unavailable in test environment.');
+        }
+
+        $uploads_base = wp_normalize_path(untrailingslashit((string) $uploads['basedir']));
+        $uploads_name = basename($uploads_base);
+        $case_distinct_name = strtoupper($uploads_name);
+        if ($case_distinct_name === $uploads_name) {
+            $case_distinct_name = strtolower($uploads_name);
+        }
+        if ($case_distinct_name === $uploads_name) {
+            $this->markTestSkipped('Uploads basename has no case-distinct representation.');
+        }
+
+        $sibling_dir = wp_normalize_path(dirname($uploads_base) . '/' . $case_distinct_name);
+        if (file_exists($sibling_dir)) {
+            $this->markTestSkipped('Case-distinct uploads sibling already exists; refusing to modify it.');
+        }
+
+        $this->assertTrue(wp_mkdir_p($sibling_dir));
+        $path = trailingslashit($sibling_dir) . 'outside-uploads.txt';
+        $this->assertNotFalse(file_put_contents($path, 'test'));
+
+        try {
+            $this->assertSame('', ll_audio_processor_resolve_safe_delete_path($path));
+        } finally {
+            @unlink($path);
+            @rmdir($sibling_dir);
+        }
+    }
+
+    public function test_audio_processor_parent_cleanup_requires_authoritative_draft_readback(): void
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio cleanup status readback word',
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/status-readback.mp3');
+
+        $preserve_publish_status = static function (array $data, array $postarr) use ($word_id): array {
+            if ((int) ($postarr['ID'] ?? 0) === $word_id) {
+                $data['post_status'] = 'publish';
+            }
+            return $data;
+        };
+        add_filter('wp_insert_post_data', $preserve_publish_status, 10, 2);
+        try {
+            $this->assertFalse(ll_audio_processor_cleanup_deleted_recording_parent($word_id));
+            $this->assertSame('publish', (string) get_post_status($word_id));
+            $this->assertSame(
+                '/wp-content/uploads/status-readback.mp3',
+                (string) get_post_meta($word_id, 'word_audio_file', true)
+            );
+        } finally {
+            remove_filter('wp_insert_post_data', $preserve_publish_status, 10);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_parent_cleanup_fails_closed_on_remaining_recording_query_error(): void
+    {
+        global $wpdb;
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio cleanup query failure word',
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/query-failure.mp3');
+
+        $fail_parent_recording_query = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll_audio_processor_parent_recording_state') !== false) {
+                return "SELECT ID FROM {$wpdb->prefix}ll_tools_missing_audio_rows";
+            }
+            return $query;
+        };
+        add_filter('query', $fail_parent_recording_query);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        try {
+            $this->assertFalse(ll_audio_processor_cleanup_deleted_recording_parent($word_id));
+            $this->assertSame('publish', (string) get_post_status($word_id));
+            $this->assertSame(
+                '/wp-content/uploads/query-failure.mp3',
+                (string) get_post_meta($word_id, 'word_audio_file', true)
+            );
+        } finally {
+            remove_filter('query', $fail_parent_recording_query);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_parent_cleanup_requires_legacy_meta_absence_readback(): void
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Audio cleanup meta readback word',
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/meta-readback.mp3');
+
+        $block_legacy_meta_delete = static function ($delete, int $object_id, string $meta_key) use ($word_id) {
+            if ($object_id === $word_id && $meta_key === 'word_audio_file') {
+                return false;
+            }
+            return $delete;
+        };
+        add_filter('delete_post_metadata', $block_legacy_meta_delete, 10, 3);
+        try {
+            $this->assertFalse(ll_audio_processor_cleanup_deleted_recording_parent($word_id));
+            $this->assertSame(
+                '/wp-content/uploads/meta-readback.mp3',
+                (string) get_post_meta($word_id, 'word_audio_file', true)
+            );
+        } finally {
+            remove_filter('delete_post_metadata', $block_legacy_meta_delete, 10);
             wp_delete_post($word_id, true);
         }
     }
@@ -2005,6 +2135,8 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             $_REQUEST = [];
             delete_transient($receipt_key);
             delete_transient($other_receipt_key);
+            delete_option($receipt_key);
+            delete_option($other_receipt_key);
             delete_option($lock_key);
             delete_option($lock_timeout_key);
         }
@@ -2052,10 +2184,474 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
             $_POST = [];
             $_REQUEST = [];
             delete_transient($receipt_key);
+            delete_option($receipt_key);
             ll_tools_public_ajax_reset_client_leases(
                 ll_audio_processor_delete_lease_prefix(),
                 (string) $audio_id
             );
+        }
+    }
+
+    public function test_audio_processor_cleanup_preserves_file_when_post_absence_query_fails(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Unknown Post State Word',
+            'post_author' => $user_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Unknown Post State Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+
+        $uploads = wp_upload_dir();
+        $fixture_dir = trailingslashit((string) $uploads['basedir']) . 'll-tools-test-fixtures';
+        $this->assertTrue(wp_mkdir_p($fixture_dir));
+        $fixture_path = trailingslashit($fixture_dir) . 'unknown-post-state-' . $audio_id . '.mp3';
+        $this->assertNotFalse(file_put_contents($fixture_path, 'll-tools-unknown-post-state'));
+
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $retry_args = [];
+        $fail_post_state_query = static function (string $query) use ($wpdb): string {
+            if (strpos($query, 'll_audio_processor_post_state') !== false) {
+                return "SELECT ID FROM {$wpdb->prefix}ll_tools_missing_post_state";
+            }
+            return $query;
+        };
+
+        try {
+            $this->assertTrue(ll_audio_processor_store_delete_receipt(
+                $user_id,
+                $audio_id,
+                $word_id,
+                'pending',
+                [
+                    'delete_paths' => [$fixture_path],
+                    'parent_cleanup_pending' => true,
+                    'cleanup_attempt' => 0,
+                ]
+            ));
+            $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertInstanceOf(WP_Post::class, wp_delete_post($audio_id, true));
+
+            add_filter('query', $fail_post_state_query);
+            $previous_suppress_errors = $wpdb->suppress_errors(true);
+            try {
+                $result = ll_audio_processor_finalize_delete_cleanup($receipt);
+            } finally {
+                remove_filter('query', $fail_post_state_query);
+                $wpdb->suppress_errors($previous_suppress_errors);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertFalse((bool) ($result['success'] ?? true));
+            $this->assertSame(503, (int) ($result['status_code'] ?? 0));
+            $this->assertFileExists($fixture_path);
+            $retained_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('pending', (string) ($retained_receipt['status'] ?? ''));
+            $this->assertSame(
+                [wp_normalize_path($fixture_path)],
+                array_map('wp_normalize_path', (array) ($retained_receipt['delete_paths'] ?? []))
+            );
+            $retry_args = [
+                $user_id,
+                $audio_id,
+                (string) ($retained_receipt['receipt_token'] ?? ''),
+                1,
+            ];
+            $this->assertIsInt(wp_next_scheduled('ll_audio_processor_retry_delete_cleanup', $retry_args));
+        } finally {
+            remove_filter('query', $fail_post_state_query);
+            if ($retry_args !== []) {
+                wp_clear_scheduled_hook('ll_audio_processor_retry_delete_cleanup', $retry_args);
+            }
+            delete_transient($receipt_key);
+            delete_option($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            if (file_exists($fixture_path)) {
+                @unlink($fixture_path);
+            }
+            if (is_dir($fixture_dir)) {
+                @rmdir($fixture_dir);
+            }
+            wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_delete_retry_finishes_a_failed_file_cleanup_from_the_receipt(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Durable Cleanup Word',
+            'post_author' => $user_id,
+        ]);
+        update_post_meta($word_id, 'word_audio_file', '/wp-content/uploads/durable-cleanup-audio.mp3');
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Durable Cleanup Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+
+        $uploads = wp_upload_dir();
+        $fixture_dir = trailingslashit((string) $uploads['basedir']) . 'll-tools-test-fixtures';
+        $this->assertTrue(wp_mkdir_p($fixture_dir));
+        $fixture_path = trailingslashit($fixture_dir) . 'durable-cleanup-' . $audio_id . '.mp3';
+        $this->assertNotFalse(file_put_contents($fixture_path, 'll-tools-durable-audio-cleanup'));
+        $relative_path = str_replace(
+            wp_normalize_path(untrailingslashit(ABSPATH)),
+            '',
+            wp_normalize_path($fixture_path)
+        );
+        update_post_meta($audio_id, 'audio_file_path', $relative_path);
+
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $fail_file_cleanup = static function ($result, string $path) use ($fixture_path) {
+            return wp_normalize_path($path) === wp_normalize_path($fixture_path) ? false : $result;
+        };
+        $single_cron_retry = static function (): int {
+            return 1;
+        };
+        add_filter('ll_audio_processor_delete_file_result', $fail_file_cleanup, 10, 2);
+        add_filter('ll_audio_processor_delete_cleanup_max_attempts', $single_cron_retry);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $first = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertFalse((bool) ($first['success'] ?? true));
+            $this->assertStringContainsString('cleanup is still pending', (string) ($first['data'] ?? ''));
+            $this->assertNull(get_post($audio_id));
+            $this->assertFileExists($fixture_path);
+            $pending_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('post_deleted', (string) ($pending_receipt['status'] ?? ''));
+            $this->assertFalse((bool) ($pending_receipt['automatic_retry_exhausted'] ?? false));
+            $this->assertSame([wp_normalize_path($fixture_path)], array_map('wp_normalize_path', (array) ($pending_receipt['delete_paths'] ?? [])));
+            $this->assertIsArray(get_option($receipt_key, false));
+            $receipt_token = (string) ($pending_receipt['receipt_token'] ?? '');
+            $this->assertNotSame('', $receipt_token);
+            $retry_args = [$user_id, $audio_id, $receipt_token, 1];
+            $this->assertIsInt(wp_next_scheduled('ll_audio_processor_retry_delete_cleanup', $retry_args));
+
+            // The durable cleanup journal must survive beyond the short-lived
+            // idempotency transient when low traffic delays WP-Cron.
+            delete_transient($receipt_key);
+            $delayed_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('post_deleted', (string) ($delayed_receipt['status'] ?? ''));
+            $this->assertSame([wp_normalize_path($fixture_path)], array_map('wp_normalize_path', (array) ($delayed_receipt['delete_paths'] ?? [])));
+
+            // Execute the pre-armed event directly after the transient is gone.
+            // Its one allowed failed attempt must retain an explicit terminal
+            // automatic-retry failure state for manual recovery.
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token, 1);
+            $exhausted_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('cleanup_failed', (string) ($exhausted_receipt['status'] ?? ''));
+            $this->assertTrue((bool) ($exhausted_receipt['automatic_retry_exhausted'] ?? false));
+            $this->assertSame(1, (int) ($exhausted_receipt['cleanup_attempt'] ?? 0));
+            $this->assertFileExists($fixture_path);
+
+            remove_filter('ll_audio_processor_delete_file_result', $fail_file_cleanup, 10);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $retry = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertTrue((bool) ($retry['success'] ?? false));
+            $this->assertTrue((bool) ($retry['data']['already_deleted'] ?? false));
+            $this->assertSame('deleted', (string) ($retry['data']['receipt_status'] ?? ''));
+            $this->assertFileDoesNotExist($fixture_path);
+            $this->assertSame('draft', (string) get_post_status($word_id));
+            $this->assertSame('', (string) get_post_meta($word_id, 'word_audio_file', true));
+            $this->assertFalse(get_option($receipt_key, false));
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('ll_audio_processor_delete_file_result', $fail_file_cleanup, 10);
+            remove_filter('ll_audio_processor_delete_cleanup_max_attempts', $single_cron_retry);
+            if (isset($retry_args) && is_array($retry_args)) {
+                wp_clear_scheduled_hook('ll_audio_processor_retry_delete_cleanup', $retry_args);
+            }
+            delete_transient($receipt_key);
+            delete_option($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            if (file_exists($fixture_path)) {
+                @unlink($fixture_path);
+            }
+            if (is_dir($fixture_dir)) {
+                @rmdir($fixture_dir);
+            }
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_delete_aborts_when_cleanup_retry_cannot_be_prearmed(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Prearm Failure Word',
+            'post_author' => $user_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Prearm Failure Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+
+        $uploads = wp_upload_dir();
+        $fixture_dir = trailingslashit((string) $uploads['basedir']) . 'll-tools-test-fixtures';
+        $this->assertTrue(wp_mkdir_p($fixture_dir));
+        $fixture_path = trailingslashit($fixture_dir) . 'prearm-failure-' . $audio_id . '.mp3';
+        $this->assertNotFalse(file_put_contents($fixture_path, 'll-tools-prearm-failure-audio'));
+        $relative_path = str_replace(
+            wp_normalize_path(untrailingslashit(ABSPATH)),
+            '',
+            wp_normalize_path($fixture_path)
+        );
+        update_post_meta($audio_id, 'audio_file_path', $relative_path);
+
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $reject_cleanup_schedule = static function ($pre, $event) {
+            return is_object($event) && (string) ($event->hook ?? '') === 'll_audio_processor_retry_delete_cleanup'
+                ? false
+                : $pre;
+        };
+        add_filter('pre_schedule_event', $reject_cleanup_schedule, 10, 2);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_audio_processor'),
+                'post_id' => $audio_id,
+            ];
+            $_REQUEST = $_POST;
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_delete_audio_recording_handler();
+            });
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertStringContainsString('Could not prepare this deletion safely', (string) ($response['data'] ?? ''));
+            $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
+            $this->assertFileExists($fixture_path);
+            $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('pending', (string) ($receipt['status'] ?? ''));
+            $retry_args = [$user_id, $audio_id, (string) ($receipt['receipt_token'] ?? ''), 1];
+            $this->assertFalse(wp_next_scheduled('ll_audio_processor_retry_delete_cleanup', $retry_args));
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('pre_schedule_event', $reject_cleanup_schedule, 10);
+            delete_transient($receipt_key);
+            delete_option($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            if (file_exists($fixture_path)) {
+                @unlink($fixture_path);
+            }
+            if (is_dir($fixture_dir)) {
+                @rmdir($fixture_dir);
+            }
+            wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_live_post_prearm_retries_are_bounded_and_stale_attempts_do_not_rearm(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Live Prearm Word',
+            'post_author' => $user_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Live Prearm Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $two_attempts = static function (): int {
+            return 2;
+        };
+        add_filter('ll_audio_processor_delete_cleanup_max_attempts', $two_attempts);
+
+        try {
+            $this->assertTrue(ll_audio_processor_store_delete_receipt(
+                $user_id,
+                $audio_id,
+                $word_id,
+                'pending',
+                ['parent_cleanup_pending' => true, 'cleanup_attempt' => 0]
+            ));
+            $receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $receipt_token = (string) ($receipt['receipt_token'] ?? '');
+            $this->assertNotSame('', $receipt_token);
+
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token . '-wrong', 1);
+            $unchanged_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame(0, (int) ($unchanged_receipt['cleanup_attempt'] ?? -1));
+
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token, 1);
+            $first_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('pending', (string) ($first_receipt['status'] ?? ''));
+            $this->assertSame(1, (int) ($first_receipt['cleanup_attempt'] ?? 0));
+            $this->assertFalse((bool) ($first_receipt['automatic_retry_exhausted'] ?? false));
+            $this->assertInstanceOf(WP_Post::class, get_post($audio_id));
+            $second_args = [$user_id, $audio_id, $receipt_token, 2];
+            $this->assertIsInt(wp_next_scheduled('ll_audio_processor_retry_delete_cleanup', $second_args));
+
+            // Simulate WordPress removing the single event immediately before
+            // invoking its callback.
+            wp_clear_scheduled_hook('ll_audio_processor_retry_delete_cleanup', $second_args);
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token, 2);
+            $exhausted_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('pending', (string) ($exhausted_receipt['status'] ?? ''));
+            $this->assertSame(2, (int) ($exhausted_receipt['cleanup_attempt'] ?? 0));
+            $this->assertTrue((bool) ($exhausted_receipt['automatic_retry_exhausted'] ?? false));
+            $this->assertFalse(wp_next_scheduled(
+                'll_audio_processor_retry_delete_cleanup',
+                [$user_id, $audio_id, $receipt_token, 3]
+            ));
+
+            $before_stale_replay = $exhausted_receipt;
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token, 1);
+            $after_stale_replay = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame($before_stale_replay, $after_stale_replay);
+            $this->assertFalse(wp_next_scheduled(
+                'll_audio_processor_retry_delete_cleanup',
+                [$user_id, $audio_id, $receipt_token, 1]
+            ));
+        } finally {
+            remove_filter('ll_audio_processor_delete_cleanup_max_attempts', $two_attempts);
+            if (isset($receipt_token) && $receipt_token !== '') {
+                foreach ([1, 2, 3] as $attempt) {
+                    wp_clear_scheduled_hook(
+                        'll_audio_processor_retry_delete_cleanup',
+                        [$user_id, $audio_id, $receipt_token, $attempt]
+                    );
+                }
+            }
+            delete_transient($receipt_key);
+            delete_option($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
+        }
+    }
+
+    public function test_audio_processor_retry_lock_contention_reschedules_same_generation_without_consuming_attempt(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Retry Contention Word',
+            'post_author' => $user_id,
+        ]);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Audio Processor Retry Contention Recording',
+            'post_parent' => $word_id,
+            'post_author' => $user_id,
+        ]);
+        $receipt_key = ll_audio_processor_delete_receipt_key($user_id, $audio_id);
+        $lease = [];
+        $single_cron_retry = static function (): int {
+            return 1;
+        };
+        add_filter('ll_audio_processor_delete_cleanup_max_attempts', $single_cron_retry);
+
+        try {
+            $this->assertTrue(ll_audio_processor_store_delete_receipt(
+                $user_id,
+                $audio_id,
+                $word_id,
+                'pending',
+                ['parent_cleanup_pending' => true, 'cleanup_attempt' => 0]
+            ));
+            $pending_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $receipt_token = (string) ($pending_receipt['receipt_token'] ?? '');
+            $this->assertNotSame('', $receipt_token);
+            $this->assertInstanceOf(WP_Post::class, wp_delete_post($audio_id, true));
+            $this->assertTrue(ll_audio_processor_store_delete_receipt(
+                $user_id,
+                $audio_id,
+                $word_id,
+                'post_deleted',
+                [
+                    'receipt_token' => $receipt_token,
+                    'parent_cleanup_pending' => true,
+                    'cleanup_attempt' => 0,
+                ]
+            ));
+
+            $lease = ll_audio_processor_acquire_delete_lock($audio_id);
+            $this->assertTrue((bool) ($lease['acquired'] ?? false));
+            ll_audio_processor_retry_delete_cleanup($user_id, $audio_id, $receipt_token, 1);
+
+            $retained_receipt = ll_audio_processor_get_delete_receipt($user_id, $audio_id);
+            $this->assertSame('post_deleted', (string) ($retained_receipt['status'] ?? ''));
+            $this->assertFalse((bool) ($retained_receipt['automatic_retry_exhausted'] ?? false));
+            $this->assertSame(0, (int) ($retained_receipt['cleanup_attempt'] ?? -1));
+            $this->assertTrue((bool) ($retained_receipt['parent_cleanup_pending'] ?? false));
+            $retry_args = [$user_id, $audio_id, $receipt_token, 1];
+            $this->assertIsInt(wp_next_scheduled('ll_audio_processor_retry_delete_cleanup', $retry_args));
+        } finally {
+            remove_filter('ll_audio_processor_delete_cleanup_max_attempts', $single_cron_retry);
+            if ($lease !== []) {
+                ll_audio_processor_release_delete_lock($lease);
+            }
+            if (isset($retry_args) && is_array($retry_args)) {
+                wp_clear_scheduled_hook('ll_audio_processor_retry_delete_cleanup', $retry_args);
+            }
+            delete_transient($receipt_key);
+            delete_option($receipt_key);
+            ll_tools_public_ajax_reset_client_leases(
+                ll_audio_processor_delete_lease_prefix(),
+                (string) $audio_id
+            );
+            wp_delete_post($audio_id, true);
+            wp_delete_post($word_id, true);
         }
     }
 
@@ -2107,6 +2703,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
                 ll_audio_processor_release_delete_lock($first_lease);
             }
             delete_transient($receipt_key);
+            delete_option($receipt_key);
             ll_tools_public_ajax_reset_client_leases(
                 ll_audio_processor_delete_lease_prefix(),
                 (string) $audio_id

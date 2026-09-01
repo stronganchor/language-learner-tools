@@ -196,6 +196,81 @@ test('individual queue deletion moves focus to the next surviving recording acti
   await expect(page.locator('.ll-delete-recording[data-post-id="2"]')).toBeFocused();
 });
 
+test('removing a review card skips its slide-and-fade delay under reduced motion', async ({ page }) => {
+  const recordingCount = 2;
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('about:blank');
+  await page.setContent(buildMarkup(recordingCount));
+  await page.evaluate((count) => {
+    class FakeAudioBuffer {
+      constructor(length = 1000, sampleRate = 1000) {
+        this.length = length;
+        this.sampleRate = sampleRate;
+        this.numberOfChannels = 1;
+        this.data = new Float32Array(length);
+      }
+      getChannelData() { return this.data; }
+    }
+    class FakeAudioContext {
+      decodeAudioData() { return Promise.resolve(new FakeAudioBuffer()); }
+      createBuffer(channels, length, sampleRate) { return new FakeAudioBuffer(length, sampleRate); }
+    }
+    window.AudioContext = FakeAudioContext;
+    window.webkitAudioContext = FakeAudioContext;
+    window.confirm = () => true;
+    window.llAudioProcessor = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      nonce: 'delete-nonce',
+      recordingTypes: [],
+      recordingTypeIcons: {},
+      recordings: Array.from({length: count}, (_, index) => ({
+        id: index + 1,
+        title: `Recording ${index + 1}`,
+        wordText: `Recording ${index + 1}`,
+        translationText: '',
+        storeInTitle: true,
+        parentWordId: 175 + index,
+        audioUrl: `/audio-${index + 1}.wav`,
+        categories: [],
+        wordsets: [],
+        recordingType: ''
+      })),
+      i18n: {
+        removeFromBatchConfirmTemplate: 'Remove "%s"?'
+      }
+    };
+    window.fetch = () => Promise.resolve({arrayBuffer: async () => new ArrayBuffer(16)});
+  }, recordingCount);
+
+  await page.addScriptTag({path: audioProcessorJsPath});
+  await page.evaluate(() => document.dispatchEvent(new Event('DOMContentLoaded', {bubbles: true})));
+  await page.locator('#ll-enable-trim').setChecked(false);
+  await page.locator('#ll-enable-noise').setChecked(false);
+  await page.locator('#ll-enable-loudness').setChecked(false);
+  await page.locator('#ll-select-all').click();
+  await page.locator('#ll-process-selected').click();
+  await expect(page.locator('.ll-review-file')).toHaveCount(recordingCount);
+
+  const immediateState = await page.evaluate(() => {
+    document.querySelector('.ll-remove-review-btn[data-post-id="1"]').click();
+    const card = document.querySelector('.ll-review-file[data-post-id="1"]');
+    return {
+      transition: card.style.transition,
+      opacity: card.style.opacity,
+      transform: card.style.transform,
+      ariaHidden: card.getAttribute('aria-hidden')
+    };
+  });
+
+  expect(immediateState).toEqual({
+    transition: 'none',
+    opacity: '',
+    transform: '',
+    ariaHidden: 'true'
+  });
+  await expect(page.locator('.ll-review-file')).toHaveCount(1);
+});
+
 test('remove is synchronous and individual deletion holds the shared delete mutex', async ({ page }) => {
   const recordingCount = 4;
   await page.goto('about:blank');

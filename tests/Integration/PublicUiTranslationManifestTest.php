@@ -384,6 +384,58 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         $this->assertSame(['%s öğe', '%s öğe'], $plural_translations['%s item'] ?? []);
     }
 
+    public function test_turkish_catalog_preserves_curated_verbatim_import_and_api_tokens(): void
+    {
+        $entries = ll_tools_public_i18n_parse_po_file(
+            $this->pluginRoot() . DIRECTORY_SEPARATOR . 'languages' . DIRECTORY_SEPARATOR . 'll-tools-text-domain-tr_TR.po'
+        );
+        $translations = [];
+        foreach ($entries as $entry) {
+            $msgid = (string) ($entry['msgid'] ?? '');
+            if ($msgid !== '') {
+                $translations[$msgid] = implode("\n", array_map('strval', (array) ($entry['msgstr'] ?? [])));
+            }
+        }
+
+        // Keep this list deliberately curated. Generic snake_case detection
+        // can reject ordinary prose where an underscored source term is not an
+        // input contract. These reviewed strings expose operational post-type
+        // names, keys, field names, or filenames that must remain copyable.
+        $contracts = [
+            'Failed to create word_audio post: %s' => ['word_audio'],
+            'Failed to delete word_audio post %d during undo.' => ['word_audio'],
+            'Keep stable identifiers in every row: use word_id when possible, and use recording_id for recording fields when possible.'
+                => ['word_id', 'recording_id'],
+            'If recording_id is unavailable, you can identify a recording with recording_slug + word_id/word_slug, or with recording_type + word_id/word_slug when that word has exactly one recording of that type.'
+                => ['recording_id', 'recording_slug', 'word_id', 'word_slug', 'recording_type'],
+            'Row %1$d: word_id %2$d was not found.' => ['word_id'],
+            'Word %1$d has multiple recordings of type "%2$s". Use recording_id or recording_slug instead.'
+                => ['recording_id', 'recording_slug'],
+            'Row %1$d: recording_id %2$d was not found.' => ['recording_id'],
+            'Provide category, category_id, or category_slug for the word-option rules update.'
+                => ['category', 'category_id', 'category_slug'],
+            'Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data.'
+                => ['missing_words', 'errors'],
+            'Expected request: POST multipart/form-data with an "audio" file field. Expected response: JSON containing one of predicted_ipa, ipa, transcript, or text.'
+                => ['POST', 'multipart/form-data', '"audio"', 'JSON', 'predicted_ipa', 'ipa', 'transcript', 'text'],
+            'Example sources: line_alignment.vtt, line_alignment.tsv, sentence_alignment.vtt, or highlight_approx.json.'
+                => ['line_alignment.vtt', 'line_alignment.tsv', 'sentence_alignment.vtt', 'highlight_approx.json'],
+        ];
+
+        $this->assertCount(11, $contracts);
+        foreach ($contracts as $msgid => $tokens) {
+            $this->assertArrayHasKey($msgid, $translations, 'Missing Turkish catalog entry: ' . $msgid);
+            $translation = (string) $translations[$msgid];
+            foreach ($tokens as $token) {
+                $this->assertMatchesRegularExpression(
+                    '/(?<![A-Za-z0-9_.-])' . preg_quote($token, '/') . '(?![A-Za-z0-9_.-])/',
+                    $translation,
+                    sprintf('Keep the literal token %s in the Turkish translation of: %s', $token, $msgid)
+                );
+            }
+        }
+    }
+
     public function test_turkish_catalog_keeps_reviewed_informal_public_copy(): void
     {
         $entries = ll_tools_public_i18n_parse_po_file(

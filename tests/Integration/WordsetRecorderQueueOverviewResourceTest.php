@@ -306,6 +306,94 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_manifest_merge_compacts_card_data_and_preserves_the_newer_source_fence(): void
+    {
+        $generation = md5('recorder-manifest-' . wp_generate_uuid4());
+        $cache_key = ll_tools_wordset_page_get_recorder_queue_summary_manifest_cache_key($generation);
+        $newer_group = [
+            'name' => 'Compact category',
+            'slug' => 'compact-category',
+            'count' => 12,
+            'count_is_lower_bound' => false,
+            'items' => [[
+                'word_id' => 101,
+                'title' => 'This richer item stays in the per-category cache',
+            ]],
+            'preview_items' => [[
+                'type' => 'text',
+                'label' => 'Preview label',
+            ]],
+            'is_summary' => true,
+        ];
+
+        try {
+            $this->assertTrue(ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
+                $cache_key,
+                $generation,
+                [
+                    'compact-category' => [
+                        'source_signature' => 'newer-source',
+                        'complete' => true,
+                        'group' => $newer_group,
+                        'observed_at' => 200.0,
+                    ],
+                ],
+                HOUR_IN_SECONDS
+            ));
+            $this->assertTrue(ll_tools_wordset_page_merge_recorder_queue_summary_manifest_entries(
+                $cache_key,
+                $generation,
+                [
+                    'compact-category' => [
+                        'source_signature' => 'stale-source',
+                        'complete' => true,
+                        'group' => array_merge($newer_group, [
+                            'count' => 1,
+                            'preview_items' => [],
+                        ]),
+                        'observed_at' => 100.0,
+                    ],
+                ],
+                HOUR_IN_SECONDS
+            ));
+
+            $manifest = ll_tools_wordset_page_get_recorder_queue_summary_manifest_payload($cache_key, $generation);
+            $entry = (array) ($manifest['entries']['compact-category'] ?? []);
+            $group = (array) ($entry['group'] ?? []);
+
+            $this->assertSame('newer-source', (string) ($entry['source_signature'] ?? ''));
+            $this->assertSame('Compact category', (string) ($group['name'] ?? ''));
+            $this->assertSame('compact-category', (string) ($group['slug'] ?? ''));
+            $this->assertSame(12, (int) ($group['count'] ?? 0));
+            $this->assertFalse((bool) ($group['count_is_lower_bound'] ?? true));
+            $this->assertSame($newer_group['preview_items'], (array) ($group['preview_items'] ?? []));
+            $this->assertArrayNotHasKey('items', $group);
+
+            $card = ll_tools_wordset_page_render_recorder_queue_category_card(
+                $group,
+                home_url('/compact-category/')
+            );
+            $this->assertStringContainsString('data-recorder-queue-category="compact-category"', $card);
+            $this->assertStringContainsString('data-recorder-queue-count="12"', $card);
+            $this->assertStringContainsString('Compact category', $card);
+            $this->assertStringContainsString('Preview label', $card);
+        } finally {
+            ll_tools_wordset_page_delete_durable_cached_payload($cache_key);
+        }
+    }
+
+    public function test_summary_batch_reuses_one_complete_catalog_manifest_scope(): void
+    {
+        $source = $this->getFunctionSource('ll_tools_wordset_page_build_recorder_queue_summary_batch');
+
+        $this->assertSame(
+            1,
+            substr_count($source, 'll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(')
+        );
+        $this->assertStringContainsString("['manifest_scope' => \$manifest_scope]", $source);
+        $this->assertStringContainsString("(string) (\$manifest_scope['generation'] ?? '')", $source);
+    }
+
     public function test_hidden_summary_signatures_are_category_local_with_global_legacy_fallback(): void
     {
         $fixture = $this->createWordsetWithCategories(2);
