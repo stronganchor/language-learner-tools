@@ -1807,6 +1807,57 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_grid_ajax_fails_closed_when_targeted_word_count_is_incomplete(): void
+    {
+        global $wpdb;
+
+        wp_set_current_user(0);
+        $fixture = $this->createDeferredGridFixture('Incomplete Targeted Count');
+        $failedCountQuery = false;
+        $legacyWordQueries = 0;
+        $failTargetedCount = static function (string $query) use (&$failedCountQuery): string {
+            if (
+                !$failedCountQuery
+                && stripos($query, 'COUNT(DISTINCT posts.ID) AS total') !== false
+                && stripos($query, 'wordset_relationships') !== false
+                && stripos($query, "posts.post_type = 'words'") !== false
+                && stripos($query, 'GROUP BY category_taxonomy.term_id') !== false
+            ) {
+                $failedCountQuery = true;
+                return 'SELECT total FROM ll_tools_missing_vocab_lesson_count';
+            }
+            return $query;
+        };
+        $captureLegacyQuery = static function (WP_Query $query) use (&$failedCountQuery, &$legacyWordQueries): void {
+            $postTypes = (array) $query->get('post_type');
+            if (
+                $failedCountQuery
+                && in_array('words', $postTypes, true)
+                && (int) $query->get('posts_per_page') === -1
+            ) {
+                $legacyWordQueries++;
+            }
+        };
+
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failTargetedCount);
+        add_action('pre_get_posts', $captureLegacyQuery);
+        try {
+            $response = $this->postVocabLessonGridAjax((int) $fixture['lesson_id']);
+        } finally {
+            remove_filter('query', $failTargetedCount);
+            remove_action('pre_get_posts', $captureLegacyQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+        }
+
+        $this->assertTrue($failedCountQuery, 'The fixture must fail the targeted word-count source query.');
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('source_incomplete', (string) ($response['data']['code'] ?? ''));
+        $this->assertTrue((bool) ($response['data']['retryable'] ?? false));
+        $this->assertSame(5, (int) ($response['data']['retry_after'] ?? 0));
+        $this->assertSame(0, $legacyWordQueries);
+    }
+
     /**
      * @return array<string, mixed>
      */

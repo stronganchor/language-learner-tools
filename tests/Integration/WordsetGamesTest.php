@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 
+final class LL_Tools_Lineup_Order_Tail_Sentinel implements JsonSerializable
+{
+    public function jsonSerialize(): mixed
+    {
+        throw new RuntimeException('The bounded Line-Up reader reached the unscanned saved-order suffix.');
+    }
+}
+
 final class WordsetGamesTest extends LL_Tools_TestCase
 {
     /** @var array<string,mixed> */
@@ -1772,6 +1780,742 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('lineup_not_configured', (string) ($launch['reason_code'] ?? ''));
     }
 
+    public function test_lineup_category_id_discovery_failure_is_retryable_for_both_pools_and_ajax(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        wp_set_current_user($userId);
+
+        $faultCount = 0;
+        $failCategoryIdQuery = static function (string $query) use ($wpdb, &$faultCount): string {
+            if (
+                stripos($query, 'SELECT DISTINCT category_tt.term_id') === false
+                || stripos($query, (string) $wpdb->term_taxonomy) === false
+            ) {
+                return $query;
+            }
+
+            $faultCount++;
+            return 'SELECT ll_tools_missing_lineup_category_id_column FROM ' . $wpdb->posts;
+        };
+
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failCategoryIdQuery);
+        try {
+            $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+            $deferredPool = ll_tools_wordset_games_build_lineup_deferred_count_pool($wordsetId, $userId);
+            $catalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId, false);
+            $launch = ll_tools_wordset_games_build_launch_entry('line-up', $wordsetId, $userId);
+
+            $nonce = wp_create_nonce('ll_user_study');
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $wordsetId,
+            ];
+            $_REQUEST = $_POST;
+            $bootstrapResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_bootstrap_ajax();
+            });
+
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $wordsetId,
+                'game_slug' => 'line-up',
+            ];
+            $_REQUEST = $_POST;
+            $launchResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_launch_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('query', $failCategoryIdQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThanOrEqual(6, $faultCount);
+        foreach ([$pool, $deferredPool] as $failedPool) {
+            $this->assertFalse((bool) ($failedPool['source_complete'] ?? true));
+            $this->assertTrue((bool) ($failedPool['retryable'] ?? false));
+            $this->assertSame('source_incomplete', (string) ($failedPool['reason_code'] ?? ''));
+            $this->assertSame('category_id_query', (string) ($failedPool['source_operation'] ?? ''));
+            $this->assertSame(0, (int) ($failedPool['available_sequence_count'] ?? -1));
+            $this->assertFalse((bool) ($failedPool['available_sequence_count_is_exact'] ?? true));
+        }
+
+        $this->assertArrayHasKey('line-up', $catalog);
+        $this->assertFalse((bool) ($catalog['line-up']['source_complete'] ?? true));
+        $this->assertSame('category_id_query', (string) ($catalog['line-up']['source_operation'] ?? ''));
+        $this->assertIsArray($launch);
+        $this->assertFalse((bool) ($launch['source_complete'] ?? true));
+        $this->assertSame('category_id_query', (string) ($launch['source_operation'] ?? ''));
+
+        foreach ([$bootstrapResponse, $launchResponse] as $response) {
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('source_incomplete', (string) ($response['data']['code'] ?? ''));
+            $this->assertTrue((bool) ($response['data']['retryable'] ?? false));
+        }
+    }
+
+    public function test_lineup_terms_discovery_failure_is_retryable_for_both_pools(): void
+    {
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        $faultCount = 0;
+        $failTermsQuery = static function ($terms, array $taxonomies, array $args) use (&$faultCount) {
+            if (
+                !in_array('word-category', $taxonomies, true)
+                || empty($args['include'])
+            ) {
+                return $terms;
+            }
+
+            $faultCount++;
+            return new WP_Error('forced_lineup_terms_failure', 'Forced Line-Up terms query failure.');
+        };
+
+        add_filter('get_terms', $failTermsQuery, 10, 3);
+        try {
+            $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+            $deferredPool = ll_tools_wordset_games_build_lineup_deferred_count_pool($wordsetId, $userId);
+        } finally {
+            remove_filter('get_terms', $failTermsQuery, 10);
+        }
+
+        $this->assertSame(2, $faultCount);
+        foreach ([$pool, $deferredPool] as $failedPool) {
+            $this->assertFalse((bool) ($failedPool['source_complete'] ?? true));
+            $this->assertTrue((bool) ($failedPool['retryable'] ?? false));
+            $this->assertSame('source_incomplete', (string) ($failedPool['reason_code'] ?? ''));
+            $this->assertSame('category_terms_query', (string) ($failedPool['source_operation'] ?? ''));
+            $this->assertSame(0, (int) ($failedPool['available_sequence_count'] ?? -1));
+            $this->assertFalse((bool) ($failedPool['available_sequence_count_is_exact'] ?? true));
+        }
+    }
+
+    public function test_lineup_privacy_and_enabled_game_meta_read_failures_are_retryable_for_both_pools(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        $categoryId = $this->resolveEffectiveCategoryId((int) $fixture['category_id'], $wordsetId);
+        $this->setCategoryEnabledGames($categoryId, ['line-up']);
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $fixture['word_ids']);
+        wp_set_current_user($userId);
+
+        $enabledGamesComplete = false;
+        $this->assertContains('line-up', ll_tools_get_category_enabled_games($categoryId, $enabledGamesComplete));
+        $this->assertTrue($enabledGamesComplete);
+        $lineupEnabledComplete = false;
+        $this->assertTrue(ll_tools_is_category_enabled_for_game($categoryId, 'line-up', $lineupEnabledComplete));
+        $this->assertTrue($lineupEnabledComplete);
+
+        $faults = [
+            LL_TOOLS_CATEGORY_VISIBILITY_META_KEY => 'category_visibility',
+            LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY => 'category_enabled_games',
+        ];
+        foreach ($faults as $metaKey => $expectedOperation) {
+            $faultCount = 0;
+            $failMetaRead = static function ($value, int $objectId, string $requestedMetaKey) use (
+                $wpdb,
+                $metaKey,
+                &$faultCount
+            ) {
+                if ($requestedMetaKey !== $metaKey) {
+                    return $value;
+                }
+
+                $faultCount++;
+                $wpdb->last_error = 'Forced Line-Up category metadata read failure.';
+                return '';
+            };
+
+            add_filter('get_term_metadata', $failMetaRead, 10, 3);
+            try {
+                if ($metaKey === LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY) {
+                    $helperComplete = true;
+                    $this->assertSame([], ll_tools_get_category_enabled_games($categoryId, $helperComplete));
+                    $this->assertFalse($helperComplete);
+
+                    $predicateComplete = true;
+                    $this->assertFalse(ll_tools_is_category_enabled_for_game($categoryId, 'line-up', $predicateComplete));
+                    $this->assertFalse($predicateComplete);
+                }
+
+                $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+                $deferredPool = ll_tools_wordset_games_build_lineup_deferred_count_pool($wordsetId, $userId);
+            } finally {
+                remove_filter('get_term_metadata', $failMetaRead, 10);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertGreaterThanOrEqual(2, $faultCount);
+            foreach ([$pool, $deferredPool] as $failedPool) {
+                $this->assertFalse((bool) ($failedPool['source_complete'] ?? true));
+                $this->assertTrue((bool) ($failedPool['retryable'] ?? false));
+                $this->assertSame('source_incomplete', (string) ($failedPool['reason_code'] ?? ''));
+                $this->assertSame($expectedOperation, (string) ($failedPool['source_operation'] ?? ''));
+                $this->assertSame(0, (int) ($failedPool['available_sequence_count'] ?? -1));
+                $this->assertFalse((bool) ($failedPool['available_sequence_count_is_exact'] ?? true));
+                $this->assertSame([], (array) ($failedPool['category_ids'] ?? []));
+            }
+
+            $recovered = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+            $this->assertTrue((bool) ($recovered['source_complete'] ?? false));
+            $this->assertSame(1, (int) ($recovered['available_sequence_count'] ?? 0));
+        }
+    }
+
+    public function test_lineup_runtime_and_deferred_launchability_exclude_nonpublished_words(): void
+    {
+        $fixture = $this->createLineupFixture('en', null, 5, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        $categoryId = $this->resolveEffectiveCategoryId((int) $fixture['category_id'], $wordsetId);
+        $wordIds = array_values(array_map('intval', (array) $fixture['word_ids']));
+        $this->assertCount(5, $wordIds);
+
+        wp_update_post(['ID' => $wordIds[0], 'post_status' => 'draft']);
+        wp_update_post(['ID' => $wordIds[1], 'post_status' => 'private']);
+        $savedOrder = [$wordIds[0], $wordIds[2], $wordIds[1], $wordIds[4], $wordIds[3]];
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $savedOrder);
+        clean_post_cache($wordIds[0]);
+        clean_post_cache($wordIds[1]);
+        clean_term_cache($categoryId, 'word-category');
+        wp_set_current_user($userId);
+
+        $runtime = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 60);
+        $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+        $deferredPool = ll_tools_wordset_games_build_lineup_deferred_count_pool($wordsetId, $userId);
+        $launch = ll_tools_wordset_games_build_launch_entry('line-up', $wordsetId, $userId);
+        $expectedPublishedOrder = [$wordIds[2], $wordIds[4], $wordIds[3]];
+
+        $this->assertSame($expectedPublishedOrder, (array) ($runtime['word_ids'] ?? []));
+        $this->assertSame(3, (int) ($runtime['configured_word_count'] ?? 0));
+        $this->assertTrue((bool) ($runtime['configured_word_count_is_exact'] ?? false));
+        $this->assertSame(1, (int) ($pool['available_sequence_count'] ?? 0));
+        $this->assertSame(1, (int) ($deferredPool['available_sequence_count'] ?? 0));
+        $this->assertTrue((bool) ($deferredPool['available_sequence_count_is_exact'] ?? false));
+        $this->assertIsArray($launch);
+        $this->assertTrue((bool) ($launch['launchable'] ?? false));
+        $this->assertSame(
+            $expectedPublishedOrder,
+            $this->extractLineupSequenceWordIds((array) ($launch['sequences'][0]['words'] ?? []))
+        );
+        $this->assertNotContains($wordIds[0], $expectedPublishedOrder);
+        $this->assertNotContains($wordIds[1], $expectedPublishedOrder);
+    }
+
+    public function test_lineup_runtime_clamps_hostile_limits_and_bounds_huge_saved_order_normalization(): void
+    {
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $categoryId = $this->resolveEffectiveCategoryId(
+            (int) $fixture['category_id'],
+            (int) $fixture['wordset_id']
+        );
+        $hugeOrder = array_merge(
+            $fixture['word_ids'],
+            range(1000000, 1003000),
+            [new LL_Tools_Lineup_Order_Tail_Sentinel()]
+        );
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $hugeOrder);
+
+        $hostileMinimum = static function (): int {
+            return PHP_INT_MAX;
+        };
+        $hostileScanCap = static function (): int {
+            return PHP_INT_MAX;
+        };
+        $wordQueries = [];
+        $captureWordQueries = static function (WP_Query $query) use (&$wordQueries): void {
+            if ((string) $query->get('post_type') === 'words') {
+                $wordQueries[] = $query->query_vars;
+            }
+        };
+
+        add_filter('ll_tools_wordset_games_lineup_min_sequence_length', $hostileMinimum);
+        add_filter('ll_tools_wordset_games_lineup_saved_scan_cap', $hostileScanCap);
+        add_action('pre_get_posts', $captureWordQueries);
+        try {
+            $minimumLength = ll_tools_wordset_games_lineup_min_sequence_length();
+            $launchWordCap = ll_tools_wordset_games_lineup_launch_word_cap();
+            $runtime = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 1);
+        } finally {
+            remove_filter('ll_tools_wordset_games_lineup_min_sequence_length', $hostileMinimum);
+            remove_filter('ll_tools_wordset_games_lineup_saved_scan_cap', $hostileScanCap);
+            remove_action('pre_get_posts', $captureWordQueries);
+        }
+
+        $this->assertSame(60, $minimumLength);
+        $this->assertSame(60, $launchWordCap);
+        $this->assertTrue((bool) ($runtime['source_complete'] ?? false));
+        $this->assertSame($fixture['word_ids'], (array) ($runtime['word_ids'] ?? []));
+        $this->assertTrue((bool) ($runtime['saved_order_scan_truncated'] ?? false));
+        $this->assertSame(3, (int) ($runtime['configured_word_count'] ?? 0));
+        $this->assertSame(3, (int) ($runtime['configured_word_count_lower_bound'] ?? 0));
+        $this->assertTrue((bool) ($runtime['configured_word_count_is_exact'] ?? false));
+        $this->assertFalse((bool) ($runtime['sequence_truncated'] ?? true));
+
+        $savedCandidateCount = 0;
+        foreach ($wordQueries as $queryVars) {
+            $postsPerPage = (int) ($queryVars['posts_per_page'] ?? 0);
+            $this->assertGreaterThan(0, $postsPerPage);
+            $this->assertLessThanOrEqual(61, $postsPerPage);
+            $postIds = array_values(array_filter(array_map('intval', (array) ($queryVars['post__in'] ?? []))));
+            if (!empty($postIds)) {
+                $savedCandidateCount += count($postIds);
+                $this->assertLessThanOrEqual(60, count($postIds));
+            }
+        }
+        $this->assertGreaterThan(0, $savedCandidateCount);
+        $this->assertLessThanOrEqual(1000, $savedCandidateCount);
+    }
+
+    public function test_lineup_saved_order_parser_bounds_invalid_string_bytes_and_duplicate_array_items(): void
+    {
+        $stringTruncated = false;
+        $stringIds = ll_tools_wordset_games_parse_lineup_word_order_meta(
+            str_repeat(',', 200000) . '91,92,93',
+            3,
+            $stringTruncated
+        );
+        $this->assertSame([], $stringIds);
+        $this->assertTrue($stringTruncated);
+
+        $arrayTruncated = false;
+        $arrayIds = ll_tools_wordset_games_parse_lineup_word_order_meta(
+            array_merge(array_fill(0, 10000, 71), [72, 73]),
+            3,
+            $arrayTruncated
+        );
+        $this->assertSame([71], $arrayIds);
+        $this->assertTrue($arrayTruncated);
+    }
+
+    public function test_lineup_runtime_default_query_failure_is_retryable_and_not_cached(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $categoryId = $this->resolveEffectiveCategoryId(
+            (int) $fixture['category_id'],
+            (int) $fixture['wordset_id']
+        );
+        $faultCount = 0;
+        $failDefaultQuery = static function (string $query) use ($wpdb, &$faultCount): string {
+            if (
+                stripos($query, 'select') !== false
+                && stripos($query, (string) $wpdb->posts) !== false
+                && preg_match("/post_type\\s*=\\s*'words'/i", $query) === 1
+                && preg_match('/post_title\s+ASC/i', $query) === 1
+            ) {
+                $faultCount++;
+                return 'SELECT ll_tools_missing_lineup_default_column FROM ' . $wpdb->posts;
+            }
+
+            return $query;
+        };
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failDefaultQuery);
+        try {
+            $runtime = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+        } finally {
+            remove_filter('query', $failDefaultQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThan(0, $faultCount);
+        $this->assertFalse((bool) ($runtime['source_complete'] ?? true));
+        $this->assertTrue((bool) ($runtime['retryable'] ?? false));
+        $this->assertSame('source_incomplete', (string) ($runtime['reason_code'] ?? ''));
+        $this->assertSame('default_order_query', (string) ($runtime['source_operation'] ?? ''));
+        $this->assertSame([], (array) ($runtime['word_ids'] ?? []));
+        $this->assertFalse((bool) ($runtime['configured_word_count_is_exact'] ?? true));
+
+        $recovered = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+        $this->assertTrue((bool) ($recovered['source_complete'] ?? false));
+        $this->assertSame($fixture['word_ids'], (array) ($recovered['word_ids'] ?? []));
+        $this->assertTrue((bool) ($recovered['configured_word_count_is_exact'] ?? false));
+    }
+
+    public function test_lineup_runtime_term_read_failure_is_retryable_and_not_cached(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $categoryId = $this->resolveEffectiveCategoryId(
+            (int) $fixture['category_id'],
+            (int) $fixture['wordset_id']
+        );
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $fixture['word_ids']);
+        clean_term_cache($categoryId, 'word-category');
+
+        $faultCount = 0;
+        $failTermRead = static function (string $query) use ($wpdb, $categoryId, &$faultCount): string {
+            if (
+                stripos($query, 'select') !== false
+                && stripos($query, (string) $wpdb->terms) !== false
+                && preg_match('/\\bterm_id\\s*=\\s*' . preg_quote((string) $categoryId, '/') . '\\b/i', $query) === 1
+            ) {
+                $faultCount++;
+                return 'SELECT ll_tools_missing_lineup_term_column FROM ' . $wpdb->terms;
+            }
+
+            return $query;
+        };
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failTermRead);
+        try {
+            $runtime = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+        } finally {
+            remove_filter('query', $failTermRead);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+            clean_term_cache($categoryId, 'word-category');
+        }
+
+        $this->assertGreaterThan(0, $faultCount);
+        $this->assertFalse((bool) ($runtime['source_complete'] ?? true));
+        $this->assertTrue((bool) ($runtime['retryable'] ?? false));
+        $this->assertSame('source_incomplete', (string) ($runtime['reason_code'] ?? ''));
+        $this->assertSame('category_term_read', (string) ($runtime['source_operation'] ?? ''));
+        $this->assertSame([], (array) ($runtime['word_ids'] ?? []));
+        $this->assertFalse((bool) ($runtime['configured_word_count_is_exact'] ?? true));
+
+        $recovered = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+        $this->assertTrue((bool) ($recovered['source_complete'] ?? false));
+        $this->assertSame($fixture['word_ids'], (array) ($recovered['word_ids'] ?? []));
+    }
+
+    public function test_lineup_runtime_meta_read_failures_are_retryable_and_not_cached(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $categoryId = $this->resolveEffectiveCategoryId(
+            (int) $fixture['category_id'],
+            (int) $fixture['wordset_id']
+        );
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $fixture['word_ids']);
+        update_term_meta($categoryId, 'll_category_lineup_direction', 'rtl');
+
+        $faults = [
+            'll_category_lineup_word_order' => 'saved_order_meta_read',
+            'll_category_lineup_direction' => 'direction_meta_read',
+        ];
+        foreach ($faults as $metaKey => $expectedOperation) {
+            $faultCount = 0;
+            $failMetaRead = static function ($value, int $objectId, string $requestedMetaKey) use (
+                $wpdb,
+                $categoryId,
+                $metaKey,
+                &$faultCount
+            ) {
+                if ($objectId !== $categoryId || $requestedMetaKey !== $metaKey) {
+                    return $value;
+                }
+
+                $faultCount++;
+                $wpdb->last_error = 'Forced Line-Up metadata read failure.';
+                return '';
+            };
+
+            add_filter('get_term_metadata', $failMetaRead, 10, 3);
+            try {
+                $runtime = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+            } finally {
+                remove_filter('get_term_metadata', $failMetaRead, 10);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertGreaterThan(0, $faultCount);
+            $this->assertFalse((bool) ($runtime['source_complete'] ?? true));
+            $this->assertTrue((bool) ($runtime['retryable'] ?? false));
+            $this->assertSame('source_incomplete', (string) ($runtime['reason_code'] ?? ''));
+            $this->assertSame($expectedOperation, (string) ($runtime['source_operation'] ?? ''));
+            $this->assertSame([], (array) ($runtime['word_ids'] ?? []));
+            $this->assertFalse((bool) ($runtime['configured_word_count_is_exact'] ?? true));
+
+            $recovered = ll_tools_wordset_games_get_category_lineup_runtime_config($categoryId, 3);
+            $this->assertTrue((bool) ($recovered['source_complete'] ?? false));
+            $this->assertSame($fixture['word_ids'], (array) ($recovered['word_ids'] ?? []));
+            $this->assertSame('rtl', (string) ($recovered['direction'] ?? ''));
+        }
+    }
+
+    public function test_lineup_sequence_mutation_rejects_each_incomplete_stored_config_meta_read(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', 'rtl', 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $categoryId = $this->resolveEffectiveCategoryId((int) $fixture['category_id'], $wordsetId);
+        $wordIds = array_values(array_map('intval', (array) $fixture['word_ids']));
+        $this->assertCount(3, $wordIds);
+        update_term_meta($categoryId, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, $wordIds);
+        update_term_meta($categoryId, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY, 'rtl');
+
+        foreach ([
+            LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+            LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
+        ] as $metaKey) {
+            $faultCount = 0;
+            $failMetaRead = static function ($value, int $objectId, string $requestedMetaKey) use (
+                $wpdb,
+                $categoryId,
+                $metaKey,
+                &$faultCount
+            ) {
+                if ($objectId !== $categoryId || $requestedMetaKey !== $metaKey) {
+                    return $value;
+                }
+
+                $faultCount++;
+                $wpdb->last_error = 'Forced stored Line-Up config metadata read failure.';
+                return '';
+            };
+
+            add_filter('get_term_metadata', $failMetaRead, 10, 3);
+            try {
+                $storedConfigComplete = true;
+                $storedConfig = ll_tools_get_category_lineup_stored_config($categoryId, $storedConfigComplete);
+                $mutationResult = ll_tools_apply_category_lineup_sequence_mutation($categoryId, [
+                    'mutation' => 'reset',
+                    'word_id' => $wordIds[0],
+                ]);
+            } finally {
+                remove_filter('get_term_metadata', $failMetaRead, 10);
+                $wpdb->last_error = '';
+            }
+
+            $this->assertGreaterThanOrEqual(2, $faultCount);
+            $this->assertFalse($storedConfigComplete);
+            $this->assertSame(['direction' => 'auto', 'word_ids' => []], $storedConfig);
+            $this->assertWPError($mutationResult);
+            $this->assertSame(
+                'lineup_source',
+                ll_tools_get_vocab_lesson_category_settings_error_code($mutationResult)
+            );
+            $this->assertTrue((bool) ($mutationResult->get_error_data()['retryable'] ?? false));
+            $this->assertSame(
+                $wordIds,
+                array_values(array_map(
+                    'intval',
+                    (array) get_term_meta($categoryId, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, true)
+                ))
+            );
+
+            $recoveredComplete = false;
+            $recovered = ll_tools_get_category_lineup_stored_config($categoryId, $recoveredComplete);
+            $this->assertTrue($recoveredComplete);
+            $this->assertSame($wordIds, array_values(array_map('intval', (array) ($recovered['word_ids'] ?? []))));
+            $this->assertSame('rtl', (string) ($recovered['direction'] ?? ''));
+        }
+    }
+
+    public function test_lineup_saved_query_failure_discards_partial_sequences_and_fails_catalog_and_ajax_closed(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        update_term_meta((int) $fixture['category_id'], 'll_category_lineup_word_order', $fixture['word_ids']);
+
+        $secondCategory = wp_insert_term(
+            'Lineup Failure Category ' . wp_generate_password(6, false),
+            'word-category'
+        );
+        $this->assertIsArray($secondCategory);
+        $secondCategoryId = (int) $secondCategory['term_id'];
+        update_term_meta($secondCategoryId, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($secondCategoryId, 'll_quiz_option_type', 'text_title');
+        $secondWordIds = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $secondWordIds[] = $this->createWordWithGameMedia(
+                'Lineup Failure Word ' . $index,
+                'Lineup Failure Translation ' . $index,
+                $secondCategoryId,
+                $wordsetId,
+                false,
+                []
+            );
+        }
+        $secondCategoryId = $this->resolveEffectiveCategoryId($secondCategoryId, $wordsetId);
+        $this->setCategoryEnabledGames($secondCategoryId, ['line-up']);
+        update_term_meta($secondCategoryId, 'll_category_lineup_word_order', $secondWordIds);
+
+        $faultCount = 0;
+        $failSecondCategorySavedQuery = static function (string $query) use (
+            $wpdb,
+            $secondWordIds,
+            &$faultCount
+        ): string {
+            $containsSecondCategoryCandidate = false;
+            foreach ($secondWordIds as $wordId) {
+                if (preg_match('/\\b' . preg_quote((string) $wordId, '/') . '\\b/', $query) === 1) {
+                    $containsSecondCategoryCandidate = true;
+                    break;
+                }
+            }
+            $isSavedLineupQuery = stripos($query, 'select') !== false
+                && stripos($query, (string) $wpdb->posts) !== false
+                && preg_match("/post_type\\s*=\\s*'words'/i", $query) === 1
+                && preg_match("/post_status\\s*=\\s*'publish'/i", $query) === 1
+                && preg_match('/ORDER BY\s+FIELD\s*\(/i', $query) === 1
+                && preg_match('/LIMIT\s+0\s*,\s*\d+/i', $query) === 1
+                && $containsSecondCategoryCandidate;
+            if (!$isSavedLineupQuery) {
+                return $query;
+            }
+
+            $faultCount++;
+            return 'SELECT ll_tools_missing_lineup_saved_column FROM ' . $wpdb->posts;
+        };
+
+        wp_set_current_user($userId);
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failSecondCategorySavedQuery);
+        try {
+            $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+            $catalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId, false);
+            $launch = ll_tools_wordset_games_build_launch_entry('line-up', $wordsetId, $userId);
+
+            $nonce = wp_create_nonce('ll_user_study');
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $wordsetId,
+            ];
+            $_REQUEST = $_POST;
+            $bootstrapResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_bootstrap_ajax();
+            });
+
+            $_POST = [
+                'nonce' => $nonce,
+                'wordset_id' => $wordsetId,
+                'game_slug' => 'line-up',
+            ];
+            $_REQUEST = $_POST;
+            $launchResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_launch_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('query', $failSecondCategorySavedQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThan(0, $faultCount);
+        $this->assertFalse((bool) ($pool['source_complete'] ?? true));
+        $this->assertTrue((bool) ($pool['retryable'] ?? false));
+        $this->assertSame('source_incomplete', (string) ($pool['reason_code'] ?? ''));
+        $this->assertSame('saved_order_validation', (string) ($pool['source_operation'] ?? ''));
+        $this->assertSame(0, (int) ($pool['available_sequence_count'] ?? -1));
+        $this->assertFalse((bool) ($pool['available_sequence_count_is_exact'] ?? true));
+        $this->assertSame(0, (int) ($pool['invalid_sequence_count'] ?? -1));
+        $this->assertSame([], (array) ($pool['sequences'] ?? []));
+
+        $this->assertArrayHasKey('line-up', $catalog);
+        $this->assertFalse((bool) ($catalog['line-up']['source_complete'] ?? true));
+        $this->assertTrue((bool) ($catalog['line-up']['retryable'] ?? false));
+        $this->assertFalse((bool) ($catalog['line-up']['launchable'] ?? true));
+        $this->assertSame('source_incomplete', (string) ($catalog['line-up']['reason_code'] ?? ''));
+        $this->assertFalse((bool) ($catalog['line-up']['available_sequence_count_is_exact'] ?? true));
+
+        $this->assertIsArray($launch);
+        $this->assertFalse((bool) ($launch['source_complete'] ?? true));
+        $this->assertTrue((bool) ($launch['retryable'] ?? false));
+        $this->assertFalse((bool) ($launch['launchable'] ?? true));
+        $this->assertSame('source_incomplete', (string) ($launch['reason_code'] ?? ''));
+        $this->assertSame([], (array) ($launch['sequences'] ?? []));
+
+        foreach ([$bootstrapResponse, $launchResponse] as $response) {
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('source_incomplete', (string) ($response['data']['code'] ?? ''));
+            $this->assertTrue((bool) ($response['data']['retryable'] ?? false));
+            $this->assertGreaterThan(0, (int) ($response['data']['retry_after'] ?? 0));
+            $this->assertSame('line-up', (string) ($response['data']['game_slug'] ?? ''));
+        }
+    }
+
+    public function test_lineup_word_hydration_failure_discards_partial_sequences_and_fails_catalog_and_launch_closed(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLineupFixture('en', null, 3, ['line-up']);
+        $wordsetId = (int) $fixture['wordset_id'];
+        $userId = (int) $fixture['user_id'];
+        $categoryId = $this->resolveEffectiveCategoryId((int) $fixture['category_id'], $wordsetId);
+        $this->setCategoryEnabledGames($categoryId, ['line-up']);
+        update_term_meta($categoryId, 'll_category_lineup_word_order', $fixture['word_ids']);
+
+        $faultCount = 0;
+        $failHydrationQuery = static function (string $query) use ($wpdb, &$faultCount): string {
+            $isLineupHydrationQuery = stripos($query, 'select') !== false
+                && stripos($query, (string) $wpdb->posts) !== false
+                && preg_match("/post_type\\s*=\\s*'words'/i", $query) === 1
+                && preg_match("/post_status\\s*=\\s*'publish'/i", $query) === 1
+                && preg_match('/ORDER BY\\s+FIELD\\s*\\(/i', $query) === 1
+                && preg_match('/LIMIT\\s+0\\s*,\\s*\\d+/i', $query) !== 1;
+            if (!$isLineupHydrationQuery) {
+                return $query;
+            }
+
+            $faultCount++;
+            return 'SELECT ll_tools_missing_lineup_hydration_column FROM ' . $wpdb->posts;
+        };
+
+        wp_set_current_user($userId);
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('query', $failHydrationQuery);
+        try {
+            $pool = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+            $catalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId, true);
+            $launch = ll_tools_wordset_games_build_launch_entry('line-up', $wordsetId, $userId);
+        } finally {
+            remove_filter('query', $failHydrationQuery);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertGreaterThan(0, $faultCount);
+        $this->assertFalse((bool) ($pool['source_complete'] ?? true));
+        $this->assertTrue((bool) ($pool['retryable'] ?? false));
+        $this->assertSame('source_incomplete', (string) ($pool['reason_code'] ?? ''));
+        $this->assertSame('sequence_word_hydration', (string) ($pool['source_operation'] ?? ''));
+        $this->assertSame(0, (int) ($pool['available_sequence_count'] ?? -1));
+        $this->assertSame([], (array) ($pool['sequences'] ?? []));
+
+        $this->assertArrayHasKey('line-up', $catalog);
+        $this->assertFalse((bool) ($catalog['line-up']['source_complete'] ?? true));
+        $this->assertTrue((bool) ($catalog['line-up']['retryable'] ?? false));
+        $this->assertFalse((bool) ($catalog['line-up']['launchable'] ?? true));
+        $this->assertSame('sequence_word_hydration', (string) ($catalog['line-up']['source_operation'] ?? ''));
+
+        $this->assertIsArray($launch);
+        $this->assertFalse((bool) ($launch['source_complete'] ?? true));
+        $this->assertTrue((bool) ($launch['retryable'] ?? false));
+        $this->assertFalse((bool) ($launch['launchable'] ?? true));
+        $this->assertSame('sequence_word_hydration', (string) ($launch['source_operation'] ?? ''));
+        $this->assertSame([], (array) ($launch['sequences'] ?? []));
+
+        $recovered = ll_tools_wordset_games_build_lineup_pool($wordsetId, $userId);
+        $this->assertTrue((bool) ($recovered['source_complete'] ?? false));
+        $this->assertSame(1, (int) ($recovered['available_sequence_count'] ?? 0));
+        $this->assertCount(1, (array) ($recovered['sequences'] ?? []));
+    }
+
     public function test_lineup_large_launch_caps_sequence_and_word_payloads(): void
     {
         $fixture = $this->createLineupFixture('en', null, 8, ['line-up']);
@@ -1838,16 +2582,30 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         foreach ((array) ($launch['sequences'] ?? []) as $sequence) {
             $this->assertCount(5, (array) ($sequence['words'] ?? []));
             $this->assertTrue((bool) ($sequence['sequence_truncated'] ?? false));
+            $this->assertGreaterThanOrEqual(6, (int) ($sequence['configured_word_count'] ?? 0));
+            $this->assertSame(
+                (int) ($sequence['configured_word_count'] ?? 0),
+                (int) ($sequence['configured_word_count_lower_bound'] ?? 0)
+            );
+            $this->assertFalse((bool) ($sequence['configured_word_count_is_exact'] ?? true));
         }
         $candidateQueries = 0;
         foreach ($wordQueries as $queryVars) {
             $postIds = array_values(array_filter(array_map('intval', (array) ($queryVars['post__in'] ?? []))));
             if (!empty($postIds)) {
                 $candidateQueries++;
-                $this->assertLessThanOrEqual(5, count($postIds));
+                $postsPerPage = (int) ($queryVars['posts_per_page'] ?? 0);
+                if ($postsPerPage === -1) {
+                    $this->assertLessThanOrEqual(5, count($postIds));
+                } else {
+                    $this->assertGreaterThan(0, $postsPerPage);
+                    $this->assertLessThanOrEqual(60, $postsPerPage);
+                }
+                $this->assertLessThanOrEqual(60, count($postIds));
             }
         }
-        $this->assertSame(2, $candidateQueries);
+        $this->assertGreaterThan(0, $candidateQueries);
+        $this->assertLessThanOrEqual(8, $candidateQueries);
     }
 
     public function test_unscramble_launch_uses_text_clues_when_available(): void

@@ -1,11 +1,12 @@
 # Maintenance Backlog
 
-Updated September 1, 2026 during the 6.7.33 maintenance and performance pass.
-The current pass closes the verified concurrency, privacy replay, report
-completeness/scale, deletion durability, bounded-query, localization, and
-focused browser-coverage findings while leaving evidence-dependent or
-provider-dependent work below for deliberate review. No real Google provider
-authorization or live-site check was attempted.
+Updated September 5, 2026 during the 6.7.34 reliability and resource-boundary
+pass. The current pass closes the verified fail-closed count, request admission,
+bounded Line-Up, autosave/export recovery, accessibility, localization, and
+focused admin-browser coverage findings while leaving protocol-, deployment-,
+or human-review-dependent work below for deliberate review. The exact Local
+runtime was started and exercised; no deployed-site check, deployment, or real
+provider authorization was attempted.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -27,6 +28,32 @@ judgment:
   migration.
 - A durable lesson-map materializer only if production measurements justify
   replacing the winning cold full scan.
+- A normalized Line-Up order store with a physically bounded runtime projection
+  and a bounded migration for legacy `ll_category_lineup_word_order` termmeta.
+  Learner code now caps inspected IDs, candidate queries, and hydrated words,
+  but WordPress can still deserialize the complete legacy order when another
+  key primes that category's termmeta cache. Moving the authoring order must
+  preserve taxonomy/editor, export/import, isolation-fallback, and rollback
+  compatibility; a local prefix parser alone does not remove that peak.
+- A dependency revision/materialization protocol for isolated categories that
+  still inherit Line-Up order or direction from their source category. Current
+  category locks and revisions serialize direct writes to the target term, but
+  a later source-only change can alter the target's effective inherited value
+  without advancing the target revision. Closing that cross-term dependency
+  requires deterministic multi-term coordination plus dependency revisions,
+  materializing independent target values, or deliberately ending inheritance;
+  it should not be hidden inside the single-category autosave protocol.
+- A paged offline progress-snapshot protocol for bundles above the existing
+  5,000-word read scope. The compatibility sanitizer still caps that read list
+  so an oversized bundle can sync its state/events; rejecting the whole request
+  or changing client/server chunk semantics needs an explicit protocol rollout.
+- Idempotency/recovery identifiers before applying automatic client deadlines
+  or retries to offline-export job creation and Site Sync remote-write batches.
+  Offline-export continuation requests now time out into an explicit Resume
+  state, but a lost job-start or remote-write response remains ambiguous.
+- Early render-surface declaration before removing the login/language-switcher
+  base assets from unrelated public pages. Those shortcodes can render after
+  `wp_head`, when self-enqueuing their stylesheet would be too late.
 - An automated sweeper or dedicated admin view for rare Audio Processor
   `cleanup_failed` journals only if operational evidence shows retained
   non-autoloaded failure records accumulating after the bounded automatic
@@ -38,14 +65,14 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (September 1)
+### Current verification inventory (September 5)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical
   source/POT key comparison backed by a temporary WP-CLI extraction. The
   standalone command is `php scripts/check-i18n-source-pot.php`; it must be
   green after the catalog refresh and before catalog-count or locale-coverage
   checks are accepted. The source-frozen POT and complete Turkish/German core
-  catalogs contain 6,279 canonical keys each; both compiled MO/PHP catalogs
+  catalogs contain 6,313 canonical keys each; both compiled MO/PHP catalogs
   match exactly. The active public manifest and all eight active tier-2 locales
   pass 796/796.
 - The maintenance browser contract owns both automation REST documentation and
@@ -54,19 +81,64 @@ the normal regression suite.
   score/date, 30-day attempt counts, dynamic column indexes, descending order,
   `aria-sort`, and focus retention. It requires the serial Local Playwright
   environment and admin credentials.
-- Final Playwright discovery lists **710 tests in 108 files**. Eight serial
-  shards plus focused reruns account for every case: 709 passed and the opt-in
-  seeded performance benchmark skipped once as expected, with zero product
-  failures.
+- Final Playwright discovery lists **726 tests in 114 files**. Eight serial
+  shards plus the corrected-catalog focused rerun account for every case: 725
+  passed and the opt-in seeded performance benchmark skipped once as expected,
+  with zero product failures. One invalid shard was restarted after the
+  manually started Local FastCGI worker ended and returned 502; the unchanged
+  shard then passed 62/62.
 - Both release-scale performance profiles passed without writing history. The
   force-seeded Genç fixture (209 categories, 2,717 words) passed 10/10
   scenarios, including cold recorder-queue completion in 98,043 ms; the
   stress-2x fixture (100 categories, 5,000 words, 15,000 audio records, and
   5,100 images/attachments) passed 8/8 scenarios.
-- Final PHPUnit result: **2,359 tests, 59,798 assertions, 9 expected skips**.
+- Final PHPUnit result: **2,506 tests, 61,790 assertions, 9 expected skips**.
   The standard complete suite exited successfully.
 
 ## Recently Closed
+
+- September 4 runtime/resource follow-up: an incomplete targeted vocab-lesson
+  count now returns a retryable 503 before the legacy full-category fallback;
+  offline sync rejects event batches above 200 before authentication or
+  mutation; offline logout has atomic token/IP pre-auth admission; weighted
+  fixed-window counters use a non-overwriting atomic first create and recover
+  once from a concurrent zero-row cleanup without admitting on SQL errors; dictionary,
+  common-category, and Word Audio bulk-state inputs are raw-shape/byte/count
+  bounded before hydration; and learner Line-Up catalog/launch logic inspects
+  only a capped sequence prefix and issues bounded candidate queries instead of
+  sorting and hydrating every category word. Physical legacy-order storage is
+  tracked separately above because WordPress termmeta caching can still load it.
+- September 4 frontend/accessibility follow-up: vocab category autosave now
+  keeps the latest queued edit across failure, serializes category writes, and
+  fences stale or cross-tab revisions; title saves recover for explicit retry;
+  offline-export continuation requests abort/fence on timeout and expose
+  Resume; progress bars have programmatic labels; recorder animation/hover
+  motion respects reduced-motion; and the Turkish transliteration example
+  preserves its exact symbols.
+- September 4 category-state atomicity follow-up: lesson autosave, taxonomy
+  forms, Line-Up/default/audio/image settings, duplicate/copy, import, and
+  deletion now share one category lock. Settings writes require transactional
+  term metadata, verify their mutations, and commit with one revision advance;
+  imports validate canonical per-key shapes and bounds, exclude the private
+  revision, preserve omitted local Line-Up state, and verify failed-created-term
+  rollback instead of treating a best-effort delete as proof. WordPress 6.1 is
+  now the declared minimum so category creation can prove the exact raw term
+  mapping from scoped hook arguments; concurrent duplicate winners are never
+  adopted or Undo-tracked, template categories retain isolated ownership even
+  when the global option is off, and uncertain cleanup remains recoverable
+  without being counted as success. Regular imported term metadata now verifies
+  deletion, every add, and exact serialized readback, with failures propagated
+  through template and ordinary wordset imports. Failed deferred maintenance
+  also retains a durable, independently scheduled full-pass intent behind any
+  active quiz or vocab worker; follow-ups restart from cursor zero without
+  clobbering active state, losing forced orphan cleanup, recursively creating
+  passes, or being stranded by a failed worker-event write.
+- September 4 focused coverage follow-up: Word Audio bulk recording-type edits,
+  Site Sync orchestration, WebP mutation/retry behavior, autosave/title/export
+  deadlines, reduced motion, admission guards, stale bulk-selection responses,
+  and Line-Up query bounds now have direct PHP or browser regressions. The
+  offline builder lockfile also resolves `@xmldom/xmldom` to the patched 0.8.15
+  release; its npm audit is clean.
 
 - September 1 maintenance/performance audit follow-up: teacher-class deletion
   now publishes an exact-owner deletion lease before its roster barrier, and

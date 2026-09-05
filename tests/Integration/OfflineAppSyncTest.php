@@ -1124,6 +1124,123 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         $this->assertSame([], $touch_queries);
     }
 
+    public function test_offline_app_logout_rate_limit_rejects_before_session_authentication(): void
+    {
+        global $wpdb;
+
+        $ip = '198.51.100.73';
+        $previousRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = $ip;
+        $configFilter = static function (array $config): array {
+            $config['token_limit'] = 1;
+            $config['ip_limit'] = 100;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_logout_throttle_config', $configFilter);
+
+        $badTokenOne = '';
+        $badTokenTwo = '';
+        try {
+            $user_id = self::factory()->user->create();
+            $session = ll_tools_offline_app_create_session($user_id);
+            $tokenParts = explode('.', (string) ($session['token'] ?? ''));
+            $this->assertCount(4, $tokenParts);
+            $badTokenOne = sprintf('llapp.%d.%s.badsecretone', $user_id, $tokenParts[2]);
+            $badTokenTwo = sprintf('llapp.%d.%s.badsecrettwo', $user_id, $tokenParts[2]);
+            $this->assertSame(
+                ll_tools_offline_app_sync_token_identifier($badTokenOne),
+                ll_tools_offline_app_sync_token_identifier($badTokenTwo)
+            );
+            ll_tools_offline_app_reset_logout_throttle($badTokenOne, $ip);
+
+            $first = $this->runOfflineLogoutRequest($badTokenOne);
+            $this->assertFalse((bool) ($first['success'] ?? true));
+            $this->assertSame('Sign in required.', (string) ($first['data']['message'] ?? ''));
+
+            $queries = [];
+            $queryWatcher = static function (string $query) use (&$queries): string {
+                $queries[] = $query;
+                return $query;
+            };
+            add_filter('query', $queryWatcher);
+            try {
+                $second = $this->runOfflineLogoutRequest($badTokenTwo);
+            } finally {
+                remove_filter('query', $queryWatcher);
+            }
+
+            $this->assertFalse((bool) ($second['success'] ?? true));
+            $this->assertSame('Sign in required.', (string) ($second['data']['message'] ?? ''));
+            $this->assertGreaterThan(0, (int) ($second['data']['retry_after'] ?? 0));
+            $this->assertArrayNotHasKey('scope', (array) ($second['data'] ?? []));
+            $this->assertArrayNotHasKey('limit_type', (array) ($second['data'] ?? []));
+
+            $querySql = implode("\n", $queries);
+            $this->assertStringContainsString('ll_tools_off_logout_token_', $querySql);
+            $this->assertStringNotContainsString(ll_tools_offline_app_session_table(), $querySql);
+        } finally {
+            ll_tools_offline_app_reset_logout_throttle($badTokenOne, $ip);
+            ll_tools_offline_app_reset_logout_throttle($badTokenTwo, $ip);
+            remove_filter('ll_tools_offline_app_logout_throttle_config', $configFilter);
+            if ($previousRemoteAddr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previousRemoteAddr;
+            }
+        }
+    }
+
+    public function test_offline_app_logout_ip_saturation_creates_no_token_options_for_varied_secrets(): void
+    {
+        $ip = '198.51.100.74';
+        $configFilter = static function (array $config): array {
+            $config['token_limit'] = 100;
+            $config['ip_limit'] = 1;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_logout_throttle_config', $configFilter);
+
+        $saturatingToken = '';
+        $blockedTokenOne = '';
+        $blockedTokenTwo = '';
+        try {
+            $user_id = self::factory()->user->create();
+            $session = ll_tools_offline_app_create_session($user_id);
+            $tokenParts = explode('.', (string) ($session['token'] ?? ''));
+            $this->assertCount(4, $tokenParts);
+            $saturatingToken = sprintf('llapp.%d.%s.invalidsecret', $user_id, $tokenParts[2]);
+            $blockedTokenOne = sprintf('llapp.%d.blockedsession.secretone', $user_id);
+            $blockedTokenTwo = sprintf('llapp.%d.blockedsession.secrettwo', $user_id);
+            $blockedIdentifier = ll_tools_offline_app_sync_token_identifier($blockedTokenOne);
+            $this->assertNotSame('', $blockedIdentifier);
+            $this->assertSame($blockedIdentifier, ll_tools_offline_app_sync_token_identifier($blockedTokenTwo));
+
+            ll_tools_offline_app_reset_logout_throttle($saturatingToken, $ip);
+            ll_tools_offline_app_reset_logout_throttle($blockedTokenOne, $ip);
+
+            $first = $this->runOfflineLogoutRequestForIp($saturatingToken, $ip);
+            $this->assertFalse((bool) ($first['success'] ?? true));
+
+            $blockedOne = $this->runOfflineLogoutRequestForIp($blockedTokenOne, $ip);
+            $blockedTwo = $this->runOfflineLogoutRequestForIp($blockedTokenTwo, $ip);
+            $this->assertFalse((bool) ($blockedOne['success'] ?? true));
+            $this->assertFalse((bool) ($blockedTwo['success'] ?? true));
+            $this->assertGreaterThan(0, (int) ($blockedOne['data']['retry_after'] ?? 0));
+            $this->assertGreaterThan(0, (int) ($blockedTwo['data']['retry_after'] ?? 0));
+
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_logout_counter_prefix('token'),
+                $blockedIdentifier,
+                (int) ll_tools_offline_app_logout_throttle_config()['window']
+            );
+        } finally {
+            ll_tools_offline_app_reset_logout_throttle($saturatingToken, $ip);
+            ll_tools_offline_app_reset_logout_throttle($blockedTokenOne, $ip);
+            ll_tools_offline_app_reset_logout_throttle($blockedTokenTwo, $ip);
+            remove_filter('ll_tools_offline_app_logout_throttle_config', $configFilter);
+        }
+    }
+
     public function test_offline_app_login_rate_limit_blocks_after_configured_attempts(): void
     {
         $ip = '203.0.113.44';
@@ -1359,11 +1476,52 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_offline_sync_refunds_token_reservation_when_ip_admission_fails(): void
+    public function test_offline_sync_resource_admission_failure_removes_refunded_request_options(): void
+    {
+        $token = 'llapp.3.resourcefail.secret';
+        $ip = '198.51.100.28';
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 10;
+            $config['resource_unit_limit'] = 1;
+            $config['ip_request_limit'] = 0;
+            $config['ip_resource_unit_limit'] = 0;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        try {
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+            $status = ll_tools_offline_app_check_sync_throttle($token, 2, true, $ip);
+
+            $this->assertTrue($status['limited']);
+            $this->assertSame('token', $status['scope']);
+            $this->assertSame('resource_units', $status['limit_type']);
+
+            $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+            $this->assertNotSame('', $token_identifier);
+            $window = (int) ll_tools_offline_app_sync_throttle_config()['window'];
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('token', 'requests'),
+                $token_identifier,
+                $window
+            );
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('token', 'resource'),
+                $token_identifier,
+                $window
+            );
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($token, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+        }
+    }
+
+    public function test_offline_sync_ip_admission_precedes_token_options_for_varied_secrets(): void
     {
         $ip = '198.51.100.29';
         $first_token = 'llapp.1.first.token';
-        $second_token = 'llapp.1.second.token';
+        $second_token = 'llapp.1.second.secretone';
+        $second_token_variant = 'llapp.1.second.secrettwo';
         $config_filter = static function (array $config): array {
             $config['request_limit'] = 10;
             $config['resource_unit_limit'] = 100;
@@ -1376,19 +1534,77 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         try {
             ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
             ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+            $second_identifier = ll_tools_offline_app_sync_token_identifier($second_token);
+            $this->assertNotSame('', $second_identifier);
+            $this->assertSame($second_identifier, ll_tools_offline_app_sync_token_identifier($second_token_variant));
 
             $first = ll_tools_offline_app_check_sync_throttle($first_token, 1, true, $ip);
             $blocked = ll_tools_offline_app_check_sync_throttle($second_token, 1, true, $ip);
-            $second_status = ll_tools_offline_app_get_sync_throttle_status($second_token, 1, $ip);
+            $blocked_variant = ll_tools_offline_app_check_sync_throttle($second_token_variant, 1, true, $ip);
 
             $this->assertFalse($first['limited']);
             $this->assertTrue($blocked['limited']);
             $this->assertSame('ip', $blocked['scope']);
-            $this->assertSame(0, (int) (($second_status['token'] ?? [])['requests'] ?? -1));
-            $this->assertSame(0, (int) (($second_status['token'] ?? [])['resource_units'] ?? -1));
+            $this->assertTrue($blocked_variant['limited']);
+            $this->assertSame('ip', $blocked_variant['scope']);
+            $window = (int) ll_tools_offline_app_sync_throttle_config()['window'];
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('token', 'requests'),
+                $second_identifier,
+                $window
+            );
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('token', 'resource'),
+                $second_identifier,
+                $window
+            );
         } finally {
             ll_tools_offline_app_reset_sync_throttle($first_token, $ip);
             ll_tools_offline_app_reset_sync_throttle($second_token, $ip);
+            ll_tools_offline_app_reset_sync_throttle($second_token_variant, $ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+        }
+    }
+
+    public function test_offline_sync_partial_ip_reservation_is_refunded_without_zero_options(): void
+    {
+        $first_ip = '198.51.100.30';
+        $second_ip = '198.51.100.31';
+        $token_one = 'llapp.2.shared.secretone';
+        $token_two = 'llapp.2.shared.secrettwo';
+        $config_filter = static function (array $config): array {
+            $config['request_limit'] = 1;
+            $config['resource_unit_limit'] = 100;
+            $config['ip_request_limit'] = 10;
+            $config['ip_resource_unit_limit'] = 100;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
+
+        try {
+            ll_tools_offline_app_reset_sync_throttle($token_one, $first_ip);
+            ll_tools_offline_app_reset_sync_throttle($token_two, $second_ip);
+
+            $first = ll_tools_offline_app_check_sync_throttle($token_one, 1, true, $first_ip);
+            $blocked = ll_tools_offline_app_check_sync_throttle($token_two, 1, true, $second_ip);
+            $this->assertFalse($first['limited']);
+            $this->assertTrue($blocked['limited']);
+            $this->assertSame('token', $blocked['scope']);
+
+            $window = (int) ll_tools_offline_app_sync_throttle_config()['window'];
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('ip', 'requests'),
+                $second_ip,
+                $window
+            );
+            $this->assertCounterOptionsAbsent(
+                ll_tools_offline_app_sync_counter_prefix('ip', 'resource'),
+                $second_ip,
+                $window
+            );
+        } finally {
+            ll_tools_offline_app_reset_sync_throttle($token_one, $first_ip);
+            ll_tools_offline_app_reset_sync_throttle($token_two, $second_ip);
             remove_filter('ll_tools_offline_app_sync_throttle_config', $config_filter);
         }
     }
@@ -1396,9 +1612,16 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
     public function test_offline_auth_tokens_are_byte_bounded_before_validation_or_throttle_hashing(): void
     {
         $valid_shape = 'llapp.1.' . str_repeat('a', 32) . '.' . str_repeat('B', 64);
+        $alternate_secret = 'llapp.1.' . str_repeat('a', 32) . '.' . str_repeat('C', 64);
         $oversized = str_repeat('x', ll_tools_offline_app_auth_token_max_bytes() + 1);
 
         $this->assertSame($valid_shape, ll_tools_offline_app_normalize_auth_token($valid_shape));
+        $this->assertNotSame('', ll_tools_offline_app_sync_token_identifier($valid_shape));
+        $this->assertSame(
+            ll_tools_offline_app_sync_token_identifier($valid_shape),
+            ll_tools_offline_app_sync_token_identifier($alternate_secret)
+        );
+        $this->assertSame('', ll_tools_offline_app_sync_token_identifier('malformed-token'));
         $this->assertSame('', ll_tools_offline_app_normalize_auth_token($oversized));
         $this->assertSame('', ll_tools_offline_app_sync_token_identifier($oversized));
         $this->assertNull(ll_tools_offline_app_authenticate_token($oversized, false));
@@ -1409,6 +1632,58 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $this->assertSame('', ll_tools_offline_app_request_auth_token());
         } finally {
             $_POST = $previous_post;
+        }
+    }
+
+    public function test_malformed_offline_tokens_reserve_only_ip_scopes(): void
+    {
+        $sync_ip = '198.51.100.32';
+        $logout_ip = '198.51.100.33';
+        $sync_config_filter = static function (array $config): array {
+            $config['request_limit'] = 10;
+            $config['resource_unit_limit'] = 100;
+            $config['ip_request_limit'] = 10;
+            $config['ip_resource_unit_limit'] = 100;
+            return $config;
+        };
+        $logout_config_filter = static function (array $config): array {
+            $config['token_limit'] = 10;
+            $config['ip_limit'] = 10;
+            return $config;
+        };
+        add_filter('ll_tools_offline_app_sync_throttle_config', $sync_config_filter);
+        add_filter('ll_tools_offline_app_logout_throttle_config', $logout_config_filter);
+
+        $queries = [];
+        $query_watcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $query_watcher);
+        try {
+            ll_tools_offline_app_reset_sync_throttle('', $sync_ip);
+            ll_tools_offline_app_reset_logout_throttle('', $logout_ip);
+            $queries = [];
+
+            $sync = ll_tools_offline_app_reserve_sync_throttle('malformed-token', 1, $sync_ip);
+            $logout = ll_tools_offline_app_reserve_logout_throttle('malformed-token', $logout_ip);
+            $this->assertFalse($sync['limited']);
+            $this->assertFalse($logout['limited']);
+
+            $query_sql = implode("\n", $queries);
+            $this->assertStringContainsString('ll_tools_off_sync_ip_', $query_sql);
+            $this->assertStringContainsString('ll_tools_off_logout_ip_', $query_sql);
+            $this->assertStringNotContainsString('ll_tools_off_sync_token_', $query_sql);
+            $this->assertStringNotContainsString('ll_tools_off_logout_token_', $query_sql);
+
+            ll_tools_offline_app_sync_refund_reservations((array) ($sync['ip'] ?? []));
+            ll_tools_offline_app_refund_logout_throttle($logout);
+        } finally {
+            remove_filter('query', $query_watcher);
+            ll_tools_offline_app_reset_sync_throttle('', $sync_ip);
+            ll_tools_offline_app_reset_logout_throttle('', $logout_ip);
+            remove_filter('ll_tools_offline_app_sync_throttle_config', $sync_config_filter);
+            remove_filter('ll_tools_offline_app_logout_throttle_config', $logout_config_filter);
         }
     }
 
@@ -1493,6 +1768,32 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         } finally {
             remove_filter('ll_tools_offline_app_sync_payload_max_bytes', $max_payload_filter);
         }
+    }
+
+    public function test_offline_app_sync_rejects_more_than_200_events_before_authentication(): void
+    {
+        $queries = [];
+        $queryWatcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $queryWatcher);
+
+        try {
+            $response = $this->runOfflineSyncRequest([
+                'auth_token' => 'llapp.999999.fakekey.fakesecret',
+                'events' => wp_json_encode(array_fill(0, 201, [])),
+                'word_ids' => '[]',
+            ]);
+        } finally {
+            remove_filter('query', $queryWatcher);
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('payload_too_large', (string) ($response['data']['code'] ?? ''));
+        $querySql = implode("\n", $queries);
+        $this->assertStringNotContainsString(ll_tools_offline_app_session_table(), $querySql);
+        $this->assertStringNotContainsString('ll_tools_off_sync_', $querySql);
     }
 
     public function test_state_only_sync_remains_available_while_event_sync_fails_before_state_write(): void
@@ -1690,6 +1991,43 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $_POST = [];
             $_REQUEST = [];
         }
+    }
+
+    private function runOfflineLogoutRequest(string $token): array
+    {
+        $_POST = ['auth_token' => $token];
+        $_REQUEST = $_POST;
+
+        try {
+            return $this->run_json_endpoint(static function (): void {
+                ll_tools_offline_app_logout_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+    }
+
+    private function runOfflineLogoutRequestForIp(string $token, string $ip): array
+    {
+        $previousRemoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = $ip;
+        try {
+            return $this->runOfflineLogoutRequest($token);
+        } finally {
+            if ($previousRemoteAddr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previousRemoteAddr;
+            }
+        }
+    }
+
+    private function assertCounterOptionsAbsent(string $prefix, string $identifier, int $window): void
+    {
+        $names = ll_tools_public_ajax_counter_option_names($prefix, $identifier, $window);
+        $this->assertFalse(get_option($names['value'], false), $names['value'] . ' should not exist.');
+        $this->assertFalse(get_option($names['timeout'], false), $names['timeout'] . ' should not exist.');
     }
 
     private function run_json_endpoint(callable $callback): array

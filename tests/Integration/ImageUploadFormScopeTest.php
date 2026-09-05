@@ -162,6 +162,59 @@ final class ImageUploadFormScopeTest extends LL_Tools_TestCase
         $this->assertSame($wordset_id, ll_tools_get_category_wordset_owner_id((int) $created_category_id));
     }
 
+    public function test_create_category_fails_closed_when_recording_type_query_sets_database_error(): void
+    {
+        global $wpdb;
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+        $wordsetId = $this->ensureTerm(
+            'wordset',
+            'Image Upload Recording Source',
+            'image-upload-recording-source'
+        );
+        $categoryName = 'Recording Source Failure ' . wp_generate_password(8, false);
+
+        $_POST = [
+            'll_category_mode' => 'new',
+            'll_new_category_title' => $categoryName,
+            'll_wordset_scope_mode' => 'single',
+            'll_single_wordset_id' => (string) $wordsetId,
+            'll_new_category_desired_recording_types_submitted' => '1',
+            'll_new_category_desired_recording_types' => ['isolation'],
+        ];
+
+        $injected = false;
+        $queryFailure = static function ($terms, $taxonomies) use (&$injected, $wpdb) {
+            if (!$injected && in_array('recording_type', (array) $taxonomies, true)) {
+                $injected = true;
+                $wpdb->last_error = 'll_tools_test_image_upload_recording_type_query_failure';
+                return [];
+            }
+            return $terms;
+        };
+        add_filter('get_terms', $queryFailure, 999, 2);
+        try {
+            $result = ll_image_upload_create_category_from_request();
+        } finally {
+            remove_filter('get_terms', $queryFailure, 999);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertTrue($injected);
+        $this->assertWPError($result);
+        $this->assertSame('ll_image_upload_category_settings_source', $result->get_error_code());
+
+        $created = get_term_by('name', $categoryName, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $created);
+        $categoryId = (int) $created->term_id;
+        $this->assertSame('', get_term_meta($categoryId, 'll_quiz_prompt_type', true));
+        $this->assertSame('', get_term_meta($categoryId, 'll_quiz_option_type', true));
+        $this->assertSame('', get_term_meta($categoryId, 'll_desired_recording_types', true));
+        $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($categoryId));
+    }
+
     public function test_manager_can_render_new_category_controls_and_create_wordset_scoped_category(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);

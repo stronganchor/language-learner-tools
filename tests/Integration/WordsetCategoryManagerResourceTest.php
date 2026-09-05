@@ -227,6 +227,8 @@ final class WordsetCategoryManagerResourceTest extends LL_Tools_TestCase
             $this->assertInstanceOf(WP_Term::class, $wordset);
             $html = ll_tools_wordset_page_render_settings_categories_tool($wordset, $wordsetId, '', $page);
             $this->assertStringContainsString('Deletion in progress: 2 of 6 linked items processed.', $html);
+            $this->assertStringContainsString('id="ll-wordset-category-delete-progress-label-' . $categoryId . '"', $html);
+            $this->assertStringContainsString('aria-labelledby="ll-wordset-category-delete-progress-label-' . $categoryId . '"', $html);
             $this->assertStringContainsString('Continue Deletion', $html);
 
             for ($attempt = 0; $attempt < 10 && (string) ($job['status'] ?? '') !== 'complete'; $attempt++) {

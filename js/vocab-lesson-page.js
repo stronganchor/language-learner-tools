@@ -14,9 +14,43 @@
         : ((cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {});
     const titleCfg = (cfg.titleEditor && typeof cfg.titleEditor === 'object') ? cfg.titleEditor : {};
     const titleI18n = (titleCfg.i18n && typeof titleCfg.i18n === 'object') ? titleCfg.i18n : {};
+    const titleRequestTimeoutMs = Math.max(
+        100,
+        Math.min(60000, parseInt(titleCfg.requestTimeoutMs, 10) || 20000)
+    );
     const categorySettingsCfg = (cfg.categorySettings && typeof cfg.categorySettings === 'object') ? cfg.categorySettings : {};
     const categorySettingsAction = (categorySettingsCfg.action || 'll_tools_save_vocab_lesson_category_settings').toString();
     const categorySettingsI18n = (categorySettingsCfg.i18n && typeof categorySettingsCfg.i18n === 'object') ? categorySettingsCfg.i18n : {};
+    const categorySettingsRequestTimeoutMs = Math.max(
+        100,
+        Math.min(60000, parseInt(categorySettingsCfg.requestTimeoutMs, 10) || 20000)
+    );
+    const categorySettingsFenceRetryLimit = 3;
+
+    function createCategorySettingsClientId() {
+        const bytes = new Uint8Array(16);
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            window.crypto.getRandomValues(bytes);
+        } else {
+            for (let index = 0; index < bytes.length; index += 1) {
+                bytes[index] = Math.floor(Math.random() * 256);
+            }
+        }
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes, function (value) {
+            return value.toString(16).padStart(2, '0');
+        }).join('');
+        return [
+            hex.slice(0, 8),
+            hex.slice(8, 12),
+            hex.slice(12, 16),
+            hex.slice(16, 20),
+            hex.slice(20)
+        ].join('-');
+    }
+
+    const categorySettingsClientId = createCategorySettingsClientId();
 
     function getGridMessage(key, fallback) {
         const value = gridI18n[key];
@@ -31,6 +65,22 @@
     function getCategorySettingsMessage(key, fallback) {
         const value = categorySettingsI18n[key];
         return (typeof value === 'string' && value) ? value : fallback;
+    }
+
+    function getCategorySettingsResponseData(response) {
+        return response && response.data && typeof response.data === 'object'
+            ? response.data
+            : (response && typeof response === 'object' ? response : {});
+    }
+
+    function setCategorySettingsRevision($panel, revision) {
+        const parsed = parseInt(revision, 10);
+        if (!Number.isFinite(parsed) || parsed < 0) { return false; }
+
+        const $input = $panel.find('input[name="ll_vocab_lesson_category_settings_revision"]').first();
+        if (!$input.length) { return false; }
+        $input.val(String(parsed));
+        return true;
     }
 
     function setStatus($shell, message) {
@@ -457,6 +507,10 @@
         state = {
             inFlight: false,
             queued: false,
+            requestGeneration: 0,
+            fenceRetryCount: 0,
+            clientId: categorySettingsClientId,
+            requestSequence: 0,
             saveTimerId: 0,
             resetTimerId: 0
         };
@@ -554,11 +608,18 @@
         }
 
         syncCategoryLineupInput($panel);
+        state.requestSequence += 1;
+        $panel.find('input[name="ll_vocab_lesson_category_settings_client_id"]').first().val(state.clientId);
+        $panel.find('input[name="ll_vocab_lesson_category_settings_sequence"]').first().val(String(state.requestSequence));
         const formData = new window.FormData(form);
         formData.set('action', categorySettingsAction);
+        formData.set('ll_vocab_lesson_category_settings_client_id', state.clientId);
+        formData.set('ll_vocab_lesson_category_settings_sequence', String(state.requestSequence));
 
         state.inFlight = true;
         state.queued = false;
+        state.requestGeneration += 1;
+        const requestGeneration = state.requestGeneration;
         clearCategorySettingsResetTimer($panel);
         setCategorySettingsBusy($panel, true);
         setCategorySettingsStatus($panel, 'saving', getCategorySettingsMessage('saving', 'Saving changes...'));
@@ -570,10 +631,13 @@
             data: formData,
             processData: false,
             contentType: false,
-            dataType: 'json'
+            dataType: 'json',
+            timeout: categorySettingsRequestTimeoutMs
         }).done(function (response) {
+            if (requestGeneration !== state.requestGeneration) {
+                return;
+            }
             if (!response || response.success !== true) {
-                state.queued = false;
                 setCategorySettingsStatus(
                     $panel,
                     'error',
@@ -583,20 +647,58 @@
             }
 
             saveSucceeded = true;
+            state.fenceRetryCount = 0;
+            setCategorySettingsRevision($panel, getCategorySettingsResponseData(response).revision);
             setCategorySettingsStatus(
                 $panel,
                 'saved',
                 readAjaxMessage(response, getCategorySettingsMessage('saved', 'Changes saved.'))
             );
-        }).fail(function (jqXHR) {
+        }).fail(function (jqXHR, textStatus) {
+            if (requestGeneration !== state.requestGeneration) {
+                return;
+            }
             const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
-            state.queued = false;
+            const responseData = getCategorySettingsResponseData(response);
+            const errorCode = typeof responseData.error === 'string' ? responseData.error : '';
+            const currentRevision = parseInt(responseData.current_revision, 10);
+            const hasCurrentRevision = Number.isFinite(currentRevision) && currentRevision >= 0;
+            const sameClientPredecessor = responseData.same_client_predecessor === true
+                || responseData.same_client_predecessor === 1;
+            const retryableServerFailure = responseData.retryable === true
+                || responseData.retryable === 1;
+            const retryableSaveFailure = errorCode === 'busy'
+                || (errorCode === 'revision_conflict' && hasCurrentRevision && sameClientPredecessor)
+                || (retryableServerFailure && errorCode !== 'transaction_storage');
+            if (retryableSaveFailure && state.fenceRetryCount < categorySettingsFenceRetryLimit) {
+                if (hasCurrentRevision) {
+                    setCategorySettingsRevision($panel, currentRevision);
+                }
+                state.fenceRetryCount += 1;
+                state.queued = true;
+                setCategorySettingsStatus(
+                    $panel,
+                    'saving',
+                    getCategorySettingsMessage('saving', 'Saving changes...')
+                );
+                return;
+            }
+            if (errorCode === 'revision_conflict') {
+                state.queued = false;
+            }
+            state.fenceRetryCount = 0;
+            const fallback = textStatus === 'timeout'
+                ? getCategorySettingsMessage('timeout', 'Saving took too long. Please retry.')
+                : getCategorySettingsMessage('error', 'Unable to save category settings right now.');
             setCategorySettingsStatus(
                 $panel,
                 'error',
-                readAjaxMessage(response, getCategorySettingsMessage('error', 'Unable to save category settings right now.'))
+                readAjaxMessage(response, fallback)
             );
         }).always(function () {
+            if (requestGeneration !== state.requestGeneration) {
+                return;
+            }
             state.inFlight = false;
             setCategorySettingsBusy($panel, false);
 
@@ -808,14 +910,25 @@
 
         setTitleSaving($editor, true);
         setTitleStatus($editor, getTitleMessage('saving', 'Saving...'));
+        const requestGeneration = (parseInt($editor.data('llTitleRequestGeneration'), 10) || 0) + 1;
+        $editor.data('llTitleRequestGeneration', requestGeneration);
 
-        $.post(ajaxUrl, {
-            action: action,
-            lesson_id: lessonId,
-            category_id: categoryId,
-            title: title,
-            nonce: nonce
+        $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            timeout: titleRequestTimeoutMs,
+            dataType: 'json',
+            data: {
+                action: action,
+                lesson_id: lessonId,
+                category_id: categoryId,
+                title: title,
+                nonce: nonce
+            }
         }).done(function (response) {
+            if (requestGeneration !== $editor.data('llTitleRequestGeneration')) {
+                return;
+            }
             if (!response || response.success !== true || !response.data || typeof response.data !== 'object') {
                 setTitleStatus(
                     $editor,
@@ -835,14 +948,23 @@
             $editor.data('llTitleTimer', window.setTimeout(function () {
                 closeTitleEditor($editor, false);
             }, 700));
-        }).fail(function (jqXHR) {
+        }).fail(function (jqXHR, textStatus) {
+            if (requestGeneration !== $editor.data('llTitleRequestGeneration')) {
+                return;
+            }
             const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
+            const fallback = textStatus === 'timeout'
+                ? getTitleMessage('timeout', 'Saving took too long. Please retry.')
+                : getTitleMessage('error', 'Unable to save this category title right now.');
             setTitleStatus(
                 $editor,
-                readAjaxMessage(response, getTitleMessage('error', 'Unable to save this category title right now.')),
+                readAjaxMessage(response, fallback),
                 'error'
             );
         }).always(function () {
+            if (requestGeneration !== $editor.data('llTitleRequestGeneration')) {
+                return;
+            }
             setTitleSaving($editor, false);
         });
     }

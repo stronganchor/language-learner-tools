@@ -4,6 +4,9 @@
     var bulkEditRow = null;
     var originalCheckedState = {};
     var replacementEnabled = false;
+    var bulkStateRequest = null;
+    var bulkStateRequestGeneration = 0;
+    var bulkStateSelectionKey = '';
 
     function getConfig() {
         if (typeof llWordAudioBulkRecordingTypeEditData !== 'object' || !llWordAudioBulkRecordingTypeEditData) {
@@ -52,6 +55,26 @@
             }
         });
         return postIds;
+    }
+
+    function getSelectionKey(postIds) {
+        return (Array.isArray(postIds) ? postIds : []).join(',');
+    }
+
+    function ownsBulkStateRequest(requestGeneration, selectionKey) {
+        return requestGeneration === bulkStateRequestGeneration
+            && selectionKey === bulkStateSelectionKey
+            && selectionKey === getSelectionKey(getSelectedPostIds());
+    }
+
+    function cancelBulkStateRequest() {
+        bulkStateRequestGeneration += 1;
+        bulkStateSelectionKey = '';
+
+        if (bulkStateRequest && typeof bulkStateRequest.abort === 'function') {
+            bulkStateRequest.abort();
+        }
+        bulkStateRequest = null;
     }
 
     function resetChecklist() {
@@ -161,6 +184,13 @@
         var cfg = getConfig();
         var strings = getStrings();
         var postIds = getSelectedPostIds();
+        var selectionKey = getSelectionKey(postIds);
+
+        if (bulkStateRequest && selectionKey && selectionKey === bulkStateSelectionKey) {
+            return;
+        }
+
+        cancelBulkStateRequest();
 
         resetChecklist();
 
@@ -175,7 +205,10 @@
 
         setStatus(strings.loading || '');
 
-        $.ajax({
+        bulkStateRequestGeneration += 1;
+        var requestGeneration = bulkStateRequestGeneration;
+        bulkStateSelectionKey = selectionKey;
+        var request = $.ajax({
             url: cfg.ajaxurl,
             type: 'POST',
             data: {
@@ -184,15 +217,27 @@
                 post_ids: postIds
             }
         }).done(function (response) {
+            if (!ownsBulkStateRequest(requestGeneration, selectionKey)) {
+                return;
+            }
             if (!response || !response.success) {
                 setStatus(strings.loadError || '');
                 return;
             }
 
             applyLoadedState(response);
-        }).fail(function () {
+        }).fail(function (_jqXHR, textStatus) {
+            if (!ownsBulkStateRequest(requestGeneration, selectionKey) || textStatus === 'abort') {
+                return;
+            }
             setStatus(strings.loadError || '');
+        }).always(function () {
+            if (requestGeneration !== bulkStateRequestGeneration || request !== bulkStateRequest) {
+                return;
+            }
+            bulkStateRequest = null;
         });
+        bulkStateRequest = request;
     }
 
     $(document).ready(function () {

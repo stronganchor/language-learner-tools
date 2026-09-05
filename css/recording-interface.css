@@ -1396,11 +1396,41 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .ll-recording-interface,
+    .ll-recording-interface *,
+    .ll-recording-interface *::before,
+    .ll-recording-interface *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        transition-delay: 0ms !important;
+    }
+
     .ll-recording-interface .ll-wordset-card--lazy-placeholder::after,
     .ll-recording-image-container.is-loading .flashcard-container::after,
     .ll-recording-image-container.is-loading .ll-image-title::after,
-    .ll-recording-image-container.is-loading .ll-image-category::after {
-        animation: none;
+    .ll-recording-image-container.is-loading .ll-image-category::after,
+    .ll-recording-interface .ll-new-word-auto-spinner,
+    .ll-recording-interface .ll-btn-record.recording,
+    .ll-recording-interface .ll-btn-record.starting svg,
+    .ll-recording-interface .ll-recording-indicator.is-starting .ll-recording-dot,
+    .ll-recording-interface .ll-recording-dot,
+    .ll-recording-interface .ll-upload-feedback.is-indeterminate .ll-upload-progress-fill {
+        animation: none !important;
+    }
+
+    .ll-recording-interface .ll-recorder-category-back:hover,
+    .ll-recording-interface .ll-recorder-category-back:focus-visible,
+    .ll-recording-interface button.ll-recorder-category-card:hover:not(:disabled),
+    .ll-recording-interface button.ll-recorder-category-card:focus-visible,
+    .ll-recording-interface a.ll-recorder-category-card:hover,
+    .ll-recording-interface a.ll-recorder-category-card:focus-visible,
+    .ll-recording-interface .ll-btn-record:hover:not(:disabled),
+    .ll-recording-interface .ll-next-category-btn:hover:not(:disabled) svg,
+    .ll-recording-interface .ll-review-play:hover:not(:disabled) {
+        transform: none !important;
     }
 }
 

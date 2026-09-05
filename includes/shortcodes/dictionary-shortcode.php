@@ -99,6 +99,11 @@ function ll_tools_dictionary_public_filter_limits(): array {
             'max_values' => 1,
             'max_value_bytes' => 20,
         ],
+        'entry_id' => [
+            'max_raw_bytes' => 20,
+            'max_values' => 1,
+            'max_value_bytes' => 20,
+        ],
     ];
     $filtered = apply_filters('ll_tools_dictionary_public_filter_limits', $defaults);
     $filtered = is_array($filtered) ? $filtered : [];

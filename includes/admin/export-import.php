@@ -978,6 +978,25 @@ function ll_tools_import_track_undo_id(array &$result, string $bucket, int $id):
     $result['undo'][$bucket] = ll_tools_import_normalize_id_list($result['undo'][$bucket]);
 }
 
+function ll_tools_import_untrack_undo_id(array &$result, string $bucket, int $id): void {
+    if (
+        $id <= 0
+        || !isset($result['undo'])
+        || !is_array($result['undo'])
+        || !isset($result['undo'][$bucket])
+        || !is_array($result['undo'][$bucket])
+    ) {
+        return;
+    }
+
+    $result['undo'][$bucket] = ll_tools_import_normalize_id_list(array_values(array_filter(
+        $result['undo'][$bucket],
+        static function ($tracked_id) use ($id): bool {
+            return (int) $tracked_id !== $id;
+        }
+    )));
+}
+
 function ll_tools_import_track_undo_path(array &$result, string $bucket, string $path): void {
     $path = trim($path);
     if ($path === '') {
@@ -10283,28 +10302,939 @@ function ll_tools_import_restore_updated_post_snapshots(array $snapshots, array 
     return array_values(array_map('intval', array_keys($touched_word_ids)));
 }
 
-function ll_tools_import_delete_audio_file_if_safe(string $audio_path): bool {
+function ll_tools_import_undo_tables_are_transactional(): bool {
+    global $wpdb;
+
+    static $readyByTables = [];
+    $tables = array_values(array_unique(array_filter([
+        (string) $wpdb->posts,
+        (string) $wpdb->postmeta,
+        (string) $wpdb->term_relationships,
+        (string) $wpdb->term_taxonomy,
+        (string) $wpdb->comments,
+        (string) $wpdb->commentmeta,
+        (string) $wpdb->options,
+    ])));
+    $cacheKey = implode('|', $tables);
+    if (!array_key_exists($cacheKey, $readyByTables)) {
+        $ready = !empty($tables);
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        try {
+            foreach ($tables as $table) {
+                $wpdb->last_error = '';
+                $status = $wpdb->get_row($wpdb->prepare(
+                    'SHOW TABLE STATUS LIKE %s',
+                    $wpdb->esc_like($table)
+                ), ARRAY_A);
+                if (
+                    $wpdb->last_error !== ''
+                    || !is_array($status)
+                    || strtolower((string) ($status['Engine'] ?? '')) !== 'innodb'
+                ) {
+                    $ready = false;
+                    break;
+                }
+            }
+        } catch (Throwable $throwable) {
+            $ready = false;
+        } finally {
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+        $readyByTables[$cacheKey] = $ready;
+    }
+
+    try {
+        return (bool) apply_filters(
+            'll_tools_import_undo_tables_are_transactional',
+            (bool) $readyByTables[$cacheKey],
+            $tables
+        );
+    } catch (Throwable $throwable) {
+        return false;
+    }
+}
+
+/** @return string deleted, absent, or failed */
+function ll_tools_import_delete_audio_file_if_safe(string $audio_path): string {
     $audio_path = trim($audio_path);
     if ($audio_path === '') {
-        return true;
+        return 'absent';
     }
 
     $absolute = ll_tools_export_resolve_audio_source_path($audio_path);
     if ($absolute === '' || !is_file($absolute)) {
-        return true;
+        return 'absent';
     }
 
     $upload_dir = wp_upload_dir();
-    $uploads_base = wp_normalize_path((string) ($upload_dir['basedir'] ?? ''));
-    $absolute_normalized = wp_normalize_path($absolute);
-    if ($uploads_base === '' || strpos($absolute_normalized, $uploads_base) !== 0) {
-        return false;
+    $uploadsReal = realpath(wp_normalize_path((string) ($upload_dir['basedir'] ?? '')));
+    $absoluteReal = realpath(wp_normalize_path($absolute));
+    if ($uploadsReal === false || $absoluteReal === false) {
+        return 'failed';
     }
 
-    return @unlink($absolute) !== false;
+    $uploadsNormalized = trailingslashit(wp_normalize_path($uploadsReal));
+    $absoluteNormalized = wp_normalize_path($absoluteReal);
+    $caseInsensitive = DIRECTORY_SEPARATOR === '\\' || preg_match('/^[A-Za-z]:\//', $uploadsNormalized) === 1;
+    $comparisonBase = $caseInsensitive ? strtolower($uploadsNormalized) : $uploadsNormalized;
+    $comparisonPath = $caseInsensitive ? strtolower($absoluteNormalized) : $absoluteNormalized;
+    if (!str_starts_with($comparisonPath, $comparisonBase)) {
+        return 'failed';
+    }
+
+    try {
+        $allowed = (bool) apply_filters(
+            'll_tools_import_undo_file_delete_allowed',
+            true,
+            $absoluteNormalized,
+            $audio_path
+        );
+    } catch (Throwable $throwable) {
+        return 'failed';
+    }
+    if (!$allowed) {
+        return 'failed';
+    }
+
+    return @unlink($absoluteReal) !== false && !is_file($absoluteReal) ? 'deleted' : 'failed';
+}
+
+/** @return string[]|null Null means attachment file ownership could not be read. */
+function ll_tools_import_attachment_file_paths_for_undo(int $attachment_id): ?array {
+    global $wpdb;
+
+    try {
+        $wpdb->last_error = '';
+        $metaRows = $wpdb->get_results($wpdb->prepare(
+            "SELECT meta_key, meta_value
+             FROM {$wpdb->postmeta}
+             WHERE post_id = %d
+               AND meta_key IN ('_wp_attached_file', '_wp_attachment_metadata', '_wp_attachment_backup_sizes')
+             ORDER BY meta_id ASC",
+            $attachment_id
+        ), ARRAY_A);
+    } catch (Throwable $throwable) {
+        return null;
+    }
+    if ($wpdb->last_error !== '' || !is_array($metaRows)) {
+        return null;
+    }
+
+    $rawMeta = [];
+    foreach ($metaRows as $metaRow) {
+        $metaKey = (string) ($metaRow['meta_key'] ?? '');
+        if ($metaKey !== '' && !array_key_exists($metaKey, $rawMeta)) {
+            $rawMeta[$metaKey] = (string) ($metaRow['meta_value'] ?? '');
+        }
+    }
+    $decodeArrayMeta = static function (string $key) use ($rawMeta): ?array {
+        if (!array_key_exists($key, $rawMeta) || $rawMeta[$key] === '') {
+            return [];
+        }
+        $decoded = maybe_unserialize($rawMeta[$key]);
+        return is_array($decoded) ? $decoded : null;
+    };
+
+    $metadata = $decodeArrayMeta('_wp_attachment_metadata');
+    $backupSizes = $decodeArrayMeta('_wp_attachment_backup_sizes');
+    if (!is_array($metadata) || !is_array($backupSizes)) {
+        return null;
+    }
+
+    $file = isset($rawMeta['_wp_attached_file']) ? trim((string) $rawMeta['_wp_attached_file']) : '';
+    if ($file !== '' && !str_starts_with($file, '/') && preg_match('/^[A-Za-z]:[\\\\\/]/', $file) !== 1) {
+        try {
+            $uploadDir = wp_get_upload_dir();
+            $uploadsBase = isset($uploadDir['basedir']) ? (string) $uploadDir['basedir'] : '';
+        } catch (Throwable $throwable) {
+            return null;
+        }
+        if ($uploadsBase === '') {
+            return null;
+        }
+        $file = path_join($uploadsBase, $file);
+    }
+
+    if ($file === '') {
+        return [];
+    }
+
+    $file = wp_normalize_path($file);
+    $paths = [$file => true];
+    $fileDirectory = dirname($file);
+
+    $thumb = isset($metadata['thumb']) && is_string($metadata['thumb'])
+        ? trim($metadata['thumb'])
+        : '';
+    if ($thumb !== '') {
+        try {
+            $wpdb->last_error = '';
+            $sharedThumbMetaId = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_id FROM {$wpdb->postmeta}
+                 WHERE meta_key = '_wp_attachment_metadata'
+                   AND meta_value LIKE %s
+                   AND post_id <> %d
+                 LIMIT 1",
+                '%' . $wpdb->esc_like($thumb) . '%',
+                $attachment_id
+            ));
+        } catch (Throwable $throwable) {
+            return null;
+        }
+        if ($wpdb->last_error !== '') {
+            return null;
+        }
+        if ($sharedThumbMetaId === null) {
+            $paths[wp_normalize_path(path_join($fileDirectory, $thumb))] = true;
+        }
+    }
+
+    foreach ((array) ($metadata['sizes'] ?? []) as $sizeInfo) {
+        if (is_array($sizeInfo) && isset($sizeInfo['file']) && is_string($sizeInfo['file']) && trim($sizeInfo['file']) !== '') {
+            $paths[wp_normalize_path(path_join($fileDirectory, $sizeInfo['file']))] = true;
+        }
+    }
+    foreach (['original_image', 'source_image', 'animated_video', 'animated_video_poster'] as $companionKey) {
+        if (isset($metadata[$companionKey]) && is_string($metadata[$companionKey]) && trim($metadata[$companionKey]) !== '') {
+            $paths[wp_normalize_path(path_join($fileDirectory, $metadata[$companionKey]))] = true;
+        }
+    }
+
+    $metadataFile = isset($metadata['file']) && is_string($metadata['file'])
+        ? wp_normalize_path($metadata['file'])
+        : '';
+    try {
+        $uploadDir = isset($uploadDir) && is_array($uploadDir) ? $uploadDir : wp_get_upload_dir();
+        $uploadsBase = isset($uploadDir['basedir']) ? (string) $uploadDir['basedir'] : '';
+    } catch (Throwable $throwable) {
+        return null;
+    }
+    if ($metadataFile !== '' && $uploadsBase !== '' && is_array($backupSizes)) {
+        $backupDirectory = wp_normalize_path(path_join($uploadsBase, dirname($metadataFile)));
+        foreach ($backupSizes as $backupInfo) {
+            if (is_array($backupInfo) && isset($backupInfo['file']) && is_string($backupInfo['file']) && trim($backupInfo['file']) !== '') {
+                $paths[wp_normalize_path(path_join($backupDirectory, $backupInfo['file']))] = true;
+            }
+        }
+    }
+
+    return array_values(array_filter(array_keys($paths), static function (string $path): bool {
+        return trim($path) !== '';
+    }));
+}
+
+function ll_tools_import_attachment_cleanup_option_name(int $attachment_id): string {
+    return 'll_tools_import_undo_attachment_files_' . max(0, $attachment_id);
+}
+
+/** @return string[]|null Null means the durable cleanup evidence could not be read. */
+function ll_tools_import_read_pending_attachment_file_cleanup(int $attachment_id, bool $lock_row = false): ?array {
+    global $wpdb;
+
+    $optionName = ll_tools_import_attachment_cleanup_option_name($attachment_id);
+    try {
+        $wpdb->last_error = '';
+        $lockClause = $lock_row ? ' FOR UPDATE' : '';
+        $rawValue = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1{$lockClause}",
+            $optionName
+        ));
+    } catch (Throwable $throwable) {
+        return null;
+    }
+    if ($wpdb->last_error !== '') {
+        return null;
+    }
+    if ($rawValue === null) {
+        return [];
+    }
+
+    $decoded = maybe_unserialize($rawValue);
+    if (!is_array($decoded)) {
+        return null;
+    }
+    $paths = array_values(array_unique(array_filter(array_map('strval', $decoded), static function (string $path): bool {
+        return trim($path) !== '';
+    })));
+    sort($paths, SORT_STRING);
+    return $paths;
+}
+
+function ll_tools_import_write_pending_attachment_file_cleanup(int $attachment_id, array $paths): bool {
+    global $wpdb;
+
+    $paths = array_values(array_unique(array_filter(array_map('strval', $paths), static function (string $path): bool {
+        return trim($path) !== '';
+    })));
+    sort($paths, SORT_STRING);
+    if (empty($paths)) {
+        return true;
+    }
+
+    $optionName = ll_tools_import_attachment_cleanup_option_name($attachment_id);
+    try {
+        update_option($optionName, $paths, false);
+    } catch (Throwable $throwable) {
+        return false;
+    }
+    $stored = ll_tools_import_read_pending_attachment_file_cleanup($attachment_id);
+    return is_array($stored) && $stored === $paths;
+}
+
+function ll_tools_import_clear_pending_attachment_file_cleanup(int $attachment_id): bool {
+    global $wpdb;
+
+    $optionName = ll_tools_import_attachment_cleanup_option_name($attachment_id);
+    try {
+        delete_option($optionName);
+        $wpdb->last_error = '';
+        $remaining = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->options} WHERE option_name = %s",
+            $optionName
+        ));
+    } catch (Throwable $throwable) {
+        return false;
+    }
+    wp_cache_delete($optionName, 'options');
+    return $wpdb->last_error === '' && $remaining !== null && (int) $remaining === 0;
+}
+
+function ll_tools_import_finish_pending_attachment_file_cleanup(int $attachment_id, array $paths): bool {
+    foreach ($paths as $path) {
+        if (ll_tools_import_delete_audio_file_if_safe((string) $path) === 'failed') {
+            return false;
+        }
+    }
+
+    return ll_tools_import_clear_pending_attachment_file_cleanup($attachment_id);
+}
+
+function ll_tools_import_schedule_pending_attachment_file_cleanup(int $attachment_id, int $delay = 1): bool {
+    if ($attachment_id <= 0) {
+        return false;
+    }
+    $args = [$attachment_id];
+    if (wp_next_scheduled('ll_tools_import_attachment_file_cleanup', $args) !== false) {
+        return true;
+    }
+    try {
+        $scheduled = wp_schedule_single_event(
+            time() + max(1, $delay),
+            'll_tools_import_attachment_file_cleanup',
+            $args,
+            true
+        );
+    } catch (Throwable $throwable) {
+        return false;
+    }
+    return !is_wp_error($scheduled)
+        && $scheduled !== false
+        && wp_next_scheduled('ll_tools_import_attachment_file_cleanup', $args) !== false;
+}
+
+function ll_tools_import_run_pending_attachment_file_cleanup(int $attachment_id): void {
+    global $wpdb;
+
+    if (
+        $attachment_id <= 0
+        || !function_exists('ll_tools_database_transaction_is_active')
+        || ll_tools_database_transaction_is_active() !== false
+    ) {
+        ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+        return;
+    }
+
+    $paths = ll_tools_import_read_pending_attachment_file_cleanup($attachment_id);
+    if (!is_array($paths)) {
+        ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+        return;
+    }
+    if (empty($paths)) {
+        return;
+    }
+
+    try {
+        $wpdb->last_error = '';
+        $postType = $wpdb->get_var($wpdb->prepare(
+            "SELECT post_type FROM {$wpdb->posts} WHERE ID = %d LIMIT 1",
+            $attachment_id
+        ));
+    } catch (Throwable $throwable) {
+        ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+        return;
+    }
+    if ($wpdb->last_error !== '') {
+        ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+        return;
+    }
+    if ($postType !== null) {
+        // Never unlink a path while its attachment row still exists. A surviving
+        // row means the originating transaction has not durably deleted it yet.
+        // Keep the evidence: this event may be racing an uncommitted outer
+        // transaction that will delete the row moments later.
+        ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+        return;
+    }
+
+    if (ll_tools_import_finish_pending_attachment_file_cleanup($attachment_id, $paths)) {
+        return;
+    }
+    ll_tools_import_schedule_pending_attachment_file_cleanup($attachment_id, MINUTE_IN_SECONDS);
+}
+add_action('ll_tools_import_attachment_file_cleanup', 'll_tools_import_run_pending_attachment_file_cleanup', 10, 1);
+
+/** Return the count WordPress' built-in taxonomy callbacks should persist. */
+function ll_tools_import_expected_term_count_for_undo(int $tt_id, string $taxonomy): ?int {
+    global $wpdb;
+
+    $taxonomyObject = get_taxonomy($taxonomy);
+    if ($tt_id <= 0 || !$taxonomyObject instanceof WP_Taxonomy) {
+        return null;
+    }
+
+    $callback = $taxonomyObject->update_count_callback;
+    if (!empty($callback) && !in_array($callback, ['_update_post_term_count', '_update_generic_term_count'], true)) {
+        return null;
+    }
+
+    $objectTypes = array_values(array_unique(array_filter(array_map(
+        static function (string $objectType): string {
+            return explode(':', $objectType, 2)[0];
+        },
+        array_map('strval', (array) $taxonomyObject->object_type)
+    ))));
+    $useGenericCount = $callback === '_update_generic_term_count'
+        || (empty($callback) && array_filter($objectTypes, 'post_type_exists') !== $objectTypes);
+
+    try {
+        $wpdb->last_error = '';
+        if ($useGenericCount) {
+            $count = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->term_relationships} WHERE term_taxonomy_id = %d",
+                $tt_id
+            ));
+            return $wpdb->last_error === '' && $count !== null ? (int) $count : null;
+        }
+
+        $postStatuses = apply_filters('update_post_term_count_statuses', ['publish'], $taxonomyObject);
+        $postStatuses = array_values(array_unique(array_filter(array_map('sanitize_key', (array) $postStatuses))));
+        if (empty($postStatuses)) {
+            return 0;
+        }
+        $statusPlaceholders = implode(', ', array_fill(0, count($postStatuses), '%s'));
+        $count = 0;
+
+        $attachmentIndex = array_search('attachment', $objectTypes, true);
+        if ($attachmentIndex !== false) {
+            unset($objectTypes[$attachmentIndex]);
+            $attachmentSql = "SELECT COUNT(*)
+                FROM {$wpdb->term_relationships} AS tr
+                INNER JOIN {$wpdb->posts} AS p ON p.ID = tr.object_id
+                LEFT JOIN {$wpdb->posts} AS parent ON parent.ID = p.post_parent
+                WHERE tr.term_taxonomy_id = %d
+                  AND p.post_type = 'attachment'
+                  AND (
+                    p.post_status IN ({$statusPlaceholders})
+                    OR (p.post_status = 'inherit' AND p.post_parent > 0 AND parent.post_status IN ({$statusPlaceholders}))
+                  )";
+            $attachmentArgs = array_merge([$tt_id], $postStatuses, $postStatuses);
+            $attachmentCount = $wpdb->get_var($wpdb->prepare($attachmentSql, ...$attachmentArgs));
+            if ($wpdb->last_error !== '' || $attachmentCount === null) {
+                return null;
+            }
+            $count += (int) $attachmentCount;
+        }
+
+        $objectTypes = array_values(array_filter($objectTypes, 'post_type_exists'));
+        if (!empty($objectTypes)) {
+            $typePlaceholders = implode(', ', array_fill(0, count($objectTypes), '%s'));
+            $postSql = "SELECT COUNT(*)
+                FROM {$wpdb->term_relationships} AS tr
+                INNER JOIN {$wpdb->posts} AS p ON p.ID = tr.object_id
+                WHERE tr.term_taxonomy_id = %d
+                  AND p.post_status IN ({$statusPlaceholders})
+                  AND p.post_type IN ({$typePlaceholders})";
+            $postArgs = array_merge([$tt_id], $postStatuses, $objectTypes);
+            $postCount = $wpdb->get_var($wpdb->prepare($postSql, ...$postArgs));
+            if ($wpdb->last_error !== '' || $postCount === null) {
+                return null;
+            }
+            $count += (int) $postCount;
+        }
+
+        return $count;
+    } catch (Throwable $throwable) {
+        return null;
+    }
+}
+
+/**
+ * Delete one post created by an import and prove its owned database rows are gone.
+ *
+ * @return string deleted, absent, wrong_type, or failed
+ */
+function ll_tools_import_delete_tracked_post_for_undo(int $post_id, string $expected_post_type, bool $attachment = false): string {
+    global $wpdb;
+
+    if ($post_id <= 0 || $expected_post_type === '') {
+        return 'failed';
+    }
+
+    $knownCommentIds = [];
+    $knownRelationshipRows = [];
+    $knownRevisionIds = [];
+    $readState = static function (bool $lockRows = false) use (
+        $wpdb,
+        $post_id,
+        $expected_post_type,
+        &$knownCommentIds,
+        &$knownRelationshipRows,
+        &$knownRevisionIds
+    ): ?array {
+        try {
+            $lockClause = $lockRows ? ' FOR UPDATE' : '';
+            $wpdb->last_error = '';
+            $postType = $wpdb->get_var($wpdb->prepare(
+                "SELECT post_type FROM {$wpdb->posts} WHERE ID = %d LIMIT 1{$lockClause}",
+                $post_id
+            ));
+            if ($wpdb->last_error !== '') {
+                return null;
+            }
+            $wpdb->last_error = '';
+            $postMetaIds = $wpdb->get_col($wpdb->prepare(
+                "SELECT meta_id FROM {$wpdb->postmeta} WHERE post_id = %d{$lockClause}",
+                $post_id
+            ));
+            if ($wpdb->last_error !== '' || !is_array($postMetaIds)) {
+                return null;
+            }
+            $revisionIds = [];
+            if ($expected_post_type !== 'revision') {
+                $wpdb->last_error = '';
+                $revisionIds = $wpdb->get_col($wpdb->prepare(
+                    "SELECT ID FROM {$wpdb->posts}
+                     WHERE post_parent = %d AND post_type = 'revision'{$lockClause}",
+                    $post_id
+                ));
+                if ($wpdb->last_error !== '' || !is_array($revisionIds)) {
+                    return null;
+                }
+                $revisionIds = array_values(array_unique(array_filter(array_map('intval', $revisionIds))));
+                foreach ($revisionIds as $revisionId) {
+                    $knownRevisionIds[$revisionId] = true;
+                }
+            }
+            $wpdb->last_error = '';
+            $relationshipIds = $wpdb->get_col($wpdb->prepare(
+                "SELECT term_taxonomy_id FROM {$wpdb->term_relationships} WHERE object_id = %d{$lockClause}",
+                $post_id
+            ));
+            if ($wpdb->last_error !== '' || !is_array($relationshipIds)) {
+                return null;
+            }
+            $relationshipRows = [];
+            $relationshipIds = array_values(array_unique(array_filter(array_map('intval', $relationshipIds))));
+            if (!empty($relationshipIds)) {
+                $placeholders = implode(', ', array_fill(0, count($relationshipIds), '%d'));
+                $wpdb->last_error = '';
+                $taxonomyRows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT term_taxonomy_id, term_id, taxonomy
+                     FROM {$wpdb->term_taxonomy}
+                     WHERE term_taxonomy_id IN ({$placeholders})",
+                    ...$relationshipIds
+                ), OBJECT_K);
+                if ($wpdb->last_error !== '' || !is_array($taxonomyRows)) {
+                    return null;
+                }
+                foreach ($relationshipIds as $relationshipId) {
+                    $taxonomyRow = $taxonomyRows[$relationshipId] ?? null;
+                    $relationshipRows[] = [
+                        'term_taxonomy_id' => $relationshipId,
+                        'term_id' => $taxonomyRow instanceof stdClass ? (int) $taxonomyRow->term_id : 0,
+                        'taxonomy' => $taxonomyRow instanceof stdClass ? (string) $taxonomyRow->taxonomy : '',
+                    ];
+                }
+            }
+            foreach ($relationshipRows as $relationshipRow) {
+                $ttId = (int) ($relationshipRow['term_taxonomy_id'] ?? 0);
+                if ($ttId > 0) {
+                    $knownRelationshipRows[$ttId] = [
+                        'term_taxonomy_id' => $ttId,
+                        'term_id' => (int) ($relationshipRow['term_id'] ?? 0),
+                        'taxonomy' => (string) ($relationshipRow['taxonomy'] ?? ''),
+                    ];
+                }
+            }
+
+            $wpdb->last_error = '';
+            $commentIds = $wpdb->get_col($wpdb->prepare(
+                "SELECT comment_ID FROM {$wpdb->comments} WHERE comment_post_ID = %d{$lockClause}",
+                $post_id
+            ));
+            if ($wpdb->last_error !== '' || !is_array($commentIds)) {
+                return null;
+            }
+            foreach ($commentIds as $commentId) {
+                $commentId = (int) $commentId;
+                if ($commentId > 0) {
+                    $knownCommentIds[$commentId] = true;
+                }
+            }
+
+            $commentMetaIds = [];
+            $commentIdList = array_values(array_map('intval', array_keys($knownCommentIds)));
+            if (!empty($commentIdList)) {
+                $placeholders = implode(', ', array_fill(0, count($commentIdList), '%d'));
+                $wpdb->last_error = '';
+                $commentMetaIds = $wpdb->get_col($wpdb->prepare(
+                    "SELECT meta_id FROM {$wpdb->commentmeta} WHERE comment_id IN ({$placeholders}){$lockClause}",
+                    ...$commentIdList
+                ));
+                if ($wpdb->last_error !== '' || !is_array($commentMetaIds)) {
+                    return null;
+                }
+            }
+        } catch (Throwable $throwable) {
+            return null;
+        }
+
+        return [
+            'post_type' => $postType === null ? null : (string) $postType,
+            'postmeta_rows' => count($postMetaIds),
+            'revision_ids' => $revisionIds,
+            'revision_rows' => count($revisionIds),
+            'relationship_rows' => count($relationshipRows),
+            'comment_rows' => count($commentIds),
+            'commentmeta_rows' => count($commentMetaIds),
+        ];
+    };
+
+    $pendingAttachmentPaths = [];
+    if ($attachment) {
+        $pendingAttachmentPaths = ll_tools_import_read_pending_attachment_file_cleanup($post_id);
+        if (!is_array($pendingAttachmentPaths)) {
+            return 'failed';
+        }
+    }
+
+    $before = $readState(false);
+    if (!is_array($before)) {
+        return 'failed';
+    }
+    if ($before['post_type'] !== null && $before['post_type'] !== $expected_post_type) {
+        return 'wrong_type';
+    }
+    $hadOwnedRows = $before['post_type'] !== null
+        || (int) $before['postmeta_rows'] > 0
+        || (int) $before['revision_rows'] > 0
+        || (int) $before['relationship_rows'] > 0
+        || (int) $before['comment_rows'] > 0
+        || (int) $before['commentmeta_rows'] > 0
+        || !empty($pendingAttachmentPaths);
+    if (!$hadOwnedRows) {
+        return 'absent';
+    }
+    if (
+        !function_exists('ll_tools_strict_term_insert_begin_transaction')
+        || !function_exists('ll_tools_strict_term_insert_commit_transaction')
+        || !function_exists('ll_tools_strict_term_insert_rollback_transaction')
+        || !ll_tools_import_undo_tables_are_transactional()
+    ) {
+        return 'failed';
+    }
+    $undoTransaction = ll_tools_strict_term_insert_begin_transaction();
+    if (!is_array($undoTransaction)) {
+        return 'failed';
+    }
+    if ($attachment && ($undoTransaction['type'] ?? '') !== 'transaction') {
+        // Physical file deletion can only follow a commit owned by this helper.
+        // Releasing a savepoint is not a commit: its caller can still roll back
+        // the attachment row after this function returns.
+        ll_tools_strict_term_insert_rollback_transaction($undoTransaction);
+        return 'failed';
+    }
+
+    $transactionActive = true;
+    $cleanupScheduleTouched = false;
+    $postExistedAtLockedRead = false;
+    try {
+        // Only the locked snapshot may authorize destructive cleanup. The
+        // unlocked preflight exists solely to avoid needless transactions.
+        $knownCommentIds = [];
+        $knownRelationshipRows = [];
+        $knownRevisionIds = [];
+        $locked = $readState(true);
+        if (!is_array($locked)) {
+            return 'failed';
+        }
+        if ($locked['post_type'] !== null && $locked['post_type'] !== $expected_post_type) {
+            return 'wrong_type';
+        }
+        $postExistedAtLockedRead = $locked['post_type'] !== null;
+
+        if ($attachment) {
+            $lockedPendingAttachmentPaths = ll_tools_import_read_pending_attachment_file_cleanup($post_id, true);
+            if (!is_array($lockedPendingAttachmentPaths)) {
+                return 'failed';
+            }
+            $pendingAttachmentPaths = array_values(array_unique(array_merge(
+                $pendingAttachmentPaths,
+                $lockedPendingAttachmentPaths
+            )));
+            sort($pendingAttachmentPaths, SORT_STRING);
+        }
+
+        if ($attachment && $locked['post_type'] !== null) {
+            $attachmentPaths = ll_tools_import_attachment_file_paths_for_undo($post_id);
+            if (!is_array($attachmentPaths)) {
+                return 'failed';
+            }
+            $pendingAttachmentPaths = array_values(array_unique(array_merge(
+                $pendingAttachmentPaths,
+                $attachmentPaths
+            )));
+            sort($pendingAttachmentPaths, SORT_STRING);
+            if (!ll_tools_import_write_pending_attachment_file_cleanup($post_id, $pendingAttachmentPaths)) {
+                return 'failed';
+            }
+        }
+
+        if ($locked['post_type'] !== null) {
+            $attachmentFileCaptureFailed = false;
+            $suppressCoreAttachmentFileDelete = static function ($file) use (
+                $post_id,
+                &$pendingAttachmentPaths,
+                &$attachmentFileCaptureFailed
+            ): string {
+                $file = trim((string) $file);
+                if ($file !== '') {
+                    $pendingAttachmentPaths[] = wp_normalize_path($file);
+                    $pendingAttachmentPaths = array_values(array_unique($pendingAttachmentPaths));
+                    sort($pendingAttachmentPaths, SORT_STRING);
+                    if (!ll_tools_import_write_pending_attachment_file_cleanup($post_id, $pendingAttachmentPaths)) {
+                        $attachmentFileCaptureFailed = true;
+                    }
+                }
+                // Every attempted attachment-side unlink is delayed until the
+                // database commit; each path is first recorded transactionally.
+                return '';
+            };
+            if ($attachment) {
+                add_filter('wp_delete_file', $suppressCoreAttachmentFileDelete, PHP_INT_MAX, 1);
+            }
+            try {
+                if ($attachment) {
+                    wp_delete_attachment($post_id, true);
+                } else {
+                    wp_delete_post($post_id, true);
+                }
+            } catch (Throwable $throwable) {
+                return 'failed';
+            } finally {
+                if ($attachment) {
+                    remove_filter('wp_delete_file', $suppressCoreAttachmentFileDelete, PHP_INT_MAX);
+                }
+            }
+            if ($attachment && $attachmentFileCaptureFailed) {
+                return 'failed';
+            }
+        }
+
+        $after = $readState(true);
+        if (!is_array($after) || $after['post_type'] !== null) {
+            return 'failed';
+        }
+
+        foreach (array_keys($knownRevisionIds) as $revisionId) {
+            $revisionDeleteStatus = ll_tools_import_delete_tracked_post_for_undo((int) $revisionId, 'revision');
+            if (!in_array($revisionDeleteStatus, ['deleted', 'absent'], true)) {
+                return 'failed';
+            }
+        }
+
+        // Core can report a completed delete while a filtered SQL statement did
+        // nothing. Repair only rows whose ownership remains tied to this exact ID.
+        try {
+            if ((int) $after['postmeta_rows'] > 0) {
+                $wpdb->last_error = '';
+                $wpdb->delete($wpdb->postmeta, ['post_id' => $post_id], ['%d']);
+                if ($wpdb->last_error !== '') {
+                    return 'failed';
+                }
+            }
+            if ((int) $after['relationship_rows'] > 0) {
+                $wpdb->last_error = '';
+                $wpdb->delete($wpdb->term_relationships, ['object_id' => $post_id], ['%d']);
+                if ($wpdb->last_error !== '') {
+                    return 'failed';
+                }
+            }
+            foreach (array_keys($knownCommentIds) as $commentId) {
+                $commentId = (int) $commentId;
+                $wpdb->last_error = '';
+                $wpdb->delete($wpdb->commentmeta, ['comment_id' => $commentId], ['%d']);
+                if ($wpdb->last_error !== '') {
+                    return 'failed';
+                }
+                $wpdb->last_error = '';
+                $wpdb->delete(
+                    $wpdb->comments,
+                    ['comment_ID' => $commentId, 'comment_post_ID' => $post_id],
+                    ['%d', '%d']
+                );
+                if ($wpdb->last_error !== '') {
+                    return 'failed';
+                }
+            }
+        } catch (Throwable $throwable) {
+            return 'failed';
+        }
+
+        $verified = $readState(true);
+        if (
+            !is_array($verified)
+            || $verified['post_type'] !== null
+            || (int) $verified['postmeta_rows'] !== 0
+            || (int) $verified['revision_rows'] !== 0
+            || (int) $verified['relationship_rows'] !== 0
+            || (int) $verified['comment_rows'] !== 0
+            || (int) $verified['commentmeta_rows'] !== 0
+        ) {
+            return 'failed';
+        }
+
+        $termTaxonomyIdsByTaxonomy = [];
+        foreach ($knownRelationshipRows as $relationshipRow) {
+            $taxonomy = (string) ($relationshipRow['taxonomy'] ?? '');
+            $ttId = (int) ($relationshipRow['term_taxonomy_id'] ?? 0);
+            if ($taxonomy !== '' && $ttId > 0) {
+                $termTaxonomyIdsByTaxonomy[$taxonomy][$ttId] = true;
+            }
+        }
+        foreach ($termTaxonomyIdsByTaxonomy as $taxonomy => $ttIdLookup) {
+            $expectedCounts = [];
+            foreach (array_keys($ttIdLookup) as $ttId) {
+                $expectedCount = ll_tools_import_expected_term_count_for_undo((int) $ttId, $taxonomy);
+                if ($expectedCount === null) {
+                    return 'failed';
+                }
+                $expectedCounts[(int) $ttId] = $expectedCount;
+            }
+            try {
+                $wpdb->last_error = '';
+                $recounted = wp_update_term_count_now(array_keys($ttIdLookup), $taxonomy);
+            } catch (Throwable $throwable) {
+                return 'failed';
+            }
+            if ($recounted !== true || $wpdb->last_error !== '') {
+                return 'failed';
+            }
+            foreach ($expectedCounts as $ttId => $expectedCount) {
+                try {
+                    $wpdb->last_error = '';
+                    $storedCount = $wpdb->get_var($wpdb->prepare(
+                        "SELECT count FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+                        $ttId
+                    ));
+                } catch (Throwable $throwable) {
+                    return 'failed';
+                }
+                if ($wpdb->last_error !== '' || $storedCount === null || (int) $storedCount !== $expectedCount) {
+                    return 'failed';
+                }
+            }
+        }
+
+        if ($attachment && !empty($pendingAttachmentPaths)) {
+            // Persist the one-shot in the same transaction as the cleanup
+            // journal and attachment-row deletion. A crash immediately after
+            // commit then still leaves an operational path to finish unlinking.
+            $cleanupScheduleTouched = true;
+            if (!ll_tools_import_schedule_pending_attachment_file_cleanup($post_id, MINUTE_IN_SECONDS)) {
+                return 'failed';
+            }
+        }
+
+        if (!ll_tools_strict_term_insert_commit_transaction($undoTransaction)) {
+            ll_tools_strict_term_insert_rollback_transaction($undoTransaction);
+            return 'failed';
+        }
+        $transactionActive = false;
+    } finally {
+        if ($transactionActive) {
+            ll_tools_strict_term_insert_rollback_transaction($undoTransaction);
+            if ($cleanupScheduleTouched) {
+                // wp_schedule_single_event() updates the cron option cache
+                // before MySQL commit. A rollback must invalidate both cache
+                // shapes so a non-durable event is never observed as live.
+                wp_cache_delete('cron', 'options');
+                wp_cache_delete('alloptions', 'options');
+                wp_cache_delete('notoptions', 'options');
+            }
+        }
+        try {
+            clean_post_cache($post_id);
+            foreach (array_keys($knownRevisionIds) as $revisionId) {
+                clean_post_cache((int) $revisionId);
+            }
+            foreach (array_keys($knownCommentIds) as $commentId) {
+                clean_comment_cache((int) $commentId);
+            }
+            foreach ($knownRelationshipRows as $relationshipRow) {
+                $taxonomy = (string) ($relationshipRow['taxonomy'] ?? '');
+                $termId = (int) ($relationshipRow['term_id'] ?? 0);
+                if ($taxonomy !== '') {
+                    wp_cache_delete($post_id, $taxonomy . '_relationships');
+                }
+                if ($taxonomy !== '' && $termId > 0) {
+                    clean_term_cache($termId, $taxonomy);
+                }
+            }
+        } catch (Throwable $throwable) {
+            // SQL readback and the verified transaction boundary are authoritative.
+        }
+        if ($attachment) {
+            wp_cache_delete(ll_tools_import_attachment_cleanup_option_name($post_id), 'options');
+        }
+    }
+
+    if (
+        $attachment
+        && !empty($pendingAttachmentPaths)
+    ) {
+        if (!ll_tools_import_finish_pending_attachment_file_cleanup($post_id, $pendingAttachmentPaths)) {
+            ll_tools_import_schedule_pending_attachment_file_cleanup($post_id, MINUTE_IN_SECONDS);
+            return 'failed';
+        }
+    }
+
+    return $postExistedAtLockedRead ? 'deleted' : 'absent';
 }
 
 function ll_tools_undo_import_entry(array $entry): array {
+    global $wpdb;
+
+    $readResidualTermRows = static function (int $termId) use ($wpdb): ?int {
+        try {
+            $wpdb->last_error = '';
+            $rowCount = $wpdb->get_var($wpdb->prepare(
+                "SELECT
+                    (SELECT COUNT(*) FROM {$wpdb->terms} WHERE term_id = %d)
+                    + (SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE term_id = %d)
+                    + (SELECT COUNT(*) FROM {$wpdb->termmeta} WHERE term_id = %d)",
+                $termId,
+                $termId,
+                $termId
+            ));
+        } catch (Throwable $throwable) {
+            return null;
+        }
+
+        return $wpdb->last_error === '' && $rowCount !== null ? (int) $rowCount : null;
+    };
+
     $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : ll_tools_import_default_undo_payload();
     $result = [
         'ok' => true,
@@ -10326,7 +11256,11 @@ function ll_tools_undo_import_entry(array $entry): array {
     $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
         && function_exists('ll_tools_end_deferred_category_maintenance');
     if ($defer_category_maintenance) {
-        ll_tools_begin_deferred_category_maintenance('undo_import');
+        try {
+            ll_tools_begin_deferred_category_maintenance('undo_import');
+        } catch (Throwable $throwable) {
+            $defer_category_maintenance = false;
+        }
     }
 
     try {
@@ -10352,16 +11286,15 @@ function ll_tools_undo_import_entry(array $entry): array {
         }
 
     foreach ($word_audio_ids as $post_id) {
-        $post = get_post($post_id);
-        if (!$post) {
+        $deleteStatus = ll_tools_import_delete_tracked_post_for_undo($post_id, 'word_audio');
+        if ($deleteStatus === 'absent') {
             continue;
         }
-        if ($post->post_type !== 'word_audio') {
+        if ($deleteStatus === 'wrong_type') {
             $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not word_audio.', 'll-tools-text-domain'), $post_id);
             continue;
         }
-        $deleted = wp_delete_post($post_id, true);
-        if (!$deleted) {
+        if ($deleteStatus !== 'deleted') {
             $result['errors'][] = sprintf(__('Failed to delete word_audio post %d during undo.', 'll-tools-text-domain'), $post_id);
             continue;
         }
@@ -10369,16 +11302,15 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($word_ids as $post_id) {
-        $post = get_post($post_id);
-        if (!$post) {
+        $deleteStatus = ll_tools_import_delete_tracked_post_for_undo($post_id, 'words');
+        if ($deleteStatus === 'absent') {
             continue;
         }
-        if ($post->post_type !== 'words') {
+        if ($deleteStatus === 'wrong_type') {
             $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not a word.', 'll-tools-text-domain'), $post_id);
             continue;
         }
-        $deleted = wp_delete_post($post_id, true);
-        if (!$deleted) {
+        if ($deleteStatus !== 'deleted') {
             $result['errors'][] = sprintf(__('Failed to delete word post %d during undo.', 'll-tools-text-domain'), $post_id);
             continue;
         }
@@ -10386,16 +11318,15 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($word_image_ids as $post_id) {
-        $post = get_post($post_id);
-        if (!$post) {
+        $deleteStatus = ll_tools_import_delete_tracked_post_for_undo($post_id, 'word_images');
+        if ($deleteStatus === 'absent') {
             continue;
         }
-        if ($post->post_type !== 'word_images') {
+        if ($deleteStatus === 'wrong_type') {
             $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not a word image.', 'll-tools-text-domain'), $post_id);
             continue;
         }
-        $deleted = wp_delete_post($post_id, true);
-        if (!$deleted) {
+        if ($deleteStatus !== 'deleted') {
             $result['errors'][] = sprintf(__('Failed to delete word image post %d during undo.', 'll-tools-text-domain'), $post_id);
             continue;
         }
@@ -10403,16 +11334,15 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($attachment_ids as $attachment_id) {
-        $attachment = get_post($attachment_id);
-        if (!$attachment) {
+        $deleteStatus = ll_tools_import_delete_tracked_post_for_undo($attachment_id, 'attachment', true);
+        if ($deleteStatus === 'absent') {
             continue;
         }
-        if ($attachment->post_type !== 'attachment') {
+        if ($deleteStatus === 'wrong_type') {
             $result['errors'][] = sprintf(__('Skipped post %d during undo because it is not an attachment.', 'll-tools-text-domain'), $attachment_id);
             continue;
         }
-        $deleted = wp_delete_attachment($attachment_id, true);
-        if (!$deleted) {
+        if ($deleteStatus !== 'deleted') {
             $result['errors'][] = sprintf(__('Failed to delete attachment %d during undo.', 'll-tools-text-domain'), $attachment_id);
             continue;
         }
@@ -10420,7 +11350,15 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($audio_paths as $audio_path) {
-        if (!ll_tools_import_delete_audio_file_if_safe($audio_path)) {
+        try {
+            $audioDeleteStatus = ll_tools_import_delete_audio_file_if_safe($audio_path);
+        } catch (Throwable $throwable) {
+            $audioDeleteStatus = 'failed';
+        }
+        if ($audioDeleteStatus === 'absent') {
+            continue;
+        }
+        if ($audioDeleteStatus !== 'deleted') {
             $result['errors'][] = sprintf(__('Skipped deleting audio file "%s" during undo because the path was outside uploads or invalid.', 'll-tools-text-domain'), $audio_path);
             continue;
         }
@@ -10428,11 +11366,22 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($category_ids as $term_id) {
-        $term = get_term($term_id, 'word-category');
-        if (!$term || is_wp_error($term)) {
+        $residualRowCount = $readResidualTermRows($term_id);
+        if ($residualRowCount === null) {
+            $result['errors'][] = sprintf(__('Failed to delete category term %d during undo.', 'll-tools-text-domain'), $term_id);
             continue;
         }
-        $deleted = wp_delete_term($term_id, 'word-category');
+        if ($residualRowCount === 0) {
+            continue;
+        }
+
+        try {
+            $deleted = function_exists('ll_tools_rollback_failed_new_word_category')
+                ? ll_tools_rollback_failed_new_word_category($term_id)
+                : wp_delete_term($term_id, 'word-category');
+        } catch (Throwable $throwable) {
+            $deleted = false;
+        }
         if (is_wp_error($deleted) || !$deleted) {
             $result['errors'][] = sprintf(__('Failed to delete category term %d during undo.', 'll-tools-text-domain'), $term_id);
             continue;
@@ -10441,16 +11390,39 @@ function ll_tools_undo_import_entry(array $entry): array {
     }
 
     foreach ($wordset_ids as $term_id) {
-        $term = get_term($term_id, 'wordset');
-        if (!$term || is_wp_error($term)) {
+        $residualRowCount = $readResidualTermRows($term_id);
+        if ($residualRowCount === null) {
+            $result['errors'][] = sprintf(__('Failed to delete word set term %d during undo.', 'll-tools-text-domain'), $term_id);
             continue;
         }
-        $deleted = wp_delete_term($term_id, 'wordset');
+        if ($residualRowCount === 0) {
+            if (
+                function_exists('ll_tools_import_template_wordset_remove_vocab_lesson_option_id')
+                && !ll_tools_import_template_wordset_remove_vocab_lesson_option_id($term_id)
+            ) {
+                $result['errors'][] = sprintf(__('Failed to delete word set term %d during undo.', 'll-tools-text-domain'), $term_id);
+            }
+            continue;
+        }
+
+        try {
+            $deleted = function_exists('ll_tools_rollback_failed_new_taxonomy_term')
+                ? ll_tools_rollback_failed_new_taxonomy_term($term_id, 'wordset')
+                : wp_delete_term($term_id, 'wordset');
+        } catch (Throwable $throwable) {
+            $deleted = false;
+        }
         if (is_wp_error($deleted) || !$deleted) {
             $result['errors'][] = sprintf(__('Failed to delete word set term %d during undo.', 'll-tools-text-domain'), $term_id);
             continue;
         }
         $result['stats']['wordsets_deleted']++;
+        if (
+            function_exists('ll_tools_import_template_wordset_remove_vocab_lesson_option_id')
+            && !ll_tools_import_template_wordset_remove_vocab_lesson_option_id($term_id)
+        ) {
+            $result['errors'][] = sprintf(__('Failed to delete word set term %d during undo.', 'll-tools-text-domain'), $term_id);
+        }
     }
 
     if (function_exists('ll_tools_rebuild_specific_wrong_answer_owner_map')) {
@@ -10479,9 +11451,18 @@ function ll_tools_undo_import_entry(array $entry): array {
         }
 
         return $result;
+    } catch (Throwable $throwable) {
+        $result['ok'] = false;
+        $result['message'] = __('Undo finished with some errors.', 'll-tools-text-domain');
+        $result['errors'][] = __('Undo finished with some errors.', 'll-tools-text-domain');
+        return $result;
     } finally {
         if ($defer_category_maintenance) {
-            ll_tools_end_deferred_category_maintenance(true);
+            try {
+                ll_tools_end_deferred_category_maintenance(true);
+            } catch (Throwable $throwable) {
+                // The handler must still persist a retryable Undo result.
+            }
         }
     }
 }
@@ -10534,8 +11515,21 @@ function ll_tools_handle_undo_import() {
         ]);
     }
 
-    $undo_result = ll_tools_undo_import_entry($entry);
-    $history[$entry_index]['undone_at'] = time();
+    try {
+        $undo_result = ll_tools_undo_import_entry($entry);
+    } catch (Throwable $throwable) {
+        $undo_result = [
+            'ok' => false,
+            'message' => __('Undo finished with some errors.', 'll-tools-text-domain'),
+            'errors' => [__('Undo finished with some errors.', 'll-tools-text-domain')],
+            'stats' => [],
+        ];
+    }
+    if (!empty($undo_result['ok'])) {
+        $history[$entry_index]['undone_at'] = time();
+    } else {
+        unset($history[$entry_index]['undone_at']);
+    }
     $history[$entry_index]['undo_result'] = $undo_result;
     ll_tools_import_write_history($history);
 
@@ -11034,6 +12028,11 @@ function ll_tools_import_job_prepare_payload(array $job) {
     $bundle_type = ll_tools_import_detect_bundle_type($payload);
     $has_full_content = !empty($words) || (isset($payload['bundle_type']) && $payload['bundle_type'] === 'category_full');
 
+    $category_preflight = ll_tools_import_preflight_category_details_payload($categories);
+    if (is_wp_error($category_preflight)) {
+        return $category_preflight;
+    }
+
     $write_categories = ll_tools_import_job_write_json_file(ll_tools_import_job_categories_path($job), $categories);
     if (is_wp_error($write_categories)) {
         return $write_categories;
@@ -11223,11 +12222,14 @@ function ll_tools_import_job_process(array $job) {
         $batch_size = max(1, (int) apply_filters('ll_tools_import_job_category_chunk_size', 50, $job));
         $batch = array_slice($categories, $offset, $batch_size);
         $category_map = isset($job['category_map']) && is_array($job['category_map']) ? $job['category_map'] : [];
-        ll_tools_import_apply_category_details_chunk(
+        $categoryApplyResult = ll_tools_import_apply_category_details_chunk(
             $batch,
             $category_map,
             isset($job['options']) && is_array($job['options']) ? $job['options'] : []
         );
+        if (is_wp_error($categoryApplyResult)) {
+            return $categoryApplyResult;
+        }
         $job['category_apply_index'] = min(count($categories), $offset + count($batch));
         if ((int) $job['category_apply_index'] >= count($categories)) {
             $job['phase'] = 'word_images';
@@ -11391,10 +12393,17 @@ function ll_tools_import_job_process(array $job) {
         $finalize_step = max(0, (int) ($job['finalize_step'] ?? 0));
         if ($finalize_step < 1 && !empty($job['has_full_content'])) {
             $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
+            $finalizeCategories = ll_tools_import_job_load_array_file(
+                ll_tools_import_job_categories_path($job)
+            );
+            if (is_wp_error($finalizeCategories)) {
+                return $finalizeCategories;
+            }
             ll_tools_import_finalize_word_import_state(
                 isset($job['word_state']) && is_array($job['word_state']) ? $job['word_state'] : ll_tools_import_default_word_import_state(),
                 isset($job['category_map']) && is_array($job['category_map']) ? $job['category_map'] : [],
-                $result
+                $result,
+                $finalizeCategories
             );
             $job['result'] = $result;
             $job['finalize_step'] = 1;
@@ -11850,6 +12859,9 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id, array $
         if (defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')) {
             $extra_skip_keys[] = (string) LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY;
         }
+        $extra_skip_keys[] = function_exists('ll_tools_vocab_lesson_category_settings_revision_meta_key')
+            ? ll_tools_vocab_lesson_category_settings_revision_meta_key()
+            : '_ll_vocab_lesson_category_settings_revision';
         $extra_skip_keys[] = '_ll_wc_cache_version';
 
         $categories[] = [
@@ -12001,6 +13013,11 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
         $term_by_id[$term->term_id] = $term;
     }
 
+    $category_meta_skip_keys = [
+        function_exists('ll_tools_vocab_lesson_category_settings_revision_meta_key')
+            ? ll_tools_vocab_lesson_category_settings_revision_meta_key()
+            : '_ll_vocab_lesson_category_settings_revision',
+    ];
     $categories = [];
     foreach ($terms as $term) {
         $categories[] = [
@@ -12008,7 +13025,10 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
             'name'        => $term->name,
             'description' => $term->description,
             'parent_slug' => '',
-            'meta'        => ll_tools_prepare_meta_for_export(get_term_meta($term->term_id)),
+            'meta'        => ll_tools_prepare_meta_for_export(
+                get_term_meta($term->term_id),
+                $category_meta_skip_keys
+            ),
         ];
     }
 
@@ -14252,10 +15272,13 @@ function ll_tools_import_finalize_result(array $payload, array $result, array $i
     return $result;
 }
 
-function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, array $wordset_payload, array $category_slug_to_id): void {
+/**
+ * @return true|WP_Error
+ */
+function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, array $wordset_payload, array $category_slug_to_id) {
     $target_wordset_id = (int) $target_wordset_id;
     if ($target_wordset_id <= 0) {
-        return;
+        return true;
     }
 
     $wordset_meta = isset($wordset_payload['meta']) && is_array($wordset_payload['meta']) ? $wordset_payload['meta'] : [];
@@ -14272,7 +15295,10 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
         }
     }
     if (!empty($wordset_meta)) {
-        ll_tools_import_replace_term_meta_values($target_wordset_id, $wordset_meta, 'wordset');
+        $meta_result = ll_tools_import_replace_term_meta_values($target_wordset_id, $wordset_meta, 'wordset');
+        if (is_wp_error($meta_result)) {
+            return $meta_result;
+        }
     }
 
     $manual_order_slugs = isset($wordset_payload['template_category_manual_order']) && is_array($wordset_payload['template_category_manual_order'])
@@ -14286,11 +15312,9 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
             $manual_order_ids[] = $category_id;
         }
     }
-    if (!empty($manual_order_ids)) {
-        update_term_meta($target_wordset_id, 'll_wordset_category_manual_order', $manual_order_ids);
-    } else {
-        delete_term_meta($target_wordset_id, 'll_wordset_category_manual_order');
-    }
+    $computed_meta = [
+        'll_wordset_category_manual_order' => !empty($manual_order_ids) ? [$manual_order_ids] : [],
+    ];
 
     $prereq_slug_map = isset($wordset_payload['template_category_prerequisites']) && is_array($wordset_payload['template_category_prerequisites'])
         ? $wordset_payload['template_category_prerequisites']
@@ -14316,15 +15340,22 @@ function ll_tools_import_apply_template_wordset_meta(int $target_wordset_id, arr
             $prereq_id_map[$category_id] = $dependency_ids;
         }
     }
-    if (!empty($prereq_id_map)) {
-        update_term_meta($target_wordset_id, 'll_wordset_category_prerequisites', $prereq_id_map);
-    } else {
-        delete_term_meta($target_wordset_id, 'll_wordset_category_prerequisites');
-    }
+    $computed_meta['ll_wordset_category_prerequisites'] = !empty($prereq_id_map) ? [$prereq_id_map] : [];
 
     if (get_current_user_id() > 0) {
-        update_term_meta($target_wordset_id, 'manager_user_id', get_current_user_id());
+        $computed_meta['manager_user_id'] = [get_current_user_id()];
     }
+
+    $computed_meta_result = ll_tools_import_replace_term_meta_values(
+        $target_wordset_id,
+        $computed_meta,
+        'wordset'
+    );
+    if (is_wp_error($computed_meta_result)) {
+        return $computed_meta_result;
+    }
+
+    return true;
 }
 
 function ll_tools_import_template_wordset_mapping_is_live(int $wordset_id, int $term_taxonomy_id, ?bool &$complete = null): bool {
@@ -14335,14 +15366,23 @@ function ll_tools_import_template_wordset_mapping_is_live(int $wordset_id, int $
         return false;
     }
 
-    $wpdb->last_error = '';
-    $mapping = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
-            $term_taxonomy_id
-        ),
-        ARRAY_A
-    );
+    try {
+        $wpdb->last_error = '';
+        $mapping = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT t.term_id, tt.taxonomy
+                 FROM {$wpdb->term_taxonomy} AS tt
+                 INNER JOIN {$wpdb->terms} AS t ON t.term_id = tt.term_id
+                 WHERE tt.term_taxonomy_id = %d
+                 LIMIT 1",
+                $term_taxonomy_id
+            ),
+            ARRAY_A
+        );
+    } catch (Throwable $throwable) {
+        $complete = false;
+        return false;
+    }
     if ($wpdb->last_error !== '') {
         $complete = false;
         return false;
@@ -14392,46 +15432,73 @@ function ll_tools_import_template_wordset_remove_vocab_lesson_option_id(int $wor
     }
 
     $option_name = 'll_vocab_lesson_wordsets';
-    for ($attempt = 0; $attempt < 5; $attempt++) {
-        $wpdb->last_error = '';
-        $serialized_before = $wpdb->get_var($wpdb->prepare(
-            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
-            $option_name
-        ));
-        if ($wpdb->last_error !== '') {
-            return false;
-        }
-        if ($serialized_before === null) {
-            return true;
-        }
+    try {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $wpdb->last_error = '';
+            $serialized_before = $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+                $option_name
+            ));
+            if ($wpdb->last_error !== '') {
+                return false;
+            }
+            if ($serialized_before === null) {
+                return true;
+            }
 
-        $before = maybe_unserialize($serialized_before);
-        if (is_string($before)) {
-            $before = array_filter(array_map('trim', explode(',', $before)));
-        }
-        if (!is_array($before)) {
-            return false;
-        }
+            $before = maybe_unserialize($serialized_before);
+            if (is_string($before)) {
+                $before = array_filter(array_map('trim', explode(',', $before)));
+            }
+            if (!is_array($before)) {
+                return false;
+            }
 
-        $before_ids = array_values(array_unique(array_filter(array_map('intval', $before))));
-        if (!in_array($wordset_id, $before_ids, true)) {
-            return true;
-        }
+            $before_ids = array_values(array_unique(array_filter(array_map('intval', $before))));
+            if (!in_array($wordset_id, $before_ids, true)) {
+                return true;
+            }
 
-        $after_ids = array_values(array_filter($before_ids, static function (int $candidate_id) use ($wordset_id): bool {
-            return $candidate_id !== $wordset_id;
-        }));
-        $changed = $wpdb->query($wpdb->prepare(
-            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
-            maybe_serialize($after_ids),
-            $option_name,
-            $serialized_before
-        ));
-        wp_cache_delete($option_name, 'options');
-        wp_cache_delete('alloptions', 'options');
-        if ((int) $changed === 1) {
-            return true;
+            $after_ids = array_values(array_filter($before_ids, static function (int $candidate_id) use ($wordset_id): bool {
+                return $candidate_id !== $wordset_id;
+            }));
+            $changed = $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+                maybe_serialize($after_ids),
+                $option_name,
+                $serialized_before
+            ));
+            try {
+                wp_cache_delete($option_name, 'options');
+                wp_cache_delete('alloptions', 'options');
+            } catch (Throwable $throwable) {
+                // The database readback on the next attempt is authoritative.
+            }
+            if ((int) $changed === 1) {
+                $wpdb->last_error = '';
+                $serializedAfter = $wpdb->get_var($wpdb->prepare(
+                    "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+                    $option_name
+                ));
+                if ($wpdb->last_error !== '') {
+                    return false;
+                }
+                if ($serializedAfter === null) {
+                    return true;
+                }
+                $after = maybe_unserialize($serializedAfter);
+                if (is_string($after)) {
+                    $after = array_filter(array_map('trim', explode(',', $after)));
+                }
+                if (!is_array($after)) {
+                    return false;
+                }
+                $storedIds = array_values(array_unique(array_filter(array_map('intval', $after))));
+                return !in_array($wordset_id, $storedIds, true);
+            }
         }
+    } catch (Throwable $throwable) {
+        return false;
     }
 
     return false;
@@ -14445,93 +15512,54 @@ function ll_tools_import_template_wordset_record_owned_failure(
 ): void {
     $reason = sanitize_key($reason);
     $reason = $reason !== '' ? $reason : 'template_wordset_creation_failed';
+    $was_tracked = in_array(
+        $wordset_id,
+        ll_tools_import_normalize_id_list((array) ($result['undo']['wordset_term_ids'] ?? [])),
+        true
+    );
     $mapping_complete = true;
-    if (!ll_tools_import_template_wordset_mapping_is_live($wordset_id, $term_taxonomy_id, $mapping_complete)) {
-        if (!$mapping_complete) {
-            if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
-                ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
-                $result['errors'][] = sprintf(
-                    '%s %s [%s; cleanup_status=ownership_read_failed_retained_private; wordset_id=%d]',
-                    __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
-                    __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
-                    $reason,
-                    $wordset_id
-                );
-            } else {
-                $result['errors'][] = sprintf(
-                    '%s [CRITICAL: template_wordset_cleanup_failed; reason=%s; cleanup_status=ownership_read_failed; wordset_id=%d]',
-                    __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
-                    $reason,
-                    $wordset_id
-                );
-            }
-            return;
-        }
-        $result['errors'][] = sprintf(
-            '%s [%s; cleanup_status=unverified_term_taxonomy; wordset_id=%d]',
-            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
-            $reason,
-            $wordset_id
-        );
-        return;
-    }
-
-    if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
-        ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
-        $result['errors'][] = sprintf(
-            '%s %s [%s; cleanup_status=retained_private; wordset_id=%d]',
-            __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
-            __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
-            $reason,
-            $wordset_id
-        );
-        return;
-    }
-
-    $delete_status = 'delete_failed';
-    try {
-        $deleted = wp_delete_term($wordset_id, 'wordset');
-        if (is_wp_error($deleted)) {
-            $delete_status = sanitize_key((string) $deleted->get_error_code());
-        } elseif ($deleted) {
-            $delete_status = 'deleted';
-        } else {
-            $delete_status = 'delete_returned_false';
-        }
-    } catch (Throwable $throwable) {
-        $delete_status = 'delete_threw';
-    }
-
-    $post_delete_mapping_complete = true;
-    $post_delete_mapping_live = ll_tools_import_template_wordset_mapping_is_live(
+    $mapping_live = ll_tools_import_template_wordset_mapping_is_live(
         $wordset_id,
         $term_taxonomy_id,
-        $post_delete_mapping_complete
+        $mapping_complete
     );
-    if ($post_delete_mapping_complete && !$post_delete_mapping_live) {
+    $cleanup_complete = false;
+    try {
+        $cleanup_complete = function_exists('ll_tools_rollback_failed_new_taxonomy_term')
+            && ll_tools_rollback_failed_new_taxonomy_term($wordset_id, 'wordset', $term_taxonomy_id);
+    } catch (Throwable $throwable) {
+        $cleanup_complete = false;
+    }
+    if ($cleanup_complete) {
         $option_clean = ll_tools_import_template_wordset_remove_vocab_lesson_option_id($wordset_id);
+        if ($was_tracked) {
+            $result['stats']['wordsets_created'] = max(0, (int) ($result['stats']['wordsets_created'] ?? 0) - 1);
+        }
+        if ($option_clean) {
+            ll_tools_import_untrack_undo_id($result, 'wordset_term_ids', $wordset_id);
+        } else {
+            // The deleted term ID remains useful evidence for retrying removal
+            // from the vocabulary-lesson option during Undo.
+            ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+        }
         $result['errors'][] = sprintf(
-            '%s [%s; cleanup_status=%s%s; wordset_id=%d]',
+            '%s [%s; cleanup_status=deleted%s; wordset_id=%d]',
             __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
             $reason,
-            $delete_status,
             $option_clean ? '' : '_option_cleanup_failed',
             $wordset_id
         );
         return;
     }
-    if (!$post_delete_mapping_complete) {
-        $delete_status .= '_mapping_read_failed';
-    }
 
-    if (ll_tools_import_template_wordset_keep_private($wordset_id)) {
-        ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+    $retained_private = $mapping_live && ll_tools_import_template_wordset_keep_private($wordset_id);
+    ll_tools_import_track_undo_id($result, 'wordset_term_ids', $wordset_id);
+    if ($retained_private) {
         $result['errors'][] = sprintf(
-            '%s %s [%s; cleanup_status=%s_retained_private; wordset_id=%d]',
+            '%s %s [%s; cleanup_status=cleanup_failed_retained_private; wordset_id=%d]',
             __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
             __('The incomplete word set was retained privately; use Undo Import to remove it.', 'll-tools-text-domain'),
             $reason,
-            $delete_status,
             $wordset_id
         );
         return;
@@ -14541,7 +15569,7 @@ function ll_tools_import_template_wordset_record_owned_failure(
         '%s [CRITICAL: template_wordset_cleanup_failed; reason=%s; cleanup_status=%s; wordset_id=%d]',
         __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain'),
         $reason,
-        $delete_status,
+        $mapping_complete ? 'cleanup_failed_retained_for_undo' : 'ownership_read_failed_retained_for_undo',
         $wordset_id
     );
 }
@@ -14570,7 +15598,7 @@ function ll_tools_import_template_wordset_finalize_cache_state(int $wordset_id, 
 }
 
 function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, array $options, array &$result): array {
-    global $wp_version;
+    global $wpdb, $wp_version;
 
     if (version_compare((string) $wp_version, '6.1', '<')) {
         $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [requires_wordpress_6_1]';
@@ -14596,8 +15624,20 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
     $insert_args = [
         'description' => isset($source_wordset['description']) ? (string) $source_wordset['description'] : '',
     ];
-    if ($source_slug !== '' && !get_term_by('slug', $source_slug, 'wordset')) {
-        $insert_args['slug'] = $source_slug;
+    if ($source_slug !== '') {
+        try {
+            $wpdb->last_error = '';
+            $existing_source_slug = get_term_by('slug', $source_slug, 'wordset');
+        } catch (Throwable $throwable) {
+            $existing_source_slug = new WP_Error('ll_tools_template_wordset_slug_read_failed');
+        }
+        if (is_wp_error($existing_source_slug) || $wpdb->last_error !== '') {
+            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [template_wordset_slug_read_failed]';
+            return [];
+        }
+        if (!($existing_source_slug instanceof WP_Term)) {
+            $insert_args['slug'] = $source_slug;
+        }
     }
 
     $visibility_meta_key = defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')
@@ -14607,14 +15647,132 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
     $insert_args['_ll_tools_template_import_token'] = $template_import_token;
     $raw_wordset_id = 0;
     $raw_wordset_tt_id = 0;
+    $mapping_capture_conflicted = false;
     $term_id_was_remapped = false;
+    $expected_term_data = [];
+    $outer_insert_marker_reset = false;
+    $is_direct_insert_callback = static function (): bool {
+        $depth = 0;
+        foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+            if ((string) ($frame['function'] ?? '') !== 'wp_insert_term') {
+                continue;
+            }
+            $depth++;
+            if ($depth > 1) {
+                return false;
+            }
+        }
+        return $depth === 1;
+    };
+    $capture_term_data = static function ($data, $taxonomy = '', $data_args = []) use (
+        $template_import_token,
+        $is_direct_insert_callback,
+        &$expected_term_data,
+        &$outer_insert_marker_reset,
+        &$mapping_capture_conflicted
+    ) {
+        if (
+            (string) $taxonomy === 'wordset'
+            && $is_direct_insert_callback()
+            && is_array($data_args)
+            && isset($data_args['_ll_tools_template_import_token'])
+            && is_string($data_args['_ll_tools_template_import_token'])
+            && hash_equals($template_import_token, $data_args['_ll_tools_template_import_token'])
+            && is_array($data)
+        ) {
+            $expected_term_data = [
+                'name' => (string) ($data['name'] ?? ''),
+                'slug' => (string) ($data['slug'] ?? ''),
+                'term_group' => (string) ($data['term_group'] ?? '0'),
+            ];
+            try {
+                global $wpdb;
+                $wpdb->last_error = '';
+                $resetMarker = $wpdb->get_var('SELECT LAST_INSERT_ID(0)');
+                $outer_insert_marker_reset = $wpdb->last_error === '' && (string) $resetMarker === '0';
+            } catch (Throwable $throwable) {
+                $outer_insert_marker_reset = false;
+            }
+            if (!$outer_insert_marker_reset) {
+                $mapping_capture_conflicted = true;
+            }
+        }
+        return $data;
+    };
+    $capture_confidence_mapping = static function ($duplicate_term, $term = '', $taxonomy = '', $confidence_args = [], $term_taxonomy_id = 0) use (
+        $template_import_token,
+        $is_direct_insert_callback,
+        &$raw_wordset_id,
+        &$raw_wordset_tt_id,
+        &$mapping_capture_conflicted
+    ) {
+        global $wpdb;
+
+        if (
+            (string) $taxonomy !== 'wordset'
+            || !$is_direct_insert_callback()
+            || !is_array($confidence_args)
+            || !isset($confidence_args['_ll_tools_template_import_token'])
+            || !is_string($confidence_args['_ll_tools_template_import_token'])
+            || !hash_equals($template_import_token, $confidence_args['_ll_tools_template_import_token'])
+        ) {
+            return $duplicate_term;
+        }
+        $term_taxonomy_id = (int) $term_taxonomy_id;
+        try {
+            $wpdb->last_error = '';
+            $mapping = $wpdb->get_row($wpdb->prepare(
+                "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+                $term_taxonomy_id
+            ), ARRAY_A);
+        } catch (Throwable $throwable) {
+            $mapping_capture_conflicted = true;
+            return false;
+        }
+        if (
+            $wpdb->last_error !== ''
+            || !is_array($mapping)
+            || (string) ($mapping['taxonomy'] ?? '') !== 'wordset'
+            || (int) ($mapping['term_id'] ?? 0) <= 0
+        ) {
+            $mapping_capture_conflicted = true;
+            return false;
+        }
+
+        if ($raw_wordset_id <= 0 && $raw_wordset_tt_id <= 0) {
+            $raw_wordset_id = (int) $mapping['term_id'];
+            $raw_wordset_tt_id = $term_taxonomy_id;
+        }
+        return $duplicate_term;
+    };
+    $protect_confidence_cleanup = static function ($duplicate_term, $term = '', $taxonomy = '', $confidence_args = []) use (
+        $template_import_token,
+        $is_direct_insert_callback,
+        &$mapping_capture_conflicted
+    ) {
+        if (
+            $mapping_capture_conflicted
+            && (string) $taxonomy === 'wordset'
+            && $is_direct_insert_callback()
+            && is_array($confidence_args)
+            && isset($confidence_args['_ll_tools_template_import_token'])
+            && is_string($confidence_args['_ll_tools_template_import_token'])
+            && hash_equals($template_import_token, $confidence_args['_ll_tools_template_import_token'])
+        ) {
+            return false;
+        }
+        return $duplicate_term;
+    };
     $seed_private = static function ($term_id, $term_taxonomy_id = 0, $taxonomy = '', $created_args = []) use (
         $template_import_token,
+        $is_direct_insert_callback,
         &$raw_wordset_id,
-        &$raw_wordset_tt_id
+        &$raw_wordset_tt_id,
+        &$mapping_capture_conflicted
     ): void {
         if (
             (string) $taxonomy !== 'wordset'
+            || !$is_direct_insert_callback()
             || !is_array($created_args)
             || !isset($created_args['_ll_tools_template_import_token'])
             || !is_string($created_args['_ll_tools_template_import_token'])
@@ -14632,19 +15790,30 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         if ($term_id !== $raw_wordset_id || $term_taxonomy_id !== $raw_wordset_tt_id) {
             return;
         }
+        if ($mapping_capture_conflicted) {
+            return;
+        }
         if (!ll_tools_import_template_wordset_keep_private($raw_wordset_id)) {
             throw new RuntimeException('Template wordset privacy could not be seeded.');
         }
     };
     $protect_raw_term_id = static function ($filtered_term_id, $term_taxonomy_id = 0, $filtered_args = []) use (
+        $template_import_token,
+        $is_direct_insert_callback,
         &$raw_wordset_id,
         &$raw_wordset_tt_id,
         &$term_id_was_remapped
     ) {
         if (
+            !$is_direct_insert_callback()
+            ||
             $raw_wordset_id <= 0
             || $raw_wordset_tt_id <= 0
             || (int) $term_taxonomy_id !== $raw_wordset_tt_id
+            || !is_array($filtered_args)
+            || !isset($filtered_args['_ll_tools_template_import_token'])
+            || !is_string($filtered_args['_ll_tools_template_import_token'])
+            || !hash_equals($template_import_token, $filtered_args['_ll_tools_template_import_token'])
         ) {
             return $filtered_term_id;
         }
@@ -14657,6 +15826,16 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
 
     $wordset_insert = null;
     $insert_throwable = null;
+    $insert_transaction = function_exists('ll_tools_strict_term_insert_begin_transaction')
+        ? ll_tools_strict_term_insert_begin_transaction()
+        : null;
+    if (!is_array($insert_transaction)) {
+        $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [template_wordset_transaction_unavailable]';
+        return [];
+    }
+    add_filter('wp_insert_term_data', $capture_term_data, PHP_INT_MAX, 3);
+    add_filter('wp_insert_term_duplicate_term_check', $capture_confidence_mapping, PHP_INT_MIN, 5);
+    add_filter('wp_insert_term_duplicate_term_check', $protect_confidence_cleanup, PHP_INT_MAX, 4);
     add_action('create_term', $seed_private, PHP_INT_MIN, 4);
     add_filter('term_id_filter', $protect_raw_term_id, PHP_INT_MAX, 3);
     try {
@@ -14664,50 +15843,100 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
     } catch (Throwable $throwable) {
         $insert_throwable = $throwable;
     } finally {
+        remove_filter('wp_insert_term_data', $capture_term_data, PHP_INT_MAX);
+        remove_filter('wp_insert_term_duplicate_term_check', $capture_confidence_mapping, PHP_INT_MIN);
+        remove_filter('wp_insert_term_duplicate_term_check', $protect_confidence_cleanup, PHP_INT_MAX);
         remove_action('create_term', $seed_private, PHP_INT_MIN);
         remove_filter('term_id_filter', $protect_raw_term_id, PHP_INT_MAX);
     }
 
-    if ($insert_throwable instanceof Throwable) {
-        if ($raw_wordset_id > 0) {
-            ll_tools_import_template_wordset_record_owned_failure(
-                $raw_wordset_id,
-                $raw_wordset_tt_id,
-                'template_wordset_insert_threw',
-                $result
-            );
-            ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
-        } else {
-            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [template_wordset_insert_threw]';
-        }
-        return [];
-    }
-    if (is_wp_error($wordset_insert)) {
-        $result['errors'][] = sprintf(__('Failed to create template word set "%s": %s', 'll-tools-text-domain'), $target_name, $wordset_insert->get_error_message());
-        return [];
+    if (
+        ($raw_wordset_id <= 0 || $raw_wordset_tt_id <= 0)
+        && !empty($expected_term_data)
+        && function_exists('ll_tools_strict_term_insert_recover_mapping')
+    ) {
+        ll_tools_strict_term_insert_recover_mapping(
+            'wordset',
+            $expected_term_data,
+            $raw_wordset_id,
+            $raw_wordset_tt_id,
+            $insert_transaction,
+            $outer_insert_marker_reset
+        );
     }
 
-    $target_wordset_id = (int) ($wordset_insert['term_id'] ?? 0);
-    $target_wordset_tt_id = (int) ($wordset_insert['term_taxonomy_id'] ?? 0);
-    if (
-        $term_id_was_remapped
+    $target_wordset_id = is_array($wordset_insert) ? (int) ($wordset_insert['term_id'] ?? 0) : 0;
+    $target_wordset_tt_id = is_array($wordset_insert) ? (int) ($wordset_insert['term_taxonomy_id'] ?? 0) : 0;
+    $duplicate_winner_returned = is_array($wordset_insert)
+        && !$term_id_was_remapped
+        && $raw_wordset_id > 0
+        && (
+            $target_wordset_id !== $raw_wordset_id
+            || $target_wordset_tt_id !== $raw_wordset_tt_id
+        );
+    $insert_failed = $insert_throwable instanceof Throwable
+        || is_wp_error($wordset_insert)
+        || $mapping_capture_conflicted
+        || $term_id_was_remapped
         || $raw_wordset_id <= 0
         || $raw_wordset_tt_id <= 0
         || $target_wordset_id !== $raw_wordset_id
-        || $target_wordset_tt_id !== $raw_wordset_tt_id
-        || !ll_tools_import_template_wordset_mapping_is_live($raw_wordset_id, $raw_wordset_tt_id)
-    ) {
+        || $target_wordset_tt_id !== $raw_wordset_tt_id;
+
+    if ($insert_failed) {
+        if (function_exists('ll_tools_strict_term_insert_rollback_transaction')) {
+            ll_tools_strict_term_insert_rollback_transaction($insert_transaction);
+        }
         if ($raw_wordset_id > 0) {
+            if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                ll_tools_strict_term_insert_evict_caches($raw_wordset_id, 'wordset');
+            }
             ll_tools_import_template_wordset_record_owned_failure(
                 $raw_wordset_id,
                 $raw_wordset_tt_id,
-                $term_id_was_remapped ? 'template_wordset_term_id_remapped' : 'template_wordset_ownership_unverified',
+                $duplicate_winner_returned
+                    ? 'template_wordset_duplicate_winner'
+                    : ($insert_throwable instanceof Throwable ? 'template_wordset_insert_threw' : 'template_wordset_ownership_unverified'),
                 $result
             );
             ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
         } else {
-            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain');
+            $reason = $insert_throwable instanceof Throwable
+                ? 'template_wordset_insert_threw'
+                : 'template_wordset_insert_failed';
+            $result['errors'][] = __('Template import failed: the destination word set could not be created.', 'll-tools-text-domain') . ' [' . $reason . ']';
         }
+        return [];
+    }
+
+    if (
+        !function_exists('ll_tools_strict_term_insert_commit_transaction')
+        || !ll_tools_strict_term_insert_commit_transaction($insert_transaction)
+    ) {
+        if (function_exists('ll_tools_strict_term_insert_rollback_transaction')) {
+            ll_tools_strict_term_insert_rollback_transaction($insert_transaction);
+        }
+        if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+            ll_tools_strict_term_insert_evict_caches($raw_wordset_id, 'wordset');
+        }
+        ll_tools_import_template_wordset_record_owned_failure(
+            $raw_wordset_id,
+            $raw_wordset_tt_id,
+            'template_wordset_commit_failed',
+            $result
+        );
+        ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
+        return [];
+    }
+
+    if (!ll_tools_import_template_wordset_mapping_is_live($raw_wordset_id, $raw_wordset_tt_id)) {
+        ll_tools_import_template_wordset_record_owned_failure(
+            $raw_wordset_id,
+            $raw_wordset_tt_id,
+            'template_wordset_ownership_unverified',
+            $result
+        );
+        ll_tools_import_template_wordset_finalize_cache_state($raw_wordset_id, $result);
         return [];
     }
     if (!ll_tools_import_template_wordset_keep_private($target_wordset_id)) {
@@ -14762,26 +15991,62 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
             $create_args['description'] = (string) $category_payload['description'];
         }
 
-        $created_category = function_exists('ll_tools_create_or_get_wordset_category')
-            ? ll_tools_create_or_get_wordset_category($category_name, $target_wordset_id, $create_args)
+        $created_category = function_exists('ll_tools_create_new_wordset_category')
+            ? ll_tools_create_new_wordset_category($category_name, $target_wordset_id, array_merge(
+                $create_args,
+                ['_ll_tools_force_wordset_owner' => true]
+            ))
             : new WP_Error('ll_tools_template_category_helper_missing', __('Word set category creation is not available right now.', 'll-tools-text-domain'));
         if (is_wp_error($created_category) || (int) $created_category <= 0) {
             $message = is_wp_error($created_category) ? $created_category->get_error_message() : __('Unknown error', 'll-tools-text-domain');
+            if (is_wp_error($created_category)) {
+                $error_data = $created_category->get_error_data();
+                $retained_id = is_array($error_data) && empty($error_data['rollback_complete'])
+                    ? (int) ($error_data['term_id'] ?? 0)
+                    : 0;
+                if ($retained_id > 0) {
+                    ll_tools_import_track_undo_id($result, 'category_term_ids', $retained_id);
+                    $message .= sprintf(' [CRITICAL: template_category_cleanup_failed; category_id=%d]', $retained_id);
+                }
+            }
             $result['errors'][] = sprintf(__('Failed to create template category "%1$s": %2$s', 'll-tools-text-domain'), $category_name, $message);
             return 0;
         }
 
         $created_category_id = (int) $created_category;
+        // Track immediately after proven creation. Any later cleanup can remove
+        // the ID, while an unverifiable cleanup remains recoverable via Undo.
+        ll_tools_import_track_undo_id($result, 'category_term_ids', $created_category_id);
         if (!empty($category_payload['meta']) && is_array($category_payload['meta'])) {
-            ll_tools_import_replace_term_meta_values($created_category_id, $category_payload['meta'], 'word-category');
-        }
-        if (function_exists('ll_tools_set_category_wordset_owner')) {
-            ll_tools_set_category_wordset_owner($created_category_id, $target_wordset_id, $created_category_id);
+            $metaResult = ll_tools_import_replace_term_meta_values(
+                $created_category_id,
+                $category_payload['meta'],
+                'word-category'
+            );
+            if (is_wp_error($metaResult)) {
+                $metaResult = function_exists('ll_tools_rollback_created_wordset_category_after_error')
+                    ? ll_tools_rollback_created_wordset_category_after_error($created_category_id, $metaResult)
+                    : $metaResult;
+                $error_data = $metaResult->get_error_data();
+                $rollback_complete = is_array($error_data) && !empty($error_data['rollback_complete']);
+                if ($rollback_complete) {
+                    ll_tools_import_untrack_undo_id($result, 'category_term_ids', $created_category_id);
+                }
+                $message = $metaResult->get_error_message();
+                if (!$rollback_complete) {
+                    $message .= sprintf(' [CRITICAL: template_category_cleanup_failed; category_id=%d]', $created_category_id);
+                }
+                $result['errors'][] = sprintf(
+                    __('Failed to import settings for category "%1$s": %2$s', 'll-tools-text-domain'),
+                    $category_name,
+                    $message
+                );
+                return 0;
+            }
         }
 
         $category_slug_to_id[$category_slug] = $created_category_id;
         $result['stats']['categories_created']++;
-        ll_tools_import_track_undo_id($result, 'category_term_ids', $created_category_id);
 
         return $created_category_id;
     };
@@ -14790,7 +16055,18 @@ function ll_tools_import_wordset_template_payload(array $payload, $extract_dir, 
         $create_category((string) $category_slug);
     }
 
-    ll_tools_import_apply_template_wordset_meta($target_wordset_id, $source_wordset, $category_slug_to_id);
+    $wordsetMetaResult = ll_tools_import_apply_template_wordset_meta(
+        $target_wordset_id,
+        $source_wordset,
+        $category_slug_to_id
+    );
+    if (is_wp_error($wordsetMetaResult)) {
+        $result['errors'][] = sprintf(
+            __('Failed to update word set "%s": %s', 'll-tools-text-domain'),
+            $target_name,
+            $wordsetMetaResult->get_error_message()
+        );
+    }
 
     $wordset_map = [];
     if ($source_slug !== '') {
@@ -14951,7 +16227,91 @@ function ll_tools_import_build_owned_word_image_slug(string $slug, int $wordset_
     return ll_tools_build_isolated_word_image_slug($slug, $wordset_id);
 }
 
+/**
+ * Resolve an assign-existing category by its exact owned slug, or create it.
+ *
+ * Name-based reuse is intentionally avoided here. An import category's slug is
+ * its stable identity, and reusing a same-name/different-slug term would let the
+ * later details phase overwrite (and the undo payload delete) unrelated data.
+ *
+ * @return array{term_id:int,created:bool}|WP_Error
+ */
+function ll_tools_import_upsert_owned_category_target(array $category, int $wordset_id) {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    $source_slug = isset($category['slug']) ? sanitize_title((string) $category['slug']) : '';
+    $owned_slug = ll_tools_import_build_owned_category_slug($source_slug, $wordset_id);
+    if ($source_slug === '' || $owned_slug === '' || $wordset_id <= 0) {
+        return new WP_Error('ll_tools_import_category_target_invalid', __('Invalid category.', 'll-tools-text-domain'));
+    }
+
+    try {
+        $wpdb->last_error = '';
+        $existing = get_term_by('slug', $owned_slug, 'word-category');
+    } catch (Throwable $throwable) {
+        return new WP_Error('ll_tools_import_category_target_read', __('Unable to read category settings right now.', 'll-tools-text-domain'));
+    }
+    if (is_wp_error($existing) || $wpdb->last_error !== '') {
+        return new WP_Error('ll_tools_import_category_target_read', __('Unable to read category settings right now.', 'll-tools-text-domain'));
+    }
+    if ($existing instanceof WP_Term) {
+        try {
+            $wpdb->last_error = '';
+            $stored_owner_values = $wpdb->get_col($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->termmeta} WHERE term_id = %d AND meta_key = %s ORDER BY meta_id ASC",
+                (int) $existing->term_id,
+                LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+            ));
+        } catch (Throwable $throwable) {
+            return new WP_Error('ll_tools_import_category_target_read', __('Unable to read category settings right now.', 'll-tools-text-domain'));
+        }
+        if ($wpdb->last_error !== '') {
+            return new WP_Error('ll_tools_import_category_target_read', __('Unable to read category settings right now.', 'll-tools-text-domain'));
+        }
+        if (
+            count($stored_owner_values) !== 1
+            || (string) $stored_owner_values[0] !== (string) $wordset_id
+        ) {
+            return new WP_Error('ll_tools_import_category_target_collision', __('Unable to use that category.', 'll-tools-text-domain'));
+        }
+
+        return [
+            'term_id' => (int) $existing->term_id,
+            'created' => false,
+        ];
+    }
+
+    if (!function_exists('ll_tools_create_new_wordset_category')) {
+        return new WP_Error('ll_tools_import_category_target_invalid', __('Unable to use that category.', 'll-tools-text-domain'));
+    }
+    try {
+        $term_id = ll_tools_create_new_wordset_category(
+            isset($category['name']) ? (string) $category['name'] : $source_slug,
+            $wordset_id,
+            [
+                'slug'                      => $source_slug,
+                'description'               => isset($category['description']) ? (string) $category['description'] : '',
+                '_ll_tools_allow_same_name' => true,
+            ]
+        );
+    } catch (Throwable $throwable) {
+        return new WP_Error('ll_tools_import_category_target_create', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    }
+    if (is_wp_error($term_id)) {
+        return $term_id;
+    }
+    $term_id = (int) $term_id;
+
+    return [
+        'term_id' => $term_id,
+        'created' => true,
+    ];
+}
+
 function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug_to_term_id, array &$result, array $options = []): void {
+    global $wpdb;
+
     $use_owned_targets = ll_tools_import_should_use_wordset_owned_import_targets($options);
     $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
 
@@ -14965,64 +16325,135 @@ function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug
             continue;
         }
 
-        if ($use_owned_targets && $target_wordset_id > 0 && function_exists('ll_tools_create_or_get_wordset_category')) {
-            $owned_slug = ll_tools_import_build_owned_category_slug($slug, $target_wordset_id);
-            $existing_owned = get_term_by('slug', $owned_slug, 'word-category');
-            $existing_owned_id = ($existing_owned instanceof WP_Term && !is_wp_error($existing_owned))
-                ? (int) $existing_owned->term_id
-                : 0;
-
-            $created_or_existing = ll_tools_create_or_get_wordset_category(
-                isset($cat['name']) ? (string) $cat['name'] : $slug,
-                $target_wordset_id,
-                [
-                    'slug' => $slug,
-                    'description' => isset($cat['description']) ? (string) $cat['description'] : '',
-                ]
-            );
-            if (is_wp_error($created_or_existing) || (int) $created_or_existing <= 0) {
-                $message = is_wp_error($created_or_existing) ? $created_or_existing->get_error_message() : __('Unknown error', 'll-tools-text-domain');
+        if ($use_owned_targets && $target_wordset_id > 0) {
+            try {
+                $owned_target = ll_tools_import_upsert_owned_category_target($cat, $target_wordset_id);
+            } catch (Throwable $throwable) {
+                $owned_target = new WP_Error(
+                    'll_tools_import_category_target_create',
+                    __('Unable to create that category right now.', 'll-tools-text-domain')
+                );
+            }
+            if (is_wp_error($owned_target) || (int) ($owned_target['term_id'] ?? 0) <= 0) {
+                $message = is_wp_error($owned_target) ? $owned_target->get_error_message() : __('Unknown error', 'll-tools-text-domain');
+                if (is_wp_error($owned_target)) {
+                    $error_data = $owned_target->get_error_data();
+                    $retained_id = is_array($error_data) && empty($error_data['rollback_complete'])
+                        ? (int) ($error_data['term_id'] ?? 0)
+                        : 0;
+                    if ($retained_id > 0) {
+                        ll_tools_import_track_undo_id($result, 'category_term_ids', $retained_id);
+                        $message .= sprintf(' [CRITICAL: category_cleanup_failed; category_id=%d]', $retained_id);
+                    }
+                }
                 $result['errors'][] = sprintf(__('Category "%s" could not be created: %s', 'll-tools-text-domain'), $slug, $message);
                 continue;
             }
 
-            $term_id = (int) $created_or_existing;
+            $term_id = (int) $owned_target['term_id'];
             $slug_to_term_id[$slug] = $term_id;
-            if ($existing_owned_id > 0 && $existing_owned_id === $term_id) {
-                $result['stats']['categories_updated']++;
-            } else {
+            if (!empty($owned_target['created'])) {
                 $result['stats']['categories_created']++;
                 ll_tools_import_track_undo_id($result, 'category_term_ids', $term_id);
+            } else {
+                $result['stats']['categories_updated']++;
             }
             continue;
         }
 
-        $existing = get_term_by('slug', $slug, 'word-category');
+        try {
+            $wpdb->last_error = '';
+            $existing = get_term_by('slug', $slug, 'word-category');
+        } catch (Throwable $throwable) {
+            $existing = new WP_Error(
+                'll_tools_import_category_target_read',
+                __('Unable to read category settings right now.', 'll-tools-text-domain')
+            );
+        }
+        if (is_wp_error($existing) || $wpdb->last_error !== '') {
+            $result['errors'][] = sprintf(
+                __('Category "%s" could not be created: %s', 'll-tools-text-domain'),
+                $slug,
+                __('Unable to read category settings right now.', 'll-tools-text-domain')
+            );
+            continue;
+        }
         if ($existing && !is_wp_error($existing)) {
             $slug_to_term_id[$slug] = (int) $existing->term_id;
             $result['stats']['categories_updated']++;
             continue;
         }
 
-        $insert = wp_insert_term(isset($cat['name']) ? (string) $cat['name'] : $slug, 'word-category', [
-            'slug' => $slug,
-            'description' => isset($cat['description']) ? (string) $cat['description'] : '',
-        ]);
+        try {
+            $insert = function_exists('ll_tools_create_new_wordset_category')
+                ? ll_tools_create_new_wordset_category(
+                    isset($cat['name']) ? (string) $cat['name'] : $slug,
+                    0,
+                    [
+                        'slug'                      => $slug,
+                        'description'               => isset($cat['description']) ? (string) $cat['description'] : '',
+                        '_ll_tools_allow_same_name' => true,
+                    ]
+                )
+                : new WP_Error('ll_tools_import_category_helper_missing', __('Unable to create that category right now.', 'll-tools-text-domain'));
+        } catch (Throwable $throwable) {
+            $insert = new WP_Error(
+                'll_tools_import_category_target_create',
+                __('Unable to create that category right now.', 'll-tools-text-domain')
+            );
+        }
 
         if (is_wp_error($insert)) {
-            $result['errors'][] = sprintf(__('Category "%s" could not be created: %s', 'll-tools-text-domain'), $slug, $insert->get_error_message());
+            $message = $insert->get_error_message();
+            $error_data = $insert->get_error_data();
+            $retained_id = is_array($error_data) && empty($error_data['rollback_complete'])
+                ? (int) ($error_data['term_id'] ?? 0)
+                : 0;
+            if ($retained_id > 0) {
+                ll_tools_import_track_undo_id($result, 'category_term_ids', $retained_id);
+                $message .= sprintf(' [CRITICAL: category_cleanup_failed; category_id=%d]', $retained_id);
+            }
+            $result['errors'][] = sprintf(__('Category "%s" could not be created: %s', 'll-tools-text-domain'), $slug, $message);
             continue;
         }
 
-        $slug_to_term_id[$slug] = (int) $insert['term_id'];
+        $term_id = (int) $insert;
+        $slug_to_term_id[$slug] = $term_id;
         $result['stats']['categories_created']++;
-        ll_tools_import_track_undo_id($result, 'category_term_ids', (int) $insert['term_id']);
+        ll_tools_import_track_undo_id($result, 'category_term_ids', $term_id);
     }
 }
 
-function ll_tools_import_apply_category_details_chunk(array $categories, array $slug_to_term_id, array $options = []): void {
+/**
+ * Validate every category-meta payload before a durable import job can begin
+ * category creation or update batches.
+ *
+ * @return true|WP_Error
+ */
+function ll_tools_import_preflight_category_details_payload(array $categories) {
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $category_meta = isset($category['meta']) && is_array($category['meta'])
+            ? $category['meta']
+            : [];
+        $meta_plan = ll_tools_import_prepare_term_meta_replacement($category_meta, 'word-category');
+        if (is_wp_error($meta_plan)) {
+            return $meta_plan;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_import_apply_category_details_chunk(array $categories, array $slug_to_term_id, array $options = []) {
+    global $wpdb;
+
     $use_owned_targets = ll_tools_import_should_use_wordset_owned_import_targets($options);
     $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+    $mutation_plans = [];
 
     foreach ($categories as $cat) {
         if (!is_array($cat)) {
@@ -15047,13 +16478,306 @@ function ll_tools_import_apply_category_details_chunk(array $categories, array $
             $update_args['slug'] = $slug;
         }
 
-        $term_id = (int) $slug_to_term_id[$slug];
-        wp_update_term($term_id, 'word-category', $update_args);
-        ll_tools_import_replace_term_meta_values($term_id, isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
-        if ($use_owned_targets && $target_wordset_id > 0 && function_exists('ll_tools_set_category_wordset_owner')) {
-            ll_tools_set_category_wordset_owner($term_id, $target_wordset_id, $term_id);
+        $categoryMeta = isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [];
+        $metaPlan = ll_tools_import_prepare_term_meta_replacement($categoryMeta, 'word-category');
+        if (is_wp_error($metaPlan)) {
+            return $metaPlan;
+        }
+
+        $mutation_plans[] = [
+            'term_id' => (int) $slug_to_term_id[$slug],
+            'update_args' => $update_args,
+            'meta_plan' => $metaPlan,
+        ];
+    }
+
+    if (
+        !function_exists('ll_tools_strict_term_insert_tables_are_transactional')
+        || !ll_tools_strict_term_insert_tables_are_transactional()
+        || !function_exists('ll_tools_strict_term_insert_begin_transaction')
+        || !function_exists('ll_tools_strict_term_insert_commit_transaction')
+        || !function_exists('ll_tools_strict_term_insert_rollback_transaction')
+        || !function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')
+        || !function_exists('ll_tools_begin_deferred_category_maintenance')
+        || !function_exists('ll_tools_end_deferred_category_maintenance')
+    ) {
+        return ll_tools_import_term_meta_write_error(0, 'transaction_storage');
+    }
+
+    if (empty($mutation_plans)) {
+        return true;
+    }
+
+    $batch_term_ids = array_values(array_unique(array_filter(array_map(
+        static function (array $plan): int {
+            return (int) ($plan['term_id'] ?? 0);
+        },
+        $mutation_plans
+    ))));
+    sort($batch_term_ids, SORT_NUMERIC);
+    if (count($batch_term_ids) !== count($mutation_plans)) {
+        return ll_tools_import_term_meta_write_error(0, 'category_target');
+    }
+
+    $batch_lock_names = [];
+    $batch_transaction = null;
+    $batch_transaction_active = false;
+    $batch_transaction_committed = false;
+    $batch_maintenance_deferred = false;
+    $batch_maintenance_queue_before = [];
+    try {
+        if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+            $maintenance_runtime = &ll_tools_get_category_maintenance_runtime();
+            $batch_maintenance_queue_before = is_array($maintenance_runtime['queued_category_ids'] ?? null)
+                ? $maintenance_runtime['queued_category_ids']
+                : [];
+        }
+        try {
+            ll_tools_begin_deferred_category_maintenance('import_category_details');
+            $batch_maintenance_deferred = true;
+        } catch (Throwable $throwable) {
+            return ll_tools_import_term_meta_write_error(0, 'category_maintenance');
+        }
+
+        foreach ($batch_term_ids as $batch_term_id) {
+            $batch_lock = ll_tools_acquire_vocab_lesson_category_settings_lock($batch_term_id);
+            if (is_wp_error($batch_lock)) {
+                return $batch_lock;
+            }
+            if ($batch_lock === '') {
+                return ll_tools_vocab_lesson_category_settings_error(
+                    'busy',
+                    __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    409,
+                    ['retryable' => true]
+                );
+            }
+            $batch_lock_names[] = (string) $batch_lock;
+        }
+
+        $batch_transaction = ll_tools_strict_term_insert_begin_transaction();
+        if (!is_array($batch_transaction)) {
+            return ll_tools_import_term_meta_write_error(0, 'transaction_start');
+        }
+        $batch_transaction_active = true;
+
+    foreach ($mutation_plans as $mutation_plan) {
+        $term_id = (int) $mutation_plan['term_id'];
+        $updateArgs = (array) $mutation_plan['update_args'];
+        try {
+            $mutationResult = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+                $term_id,
+                static function () use (
+                    $wpdb,
+                    $term_id,
+                    $updateArgs,
+                    $mutation_plan,
+                    $use_owned_targets,
+                    $target_wordset_id
+                ) {
+                    if ($use_owned_targets && $target_wordset_id > 0) {
+                        try {
+                            $wpdb->last_error = '';
+                            $ownerValues = $wpdb->get_col($wpdb->prepare(
+                                "SELECT meta_value
+                                 FROM {$wpdb->termmeta}
+                                 WHERE term_id = %d AND meta_key = %s
+                                 ORDER BY meta_id ASC
+                                 FOR UPDATE",
+                                $term_id,
+                                LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+                            ));
+                        } catch (Throwable $throwable) {
+                            return ll_tools_import_term_meta_write_error(
+                                $term_id,
+                                'owner_read',
+                                LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+                            );
+                        }
+                        if (
+                            $wpdb->last_error !== ''
+                            || !is_array($ownerValues)
+                            || count($ownerValues) !== 1
+                            || (string) $ownerValues[0] !== (string) $target_wordset_id
+                        ) {
+                            return ll_tools_import_term_meta_write_error(
+                                $term_id,
+                                'owner_conflict',
+                                LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+                            );
+                        }
+                    }
+
+                    try {
+                        $termUpdateResult = wp_update_term($term_id, 'word-category', $updateArgs);
+                    } catch (Throwable $throwable) {
+                        return ll_tools_import_term_meta_write_error($term_id, 'term_update');
+                    }
+                    if (is_wp_error($termUpdateResult)) {
+                        return $termUpdateResult;
+                    }
+                    if (
+                        !is_array($termUpdateResult)
+                        || (int) ($termUpdateResult['term_id'] ?? 0) !== $term_id
+                        || (int) ($termUpdateResult['term_taxonomy_id'] ?? 0) <= 0
+                    ) {
+                        return ll_tools_import_term_meta_write_error($term_id, 'term_update');
+                    }
+
+                    try {
+                        $expectedName = (string) wp_unslash(sanitize_term_field(
+                            'name',
+                            (string) ($updateArgs['name'] ?? ''),
+                            $term_id,
+                            'word-category',
+                            'db'
+                        ));
+                        $expectedSlug = (string) sanitize_term_field(
+                            'slug',
+                            (string) ($updateArgs['slug'] ?? ''),
+                            $term_id,
+                            'word-category',
+                            'db'
+                        );
+                        $expectedDescription = (string) wp_unslash(sanitize_term_field(
+                            'description',
+                            (string) ($updateArgs['description'] ?? ''),
+                            $term_id,
+                            'word-category',
+                            'db'
+                        ));
+                        $wpdb->last_error = '';
+                        $storedTerm = $wpdb->get_row($wpdb->prepare(
+                            "SELECT t.name, t.slug, tt.description, tt.taxonomy, tt.term_taxonomy_id
+                             FROM {$wpdb->terms} AS t
+                             INNER JOIN {$wpdb->term_taxonomy} AS tt ON tt.term_id = t.term_id
+                             WHERE t.term_id = %d AND tt.taxonomy = %s
+                             LIMIT 1",
+                            $term_id,
+                            'word-category'
+                        ), ARRAY_A);
+                    } catch (Throwable $throwable) {
+                        return ll_tools_import_term_meta_write_error($term_id, 'term_readback');
+                    }
+                    if (
+                        $wpdb->last_error !== ''
+                        || !is_array($storedTerm)
+                        || (int) ($storedTerm['term_taxonomy_id'] ?? 0) !== (int) $termUpdateResult['term_taxonomy_id']
+                        || (string) ($storedTerm['taxonomy'] ?? '') !== 'word-category'
+                        || (string) ($storedTerm['name'] ?? '') !== $expectedName
+                        || (string) ($storedTerm['slug'] ?? '') !== $expectedSlug
+                        || (string) ($storedTerm['description'] ?? '') !== $expectedDescription
+                    ) {
+                        return ll_tools_import_term_meta_write_error($term_id, 'term_readback');
+                    }
+
+                    $metaResult = ll_tools_import_apply_prepared_term_meta_values_uncoordinated(
+                        $term_id,
+                        (array) $mutation_plan['meta_plan']
+                    );
+                    if (is_wp_error($metaResult)) {
+                        return $metaResult;
+                    }
+
+                    if ($use_owned_targets && $target_wordset_id > 0) {
+                        if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                            $term_id,
+                            LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY,
+                            (string) $term_id,
+                            false
+                        )) {
+                            return ll_tools_import_term_meta_write_error(
+                                $term_id,
+                                'owner_write',
+                                LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY
+                            );
+                        }
+                    }
+
+                    return ['changed' => true];
+                }
+            );
+        } catch (Throwable $throwable) {
+            $mutationResult = ll_tools_import_term_meta_write_error($term_id, 'category_transaction');
+        }
+        if (is_wp_error($mutationResult)) {
+            return $mutationResult;
         }
     }
+
+        if (!ll_tools_strict_term_insert_commit_transaction($batch_transaction)) {
+            return ll_tools_import_term_meta_write_error(0, 'transaction_commit');
+        }
+        $batch_transaction_active = false;
+        $batch_transaction_committed = true;
+    } finally {
+        if ($batch_transaction_active && is_array($batch_transaction)) {
+            ll_tools_strict_term_insert_rollback_transaction($batch_transaction);
+        }
+        foreach ($batch_term_ids as $batch_term_id) {
+            if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                ll_tools_strict_term_insert_evict_caches($batch_term_id, 'word-category');
+            }
+        }
+        foreach (array_reverse($batch_lock_names) as $batch_lock_name) {
+            ll_tools_release_vocab_lesson_category_settings_lock($batch_lock_name);
+        }
+
+        if ($batch_transaction_committed) {
+            foreach ($batch_term_ids as $batch_term_id) {
+                try {
+                    if (function_exists('ll_tools_wordset_page_touch_category')) {
+                        ll_tools_wordset_page_touch_category($batch_term_id);
+                    } elseif (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                        ll_tools_strict_term_insert_evict_caches($batch_term_id, 'word-category');
+                    }
+                } catch (Throwable $throwable) {
+                    if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                        ll_tools_strict_term_insert_evict_caches($batch_term_id, 'word-category');
+                    }
+                }
+            }
+        }
+
+        if ($batch_maintenance_deferred) {
+            try {
+                ll_tools_end_deferred_category_maintenance($batch_transaction_committed);
+            } catch (Throwable $throwable) {
+                if ($batch_transaction_committed) {
+                    if (function_exists('ll_tools_queue_deferred_category_maintenance')) {
+                        ll_tools_queue_deferred_category_maintenance($batch_term_ids);
+                    }
+                    try {
+                        if (function_exists('ll_tools_schedule_quiz_page_full_sync')) {
+                            ll_tools_schedule_quiz_page_full_sync(1, false);
+                        }
+                        if (function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
+                            ll_tools_schedule_vocab_lesson_full_sync(1);
+                        }
+                    } catch (Throwable $schedule_throwable) {
+                        // The queued category IDs preserve retry evidence for this request.
+                    }
+                }
+            } finally {
+                if (
+                    !$batch_transaction_committed
+                    && function_exists('ll_tools_get_category_maintenance_runtime')
+                ) {
+                    $maintenance_runtime = &ll_tools_get_category_maintenance_runtime();
+                    $maintenance_runtime['queued_category_ids'] = $batch_maintenance_queue_before;
+                }
+            }
+        }
+    }
+    if ($use_owned_targets && function_exists('ll_tools_invalidate_wordset_isolation_health_report')) {
+        try {
+            ll_tools_invalidate_wordset_isolation_health_report();
+        } catch (Throwable $throwable) {
+            // The verified ownership rows are already committed.
+        }
+    }
+
+    return true;
 }
 
 function ll_tools_import_upsert_word_images_chunk(array $items, $extract_dir, array $slug_to_term_id, array &$word_image_slug_to_id, array &$result, array $options = []): void {
@@ -15185,7 +16909,16 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
     $slug_to_term_id = [];
 
     ll_tools_import_upsert_categories_chunk((array) $payload['categories'], $slug_to_term_id, $result, $options);
-    ll_tools_import_apply_category_details_chunk((array) $payload['categories'], $slug_to_term_id, $options);
+    $categoryApplyResult = ll_tools_import_apply_category_details_chunk(
+        (array) $payload['categories'],
+        $slug_to_term_id,
+        $options
+    );
+    if (is_wp_error($categoryApplyResult)) {
+        $result['errors'][] = $categoryApplyResult->get_error_message();
+        $result['message'] = __('Import failed while saving category settings.', 'll-tools-text-domain');
+        return $result;
+    }
 
     $result['history_context']['categories'] = ll_tools_import_build_history_category_entries(
         isset($payload['categories']) && is_array($payload['categories']) ? $payload['categories'] : [],
@@ -15331,6 +17064,16 @@ function ll_tools_import_should_replace_term_meta_key(string $key, string $taxon
     ) {
         return false;
     }
+    if (
+        $taxonomy === 'word-category'
+        && $key === (
+            function_exists('ll_tools_vocab_lesson_category_settings_revision_meta_key')
+                ? ll_tools_vocab_lesson_category_settings_revision_meta_key()
+                : '_ll_vocab_lesson_category_settings_revision'
+        )
+    ) {
+        return false;
+    }
 
     if ($key[0] !== '_') {
         return (bool) apply_filters('ll_tools_import_allow_term_meta_key', true, $key, $taxonomy);
@@ -15409,42 +17152,547 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, str
 }
 
 /**
- * Replace all term meta values with imported values.
+ * Validate and canonicalize the shared word-category settings represented by
+ * an exported term-meta map. Each map value is the complete list of decoded
+ * rows for one key.
  *
- * @param int $term_id
- * @param array $meta
- * @return void
+ * @param array<string,array<int,mixed>> $values_by_key
+ * @return array<string,array<int,mixed>>|WP_Error
  */
-function ll_tools_import_replace_term_meta_values(int $term_id, array $meta, string $taxonomy = ''): void {
-    if ($term_id <= 0 || empty($meta)) {
-        return;
+function ll_tools_import_normalize_shared_word_category_meta_values(array $values_by_key) {
+    $invalid = static function () {
+        return new WP_Error(
+            'll_tools_import_category_settings_invalid',
+            __('Imported category settings are invalid.', 'll-tools-text-domain')
+        );
+    };
+    $single_values = [];
+    foreach ($values_by_key as $meta_key => $decoded_values) {
+        if (!is_array($decoded_values) || count($decoded_values) > 1) {
+            return $invalid();
+        }
+        $single_values[(string) $meta_key] = $decoded_values;
     }
+
+    $normalized = [];
+    if (array_key_exists('use_word_titles_for_audio', $single_values)) {
+        $values = $single_values['use_word_titles_for_audio'];
+        if ($values === []) {
+            $normalized['use_word_titles_for_audio'] = [];
+        } else {
+            $value = reset($values);
+            if ($value === '1' || $value === 1) {
+                $normalized['use_word_titles_for_audio'] = ['1'];
+            } elseif ($value === '0' || $value === 0 || $value === '') {
+                $normalized['use_word_titles_for_audio'] = [];
+            } else {
+                return $invalid();
+            }
+        }
+    }
+
+    if (array_key_exists('ll_quiz_prompt_type', $single_values)) {
+        $values = $single_values['ll_quiz_prompt_type'];
+        if ($values === []) {
+            $normalized['ll_quiz_prompt_type'] = [];
+        } else {
+            $value = reset($values);
+            if (!is_string($value) || strlen($value) > 64) {
+                return $invalid();
+            }
+            $value = strtolower(trim($value));
+            if (!in_array($value, ll_tools_get_quiz_prompt_types(), true)) {
+                return $invalid();
+            }
+            $normalized['ll_quiz_prompt_type'] = [$value];
+        }
+    }
+
+    if (array_key_exists('ll_quiz_option_type', $single_values)) {
+        $values = $single_values['ll_quiz_option_type'];
+        if ($values === []) {
+            $normalized['ll_quiz_option_type'] = [];
+        } else {
+            $value = reset($values);
+            if (!is_string($value) || strlen($value) > 64) {
+                return $invalid();
+            }
+            $value = strtolower(trim($value));
+            if (!in_array($value, ll_tools_get_quiz_option_types(), true)) {
+                return $invalid();
+            }
+            $normalized['ll_quiz_option_type'] = [$value];
+        }
+    }
+
+    if (array_key_exists('ll_lesson_grid_text_visibility_override', $single_values)) {
+        $values = $single_values['ll_lesson_grid_text_visibility_override'];
+        if ($values === []) {
+            $normalized['ll_lesson_grid_text_visibility_override'] = [];
+        } else {
+            $value = reset($values);
+            if (!is_string($value) || strlen($value) > 16) {
+                return $invalid();
+            }
+            $value = sanitize_key($value);
+            if (!in_array($value, ['inherit', 'show', 'hide'], true)) {
+                return $invalid();
+            }
+            $normalized['ll_lesson_grid_text_visibility_override'] = $value === 'inherit' ? [] : [$value];
+        }
+    }
+
+    $normalize_slug_list = static function (
+        $value,
+        int $max_values,
+        int $max_value_bytes,
+        ?array $allowed_values = null
+    ) use ($invalid) {
+        if (is_string($value)) {
+            if (strlen($value) > 512) {
+                return $invalid();
+            }
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                $value = [];
+            } elseif (in_array($trimmed[0], ['[', '{'], true)) {
+                $value = json_decode($trimmed, true);
+                if (!is_array($value) || json_last_error() !== JSON_ERROR_NONE) {
+                    return $invalid();
+                }
+            } else {
+                $value = preg_split('/\s*,\s*/', $trimmed);
+            }
+        }
+        if (!is_array($value) || count($value) > $max_values) {
+            return $invalid();
+        }
+
+        $normalized_values = [];
+        $expected_index = 0;
+        foreach ($value as $index => $raw_value) {
+            if (
+                $index !== $expected_index
+                || !is_string($raw_value)
+                || strlen($raw_value) > $max_value_bytes
+            ) {
+                return $invalid();
+            }
+            $canonical_value = sanitize_key($raw_value);
+            if (
+                $canonical_value === ''
+                || $canonical_value !== $raw_value
+                || ($allowed_values !== null && !isset($allowed_values[$canonical_value]))
+            ) {
+                return $invalid();
+            }
+            $normalized_values[$canonical_value] = $canonical_value;
+            $expected_index++;
+        }
+        return array_values($normalized_values);
+    };
+
+    $enabled_games_key = defined('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY')
+        ? (string) LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY
+        : 'll_category_enabled_games';
+    if (array_key_exists($enabled_games_key, $single_values)) {
+        $values = $single_values[$enabled_games_key];
+        if ($values === []) {
+            $normalized[$enabled_games_key] = [];
+        } else {
+            $enabled_games = $normalize_slug_list(
+                reset($values),
+                32,
+                64,
+                array_fill_keys(ll_tools_get_category_game_slugs(), true)
+            );
+            if (is_wp_error($enabled_games)) {
+                return $enabled_games;
+            }
+            $normalized[$enabled_games_key] = [$enabled_games];
+        }
+    }
+
+    if (array_key_exists('ll_desired_recording_types', $single_values)) {
+        $values = $single_values['ll_desired_recording_types'];
+        if ($values === []) {
+            $normalized['ll_desired_recording_types'] = [];
+        } else {
+            $recording_types = $normalize_slug_list(reset($values), 100, 200);
+            if (is_wp_error($recording_types)) {
+                return $recording_types;
+            }
+            $disabled_sentinel = defined('LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED')
+                ? (string) LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED
+                : '__none__';
+            if (in_array($disabled_sentinel, $recording_types, true) && count($recording_types) !== 1) {
+                return $invalid();
+            }
+            $normalized['ll_desired_recording_types'] = [$recording_types];
+        }
+    }
+
+    $lineup_direction_key = defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')
+        ? (string) LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY
+        : 'll_category_lineup_direction';
+    if (array_key_exists($lineup_direction_key, $single_values)) {
+        $values = $single_values[$lineup_direction_key];
+        if ($values === []) {
+            $normalized[$lineup_direction_key] = [];
+        } else {
+            $value = reset($values);
+            if (!is_string($value) || strlen($value) > 8) {
+                return $invalid();
+            }
+            $value = sanitize_key($value);
+            if (!in_array($value, ['auto', 'ltr', 'rtl'], true)) {
+                return $invalid();
+            }
+            $normalized[$lineup_direction_key] = [$value];
+        }
+    }
+
+    return $normalized;
+}
+
+/**
+ * Decode and validate an imported term-meta map without mutating the target.
+ *
+ * @param array $meta
+ * @param string $taxonomy
+ * @return array{taxonomy:string,regular_values:array<string,array<int,mixed>>,shared_category_values:array<string,array<int,mixed>>}|WP_Error
+ */
+function ll_tools_import_prepare_term_meta_replacement(array $meta, string $taxonomy = '') {
+    $sharedCategoryKeys = [
+        'll_quiz_prompt_type',
+        'll_quiz_option_type',
+        'use_word_titles_for_audio',
+        'll_lesson_grid_text_visibility_override',
+        defined('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY')
+            ? (string) LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY
+            : 'll_category_enabled_games',
+        'll_desired_recording_types',
+        defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')
+            ? (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY
+            : 'll_category_lineup_word_order',
+        defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')
+            ? (string) LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY
+            : 'll_category_lineup_direction',
+    ];
+    $sharedCategoryValues = [];
+    $regularValues = [];
 
     foreach ($meta as $key => $values) {
         $key = (string) $key;
+        $lineupOrderKey = defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')
+            ? (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY
+            : 'll_category_lineup_word_order';
+        if ($taxonomy === 'word-category' && $key === $lineupOrderKey) {
+            // Word IDs are remapped only after imported words exist. Keeping
+            // this out of the initial category write also preserves local
+            // order when a payload does not explicitly contain the key.
+            continue;
+        }
         if (!ll_tools_import_should_replace_term_meta_key($key, $taxonomy)) {
             continue;
         }
 
+        $isSharedCategoryKey = $taxonomy === 'word-category' && in_array($key, $sharedCategoryKeys, true);
+        if ($isSharedCategoryKey && (!is_array($values) || count($values) > 1)) {
+            return new WP_Error(
+                'll_tools_import_category_settings_invalid',
+                __('Imported category settings are invalid.', 'll-tools-text-domain')
+            );
+        }
+
         $decoded_values = [];
         $values_are_safe = true;
+        $decode_error = null;
         foreach ((array) $values as $val) {
             $decoded_value = ll_tools_import_decode_legacy_meta_value($val);
             if (is_wp_error($decoded_value)) {
                 $values_are_safe = false;
+                $decode_error = $decoded_value;
                 break;
             }
             $decoded_values[] = $decoded_value;
         }
         if (!$values_are_safe) {
+            if ($isSharedCategoryKey) {
+                return $decode_error instanceof WP_Error ? $decode_error : new WP_Error(
+                    'll_tools_import_category_settings_invalid',
+                    __('Imported category settings are invalid.', 'll-tools-text-domain')
+                );
+            }
             continue;
         }
 
-        delete_term_meta($term_id, $key);
-        foreach ($decoded_values as $decoded_value) {
-            add_term_meta($term_id, $key, $decoded_value);
+        if ($isSharedCategoryKey) {
+            if (count($decoded_values) > 1) {
+                return new WP_Error(
+                    'll_tools_import_category_settings_invalid',
+                    __('Imported category settings are invalid.', 'll-tools-text-domain')
+                );
+            }
+            $sharedCategoryValues[$key] = $decoded_values;
+            continue;
+        }
+
+        $regularValues[$key] = $decoded_values;
+    }
+
+    if (!empty($sharedCategoryValues)) {
+        $sharedCategoryValues = ll_tools_import_normalize_shared_word_category_meta_values($sharedCategoryValues);
+        if (is_wp_error($sharedCategoryValues)) {
+            return $sharedCategoryValues;
         }
     }
+
+    return [
+        'taxonomy' => $taxonomy,
+        'regular_values' => $regularValues,
+        'shared_category_values' => $sharedCategoryValues,
+    ];
+}
+
+function ll_tools_import_term_meta_write_error(int $term_id, string $operation, string $meta_key = ''): WP_Error {
+    $operation = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '', $operation));
+    return new WP_Error(
+        'll_tools_import_term_meta_write_failed',
+        __('Import request did not complete. Return to the import page and try again.', 'll-tools-text-domain'),
+        [
+            'operation' => $operation,
+            'term_id' => $term_id,
+            'meta_key' => $meta_key,
+            'retryable' => true,
+        ]
+    );
+}
+
+/**
+ * Apply a prepared plan inside a transaction owned by the caller.
+ *
+ * @return true|WP_Error
+ */
+function ll_tools_import_apply_prepared_term_meta_values_uncoordinated(int $term_id, array $plan) {
+    global $wpdb;
+
+    $readRawValues = static function (string $metaKey) use ($wpdb, $term_id) {
+        $wpdb->last_error = '';
+        $rawValues = $wpdb->get_col($wpdb->prepare(
+            "SELECT meta_value
+             FROM {$wpdb->termmeta}
+             WHERE term_id = %d AND meta_key = %s
+             ORDER BY meta_id ASC",
+            $term_id,
+            $metaKey
+        ));
+        if ($wpdb->last_error !== '' || !is_array($rawValues)) {
+            return ll_tools_import_term_meta_write_error($term_id, 'readback', $metaKey);
+        }
+
+        return array_map('strval', $rawValues);
+    };
+
+    $activeOperation = 'mutation';
+    $activeMetaKey = '';
+    try {
+        foreach ((array) ($plan['regular_values'] ?? []) as $key => $decoded_values) {
+            $key = (string) $key;
+            $decoded_values = array_values((array) $decoded_values);
+            $activeMetaKey = $key;
+
+            $activeOperation = 'delete';
+            $wpdb->last_error = '';
+            $deleteResult = delete_term_meta($term_id, $key);
+            if (is_wp_error($deleteResult) || $wpdb->last_error !== '') {
+                return ll_tools_import_term_meta_write_error($term_id, 'delete', $key);
+            }
+
+            // A false delete result can mean either no matching rows or a
+            // failed short-circuit. The direct readback is authoritative.
+            $activeOperation = 'delete_readback';
+            $storedValues = $readRawValues($key);
+            if (is_wp_error($storedValues)) {
+                return $storedValues;
+            }
+            if ($storedValues !== []) {
+                return ll_tools_import_term_meta_write_error($term_id, 'delete_readback', $key);
+            }
+
+            $expectedRawValues = [];
+            $activeOperation = 'subtype';
+            $metaSubtype = get_object_subtype('term', $term_id);
+            foreach ($decoded_values as $decoded_value) {
+                $activeOperation = 'sanitize';
+                $expectedValue = sanitize_meta(
+                    $key,
+                    wp_unslash($decoded_value),
+                    'term',
+                    $metaSubtype
+                );
+                $expectedRawValues[] = (string) maybe_serialize($expectedValue);
+
+                $activeOperation = 'add';
+                $wpdb->last_error = '';
+                $addResult = add_term_meta($term_id, $key, $decoded_value);
+                if (is_wp_error($addResult) || $addResult === false || $wpdb->last_error !== '') {
+                    return ll_tools_import_term_meta_write_error($term_id, 'add', $key);
+                }
+            }
+
+            $activeOperation = 'write_readback';
+            $storedValues = $readRawValues($key);
+            if (is_wp_error($storedValues)) {
+                return $storedValues;
+            }
+            if ($storedValues !== $expectedRawValues) {
+                return ll_tools_import_term_meta_write_error($term_id, 'write_readback', $key);
+            }
+        }
+
+        $sharedCategoryValues = isset($plan['shared_category_values']) && is_array($plan['shared_category_values'])
+            ? $plan['shared_category_values']
+            : [];
+        if (empty($sharedCategoryValues)) {
+            return true;
+        }
+        if (!function_exists('ll_tools_write_verified_vocab_lesson_category_setting_meta')) {
+            return new WP_Error(
+                'll_tools_import_category_settings_unavailable',
+                __('Imported category settings could not be saved right now.', 'll-tools-text-domain')
+            );
+        }
+
+        foreach ($sharedCategoryValues as $metaKey => $decodedValues) {
+            $activeOperation = 'shared_settings_write';
+            $activeMetaKey = (string) $metaKey;
+            $delete = $decodedValues === [];
+            $value = $delete ? '' : reset($decodedValues);
+            if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                $term_id,
+                (string) $metaKey,
+                $value,
+                $delete
+            )) {
+                return ll_tools_vocab_lesson_category_settings_error(
+                    'settings_write',
+                    __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    503,
+                    ['retryable' => true]
+                );
+            }
+        }
+
+        return true;
+    } catch (Throwable $throwable) {
+        return ll_tools_import_term_meta_write_error($term_id, $activeOperation, $activeMetaKey);
+    }
+}
+
+/**
+ * Apply a previously decoded and validated term-meta replacement plan.
+ *
+ * @param int $term_id
+ * @param array $plan
+ * @return true|WP_Error
+ */
+function ll_tools_import_apply_term_meta_replacement_plan(int $term_id, array $plan) {
+    $hasValues = !empty($plan['regular_values']) || !empty($plan['shared_category_values']);
+    if (!$hasValues) {
+        return true;
+    }
+
+    $taxonomy = sanitize_key((string) ($plan['taxonomy'] ?? ''));
+    if ($taxonomy === 'word-category') {
+        if (!function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')) {
+            return new WP_Error(
+                'll_tools_import_category_settings_unavailable',
+                __('Imported category settings could not be saved right now.', 'll-tools-text-domain')
+            );
+        }
+        try {
+            $settingsResult = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+                $term_id,
+                static function () use ($term_id, $plan) {
+                    $result = ll_tools_import_apply_prepared_term_meta_values_uncoordinated($term_id, $plan);
+                    return is_wp_error($result) ? $result : ['changed' => true];
+                }
+            );
+        } catch (Throwable $throwable) {
+            $settingsResult = ll_tools_import_term_meta_write_error($term_id, 'category_transaction');
+        }
+        if (is_wp_error($settingsResult)) {
+            if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                ll_tools_strict_term_insert_evict_caches($term_id, 'word-category');
+            }
+            return $settingsResult;
+        }
+
+        try {
+            if (function_exists('ll_tools_wordset_page_touch_category')) {
+                ll_tools_wordset_page_touch_category($term_id);
+            } elseif (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                ll_tools_strict_term_insert_evict_caches($term_id, 'word-category');
+            }
+        } catch (Throwable $throwable) {
+            if (function_exists('ll_tools_strict_term_insert_evict_caches')) {
+                ll_tools_strict_term_insert_evict_caches($term_id, 'word-category');
+            }
+        }
+        return true;
+    }
+
+    if (
+        !function_exists('ll_tools_vocab_lesson_category_settings_termmeta_is_transactional')
+        || !ll_tools_vocab_lesson_category_settings_termmeta_is_transactional()
+        || !function_exists('ll_tools_strict_term_insert_begin_transaction')
+    ) {
+        return ll_tools_import_term_meta_write_error($term_id, 'transaction_storage');
+    }
+    $transaction = ll_tools_strict_term_insert_begin_transaction();
+    if (!is_array($transaction)) {
+        return ll_tools_import_term_meta_write_error($term_id, 'transaction_start');
+    }
+
+    $result = ll_tools_import_apply_prepared_term_meta_values_uncoordinated($term_id, $plan);
+    if (is_wp_error($result)) {
+        $rollbackComplete = ll_tools_strict_term_insert_rollback_transaction($transaction);
+        ll_tools_strict_term_insert_evict_caches($term_id, $taxonomy);
+        return $rollbackComplete
+            ? $result
+            : ll_tools_import_term_meta_write_error($term_id, 'transaction_rollback');
+    }
+    if (!ll_tools_strict_term_insert_commit_transaction($transaction)) {
+        $rollbackComplete = ll_tools_strict_term_insert_rollback_transaction($transaction);
+        ll_tools_strict_term_insert_evict_caches($term_id, $taxonomy);
+        return ll_tools_import_term_meta_write_error(
+            $term_id,
+            $rollbackComplete ? 'transaction_commit' : 'transaction_rollback'
+        );
+    }
+    ll_tools_strict_term_insert_evict_caches($term_id, $taxonomy);
+    return true;
+}
+
+/**
+ * Replace all term meta values with imported values.
+ *
+ * @param int $term_id
+ * @param array $meta
+ * @return true|WP_Error
+ */
+function ll_tools_import_replace_term_meta_values(int $term_id, array $meta, string $taxonomy = '') {
+    if ($term_id <= 0 || empty($meta)) {
+        return true;
+    }
+
+    $plan = ll_tools_import_prepare_term_meta_replacement($meta, $taxonomy);
+    if (is_wp_error($plan)) {
+        return $plan;
+    }
+
+    return ll_tools_import_apply_term_meta_replacement_plan($term_id, $plan);
 }
 
 /**
@@ -15488,10 +17736,36 @@ function ll_tools_import_apply_featured_image(int $post_id, array $featured_imag
         $attachment_id = ll_tools_import_attachment_from_external_url($source_url, $featured_image, $post_id);
     }
 
-    if (is_wp_error($attachment_id)) {
+    if (is_wp_error($attachment_id) || (int) $attachment_id <= 0) {
         $label = $context === 'word' ? __('word', 'll-tools-text-domain') : __('word image', 'll-tools-text-domain');
-        $result['errors'][] = sprintf(__('Failed to import image for %1$s "%2$s": %3$s', 'll-tools-text-domain'), $label, $item_slug, $attachment_id->get_error_message());
+        $message = is_wp_error($attachment_id)
+            ? $attachment_id->get_error_message()
+            : __('Unknown error', 'll-tools-text-domain');
+        $result['errors'][] = sprintf(__('Failed to import image for %1$s "%2$s": %3$s', 'll-tools-text-domain'), $label, $item_slug, $message);
         return;
+    }
+
+    $attachment_id = (int) $attachment_id;
+    $attachment = get_post($attachment_id);
+    if (!($attachment instanceof WP_Post) || $attachment->post_type !== 'attachment') {
+        if ($track_for_undo) {
+            ll_tools_import_track_undo_id($result, 'attachment_ids', $attachment_id);
+        }
+        $label = $context === 'word' ? __('word', 'll-tools-text-domain') : __('word image', 'll-tools-text-domain');
+        $result['errors'][] = sprintf(
+            __('Failed to import image for %1$s "%2$s": %3$s', 'll-tools-text-domain'),
+            $label,
+            $item_slug,
+            __('Unknown error', 'll-tools-text-domain')
+        );
+        return;
+    }
+
+    if ($track_for_undo) {
+        // Capture ownership immediately after the attachment is proven to exist.
+        // Thumbnail/meta hooks can throw, and the outer import catch must still
+        // retain enough evidence for a later Undo to remove the attachment.
+        ll_tools_import_track_undo_id($result, 'attachment_ids', (int) $attachment_id);
     }
 
     if ($context === 'word_image' && $track_for_undo && function_exists('ll_tools_with_word_image_thumbnail_sync_suspended')) {
@@ -15502,9 +17776,6 @@ function ll_tools_import_apply_featured_image(int $post_id, array $featured_imag
         set_post_thumbnail($post_id, $attachment_id);
     }
     $result['stats']['attachments_imported']++;
-    if ($track_for_undo) {
-        ll_tools_import_track_undo_id($result, 'attachment_ids', (int) $attachment_id);
-    }
 }
 
 /**
@@ -15862,13 +18133,25 @@ function ll_tools_import_upsert_words_chunk(
     }
 }
 
-function ll_tools_import_finalize_word_import_state(array $word_state, array $slug_to_category_term_id, array &$result): void {
+function ll_tools_import_finalize_word_import_state(
+    array $word_state,
+    array $slug_to_category_term_id,
+    array &$result,
+    array $categories = []
+): void {
     $origin_word_id_to_imported = isset($word_state['origin_word_id_to_imported']) && is_array($word_state['origin_word_id_to_imported'])
         ? $word_state['origin_word_id_to_imported']
         : [];
     if (!empty($origin_word_id_to_imported)) {
         ll_tools_import_remap_similar_word_ids($origin_word_id_to_imported);
-        ll_tools_import_remap_lineup_category_word_order($slug_to_category_term_id, $origin_word_id_to_imported);
+        $lineupRemapResult = ll_tools_import_remap_lineup_category_word_order(
+            $slug_to_category_term_id,
+            $origin_word_id_to_imported,
+            $categories
+        );
+        if (is_wp_error($lineupRemapResult)) {
+            $result['errors'][] = $lineupRemapResult->get_error_message();
+        }
     }
 
     $pending_specific_wrong_answers = isset($word_state['pending_specific_wrong_answers']) && is_array($word_state['pending_specific_wrong_answers'])
@@ -15934,7 +18217,12 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
         $result
     );
 
-    ll_tools_import_finalize_word_import_state($word_state, $slug_to_category_term_id, $result);
+    ll_tools_import_finalize_word_import_state(
+        $word_state,
+        $slug_to_category_term_id,
+        $result,
+        isset($payload['categories']) && is_array($payload['categories']) ? $payload['categories'] : []
+    );
 }
 
 /**
@@ -16447,7 +18735,14 @@ function ll_tools_import_prepare_wordset_map(array $wordsets, array $options, ar
                 unset($wordset_meta[$manager_meta_key]);
             }
         }
-        ll_tools_import_replace_term_meta_values($term_id, $wordset_meta, 'wordset');
+        $wordsetMetaResult = ll_tools_import_replace_term_meta_values($term_id, $wordset_meta, 'wordset');
+        if (is_wp_error($wordsetMetaResult)) {
+            $result['errors'][] = sprintf(
+                __('Failed to update word set "%s": %s', 'll-tools-text-domain'),
+                $slug,
+                $wordsetMetaResult->get_error_message()
+            );
+        }
         if (get_current_user_id() > 0) {
             if (function_exists('ll_tools_set_wordset_manager_user_ids')) {
                 ll_tools_set_wordset_manager_user_ids($term_id, [get_current_user_id()], get_current_user_id());
@@ -16695,53 +18990,233 @@ function ll_tools_import_remap_similar_word_ids(array $origin_to_imported): void
     }
 }
 
-function ll_tools_import_remap_lineup_category_word_order(array $category_slug_to_term_id, array $origin_to_imported): void {
-    if (empty($category_slug_to_term_id) || empty($origin_to_imported)) {
-        return;
+function ll_tools_import_remap_lineup_category_word_order(
+    array $category_slug_to_term_id,
+    array $origin_to_imported,
+    array $categories = []
+) {
+    if (empty($category_slug_to_term_id) || empty($categories)) {
+        return true;
     }
 
-    $meta_key = defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')
+    $metaKey = defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')
         ? (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY
         : 'll_category_lineup_word_order';
-
-    foreach ($category_slug_to_term_id as $term_id) {
-        $term_id = (int) $term_id;
-        if ($term_id <= 0) {
+    $payloadOrders = [];
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+        $slug = sanitize_title((string) ($category['slug'] ?? ''));
+        $meta = isset($category['meta']) && is_array($category['meta']) ? $category['meta'] : [];
+        if ($slug === '' || !isset($category_slug_to_term_id[$slug]) || !array_key_exists($metaKey, $meta)) {
             continue;
         }
 
-        $raw_value = get_term_meta($term_id, $meta_key, true);
-        $source_ids = [];
-        if (function_exists('ll_tools_normalize_category_lineup_word_ids')) {
-            $source_ids = ll_tools_normalize_category_lineup_word_ids($raw_value);
-        } elseif (is_array($raw_value)) {
-            $source_ids = array_map('intval', $raw_value);
-        } else {
-            $source_ids = preg_split('/[\s,]+/', trim((string) $raw_value));
-            $source_ids = is_array($source_ids) ? array_map('intval', $source_ids) : [];
+        $encodedValues = is_array($meta[$metaKey]) ? $meta[$metaKey] : [$meta[$metaKey]];
+        if (count($encodedValues) > 1) {
+            return new WP_Error(
+                'll_tools_import_lineup_settings_invalid',
+                __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+            );
         }
+        $rawValue = $encodedValues === []
+            ? []
+            : ll_tools_import_decode_legacy_meta_value(reset($encodedValues));
+        if (is_wp_error($rawValue)) {
+            return $rawValue;
+        }
+        $payloadOrders[(int) $category_slug_to_term_id[$slug]] = $rawValue;
+    }
 
-        if (empty($source_ids)) {
-            delete_term_meta($term_id, $meta_key);
+    $mutationPlans = [];
+    foreach ($payloadOrders as $termId => $rawValue) {
+        $termId = (int) $termId;
+        if ($termId <= 0) {
             continue;
         }
 
-        $remapped_ids = [];
-        foreach ((array) $source_ids as $source_id) {
-            $source_id = (int) $source_id;
-            $target_id = (int) ($origin_to_imported[$source_id] ?? 0);
-            if ($target_id > 0 && !in_array($target_id, $remapped_ids, true)) {
-                $remapped_ids[] = $target_id;
+        $maxIds = function_exists('ll_tools_category_lineup_replace_limit')
+            ? ll_tools_category_lineup_replace_limit()
+            : 5000;
+        if (
+            (is_array($rawValue) && count($rawValue) > $maxIds)
+            || (!is_array($rawValue) && (!is_scalar($rawValue) || strlen((string) $rawValue) > 10000))
+        ) {
+            return new WP_Error(
+                'll_tools_import_lineup_settings_invalid',
+                __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+            );
+        }
+
+        if (is_string($rawValue)) {
+            $trimmedRawValue = trim($rawValue);
+            if ($trimmedRawValue !== '' && in_array($trimmedRawValue[0], ['[', '{'], true)) {
+                $decodedRawValue = json_decode($trimmedRawValue, true);
+                if (!is_array($decodedRawValue) || json_last_error() !== JSON_ERROR_NONE) {
+                    return new WP_Error(
+                        'll_tools_import_lineup_settings_invalid',
+                        __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                    );
+                }
+                $rawValue = $decodedRawValue;
             }
         }
 
-        if (empty($remapped_ids)) {
-            delete_term_meta($term_id, $meta_key);
-            continue;
+        $sourceIds = [];
+        if (is_array($rawValue)) {
+            $expectedIndex = 0;
+            foreach ($rawValue as $index => $sourceId) {
+                $isCanonicalId = (is_int($sourceId) && $sourceId > 0)
+                    || (
+                        is_string($sourceId)
+                        && strlen($sourceId) <= 20
+                        && preg_match('/^[1-9]\d*$/D', $sourceId) === 1
+                        && (string) (int) $sourceId === $sourceId
+                    );
+                if ($index !== $expectedIndex || !$isCanonicalId) {
+                    return new WP_Error(
+                        'll_tools_import_lineup_settings_invalid',
+                        __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                    );
+                }
+                $sourceIds[] = (int) $sourceId;
+                $expectedIndex++;
+            }
+        } else {
+            if (!is_int($rawValue) && !is_string($rawValue)) {
+                return new WP_Error(
+                    'll_tools_import_lineup_settings_invalid',
+                    __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                );
+            }
+            $rawString = trim((string) $rawValue);
+            if ($rawString !== '') {
+                $rawIds = preg_split('/[\s,]+/', $rawString);
+                if (!is_array($rawIds)) {
+                    return new WP_Error(
+                        'll_tools_import_lineup_settings_invalid',
+                        __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                    );
+                }
+                foreach ($rawIds as $sourceId) {
+                    if (
+                        !is_string($sourceId)
+                        || strlen($sourceId) > 20
+                        || preg_match('/^[1-9]\d*$/D', $sourceId) !== 1
+                        || (string) (int) $sourceId !== $sourceId
+                    ) {
+                        return new WP_Error(
+                            'll_tools_import_lineup_settings_invalid',
+                            __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                        );
+                    }
+                    $sourceIds[] = (int) $sourceId;
+                }
+            }
+        }
+        if (count($sourceIds) > $maxIds) {
+            return new WP_Error(
+                'll_tools_import_lineup_settings_invalid',
+                __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+            );
         }
 
-        update_term_meta($term_id, $meta_key, $remapped_ids);
+        $remappedIds = [];
+        foreach ($sourceIds as $sourceId) {
+            if (!array_key_exists((int) $sourceId, $origin_to_imported)) {
+                return new WP_Error(
+                    'll_tools_import_lineup_settings_invalid',
+                    __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                );
+            }
+            $targetId = (int) $origin_to_imported[(int) $sourceId];
+            if ($targetId <= 0) {
+                return new WP_Error(
+                    'll_tools_import_lineup_settings_invalid',
+                    __('Imported Line-Up settings are invalid.', 'll-tools-text-domain')
+                );
+            }
+            if ($targetId > 0 && !in_array($targetId, $remappedIds, true)) {
+                $remappedIds[] = $targetId;
+            }
+        }
+
+        if (function_exists('ll_tools_validate_category_lineup_candidate_ids')) {
+            $validatedIds = ll_tools_validate_category_lineup_candidate_ids(
+                $termId,
+                $remappedIds,
+                count($remappedIds)
+            );
+            if (is_wp_error($validatedIds)) {
+                return $validatedIds;
+            }
+        }
+
+        $mutationPlans[] = [
+            'term_id' => $termId,
+            'word_ids' => $remappedIds,
+        ];
     }
+
+    if (empty($mutationPlans)) {
+        return true;
+    }
+    if (
+        !function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')
+        || !function_exists('ll_tools_write_verified_vocab_lesson_category_setting_meta')
+    ) {
+        return new WP_Error(
+            'll_tools_import_lineup_settings_unavailable',
+            __('Imported Line-Up settings could not be saved right now.', 'll-tools-text-domain')
+        );
+    }
+
+    foreach ($mutationPlans as $mutationPlan) {
+        $termId = (int) ($mutationPlan['term_id'] ?? 0);
+        $remappedIds = isset($mutationPlan['word_ids']) && is_array($mutationPlan['word_ids'])
+            ? $mutationPlan['word_ids']
+            : [];
+        $mutationResult = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $termId,
+            static function () use ($termId, $metaKey, $remappedIds) {
+                if (function_exists('ll_tools_validate_category_lineup_candidate_ids')) {
+                    $validatedIds = ll_tools_validate_category_lineup_candidate_ids(
+                        $termId,
+                        $remappedIds,
+                        count($remappedIds)
+                    );
+                    if (is_wp_error($validatedIds)) {
+                        return $validatedIds;
+                    }
+                }
+                if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $termId,
+                    $metaKey,
+                    $remappedIds,
+                    empty($remappedIds)
+                )) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_write',
+                        __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($mutationResult)) {
+            return $mutationResult;
+        }
+        if (function_exists('ll_tools_wordset_page_touch_category')) {
+            ll_tools_wordset_page_touch_category($termId);
+        } else {
+            clean_term_cache($termId, 'word-category');
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -16792,7 +19267,7 @@ function ll_tools_import_attachment_from_external_url(string $source_url, array 
         'post_status'    => 'inherit',
     ];
 
-    $attach_id = wp_insert_attachment($attachment, false, (int) $parent_post_id);
+    $attach_id = wp_insert_attachment($attachment, false, (int) $parent_post_id, true);
     if (is_wp_error($attach_id)) {
         return $attach_id;
     }
@@ -16867,8 +19342,11 @@ function ll_tools_import_attachment_from_file($file_path, array $info, $parent_p
         'post_status'    => 'inherit',
     ];
 
-    $attach_id = wp_insert_attachment($attachment, $target, $parent_post_id);
+    $attach_id = wp_insert_attachment($attachment, $target, $parent_post_id, true);
     if (is_wp_error($attach_id)) {
+        if (is_file($target)) {
+            @unlink($target);
+        }
         return $attach_id;
     }
 

@@ -3,11 +3,12 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 6.7.33
+Version: 6.7.34
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
 Domain Path: /languages
+Requires at least: 6.1
 Requires PHP: 8.0
 */
 
@@ -19,7 +20,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '6.7.33');
+define('LL_TOOLS_VERSION', '6.7.34');
 define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
@@ -1054,6 +1055,12 @@ register_activation_hook(__FILE__, function () {
         ll_tools_schedule_dictionary_lookup_rebuild(true);
     }
     ll_tools_resume_lms_background_work();
+    if (function_exists('ll_tools_maybe_schedule_quiz_page_full_sync_follow_up')) {
+        ll_tools_maybe_schedule_quiz_page_full_sync_follow_up();
+    }
+    if (function_exists('ll_tools_maybe_schedule_vocab_lesson_full_sync_follow_up')) {
+        ll_tools_maybe_schedule_vocab_lesson_full_sync_follow_up();
+    }
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).
@@ -1092,6 +1099,18 @@ register_deactivation_hook(__FILE__, function () {
     }
     if (defined('LL_TOOLS_GOOGLE_CLASSROOM_OAUTH_CLEANUP_HOOK')) {
         wp_clear_scheduled_hook(LL_TOOLS_GOOGLE_CLASSROOM_OAUTH_CLEANUP_HOOK);
+    }
+    if (defined('LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT')) {
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT);
+    }
+    if (defined('LL_TOOLS_QUIZ_PAGE_SYNC_EVENT')) {
+        wp_clear_scheduled_hook(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+    }
+    if (defined('LL_TOOLS_VOCAB_LESSON_FULL_SYNC_EVENT')) {
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_FULL_SYNC_EVENT);
+    }
+    if (defined('LL_TOOLS_VOCAB_LESSON_SYNC_EVENT')) {
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
     }
 });
 

@@ -336,12 +336,11 @@ function ll_tools_wordset_editor_create_category_target(string $name, int $words
     if (!ll_tools_wordset_editor_user_can_manage_categories($wordset_id)) {
         return new WP_Error('ll_wordset_editor_category_permission', __('You do not have permission to create categories for this word set.', 'll-tools-text-domain'));
     }
-    if (!function_exists('ll_tools_create_or_get_wordset_category')) {
+    if (!function_exists('ll_tools_create_new_wordset_category')) {
         return new WP_Error('ll_wordset_editor_category_create', __('Category creation is not available right now.', 'll-tools-text-domain'));
     }
 
-    $existing_id = ll_tools_wordset_editor_find_owned_category_by_name($name, $wordset_id, $parent_id);
-    $category_id = ll_tools_create_or_get_wordset_category($name, $wordset_id, [
+    $category_id = ll_tools_create_new_wordset_category($name, $wordset_id, [
         'parent' => $parent_id,
     ]);
     if (is_wp_error($category_id)) {
@@ -355,15 +354,18 @@ function ll_tools_wordset_editor_create_category_target(string $name, int $words
 
     return [
         'category_id' => $category_id,
-        'created'     => ($existing_id <= 0 || $existing_id !== $category_id),
+        'created'     => true,
     ];
 }
 
-function ll_tools_wordset_editor_copy_category_settings(int $source_category_id, int $target_category_id): void {
+function ll_tools_wordset_editor_copy_category_settings(int $source_category_id, int $target_category_id) {
     $source_category_id = (int) $source_category_id;
     $target_category_id = (int) $target_category_id;
     if ($source_category_id <= 0 || $target_category_id <= 0 || $source_category_id === $target_category_id) {
-        return;
+        return new WP_Error(
+            'll_wordset_editor_category_settings_invalid',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain')
+        );
     }
 
     $meta_keys = [
@@ -377,19 +379,99 @@ function ll_tools_wordset_editor_copy_category_settings(int $source_category_id,
         $meta_keys[] = LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY;
     }
 
-    foreach ($meta_keys as $meta_key) {
-        if (!metadata_exists('term', $source_category_id, $meta_key)) {
-            delete_term_meta($target_category_id, $meta_key);
-            continue;
+    if (
+        !function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')
+        || !function_exists('ll_tools_write_verified_vocab_lesson_category_setting_meta')
+    ) {
+        return new WP_Error(
+            'll_wordset_editor_category_settings_unavailable',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain')
+        );
+    }
+    try {
+        $copyResult = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $target_category_id,
+            static function () use ($source_category_id, $target_category_id, $meta_keys) {
+                global $wpdb;
+
+                wp_cache_delete($source_category_id, 'term_meta');
+                $wpdb->last_error = '';
+                $sourceMeta = get_term_meta($source_category_id);
+                if (!is_array($sourceMeta) || $wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_source',
+                        __('Unable to read category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                foreach ($meta_keys as $meta_key) {
+                    $storedValues = isset($sourceMeta[$meta_key]) && is_array($sourceMeta[$meta_key])
+                        ? $sourceMeta[$meta_key]
+                        : [];
+                    $hasValue = $storedValues !== [];
+                    $value = $hasValue ? maybe_unserialize(reset($storedValues)) : '';
+                    if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                        $target_category_id,
+                        $meta_key,
+                        $value,
+                        !$hasValue
+                    )) {
+                        return ll_tools_vocab_lesson_category_settings_error(
+                            'settings_write',
+                            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                            503,
+                            ['retryable' => true]
+                        );
+                    }
+                }
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($copyResult)) {
+            return $copyResult;
         }
-        update_term_meta($target_category_id, $meta_key, get_term_meta($source_category_id, $meta_key, true));
+
+        if (function_exists('ll_tools_wordset_page_touch_category')) {
+            ll_tools_wordset_page_touch_category($target_category_id);
+        } else {
+            clean_term_cache($target_category_id, 'word-category');
+        }
+    } catch (Throwable $throwable) {
+        return new WP_Error(
+            'll_wordset_editor_category_settings_failed',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
     }
 
-    if (function_exists('ll_tools_wordset_page_touch_category')) {
-        ll_tools_wordset_page_touch_category($target_category_id);
-    } else {
-        clean_term_cache($target_category_id, 'word-category');
+    return true;
+}
+
+/**
+ * Copy settings into a proven-new category or remove that category before the
+ * editor reports failure.
+ */
+function ll_tools_wordset_editor_copy_created_category_settings(int $source_category_id, int $target_category_id) {
+    $result = ll_tools_wordset_editor_copy_category_settings($source_category_id, $target_category_id);
+    if (!is_wp_error($result)) {
+        return $result;
     }
+    if (function_exists('ll_tools_rollback_created_wordset_category_after_error')) {
+        return ll_tools_rollback_created_wordset_category_after_error($target_category_id, $result);
+    }
+
+    return new WP_Error(
+        'll_tools_wordset_category_cleanup_failed',
+        __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain'),
+        [
+            'status'            => 503,
+            'retryable'         => false,
+            'term_id'           => $target_category_id,
+            'rollback_complete' => false,
+            'cause_code'        => sanitize_key((string) $result->get_error_code()),
+        ]
+    );
 }
 
 function ll_tools_wordset_editor_sync_linked_word_image_categories(int $word_id, int $wordset_id, array $submitted_category_ids, array $available_category_ids) {
@@ -3291,9 +3373,15 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         : '';
     $bulk_job_id = '';
 
-    $redirect_error = static function (string $error) use ($wordset_term, $back_url, &$bulk_job_id): void {
+    $redirect_error = static function (string $error, int $retained_category_id = 0) use ($wordset_term, $back_url, &$bulk_job_id): void {
         ll_tools_wordset_editor_release_bulk_job_lock($bulk_job_id);
-        ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'error', $error);
+        ll_tools_wordset_editor_redirect_with_notice(
+            $wordset_term,
+            $back_url,
+            'error',
+            $error,
+            max(0, $retained_category_id)
+        );
     };
 
     if ($submitted_wordset_id !== $wordset_id) {
@@ -3638,7 +3726,12 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         if ($new_category_name !== '' && in_array($action, ['add_category', 'move_category'], true)) {
             $created = ll_tools_wordset_editor_create_category_target($new_category_name, $wordset_id, 0);
             if (is_wp_error($created)) {
-                $redirect_error('category');
+                $error_data = $created->get_error_data();
+                $cleanup_failed = $created->get_error_code() === 'll_tools_wordset_category_cleanup_failed';
+                $redirect_error(
+                    $cleanup_failed ? 'category_cleanup_failed' : 'category',
+                    $cleanup_failed && is_array($error_data) ? (int) ($error_data['term_id'] ?? 0) : 0
+                );
             }
             $target_category_id = (int) ($created['category_id'] ?? 0);
             $created_target_category = !empty($created['created']);
@@ -3711,7 +3804,12 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         if ($new_category_name !== '') {
             $created = ll_tools_wordset_editor_create_category_target($new_category_name, $wordset_id, $source_parent_id);
             if (is_wp_error($created)) {
-                $redirect_error('category');
+                $error_data = $created->get_error_data();
+                $cleanup_failed = $created->get_error_code() === 'll_tools_wordset_category_cleanup_failed';
+                $redirect_error(
+                    $cleanup_failed ? 'category_cleanup_failed' : 'category',
+                    $cleanup_failed && is_array($error_data) ? (int) ($error_data['term_id'] ?? 0) : 0
+                );
             }
             $target_category_id = (int) ($created['category_id'] ?? 0);
             $created_target_category = !empty($created['created']);
@@ -3719,7 +3817,18 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
                 $available_category_ids[] = $target_category_id;
             }
             if ($created_target_category && !empty($_POST['ll_wordset_editor_copy_category_settings'])) {
-                ll_tools_wordset_editor_copy_category_settings($source_category_id, $target_category_id);
+                $copyResult = ll_tools_wordset_editor_copy_created_category_settings(
+                    $source_category_id,
+                    $target_category_id
+                );
+                if (is_wp_error($copyResult)) {
+                    $error_data = $copyResult->get_error_data();
+                    $cleanup_failed = $copyResult->get_error_code() === 'll_tools_wordset_category_cleanup_failed';
+                    $redirect_error(
+                        $cleanup_failed ? 'category_cleanup_failed' : 'category',
+                        $cleanup_failed && is_array($error_data) ? (int) ($error_data['term_id'] ?? 0) : 0
+                    );
+                }
             }
             ll_tools_wordset_editor_update_bulk_job_target($bulk_job_id, $target_category_id);
         }
@@ -3910,7 +4019,9 @@ function ll_tools_wordset_page_manager_editor_notice(): ?array {
     if ($status !== 'ok') {
         return [
             'type'    => 'error',
-            'message' => __('The editor action could not be completed. Check the selection and try again.', 'll-tools-text-domain'),
+            'message' => $result === 'category_cleanup_failed'
+                ? __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain')
+                : __('The editor action could not be completed. Check the selection and try again.', 'll-tools-text-domain'),
         ];
     }
 
@@ -4304,12 +4415,12 @@ function ll_tools_wordset_editor_render_bulk_job_panel(array $job, int $wordset_
     ?>
     <section class="ll-wordset-settings-card ll-wordset-editor-bulk-job" aria-label="<?php echo esc_attr__('Bulk action progress', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-editor-panel-head">
-            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Bulk action progress', 'll-tools-text-domain'); ?></h2>
+            <h2 id="ll-wordset-editor-bulk-job-title" class="ll-wordset-settings-card__title"><?php echo esc_html__('Bulk action progress', 'll-tools-text-domain'); ?></h2>
             <span class="ll-wordset-editor-history__hint">
                 <?php echo esc_html(sprintf(__('Processed %1$d of %2$d. %3$d changed, %4$d skipped.', 'll-tools-text-domain'), $processed, $total, $changed, $blocked)); ?>
             </span>
         </div>
-        <progress value="<?php echo esc_attr((string) $processed); ?>" max="<?php echo esc_attr((string) $progress_max); ?>">
+        <progress aria-labelledby="ll-wordset-editor-bulk-job-title" value="<?php echo esc_attr((string) $processed); ?>" max="<?php echo esc_attr((string) $progress_max); ?>">
             <?php echo esc_html(sprintf(__('%1$d of %2$d', 'll-tools-text-domain'), $processed, $total)); ?>
         </progress>
         <?php if ($status !== 'complete') : ?>

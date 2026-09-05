@@ -407,6 +407,10 @@ test('Turkish translation avoids high-risk tone and glossary regressions', async
     source,
     'Turkish catalog contains prohibited zero-width or byte-order format characters.'
   ).not.toMatch(/[\u200B\u200C\u200D\u2060\uFEFF]/u);
+  expect(source).toContain([
+    'msgid "e.g. ḥ š ʾ ā"',
+    'msgstr "örneğin ḥ š ʾ ā"'
+  ].join('\n'));
   const translationLines = [];
   let inTranslation = false;
 

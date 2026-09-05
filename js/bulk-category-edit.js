@@ -6,6 +6,9 @@
     var bulkEditRow = null;
     var quickEditStylesInjected = false;
     var quickEditWordsetLookup = null;
+    var bulkCategoryStateRequest = null;
+    var bulkCategoryStateRequestGeneration = 0;
+    var bulkCategoryStateSelectionKey = '';
 
     function getCategoryCheckboxes() {
         var checkboxes = $('#bulk-edit .categorychecklist input[type="checkbox"]');
@@ -24,6 +27,73 @@
             }
         });
         return postIds;
+    }
+
+    function getBulkSelectionKey(postIds) {
+        return (Array.isArray(postIds) ? postIds : []).join(',');
+    }
+
+    function ownsBulkCategoryStateRequest(requestGeneration, selectionKey) {
+        return requestGeneration === bulkCategoryStateRequestGeneration
+            && selectionKey === bulkCategoryStateSelectionKey
+            && selectionKey === getBulkSelectionKey(getSelectedPostIds());
+    }
+
+    function cancelBulkCategoryStateRequest() {
+        bulkCategoryStateRequestGeneration += 1;
+        bulkCategoryStateSelectionKey = '';
+
+        if (bulkCategoryStateRequest && typeof bulkCategoryStateRequest.abort === 'function') {
+            bulkCategoryStateRequest.abort();
+        }
+        bulkCategoryStateRequest = null;
+    }
+
+    function getBulkCategoryStateNotice() {
+        var notice = bulkEditRow.find('.ll-bulk-category-state-notice').first();
+        if (notice.length === 0) {
+            notice = $('<p class="description ll-bulk-category-state-notice" role="status" aria-live="polite" />');
+            var checklist = bulkEditRow.find('.categorychecklist').first();
+            if (checklist.length > 0) {
+                notice.insertBefore(checklist);
+            } else {
+                bulkEditRow.prepend(notice);
+            }
+        }
+        return notice;
+    }
+
+    function setBulkCategoryStateUnavailable(state) {
+        var checkboxes = getCategoryCheckboxes();
+        var i18n = llBulkEditData && llBulkEditData.i18n ? llBulkEditData.i18n : {};
+
+        commonCategories = [];
+        originalCheckedState = {};
+        bulkEditRow.find('input[name="ll_bulk_categories_to_remove[]"]').remove();
+
+        checkboxes.off('change.llbulk').each(function () {
+            var checkbox = $(this);
+            if (typeof checkbox.data('llBulkCategoryOriginallyDisabled') === 'undefined') {
+                checkbox.data('llBulkCategoryOriginallyDisabled', checkbox.prop('disabled'));
+            }
+            checkbox.prop('checked', false).prop('disabled', true);
+        });
+
+        bulkEditRow.find('.categorychecklist').attr('aria-busy', state === 'loading' ? 'true' : 'false');
+        getBulkCategoryStateNotice()
+            .text(state === 'loading'
+                ? (i18n.categoryStateLoading || '')
+                : (i18n.categoryStateError || ''))
+            .toggle(state === 'loading' || state === 'error');
+    }
+
+    function enableBulkCategoryState() {
+        getCategoryCheckboxes().each(function () {
+            var checkbox = $(this);
+            checkbox.prop('disabled', !!checkbox.data('llBulkCategoryOriginallyDisabled'));
+        });
+        bulkEditRow.find('.categorychecklist').attr('aria-busy', 'false');
+        getBulkCategoryStateNotice().hide().text('');
     }
 
     function updateHiddenInputs() {
@@ -342,40 +412,76 @@
             ? llBulkEditData.actionName
             : '';
         var postIds = getSelectedPostIds();
-        if (!actionName || postIds.length === 0) {
+        var selectionKey = getBulkSelectionKey(postIds);
+
+        if (
+            bulkCategoryStateRequest
+            && selectionKey
+            && selectionKey === bulkCategoryStateSelectionKey
+        ) {
             return;
         }
 
-        $.ajax({
+        cancelBulkCategoryStateRequest();
+        if (!actionName || postIds.length === 0) {
+            setBulkCategoryStateUnavailable('error');
+            return;
+        }
+
+        setBulkCategoryStateUnavailable('loading');
+
+        bulkCategoryStateRequestGeneration += 1;
+        var requestGeneration = bulkCategoryStateRequestGeneration;
+        bulkCategoryStateSelectionKey = selectionKey;
+        var request = $.ajax({
             url: llBulkEditData.ajaxurl,
             type: 'POST',
             data: {
                 action: actionName,
                 nonce: llBulkEditData.nonce,
                 post_ids: postIds
-            },
-            success: function (response) {
-                if (!response || !response.success || !response.data || !Array.isArray(response.data.common)) {
-                    return;
-                }
-
-                commonCategories = response.data.common;
-                originalCheckedState = {};
-
-                var checkboxes = getCategoryCheckboxes();
-                checkboxes.each(function () {
-                    var termId = parseInt($(this).val(), 10);
-                    var isCommon = commonCategories.indexOf(termId) !== -1;
-
-                    originalCheckedState[termId] = isCommon;
-                    $(this).prop('checked', isCommon);
-                });
-
-                checkboxes.off('change.llbulk').on('change.llbulk', function () {
-                    updateHiddenInputs();
-                });
             }
+        }).done(function (response) {
+            if (!ownsBulkCategoryStateRequest(requestGeneration, selectionKey)) {
+                return;
+            }
+            if (!response || !response.success || !response.data || !Array.isArray(response.data.common)) {
+                setBulkCategoryStateUnavailable('error');
+                return;
+            }
+
+            commonCategories = response.data.common;
+            originalCheckedState = {};
+
+            var checkboxes = getCategoryCheckboxes();
+            checkboxes.each(function () {
+                var termId = parseInt($(this).val(), 10);
+                var isCommon = commonCategories.indexOf(termId) !== -1;
+
+                originalCheckedState[termId] = isCommon;
+                $(this).prop('checked', isCommon);
+            });
+
+            enableBulkCategoryState();
+
+            checkboxes.off('change.llbulk').on('change.llbulk', function () {
+                updateHiddenInputs();
+            });
+        }).fail(function () {
+            if (!ownsBulkCategoryStateRequest(requestGeneration, selectionKey)) {
+                return;
+            }
+            setBulkCategoryStateUnavailable('error');
+        }).always(function () {
+            if (
+                requestGeneration !== bulkCategoryStateRequestGeneration
+                || request !== bulkCategoryStateRequest
+            ) {
+                return;
+            }
+            bulkCategoryStateRequest = null;
         });
+        bulkCategoryStateRequest = request;
     }
 
     $(document).ready(function () {

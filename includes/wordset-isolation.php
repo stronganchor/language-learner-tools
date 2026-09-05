@@ -999,6 +999,1076 @@ function ll_tools_get_existing_isolated_word_image_copy_id(int $source_origin_id
     return max(0, (int) $posts[0]);
 }
 
+/**
+ * Term, taxonomy, and seed-meta writes must share one transaction boundary.
+ */
+function ll_tools_strict_term_insert_tables_are_transactional(): bool {
+    global $wpdb;
+
+    static $readyByTables = [];
+    $tables = [(string) $wpdb->terms, (string) $wpdb->term_taxonomy, (string) $wpdb->termmeta];
+    $cacheKey = implode('|', $tables);
+    if (!array_key_exists($cacheKey, $readyByTables)) {
+        $ready = true;
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        try {
+            foreach ($tables as $table) {
+                $wpdb->last_error = '';
+                $status = $wpdb->get_row($wpdb->prepare(
+                    'SHOW TABLE STATUS LIKE %s',
+                    $wpdb->esc_like($table)
+                ), ARRAY_A);
+                if (
+                    $wpdb->last_error !== ''
+                    || !is_array($status)
+                    || strtolower((string) ($status['Engine'] ?? '')) !== 'innodb'
+                ) {
+                    $ready = false;
+                    break;
+                }
+            }
+        } catch (Throwable $throwable) {
+            $ready = false;
+        } finally {
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
+
+        $readyByTables[$cacheKey] = $ready;
+    }
+
+    try {
+        return (bool) apply_filters(
+            'll_tools_strict_term_insert_tables_are_transactional',
+            $readyByTables[$cacheKey],
+            $tables
+        );
+    } catch (Throwable $throwable) {
+        return false;
+    }
+}
+
+/** @return array{type:string,name:string,last_insert_id_before:int,last_insert_id_reset:bool}|null */
+function ll_tools_strict_term_insert_begin_transaction(): ?array {
+    global $wpdb;
+
+    if (!ll_tools_strict_term_insert_tables_are_transactional()) {
+        return null;
+    }
+
+    static $sequence = 0;
+    $sequence++;
+    $name = 'll_strict_term_' . $sequence . '_' . substr(hash(
+        'sha256',
+        microtime(true) . '|' . wp_rand() . '|' . $sequence
+    ), 0, 12);
+    $previousSuppressErrors = $wpdb->suppress_errors(true);
+    $transaction = null;
+    try {
+        $alreadyInTransaction = ll_tools_database_transaction_is_active();
+        if ($alreadyInTransaction === null) {
+            return null;
+        }
+
+        if ($alreadyInTransaction) {
+            $wpdb->last_error = '';
+            if (function_exists('mysqli_query') && $wpdb->dbh instanceof mysqli) {
+                $savepoint = mysqli_query($wpdb->dbh, "SAVEPOINT {$name}");
+                $verified = $savepoint !== false
+                    ? mysqli_query($wpdb->dbh, "ROLLBACK TO SAVEPOINT {$name}")
+                    : false;
+            } else {
+                $savepoint = $wpdb->query("SAVEPOINT {$name}");
+                $savepointError = (string) $wpdb->last_error;
+                $wpdb->last_error = '';
+                $verified = $savepoint !== false && $savepointError === ''
+                    ? $wpdb->query("ROLLBACK TO SAVEPOINT {$name}")
+                    : false;
+            }
+            if ($savepoint === false || $verified === false || $wpdb->last_error !== '') {
+                if ($savepoint !== false) {
+                    if (function_exists('mysqli_query') && $wpdb->dbh instanceof mysqli) {
+                        mysqli_query($wpdb->dbh, "RELEASE SAVEPOINT {$name}");
+                    } else {
+                        $wpdb->query("RELEASE SAVEPOINT {$name}");
+                    }
+                }
+                return null;
+            }
+            $transaction = ['type' => 'savepoint', 'name' => $name];
+        } else {
+            $transaction = ['type' => 'transaction', 'name' => ''];
+            if (!ll_tools_database_begin_transaction()) {
+                return null;
+            }
+        }
+
+        $wpdb->last_error = '';
+        $lastInsertIdBefore = $wpdb->get_var('SELECT LAST_INSERT_ID()');
+        if ($wpdb->last_error !== '' || $lastInsertIdBefore === null) {
+            ll_tools_strict_term_insert_rollback_transaction($transaction);
+            return null;
+        }
+        $transaction['last_insert_id_before'] = max(0, (int) $lastInsertIdBefore);
+        // Mark restoration as required before issuing the session-state write;
+        // the query itself may throw after MySQL has already applied it.
+        $transaction['last_insert_id_reset'] = true;
+
+        $wpdb->last_error = '';
+        $resetLastInsertId = $wpdb->get_var('SELECT LAST_INSERT_ID(0)');
+        if ($wpdb->last_error !== '' || (string) $resetLastInsertId !== '0') {
+            ll_tools_strict_term_insert_rollback_transaction($transaction);
+            return null;
+        }
+        return $transaction;
+    } catch (Throwable $throwable) {
+        if (is_array($transaction)) {
+            try {
+                ll_tools_strict_term_insert_rollback_transaction($transaction);
+            } catch (Throwable $rollbackThrowable) {
+                // The caller receives an unavailable transaction and will not
+                // perform any term insert on this connection.
+            }
+        }
+        return null;
+    } finally {
+        $wpdb->suppress_errors($previousSuppressErrors);
+    }
+}
+
+function ll_tools_strict_term_insert_restore_last_insert_id(array $transaction): void {
+    global $wpdb;
+
+    if (empty($transaction['last_insert_id_reset'])) {
+        return;
+    }
+
+    try {
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        $wpdb->last_error = '';
+        $wpdb->get_var($wpdb->prepare(
+            'SELECT LAST_INSERT_ID(%d)',
+            max(0, (int) ($transaction['last_insert_id_before'] ?? 0))
+        ));
+        $wpdb->suppress_errors($previousSuppressErrors);
+    } catch (Throwable $throwable) {
+        if (isset($previousSuppressErrors)) {
+            $wpdb->suppress_errors($previousSuppressErrors);
+        }
+    }
+}
+
+/** @return bool|null Null means the connection state could not be read. */
+function ll_tools_database_transaction_is_active(): ?bool {
+    global $wpdb;
+
+    if (function_exists('mysqli_query') && $wpdb->dbh instanceof mysqli) {
+        try {
+            $result = mysqli_query($wpdb->dbh, 'SELECT @@session.in_transaction');
+            if ($result !== false) {
+                $row = mysqli_fetch_row($result);
+                mysqli_free_result($result);
+                if (is_array($row) && isset($row[0])) {
+                    return (string) $row[0] === '1';
+                }
+            }
+        } catch (Throwable $throwable) {
+            // MySQL before 8.0 does not expose @@session.in_transaction. The
+            // savepoint probe below is non-mutating and works on those servers.
+        }
+
+        static $probeSequence = 0;
+        $probeSequence++;
+        $probeName = 'll_tx_probe_' . $probeSequence . '_' . substr(hash(
+            'sha256',
+            microtime(true) . '|' . wp_rand() . '|' . $probeSequence
+        ), 0, 10);
+        try {
+            if (mysqli_query($wpdb->dbh, "SAVEPOINT {$probeName}") === false) {
+                return null;
+            }
+            try {
+                $rolledBack = mysqli_query($wpdb->dbh, "ROLLBACK TO SAVEPOINT {$probeName}");
+            } catch (Throwable $throwable) {
+                $errno = (int) $throwable->getCode();
+                if ($errno === 0) {
+                    $errno = (int) mysqli_errno($wpdb->dbh);
+                }
+                return $errno === 1305 ? false : null;
+            }
+            if ($rolledBack === false) {
+                return (int) mysqli_errno($wpdb->dbh) === 1305 ? false : null;
+            }
+            return mysqli_query($wpdb->dbh, "RELEASE SAVEPOINT {$probeName}") !== false
+                ? true
+                : null;
+        } catch (Throwable $throwable) {
+            return (int) $throwable->getCode() === 1305 ? false : null;
+        }
+    }
+
+    try {
+        $wpdb->last_error = '';
+        $value = $wpdb->get_var('SELECT @@session.in_transaction');
+        return $wpdb->last_error === '' && $value !== null ? (string) $value === '1' : null;
+    } catch (Throwable $throwable) {
+        return null;
+    }
+}
+
+function ll_tools_database_begin_transaction(): bool {
+    global $wpdb;
+
+    // This helper owns a top-level transaction. It must never implicitly
+    // commit or replace a transaction established by its caller.
+    if (ll_tools_database_transaction_is_active() !== false) {
+        return false;
+    }
+
+    try {
+        if (function_exists('mysqli_begin_transaction') && $wpdb->dbh instanceof mysqli) {
+            $started = mysqli_begin_transaction($wpdb->dbh);
+        } else {
+            $wpdb->last_error = '';
+            $started = $wpdb->query('START TRANSACTION');
+            if ($wpdb->last_error !== '') {
+                $started = false;
+            }
+        }
+    } catch (Throwable $throwable) {
+        $started = false;
+    }
+
+    if ($started === false) {
+        ll_tools_database_force_rollback();
+        return false;
+    }
+    if (ll_tools_database_transaction_is_active() === true) {
+        return true;
+    }
+
+    ll_tools_database_force_rollback();
+    return false;
+}
+
+function ll_tools_database_force_rollback(): bool {
+    global $wpdb;
+
+    try {
+        if (function_exists('mysqli_rollback') && $wpdb->dbh instanceof mysqli) {
+            mysqli_rollback($wpdb->dbh);
+        } else {
+            $wpdb->last_error = '';
+            $wpdb->query('ROLLBACK');
+        }
+    } catch (Throwable $throwable) {
+        // Closing the connection below is the final rollback boundary.
+    }
+
+    $active = ll_tools_database_transaction_is_active();
+    if ($active === false) {
+        return true;
+    }
+
+    try {
+        if (method_exists($wpdb, 'close')) {
+            // MySQL rolls back an open transaction when its connection closes.
+            // This is deliberately preferable to risking a later implicit commit
+            // when the connection state cannot be proved or rollback itself fails.
+            if (!(bool) $wpdb->close()) {
+                return false;
+            }
+            // wpdb::close() marks the handle not ready. Reconnect immediately
+            // so the caller can still persist its typed failure and Undo data.
+            return method_exists($wpdb, 'check_connection')
+                && (bool) $wpdb->check_connection(false);
+        }
+    } catch (Throwable $throwable) {
+        // Report failure to the caller; it must not continue as if rollback won.
+    }
+    return false;
+}
+
+function ll_tools_database_commit_transaction(): bool {
+    global $wpdb;
+
+    try {
+        if (function_exists('mysqli_commit') && $wpdb->dbh instanceof mysqli) {
+            $committed = mysqli_commit($wpdb->dbh);
+        } else {
+            $wpdb->last_error = '';
+            $committed = $wpdb->query('COMMIT');
+            if ($wpdb->last_error !== '') {
+                $committed = false;
+            }
+        }
+    } catch (Throwable $throwable) {
+        $committed = false;
+    }
+
+    $active = ll_tools_database_transaction_is_active();
+    return $committed !== false && $active === false;
+}
+
+function ll_tools_strict_term_insert_commit_transaction(array $transaction): bool {
+    global $wpdb;
+
+    try {
+        if (($transaction['type'] ?? '') === 'savepoint') {
+            $name = (string) ($transaction['name'] ?? '');
+            if ($name === '') {
+                $committed = false;
+            } elseif (function_exists('mysqli_query') && $wpdb->dbh instanceof mysqli) {
+                $committed = mysqli_query($wpdb->dbh, "RELEASE SAVEPOINT {$name}") !== false;
+            } else {
+                $wpdb->last_error = '';
+                $result = $wpdb->query("RELEASE SAVEPOINT {$name}");
+                $committed = $result !== false && $wpdb->last_error === '';
+            }
+        } else {
+            $committed = ll_tools_database_commit_transaction();
+        }
+        ll_tools_strict_term_insert_restore_last_insert_id($transaction);
+        return $committed;
+    } catch (Throwable $throwable) {
+        ll_tools_strict_term_insert_restore_last_insert_id($transaction);
+        return false;
+    }
+}
+
+function ll_tools_strict_term_insert_rollback_transaction(array $transaction): bool {
+    global $wpdb;
+
+    $previousSuppressErrors = $wpdb->suppress_errors(true);
+    try {
+        $wpdb->last_error = '';
+        if (($transaction['type'] ?? '') === 'savepoint') {
+            $name = (string) ($transaction['name'] ?? '');
+            if ($name === '') {
+                return false;
+            }
+            if (function_exists('mysqli_query') && $wpdb->dbh instanceof mysqli) {
+                $rolledBack = mysqli_query($wpdb->dbh, "ROLLBACK TO SAVEPOINT {$name}");
+                $released = $rolledBack !== false
+                    ? mysqli_query($wpdb->dbh, "RELEASE SAVEPOINT {$name}")
+                    : false;
+                $complete = $rolledBack !== false && $released !== false;
+            } else {
+                $rolledBack = $wpdb->query("ROLLBACK TO SAVEPOINT {$name}");
+                $rollbackError = (string) $wpdb->last_error;
+                $wpdb->last_error = '';
+                $released = $wpdb->query("RELEASE SAVEPOINT {$name}");
+                $complete = $rolledBack !== false
+                    && $rollbackError === ''
+                    && $released !== false
+                    && $wpdb->last_error === '';
+            }
+            if ($rolledBack === false) {
+                // A caller-owned transaction could otherwise commit the
+                // helper's partially applied writes after we return an error.
+                $complete = ll_tools_database_force_rollback();
+            }
+            ll_tools_strict_term_insert_restore_last_insert_id($transaction);
+            return $complete;
+        }
+
+        $complete = ll_tools_database_force_rollback();
+        ll_tools_strict_term_insert_restore_last_insert_id($transaction);
+        return $complete;
+    } catch (Throwable $throwable) {
+        $complete = ($transaction['type'] ?? '') === 'savepoint'
+            ? ll_tools_database_force_rollback()
+            : false;
+        ll_tools_strict_term_insert_restore_last_insert_id($transaction);
+        return $complete;
+    } finally {
+        $wpdb->suppress_errors($previousSuppressErrors);
+    }
+}
+
+/**
+ * Recover the exact row inserted on this connection before wp_insert_term()
+ * returned or threw. This covers the gap between the core terms and
+ * term_taxonomy inserts, where no creation hook exists yet.
+ */
+function ll_tools_strict_term_insert_recover_mapping(
+    string $taxonomy,
+    array $expectedTermData,
+    int &$termId,
+    int &$termTaxonomyId,
+    array $transaction,
+    bool $attemptMarkerReset
+): bool {
+    global $wpdb;
+
+    $taxonomy = sanitize_key($taxonomy);
+    if (
+        $taxonomy === ''
+        || empty($expectedTermData)
+        || empty($transaction['last_insert_id_reset'])
+        || !$attemptMarkerReset
+    ) {
+        return false;
+    }
+
+    try {
+        $wpdb->last_error = '';
+        $lastInsertId = $wpdb->get_var('SELECT LAST_INSERT_ID()');
+        if ($wpdb->last_error !== '' || $lastInsertId === null || (int) $lastInsertId <= 0) {
+            return false;
+        }
+        $lastInsertId = (int) $lastInsertId;
+
+        $candidates = [];
+
+        // Namespace 1: when the TT insert failed, the marker is the new bare
+        // term ID. A same-numbered, older TT row is unrelated and must not
+        // hide this evidence.
+        $wpdb->last_error = '';
+        $markerTerm = $wpdb->get_row($wpdb->prepare(
+            "SELECT name, slug, term_group FROM {$wpdb->terms} WHERE term_id = %d LIMIT 1",
+            $lastInsertId
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') {
+            return false;
+        }
+        $markerTermMatches = is_array($markerTerm);
+        if ($markerTermMatches) {
+            foreach (['name', 'slug', 'term_group'] as $field) {
+                if ((string) ($markerTerm[$field] ?? '') !== (string) ($expectedTermData[$field] ?? '')) {
+                    $markerTermMatches = false;
+                    break;
+                }
+            }
+        }
+        if ($markerTermMatches) {
+            $wpdb->last_error = '';
+            $markerTermMappings = $wpdb->get_results($wpdb->prepare(
+                "SELECT term_taxonomy_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_id = %d ORDER BY term_taxonomy_id ASC",
+                $lastInsertId
+            ), ARRAY_A);
+            if ($wpdb->last_error !== '' || !is_array($markerTermMappings)) {
+                return false;
+            }
+            if ($markerTermMappings === []) {
+                $candidates[$lastInsertId . ':0'] = [
+                    'term_id' => $lastInsertId,
+                    'term_taxonomy_id' => 0,
+                ];
+            }
+        }
+
+        // Namespace 2: when both inserts succeeded, the marker is the TT ID.
+        // Accept it only when that exact mapping is the new term's sole map.
+        $wpdb->last_error = '';
+        $lastMapping = $wpdb->get_row($wpdb->prepare(
+            "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+            $lastInsertId
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '') {
+            return false;
+        }
+        if (is_array($lastMapping) && (string) ($lastMapping['taxonomy'] ?? '') === $taxonomy) {
+            $mappedTermId = (int) ($lastMapping['term_id'] ?? 0);
+            if ($mappedTermId > 0) {
+                $wpdb->last_error = '';
+                $mappedTerm = $wpdb->get_row($wpdb->prepare(
+                    "SELECT name, slug, term_group FROM {$wpdb->terms} WHERE term_id = %d LIMIT 1",
+                    $mappedTermId
+                ), ARRAY_A);
+                if ($wpdb->last_error !== '') {
+                    return false;
+                }
+                $mappedTermMatches = is_array($mappedTerm);
+                if ($mappedTermMatches) {
+                    foreach (['name', 'slug', 'term_group'] as $field) {
+                        if ((string) ($mappedTerm[$field] ?? '') !== (string) ($expectedTermData[$field] ?? '')) {
+                            $mappedTermMatches = false;
+                            break;
+                        }
+                    }
+                }
+                if ($mappedTermMatches) {
+                    $wpdb->last_error = '';
+                    $mappedTermMappings = $wpdb->get_results($wpdb->prepare(
+                        "SELECT term_taxonomy_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_id = %d ORDER BY term_taxonomy_id ASC",
+                        $mappedTermId
+                    ), ARRAY_A);
+                    if ($wpdb->last_error !== '' || !is_array($mappedTermMappings)) {
+                        return false;
+                    }
+                    if (
+                        count($mappedTermMappings) === 1
+                        && (int) ($mappedTermMappings[0]['term_taxonomy_id'] ?? 0) === $lastInsertId
+                        && (string) ($mappedTermMappings[0]['taxonomy'] ?? '') === $taxonomy
+                    ) {
+                        $candidates[$mappedTermId . ':' . $lastInsertId] = [
+                            'term_id' => $mappedTermId,
+                            'term_taxonomy_id' => $lastInsertId,
+                        ];
+                    }
+                }
+            }
+        }
+
+        foreach ($candidates as $candidateKey => $candidate) {
+            if ($termId > 0 && $termId !== (int) $candidate['term_id']) {
+                unset($candidates[$candidateKey]);
+                continue;
+            }
+            if (
+                $termTaxonomyId > 0
+                && $termTaxonomyId !== (int) $candidate['term_taxonomy_id']
+            ) {
+                unset($candidates[$candidateKey]);
+            }
+        }
+        if (count($candidates) !== 1) {
+            return false;
+        }
+        $candidate = reset($candidates);
+        $candidateTermId = (int) ($candidate['term_id'] ?? 0);
+        $candidateTermTaxonomyId = (int) ($candidate['term_taxonomy_id'] ?? 0);
+
+        $termId = $candidateTermId;
+        if ($candidateTermTaxonomyId > 0) {
+            $termTaxonomyId = $candidateTermTaxonomyId;
+        }
+        return true;
+    } catch (Throwable $throwable) {
+        return false;
+    }
+}
+
+function ll_tools_strict_term_insert_evict_caches(int $termId, string $taxonomy): void {
+    if ($termId <= 0) {
+        return;
+    }
+
+    try {
+        wp_cache_delete($termId, 'terms');
+    } catch (Throwable $throwable) {
+    }
+    try {
+        wp_cache_delete($termId, 'term_meta');
+    } catch (Throwable $throwable) {
+    }
+    try {
+        clean_term_cache($termId, $taxonomy);
+    } catch (Throwable $throwable) {
+    }
+}
+
+/**
+ * Attach rollback evidence to a failure that occurred after this request
+ * conclusively created a word-category term.
+ *
+ * Callers must never use this for a term that may have been reused. When the
+ * rollback itself cannot be verified, the returned error exposes the retained
+ * term ID so import flows can add it to their Undo payload and interactive
+ * flows can avoid presenting the operation as safely retryable.
+ */
+function ll_tools_rollback_created_wordset_category_after_error(
+    int $term_id,
+    WP_Error $failure,
+    int $term_taxonomy_id = 0
+): WP_Error {
+    $term_id = (int) $term_id;
+    $failure_data = $failure->get_error_data();
+    $failure_data = is_array($failure_data) ? $failure_data : [];
+    $failure_data['term_id'] = $term_id;
+    if ($term_taxonomy_id > 0) {
+        $failure_data['term_taxonomy_id'] = $term_taxonomy_id;
+    }
+
+    $rolled_back = false;
+    if ($term_id > 0 && function_exists('ll_tools_rollback_failed_new_word_category')) {
+        try {
+            $rolled_back = ll_tools_rollback_failed_new_word_category($term_id, $term_taxonomy_id);
+        } catch (Throwable $throwable) {
+            $rolled_back = false;
+        }
+    }
+    if ($rolled_back) {
+        $failure_data['rollback_complete'] = true;
+        $failure->add_data($failure_data, $failure->get_error_code());
+        return $failure;
+    }
+
+    return new WP_Error(
+        'll_tools_wordset_category_cleanup_failed',
+        __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain'),
+        [
+            'status'            => 503,
+            'retryable'         => false,
+            'term_id'           => $term_id,
+            'term_taxonomy_id'  => max(0, $term_taxonomy_id),
+            'rollback_complete' => false,
+            'cause_code'        => sanitize_key((string) $failure->get_error_code()),
+        ]
+    );
+}
+
+/**
+ * Create one wordset category without ever adopting a pre-existing term.
+ *
+ * wp_insert_term() can return an older duplicate as a successful array when a
+ * concurrent request wins its final confidence check. A scoped creation token
+ * captures the raw term/TT IDs through the earliest duplicate-confidence
+ * filter and create_term, with both hooks required to agree when both run. A
+ * final confidence filter suppresses core cleanup after a capture conflict;
+ * only the proven mapping is eligible for metadata writes or rollback.
+ *
+ * @return int|WP_Error Positively created term ID, or an error.
+ */
+function ll_tools_create_new_wordset_category(string $name, int $wordset_id, array $args = []) {
+    global $wpdb, $wp_version;
+
+    $name = trim(sanitize_text_field($name));
+    $wordset_id = (int) $wordset_id;
+    if ($name === '' || $wordset_id < 0) {
+        return new WP_Error('ll_tools_new_wordset_category_invalid', __('Invalid category.', 'll-tools-text-domain'));
+    }
+    if (version_compare((string) $wp_version, '6.1', '<')) {
+        return new WP_Error('ll_tools_new_wordset_category_wordpress_version', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    }
+
+    $insert_args = $args;
+    $force_wordset_owner = $wordset_id > 0 && !empty($insert_args['_ll_tools_force_wordset_owner']);
+    $allow_same_name = !empty($insert_args['_ll_tools_allow_same_name']);
+    unset($insert_args['_ll_tools_force_wordset_owner']);
+    unset($insert_args['_ll_tools_allow_same_name']);
+    unset($insert_args['parent']);
+    $isolation_enabled = $wordset_id > 0
+        && (ll_tools_is_wordset_isolation_enabled() || $force_wordset_owner);
+    $requested_slug = isset($insert_args['slug']) ? sanitize_title((string) $insert_args['slug']) : '';
+    if ($isolation_enabled) {
+        $insert_args['slug'] = ll_tools_build_isolated_category_slug(
+            $requested_slug !== '' ? $requested_slug : $name,
+            $wordset_id
+        );
+
+        if (!$allow_same_name) {
+            $wpdb->last_error = '';
+            $same_name_terms = get_terms([
+                'taxonomy'   => 'word-category',
+                'hide_empty' => false,
+                'name'       => $name,
+                'meta_query' => [[
+                    'key'   => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+                    'value' => $wordset_id,
+                ]],
+            ]);
+            if (is_wp_error($same_name_terms) || $wpdb->last_error !== '') {
+                return new WP_Error('ll_tools_new_wordset_category_read_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+            }
+            foreach ((array) $same_name_terms as $same_name_term) {
+                if ($same_name_term instanceof WP_Term && strcasecmp((string) $same_name_term->name, $name) === 0) {
+                    return new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'));
+                }
+            }
+        }
+    } else {
+        if (!$allow_same_name) {
+            $wpdb->last_error = '';
+            $existing_term = term_exists($name, 'word-category', 0);
+            if (is_wp_error($existing_term) || $wpdb->last_error !== '') {
+                return new WP_Error('ll_tools_new_wordset_category_read_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+            }
+            if ($existing_term) {
+                return new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'));
+            }
+        }
+        $insert_args['slug'] = $requested_slug !== '' ? $requested_slug : sanitize_title($name);
+        if ((string) $insert_args['slug'] === '') {
+            $insert_args['slug'] = 'category';
+        }
+    }
+
+    if (isset($insert_args['slug']) && (string) $insert_args['slug'] !== '') {
+        $wpdb->last_error = '';
+        $same_slug_term = get_term_by('slug', (string) $insert_args['slug'], 'word-category');
+        if (is_wp_error($same_slug_term) || $wpdb->last_error !== '') {
+            return new WP_Error('ll_tools_new_wordset_category_read_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+        }
+        if ($same_slug_term instanceof WP_Term) {
+            return new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'));
+        }
+    }
+
+    $creation_token = wp_generate_uuid4();
+    $insert_args['_ll_tools_new_category_token'] = $creation_token;
+    $raw_term_id = 0;
+    $raw_term_taxonomy_id = 0;
+    $mapping_capture_conflicted = false;
+    $term_id_was_remapped = false;
+    $expected_term_data = [];
+    $outer_insert_marker_reset = false;
+    $is_direct_insert_callback = static function (): bool {
+        $depth = 0;
+        foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+            if ((string) ($frame['function'] ?? '') !== 'wp_insert_term') {
+                continue;
+            }
+            $depth++;
+            if ($depth > 1) {
+                return false;
+            }
+        }
+        return $depth === 1;
+    };
+    $capture_term_data = static function ($data, $taxonomy = '', $data_args = []) use (
+        $creation_token,
+        $is_direct_insert_callback,
+        &$expected_term_data,
+        &$outer_insert_marker_reset,
+        &$mapping_capture_conflicted
+    ) {
+        if (
+            (string) $taxonomy === 'word-category'
+            && $is_direct_insert_callback()
+            && is_array($data_args)
+            && isset($data_args['_ll_tools_new_category_token'])
+            && is_string($data_args['_ll_tools_new_category_token'])
+            && hash_equals($creation_token, $data_args['_ll_tools_new_category_token'])
+            && is_array($data)
+        ) {
+            $expected_term_data = [
+                'name' => (string) ($data['name'] ?? ''),
+                'slug' => (string) ($data['slug'] ?? ''),
+                'term_group' => (string) ($data['term_group'] ?? '0'),
+            ];
+            try {
+                global $wpdb;
+                $wpdb->last_error = '';
+                $resetMarker = $wpdb->get_var('SELECT LAST_INSERT_ID(0)');
+                $outer_insert_marker_reset = $wpdb->last_error === '' && (string) $resetMarker === '0';
+            } catch (Throwable $throwable) {
+                $outer_insert_marker_reset = false;
+            }
+            if (!$outer_insert_marker_reset) {
+                $mapping_capture_conflicted = true;
+            }
+        }
+        return $data;
+    };
+    $capture_confidence_mapping = static function ($duplicate_term, $term = '', $taxonomy = '', $confidence_args = [], $term_taxonomy_id = 0) use (
+        $creation_token,
+        $is_direct_insert_callback,
+        &$raw_term_id,
+        &$raw_term_taxonomy_id,
+        &$mapping_capture_conflicted
+    ) {
+        global $wpdb;
+
+        if (
+            (string) $taxonomy !== 'word-category'
+            || !$is_direct_insert_callback()
+            || !is_array($confidence_args)
+            || !isset($confidence_args['_ll_tools_new_category_token'])
+            || !is_string($confidence_args['_ll_tools_new_category_token'])
+            || !hash_equals($creation_token, $confidence_args['_ll_tools_new_category_token'])
+        ) {
+            return $duplicate_term;
+        }
+
+        $term_taxonomy_id = (int) $term_taxonomy_id;
+        try {
+            $wpdb->last_error = '';
+            $mapping = $wpdb->get_row($wpdb->prepare(
+                "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+                $term_taxonomy_id
+            ), ARRAY_A);
+        } catch (Throwable $throwable) {
+            $mapping_capture_conflicted = true;
+            return false;
+        }
+        if (
+            $wpdb->last_error !== ''
+            || !is_array($mapping)
+            || (string) ($mapping['taxonomy'] ?? '') !== 'word-category'
+            || (int) ($mapping['term_id'] ?? 0) <= 0
+        ) {
+            $mapping_capture_conflicted = true;
+            // Suppress core's unchecked duplicate cleanup so create_term can
+            // capture the raw mapping and the conflict path can roll it back
+            // verifiably. The final-priority protector below preserves this
+            // decision if a later filter tries to restore a duplicate winner.
+            return false;
+        }
+
+        $term_id = (int) $mapping['term_id'];
+        if ($raw_term_id <= 0 && $raw_term_taxonomy_id <= 0) {
+            $raw_term_id = $term_id;
+            $raw_term_taxonomy_id = $term_taxonomy_id;
+        } elseif ($raw_term_id !== $term_id || $raw_term_taxonomy_id !== $term_taxonomy_id) {
+            $mapping_capture_conflicted = true;
+        }
+
+        return $duplicate_term;
+    };
+    $capture_created_mapping = static function ($term_id, $term_taxonomy_id = 0, $taxonomy = '', $created_args = []) use (
+        $creation_token,
+        $is_direct_insert_callback,
+        &$raw_term_id,
+        &$raw_term_taxonomy_id,
+        &$mapping_capture_conflicted
+    ): void {
+        if (
+            (string) $taxonomy !== 'word-category'
+            || !$is_direct_insert_callback()
+            || !is_array($created_args)
+            || !isset($created_args['_ll_tools_new_category_token'])
+            || !is_string($created_args['_ll_tools_new_category_token'])
+            || !hash_equals($creation_token, $created_args['_ll_tools_new_category_token'])
+        ) {
+            return;
+        }
+
+        $term_id = (int) $term_id;
+        $term_taxonomy_id = (int) $term_taxonomy_id;
+        if ($raw_term_id <= 0 && $raw_term_taxonomy_id <= 0 && $term_id > 0 && $term_taxonomy_id > 0) {
+            $raw_term_id = $term_id;
+            $raw_term_taxonomy_id = $term_taxonomy_id;
+        } elseif ($raw_term_id === $term_id && $raw_term_taxonomy_id <= 0 && $term_taxonomy_id > 0) {
+            $raw_term_taxonomy_id = $term_taxonomy_id;
+        } elseif ($raw_term_id !== $term_id || $raw_term_taxonomy_id !== $term_taxonomy_id) {
+            $mapping_capture_conflicted = true;
+        }
+    };
+    $protect_confidence_cleanup = static function ($duplicate_term, $term = '', $taxonomy = '', $confidence_args = []) use (
+        $creation_token,
+        $is_direct_insert_callback,
+        &$mapping_capture_conflicted
+    ) {
+        if (
+            (string) $taxonomy === 'word-category'
+            && $is_direct_insert_callback()
+            && is_array($confidence_args)
+            && isset($confidence_args['_ll_tools_new_category_token'])
+            && is_string($confidence_args['_ll_tools_new_category_token'])
+            && hash_equals($creation_token, $confidence_args['_ll_tools_new_category_token'])
+            && $mapping_capture_conflicted
+        ) {
+            return false;
+        }
+
+        return $duplicate_term;
+    };
+    $protect_created_mapping = static function ($filtered_term_id, $term_taxonomy_id = 0, $filtered_args = []) use (
+        $creation_token,
+        $is_direct_insert_callback,
+        &$raw_term_id,
+        &$raw_term_taxonomy_id,
+        &$term_id_was_remapped
+    ) {
+        if (
+            !$is_direct_insert_callback()
+            ||
+            $raw_term_id <= 0
+            || $raw_term_taxonomy_id <= 0
+            || (int) $term_taxonomy_id !== $raw_term_taxonomy_id
+        ) {
+            return $filtered_term_id;
+        }
+        if (
+            !is_array($filtered_args)
+            || !isset($filtered_args['_ll_tools_new_category_token'])
+            || !is_string($filtered_args['_ll_tools_new_category_token'])
+            || !hash_equals($creation_token, $filtered_args['_ll_tools_new_category_token'])
+        ) {
+            return $filtered_term_id;
+        }
+
+        if ((int) $filtered_term_id !== $raw_term_id) {
+            $term_id_was_remapped = true;
+        }
+        return $raw_term_id;
+    };
+
+    $inserted = null;
+    $insert_throwable = null;
+    $insert_transaction = ll_tools_strict_term_insert_begin_transaction();
+    if (!is_array($insert_transaction)) {
+        return new WP_Error('ll_tools_new_wordset_category_transaction_unavailable', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    }
+    add_filter('wp_insert_term_data', $capture_term_data, PHP_INT_MAX, 3);
+    add_filter('wp_insert_term_duplicate_term_check', $capture_confidence_mapping, PHP_INT_MIN, 5);
+    add_filter('wp_insert_term_duplicate_term_check', $protect_confidence_cleanup, PHP_INT_MAX, 4);
+    add_action('create_term', $capture_created_mapping, PHP_INT_MIN, 4);
+    add_filter('term_id_filter', $protect_created_mapping, PHP_INT_MAX, 3);
+    try {
+        $inserted = wp_insert_term($name, 'word-category', $insert_args);
+    } catch (Throwable $throwable) {
+        $insert_throwable = $throwable;
+    } finally {
+        remove_filter('wp_insert_term_data', $capture_term_data, PHP_INT_MAX);
+        remove_filter('wp_insert_term_duplicate_term_check', $capture_confidence_mapping, PHP_INT_MIN);
+        remove_filter('wp_insert_term_duplicate_term_check', $protect_confidence_cleanup, PHP_INT_MAX);
+        remove_action('create_term', $capture_created_mapping, PHP_INT_MIN);
+        remove_filter('term_id_filter', $protect_created_mapping, PHP_INT_MAX);
+    }
+
+    if (($raw_term_id <= 0 || $raw_term_taxonomy_id <= 0) && !empty($expected_term_data)) {
+        ll_tools_strict_term_insert_recover_mapping(
+            'word-category',
+            $expected_term_data,
+            $raw_term_id,
+            $raw_term_taxonomy_id,
+            $insert_transaction,
+            $outer_insert_marker_reset
+        );
+    }
+
+    $returned_term_id = is_array($inserted) ? (int) ($inserted['term_id'] ?? 0) : 0;
+    $returned_term_taxonomy_id = is_array($inserted) ? (int) ($inserted['term_taxonomy_id'] ?? 0) : 0;
+    $duplicate_winner_returned = is_array($inserted)
+        && !$term_id_was_remapped
+        && $raw_term_id > 0
+        && (
+            $returned_term_id !== $raw_term_id
+            || $returned_term_taxonomy_id !== $raw_term_taxonomy_id
+        );
+    $precommit_failure = null;
+    if ($insert_throwable instanceof Throwable) {
+        $precommit_failure = new WP_Error('ll_tools_new_wordset_category_create_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    } elseif (is_wp_error($inserted)) {
+        $precommit_failure = $inserted->get_error_code() === 'term_exists'
+            ? new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'))
+            : $inserted;
+    } elseif (
+        $mapping_capture_conflicted
+        || $term_id_was_remapped
+        || $raw_term_id <= 0
+        || $raw_term_taxonomy_id <= 0
+        || $returned_term_id !== $raw_term_id
+        || $returned_term_taxonomy_id !== $raw_term_taxonomy_id
+    ) {
+        $precommit_failure = $duplicate_winner_returned
+            ? new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'))
+            : new WP_Error('ll_tools_new_wordset_category_mapping_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    }
+
+    if ($precommit_failure instanceof WP_Error) {
+        ll_tools_strict_term_insert_rollback_transaction($insert_transaction);
+        if ($raw_term_id > 0) {
+            ll_tools_strict_term_insert_evict_caches($raw_term_id, 'word-category');
+            return ll_tools_rollback_created_wordset_category_after_error(
+                $raw_term_id,
+                $precommit_failure,
+                $raw_term_taxonomy_id
+            );
+        }
+        return $precommit_failure;
+    }
+
+    if (!ll_tools_strict_term_insert_commit_transaction($insert_transaction)) {
+        ll_tools_strict_term_insert_rollback_transaction($insert_transaction);
+        $failure = new WP_Error('ll_tools_new_wordset_category_commit_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+        ll_tools_strict_term_insert_evict_caches($raw_term_id, 'word-category');
+        return ll_tools_rollback_created_wordset_category_after_error(
+            $raw_term_id,
+            $failure,
+            $raw_term_taxonomy_id
+        );
+    }
+
+    try {
+        $failure = null;
+        if (
+            $mapping_capture_conflicted
+            || $term_id_was_remapped
+            || $returned_term_id !== $raw_term_id
+            || $returned_term_taxonomy_id !== $raw_term_taxonomy_id
+        ) {
+            $failure = $duplicate_winner_returned
+                ? new WP_Error('ll_tools_new_wordset_category_exists', __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'))
+                : new WP_Error('ll_tools_new_wordset_category_mapping_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+        }
+
+        if (!($failure instanceof WP_Error)) {
+            $wpdb->last_error = '';
+            $mapping_rows = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE term_id = %d AND term_taxonomy_id = %d AND taxonomy = %s",
+                $raw_term_id,
+                $raw_term_taxonomy_id,
+                'word-category'
+            ));
+            if ($wpdb->last_error !== '' || $mapping_rows === null || (int) $mapping_rows !== 1) {
+                $failure = new WP_Error('ll_tools_new_wordset_category_mapping_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+            }
+        }
+
+        if (!($failure instanceof WP_Error)) {
+            $wpdb->last_error = '';
+            $created_term = get_term($raw_term_id, 'word-category');
+            if (
+                !($created_term instanceof WP_Term)
+                || is_wp_error($created_term)
+                || $wpdb->last_error !== ''
+                || (
+                    isset($insert_args['slug'])
+                    && (string) $insert_args['slug'] !== ''
+                    && (string) $created_term->slug !== (string) $insert_args['slug']
+                )
+            ) {
+                $failure = new WP_Error('ll_tools_new_wordset_category_readback_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+            }
+        }
+
+        if ($failure instanceof WP_Error) {
+            return ll_tools_rollback_created_wordset_category_after_error($raw_term_id, $failure, $raw_term_taxonomy_id);
+        }
+
+        if ($wordset_id <= 0) {
+            return $raw_term_id;
+        }
+
+        $owner_id = $isolation_enabled ? $wordset_id : 0;
+        ll_tools_set_category_wordset_owner($raw_term_id, $owner_id, $raw_term_id);
+        wp_cache_delete($raw_term_id, 'term_meta');
+        $wpdb->last_error = '';
+        $stored_owner_values = $wpdb->get_col($wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->termmeta} WHERE term_id = %d AND meta_key = %s ORDER BY meta_id ASC",
+            $raw_term_id,
+            LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+        ));
+        $owner_read_failed = $wpdb->last_error !== '';
+        $wpdb->last_error = '';
+        $stored_origin_values = $wpdb->get_col($wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->termmeta} WHERE term_id = %d AND meta_key = %s ORDER BY meta_id ASC",
+            $raw_term_id,
+            LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY
+        ));
+        $origin_read_failed = $wpdb->last_error !== '';
+        $owner_matches = $owner_id > 0
+            ? count($stored_owner_values) === 1 && (string) $stored_owner_values[0] === (string) $owner_id
+            : $stored_owner_values === [];
+        $origin_matches = count($stored_origin_values) === 1
+            && (string) $stored_origin_values[0] === (string) $raw_term_id;
+        if (
+            $owner_read_failed
+            || $origin_read_failed
+            || !$owner_matches
+            || !$origin_matches
+        ) {
+            return ll_tools_rollback_created_wordset_category_after_error(
+                $raw_term_id,
+                new WP_Error('ll_tools_new_wordset_category_owner_failed', __('Unable to create that category right now.', 'll-tools-text-domain')),
+                $raw_term_taxonomy_id
+            );
+        }
+    } catch (Throwable $throwable) {
+        return ll_tools_rollback_created_wordset_category_after_error(
+            $raw_term_id,
+            new WP_Error('ll_tools_new_wordset_category_initialization_failed', __('Unable to create that category right now.', 'll-tools-text-domain')),
+            $raw_term_taxonomy_id
+        );
+    }
+
+    return $raw_term_id;
+}
+
 function ll_tools_create_or_get_wordset_category(string $name, int $wordset_id, array $args = []) {
     $name = sanitize_text_field($name);
     $name = trim($name);
@@ -3993,17 +5063,17 @@ function ll_tools_wordset_isolation_run_bounded_category_reconciliation(): void 
                     $quiz_active
                     && !$quiz_locked
                     && wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT) === false
-                    && function_exists('ll_tools_schedule_quiz_page_full_sync')
+                    && function_exists('ll_tools_schedule_quiz_page_sync_event')
                 ) {
-                    ll_tools_schedule_quiz_page_full_sync(1);
+                    ll_tools_schedule_quiz_page_sync_event(1);
                 }
                 if (
                     $vocab_active
                     && !$vocab_locked
                     && wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT) === false
-                    && function_exists('ll_tools_schedule_vocab_lesson_full_sync')
+                    && function_exists('ll_tools_schedule_vocab_lesson_sync_event')
                 ) {
-                    ll_tools_schedule_vocab_lesson_full_sync(1);
+                    ll_tools_schedule_vocab_lesson_sync_event(1);
                 }
                 return;
             }
@@ -4022,11 +5092,11 @@ function ll_tools_wordset_isolation_run_bounded_category_reconciliation(): void 
         }
 
         if ($quiz_active || $quiz_locked || $vocab_active || $vocab_locked) {
-            if ($quiz_active && function_exists('ll_tools_schedule_quiz_page_full_sync')) {
-                ll_tools_schedule_quiz_page_full_sync(1);
+            if ($quiz_active && function_exists('ll_tools_schedule_quiz_page_sync_event')) {
+                ll_tools_schedule_quiz_page_sync_event(1);
             }
-            if ($vocab_active && function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
-                ll_tools_schedule_vocab_lesson_full_sync(1);
+            if ($vocab_active && function_exists('ll_tools_schedule_vocab_lesson_sync_event')) {
+                ll_tools_schedule_vocab_lesson_sync_event(1);
             }
             return;
         }
