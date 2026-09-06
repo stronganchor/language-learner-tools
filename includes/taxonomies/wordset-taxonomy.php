@@ -1753,58 +1753,54 @@ function ll_tools_wordset_get_category_label_map(array $category_ids, array $see
     return $label_map;
 }
 
-function ll_tools_wordset_get_vocab_lesson_category_created_timestamps(int $wordset_id): array {
-    static $cache = [];
+function ll_tools_wordset_get_vocab_lesson_category_created_timestamps(int $wordset_id, array $category_ids = []): array {
+    global $wpdb;
 
-    if ($wordset_id <= 0) {
+    if ($wordset_id <= 0 || !defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
         return [];
     }
 
-    if (isset($cache[$wordset_id])) {
-        return $cache[$wordset_id];
-    }
-
-    if (!defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
-        $cache[$wordset_id] = [];
-        return $cache[$wordset_id];
-    }
-
-    $lesson_ids = get_posts([
-        'post_type'              => 'll_vocab_lesson',
-        'post_status'            => 'publish',
-        'posts_per_page'         => -1,
-        'fields'                 => 'ids',
-        'orderby'                => 'date',
-        'order'                  => 'ASC',
-        'no_found_rows'          => true,
-        'update_post_meta_cache' => false,
-        'update_post_term_cache' => false,
-        'meta_query'             => [
-            [
-                'key'   => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
-                'value' => (string) $wordset_id,
-            ],
-        ],
-    ]);
-
+    $category_ids = ll_tools_wordset_normalize_category_id_list($category_ids);
+    $chunks = $category_ids ? array_chunk($category_ids, 200) : [[]];
     $timestamps = [];
-    foreach ((array) $lesson_ids as $lesson_id) {
-        $lesson_id = (int) $lesson_id;
-        if ($lesson_id <= 0) {
-            continue;
+    foreach ($chunks as $chunk) {
+        $scope_sql = $chunk ? ' AND CAST(category_meta.meta_value AS UNSIGNED) IN (' . implode(',', array_fill(0, count($chunk), '%d')) . ')' : '';
+        // Aggregate in SQL instead of hydrating every lesson. The first meta row
+        // matches get_post_meta(..., true); repeated wordset rows cannot duplicate
+        // results. Preserve local-date ordering while returning that row's UTC
+        // date, with the post ID as a deterministic same-date tie breaker.
+        $sql = "SELECT CAST(category_meta.meta_value AS UNSIGNED) AS category_id,
+                       MIN(CONCAT(CAST(p.post_date AS CHAR), '|', LPAD(p.ID, 20, '0'), '|', CAST(p.post_date_gmt AS CHAR))) AS first_dates
+                FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} category_meta ON category_meta.post_id = p.ID AND category_meta.meta_key = %s
+                WHERE p.post_type = 'll_vocab_lesson' AND p.post_status = 'publish'
+                  AND p.post_date_gmt > '1970-01-01 00:00:00'
+                  AND CAST(category_meta.meta_value AS SIGNED) > 0
+                  AND NOT EXISTS (SELECT 1 FROM {$wpdb->postmeta} earlier_meta
+                      WHERE earlier_meta.post_id = p.ID AND earlier_meta.meta_key = category_meta.meta_key
+                        AND earlier_meta.meta_id < category_meta.meta_id)
+                  AND EXISTS (SELECT 1 FROM {$wpdb->postmeta} wordset_meta
+                      WHERE wordset_meta.post_id = p.ID AND wordset_meta.meta_key = %s AND wordset_meta.meta_value = %s)
+                  {$scope_sql}
+                GROUP BY CAST(category_meta.meta_value AS UNSIGNED)";
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge([
+            LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+            LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+            (string) $wordset_id,
+        ], $chunk)), ARRAY_A);
+        if ($wpdb->last_error !== '' || !is_array($rows)) {
+            return [];
         }
-        $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
-        if ($category_id <= 0 || isset($timestamps[$category_id])) {
-            continue;
-        }
-        $timestamp = (int) get_post_time('U', true, $lesson_id);
-        if ($timestamp > 0) {
-            $timestamps[$category_id] = $timestamp;
+        foreach ($rows as $row) {
+            $date = date_create_immutable_from_format('!Y-m-d H:i:s', substr((string) $row['first_dates'], 41), new DateTimeZone('UTC'));
+            $timestamp = $date ? (int) apply_filters('get_post_time', $date->getTimestamp(), 'U', true) : 0;
+            if ($timestamp > 0) {
+                $timestamps[(int) $row['category_id']] = $timestamp;
+            }
         }
     }
-
-    $cache[$wordset_id] = $timestamps;
-    return $cache[$wordset_id];
+    return $timestamps;
 }
 
 function ll_tools_wordset_get_default_manual_category_order(int $wordset_id, array $category_ids, array $args = []): array {
@@ -1818,7 +1814,7 @@ function ll_tools_wordset_get_default_manual_category_order(int $wordset_id, arr
         $seed_label_map = $args['category_name_map'];
     }
     $label_map = ll_tools_wordset_get_category_label_map($category_ids, $seed_label_map);
-    $lesson_timestamps = ll_tools_wordset_get_vocab_lesson_category_created_timestamps($wordset_id);
+    $lesson_timestamps = ll_tools_wordset_get_vocab_lesson_category_created_timestamps($wordset_id, $category_ids);
 
     usort($category_ids, static function (int $left, int $right) use ($lesson_timestamps, $label_map): int {
         $left_ts = (int) ($lesson_timestamps[$left] ?? 0);
@@ -1855,7 +1851,6 @@ function ll_tools_wordset_get_category_manual_order(int $wordset_id, array $cate
         return [];
     }
 
-    $baseline = ll_tools_wordset_get_default_manual_category_order($wordset_id, $category_ids, $args);
     $valid_lookup = array_fill_keys($category_ids, true);
     $stored_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
     $stored = function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')
@@ -1871,10 +1866,10 @@ function ll_tools_wordset_get_category_manual_order(int $wordset_id, array $cate
         $ordered[] = $cid;
         $seen[$cid] = true;
     }
-    foreach ($baseline as $cid) {
-        if (isset($seen[$cid])) {
-            continue;
-        }
+    $missing_ids = array_values(array_filter($category_ids, static function (int $cid) use ($seen): bool {
+        return !isset($seen[$cid]);
+    }));
+    foreach (ll_tools_wordset_get_default_manual_category_order($wordset_id, $missing_ids, $args) as $cid) {
         $ordered[] = $cid;
     }
 

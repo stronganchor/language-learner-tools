@@ -10319,53 +10319,18 @@ function ll_tools_rest_automation_import_process(WP_REST_Request $request) {
     if (is_wp_error($job)) {
         return $job;
     }
-
-    $job_id = (string) ($job['id'] ?? '');
-    $status = sanitize_key((string) ($job['status'] ?? 'running'));
-    if ($status === 'completed') {
-        return rest_ensure_response(['job' => ll_tools_import_job_get_snapshot($job)]);
-    }
-
-    if ($status === 'paused') {
-        $job['status'] = 'running';
-        $job['error_message'] = '';
-    }
-
-    $processed_job = ll_tools_import_job_process_with_lock($job);
-    if (is_wp_error($processed_job)) {
-        if (ll_tools_import_job_is_process_lock_error($processed_job)) {
-            $error_data = $processed_job->get_error_data();
-            $error_data = is_array($error_data) ? $error_data : [];
-
-            return new WP_Error(
-                'll_tools_import_job_process_locked',
-                $processed_job->get_error_message(),
-                [
-                    'status' => 429,
-                    'job' => ll_tools_import_job_get_snapshot($job),
-                    'locked' => true,
-                    'retry_after_seconds' => (float) ($error_data['retry_after_seconds'] ?? 1.0),
-                ]
-            );
+    $processed = ll_tools_import_job_process_with_lock($job);
+    if (is_wp_error($processed)) {
+        $data = (array) $processed->get_error_data();
+        $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key((string) $job['id']));
+        $data['job'] = is_array($fresh) ? ll_tools_import_job_get_snapshot($fresh) : null;
+        if ($processed->get_error_code() === 'll_tools_import_job_process_failed') {
+            return new WP_Error('ll_tools_rest_import_process_failed', $processed->get_error_message(), $data);
         }
-
-        $job = ll_tools_import_job_pause($job, $processed_job->get_error_message());
-        $job = ll_tools_import_job_save($job_id, $job);
-
-        return new WP_Error(
-            'll_tools_rest_import_process_failed',
-            $processed_job->get_error_message(),
-            [
-                'status' => 500,
-                'job' => ll_tools_import_job_get_snapshot($job),
-            ]
-        );
+        $processed->add_data($data);
+        return $processed;
     }
-
-    $saved_job = ll_tools_import_job_save($job_id, $processed_job);
-    return rest_ensure_response([
-        'job' => ll_tools_import_job_get_snapshot($saved_job),
-    ]);
+    return rest_ensure_response(['job' => ll_tools_import_job_get_snapshot($processed)]);
 }
 
 function ll_tools_rest_automation_import_discard(WP_REST_Request $request) {
@@ -10376,12 +10341,15 @@ function ll_tools_rest_automation_import_discard(WP_REST_Request $request) {
 
     $discarded = ll_tools_import_job_discard($job);
     if (is_wp_error($discarded)) {
+        $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key((string) $job['id']));
+        $error_data = (array) $discarded->get_error_data();
         return new WP_Error(
             'll_tools_rest_import_discard_failed',
             $discarded->get_error_message(),
             [
-                'status' => 409,
-                'job' => ll_tools_import_job_get_snapshot($job),
+                'status' => (int) ($error_data['status'] ?? 409),
+                'job' => is_array($fresh) ? ll_tools_import_job_get_snapshot($fresh) : null,
+                'recovery_required' => !empty($error_data['recovery_required']),
             ]
         );
     }

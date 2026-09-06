@@ -44,8 +44,22 @@ npm run prepare:bundle -- /absolute/path/to/ll-tools-offline-app.zip
 This extracts the bundle into `workspace/bundle/`, records
 `workspace/bundle-state.json`, and writes `capacitor.config.json`. An extracted
 bundle directory is also accepted. Its root must contain `bundle-manifest.json`
-and `www/index.html`. Preparation replaces the single prepared workspace, so
-retain the original export outside `workspace/bundle/`.
+and `www/index.html`, with no symbolic links or directory junctions. Preparation
+validates a staged copy before publishing the workspace, configuration and
+state with rollback on publication errors. A validation,
+copy or publication failure preserves the previous preparation; if the
+filesystem also refuses rollback, the error identifies the retained backups.
+Keep the original export outside `workspace/bundle/`; preparation rejects a
+source inside that destination or an input directory containing the workspace.
+
+WordPress export steps hold an OS file lock before rereading their checkpoint.
+The lock remains owned for the whole step without a five-minute takeover and
+is released automatically if its process exits. Lock files under the export
+storage's `.locks/` directory must remain in place, including during job
+cleanup. A lost HTTP response can resume from a completed checkpoint. If a
+worker stops between appending output and publishing the next checkpoint, the
+export fails with a request to start a new export; replaying that uncertain
+append would corrupt the bundle.
 On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
 If the bundle includes a wordset-specific offline STT bundle, it is kept under `workspace/bundle/www/content/stt-models/...` and packaged into the APK with the rest of the web assets.

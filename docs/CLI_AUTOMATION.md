@@ -158,10 +158,17 @@ Supported update fields:
 - `verb_tense`
 - `verb_mood`
 
-Use a separate resume file for each wordset, field/value, and filter plan. The
-current resume reader skips recorded word IDs without validating the stored
-operation metadata against the new command. `--limit` limits the rows selected
-for updating after scope rows are loaded; it is not a query or memory bound.
+Resume files bind to the site/blog, wordset, field/value, normalized filters,
+`--offset`, and `--limit`. A different operation, malformed file, or legacy file
+with completed IDs is rejected before any word update; use a new file for a new
+plan. Output and summary paths do not affect this identity.
+
+The first real run persists the selected target IDs before updating words. A
+retry uses the remaining original targets, so a shrinking `--where-missing`
+result does not apply the offset again or add newly matching words. A failed
+resume-file write stops the command. Dry runs do not write resume state.
+`--limit` limits the rows selected for updating after scope rows are loaded;
+it is not a query or memory bound.
 
 ### Dump a live wordset report
 
@@ -232,7 +239,8 @@ It does not yet replace every importer, audio-processing, or attribution-backfil
 
 | Surface | Implementation | Focused tests |
 | --- | --- | --- |
-| Registration, aliases, options and resume files | `includes/bootstrap.php`, `includes/cli/class-ll-tools-cli-command.php` | No dedicated WP-CLI command integration test; inspect command docblocks and call sites |
+| Registration, aliases and options | `includes/bootstrap.php`, `includes/cli/class-ll-tools-cli-command.php` | Inspect command docblocks and call sites; the command dispatcher has no dedicated integration test |
+| Resume identity, frozen targets and malformed-state rejection | `includes/cli/cli-support.php`, `includes/cli/class-ll-tools-cli-command.php` | `tests/Integration/CliResumePlanTest.php` |
 | Shared word resolution and metadata helpers | `includes/cli/cli-support.php` | `tests/Integration/AutomationRestApiTest.php`, `tests/Integration/WordTextCanonicalFieldsTest.php`, `tests/Integration/WordsetScopedCategoryLookupTest.php` |
 | Legacy lesson migration | `includes/migrations/legacy-content-lessons.php` | `tests/Integration/LegacyContentLessonMigrationTest.php` |
 

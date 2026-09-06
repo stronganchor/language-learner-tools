@@ -20,7 +20,8 @@ other per-word metadata cleanup.
 | --- | --- | --- |
 | Route registration, authentication, permission gates, reports and synchronous writes | `includes/api/automation-rest.php` | `tests/Integration/AutomationRestApiTest.php` |
 | Automation identification, pacing and resource locks | `ll_tools_rest_resource_guard_policy()` in `includes/api/automation-rest.php` | `tests/Integration/AutomationRestResourceGuardTest.php` |
-| Metadata plan normalization, processing, discard and results | `includes/api/word-metadata-plan-rest.php` | `tests/Integration/AutomationRestApiTest.php` |
+| Metadata plan normalization, processing, discard and results | `includes/api/word-metadata-plan-rest.php` | `tests/Integration/AutomationRestApiTest.php`, `tests/Integration/MutationJobReliabilityTest.php` |
+| Import and metadata job ownership, checkpoint persistence and recovery | `includes/lib/mutation-job-state.php` | `tests/Integration/MutationJobReliabilityTest.php`, `tests/e2e/specs/import-job-recovery.spec.js` |
 | Snapshot paging and three-way sync plans | `includes/lib/site-sync.php`, `includes/admin/site-sync-admin.php` | `tests/Integration/SiteSyncTest.php` |
 | ZIP preview, job phases, history and undo | `includes/admin/export-import.php` | `tests/Integration/AdminImportAjaxJobFlowTest.php`, `tests/Integration/ImportHistoryUndoTest.php` |
 | Shared word resolution and field updates | `includes/cli/cli-support.php` | `tests/Integration/AutomationRestApiTest.php` |
@@ -1157,6 +1158,29 @@ discarded; it does not undo already processed rows. A job can reach `completed`
 with skipped or errored rows, so inspect the final summary and compare its
 readback with the intended plan before treating the cleanup as complete.
 
+Process and discard acquire the same per-job database connection lock before
+reading mutable job state, independently of authentication type and the REST
+resource guard. Accepted case and dash/underscore spellings of a job ID share
+the same storage key and lock. A concurrent request receives `429
+ll_tools_mutation_job_locked`; wait and retry. The lock does not expire while
+its database connection remains alive.
+
+Each process call saves a `pending_step` marker before applying rows and clears
+it only with a verified final checkpoint. A failed checkpoint returns `503`;
+later process/discard calls return `409 ll_tools_mutation_job_recovery_required`
+when the saved marker remains. Status/result summaries expose
+`job.recovery_required`. Do not replay that chunk or clear the marker blindly:
+preserve the original plan and job result, read back every potentially touched
+word, and reconcile applied changes before creating a replacement plan for the
+remaining work. An interrupted chunk can have applied fields beyond the saved
+`current_index` and result rows. There is no automatic recovery endpoint.
+
+Field writes are checked against fresh readback. POS assignment must succeed
+before incompatible grammar is removed. A row with a failed write has
+`status: error`; `partial`, `applied_fields`, `before`, and `after` identify
+earlier changes that did apply. Those changes still invalidate affected caches.
+This is field-level failure reporting, not an atomic multi-field rollback.
+
 ### `POST /wordsets/{wordset}/legacy-translation-cleanup`
 
 Scans legacy `word_english_meaning` rows for one wordset and optionally performs
@@ -1542,12 +1566,31 @@ Returns the current job snapshot. Completed and paused snapshots include
 ### `POST /imports/{job_id}/process`
 
 Processes one import batch and returns the updated job snapshot. Keep calling it
-until `job.status` is `completed`.
+until `job.status` is `completed`, honoring errors and `job.canResume`.
+
+Import process and discard share a per-job database connection lock. They read
+fresh state and persist the next checkpoint before releasing ownership.
+Concurrent calls receive `429 ll_tools_import_job_process_locked`; a timestamp
+on the diagnostic lock option cannot evict a live worker. Checkpoint updates
+and discard deletion compare the exact stored state inside the SQL ownership
+fence, then verify readback.
+
+A durable `pending_step` marks work whose final checkpoint is not yet confirmed.
+If a worker exits or checkpoint persistence fails, subsequent process/discard
+calls stop with a recovery error instead of replaying uncertain side effects.
+The snapshot exposes `recoveryRequired: true`, explanatory `errorMessage`, and
+`canResume: false`/`canDiscard: false`; the admin UI offers Reload for readback.
+Preserve the saved job, ZIP/work files and import history, wait for any active
+worker to finish, then reconcile actual imported content against the last
+checkpoint before operator recovery. Do not clear the marker or retry the ZIP
+as a new import without that reconciliation. No automatic recovery endpoint is
+provided.
 
 ### `POST /imports/{job_id}/discard`
 
 Discards a paused partial import and returns the cleanup result. This is only
-valid for paused jobs.
+valid for paused jobs without an uncertain checkpoint. Failure responses include
+a fresh job snapshot when the stored job can still be read.
 
 ### `GET /imports/{job_id}/result`
 

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/mutation-job-state.php';
 if (!defined('WPINC')) {
     die;
 }
@@ -359,13 +360,11 @@ function ll_tools_rest_word_metadata_plan_job_default_summary(int $input_count):
     ];
 }
 
-function ll_tools_rest_word_metadata_plan_job_save(array $job): bool {
+function ll_tools_rest_word_metadata_plan_job_save(array $job, array $lease = []): bool {
     $job_id = (string) ($job['id'] ?? '');
-    if ($job_id === '') {
-        return false;
-    }
-
-    return update_option(ll_tools_rest_word_metadata_plan_job_option_name($job_id), $job, false);
+    return $job_id !== '' && !is_wp_error(ll_tools_mutation_job_write_option(
+        ll_tools_rest_word_metadata_plan_job_option_name($job_id), $job, $lease
+    ));
 }
 
 function ll_tools_rest_word_metadata_plan_job_get(string $job_id) {
@@ -374,7 +373,10 @@ function ll_tools_rest_word_metadata_plan_job_get(string $job_id) {
         return new WP_Error('ll_tools_rest_word_metadata_plan_invalid_job_id', __('Invalid word metadata plan job ID.', 'll-tools-text-domain'), ['status' => 404]);
     }
 
-    $job = get_option(ll_tools_rest_word_metadata_plan_job_option_name($job_id), null);
+    $job = ll_tools_mutation_job_read_option(ll_tools_rest_word_metadata_plan_job_option_name($job_id));
+    if (is_wp_error($job)) {
+        return $job;
+    }
     if (!is_array($job)) {
         return new WP_Error('ll_tools_rest_word_metadata_plan_job_not_found', __('Word metadata plan job was not found.', 'll-tools-text-domain'), ['status' => 404]);
     }
@@ -389,6 +391,7 @@ function ll_tools_rest_word_metadata_plan_job_summary(array $job, bool $include_
     $payload = [
         'id' => (string) ($job['id'] ?? ''),
         'status' => (string) ($job['status'] ?? 'unknown'),
+        'recovery_required' => !empty($job['pending_step']),
         'created_at_gmt' => (string) ($job['created_at_gmt'] ?? ''),
         'updated_at_gmt' => (string) ($job['updated_at_gmt'] ?? ''),
         'completed_at_gmt' => (string) ($job['completed_at_gmt'] ?? ''),
@@ -671,6 +674,18 @@ function ll_tools_rest_word_metadata_plan_match_option_value(string $value, arra
         : $value;
 }
 
+/** A false metadata write is successful only if fresh storage already matches. */
+function ll_tools_rest_word_metadata_plan_write_meta(int $word_id, string $key, string $value) {
+    if ($value === '') {
+        delete_post_meta($word_id, $key);
+    } else {
+        update_post_meta($word_id, $key, wp_slash($value));
+    }
+    wp_cache_delete($word_id, 'post_meta');
+    $matches = $value === '' ? !metadata_exists('post', $word_id, $key) : (string) get_post_meta($word_id, $key, true) === $value;
+    return $matches ? true : new WP_Error('ll_tools_rest_word_metadata_plan_write_failed', __('The requested word metadata change could not be verified.', 'll-tools-text-domain'));
+}
+
 function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word_id, string $field, $value) {
     switch ($field) {
         case 'word_title':
@@ -699,12 +714,7 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
                 : true;
 
         case 'word_note':
-            if ((string) $value === '') {
-                delete_post_meta($word_id, 'll_word_usage_note');
-            } else {
-                update_post_meta($word_id, 'll_word_usage_note', sanitize_textarea_field((string) $value));
-            }
-            return true;
+            return ll_tools_rest_word_metadata_plan_write_meta($word_id, 'll_word_usage_note', sanitize_textarea_field((string) $value));
 
         case 'dictionary_entry_id':
             return ll_tools_assign_dictionary_entry_to_word($word_id, max(0, (int) $value), '');
@@ -714,26 +724,40 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
 
         case 'part_of_speech':
             $pos_slug = sanitize_title((string) $value);
-            if ($pos_slug === '') {
-                wp_set_object_terms($word_id, [], 'part_of_speech', false);
-                delete_post_meta($word_id, 'll_grammatical_gender');
-                delete_post_meta($word_id, 'll_grammatical_plurality');
-                delete_post_meta($word_id, 'll_verb_tense');
-                delete_post_meta($word_id, 'll_verb_mood');
-                return true;
+            $term_ids = [];
+            if ($pos_slug !== '') {
+                $term = get_term_by('slug', $pos_slug, 'part_of_speech');
+                if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                    return new WP_Error('ll_tools_rest_word_metadata_plan_invalid_part_of_speech', __('Unknown part of speech.', 'll-tools-text-domain'));
+                }
+                $term_ids = [(int) $term->term_id];
             }
-            $term = get_term_by('slug', $pos_slug, 'part_of_speech');
-            if (!($term instanceof WP_Term) || is_wp_error($term)) {
-                return new WP_Error('ll_tools_rest_word_metadata_plan_invalid_part_of_speech', __('Unknown part of speech.', 'll-tools-text-domain'));
+            $assigned = wp_set_object_terms($word_id, $term_ids, 'part_of_speech', false);
+            if (is_wp_error($assigned)) {
+                return $assigned;
             }
-            wp_set_object_terms($word_id, [(int) $term->term_id], 'part_of_speech', false);
+            wp_cache_delete($word_id, 'part_of_speech_relationships');
+            $saved_pos = wp_get_object_terms($word_id, 'part_of_speech', ['fields' => 'ids']);
+            if (is_wp_error($saved_pos)) {
+                return $saved_pos;
+            }
+            $saved_ids = array_values(array_map('intval', (array) $saved_pos));
+            sort($saved_ids);
+            if ($saved_ids !== $term_ids) {
+                return new WP_Error('ll_tools_rest_word_metadata_plan_write_failed', __('The requested part of speech change could not be verified. Grammar metadata was retained.', 'll-tools-text-domain'));
+            }
+            $clear = [];
             if ($pos_slug !== 'noun') {
-                delete_post_meta($word_id, 'll_grammatical_gender');
-                delete_post_meta($word_id, 'll_grammatical_plurality');
+                $clear = ['ll_grammatical_gender', 'll_grammatical_plurality'];
             }
             if ($pos_slug !== 'verb') {
-                delete_post_meta($word_id, 'll_verb_tense');
-                delete_post_meta($word_id, 'll_verb_mood');
+                $clear = array_merge($clear, ['ll_verb_tense', 'll_verb_mood']);
+            }
+            foreach ($clear as $key) {
+                $result = ll_tools_rest_word_metadata_plan_write_meta($word_id, $key, '');
+                if (is_wp_error($result)) {
+                    return $result;
+                }
             }
             return true;
 
@@ -742,42 +766,22 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
             $gender_value = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
                 ? ll_tools_wordset_normalize_gender_value_for_options((string) $value, $allowed_gender)
                 : (string) $value;
-            if ($gender_value === '') {
-                delete_post_meta($word_id, 'll_grammatical_gender');
-            } else {
-                update_post_meta($word_id, 'll_grammatical_gender', $gender_value);
-            }
-            return true;
+            return ll_tools_rest_word_metadata_plan_write_meta($word_id, 'll_grammatical_gender', $gender_value);
 
         case 'grammatical_plurality':
             $plurality_allowed = function_exists('ll_tools_wordset_get_plurality_options') ? ll_tools_wordset_get_plurality_options($wordset_id) : [];
             $plurality_value = ll_tools_rest_word_metadata_plan_match_option_value((string) $value, $plurality_allowed);
-            if ($plurality_value === '') {
-                delete_post_meta($word_id, 'll_grammatical_plurality');
-            } else {
-                update_post_meta($word_id, 'll_grammatical_plurality', $plurality_value);
-            }
-            return true;
+            return ll_tools_rest_word_metadata_plan_write_meta($word_id, 'll_grammatical_plurality', $plurality_value);
 
         case 'verb_tense':
             $tense_allowed = function_exists('ll_tools_wordset_get_verb_tense_options') ? ll_tools_wordset_get_verb_tense_options($wordset_id) : [];
             $tense_value = ll_tools_rest_word_metadata_plan_match_option_value((string) $value, $tense_allowed);
-            if ($tense_value === '') {
-                delete_post_meta($word_id, 'll_verb_tense');
-            } else {
-                update_post_meta($word_id, 'll_verb_tense', $tense_value);
-            }
-            return true;
+            return ll_tools_rest_word_metadata_plan_write_meta($word_id, 'll_verb_tense', $tense_value);
 
         case 'verb_mood':
             $mood_allowed = function_exists('ll_tools_wordset_get_verb_mood_options') ? ll_tools_wordset_get_verb_mood_options($wordset_id) : [];
             $mood_value = ll_tools_rest_word_metadata_plan_match_option_value((string) $value, $mood_allowed);
-            if ($mood_value === '') {
-                delete_post_meta($word_id, 'll_verb_mood');
-            } else {
-                update_post_meta($word_id, 'll_verb_mood', $mood_value);
-            }
-            return true;
+            return ll_tools_rest_word_metadata_plan_write_meta($word_id, 'll_verb_mood', $mood_value);
     }
 
     if (ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
@@ -790,7 +794,65 @@ function ll_tools_rest_word_metadata_plan_apply_field(int $wordset_id, int $word
     return new WP_Error('ll_tools_rest_word_metadata_plan_unsupported_field', __('Unsupported word metadata field.', 'll-tools-text-domain'));
 }
 
+/** Report partial writes explicitly and verify every requested final value. */
 function ll_tools_rest_word_metadata_plan_apply_plan(array $plan, WP_Term $wordset_term, array $available_category_ids, array $job): array {
+    $word_id = (int) ($plan['word_id'] ?? 0);
+    $wordset_id = (int) $wordset_term->term_id;
+    $requested = (array) ($plan['set'] ?? []);
+    $fields = array_unique(array_merge(array_keys($requested), array_keys((array) ($plan['expected'] ?? []))));
+    if (array_key_exists('part_of_speech', $requested)) {
+        $fields = array_unique(array_merge($fields, ['grammatical_gender', 'grammatical_plurality', 'verb_tense', 'verb_mood']));
+    }
+    $before = ll_tools_rest_word_metadata_plan_current_values($word_id, $wordset_id, $available_category_ids, $fields);
+    $result = ll_tools_rest_word_metadata_plan_apply_plan_fields($plan, $wordset_term, $available_category_ids, $job);
+    if (!in_array((string) ($result['status'] ?? ''), ['updated', 'error'], true)) {
+        return $result;
+    }
+    clean_post_cache($word_id);
+    wp_cache_delete($word_id, 'post_meta');
+    $after = ll_tools_rest_word_metadata_plan_current_values($word_id, $wordset_id, $available_category_ids, $fields);
+    if ((string) $result['status'] === 'updated') {
+        foreach ($requested as $field => $value) {
+            if ($field === 'grammatical_gender') {
+                $value = ll_tools_wordset_normalize_gender_value_for_options((string) $value, ll_tools_wordset_get_gender_options($wordset_id));
+            } elseif (in_array($field, ['grammatical_plurality', 'verb_tense', 'verb_mood'], true) && (string) $value !== '') {
+                $helper = ['grammatical_plurality' => 'll_tools_wordset_get_plurality_options', 'verb_tense' => 'll_tools_wordset_get_verb_tense_options', 'verb_mood' => 'll_tools_wordset_get_verb_mood_options'][$field];
+                $value = ll_tools_rest_word_metadata_plan_match_option_value((string) $value, (array) $helper($wordset_id));
+            }
+            $saved_value = $after[$field] ?? null;
+            // The planning snapshot exposes display fallbacks. Verify explicit
+            // translation writes against their actual stored locale map.
+            if ($field === 'word_translations') {
+                $saved_value = ll_tools_get_word_translation_map($word_id);
+            } elseif (ll_tools_rest_word_metadata_plan_is_locale_translation_field($field)) {
+                $saved_value = ll_tools_get_word_translation_for_locale($word_id, substr($field, strlen('word_translation_')), false);
+            }
+            if (!ll_tools_rest_word_metadata_plan_values_equal($saved_value, $value)) {
+                $result['status'] = 'error';
+                $result['row']['field'] = $field;
+                $result['row']['message'] = __('The saved word does not match the requested metadata. Review the partial result before retrying.', 'll-tools-text-domain');
+                break;
+            }
+        }
+    }
+    $changed_fields = [];
+    foreach ($fields as $field) {
+        if (!ll_tools_rest_word_metadata_plan_values_equal($before[$field] ?? null, $after[$field] ?? null)) {
+            $changed_fields[] = $field;
+        }
+    }
+    $result['row']['before'] = $before;
+    $result['row']['after'] = $after;
+    $result['row']['applied_fields'] = $changed_fields;
+    $result['row']['partial'] = $result['status'] === 'error' && !empty($changed_fields);
+    $result['changed_word_ids'] = !empty($changed_fields) ? [$word_id] : [];
+    $result['changed_category_ids'] = in_array('word_category_ids', $changed_fields, true)
+        ? ll_tools_rest_automation_prepare_id_list(array_merge((array) ($before['word_category_ids'] ?? []), (array) ($after['word_category_ids'] ?? [])))
+        : [];
+    return $result;
+}
+
+function ll_tools_rest_word_metadata_plan_apply_plan_fields(array $plan, WP_Term $wordset_term, array $available_category_ids, array $job): array {
     $wordset_id = (int) $wordset_term->term_id;
     $word_id = (int) ($plan['word_id'] ?? 0);
     $set_values = (array) ($plan['set'] ?? []);
@@ -1778,7 +1840,9 @@ function ll_tools_rest_automation_create_word_metadata_plan_job(WP_REST_Request 
         'plans' => $plans,
         'summary' => $summary,
     ];
-    ll_tools_rest_word_metadata_plan_job_save($job);
+    if (!ll_tools_rest_word_metadata_plan_job_save($job)) {
+        return new WP_Error('ll_tools_mutation_job_storage_failed', __('The metadata plan job could not be saved.', 'll-tools-text-domain'), ['status' => 503]);
+    }
 
     $response = rest_ensure_response([
         'job' => ll_tools_rest_word_metadata_plan_job_summary($job, false),
@@ -1806,7 +1870,25 @@ function ll_tools_rest_automation_get_word_metadata_plan_job(WP_REST_Request $re
     return rest_ensure_response(['job' => ll_tools_rest_word_metadata_plan_job_summary($job)]);
 }
 
+function ll_tools_rest_word_metadata_plan_with_job_lock(WP_REST_Request $request, callable $callback) {
+    $lease = ll_tools_mutation_job_acquire('word_metadata_plan', ll_tools_rest_word_metadata_plan_job_option_name(trim((string) $request->get_param('job_id'))));
+    if (is_wp_error($lease)) {
+        return $lease;
+    }
+    try {
+        return $callback($request, $lease);
+    } catch (Throwable $error) {
+        return ll_tools_mutation_job_recovery_error();
+    } finally {
+        ll_tools_mutation_job_release($lease);
+    }
+}
+
 function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request $request) {
+    return ll_tools_rest_word_metadata_plan_with_job_lock($request, 'll_tools_rest_word_metadata_plan_process_owned');
+}
+
+function ll_tools_rest_word_metadata_plan_process_owned(WP_REST_Request $request, array $lease) {
     if (function_exists('set_time_limit')) {
         @set_time_limit(0);
     }
@@ -1822,6 +1904,9 @@ function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request
     }
     if ((int) ($job['wordset']['id'] ?? 0) !== (int) $wordset_term->term_id) {
         return new WP_Error('ll_tools_rest_word_metadata_plan_job_wordset_mismatch', __('Word metadata plan job belongs to a different word set.', 'll-tools-text-domain'), ['status' => 404]);
+    }
+    if (!empty($job['pending_step'])) {
+        return ll_tools_mutation_job_recovery_error();
     }
     if (in_array((string) ($job['status'] ?? ''), ['completed', 'discarded', 'failed'], true)) {
         return rest_ensure_response([
@@ -1845,11 +1930,19 @@ function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request
         $available_category_ids = ll_tools_rest_automation_prepare_id_list(wp_list_pluck(ll_tools_word_grid_get_category_editor_rows((int) $wordset_term->term_id), 'id'));
     }
 
+    $job['pending_step'] = $lease['token'];
+    if (!ll_tools_rest_word_metadata_plan_job_save($job, $lease)) {
+        return new WP_Error('ll_tools_mutation_job_storage_failed', __('The metadata plan checkpoint could not be saved.', 'll-tools-text-domain'), ['status' => 503]);
+    }
+
     $processed = [];
     $changed_word_ids = [];
     $changed_category_ids = [];
     $summary = (array) ($job['summary'] ?? ll_tools_rest_word_metadata_plan_job_default_summary($total));
     foreach ($chunk as $plan) {
+        if (!ll_tools_mutation_job_owns($lease)) {
+            return ll_tools_mutation_job_recovery_error();
+        }
         $result = ll_tools_rest_word_metadata_plan_apply_plan((array) $plan, $wordset_term, $available_category_ids, $job);
         $status = (string) ($result['status'] ?? '');
         $row = (array) ($result['row'] ?? []);
@@ -1857,12 +1950,12 @@ function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request
         $summary['processed_count'] = (int) ($summary['processed_count'] ?? 0) + 1;
         $current_index++;
 
+        $changed_word_ids = array_merge($changed_word_ids, (array) ($result['changed_word_ids'] ?? []));
+        $changed_category_ids = array_merge($changed_category_ids, (array) ($result['changed_category_ids'] ?? []));
         if ($status === 'updated') {
             $summary['changed_count'] = (int) ($summary['changed_count'] ?? 0) + 1;
             $summary['updated_count'] = (int) ($summary['updated_count'] ?? 0) + 1;
             $summary['updated'][] = $row;
-            $changed_word_ids = array_merge($changed_word_ids, (array) ($result['changed_word_ids'] ?? []));
-            $changed_category_ids = array_merge($changed_category_ids, (array) ($result['changed_category_ids'] ?? []));
         } elseif ($status === 'unchanged') {
             $summary['unchanged_count'] = (int) ($summary['unchanged_count'] ?? 0) + 1;
         } elseif ($status === 'skipped') {
@@ -1900,7 +1993,10 @@ function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request
         $job['status'] = 'completed';
         $job['completed_at_gmt'] = gmdate('c');
     }
-    ll_tools_rest_word_metadata_plan_job_save($job);
+    unset($job['pending_step']);
+    if (!ll_tools_rest_word_metadata_plan_job_save($job, $lease)) {
+        return new WP_Error('ll_tools_mutation_job_storage_failed', __('The metadata plan checkpoint could not be saved. Review applied rows before recovery.', 'll-tools-text-domain'), ['status' => 503, 'recovery_required' => true]);
+    }
 
     return rest_ensure_response([
         'job' => ll_tools_rest_word_metadata_plan_job_summary($job),
@@ -1916,6 +2012,10 @@ function ll_tools_rest_automation_process_word_metadata_plan_job(WP_REST_Request
 }
 
 function ll_tools_rest_automation_discard_word_metadata_plan_job(WP_REST_Request $request) {
+    return ll_tools_rest_word_metadata_plan_with_job_lock($request, 'll_tools_rest_word_metadata_plan_discard_owned');
+}
+
+function ll_tools_rest_word_metadata_plan_discard_owned(WP_REST_Request $request, array $lease) {
     $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
     if (is_wp_error($wordset_term)) {
         return $wordset_term;
@@ -1929,9 +2029,14 @@ function ll_tools_rest_automation_discard_word_metadata_plan_job(WP_REST_Request
         return new WP_Error('ll_tools_rest_word_metadata_plan_job_wordset_mismatch', __('Word metadata plan job belongs to a different word set.', 'll-tools-text-domain'), ['status' => 404]);
     }
 
+    if (!empty($job['pending_step'])) {
+        return ll_tools_mutation_job_recovery_error();
+    }
     $job['status'] = 'discarded';
     $job['updated_at_gmt'] = gmdate('c');
-    ll_tools_rest_word_metadata_plan_job_save($job);
+    if (!ll_tools_rest_word_metadata_plan_job_save($job, $lease)) {
+        return new WP_Error('ll_tools_mutation_job_storage_failed', __('The metadata plan discard could not be saved.', 'll-tools-text-domain'), ['status' => 503]);
+    }
 
     return rest_ensure_response(['job' => ll_tools_rest_word_metadata_plan_job_summary($job)]);
 }

@@ -50,10 +50,10 @@ tests/bin/run-tests.sh Integration/AiCrawlerSupportTest.php
 
 The current suite covers route discovery, dictionary cache-version changes,
 cold/cached HEAD responses, locale cache policy, mixed public/private wordset
-samples, letter filtering, JSON-LD structure, and lesson visibility. When
-changing visibility or caching, also exercise empty/all-private source sets,
-password-cookie variation, and transitions between visibility generations;
-mixed public/private fixtures alone do not cover every branch.
+samples, letter filtering, JSON-LD structure, and lesson visibility. Privacy
+regressions also cover empty/all-private/password-only sets, administrator and
+valid password-cookie requests followed by anonymous GET/HEAD, private linked
+wordset labels, old cache schemas, and visibility changes during a build.
 
 ## Bounds and cache identity
 
@@ -85,6 +85,9 @@ these exports do not use the filesystem HTML caches or durable payload-row
 materializers. The default TTL is ten minutes, filterable through
 `ll_tools_ai_crawler_response_cache_seconds` within 60 seconds to one day.
 Cold GET requests build synchronously; HEAD only reads an existing body.
+Schema 3 separates anonymous-safe bodies from older shared exports. A build
+whose cache identity changes before publication fails closed without storing
+or returning its body; letter-discovery request caches follow the same epochs.
 
 Responses vary on `Accept-Language` and `Cookie`. The site-default locale uses
 public cache headers, while other request locales use `private, no-store`.
@@ -98,7 +101,11 @@ These are required contracts for changes and regression coverage.
 - Exports must only include anonymous public content.
 - Use explicit anonymous visibility checks, not the current logged-in user, when
   deciding whether wordsets, categories, dictionary entries, vocab lessons, or
-  content lessons appear.
+  content lessons appear. The ordinary wordset/category access helpers interpret
+  user ID zero as the current user, so exports use the public visibility
+  predicates directly. A stored post password always excludes the post,
+  regardless of a visitor's valid password cookie. Derived wordset labels and
+  category-owner visibility must satisfy the same public contract.
 - Keep exports bounded with filterable caps. Do not dump all words,
   dictionary entries, transcript cues, generated media, or large wordsets.
 - GET export bodies use the shared cache identity described above.

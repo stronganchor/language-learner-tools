@@ -26,8 +26,8 @@
             "references": [
                 "includes/admin/dictionary-import-admin.php:2452",
                 "includes/admin/dictionary-import-admin.php:2615",
-                "includes/admin/export-import.php:1652",
-                "includes/admin/export-import.php:3791",
+                "includes/admin/export-import.php:1643",
+                "includes/admin/export-import.php:3827",
                 "includes/content-lesson-progress.php:278",
                 "includes/content-lesson-progress.php:391",
                 "includes/content-lesson-progress.php:419",
@@ -553,7 +553,7 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1320",
                 "includes/admin/audio-processor-admin.php:217",
-                "includes/admin/image-webp-optimizer-admin.php:1666",
+                "includes/admin/image-webp-optimizer-admin.php:1736",
                 "includes/admin/ipa-keyboard-admin.php:468",
                 "includes/admin/ipa-keyboard-admin.php:492",
                 "includes/admin/site-sync-admin.php:1128",
@@ -611,7 +611,7 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1324",
                 "includes/admin/audio-processor-admin.php:218",
-                "includes/admin/image-webp-optimizer-admin.php:1667",
+                "includes/admin/image-webp-optimizer-admin.php:1737",
                 "includes/admin/ipa-keyboard-admin.php:469",
                 "includes/admin/ipa-keyboard-admin.php:493",
                 "includes/admin/site-sync-admin.php:1131",
@@ -662,7 +662,7 @@
             "msgid": "Text",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:13797",
+                "includes/admin/export-import.php:13857",
                 "includes/admin/ipa-keyboard-admin.php:427",
                 "includes/lib/interlinear.php:1792",
                 "includes/lib/interlinear.php:2010",
@@ -738,7 +738,7 @@
                 "includes/lib/interlinear.php:1829",
                 "includes/pages/wordset-pages.php:14669",
                 "includes/pages/wordset-pages.php:4232",
-                "includes/taxonomies/wordset-taxonomy.php:3748"
+                "includes/taxonomies/wordset-taxonomy.php:3743"
             ],
             "public_references": [
                 "includes/lib/interlinear.php:1829",
@@ -825,8 +825,8 @@
             "references": [
                 "includes/admin/audio-processor-admin.php:1225",
                 "includes/admin/audio-processor-admin.php:156",
-                "includes/admin/export-import.php:13765",
-                "includes/admin/export-import.php:13800",
+                "includes/admin/export-import.php:13825",
+                "includes/admin/export-import.php:13860",
                 "includes/admin/user-progress-report.php:1158",
                 "includes/lib/interlinear.php:2007",
                 "includes/pages/wordset-editor.php:4773",
@@ -2235,8 +2235,8 @@
             "msgid": "Sign in",
             "msgid_plural": null,
             "references": [
-                "includes/admin/offline-app-export.php:2851",
-                "includes/admin/offline-app-export.php:3594",
+                "includes/admin/offline-app-export.php:2938",
+                "includes/admin/offline-app-export.php:3681",
                 "includes/login-window.php:2526",
                 "includes/login-window.php:2528",
                 "includes/login-window.php:2924",
@@ -2334,8 +2334,8 @@
             "msgid": "Username or email",
             "msgid_plural": null,
             "references": [
-                "includes/admin/offline-app-export.php:2849",
-                "includes/admin/offline-app-export.php:3592",
+                "includes/admin/offline-app-export.php:2936",
+                "includes/admin/offline-app-export.php:3679",
                 "includes/login-window.php:2746",
                 "includes/pages/wordset-pages.php:14881",
                 "includes/pages/wordset-pages.php:23865",
@@ -2352,8 +2352,8 @@
             "msgid": "Password",
             "msgid_plural": null,
             "references": [
-                "includes/admin/offline-app-export.php:2850",
-                "includes/admin/offline-app-export.php:3593",
+                "includes/admin/offline-app-export.php:2937",
+                "includes/admin/offline-app-export.php:3680",
                 "includes/login-window.php:2756",
                 "includes/login-window.php:2828",
                 "templates/offline-app-shell-template.php:676"
@@ -2506,7 +2506,7 @@
             "msgid": "Page %1$d of %2$d",
             "msgid_plural": null,
             "references": [
-                "includes/admin/image-webp-optimizer-admin.php:1665",
+                "includes/admin/image-webp-optimizer-admin.php:1735",
                 "includes/admin/ipa-keyboard-admin.php:465",
                 "includes/pages/content-lesson-pages.php:1102",
                 "includes/pages/wordset-pages.php:17698",
@@ -2689,7 +2689,7 @@
             "msgid": "Dictionary",
             "msgid_plural": null,
             "references": [
-                "includes/lib/ai-crawler-support.php:953",
+                "includes/lib/ai-crawler-support.php:972",
                 "includes/pages/dictionary-page.php:11",
                 "includes/shortcodes/dictionary-shortcode.php:4587",
                 "includes/shortcodes/site-tools-shortcode.php:925"
@@ -2913,7 +2913,7 @@
             "msgid": "Invalid category.",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:16246",
+                "includes/admin/export-import.php:16306",
                 "includes/lib/word-grid-bulk-operations.php:1120",
                 "includes/pages/quiz-pages.php:1131",
                 "includes/pages/vocab-lesson-pages.php:2966",
@@ -3620,7 +3620,7 @@
                 "includes/admin/bulk-translation-admin.php:908",
                 "includes/admin/bulk-translation-admin.php:986",
                 "includes/admin/image-aspect-normalizer-admin.php:746",
-                "includes/admin/image-webp-optimizer-admin.php:1799",
+                "includes/admin/image-webp-optimizer-admin.php:1869",
                 "includes/offline-app-sync.php:2065",
                 "includes/offline-app-sync.php:2306",
                 "includes/offline-app-sync.php:2480",
@@ -4225,7 +4225,7 @@
             "msgid": "Paused",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:1655",
+                "includes/admin/export-import.php:1646",
                 "includes/pages/wordset-pages.php:13487"
             ],
             "public_references": [
@@ -4950,7 +4950,7 @@
                 "includes/admin/audio-processor-admin.php:154",
                 "includes/admin/bulk-translation-admin.php:199",
                 "includes/admin/bulk-translation-admin.php:221",
-                "includes/admin/export-import.php:4599",
+                "includes/admin/export-import.php:4635",
                 "includes/admin/ipa-keyboard-admin.php:425",
                 "includes/admin/ipa-keyboard-admin.php:472",
                 "includes/admin/missing-audio-admin-page.php:939",
@@ -5251,7 +5251,7 @@
             "msgid": "New",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4859",
+                "includes/admin/export-import.php:4895",
                 "includes/admin/user-progress-report.php:1092",
                 "includes/pages/wordset-pages.php:13635",
                 "includes/pages/wordset-pages.php:25131",
@@ -6648,7 +6648,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:151",
-                "includes/admin/image-webp-optimizer-admin.php:1726",
+                "includes/admin/image-webp-optimizer-admin.php:1796",
                 "includes/admin/user-progress-report.php:1118",
                 "includes/admin/word-option-rules-admin.php:1887",
                 "includes/pages/wordset-editor.php:4613",
@@ -6665,7 +6665,7 @@
                 "includes/shortcodes/editor-hub-shortcode.php:1077",
                 "includes/shortcodes/editor-hub-shortcode.php:1109",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:222",
-                "includes/taxonomies/wordset-taxonomy.php:2947",
+                "includes/taxonomies/wordset-taxonomy.php:2942",
                 "templates/vocab-lesson-template.php:1054"
             ],
             "public_references": [
@@ -7313,7 +7313,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:26259",
-                "includes/taxonomies/wordset-taxonomy.php:2948",
+                "includes/taxonomies/wordset-taxonomy.php:2943",
                 "templates/vocab-lesson-template.php:1152"
             ],
             "public_references": [
@@ -8363,8 +8363,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/dictionary-import-admin.php:2424",
-                "includes/admin/export-import.php:3754",
-                "includes/admin/export-import.php:4347",
+                "includes/admin/export-import.php:3790",
+                "includes/admin/export-import.php:4383",
                 "includes/lib/dictionary-browser.php:7123",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:381",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:257"
@@ -8803,7 +8803,7 @@
             "msgid": "Senses",
             "msgid_plural": null,
             "references": [
-                "includes/lib/ai-crawler-support.php:1279",
+                "includes/lib/ai-crawler-support.php:1298",
                 "includes/shortcodes/dictionary-shortcode.php:2719"
             ],
             "public_references": [
@@ -9145,7 +9145,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:169",
-                "includes/admin/image-webp-optimizer-admin.php:1736",
+                "includes/admin/image-webp-optimizer-admin.php:1806",
                 "includes/admin/ipa-keyboard-admin.php:446",
                 "includes/admin/ipa-keyboard-admin.php:647",
                 "includes/admin/ipa-keyboard-admin.php:673",
@@ -9736,7 +9736,7 @@
             "msgid": "Play %s recording",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4617",
+                "includes/admin/export-import.php:4653",
                 "includes/admin/ipa-keyboard-admin.php:1324",
                 "includes/admin/word-option-rules-admin.php:2317",
                 "includes/pages/wordset-editor.php:4147",
@@ -9760,7 +9760,7 @@
             "msgid": "Isolation",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:590",
+                "includes/admin/export-import.php:591",
                 "includes/admin/uploads/audio-upload-form.php:428",
                 "includes/shortcodes/audio-recording-shortcode.php:29",
                 "includes/shortcodes/editor-hub-shortcode.php:302",
@@ -9783,7 +9783,7 @@
             "msgid": "Introduction",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:591",
+                "includes/admin/export-import.php:592",
                 "includes/shortcodes/audio-recording-shortcode.php:31",
                 "includes/shortcodes/editor-hub-shortcode.php:303",
                 "includes/shortcodes/flashcard-widget.php:677",
@@ -10207,8 +10207,8 @@
             "msgid": "Word set",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4282",
-                "includes/admin/export-import.php:4378",
+                "includes/admin/export-import.php:4318",
+                "includes/admin/export-import.php:4414",
                 "includes/admin/ipa-keyboard-admin.php:629",
                 "includes/admin/teacher-classes-page.php:743",
                 "includes/admin/word-option-rules-admin.php:1875",
@@ -10252,8 +10252,8 @@
             "msgid": "All categories",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4156",
-                "includes/admin/image-webp-optimizer-admin.php:1728",
+                "includes/admin/export-import.php:4192",
+                "includes/admin/image-webp-optimizer-admin.php:1798",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:228"
             ],
             "public_references": [
@@ -10371,8 +10371,8 @@
                 "includes/admin/audio-processor-admin.php:1464",
                 "includes/admin/audio-processor-admin.php:153",
                 "includes/admin/missing-audio-admin-page.php:606",
-                "includes/admin/offline-app-export.php:2852",
-                "includes/admin/offline-app-export.php:3595",
+                "includes/admin/offline-app-export.php:2939",
+                "includes/admin/offline-app-export.php:3682",
                 "includes/admin/split-word-admin.php:177",
                 "includes/shortcodes/language-switcher-shortcode.php:1066",
                 "includes/shortcodes/word-grid-shortcode.php:5813",
@@ -10685,8 +10685,8 @@
             "msgid": "Audio",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:4614",
-                "includes/admin/export-import.php:593",
+                "includes/admin/export-import.php:4650",
+                "includes/admin/export-import.php:594",
                 "includes/admin/orphan-media-admin.php:1785",
                 "includes/admin/orphan-media-admin.php:1855",
                 "includes/admin/site-sync-admin.php:1059",
@@ -10726,7 +10726,7 @@
             "msgid": "Question",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:589",
+                "includes/admin/export-import.php:590",
                 "includes/shortcodes/audio-recording-shortcode.php:30",
                 "includes/shortcodes/editor-hub-shortcode.php:301",
                 "includes/shortcodes/word-grid-shortcode.php:5245",
@@ -10746,7 +10746,7 @@
             "msgid": "Sentence",
             "msgid_plural": null,
             "references": [
-                "includes/admin/export-import.php:592",
+                "includes/admin/export-import.php:593",
                 "includes/shortcodes/word-grid-shortcode.php:5248",
                 "includes/shortcodes/word-grid-shortcode.php:5716",
                 "includes/shortcodes/word-grid-shortcode.php:7740"
@@ -11032,8 +11032,8 @@
             "msgid": "Connect to Sync",
             "msgid_plural": null,
             "references": [
-                "includes/admin/offline-app-export.php:2848",
-                "includes/admin/offline-app-export.php:3591",
+                "includes/admin/offline-app-export.php:2935",
+                "includes/admin/offline-app-export.php:3678",
                 "templates/offline-app-shell-template.php:670"
             ],
             "public_references": [
@@ -11046,8 +11046,8 @@
             "msgid": "Show password",
             "msgid_plural": null,
             "references": [
-                "includes/admin/offline-app-export.php:2855",
-                "includes/admin/offline-app-export.php:3598",
+                "includes/admin/offline-app-export.php:2942",
+                "includes/admin/offline-app-export.php:3685",
                 "templates/offline-app-shell-template.php:679"
             ],
             "public_references": [

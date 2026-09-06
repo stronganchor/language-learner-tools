@@ -24362,11 +24362,6 @@ msgstr "Kelime düzenleyici penceresi bu sayfada kullanılamıyor."
 msgid "Invalid word editor context."
 msgstr "Geçersiz kelime düzenleyici bağlamı."
 
-#: includes/admin/export-import.php:1281
-#: includes/admin/export-import.php:1299
-msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
-msgstr "Bu içe aktarma işi zaten işleniyor. Paralel içe aktarma adımları çalıştırmak yerine bekle ve bu isteği yeniden dene."
-
 #: includes/api/automation-rest.php:4390
 msgid "Word category update helpers are not available."
 msgstr "Kelime kategorisi güncelleme yardımcıları kullanılamıyor."
@@ -30085,3 +30080,70 @@ msgstr "Kategori ayarları geçici olarak kullanılamıyor."
 #: templates/vocab-lesson-template.php:1315
 msgid "Reload"
 msgstr "Yeniden yükle"
+
+#: includes/admin/export-import.php:1271
+msgid "This import job is already processing. Wait and retry."
+msgstr "Bu içe aktarma işi zaten işleniyor. Bekle ve yeniden dene."
+
+#: includes/api/word-metadata-plan-rest.php:686
+msgid "The requested word metadata change could not be verified."
+msgstr "İstenen kelime meta verisi değişikliği doğrulanamadı."
+
+#: includes/api/word-metadata-plan-rest.php:747
+msgid "The requested part of speech change could not be verified. Grammar metadata was retained."
+msgstr "İstenen konuşma parçası değişikliği doğrulanamadı. Dil bilgisi meta verileri korundu."
+
+#: includes/api/word-metadata-plan-rest.php:833
+msgid "The saved word does not match the requested metadata. Review the partial result before retrying."
+msgstr "Kaydedilen kelime, istenen meta verileriyle eşleşmiyor. Yeniden denemeden önce kısmi sonucu incele."
+
+#: includes/api/word-metadata-plan-rest.php:1844
+msgid "The metadata plan job could not be saved."
+msgstr "Meta verisi plan işi kaydedilemedi."
+
+#: includes/api/word-metadata-plan-rest.php:1935
+msgid "The metadata plan checkpoint could not be saved."
+msgstr "Meta verisi planının ilerleme durumu kaydedilemedi."
+
+#: includes/api/word-metadata-plan-rest.php:1998
+msgid "The metadata plan checkpoint could not be saved. Review applied rows before recovery."
+msgstr "Meta verisi planının ilerleme durumu kaydedilemedi. Kurtarma işleminden önce uygulanan satırları incele."
+
+#: includes/api/word-metadata-plan-rest.php:2038
+msgid "The metadata plan discard could not be saved."
+msgstr "Meta verisi planının iptali kaydedilemedi."
+
+#: includes/cli/cli-support.php:669
+msgid "The resume file is invalid or belongs to a different operation. Use a new resume file."
+msgstr "Devam dosyası geçersiz veya farklı bir işleme ait. Yeni bir devam dosyası kullan."
+
+#: includes/lib/mutation-job-state.php:14
+msgid "This job is already processing. Wait and retry."
+msgstr "Bu iş zaten işleniyor. Bekle ve yeniden dene."
+
+#: includes/lib/mutation-job-state.php:18
+msgid "This job is already processing or its lock is unavailable. Wait and retry."
+msgstr "Bu iş zaten işleniyor veya kilidi kullanılamıyor. Bekle ve yeniden dene."
+
+#: includes/lib/mutation-job-state.php:28
+msgid "Job ownership could not be verified."
+msgstr "İş sahipliği doğrulanamadı."
+
+#: includes/lib/mutation-job-state.php:66
+#: includes/lib/mutation-job-state.php:83
+msgid "The job state could not be read from storage."
+msgstr "İşin durumu depolama alanından okunamadı."
+
+#: includes/lib/mutation-job-state.php:115
+#: includes/lib/mutation-job-state.php:79
+msgid "Job ownership was lost. Read back the job before continuing."
+msgstr "İş sahipliği kaybedildi. Devam etmeden önce işin güncel durumunu yeniden oku."
+
+#: includes/lib/mutation-job-state.php:120
+#: includes/lib/mutation-job-state.php:89
+msgid "The job checkpoint could not be saved. Read back the job before continuing."
+msgstr "İşin ilerleme durumu kaydedilemedi. Devam etmeden önce işin güncel durumunu yeniden oku."
+
+#: includes/lib/mutation-job-state.php:135
+msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
+msgstr "Önceki bir iş adımının ilerleme durumu tam olarak kaydedilemedi. Kurtarma işleminden önce uygulanan değişiklikleri ve kaydedilmiş durumu incele; otomatik yeniden çalıştırma engellendi."

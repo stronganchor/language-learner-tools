@@ -665,38 +665,96 @@ function ll_tools_cli_prepare_word_rows_for_output(array $rows): array {
     }, $rows);
 }
 
-function ll_tools_cli_get_resume_state(string $path): array {
+function ll_tools_cli_resume_state_error() {
+    return new WP_Error('ll_tools_cli_resume_plan_mismatch', __('The resume file is invalid or belongs to a different operation. Use a new resume file.', 'll-tools-text-domain'));
+}
+
+/** @return array|WP_Error */
+function ll_tools_cli_get_resume_state(string $path) {
     $path = trim($path);
-    if ($path === '' || !is_readable($path)) {
+    if ($path === '' || !file_exists($path)) {
         return [
-            'version' => 1,
+            'version' => 2,
             'processed_ids' => [],
         ];
     }
-
+    if (!is_file($path) || !is_readable($path)) {
+        return ll_tools_cli_resume_state_error();
+    }
     $contents = @file_get_contents($path);
     if (!is_string($contents) || trim($contents) === '') {
-        return [
-            'version' => 1,
-            'processed_ids' => [],
-        ];
+        return ll_tools_cli_resume_state_error();
     }
-
     $decoded = json_decode($contents, true);
-    if (!is_array($decoded)) {
-        return [
-            'version' => 1,
-            'processed_ids' => [],
-        ];
+    if (!is_array($decoded) || !isset($decoded['version'], $decoded['processed_ids'])
+        || !in_array($decoded['version'], [1, 2], true) || !is_array($decoded['processed_ids'])) {
+        return ll_tools_cli_resume_state_error();
     }
-
-    $processed_ids = array_values(array_filter(array_map('intval', (array) ($decoded['processed_ids'] ?? [])), static function (int $word_id): bool {
-        return $word_id > 0;
-    }));
-    $decoded['version'] = 1;
-    $decoded['processed_ids'] = array_values(array_unique($processed_ids));
-
+    if ($decoded['version'] === 2 && (!is_array($decoded['operation'] ?? null)
+        || !is_string($decoded['operation_fingerprint'] ?? null) || !is_array($decoded['target_ids'] ?? null))) {
+        return ll_tools_cli_resume_state_error();
+    }
+    if (isset($decoded['target_ids']) && !is_array($decoded['target_ids'])) {
+        return ll_tools_cli_resume_state_error();
+    }
+    foreach (array_merge($decoded['processed_ids'], $decoded['target_ids'] ?? []) as $word_id) {
+        if (!is_int($word_id) || $word_id <= 0) {
+            return ll_tools_cli_resume_state_error();
+        }
+    }
+    if (!empty($decoded['processed_ids']) && ($decoded['version'] === 2)
+        && (!isset($decoded['target_ids']) || array_diff($decoded['processed_ids'], $decoded['target_ids']))) {
+        return ll_tools_cli_resume_state_error();
+    }
+    $decoded['processed_ids'] = array_values(array_unique($decoded['processed_ids']));
     return $decoded;
+}
+
+/** Bind a resume file to the exact logical operation before any IDs are skipped. */
+function ll_tools_cli_bind_resume_plan(array $state, int $wordset_id, array $set, array $filters) {
+    $missing = array_values(array_unique(array_map('strval', (array) ($filters['where_missing'] ?? []))));
+    sort($missing, SORT_STRING);
+    $operation = [
+        'site' => home_url('/'),
+        'blog_id' => get_current_blog_id(),
+        'wordset_id' => $wordset_id,
+        'set' => ['field' => (string) ($set['field'] ?? ''), 'value' => (string) ($set['value'] ?? '')],
+        'filters' => [
+            'category' => trim((string) ($filters['category'] ?? '')),
+            'word' => trim((string) ($filters['word'] ?? '')),
+            'where_missing' => $missing,
+            'where_pos' => sanitize_title((string) ($filters['where_pos'] ?? '')),
+            'offset' => max(0, (int) ($filters['offset'] ?? 0)),
+            'limit' => max(0, (int) ($filters['limit'] ?? 0)),
+        ],
+    ];
+    $fingerprint = hash('sha256', (string) wp_json_encode($operation));
+    if (array_key_exists('operation', $state) || array_key_exists('operation_fingerprint', $state)
+        || array_key_exists('target_ids', $state) || !empty($state['processed_ids'])) {
+        if (($state['version'] ?? 0) !== 2 || !is_array($state['operation'] ?? null)
+            || $state['operation'] !== $operation || !is_string($state['operation_fingerprint'] ?? null)
+            || !hash_equals($fingerprint, $state['operation_fingerprint'])) {
+            return ll_tools_cli_resume_state_error();
+        }
+    }
+    $state['version'] = 2;
+    $state['operation'] = $operation;
+    $state['operation_fingerprint'] = $fingerprint;
+    return $state;
+}
+
+/** Freeze selected IDs so resuming does not apply an offset to a shrinking match set. */
+function ll_tools_cli_resume_select_rows(array &$state, array $rows, int $offset, int $limit): array {
+    if (!isset($state['target_ids'])) {
+        $selected = ll_tools_cli_slice_rows($rows, $offset, $limit);
+        $state['target_ids'] = array_values(array_unique(array_map('intval', wp_list_pluck($selected, 'word_id'))));
+    }
+    $targets = array_fill_keys($state['target_ids'], true);
+    $processed = array_fill_keys((array) ($state['processed_ids'] ?? []), true);
+    return array_values(array_filter($rows, static function (array $row) use ($targets, $processed): bool {
+        $id = (int) ($row['word_id'] ?? 0);
+        return isset($targets[$id]) && !isset($processed[$id]);
+    }));
 }
 
 function ll_tools_cli_resume_has_processed(array $resume_state, int $word_id): bool {
@@ -716,7 +774,7 @@ function ll_tools_cli_resume_mark_processed(string $path, array &$resume_state, 
         $processed_ids[] = $word_id;
     }
 
-    $resume_state['version'] = 1;
+    $resume_state['version'] = 2;
     $resume_state['processed_ids'] = array_values(array_unique(array_filter($processed_ids, static function (int $id): bool {
         return $id > 0;
     })));

@@ -391,7 +391,7 @@ function ll_tools_webp_optimizer_get_categories_for_post(int $post_id): array {
     $ids = [];
     $labels = [];
     foreach ($terms as $term) {
-        if (!($term instanceof WP_Term)) {
+        if (!($term instanceof WP_Term) || !ll_tools_webp_optimizer_can_view_category($term)) {
             continue;
         }
         $ids[] = (int) $term->term_id;
@@ -408,6 +408,58 @@ function ll_tools_webp_optimizer_get_categories_for_post(int $post_id): array {
         'labels' => $labels,
         'display' => implode(', ', $labels),
     ];
+}
+
+function ll_tools_webp_optimizer_can_view_category(WP_Term $term): bool {
+    $complete = true;
+    if (!ll_tools_user_can_view_category($term, get_current_user_id(), $complete) || !$complete) {
+        return false;
+    }
+    $owner_id = ll_tools_get_category_wordset_owner_id((int) $term->term_id, $complete);
+    return $complete && ($owner_id <= 0 || ll_tools_user_can_view_wordset($owner_id, get_current_user_id()));
+}
+
+/** Check scope before resolving titles, categories, files, or attachment URLs. */
+function ll_tools_webp_optimizer_can_read_word_image(WP_Post $post): bool {
+    global $wpdb;
+    if ($post->post_type !== 'word_images' || !current_user_can('view_ll_tools')
+        || !current_user_can('read_post', $post->ID)) {
+        return false;
+    }
+    if (!in_array($post->post_status, ['publish', 'private'], true)
+        && !current_user_can('edit_post', $post->ID)) {
+        return false;
+    }
+
+    $user_id = get_current_user_id();
+    $wpdb->last_error = '';
+    $owner_id = ll_tools_get_word_image_wordset_owner_id((int) $post->ID);
+    if ($wpdb->last_error !== '') {
+        return false;
+    }
+    if ($owner_id > 0 && !ll_tools_user_can_view_wordset($owner_id, $user_id)) {
+        return false;
+    }
+    foreach (['wordset', 'word-category'] as $taxonomy) {
+        $wpdb->last_error = '';
+        $terms = wp_get_post_terms($post->ID, $taxonomy, ['suppress_filter' => true]);
+        if (is_wp_error($terms) || $wpdb->last_error !== '') {
+            return false;
+        }
+        $visible = empty($terms);
+        foreach ($terms as $term) {
+            if ($term instanceof WP_Term && ($taxonomy === 'wordset'
+                ? ll_tools_user_can_view_wordset($term, $user_id)
+                : ll_tools_webp_optimizer_can_view_category($term))) {
+                $visible = true;
+                break;
+            }
+        }
+        if (!$visible) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function ll_tools_webp_optimizer_get_attachment_dimensions(int $attachment_id): array {
@@ -442,11 +494,14 @@ function ll_tools_webp_optimizer_get_attachment_dimensions(int $attachment_id): 
 
 function ll_tools_webp_optimizer_build_item(int $word_image_id): array {
     $post = get_post($word_image_id);
-    if (!$post || $post->post_type !== 'word_images') {
+    if (!($post instanceof WP_Post) || !ll_tools_webp_optimizer_can_read_word_image($post)) {
         return [];
     }
 
     $attachment_id = (int) get_post_thumbnail_id($word_image_id);
+    if ($attachment_id > 0 && !current_user_can('read_post', $attachment_id)) {
+        return [];
+    }
     $categories = ll_tools_webp_optimizer_get_categories_for_post($word_image_id);
     $threshold_bytes = ll_tools_webp_optimizer_threshold_bytes();
     $animated_webp_threshold_bytes = ll_tools_webp_optimizer_animated_webp_threshold_bytes();
@@ -727,7 +782,7 @@ add_action('before_delete_post', 'll_tools_webp_optimizer_maybe_bump_queue_index
 add_action('delete_post', 'll_tools_webp_optimizer_maybe_bump_queue_index_for_post', 30, 1);
 
 function ll_tools_webp_optimizer_maybe_bump_queue_index_for_terms($object_id, $terms, $tt_ids, $taxonomy): void {
-    if ((string) $taxonomy !== 'word-category') {
+    if (!in_array((string) $taxonomy, ['word-category', 'wordset'], true)) {
         return;
     }
 
@@ -745,6 +800,7 @@ function ll_tools_webp_optimizer_maybe_bump_queue_index_for_meta($meta_id, $obje
         '_wp_attached_file',
         '_wp_attachment_metadata',
         '_ll_tools_external_source_url',
+        LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
     ];
     if (!in_array((string) $meta_key, $watched_meta_keys, true)) {
         return;
@@ -772,7 +828,16 @@ function ll_tools_webp_optimizer_queue_summary_template(): array {
 }
 
 function ll_tools_webp_optimizer_queue_index_cache_key(array $args, int $scan_batch_size): string {
+    $user = wp_get_current_user();
+    $capabilities = (array) $user->allcaps;
+    ksort($capabilities);
     $parts = [
+        'schema' => 2,
+        'viewer_id' => (int) $user->ID,
+        'viewer_capabilities' => $capabilities,
+        'viewer_managed_wordsets' => get_user_meta((int) $user->ID, 'managed_wordsets', true),
+        'wordset_epoch' => ll_tools_get_wordset_cache_epoch(),
+        'category_epoch' => ll_tools_get_category_cache_epoch(),
         'version' => ll_tools_webp_optimizer_get_queue_index_cache_version(),
         'category_id' => max(0, (int) ($args['category_id'] ?? 0)),
         'search' => trim((string) ($args['search'] ?? '')),
@@ -912,6 +977,11 @@ function ll_tools_webp_optimizer_build_queue_index(array $args, int $scan_batch_
         'scan_batch_size' => $scan_batch_size,
     ];
 
+    if (ll_tools_webp_optimizer_queue_index_cache_key($args, $scan_batch_size) !== $cache_key) {
+        $empty_summary = ll_tools_webp_optimizer_queue_summary_template();
+        $empty_summary['queued_bytes_label'] = ll_tools_webp_optimizer_bytes_label(0);
+        return ['rows' => [], 'ids' => [], 'summary' => $empty_summary, 'total_items' => 0, 'scan_batch_size' => $scan_batch_size];
+    }
     if ($cache_ttl > 0) {
         set_transient($cache_key, $index, $cache_ttl);
     }
@@ -1727,7 +1797,7 @@ function ll_tools_webp_optimizer_render_admin_page(): void {
                         <select data-ll-webp-filter-category>
                             <option value="0"><?php echo esc_html__('All categories', 'll-tools-text-domain'); ?></option>
                             <?php foreach ($terms as $term) : ?>
-                                <?php if (!($term instanceof WP_Term)) { continue; } ?>
+                                <?php if (!($term instanceof WP_Term) || !ll_tools_webp_optimizer_can_view_category($term)) { continue; } ?>
                                 <option value="<?php echo esc_attr((string) $term->term_id); ?>"><?php echo esc_html($term->name); ?></option>
                             <?php endforeach; ?>
                         </select>

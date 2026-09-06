@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/mutation-job-state.php';
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -1206,12 +1207,15 @@ function ll_tools_import_job_get(string $job_id): ?array {
     return is_array($job) ? $job : null;
 }
 
-function ll_tools_import_job_save(string $job_id, array $job): array {
+function ll_tools_import_job_save(string $job_id, array $job) {
     $job['id'] = $job_id;
     $job['updated_at'] = time();
-    update_option(ll_tools_import_job_get_option_key($job_id), $job, false);
-
-    return $job;
+    $lock = $GLOBALS['ll_tools_import_job_leases'][$job_id] ?? [];
+    return ll_tools_mutation_job_write_option(
+        ll_tools_import_job_get_option_key($job_id),
+        $job,
+        (array) ($lock['mutation_lease'] ?? [])
+    );
 }
 
 function ll_tools_import_job_get_active_id(): string {
@@ -1248,76 +1252,63 @@ function ll_tools_import_job_process_lock_retry_after_seconds(array $lock): floa
 function ll_tools_import_job_process_lock_acquire(string $job_id, array $job) {
     $job_id = trim(sanitize_text_field($job_id));
     if ($job_id === '') {
-        return new WP_Error(
-            'll_tools_import_job_missing_id',
-            __('The import job could not be identified.', 'll-tools-text-domain'),
-            ['status' => 400]
-        );
+        return new WP_Error('ll_tools_import_job_missing_id', __('The import job could not be identified.', 'll-tools-text-domain'), ['status' => 400]);
     }
-
+    $lease = ll_tools_mutation_job_acquire('import', ll_tools_import_job_get_option_key($job_id));
+    if (is_wp_error($lease)) {
+        return new WP_Error('ll_tools_import_job_process_locked', $lease->get_error_message(), ['status' => 429, 'locked' => true, 'job_id' => $job_id, 'retry_after_seconds' => 1.0]);
+    }
+    $option = ll_tools_import_job_get_process_lock_option_key($job_id);
+    $existing = ll_tools_mutation_job_read_option($option);
+    if (is_wp_error($existing)) {
+        ll_tools_mutation_job_release($lease);
+        return $existing;
+    }
+    // Respect an unexpired pre-upgrade option lease. New leases are also held
+    // by the database connection, so an expired timestamp cannot evict a worker.
+    if (is_array($existing) && empty($existing['mutation_lease']) && (float) ($existing['expires_at'] ?? 0) > microtime(true)) {
+        ll_tools_mutation_job_release($lease);
+        return new WP_Error('ll_tools_import_job_process_locked', __('This import job is already processing. Wait and retry.', 'll-tools-text-domain'), ['status' => 429, 'locked' => true, 'job_id' => $job_id, 'retry_after_seconds' => ll_tools_import_job_process_lock_retry_after_seconds($existing)]);
+    }
     $now = microtime(true);
-    $owner = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : wp_generate_password(24, false, false);
     $lock = [
-        'owner' => $owner,
+        'owner' => $lease['token'],
         'job_id' => $job_id,
         'phase' => sanitize_key((string) ($job['phase'] ?? 'extract')),
         'status' => sanitize_key((string) ($job['status'] ?? 'running')),
         'user_id' => (int) get_current_user_id(),
         'created_at' => $now,
         'expires_at' => $now + ll_tools_import_job_process_lock_ttl_seconds($job_id, $job),
+        'mutation_lease' => $lease,
     ];
-
-    $lock_option = ll_tools_import_job_get_process_lock_option_key($job_id);
-    $added = add_option($lock_option, $lock, '', 'no');
-    if ($added) {
-        return $lock;
+    $saved = ll_tools_mutation_job_write_option($option, $lock, $lease);
+    if (is_wp_error($saved)) {
+        ll_tools_mutation_job_release($lease);
+        return $saved;
     }
-
-    $existing = get_option($lock_option, []);
-    $expires_at = is_array($existing) ? (float) ($existing['expires_at'] ?? 0) : 0.0;
-    if ($expires_at > $now) {
-        return new WP_Error(
-            'll_tools_import_job_process_locked',
-            __('This import job is already processing. Wait and retry this request instead of running parallel import steps.', 'll-tools-text-domain'),
-            [
-                'status' => 429,
-                'locked' => true,
-                'job_id' => $job_id,
-                'retry_after_seconds' => ll_tools_import_job_process_lock_retry_after_seconds($existing),
-            ]
-        );
-    }
-
-    delete_option($lock_option);
-    $added = add_option($lock_option, $lock, '', 'no');
-    if ($added) {
-        return $lock;
-    }
-
-    return new WP_Error(
-        'll_tools_import_job_process_locked',
-        __('This import job is already processing. Wait and retry this request instead of running parallel import steps.', 'll-tools-text-domain'),
-        [
-            'status' => 429,
-            'locked' => true,
-            'job_id' => $job_id,
-            'retry_after_seconds' => 1.0,
-        ]
-    );
+    $GLOBALS['ll_tools_import_job_leases'][$job_id] = $lock;
+    return $lock;
 }
 
 function ll_tools_import_job_process_lock_release(string $job_id, string $owner): void {
-    $job_id = trim(sanitize_text_field($job_id));
-    $owner = trim($owner);
-    if ($job_id === '' || $owner === '') {
+    global $wpdb;
+
+    $lock = $GLOBALS['ll_tools_import_job_leases'][$job_id] ?? [];
+    if ($owner === '' || (string) ($lock['owner'] ?? '') !== $owner) {
         return;
     }
-
-    $lock_option = ll_tools_import_job_get_process_lock_option_key($job_id);
-    $existing = get_option($lock_option, []);
-    if (is_array($existing) && (string) ($existing['owner'] ?? '') === $owner) {
-        delete_option($lock_option);
+    $lease = (array) ($lock['mutation_lease'] ?? []);
+    if (ll_tools_mutation_job_owns($lease)) {
+        $option = ll_tools_import_job_get_process_lock_option_key($job_id);
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name = %s AND BINARY option_value = BINARY %s
+             AND CONNECTION_ID() = %d AND IS_USED_LOCK(%s) = %d",
+            $option, maybe_serialize($lock), (int) $lease['connection_id'], (string) $lease['name'], (int) $lease['connection_id']
+        ));
+        wp_cache_delete($option, 'options');
     }
+    ll_tools_mutation_job_release($lease);
+    unset($GLOBALS['ll_tools_import_job_leases'][$job_id]);
 }
 
 function ll_tools_import_job_is_process_lock_error($error): bool {
@@ -1770,10 +1761,13 @@ function ll_tools_import_job_get_snapshot(array $job): array {
         'progressRatio' => (float) ($progress['ratio'] ?? 0),
         'progressPercent' => (int) ($progress['percent'] ?? 0),
         'statusText' => ll_tools_import_job_get_status_text($job),
-        'errorMessage' => trim((string) ($job['error_message'] ?? '')),
-        'canResume' => ($status === 'running' || $status === 'paused'),
-        'canDiscard' => ($status === 'paused'),
-        'hasMore' => ($status === 'running' || $status === 'paused'),
+        'errorMessage' => !empty($job['pending_step'])
+            ? ll_tools_mutation_job_recovery_error()->get_error_message()
+            : trim((string) ($job['error_message'] ?? '')),
+        'canResume' => empty($job['pending_step']) && ($status === 'running' || $status === 'paused'),
+        'canDiscard' => empty($job['pending_step']) && ($status === 'paused'),
+        'hasMore' => empty($job['pending_step']) && ($status === 'running' || $status === 'paused'),
+        'recoveryRequired' => !empty($job['pending_step']),
         'redirectUrl' => ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()),
         'updatedAt' => max(0, (int) ($job['updated_at'] ?? 0)),
     ];
@@ -1825,6 +1819,37 @@ function ll_tools_import_job_build_undo_entry(array $job): array {
 
 function ll_tools_import_job_discard(array $job) {
     $job_id = sanitize_text_field((string) ($job['id'] ?? ''));
+    $lock = ll_tools_import_job_process_lock_acquire($job_id, $job);
+    if (is_wp_error($lock)) {
+        return $lock;
+    }
+    try {
+        $job = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key($job_id));
+        if (is_wp_error($job)) {
+            return $job;
+        }
+        if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
+            return new WP_Error('ll_tools_import_job_not_found', __('The requested import job could not be found.', 'll-tools-text-domain'), ['status' => 404]);
+        }
+        if (!empty($job['pending_step'])) {
+            return ll_tools_mutation_job_recovery_error();
+        }
+        if ((string) ($job['status'] ?? '') !== 'paused') {
+            return new WP_Error('ll_tools_import_job_not_paused', __('Only paused import jobs can be discarded.', 'll-tools-text-domain'), ['status' => 409]);
+        }
+        $job['pending_step'] = $lock['owner'];
+        $saved = ll_tools_import_job_save($job_id, $job);
+        if (is_wp_error($saved)) {
+            return $saved;
+        }
+        return ll_tools_import_job_discard_owned($saved);
+    } finally {
+        ll_tools_import_job_process_lock_release($job_id, (string) ($lock['owner'] ?? ''));
+    }
+}
+
+function ll_tools_import_job_discard_owned(array $job) {
+    $job_id = sanitize_text_field((string) ($job['id'] ?? ''));
     if ($job_id === '') {
         return new WP_Error('ll_tools_import_job_missing_id', __('The import job could not be identified.', 'll-tools-text-domain'));
     }
@@ -1871,7 +1896,18 @@ function ll_tools_import_job_discard(array $job) {
         ll_tools_import_job_delete_path($job_dir);
     }
 
-    ll_tools_import_job_delete($job_id, (int) ($job['user_id'] ?? 0));
+    $lock = $GLOBALS['ll_tools_import_job_leases'][$job_id] ?? [];
+    $deleted = ll_tools_mutation_job_delete_option(
+        ll_tools_import_job_get_option_key($job_id), $job, (array) ($lock['mutation_lease'] ?? [])
+    );
+    if (is_wp_error($deleted)) {
+        return ll_tools_mutation_job_recovery_error();
+    }
+    ll_tools_import_job_clear_active_id($job_id);
+    $user_id = (int) ($job['user_id'] ?? 0);
+    if ($user_id > 0 && ll_tools_import_job_get_last_id($user_id) === $job_id) {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+    }
     ll_tools_import_store_result($cleanup_result);
 
     return [
@@ -11996,13 +12032,13 @@ function ll_tools_import_job_should_checkpoint_word_image_items(array $job): boo
     return (bool) apply_filters('ll_tools_import_job_checkpoint_word_image_items', true, $job);
 }
 
-function ll_tools_import_job_checkpoint_word_image_item(array $job): void {
+function ll_tools_import_job_checkpoint_word_image_item(array $job) {
     $job_id = sanitize_text_field((string) ($job['id'] ?? ''));
     if ($job_id === '') {
         return;
     }
 
-    ll_tools_import_job_save($job_id, $job);
+    return ll_tools_import_job_save($job_id, $job);
 }
 
 function ll_tools_import_job_prepare_payload(array $job) {
@@ -12128,8 +12164,6 @@ function ll_tools_import_job_finalize_completion(array $job): array {
     if ($job_dir !== '') {
         ll_tools_import_job_delete_path($job_dir);
     }
-
-    ll_tools_import_job_clear_active_id((string) ($job['id'] ?? ''));
 
     return $job;
 }
@@ -12299,7 +12333,10 @@ function ll_tools_import_job_process(array $job) {
             }
 
             if ($checkpoint_items) {
-                ll_tools_import_job_checkpoint_word_image_item($job);
+                $checkpoint = ll_tools_import_job_checkpoint_word_image_item($job);
+                if (is_wp_error($checkpoint)) {
+                    return $checkpoint;
+                }
             }
 
             $has_more_in_chunk = ($job['word_image_chunk_index'] === $chunk_index)
@@ -12439,7 +12476,53 @@ function ll_tools_import_job_process_with_lock(array $job) {
     }
 
     try {
-        return ll_tools_import_job_process($job);
+        $job = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key($job_id));
+        if (is_wp_error($job)) {
+            return $job;
+        }
+        if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
+            return new WP_Error('ll_tools_import_job_not_found', __('The requested import job could not be found.', 'll-tools-text-domain'), ['status' => 404]);
+        }
+        if (!empty($job['pending_step'])) {
+            return ll_tools_mutation_job_recovery_error();
+        }
+        if ((string) ($job['status'] ?? '') === 'completed') {
+            return $job;
+        }
+        $job['status'] = 'running';
+        $job['error_message'] = '';
+        $job['pending_step'] = $lock['owner'];
+        $job = ll_tools_import_job_save($job_id, $job);
+        if (is_wp_error($job)) {
+            return $job;
+        }
+        $processed = ll_tools_import_job_process($job);
+        if (is_wp_error($processed)) {
+            if ($processed->get_error_code() === 'll_tools_mutation_job_storage_failed' || $processed->get_error_code() === 'll_tools_mutation_job_lock_lost') {
+                return $processed;
+            }
+            $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key($job_id));
+            if (is_wp_error($fresh) || !is_array($fresh)) {
+                return ll_tools_mutation_job_recovery_error();
+            }
+            $paused = ll_tools_import_job_pause($fresh, $processed->get_error_message());
+            unset($paused['pending_step']);
+            $saved = ll_tools_import_job_save($job_id, $paused);
+            if (is_wp_error($saved)) {
+                return $saved;
+            }
+            return new WP_Error('ll_tools_import_job_process_failed', $processed->get_error_message(), ['status' => 500, 'job' => ll_tools_import_job_get_snapshot($saved)]);
+        }
+        unset($processed['pending_step']);
+        $saved = ll_tools_import_job_save($job_id, $processed);
+        if (!is_wp_error($saved) && (string) ($saved['status'] ?? '') === 'completed') {
+            ll_tools_import_job_clear_active_id($job_id);
+        }
+        return $saved;
+    } catch (Throwable $error) {
+        // Preserve the durable marker; side effects after the last checkpoint
+        // are uncertain and must not be replayed automatically.
+        return ll_tools_mutation_job_recovery_error();
     } finally {
         ll_tools_import_job_process_lock_release($job_id, (string) ($lock['owner'] ?? ''));
     }
@@ -12535,10 +12618,13 @@ function ll_tools_import_job_create_from_request(array $request) {
         'error_message' => '',
     ];
 
+    $saved = ll_tools_import_job_save($job_id, $job);
+    if (is_wp_error($saved)) {
+        return $saved;
+    }
     ll_tools_import_job_set_active_id($job_id);
     ll_tools_import_job_set_last_id($job_id, $user_id);
-
-    return ll_tools_import_job_save($job_id, $job);
+    return $saved;
 }
 
 function ll_tools_import_job_get_start_conflict() {
@@ -12612,51 +12698,23 @@ function ll_tools_ajax_import_process_job(): void {
     if (!ll_tools_current_user_can_export_import()) {
         wp_send_json_error(['message' => __('You do not have permission to process LL Tools imports.', 'll-tools-text-domain')], 403);
     }
-
     check_ajax_referer('ll_tools_import_job_ajax', 'nonce');
-
     $job_id = isset($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
     $job = ll_tools_import_job_get($job_id);
     if (!is_array($job) || !ll_tools_import_job_current_user_can_access($job)) {
         wp_send_json_error(['message' => __('The requested import job could not be found.', 'll-tools-text-domain')], 404);
     }
-
-    $status = sanitize_key((string) ($job['status'] ?? 'running'));
-    if ($status === 'completed') {
-        wp_send_json_success(['job' => ll_tools_import_job_get_snapshot($job)]);
-    }
-
-    if ($status === 'paused') {
-        $job['status'] = 'running';
-        $job['error_message'] = '';
-    }
-
-    $processed_job = ll_tools_import_job_process_with_lock($job);
-    if (is_wp_error($processed_job)) {
-        if (ll_tools_import_job_is_process_lock_error($processed_job)) {
-            $error_data = $processed_job->get_error_data();
-            $error_data = is_array($error_data) ? $error_data : [];
-            wp_send_json_error([
-                'message' => $processed_job->get_error_message(),
-                'job' => ll_tools_import_job_get_snapshot($job),
-                'locked' => true,
-                'retry_after_seconds' => (float) ($error_data['retry_after_seconds'] ?? 1.0),
-            ], 429);
-        }
-
-        $job = ll_tools_import_job_pause($job, $processed_job->get_error_message());
-        $job = ll_tools_import_job_save($job_id, $job);
-
+    $processed = ll_tools_import_job_process_with_lock($job);
+    if (is_wp_error($processed)) {
+        $data = (array) $processed->get_error_data();
+        $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key($job_id));
         wp_send_json_error([
-            'message' => $processed_job->get_error_message(),
-            'job' => ll_tools_import_job_get_snapshot($job),
-        ], 500);
+            'message' => $processed->get_error_message(),
+            'code' => $processed->get_error_code(),
+            'job' => is_array($fresh) ? ll_tools_import_job_get_snapshot($fresh) : null,
+        ] + $data, (int) ($data['status'] ?? 500));
     }
-
-    $saved_job = ll_tools_import_job_save($job_id, $processed_job);
-    wp_send_json_success([
-        'job' => ll_tools_import_job_get_snapshot($saved_job),
-    ]);
+    wp_send_json_success(['job' => ll_tools_import_job_get_snapshot($processed)]);
 }
 
 function ll_tools_ajax_import_discard_job(): void {
@@ -12674,10 +12732,12 @@ function ll_tools_ajax_import_discard_job(): void {
 
     $discarded = ll_tools_import_job_discard($job);
     if (is_wp_error($discarded)) {
+        $fresh = ll_tools_mutation_job_read_option(ll_tools_import_job_get_option_key($job_id));
+        $error_data = (array) $discarded->get_error_data();
         wp_send_json_error([
             'message' => $discarded->get_error_message(),
-            'job' => ll_tools_import_job_get_snapshot($job),
-        ], 409);
+            'job' => is_array($fresh) ? ll_tools_import_job_get_snapshot($fresh) : null,
+        ] + $error_data, (int) ($error_data['status'] ?? 409));
     }
 
     wp_send_json_success($discarded);

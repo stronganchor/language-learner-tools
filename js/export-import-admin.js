@@ -500,7 +500,11 @@
                     ? job.errorMessage
                     : config.processingPaused;
             }
-            setProcessingActionButton(screen, config.processingResume, resumeAction);
+            setProcessingActionButton(
+                screen,
+                job && job.canResume === false ? config.processingReload : config.processingResume,
+                job && job.canResume === false ? null : resumeAction
+            );
             setProcessingDiscardButton(
                 screen,
                 job && job.canDiscard ? config.processingDiscard : '',
@@ -673,7 +677,7 @@
                     return;
                 }
 
-                if (job.status === 'paused') {
+                if (job.status === 'paused' || job.recoveryRequired === true || job.canResume === false) {
                     setIdleState(form, submitButtons);
                     bindPausedActions(job, screen, form, submitButtons);
                     return;
@@ -721,7 +725,7 @@
                         redirectToJobTarget(activeJob);
                         return;
                     }
-                    if (activeJob.status === 'paused') {
+                    if (activeJob.status === 'paused' || activeJob.recoveryRequired === true || activeJob.canResume === false) {
                         bindPausedActions(activeJob, screen, form, submitButtons);
                         return;
                     }
@@ -755,7 +759,7 @@
                 return;
             }
 
-            if (job.status === 'paused') {
+            if (job.status === 'paused' || job.recoveryRequired === true || job.canResume === false) {
                 bindPausedActions(job, screen, null, []);
                 return;
             }

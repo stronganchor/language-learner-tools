@@ -357,6 +357,149 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('AI Private Category', $content);
     }
 
+    public function test_privileged_password_visitor_cannot_seed_private_shared_exports(): void
+    {
+        $cookies = $_COOKIE;
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+        $public = $this->createWordset('Crawler Visible Scope', 'crawler-visible-scope');
+        $private = $this->createWordset('Crawler Hidden Scope', 'crawler-hidden-scope', true);
+        $category = $this->createCategory('Crawler Visible Category', 'crawler-visible-category');
+        $hidden_category = $this->createCategory('Crawler Hidden Category', 'crawler-hidden-category', true);
+        $this->createDictionaryEntry('Crawler Visible Dictionary', $public, 'visible definition');
+        $protected_entry = $this->createDictionaryEntry('Crawler Protected Dictionary', $public, 'protected definition');
+        $this->createDictionaryEntry('Crawler Private Dictionary', $private, 'private definition');
+        wp_update_post(['ID' => $protected_entry, 'post_password' => 'crawler-test-password']);
+        foreach (['ll_vocab_lesson', 'll_content_lesson'] as $type) {
+            foreach (['Visible', 'Protected', 'Private'] as $visibility) {
+                $id = self::factory()->post->create([
+                    'post_type' => $type,
+                    'post_status' => 'publish',
+                    'post_title' => 'Crawler ' . $visibility . ' ' . $type,
+                    'post_excerpt' => strtolower($visibility) . ' excerpt',
+                    'post_password' => $visibility === 'Protected' ? 'crawler-test-password' : '',
+                ]);
+                $scope = $visibility === 'Private' ? $private : $public;
+                if ($type === 'll_vocab_lesson') {
+                    update_post_meta($id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $scope);
+                    update_post_meta($id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category);
+                } else {
+                    update_post_meta($id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $scope);
+                    update_post_meta($id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$category, $hidden_category]);
+                }
+            }
+        }
+        $private_category_lesson = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson', 'post_status' => 'publish', 'post_title' => 'Crawler Private Category Lesson',
+        ]);
+        update_post_meta($private_category_lesson, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $public);
+        update_post_meta($private_category_lesson, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $hidden_category);
+        ll_tools_bump_dictionary_browser_cache_version();
+        require_once ABSPATH . WPINC . '/class-phpass.php';
+        $hasher = new PasswordHash(8, true);
+        $cookie = $hasher->HashPassword('crawler-test-password');
+        $exports = [
+            ['key' => 'dictionary'], ['key' => 'dictionary-letter', 'letter' => 'C'],
+            ['key' => 'index-jsonld'], ['key' => 'wordsets'], ['key' => 'content-lessons'],
+        ];
+        try {
+            foreach ($exports as $export) {
+                wp_set_current_user($admin);
+                $_COOKIE['wp-postpass_' . COOKIEHASH] = $cookie;
+                $this->assertFalse(post_password_required($protected_entry), 'The visitor really has a valid password cookie.');
+                ll_tools_ai_crawler_delete_cached_export($export);
+                $legacy_args = ll_tools_ai_crawler_export_cache_args($export);
+                $legacy_args['schema'] = 2;
+                $legacy_key = 'll_ai_export_' . md5((string) wp_json_encode($legacy_args));
+                set_transient($legacy_key, 'Crawler Protected Legacy Cache', MINUTE_IN_SECONDS);
+                wp_cache_set($legacy_key, 'Crawler Protected Legacy Cache', ll_tools_ai_crawler_cache_group(), MINUTE_IN_SECONDS);
+                try {
+                    $first = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+                    $this->assertTrue($first['ok']);
+                    $this->assertSame('MISS', $first['cache_status']);
+                    $this->assertStringContainsString('Crawler Visible', $first['body']);
+                    foreach (['Crawler Protected', 'Crawler Private', 'Crawler Hidden', 'protected definition', 'private definition', 'protected excerpt', 'private excerpt'] as $hidden) {
+                        $this->assertStringNotContainsString($hidden, $first['body'], $export['key']);
+                    }
+                    unset($_COOKIE['wp-postpass_' . COOKIEHASH]);
+                    wp_set_current_user(0);
+                    $second = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+                    $this->assertSame('HIT', $second['cache_status']);
+                    $this->assertSame($first['body'], $second['body']);
+                    $head = ll_tools_ai_crawler_prepare_export_response('HEAD', $export);
+                    $this->assertSame('HIT', $head['cache_status']);
+                    $this->assertSame('', $head['body']);
+                    $this->assertFalse($head['send_body']);
+                } finally {
+                    delete_transient($legacy_key);
+                    wp_cache_delete($legacy_key, ll_tools_ai_crawler_cache_group());
+                    ll_tools_ai_crawler_delete_cached_export($export);
+                }
+            }
+        } finally {
+            $_COOKIE = $cookies;
+        }
+    }
+
+    public function test_letter_fallback_preserves_empty_private_and_password_only_scopes(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->assertSame([], ll_tools_ai_crawler_get_dictionary_letters());
+        $private = $this->createWordset('Letter Private Only', 'letter-private-only', true);
+        $this->createDictionaryEntry('Z-hidden-only', $private, 'private');
+        ll_tools_bump_dictionary_browser_cache_version();
+        $this->assertSame([], ll_tools_ai_crawler_get_dictionary_letters());
+        $public = $this->createWordset('Letter Password Only', 'letter-password-only');
+        $protected = $this->createDictionaryEntry('Q-protected-only', $public, 'protected');
+        wp_update_post(['ID' => $protected, 'post_password' => 'letter-password']);
+        ll_tools_bump_dictionary_browser_cache_version();
+        $this->assertSame([], ll_tools_ai_crawler_get_dictionary_letters());
+        $this->createDictionaryEntry('A-public', $public, 'visible');
+        ll_tools_bump_dictionary_browser_cache_version();
+        $this->assertSame(['A'], ll_tools_ai_crawler_get_dictionary_letters());
+        update_term_meta($public, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+        ll_tools_bump_wordset_cache_epoch([$public]);
+        $this->assertSame([], ll_tools_ai_crawler_get_dictionary_letters(), 'Request-local letter caches must follow visibility epochs.');
+    }
+
+    public function test_public_dictionary_entry_never_exports_private_linked_wordset_names(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $public = $this->createWordset('Visible Linked Scope', 'visible-linked-scope');
+        $private = $this->createWordset('Hidden Linked Scope', 'hidden-linked-scope', true);
+        $entry = $this->createDictionaryEntry('Shared Entry', $public, 'shared definition');
+        update_post_meta($entry, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY, '|' . $public . '|' . $private . '|');
+        $item = ll_tools_ai_crawler_dictionary_entry_item($entry, 4);
+        $this->assertNotNull($item);
+        $this->assertSame(['Visible Linked Scope'], $item['wordset_names']);
+    }
+
+    public function test_visibility_change_during_export_build_does_not_publish_a_new_generation(): void
+    {
+        $public = $this->createWordset('Changing Export Scope', 'changing-export-scope');
+        $this->createDictionaryEntry('Changing Entry', $public, 'visible');
+        $export = ['key' => 'dictionary'];
+        ll_tools_ai_crawler_delete_cached_export($export);
+        $change_visibility = static function ($limit) use ($public) {
+            update_term_meta($public, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+            ll_tools_bump_wordset_cache_epoch([$public]);
+            return $limit;
+        };
+        add_filter('ll_tools_ai_crawler_dictionary_limit', $change_visibility);
+        try {
+            $response = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+        } finally {
+            remove_filter('ll_tools_ai_crawler_dictionary_limit', $change_visibility);
+        }
+        $this->assertFalse($response['ok']);
+        $this->assertSame('', $response['body']);
+        $this->assertNull(ll_tools_ai_crawler_get_cached_export($export));
+        $next = ll_tools_ai_crawler_prepare_export_response('GET', $export);
+        $this->assertTrue($next['ok']);
+        $this->assertStringNotContainsString('Changing Entry', $next['body']);
+        ll_tools_ai_crawler_delete_cached_export($export);
+    }
+
     private function createWordset(string $name, string $slug, bool $private = false): int
     {
         $result = wp_insert_term($name, 'wordset', ['slug' => $slug]);

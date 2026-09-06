@@ -97,12 +97,14 @@ tests/bin/run-performance-benchmark.sh
     - It keeps the live Local DB host credentials but emits an isolated `WP_TEST_DB_NAME` by default so PHPUnit does not target the main site schema.
     - It uses `tests/bin/php-local.sh` and `tests/bin/resolve-local-runtime.php`; no separate Python binary or fixed `/mnt/c` mount is required.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
-- `tests/bin/run-e2e.sh` refreshes an env-file base URL from that matching runtime. A caller-exported `LL_E2E_BASE_URL` wins; use `LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV=1` only when an env-file URL must remain authoritative.
+- `tests/bin/run-e2e.sh` preserves a configured `LL_E2E_BASE_URL`, including one from an env file; a caller-exported value wins. It detects the Local HTTP origin only when no base URL is configured. Disabling detection with `LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV=1` requires an explicit base URL.
 - The E2E wrapper probes `chromium.executablePath()` first and runs Playwright's browser installer only when that executable is absent. A network-restricted sandbox (or explicit `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1`) skips installation when policy also hides the global browser cache, avoiding a blocked network probe before every focused test.
 - Git Bash runs npm's JavaScript entry point and Playwright's installed CLI directly through Node; do not restore an extensionless npm/npx shim at the final `exec` boundary because PATHEXT can hand its shebang to WSL.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
 - If Local changed ports recently, `tests/bin/run-tests.sh` should refresh them automatically; use `eval "$(tests/bin/setup-local-env.sh)"` when you want to inspect the resolved values directly.
 - Set `LL_TOOLS_SKIP_AUTO_LOCAL_ENV=1` if you intentionally need `tests/.env` to stay authoritative.
+- Coordinate all Local-backed runs across tasks, including separate test databases on the same MySQL service. A broad PHPUnit run can slow browser navigation enough to invalidate timing checks. Keep release/browser validation alone on the shared stack, and leave another task's active services running until handoff.
+- For an isolated worktree, keep its final directory named `language-learner-tools` so updater basename/archive contracts match the installed plugin. Use its own `WP_TEST_DB_NAME`, `WP_TESTS_DIR`, and `WP_CORE_DIR`, and regenerate its `wp-tests-config.php` before running; copying a test library also copies its old database/core paths. Keep runtime copies under the excluded `_codex_temp/` directory so POT extraction does not scan WordPress itself.
 
 Recommended `.env` keys to verify before debugging code:
 

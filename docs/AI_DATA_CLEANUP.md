@@ -202,6 +202,18 @@ newer human or agent work.
   `completed`. Discarding a metadata plan stops future processing; it does not
   undo rows that already ran. A failed row may have applied earlier fields, so
   build any retry or rollback from fresh readback and the saved original plan.
+- Metadata process/discard also share a per-job database connection lock,
+  regardless of the optional REST resource guard. Honor
+  `429 ll_tools_mutation_job_locked` as contention. A failed checkpoint can
+  leave `job.recovery_required: true`; later process/discard requests then
+  return `409 ll_tools_mutation_job_recovery_required`. Preserve the plan and
+  result, wait for any active worker to finish, and read back every word in the
+  interrupted chunk before constructing a replacement plan. Applied changes
+  can extend beyond the last saved cursor. Do not clear the recovery marker or
+  replay the original chunk without reconciliation.
+- Inspect failed rows' `partial`, `applied_fields`, `before`, and `after`.
+  Writes use readback verification, and failed POS assignment retains dependent
+  grammar, but a later field failure does not roll back earlier fields.
 - Check the public site or `/wp-json/` after live writes on resource-constrained
   servers.
 

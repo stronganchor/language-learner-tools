@@ -1570,6 +1570,54 @@ function ll_tools_offline_app_export_job_lock_key(string $token): string {
     return 'll_tools_offline_export_lock_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $token);
 }
 
+/**
+ * The lock inode lives outside the removable job directory and is never
+ * unlinked. A worker owns its open handle until release/process exit, without
+ * permitting a slow live append writer to be replaced after a TTL.
+ *
+ * @return resource|WP_Error
+ */
+function ll_tools_offline_app_export_acquire_job_lock(string $token, bool $enforce_owner = true) {
+    $token = preg_replace('/[^a-zA-Z0-9_-]/', '', $token);
+    $pointer = $token !== '' ? get_option(ll_tools_offline_app_export_job_option_key($token), null) : null;
+    if (!is_array($pointer)) {
+        return new WP_Error('ll_tools_offline_app_job_not_found', __('The offline app export job could not be found. Start a new export.', 'll-tools-text-domain'));
+    }
+    if ($enforce_owner && (int) ($pointer['created_by'] ?? 0) !== get_current_user_id()) {
+        return new WP_Error('ll_tools_offline_app_job_forbidden', __('You do not have permission to access this offline app export job.', 'll-tools-text-domain'));
+    }
+    $storage_dir = ll_tools_offline_app_export_storage_dir();
+    if (is_wp_error($storage_dir)) {
+        return $storage_dir;
+    }
+    $lock_dir = trailingslashit($storage_dir) . '.locks';
+    if (!wp_mkdir_p($lock_dir)) {
+        return new WP_Error('ll_tools_offline_app_job_storage_failed', __('Could not create storage for the offline app export job.', 'll-tools-text-domain'));
+    }
+    // The option-name lookup is case-insensitive. Every sanitized ASCII case
+    // alias must therefore contend on the same inode, including cleanup calls.
+    $handle = @fopen(trailingslashit($lock_dir) . hash('sha256', strtolower($token)) . '.lock', 'c');
+    if (!$handle || !flock($handle, LOCK_EX | LOCK_NB)) {
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
+        return new WP_Error('ll_tools_offline_app_job_busy', __('This offline app export job is already processing another step.', 'll-tools-text-domain'));
+    }
+    // Another owner may have advanced/deleted the job while this request was
+    // being admitted. Never let its earlier pointer cache survive admission.
+    wp_cache_delete(ll_tools_offline_app_export_job_option_key($token), 'options');
+    wp_cache_delete('notoptions', 'options');
+    return $handle;
+}
+
+function ll_tools_offline_app_export_release_job_lock(&$handle): void {
+    if (is_resource($handle)) {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+    $handle = null;
+}
+
 function ll_tools_offline_app_export_storage_dir() {
     $uploads = wp_upload_dir();
     $base_dir = wp_normalize_path((string) ($uploads['basedir'] ?? ''));
@@ -1605,10 +1653,25 @@ function ll_tools_offline_app_export_write_json(string $path, array $data) {
     if (!is_string($json) || $json === '') {
         return new WP_Error('ll_tools_offline_app_job_json_failed', __('Could not encode offline app export job state.', 'll-tools-text-domain'));
     }
-    if (@file_put_contents($path, $json, LOCK_EX) === false) {
+    $temporary = @tempnam(dirname($path), '.ll-export-');
+    if (!is_string($temporary)) {
         return new WP_Error('ll_tools_offline_app_job_write_failed', __('Could not save offline app export job state.', 'll-tools-text-domain'));
     }
-    return true;
+    try {
+        // Same-directory replacement leaves either the old complete checkpoint
+        // or the new complete checkpoint visible, never a truncated manifest.
+        if (@file_put_contents($temporary, $json, LOCK_EX) !== strlen($json)
+            || @file_get_contents($temporary) !== $json
+            || !@rename($temporary, $path)
+            || @file_get_contents($path) !== $json) {
+            return new WP_Error('ll_tools_offline_app_job_write_failed', __('Could not save offline app export job state.', 'll-tools-text-domain'));
+        }
+        return true;
+    } finally {
+        if (is_file($temporary)) {
+            @unlink($temporary);
+        }
+    }
 }
 
 function ll_tools_offline_app_export_save_job(array $job) {
@@ -1634,12 +1697,7 @@ function ll_tools_offline_app_export_load_job(string $token, bool $enforce_owner
         return new WP_Error('ll_tools_offline_app_job_forbidden', __('You do not have permission to access this offline app export job.', 'll-tools-text-domain'));
     }
     if ((int) ($pointer['expires_at'] ?? 0) > 0 && (int) $pointer['expires_at'] < time()) {
-        delete_option(ll_tools_offline_app_export_job_option_key($token));
-        $expired_manifest = wp_normalize_path((string) ($pointer['manifest_path'] ?? ''));
-        $expired_job_dir = $expired_manifest !== '' ? dirname($expired_manifest) : '';
-        if ($expired_job_dir !== '' && ll_tools_offline_app_export_job_dir_is_safe($expired_job_dir) && is_dir($expired_job_dir)) {
-            ll_tools_rrmdir($expired_job_dir);
-        }
+        ll_tools_offline_app_export_delete_job($token);
         return new WP_Error('ll_tools_offline_app_job_expired', __('This offline app export job expired. Start a new export.', 'll-tools-text-domain'));
     }
 
@@ -1799,14 +1857,26 @@ function ll_tools_offline_app_export_prepare_job(array $request) {
 }
 
 function ll_tools_offline_app_export_delete_job(string $token): void {
-    $job = ll_tools_offline_app_export_load_job($token, false);
-    delete_option(ll_tools_offline_app_export_job_option_key($token));
-    delete_option(ll_tools_offline_app_export_job_lock_key($token));
-    if (is_array($job)
-        && !empty($job['job_dir'])
-        && ll_tools_offline_app_export_job_dir_is_safe((string) $job['job_dir'])
-        && is_dir((string) $job['job_dir'])) {
-        ll_tools_rrmdir((string) $job['job_dir']);
+    $handle = ll_tools_offline_app_export_acquire_job_lock($token, false);
+    if (is_wp_error($handle)) {
+        return;
+    }
+    try {
+        $pointer = get_option(ll_tools_offline_app_export_job_option_key($token), null);
+        if (!is_array($pointer)) {
+            return;
+        }
+        $manifest_path = (string) ($pointer['manifest_path'] ?? '');
+        $job_dir = $manifest_path !== '' ? dirname($manifest_path) : '';
+        if (!delete_option(ll_tools_offline_app_export_job_option_key($token))) {
+            return;
+        }
+        delete_option(ll_tools_offline_app_export_job_lock_key($token));
+        if ($job_dir !== '' && ll_tools_offline_app_export_job_dir_is_safe($job_dir) && is_dir($job_dir)) {
+            ll_tools_rrmdir($job_dir);
+        }
+    } finally {
+        ll_tools_offline_app_export_release_job_lock($handle);
     }
 }
 
@@ -1893,25 +1963,36 @@ function ll_tools_offline_app_export_fail_job(array $job, $error): array {
 }
 
 function ll_tools_offline_app_export_run_step(string $token) {
-    $job = ll_tools_offline_app_export_load_job($token);
-    if (is_wp_error($job)) {
-        return $job;
-    }
-    if (in_array((string) ($job['status'] ?? ''), ['completed', 'failed'], true)) {
-        return ll_tools_offline_app_export_build_response($job);
+    $handle = ll_tools_offline_app_export_acquire_job_lock($token);
+    if (is_wp_error($handle)) {
+        return $handle;
     }
 
-    $lock_key = ll_tools_offline_app_export_job_lock_key($token);
-    $lock = get_option($lock_key, null);
-    if (is_array($lock) && (int) ($lock['created_at'] ?? 0) < time() - 300) {
-        delete_option($lock_key);
-    }
-    if (!add_option($lock_key, ['created_at' => time()], '', false)) {
-        return new WP_Error('ll_tools_offline_app_job_busy', __('This offline app export job is already processing another step.', 'll-tools-text-domain'));
-    }
-
+    $cleanup_expired = false;
     try {
+        $job = ll_tools_offline_app_export_load_job($token);
+        if (is_wp_error($job)) {
+            $cleanup_expired = $job->get_error_code() === 'll_tools_offline_app_job_expired';
+            return $job;
+        }
+        if (in_array((string) ($job['status'] ?? ''), ['completed', 'failed'], true)) {
+            return ll_tools_offline_app_export_build_response($job);
+        }
+        if (!empty($job['step_pending'])) {
+            // An interrupted append or uncertain final checkpoint cannot be
+            // replayed safely. Return a terminal failed job, so neither UI
+            // offers Resume for a bundle whose output no longer matches state.
+            return ll_tools_offline_app_export_fail_job($job, new WP_Error(
+                'll_tools_offline_app_job_step_interrupted',
+                __('Offline app export job state is invalid. Start a new export.', 'll-tools-text-domain')
+            ));
+        }
         $job['status'] = 'processing';
+        $job['step_pending'] = true;
+        $pending_saved = ll_tools_offline_app_export_save_job($job);
+        if (is_wp_error($pending_saved)) {
+            return $pending_saved;
+        }
         $phase = (string) ($job['phase'] ?? 'categories');
         if ($phase === 'categories') {
             $result = ll_tools_offline_app_export_run_category_step($job);
@@ -1930,13 +2011,19 @@ function ll_tools_offline_app_export_run_step(string $token) {
         if (is_wp_error($result)) {
             return ll_tools_offline_app_export_fail_job($job, $result);
         }
+        $result['step_pending'] = false;
         $saved = ll_tools_offline_app_export_save_job($result);
         if (is_wp_error($saved)) {
             return ll_tools_offline_app_export_fail_job($result, $saved);
         }
         return ll_tools_offline_app_export_build_response($result);
     } finally {
-        delete_option($lock_key);
+        ll_tools_offline_app_export_release_job_lock($handle);
+        // load_job cannot take a second handle while this step owns the lock.
+        // Retry expiry cleanup through its normal admission after release.
+        if ($cleanup_expired) {
+            ll_tools_offline_app_export_delete_job($token);
+        }
     }
 }
 

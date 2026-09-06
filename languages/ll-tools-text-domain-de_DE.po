@@ -24354,11 +24354,6 @@ msgstr "Der Vokabeleditor-Dialog ist auf dieser Seite nicht verfügbar."
 msgid "Invalid word editor context."
 msgstr "Ungültiger Vokabeleditor-Kontext."
 
-#: includes/admin/export-import.php:1281
-#: includes/admin/export-import.php:1299
-msgid "This import job is already processing. Wait and retry this request instead of running parallel import steps."
-msgstr "Dieser Importauftrag wird bereits verarbeitet. Warte und versuche diese Anfrage erneut, statt parallele Importschritte auszuführen."
-
 #: includes/api/automation-rest.php:4390
 msgid "Word category update helpers are not available."
 msgstr "Hilfsfunktionen für Vokabelkategorie-Aktualisierungen sind nicht verfügbar."
@@ -30084,3 +30079,70 @@ msgstr "Die Kategorieeinstellungen sind vorübergehend nicht verfügbar."
 #: templates/vocab-lesson-template.php:1315
 msgid "Reload"
 msgstr "Neu laden"
+
+#: includes/admin/export-import.php:1271
+msgid "This import job is already processing. Wait and retry."
+msgstr "Dieser Importauftrag wird bereits verarbeitet. Warte und versuche es erneut."
+
+#: includes/api/word-metadata-plan-rest.php:686
+msgid "The requested word metadata change could not be verified."
+msgstr "Die angeforderte Änderung der Vokabelmetadaten konnte nicht bestätigt werden."
+
+#: includes/api/word-metadata-plan-rest.php:747
+msgid "The requested part of speech change could not be verified. Grammar metadata was retained."
+msgstr "Die angeforderte Änderung der Wortart konnte nicht bestätigt werden. Die Grammatikmetadaten wurden beibehalten."
+
+#: includes/api/word-metadata-plan-rest.php:833
+msgid "The saved word does not match the requested metadata. Review the partial result before retrying."
+msgstr "Die gespeicherte Vokabel stimmt nicht mit den angeforderten Metadaten überein. Prüfe das Teilergebnis, bevor du es erneut versuchst."
+
+#: includes/api/word-metadata-plan-rest.php:1844
+msgid "The metadata plan job could not be saved."
+msgstr "Der Job für den Metadatenplan konnte nicht gespeichert werden."
+
+#: includes/api/word-metadata-plan-rest.php:1935
+msgid "The metadata plan checkpoint could not be saved."
+msgstr "Der Fortschrittsstand des Metadatenplans konnte nicht gespeichert werden."
+
+#: includes/api/word-metadata-plan-rest.php:1998
+msgid "The metadata plan checkpoint could not be saved. Review applied rows before recovery."
+msgstr "Der Fortschrittsstand des Metadatenplans konnte nicht gespeichert werden. Prüfe vor der Wiederherstellung die bereits angewendeten Zeilen."
+
+#: includes/api/word-metadata-plan-rest.php:2038
+msgid "The metadata plan discard could not be saved."
+msgstr "Das Verwerfen des Metadatenplans konnte nicht gespeichert werden."
+
+#: includes/cli/cli-support.php:669
+msgid "The resume file is invalid or belongs to a different operation. Use a new resume file."
+msgstr "Die Fortsetzungsdatei ist ungültig oder gehört zu einem anderen Vorgang. Verwende eine neue Fortsetzungsdatei."
+
+#: includes/lib/mutation-job-state.php:14
+msgid "This job is already processing. Wait and retry."
+msgstr "Dieser Job wird bereits verarbeitet. Warte und versuche es erneut."
+
+#: includes/lib/mutation-job-state.php:18
+msgid "This job is already processing or its lock is unavailable. Wait and retry."
+msgstr "Dieser Job wird bereits verarbeitet oder seine Sperre ist nicht verfügbar. Warte und versuche es erneut."
+
+#: includes/lib/mutation-job-state.php:28
+msgid "Job ownership could not be verified."
+msgstr "Die Zuständigkeit für den Job konnte nicht bestätigt werden."
+
+#: includes/lib/mutation-job-state.php:66
+#: includes/lib/mutation-job-state.php:83
+msgid "The job state could not be read from storage."
+msgstr "Der Jobstatus konnte nicht aus dem Speicher gelesen werden."
+
+#: includes/lib/mutation-job-state.php:115
+#: includes/lib/mutation-job-state.php:79
+msgid "Job ownership was lost. Read back the job before continuing."
+msgstr "Die Zuständigkeit für den Job ging verloren. Lies den aktuellen Jobstatus erneut aus, bevor du fortfährst."
+
+#: includes/lib/mutation-job-state.php:120
+#: includes/lib/mutation-job-state.php:89
+msgid "The job checkpoint could not be saved. Read back the job before continuing."
+msgstr "Der Fortschrittsstand des Jobs konnte nicht gespeichert werden. Lies den aktuellen Jobstatus erneut aus, bevor du fortfährst."
+
+#: includes/lib/mutation-job-state.php:135
+msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
+msgstr "Bei einem früheren Jobschritt wurde der Fortschrittsstand nicht vollständig gespeichert. Prüfe vor der Wiederherstellung die angewendeten Änderungen und den gespeicherten Status; eine automatische Wiederholung ist gesperrt."

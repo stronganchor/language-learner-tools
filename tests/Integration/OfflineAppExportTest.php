@@ -944,6 +944,234 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_competing_export_steps_reload_state_under_ownership_and_emit_each_row_once(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $token = $job['token'];
+        $pointer_key = ll_tools_offline_app_export_job_option_key($token);
+        $legacy_lock_key = ll_tools_offline_app_export_job_lock_key($token);
+        $reads = 0;
+        $interleaved = false;
+        $nested = null;
+        // The old implementation's second read was its lock option, after it
+        // had already read the manifest. The current implementation's second
+        // read is the fresh pointer under its file lock. Exercise both orders.
+        $interleave = static function ($pre, string $option) use ($token, $pointer_key, $legacy_lock_key, &$reads, &$interleaved, &$nested) {
+            if (!in_array($option, [$pointer_key, $legacy_lock_key], true)) {
+                return $pre;
+            }
+            $reads++;
+            if (!$interleaved && $reads === 2) {
+                $interleaved = true;
+                $nested = ll_tools_offline_app_export_run_step($token);
+            }
+            return $pre;
+        };
+        $batch = static fn(): int => 1;
+        add_filter('pre_option', $interleave, 10, 2);
+        add_filter('ll_tools_offline_app_export_data_batch_size', $batch);
+        try {
+            $first = ll_tools_offline_app_export_run_step($token);
+            $this->assertIsArray($first);
+            $this->assertTrue($interleaved);
+            if (is_wp_error($nested)) {
+                $this->assertSame('ll_tools_offline_app_job_busy', $nested->get_error_code());
+                $nested = ll_tools_offline_app_export_run_step($token);
+            }
+            $this->assertIsArray($nested);
+            $json = file_get_contents($job['data_path']) . ']';
+            $this->assertSame([['id' => 1], ['id' => 2]], json_decode($json, true), $json);
+            $stored = ll_tools_offline_app_export_load_job($token);
+            $this->assertSame(2, $stored['processed_data_rows']);
+            $this->assertFalse($stored['step_pending']);
+        } finally {
+            remove_filter('pre_option', $interleave, 10);
+            remove_filter('ll_tools_offline_app_export_data_batch_size', $batch);
+            ll_tools_offline_app_export_delete_job($token);
+        }
+    }
+
+    public function test_live_export_owner_cannot_expire_or_be_deleted_and_stale_release_cannot_unlock_successor(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $token = $job['token'];
+        $owner = ll_tools_offline_app_export_acquire_job_lock($token);
+        $stale_owner = $owner;
+        $successor = null;
+        try {
+            $this->assertIsResource($owner);
+            // A leftover old-version timestamp must not expire an active file
+            // owner, even when its value is well past the former five minutes.
+            update_option(ll_tools_offline_app_export_job_lock_key($token), ['created_at' => time() - 600], false);
+            $blocked = ll_tools_offline_app_export_run_step($token);
+            $this->assertWPError($blocked);
+            $this->assertSame('ll_tools_offline_app_job_busy', $blocked->get_error_code());
+            ll_tools_offline_app_export_delete_job($token);
+            $this->assertFileExists($job['manifest_path']);
+            $this->assertIsArray(get_option(ll_tools_offline_app_export_job_option_key($token)));
+            ll_tools_offline_app_export_release_job_lock($owner);
+            $successor = ll_tools_offline_app_export_acquire_job_lock($token);
+            $this->assertIsResource($successor);
+            ll_tools_offline_app_export_release_job_lock($stale_owner);
+            $blocked = ll_tools_offline_app_export_acquire_job_lock($token);
+            $this->assertWPError($blocked);
+            $this->assertSame('ll_tools_offline_app_job_busy', $blocked->get_error_code());
+        } finally {
+            ll_tools_offline_app_export_release_job_lock($owner);
+            ll_tools_offline_app_export_release_job_lock($successor);
+            ll_tools_offline_app_export_delete_job($token);
+        }
+        $this->assertDirectoryDoesNotExist($job['job_dir']);
+        $lock_path = trailingslashit(ll_tools_offline_app_export_storage_dir()) . '.locks/' . hash('sha256', strtolower($token)) . '.lock';
+        $this->assertFileExists($lock_path, 'Cleanup must not unlink and recreate the shared lock inode.');
+    }
+
+    public function test_case_and_sanitized_token_aliases_cannot_acquire_or_clean_up_an_owned_job(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $token = $job['token'];
+        $option = ll_tools_offline_app_export_job_option_key($token);
+        $pointer = get_option($option);
+        $pointer['expires_at'] = time() - 1;
+        update_option($option, $pointer, false);
+        $owner = ll_tools_offline_app_export_acquire_job_lock($token);
+        $contender = null;
+        try {
+            $this->assertIsResource($owner);
+            foreach ([strtoupper($token), ' /' . strtoupper($token) . '+ ', ' /' . $token . '+ '] as $alias) {
+                $contender = ll_tools_offline_app_export_acquire_job_lock($alias);
+                $this->assertWPError($contender, 'All aliases of the same option must share native lock ownership.');
+                $this->assertSame('ll_tools_offline_app_job_busy', $contender->get_error_code());
+                ll_tools_offline_app_export_delete_job($alias);
+                $expired = ll_tools_offline_app_export_load_job($alias);
+                $this->assertWPError($expired);
+                $this->assertSame('ll_tools_offline_app_job_expired', $expired->get_error_code());
+                $this->assertDirectoryExists($job['job_dir']);
+                $this->assertFileExists($job['manifest_path']);
+                wp_cache_delete($option, 'options');
+                $this->assertSame($pointer, get_option($option), 'Alias cleanup must preserve the canonical pointer.');
+            }
+        } finally {
+            ll_tools_offline_app_export_release_job_lock($contender);
+            ll_tools_offline_app_export_release_job_lock($owner);
+            ll_tools_offline_app_export_delete_job($token);
+        }
+        $this->assertDirectoryDoesNotExist($job['job_dir']);
+    }
+
+    public function test_expired_continuation_removes_job_after_releasing_its_own_step_lock(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $option = ll_tools_offline_app_export_job_option_key($job['token']);
+        $pointer = get_option($option);
+        $pointer['expires_at'] = time() - 1;
+        update_option($option, $pointer, false);
+        $result = ll_tools_offline_app_export_run_step($job['token']);
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_offline_app_job_expired', $result->get_error_code());
+        $this->assertFalse(get_option($option));
+        $this->assertDirectoryDoesNotExist($job['job_dir']);
+    }
+
+    public function test_failed_final_checkpoint_never_replays_an_already_appended_data_fragment(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $token = $job['token'];
+        $manifest = $job['manifest_path'];
+        $backup = $manifest . '.pending';
+        $interleaved = false;
+        $break_checkpoint = static function () use ($manifest, $backup, &$interleaved): int {
+            if (!$interleaved) {
+                $interleaved = true;
+                rename($manifest, $backup);
+                mkdir($manifest);
+            }
+            return 1;
+        };
+        add_filter('ll_tools_offline_app_export_data_batch_size', $break_checkpoint);
+        try {
+            $result = ll_tools_offline_app_export_run_step($token);
+            $this->assertIsArray($result);
+            $this->assertSame('failed', $result['status']);
+            $this->assertArrayNotHasKey('downloadUrl', $result);
+            $this->assertTrue(json_decode(file_get_contents($backup), true)['step_pending']);
+            $appended = file_get_contents($job['data_path']);
+            $this->assertSame('[{"id":1}', $appended);
+            rmdir($manifest);
+            rename($backup, $manifest);
+            $retry = ll_tools_offline_app_export_run_step($token);
+            $this->assertSame('failed', $retry['status']);
+            $this->assertStringContainsString('Start a new export.', $retry['error']);
+            $this->assertArrayNotHasKey('downloadUrl', $retry);
+            $this->assertSame($appended, file_get_contents($job['data_path']));
+            $this->assertSame('failed', ll_tools_offline_app_export_load_job($token)['status']);
+        } finally {
+            remove_filter('ll_tools_offline_app_export_data_batch_size', $break_checkpoint);
+            if (is_dir($manifest)) {
+                rmdir($manifest);
+            }
+            if (is_file($backup)) {
+                rename($backup, $manifest);
+            }
+            ll_tools_offline_app_export_delete_job($token);
+        }
+    }
+
+    public function test_completed_export_retry_after_a_lost_response_does_not_write_again(): void
+    {
+        $job = $this->createStreamingExportJob();
+        $job['status'] = 'completed';
+        $job['phase'] = 'completed';
+        $job['zip_path'] = $job['job_dir'] . '/finished.zip';
+        file_put_contents($job['zip_path'], 'finished archive sentinel');
+        ll_tools_offline_app_export_save_job($job);
+        $before = file_get_contents($job['manifest_path']);
+        try {
+            $first = ll_tools_offline_app_export_run_step($job['token']);
+            $retry = ll_tools_offline_app_export_run_step($job['token']);
+            $this->assertSame($first, $retry);
+            $this->assertSame('completed', $retry['status']);
+            $this->assertArrayHasKey('downloadUrl', $retry);
+            $this->assertSame($before, file_get_contents($job['manifest_path']));
+            $this->assertSame('[', file_get_contents($job['data_path']));
+            $this->assertSame('finished archive sentinel', file_get_contents($job['zip_path']));
+        } finally {
+            ll_tools_offline_app_export_delete_job($job['token']);
+        }
+    }
+
+    /** A bounded synthetic data-phase job; no source-content hydration needed. */
+    private function createStreamingExportJob(): array
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $token = 'stream-test-' . wp_generate_uuid4();
+        $storage = ll_tools_offline_app_export_storage_dir();
+        $this->assertIsString($storage);
+        $job_dir = trailingslashit($storage) . $token;
+        $this->assertTrue(wp_mkdir_p($job_dir . '/categories'));
+        file_put_contents($job_dir . '/categories/1.ndjson', "{\"id\":1}\n{\"id\":2}\n{\"id\":3}\n");
+        file_put_contents($job_dir . '/offline-data.js', '[');
+        $job = [
+            'token' => $token,
+            'created_by' => get_current_user_id(),
+            'expires_at' => time() + HOUR_IN_SECONDS,
+            'status' => 'processing',
+            'phase' => 'data',
+            'data_stage' => 'first_rows',
+            'categories' => [['id' => 1]],
+            'job_dir' => $job_dir,
+            'manifest_path' => $job_dir . '/job.json',
+            'data_path' => $job_dir . '/offline-data.js',
+        ];
+        $this->assertTrue(ll_tools_offline_app_export_save_job($job));
+        $this->assertTrue(add_option(ll_tools_offline_app_export_job_option_key($token), [
+            'manifest_path' => $job['manifest_path'],
+            'created_by' => $job['created_by'],
+            'expires_at' => $job['expires_at'],
+        ], '', false));
+        return $job;
+    }
+
     private function create_image_attachment(string $filename): int
     {
         $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);

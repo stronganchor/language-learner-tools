@@ -24,6 +24,38 @@ function fixtureHtml() {
   `;
 }
 
+test('an interrupted append checkpoint ends the export and allows a new job without offering Resume', async ({ page }) => {
+  await page.setContent(fixtureHtml());
+  await page.evaluate(() => {
+    window.llWordsetOfflineExportData = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      startAction: 'll_tools_offline_app_export_start',
+      stepAction: 'll_tools_offline_app_export_step',
+      nonce: 'job-nonce',
+      currentJob: { token: 'interrupted-job', status: 'processing', progress: 80 },
+      strings: { requestFailed: 'Request failed.', paused: 'Export paused' }
+    };
+    window.offlineExportStepCalls = 0;
+    window.fetch = async () => {
+      window.offlineExportStepCalls += 1;
+      return new Response(JSON.stringify({ success: true, data: {
+        token: 'interrupted-job',
+        status: 'failed',
+        phaseLabel: 'Offline app export failed',
+        statusText: 'The export stopped before a bundle was created.',
+        error: 'Offline app export job state is invalid. Start a new export.',
+        progress: 80
+      } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+  });
+  await page.addScriptTag({ path: scriptPath });
+  await expect(page.locator('[data-ll-wordset-offline-export-error]')).toHaveText('Offline app export job state is invalid. Start a new export.');
+  await expect(page.getByRole('button', { name: 'Resume export' })).toBeHidden();
+  await expect(page.getByRole('link', { name: 'Download Offline App Bundle' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Export Offline App' })).toBeEnabled();
+  expect(await page.evaluate(() => window.offlineExportStepCalls)).toBe(1);
+});
+
 test('wordset manager export advances the resumable job to download', async ({ page }) => {
   await page.setContent(fixtureHtml());
   await page.evaluate(() => {

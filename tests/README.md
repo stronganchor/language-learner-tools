@@ -322,6 +322,9 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
   coverage protects their dual-scope cold-miss reservations and exact-owner
   build leases.
 - `AutomationRestApiTest` covers aggregate report-summary counts plus bounded review-note and cross-post-type interlinear pagination; interlinear list payloads are omitted by default while exact-lesson reads retain the payload-on default.
+- `MutationJobReliabilityTest` covers import and metadata job connection ownership, canonical ID aliases, fresh state reads, exact-value checkpoint/deletion fences, interrupted-step recovery, and failed POS writes preserving grammar. Use it with `AdminImportAjaxJobFlowTest`, `MetadataUpdateBatchJobTest`, and `ImportHistoryUndoTest` when changing the shared mutation-job helper.
+- `CliResumePlanTest` covers resume-file operation/site identity, malformed and legacy-state rejection, and frozen original targets when missing-field filters shrink. The CLI dispatcher and `WP_CLI::error` wiring remain source-reviewed; these tests exercise the shared helpers.
+- `WordsetManualOrderingResourceTest` checks grouped first-lesson-date selection, valid GMT/local-date semantics, duplicate metadata, 200-category query chunks, no lesson post/meta hydration, uncached failed reads, and no lesson-date query for a complete saved order.
 - `RestPasswordAuthAdmissionTest` covers coarse direct-peer plus peer/login raw-password admission, rotating-login resistance, generic failures, successful reservation refunds, and cleanup namespace registration.
 - `PublicStaticCacheTest` verifies front-end login/register/feedback query presence bypasses both warm public-cache reads and cold captures, emits a private `no-store` policy, preserves the ordinary baseline cache, and keeps the plain anonymous wordset route cacheable.
 - `DictionaryPublicFilterBoundsTest` covers byte/cardinality/shape admission for all public dictionary query arguments, including the canonical and legacy entry-ID aliases, early AJAX rejection, safe static-cache defaults, and normal bounded cache hits. `BulkCategoryEditHelperTest` and `WordAudioBulkRecordingTypeEditTest` apply the same pre-hydration and canonical-ID discipline to admin selected-row collections and reject partial taxonomy state after any eligible-row read failure.
@@ -388,6 +391,13 @@ serial shards plus a corrected-catalog focused rerun accounted for 725 passes,
 one expected opt-in performance skip, and zero product failures. One invalid
 shard was restarted after the manually started Local FastCGI worker ended and
 returned 502; the unchanged shard then passed 62/62.
+The September 6 codebase-review remediation (6.7.35) discovered 729 tests in
+115 files. Eight serial shards plus one unchanged focused rerun accounted for
+728 passes and one expected opt-in performance skip. The rerun resolved a
+private-wordset hub readiness timeout while bounded catalog counts were still
+building; all access assertions remained intact. The canonical PHP suite passed
+2,547 tests with 62,346 assertions and nine expected skips; builder filesystem
+checks passed 13/13, with 6,328 canonical gettext keys and eight valid context packs.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
@@ -439,6 +449,8 @@ Representative E2E coverage areas:
   - Verifies Image Aspect Normalizer worklist status refresh advances only through explicit bounded pages.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
+- `tests/e2e/specs/import-job-recovery.spec.js`
+  - Verifies recovery-required snapshots on page load and after a process failure show Reload for readback and never offer Resume or Discard of an uncertain mutation step.
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
@@ -485,6 +497,7 @@ Representative E2E coverage areas:
   - Verifies the offline app launcher filters/sorts/selects categories, launches the real shell wiring, exercises the sync panel sign-in/login-failure/manual-sync/sync-failure/disconnect flow against a fake progress tracker, and applies remote sync snapshots to selected categories, progress sorting, next recommendations, and synced study preferences.
 - `tests/e2e/specs/wordset-offline-export-job-progress.spec.js`
   - Verifies offline-export jobs advance through resumable continuation batches, expose a labelled progress indicator, abort and fence a stalled continuation, preserve the durable token, and resume only after an explicit user action; job creation is deliberately not auto-retried after an ambiguous response.
+  - An interrupted append checkpoint instead ends that export, hides Resume/download, and enables starting a new export. `OfflineAppExportTest` covers server lock/checkpoint/expiry behavior; the builder's separate `npm test` covers staged replacement and rollback preservation.
 - `tests/e2e/specs/offline-app-sync-error-wp.spec.js`
   - Seeds a real WordPress offline-app bundle, signs in through `ll_tools_offline_app_login`, forces one WordPress `ll_tools_offline_app_sync` conflict response, and verifies local pending progress, sane connected state, and manual retry through the real sync handler. This closes the former WordPress-backed sync error-fixture gap; only genuinely new server conflict semantics need new cases.
 - `tests/e2e/specs/google-classroom-admin-ui.spec.js`
@@ -773,6 +786,7 @@ tests/bin/run-performance-benchmark.sh
 - PHPUnit runs against a WordPress test database, not your production site DB.
 - Playwright and performance fixtures target the configured Local site. They can mutate Local-site content; the performance seeder deletes only objects already carrying its fixture marker and refuses untagged slug collisions.
 - Avoid running multiple PHPUnit commands in parallel against the same `wptests` database; InnoDB deadlocks can produce intermittent false failures.
+- Separate databases still share Local service resources. Coordinate with other tasks and keep broad PHPUnit runs clear of release/browser timing checks; do not stop services another validation run owns. See the testing playbook's environment rules for isolated worktree naming and copied-bootstrap safeguards.
 - Keep all new tests under `tests/Integration/` and use translation-ready messages in assertions where relevant.
 - `run-tests.sh` supports Linux PHP or Local Windows `php.exe` through `bin/php-local.sh` from WSL (`/mnt/c/...`) and Git Bash (`/c/...`); path conversion uses `wslpath` or `cygpath` respectively.
 - `install-wp-tests.sh` writes `WP_PHP_BINARY` and `$table_prefix` into `wp-tests-config.php` for Local Windows PHP compatibility.

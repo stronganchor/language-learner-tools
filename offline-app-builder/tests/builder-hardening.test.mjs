@@ -9,6 +9,7 @@ import {
   openValidatedArchive,
   validateArchiveEntries,
   validateArchiveFileSize,
+  prepareBundle,
 } from '../scripts/prepare-bundle.mjs';
 import { resolveAndroidPackageConfig } from '../scripts/build-apk.mjs';
 import { resolvePreparedIcon } from '../scripts/apply-app-icon.mjs';
@@ -198,5 +199,130 @@ test('training data reader rejects oversized data.json before parsing', () => {
     );
   } finally {
     fs.removeSync(tempRoot);
+  }
+});
+
+function preparationFixture() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-prepare-'));
+  const rootDir = path.join(tempRoot, 'builder');
+  const input = path.join(tempRoot, 'source');
+  fs.ensureDirSync(path.join(input, 'www'));
+  fs.writeJsonSync(path.join(input, 'bundle-manifest.json'), { app: { name: 'Previous app' } });
+  fs.writeFileSync(path.join(input, 'www', 'index.html'), '<!doctype html><title>Previous app</title>');
+  prepareBundle(input, { rootDir });
+  const outputs = [
+    path.join(rootDir, 'workspace', 'bundle', 'www', 'index.html'),
+    path.join(rootDir, 'workspace', 'bundle', 'bundle-manifest.json'),
+    path.join(rootDir, 'capacitor.config.json'),
+    path.join(rootDir, 'workspace', 'bundle-state.json'),
+  ];
+  const before = outputs.map((output) => fs.readFileSync(output, 'utf8'));
+  return {
+    tempRoot, rootDir, input,
+    assertPreserved() {
+      assert.deepEqual(outputs.map((output) => fs.readFileSync(output, 'utf8')), before);
+      assert.deepEqual(fs.readdirSync(path.join(rootDir, 'workspace')).sort(), ['bundle', 'bundle-state.json']);
+    },
+  };
+}
+
+test('invalid archive entries and manifest failures preserve all prepared outputs', () => {
+  const fixture = preparationFixture();
+  try {
+    const zipPath = path.join(fixture.tempRoot, 'replacement.zip');
+    const zip = new AdmZip();
+    zip.addFile('bundle-manifest.json', Buffer.from('{}'));
+    zip.addFile('www/index.html', Buffer.from('<title>Replacement</title>'));
+    zip.writeZip(zipPath);
+    assert.throws(() => prepareBundle(zipPath, { rootDir: fixture.rootDir, archiveLimits: { maxEntries: 1 } }), /limit/);
+    fixture.assertPreserved();
+    for (const manifest of ['broken JSON', 'null', '[]']) {
+      fs.writeFileSync(path.join(fixture.input, 'bundle-manifest.json'), manifest);
+      assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }));
+      fixture.assertPreserved();
+    }
+    fs.removeSync(path.join(fixture.input, 'bundle-manifest.json'));
+    assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }), /Missing bundle-manifest/);
+    fixture.assertPreserved();
+    fs.writeJsonSync(path.join(fixture.input, 'bundle-manifest.json'), {});
+    fs.removeSync(path.join(fixture.input, 'www', 'index.html'));
+    assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }), /www.index.html/);
+    fixture.assertPreserved();
+  } finally {
+    fs.removeSync(fixture.tempRoot);
+  }
+});
+
+test('publication and staging failures restore bundle, config and state together', (t) => {
+  const fixture = preparationFixture();
+  const rename = fs.renameSync;
+  try {
+    fs.writeJsonSync(path.join(fixture.input, 'bundle-manifest.json'), { app: { name: 'Replacement' } });
+    fs.writeFileSync(path.join(fixture.input, 'www', 'index.html'), '<title>Replacement</title>');
+    for (const failingTarget of ['capacitor.config.json', 'bundle-state.json']) {
+      const mocked = t.mock.method(fs, 'renameSync', (source, target) => {
+        if (path.basename(source) === failingTarget && path.basename(target) === failingTarget) {
+          throw new Error('Injected publication failure');
+        }
+        return rename(source, target);
+      });
+      assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }), /Injected publication failure/);
+      mocked.mock.restore();
+      fixture.assertPreserved();
+    }
+    const mocked = t.mock.method(fs, 'copySync', () => { throw new Error('Injected copy failure'); });
+    assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }), /Injected copy failure/);
+    mocked.mock.restore();
+    fixture.assertPreserved();
+  } finally {
+    t.mock.restoreAll();
+    fs.removeSync(fixture.tempRoot);
+  }
+});
+
+test('preparation rejects source-inside-destination and ancestor inputs without deleting either', () => {
+  const fixture = preparationFixture();
+  try {
+    const bundle = path.join(fixture.rootDir, 'workspace', 'bundle');
+    for (const input of [bundle, path.join(bundle, 'www'), path.join(bundle, 'www', 'index.html'), fixture.rootDir]) {
+      assert.throws(() => prepareBundle(input, { rootDir: fixture.rootDir }), /Keep the source bundle outside/);
+      fixture.assertPreserved();
+    }
+  } finally {
+    fs.removeSync(fixture.tempRoot);
+  }
+});
+
+test('successful replacement publishes matching bundle, state and secret-free configuration', () => {
+  const fixture = preparationFixture();
+  try {
+    const zipPath = path.join(fixture.tempRoot, 'replacement.zip');
+    const zip = new AdmZip();
+    zip.addFile('bundle-manifest.json', Buffer.from(JSON.stringify({ app: { name: 'Replacement' } })));
+    zip.addFile('www/index.html', Buffer.from('<title>Replacement</title>'));
+    zip.writeZip(zipPath);
+    const state = prepareBundle(zipPath, { rootDir: fixture.rootDir });
+    assert.equal(fs.readFileSync(path.join(state.webRoot, 'index.html'), 'utf8'), '<title>Replacement</title>');
+    assert.deepEqual(fs.readJsonSync(path.join(fixture.rootDir, 'workspace', 'bundle-state.json')), state);
+    assert.equal(fs.readJsonSync(path.join(fixture.rootDir, 'capacitor.config.json')).appName, 'Replacement');
+    assert.deepEqual(fs.readdirSync(path.join(fixture.rootDir, 'workspace')).sort(), ['bundle', 'bundle-state.json']);
+    assert.equal(fs.existsSync(zipPath), true);
+  } finally {
+    fs.removeSync(fixture.tempRoot);
+  }
+});
+
+test('a directory junction back into the prior bundle cannot escape staging or modify prior assets', () => {
+  const fixture = preparationFixture();
+  try {
+    const originalWebRoot = path.join(fixture.rootDir, 'workspace', 'bundle', 'www');
+    const sourceWebRoot = path.join(fixture.input, 'www');
+    fs.removeSync(sourceWebRoot);
+    fs.symlinkSync(originalWebRoot, sourceWebRoot, process.platform === 'win32' ? 'junction' : 'dir');
+    assert.throws(() => prepareBundle(fixture.input, { rootDir: fixture.rootDir }), /symbolic links or junctions/);
+    fixture.assertPreserved();
+    assert.equal(fs.lstatSync(sourceWebRoot).isSymbolicLink(), true);
+  } finally {
+    fs.removeSync(fixture.tempRoot);
   }
 });

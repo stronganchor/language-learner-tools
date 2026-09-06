@@ -361,15 +361,27 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
 
         $resume_path = isset($assoc_args['resume-file']) ? trim((string) $assoc_args['resume-file']) : '';
         $resume_state = ll_tools_cli_get_resume_state($resume_path);
-        if ($resume_path !== '') {
-            $rows = array_values(array_filter($rows, static function (array $row) use ($resume_state): bool {
-                return !ll_tools_cli_resume_has_processed($resume_state, (int) ($row['word_id'] ?? 0));
-            }));
+        if (is_wp_error($resume_state)) {
+            WP_CLI::error($resume_state->get_error_message());
         }
-
         $offset = isset($assoc_args['offset']) ? max(0, (int) $assoc_args['offset']) : 0;
         $limit = isset($assoc_args['limit']) ? max(0, (int) $assoc_args['limit']) : 0;
-        $rows = ll_tools_cli_slice_rows($rows, $offset, $limit);
+        $resume_state = ll_tools_cli_bind_resume_plan($resume_state, (int) $wordset_term->term_id, $set_args, [
+            'category' => $category_spec,
+            'word' => $word_spec,
+            'where_missing' => $missing_fields,
+            'where_pos' => isset($assoc_args['where-pos']) ? (string) $assoc_args['where-pos'] : '',
+            'offset' => $offset,
+            'limit' => $limit,
+        ]);
+        if (is_wp_error($resume_state)) {
+            WP_CLI::error($resume_state->get_error_message());
+        }
+        if ($resume_path !== '') {
+            $rows = ll_tools_cli_resume_select_rows($resume_state, $rows, $offset, $limit);
+        } else {
+            $rows = ll_tools_cli_slice_rows($rows, $offset, $limit);
+        }
 
         $dry_run = !empty($assoc_args['dry-run']);
         $summary = [
@@ -429,6 +441,13 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
             return;
         }
 
+        // Validate persistence before changing words, including a new empty plan.
+        if ($resume_path !== '') {
+            $resume_result = ll_tools_cli_write_json_file($resume_path, $resume_state);
+            if (is_wp_error($resume_result)) {
+                WP_CLI::error($resume_result->get_error_message());
+            }
+        }
         foreach ($rows as $row) {
             $word_id = (int) ($row['word_id'] ?? 0);
             if ($word_id <= 0) {
@@ -475,7 +494,7 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
                 $resume_state['filters'] = $summary['filters'];
                 $resume_result = ll_tools_cli_resume_mark_processed($resume_path, $resume_state, $word_id);
                 if (is_wp_error($resume_result)) {
-                    WP_CLI::warning($resume_result->get_error_message());
+                    WP_CLI::error($resume_result->get_error_message());
                 }
             }
         }
