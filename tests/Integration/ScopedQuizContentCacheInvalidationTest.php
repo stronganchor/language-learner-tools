@@ -360,7 +360,8 @@ final class ScopedQuizContentCacheInvalidationTest extends LL_Tools_TestCase
         $this->assertSame($category_before + 1, ll_tools_get_category_cache_version($category_id));
         $this->assertSame(20, has_action('created_word-category', 'll_tools_bump_single_category_cache_version'));
         $this->assertSame(20, has_action('edited_word-category', 'll_tools_bump_single_category_cache_version'));
-        $this->assertSame(20, has_action('delete_word-category', 'll_tools_bump_single_category_cache_version'));
+        $this->assertFalse(has_action('delete_word-category', 'll_tools_bump_single_category_cache_version'));
+        $this->assertSame(20, has_action('delete_word-category', 'll_tools_bump_deleted_category_cache_epoch'));
         $this->assertPublicPurgeIsGlobal();
     }
 

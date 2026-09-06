@@ -97,6 +97,10 @@ add_filter('pre_http_request', static function ($pre, array $args, string $url) 
     }
 
     $method = strtoupper((string) ($args['method'] ?? 'GET'));
+    if ($host === 'oauth2.googleapis.com' && $path === '/revoke' && $method === 'POST') {
+        return ll_tools_e2e_google_classroom_admin_http_response(['revoked' => true]);
+    }
+
     if ($host === 'oauth2.googleapis.com' && $path === '/token' && $method === 'POST') {
         return ll_tools_e2e_google_classroom_admin_http_response([
             'access_token' => 'll-tools-e2e-access-token',

@@ -642,6 +642,11 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 'hard_words' => 0,
             ];
         $summary['students'] = $student_total;
+        $summary_stat_value = static function (string $metric) use ($summary): string {
+            return !empty($summary['query_failed'])
+                ? __('Unavailable', 'll-tools-text-domain')
+                : (string) max(0, (int) ($summary[$metric] ?? 0));
+        };
 
         $base_navigation_args = array_filter([
             'class_id' => ($selected_class instanceof WP_Post) ? (int) $selected_class->ID : 0,
@@ -907,17 +912,17 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <th><?php esc_html_e('Students', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['students']); ?></td>
                         <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page 30d rounds', 'll-tools-text-domain') : __('30d rounds', 'll-tools-text-domain')); ?></th>
-                        <td><?php echo esc_html((string) $summary['rounds_30d']); ?></td>
+                        <td><?php echo esc_html($summary_stat_value('rounds_30d')); ?></td>
                     </tr>
                     <tr>
                         <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page studied', 'll-tools-text-domain') : __('Studied words', 'll-tools-text-domain')); ?></th>
-                        <td><?php echo esc_html((string) $summary['studied_words']); ?></td>
+                        <td><?php echo esc_html($summary_stat_value('studied_words')); ?></td>
                         <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page mastered', 'll-tools-text-domain') : __('Mastered words', 'll-tools-text-domain')); ?></th>
-                        <td><?php echo esc_html((string) $summary['mastered_words']); ?></td>
+                        <td><?php echo esc_html($summary_stat_value('mastered_words')); ?></td>
                     </tr>
                     <tr>
                         <th><?php echo esc_html(($student_page > 1 || $student_progress_has_more) ? __('Page hard', 'll-tools-text-domain') : __('Hard words', 'll-tools-text-domain')); ?></th>
-                        <td><?php echo esc_html((string) $summary['hard_words']); ?></td>
+                        <td><?php echo esc_html($summary_stat_value('hard_words')); ?></td>
                         <th><?php esc_html_e('Signup link', 'll-tools-text-domain'); ?></th>
                         <td><?php echo $signup_url !== '' ? esc_html__('Ready', 'll-tools-text-domain') : esc_html__('Unavailable', 'll-tools-text-domain'); ?></td>
                     </tr>
@@ -1049,12 +1054,20 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             $practice_display = function_exists('ll_tools_teacher_class_practice_result_display_data')
                                 ? ll_tools_teacher_class_practice_result_display_data($row)
                                 : [];
+                            $progress_displays = [];
+                            foreach (['rounds_30d', 'studied_words', 'mastered_words', 'hard_words', 'last_activity'] as $metric) {
+                                $progress_displays[$metric] = function_exists('ll_tools_teacher_class_progress_stat_display_data')
+                                    ? ll_tools_teacher_class_progress_stat_display_data($row, $metric)
+                                    : ['label' => '', 'query_failed' => true];
+                            }
                             ?>
                             <tr>
                                 <td><?php echo esc_html(ll_tools_teacher_class_user_label($user)); ?></td>
                                 <td><a href="mailto:<?php echo esc_attr($user->user_email); ?>"><?php echo esc_html($user->user_email); ?></a></td>
                                 <td>
-                                    <?php if (!empty($practice_display['score_label'])) : ?>
+                                    <?php if (!empty($practice_display['query_failed'])) : ?>
+                                        <span aria-label="<?php echo esc_attr((string) ($practice_display['unavailable_label'] ?? '')); ?>"><?php echo esc_html((string) ($practice_display['attempts_30d_label'] ?? '')); ?></span>
+                                    <?php elseif (!empty($practice_display['score_label'])) : ?>
                                         <span class="ll-teacher-classes__practice-result">
                                             <strong class="ll-teacher-classes__practice-score"><?php echo esc_html((string) $practice_display['score_label']); ?></strong>
                                             <?php if (!empty($practice_display['date_label'])) : ?>
@@ -1066,11 +1079,15 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                     <?php endif; ?>
                                 </td>
                                 <td><?php echo esc_html((string) ($practice_display['attempts_30d_label'] ?? '0')); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['hard_words'] ?? 0))); ?></td>
-                                <td><?php echo esc_html((string) ($row['last_activity'] ?? '')); ?></td>
+                                <?php foreach (['rounds_30d', 'studied_words', 'mastered_words', 'hard_words', 'last_activity'] as $metric) : ?>
+                                    <td>
+                                        <?php if (!empty($progress_displays[$metric]['query_failed'])) : ?>
+                                            <span aria-label="<?php echo esc_attr__('Unavailable', 'll-tools-text-domain'); ?>"><?php echo esc_html((string) ($progress_displays[$metric]['label'] ?? '')); ?></span>
+                                        <?php else : ?>
+                                            <?php echo esc_html((string) ($progress_displays[$metric]['label'] ?? '')); ?>
+                                        <?php endif; ?>
+                                    </td>
+                                <?php endforeach; ?>
                                 <td>
                                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Remove %s from this class?', 'll-tools-text-domain'), ll_tools_teacher_class_user_label($user))); ?>');">
                                         <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />

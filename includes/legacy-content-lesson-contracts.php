@@ -28,6 +28,12 @@ if (!defined('LL_TOOLS_LEGACY_LESSON_CATEGORY_ID_META')) {
 if (!defined('LL_TOOLS_LEGACY_LESSON_DEFAULT_WORDSET_OPTION')) {
     define('LL_TOOLS_LEGACY_LESSON_DEFAULT_WORDSET_OPTION', 'll_tools_legacy_lesson_default_wordset');
 }
+if (!defined('LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META')) {
+    // Do not mutate the external Simple Favorites payload during LL Tools
+    // privacy erasure. This LL-owned marker permanently sunsets only its use as
+    // a legacy completion source for the erased learner.
+    define('LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META', '_ll_tools_legacy_favorites_completion_erased');
+}
 
 /**
  * Treat any retained-source marker row as a catalog exclusion.

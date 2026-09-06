@@ -396,19 +396,22 @@
             return 'text_translation';
         }
 
+        var selectedOption = ($option.val() || '').toString();
         $option.find('option').prop('disabled', false);
 
         if (promptHasImage($prompt.val())) {
             $option.find('option[value="image"]').prop('disabled', true);
-            if ($option.val() === 'image') {
-                $option.val(getFallbackOption($prompt.val()));
+            if (selectedOption === 'image') {
+                selectedOption = getFallbackOption($prompt.val());
+                $option.val(selectedOption);
             }
         }
 
         if (promptBlocksAudioOptions($prompt.val())) {
             $option.find('option[value="audio"]').prop('disabled', true);
-            if ($option.val() === 'audio') {
-                $option.val(getFallbackOption($prompt.val()));
+            if (selectedOption === 'audio') {
+                selectedOption = getFallbackOption($prompt.val());
+                $option.val(selectedOption);
             }
         }
 
@@ -416,8 +419,9 @@
         if (promptTextType) {
             var opposite = (promptTextType === 'text_title') ? 'text_translation' : 'text_title';
             $option.find('option[value="' + promptTextType + '"]').prop('disabled', true);
-            if ($option.val() === promptTextType) {
-                $option.val(opposite);
+            if (selectedOption === promptTextType) {
+                selectedOption = opposite;
+                $option.val(selectedOption);
             }
         }
     }

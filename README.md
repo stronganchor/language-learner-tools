@@ -2,6 +2,18 @@
 
 A WordPress toolkit for building vocabulary-driven language learning sites. It provides custom post types and taxonomies, flashcard quizzes (with image + audio), auto-generated quiz pages, embeddable quiz pages, vocabulary grids, audio players, prompt cards, content lessons, teacher classes, bulk uploaders, DeepL-assisted translations, a template override system, and helper roles.
 
+## Developer navigation
+
+- [Codebase map](docs/ai-context/codebase-map.md): source owners, focused tests, and documentation by subsystem.
+- [Task router](docs/ai-context/task-router.md): choose a generated context pack from the reported behavior.
+- [Architecture](CODEBASE_ARCHITECTURE.md): runtime load order, data model, routes, and invariants.
+- [Testing playbook](tests/AI_TESTING_PLAYBOOK.md) and [test setup](tests/README.md): choose checks and prepare the local runtime.
+- [Release guide](RELEASING.md): packaged stable assets and branch/version gates.
+
+The plugin requires WordPress 6.1+ and PHP 8.0+; the PHPUnit development suite
+requires PHP 8.3+. Check `language-learner-tools.php` and `tests/composer.lock`
+when changing those requirements.
+
 ## Key Features
 
 - **Post types & taxonomies**

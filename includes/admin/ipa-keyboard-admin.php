@@ -1122,43 +1122,87 @@ function ll_tools_ipa_keyboard_get_word_image_payload(int $word_id): array {
     ];
 }
 
-function ll_tools_ipa_keyboard_get_wordset_lesson_url_map(int $wordset_id): array {
+function ll_tools_ipa_keyboard_get_lesson_url_lookup_limit(): int {
+    $limit = (int) apply_filters('ll_tools_ipa_keyboard_lesson_url_lookup_limit', 100);
+    return max(1, min(250, $limit));
+}
+
+/**
+ * Resolve lesson URLs only for the categories in the current result payload.
+ *
+ * The Transcription Manager previously hydrated every published lesson in a
+ * wordset to decorate one bounded search row. Large wordsets are a normal
+ * production case, so keep this lookup proportional to the categories that
+ * are actually being returned.
+ *
+ * @param array<int,mixed> $category_ids
+ */
+function ll_tools_ipa_keyboard_get_wordset_lesson_url_map(int $wordset_id, array $category_ids = []): array {
+    global $wpdb;
+
     static $maps = [];
 
     $wordset_id = (int) $wordset_id;
-    if ($wordset_id <= 0) {
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    $category_ids = array_slice($category_ids, 0, ll_tools_ipa_keyboard_get_lesson_url_lookup_limit());
+    if ($wordset_id <= 0 || $category_ids === [] || !($wpdb instanceof wpdb)) {
         return [];
     }
 
-    if (isset($maps[$wordset_id])) {
-        return $maps[$wordset_id];
+    sort($category_ids, SORT_NUMERIC);
+    $cache_key = $wordset_id . ':' . implode(',', $category_ids);
+    if (isset($maps[$cache_key])) {
+        return $maps[$cache_key];
     }
 
-    $lesson_ids = get_posts([
-        'post_type' => 'll_vocab_lesson',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'no_found_rows' => true,
-        'update_post_meta_cache' => false,
-        'update_post_term_cache' => false,
-        'meta_query' => [
-            [
-                'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
-                'value' => (string) $wordset_id,
-            ],
-        ],
-    ]);
+    $category_placeholders = implode(', ', array_fill(0, count($category_ids), '%d'));
+    $query = "
+        SELECT CAST(category_meta.meta_value AS UNSIGNED) AS category_id,
+               MIN(lesson.ID) AS lesson_id
+        FROM {$wpdb->posts} lesson
+        INNER JOIN {$wpdb->postmeta} wordset_meta
+            ON wordset_meta.post_id = lesson.ID
+           AND wordset_meta.meta_key = %s
+        INNER JOIN {$wpdb->postmeta} category_meta
+            ON category_meta.post_id = lesson.ID
+           AND category_meta.meta_key = %s
+        WHERE lesson.post_type = 'll_vocab_lesson'
+          AND lesson.post_status = 'publish'
+          AND wordset_meta.meta_value = %s
+          AND CAST(category_meta.meta_value AS UNSIGNED) IN ({$category_placeholders})
+        GROUP BY CAST(category_meta.meta_value AS UNSIGNED)
+        ORDER BY category_id ASC
+        LIMIT %d
+    ";
+    $query_args = [
+        LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+        LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+        (string) $wordset_id,
+        ...$category_ids,
+        count($category_ids),
+    ];
+
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare($query, $query_args), ARRAY_A);
+    if ((string) $wpdb->last_error !== '' || !is_array($rows)) {
+        $maps[$cache_key] = [];
+        return [];
+    }
+
+    $lesson_ids = array_values(array_unique(array_filter(array_map(static function (array $row): int {
+        return max(0, (int) ($row['lesson_id'] ?? 0));
+    }, $rows))));
+    if ($lesson_ids !== [] && function_exists('_prime_post_caches')) {
+        _prime_post_caches($lesson_ids, false, false);
+    }
 
     $map = [];
-    foreach ((array) $lesson_ids as $lesson_id) {
-        $lesson_id = (int) $lesson_id;
-        if ($lesson_id <= 0) {
-            continue;
-        }
-
-        $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
-        if ($category_id <= 0 || isset($map[$category_id])) {
+    foreach ($rows as $row) {
+        $lesson_id = max(0, (int) ($row['lesson_id'] ?? 0));
+        $category_id = max(0, (int) ($row['category_id'] ?? 0));
+        if ($lesson_id <= 0 || $category_id <= 0) {
             continue;
         }
 
@@ -1168,8 +1212,8 @@ function ll_tools_ipa_keyboard_get_wordset_lesson_url_map(int $wordset_id): arra
         }
     }
 
-    $maps[$wordset_id] = $map;
-    return $maps[$wordset_id];
+    $maps[$cache_key] = $map;
+    return $maps[$cache_key];
 }
 
 function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id, int $wordset_id = 0): array {
@@ -1182,7 +1226,10 @@ function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id, int $word
         return [];
     }
 
-    $lesson_url_map = ll_tools_ipa_keyboard_get_wordset_lesson_url_map($wordset_id);
+    $category_ids = array_map(static function ($term): int {
+        return ($term instanceof WP_Term) ? (int) $term->term_id : 0;
+    }, $terms);
+    $lesson_url_map = ll_tools_ipa_keyboard_get_wordset_lesson_url_map($wordset_id, $category_ids);
     $categories = [];
     foreach ($terms as $term) {
         if (!$term instanceof WP_Term) {

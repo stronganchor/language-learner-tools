@@ -329,6 +329,160 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
     }
 
+    public function test_active_class_deletion_lease_blocks_membership_mutations_and_second_delete(): void
+    {
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Deletion lease contention class',
+        ]);
+        $existing_learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $new_learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $existing_learner_id));
+
+        $lease = ll_tools_teacher_class_acquire_deletion_lease($class_id);
+        $this->assertTrue((bool) ($lease['acquired'] ?? false));
+        try {
+            $this->assertFalse(ll_tools_teacher_class_add_student($class_id, $new_learner_id));
+
+            $remove_result = ll_tools_teacher_class_remove_student($class_id, $existing_learner_id);
+            $this->assertWPError($remove_result);
+            $this->assertSame('remove_failed', $remove_result->get_error_code());
+
+            $delete_result = ll_tools_teacher_class_delete($class_id);
+            $this->assertWPError($delete_result);
+            $this->assertSame('delete_in_progress', $delete_result->get_error_code());
+
+            $this->assertSame([$existing_learner_id], ll_tools_teacher_class_get_student_ids($class_id));
+            $this->assertSame([$class_id], ll_tools_teacher_class_get_ids_for_student($existing_learner_id));
+            $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($new_learner_id));
+        } finally {
+            ll_tools_teacher_class_release_deletion_lease($lease);
+        }
+
+        $delete_result = ll_tools_teacher_class_delete($class_id);
+        $this->assertIsArray($delete_result);
+        $this->assertFalse(ll_tools_teacher_class_exists($class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($existing_learner_id));
+    }
+
+    public function test_class_deletion_blocks_add_interleaved_with_roster_read(): void
+    {
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Deletion snapshot interleave class',
+        ]);
+        $existing_learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $interleaved_learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $existing_learner_id));
+
+        $interleaved_result = null;
+        $snapshot_count = 0;
+        $try_interleaved_add = static function ($check, int $object_id, string $meta_key) use (
+            $class_id,
+            $interleaved_learner_id,
+            &$interleaved_result,
+            &$snapshot_count
+        ) {
+            if (
+                $object_id === $class_id
+                && $meta_key === LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META
+                && $snapshot_count === 0
+            ) {
+                $snapshot_count++;
+                $interleaved_result = ll_tools_teacher_class_add_student($class_id, $interleaved_learner_id);
+            }
+            return $check;
+        };
+        add_filter('get_post_metadata', $try_interleaved_add, 10, 3);
+        try {
+            $delete_result = ll_tools_teacher_class_delete($class_id);
+        } finally {
+            remove_filter('get_post_metadata', $try_interleaved_add, 10);
+        }
+
+        $this->assertSame(1, $snapshot_count);
+        $this->assertFalse($interleaved_result);
+        $this->assertIsArray($delete_result);
+        $this->assertFalse(ll_tools_teacher_class_exists($class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($existing_learner_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($interleaved_learner_id));
+    }
+
+    public function test_membership_and_deletion_barriers_preserve_lock_order(): void
+    {
+        global $wpdb;
+
+        $class_id = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Membership lock order class',
+        ]);
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $lease_option_name = ll_tools_teacher_class_deletion_lease_option_name($class_id);
+        $queries = [];
+        $capture_query = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture_query);
+        try {
+            $this->assertTrue(ll_tools_teacher_class_add_student($class_id, $learner_id));
+        } finally {
+            remove_filter('query', $capture_query);
+        }
+
+        $find_query_index = static function (array $captured, callable $matches): ?int {
+            foreach ($captured as $index => $query) {
+                if ($matches((string) $query)) {
+                    return (int) $index;
+                }
+            }
+            return null;
+        };
+        $user_lock_index = $find_query_index($queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, "FROM {$wpdb->users}") !== false
+                && strpos($query, 'FOR UPDATE') !== false;
+        });
+        $class_lock_index = $find_query_index($queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, "FROM {$wpdb->posts}") !== false
+                && strpos($query, 'FOR UPDATE') !== false;
+        });
+        $lease_read_index = $find_query_index($queries, static function (string $query) use ($lease_option_name): bool {
+            return strpos($query, $lease_option_name) !== false
+                && strpos($query, 'SELECT option_value') !== false;
+        });
+
+        $this->assertIsInt($user_lock_index);
+        $this->assertIsInt($class_lock_index);
+        $this->assertIsInt($lease_read_index);
+        $this->assertLessThan($class_lock_index, $user_lock_index);
+        $this->assertLessThan($lease_read_index, $class_lock_index);
+
+        $queries = [];
+        add_filter('query', $capture_query);
+        try {
+            $delete_result = ll_tools_teacher_class_delete($class_id);
+        } finally {
+            remove_filter('query', $capture_query);
+        }
+        $this->assertIsArray($delete_result);
+
+        $lease_publish_index = $find_query_index($queries, static function (string $query) use ($lease_option_name): bool {
+            return strpos($query, $lease_option_name) !== false
+                && strpos($query, 'INSERT INTO') !== false;
+        });
+        $deletion_barrier_index = $find_query_index($queries, static function (string $query) use ($wpdb): bool {
+            return strpos($query, "FROM {$wpdb->posts}") !== false
+                && strpos($query, 'FOR UPDATE') !== false;
+        });
+        $this->assertIsInt($lease_publish_index);
+        $this->assertIsInt($deletion_barrier_index);
+        $this->assertLessThan($deletion_barrier_index, $lease_publish_index);
+    }
+
     public function test_deleting_class_does_not_create_meta_for_missing_students(): void
     {
         ll_tools_register_or_refresh_teacher_role();

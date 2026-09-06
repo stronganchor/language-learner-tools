@@ -3145,7 +3145,12 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     $uuid = isset($raw['event_uuid']) ? (string) $raw['event_uuid'] : (string) ($raw['uuid'] ?? '');
     $uuid = sanitize_text_field(substr($uuid, 0, 64));
     if ($uuid === '') {
-        $uuid = wp_generate_uuid4();
+        // Client progress is an idempotent journal. Generating an identifier at
+        // ingestion makes a retry of the same legacy event look new and can
+        // apply it twice after a retryable failure. Current first-party clients
+        // always persist an identifier before enqueueing; fail closed for
+        // legacy/malformed callers that omitted it.
+        return null;
     }
 
     $mode = ll_tools_normalize_progress_mode((string) ($raw['mode'] ?? 'practice'));
@@ -3780,7 +3785,11 @@ function ll_tools_user_progress_core_engine_failure_stats(array $events, array $
 
         $event_uuid = sanitize_text_field(substr((string) ($raw['event_uuid'] ?? ($raw['uuid'] ?? '')), 0, 64));
         if ($event_uuid === '') {
-            $event_uuid = wp_generate_uuid4();
+            // A retryable response can identify only events that arrived with
+            // a stable journal identifier. Missing identifiers are invalid,
+            // not retryable under a newly generated UUID.
+            $invalid++;
+            continue;
         }
         $failed_event_uuids[$event_uuid] = true;
         $failed++;

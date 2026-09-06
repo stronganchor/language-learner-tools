@@ -63,6 +63,198 @@ final class PublicAjaxResourceGuardTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_atomic_counter_retries_when_refund_cleanup_deletes_the_observed_bucket(): void
+    {
+        global $wpdb;
+
+        $prefix = 'll_tools_test_ajax_cleanup_race_';
+        $identifier = '203.0.113.86';
+        $now = 2000000000;
+        $names = ll_tools_public_ajax_counter_option_names($prefix, $identifier, 60, $now);
+        $injected = false;
+        $injecting = false;
+        $delete_before_update = static function (string $query) use (
+            $wpdb,
+            $names,
+            &$injected,
+            &$injecting
+        ): string {
+            if (
+                !$injecting
+                && !$injected
+                && stripos($query, "UPDATE {$wpdb->options}") !== false
+                && strpos($query, 'CAST(option_value AS UNSIGNED)') !== false
+                && strpos($query, $names['value']) !== false
+            ) {
+                $injecting = true;
+                $injected = true;
+                try {
+                    $wpdb->query($wpdb->prepare(
+                        "DELETE FROM {$wpdb->options} WHERE option_name IN (%s, %s)",
+                        $names['value'],
+                        $names['timeout']
+                    ));
+                    wp_cache_delete($names['value'], 'options');
+                    wp_cache_delete($names['timeout'], 'options');
+                } finally {
+                    $injecting = false;
+                }
+            }
+
+            return $query;
+        };
+
+        ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        add_option($names['value'], '0', '', false);
+        add_option($names['timeout'], (string) $names['expires_at'], '', false);
+        add_filter('query', $delete_before_update);
+        try {
+            $reservation = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 1, 60, 1, $now);
+            $blocked = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 1, 60, 1, $now);
+
+            $this->assertTrue($injected, 'Expected cleanup to delete the counter before its conditional increment.');
+            $this->assertTrue($reservation['allowed']);
+            $this->assertTrue($reservation['reserved']);
+            $this->assertSame(1, $reservation['count']);
+            $this->assertSame('1', get_option($names['value']));
+            $this->assertSame((string) $names['expires_at'], get_option($names['timeout']));
+            $this->assertFalse($blocked['allowed']);
+            $this->assertSame(1, $blocked['count']);
+        } finally {
+            remove_filter('query', $delete_before_update);
+            ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        }
+    }
+
+    public function test_atomic_counter_does_not_overwrite_a_concurrent_weighted_first_reservation(): void
+    {
+        global $wpdb;
+
+        $prefix = 'll_tools_test_ajax_weighted_create_';
+        $identifier = '203.0.113.88';
+        $now = 2000000000;
+        $names = ll_tools_public_ajax_counter_option_names($prefix, $identifier, 60, $now);
+        $injected = false;
+        $injecting = false;
+        $create_competing_reservation = static function (string $query) use (
+            $wpdb,
+            $names,
+            &$injected,
+            &$injecting
+        ): string {
+            if (
+                !$injecting
+                && !$injected
+                && stripos($query, "INSERT IGNORE INTO {$wpdb->options}") !== false
+                && strpos($query, $names['value']) !== false
+            ) {
+                $injecting = true;
+                $injected = true;
+                try {
+                    $wpdb->query($wpdb->prepare(
+                        "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+                        $names['value'],
+                        '2',
+                        'no'
+                    ));
+                    $wpdb->query($wpdb->prepare(
+                        "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+                        $names['timeout'],
+                        (string) $names['expires_at'],
+                        'no'
+                    ));
+                    wp_cache_delete($names['value'], 'options');
+                    wp_cache_delete($names['timeout'], 'options');
+                } finally {
+                    $injecting = false;
+                }
+            }
+
+            return $query;
+        };
+
+        ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        add_filter('query', $create_competing_reservation);
+        try {
+            $reservation = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 5, 60, 3, $now);
+            $blocked = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 5, 60, 1, $now);
+
+            $this->assertTrue($injected, 'Expected a competing weighted reservation before the first insert.');
+            $this->assertTrue($reservation['allowed']);
+            $this->assertTrue($reservation['reserved']);
+            $this->assertSame(5, $reservation['count']);
+            $this->assertSame('5', get_option($names['value']));
+            $this->assertFalse($blocked['allowed']);
+            $this->assertSame(5, $blocked['count']);
+        } finally {
+            remove_filter('query', $create_competing_reservation);
+            ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        }
+    }
+
+    public function test_atomic_counter_does_not_retry_a_missing_bucket_after_an_update_error(): void
+    {
+        global $wpdb;
+
+        $prefix = 'll_tools_test_ajax_cleanup_error_';
+        $identifier = '203.0.113.87';
+        $now = 2000000000;
+        $names = ll_tools_public_ajax_counter_option_names($prefix, $identifier, 60, $now);
+        $injected = false;
+        $injecting = false;
+        $fail_update_after_delete = static function (string $query) use (
+            $wpdb,
+            $names,
+            &$injected,
+            &$injecting
+        ): string {
+            if (
+                !$injecting
+                && !$injected
+                && stripos($query, "UPDATE {$wpdb->options}") !== false
+                && strpos($query, 'CAST(option_value AS UNSIGNED)') !== false
+                && strpos($query, $names['value']) !== false
+            ) {
+                $injecting = true;
+                $injected = true;
+                try {
+                    $wpdb->query($wpdb->prepare(
+                        "DELETE FROM {$wpdb->options} WHERE option_name IN (%s, %s)",
+                        $names['value'],
+                        $names['timeout']
+                    ));
+                    wp_cache_delete($names['value'], 'options');
+                    wp_cache_delete($names['timeout'], 'options');
+                } finally {
+                    $injecting = false;
+                }
+
+                return "UPDATE {$wpdb->options} SET ll_tools_missing_counter_column = 1";
+            }
+
+            return $query;
+        };
+
+        ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        add_option($names['value'], '0', '', false);
+        add_option($names['timeout'], (string) $names['expires_at'], '', false);
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_update_after_delete);
+        try {
+            $reservation = ll_tools_public_ajax_reserve_counter($prefix, $identifier, 1, 60, 1, $now);
+
+            $this->assertTrue($injected, 'Expected the conditional increment query failure to be injected.');
+            $this->assertFalse($reservation['allowed']);
+            $this->assertFalse($reservation['reserved']);
+            $this->assertFalse(get_option($names['value'], false));
+        } finally {
+            remove_filter('query', $fail_update_after_delete);
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+            ll_tools_public_ajax_reset_counter($prefix, $identifier);
+        }
+    }
+
     public function test_delayed_previous_bucket_cannot_delete_the_active_next_bucket(): void
     {
         $prefix = 'll_tools_test_ajax_boundary_';

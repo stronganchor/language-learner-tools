@@ -316,6 +316,321 @@ final class LmsGradeDeliveryTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $recipientId);
     }
 
+    public function test_external_identity_writer_requires_the_verified_assignment_schema_marker(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $identityTable = ll_tools_grade_delivery_table_names()['identities'];
+        $mapping = [
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $this->hashKey('identity-schema-gate-connection'),
+            'subject_key_hash' => $this->hashKey('identity-schema-gate-subject'),
+            'learner_user_id' => $learnerId,
+        ];
+
+        delete_option(LL_TOOLS_LMS_ASSIGNMENT_VERIFIED_VERSION_OPTION);
+        try {
+            $this->assertFalse(ll_tools_lms_assignment_schema_is_available());
+            $result = ll_tools_grade_delivery_create_external_identity($mapping);
+        } finally {
+            update_option(
+                LL_TOOLS_LMS_ASSIGNMENT_VERIFIED_VERSION_OPTION,
+                LL_TOOLS_LMS_ASSIGNMENT_SCHEMA_VERSION,
+                false
+            );
+        }
+
+        $this->assertWpErrorCode('lms_assignment_schema_unavailable', $result);
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$identityTable} WHERE learner_user_id = %d",
+            $learnerId
+        )));
+    }
+
+    public function test_recipient_writer_requires_the_verified_assignment_schema_marker(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $seed = $this->seedSelectedGrade($learnerId);
+        $connectionHash = $this->hashKey('recipient-schema-gate-connection');
+        $identityId = ll_tools_grade_delivery_create_external_identity([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'subject_key_hash' => $this->hashKey('recipient-schema-gate-subject'),
+            'learner_user_id' => $learnerId,
+        ]);
+        $this->assertIsInt($identityId);
+        $destinationId = ll_tools_grade_delivery_create_destination([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'destination_key_hash' => $this->hashKey('recipient-schema-gate-destination'),
+            'assignment_id' => $seed['assignment_id'],
+            'revision_id' => $seed['revision_id'],
+        ]);
+        $this->assertIsInt($destinationId);
+        $recipientTable = ll_tools_grade_delivery_table_names()['recipients'];
+
+        delete_option(LL_TOOLS_LMS_ASSIGNMENT_VERIFIED_VERSION_OPTION);
+        try {
+            $this->assertFalse(ll_tools_lms_assignment_schema_is_available());
+            $result = ll_tools_grade_delivery_create_recipient([
+                'destination_id' => $destinationId,
+                'external_identity_id' => $identityId,
+                'learner_user_id' => $learnerId,
+                'recipient_key_hash' => $this->hashKey('recipient-schema-gate-recipient'),
+            ]);
+        } finally {
+            update_option(
+                LL_TOOLS_LMS_ASSIGNMENT_VERIFIED_VERSION_OPTION,
+                LL_TOOLS_LMS_ASSIGNMENT_SCHEMA_VERSION,
+                false
+            );
+        }
+
+        $this->assertWpErrorCode('lms_assignment_schema_unavailable', $result);
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$recipientTable} WHERE destination_id = %d AND learner_user_id = %d",
+            $destinationId,
+            $learnerId
+        )));
+    }
+
+    public function test_external_identity_write_rechecks_a_deletion_tombstone_after_the_learner_lock(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $mapping = [
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $this->hashKey('identity-fence-connection'),
+            'subject_key_hash' => $this->hashKey('identity-fence-subject'),
+            'learner_user_id' => $learnerId,
+        ];
+
+        try {
+            $result = $this->runWithDeletionTombstoneAtLearnerLock(
+                $learnerId,
+                static fn() => ll_tools_grade_delivery_create_external_identity($mapping)
+            );
+            $this->assertWpErrorCode('invalid_external_identity_mapping', $result);
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_grade_delivery_table_names()['identities'] . ' WHERE learner_user_id = %d',
+                $learnerId
+            )));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_dequeue_deleted_user_lms_cleanup($learnerId));
+        }
+    }
+
+    public function test_recipient_write_rechecks_a_deletion_tombstone_after_the_learner_lock(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $seed = $this->seedSelectedGrade($learnerId);
+        $connectionHash = $this->hashKey('recipient-fence-connection');
+        $identityId = ll_tools_grade_delivery_create_external_identity([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'subject_key_hash' => $this->hashKey('recipient-fence-subject'),
+            'learner_user_id' => $learnerId,
+        ]);
+        $this->assertIsInt($identityId);
+        $destinationId = ll_tools_grade_delivery_create_destination([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'destination_key_hash' => $this->hashKey('recipient-fence-destination'),
+            'assignment_id' => $seed['assignment_id'],
+            'revision_id' => $seed['revision_id'],
+        ]);
+        $this->assertIsInt($destinationId);
+        $mapping = [
+            'destination_id' => $destinationId,
+            'external_identity_id' => $identityId,
+            'learner_user_id' => $learnerId,
+            'recipient_key_hash' => $this->hashKey('recipient-fence-recipient'),
+        ];
+
+        try {
+            $result = $this->runWithDeletionTombstoneAtLearnerLock(
+                $learnerId,
+                static fn() => ll_tools_grade_delivery_create_recipient($mapping)
+            );
+            $this->assertWpErrorCode('invalid_grade_recipient_mapping', $result);
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                'SELECT COUNT(*) FROM ' . ll_tools_grade_delivery_table_names()['recipients'] . ' WHERE learner_user_id = %d',
+                $learnerId
+            )));
+        } finally {
+            $this->assertTrue(ll_tools_privacy_dequeue_deleted_user_lms_cleanup($learnerId));
+        }
+    }
+
+    public function test_external_identity_write_failure_rolls_back_its_savepoint_without_owning_the_outer_transaction(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $mapping = [
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $this->hashKey('identity-rollback-connection'),
+            'subject_key_hash' => $this->hashKey('identity-rollback-subject'),
+            'learner_user_id' => $learnerId,
+        ];
+        $identityTable = ll_tools_grade_delivery_table_names()['identities'];
+        $markerName = 'll_tools_grade_identity_outer_' . strtolower(wp_generate_password(12, false, false));
+        $outer = ll_tools_lms_assignment_begin_transaction();
+        $this->assertIsArray($outer);
+        $outerOpen = true;
+
+        try {
+            $this->assertSame(1, $wpdb->insert($wpdb->options, [
+                'option_name' => $markerName,
+                'option_value' => 'outer-owned',
+                'autoload' => 'no',
+            ], ['%s', '%s', '%s']));
+            $breakIdentityInsert = static function (string $query) use ($identityTable): string {
+                return stripos($query, "INSERT INTO `{$identityTable}`") !== false
+                    || stripos($query, "INSERT INTO {$identityTable}") !== false
+                    ? 'INSERT INTO ll_tools_missing_identity_mapping_table (broken) VALUES (1)'
+                    : $query;
+            };
+            add_filter('query', $breakIdentityInsert);
+            $previousSuppress = $wpdb->suppress_errors(true);
+            try {
+                $failed = ll_tools_grade_delivery_create_external_identity($mapping);
+            } finally {
+                $wpdb->suppress_errors($previousSuppress);
+                remove_filter('query', $breakIdentityInsert);
+            }
+
+            $this->assertWpErrorCode('external_identity_mapping_write_failed', $failed);
+            $this->assertSame('outer-owned', (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                $markerName
+            )));
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$identityTable} WHERE learner_user_id = %d",
+                $learnerId
+            )));
+
+            $succeeded = ll_tools_grade_delivery_create_external_identity($mapping);
+            $this->assertIsInt($succeeded);
+            $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$identityTable} WHERE learner_user_id = %d",
+                $learnerId
+            )));
+
+            ll_tools_lms_assignment_rollback_transaction($outer);
+            $outerOpen = false;
+        } finally {
+            if ($outerOpen) {
+                ll_tools_lms_assignment_rollback_transaction($outer);
+            }
+        }
+
+        $this->assertNull($wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+            $markerName
+        )));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$identityTable} WHERE learner_user_id = %d",
+            $learnerId
+        )));
+    }
+
+    public function test_recipient_write_failure_rolls_back_its_savepoint_without_owning_the_outer_transaction(): void
+    {
+        global $wpdb;
+
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $seed = $this->seedSelectedGrade($learnerId);
+        $connectionHash = $this->hashKey('recipient-rollback-connection');
+        $identityId = ll_tools_grade_delivery_create_external_identity([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'subject_key_hash' => $this->hashKey('recipient-rollback-subject'),
+            'learner_user_id' => $learnerId,
+        ]);
+        $this->assertIsInt($identityId);
+        $destinationId = ll_tools_grade_delivery_create_destination([
+            'adapter' => self::ADAPTER,
+            'connection_key_hash' => $connectionHash,
+            'destination_key_hash' => $this->hashKey('recipient-rollback-destination'),
+            'assignment_id' => $seed['assignment_id'],
+            'revision_id' => $seed['revision_id'],
+        ]);
+        $this->assertIsInt($destinationId);
+        $mapping = [
+            'destination_id' => $destinationId,
+            'external_identity_id' => $identityId,
+            'learner_user_id' => $learnerId,
+            'recipient_key_hash' => $this->hashKey('recipient-rollback-recipient'),
+        ];
+        $recipientTable = ll_tools_grade_delivery_table_names()['recipients'];
+        $markerName = 'll_tools_grade_recipient_outer_' . strtolower(wp_generate_password(12, false, false));
+        $outer = ll_tools_lms_assignment_begin_transaction();
+        $this->assertIsArray($outer);
+        $outerOpen = true;
+
+        try {
+            $this->assertSame(1, $wpdb->insert($wpdb->options, [
+                'option_name' => $markerName,
+                'option_value' => 'outer-owned',
+                'autoload' => 'no',
+            ], ['%s', '%s', '%s']));
+            $breakRecipientInsert = static function (string $query) use ($recipientTable): string {
+                return stripos($query, "INSERT INTO `{$recipientTable}`") !== false
+                    || stripos($query, "INSERT INTO {$recipientTable}") !== false
+                    ? 'INSERT INTO ll_tools_missing_recipient_mapping_table (broken) VALUES (1)'
+                    : $query;
+            };
+            add_filter('query', $breakRecipientInsert);
+            $previousSuppress = $wpdb->suppress_errors(true);
+            try {
+                $failed = ll_tools_grade_delivery_create_recipient($mapping);
+            } finally {
+                $wpdb->suppress_errors($previousSuppress);
+                remove_filter('query', $breakRecipientInsert);
+            }
+
+            $this->assertWpErrorCode('grade_recipient_mapping_write_failed', $failed);
+            $this->assertSame('outer-owned', (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+                $markerName
+            )));
+            $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$recipientTable} WHERE learner_user_id = %d",
+                $learnerId
+            )));
+
+            $succeeded = ll_tools_grade_delivery_create_recipient($mapping);
+            $this->assertIsInt($succeeded);
+            $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$recipientTable} WHERE learner_user_id = %d",
+                $learnerId
+            )));
+
+            ll_tools_lms_assignment_rollback_transaction($outer);
+            $outerOpen = false;
+        } finally {
+            if ($outerOpen) {
+                ll_tools_lms_assignment_rollback_transaction($outer);
+            }
+        }
+
+        $this->assertNull($wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+            $markerName
+        )));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$recipientTable} WHERE learner_user_id = %d",
+            $learnerId
+        )));
+    }
+
     public function test_enqueue_uses_current_selected_grade_dedupes_and_immediately_supersedes_older_revision(): void
     {
         global $wpdb;
@@ -798,6 +1113,61 @@ final class LmsGradeDeliveryTest extends LL_Tools_TestCase
             'destination_id' => $destinationId,
             'recipient_id' => $recipientId,
         ];
+    }
+
+    /** @return mixed */
+    private function runWithDeletionTombstoneAtLearnerLock(int $userId, callable $operation)
+    {
+        global $wpdb;
+
+        $this->assertTrue(ll_tools_privacy_dequeue_deleted_user_lms_cleanup($userId));
+        $this->assertTrue(ll_tools_privacy_queue_deleted_user_lms_cleanup($userId));
+        $tombstoneName = ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId);
+        $learnerLockObserved = false;
+        $lockedFenceReadObserved = false;
+        $hideStalePreflight = static function (string $query) use (
+            &$learnerLockObserved,
+            &$lockedFenceReadObserved,
+            $wpdb,
+            $userId,
+            $tombstoneName
+        ): string {
+            if (stripos($query, "SELECT ID FROM {$wpdb->users} WHERE ID = {$userId} FOR UPDATE") !== false) {
+                $learnerLockObserved = true;
+                return $query;
+            }
+            if (
+                stripos($query, 'SELECT option_name, option_value') !== false
+                && stripos($query, 'FOR UPDATE') !== false
+                && stripos($query, $tombstoneName) !== false
+            ) {
+                $lockedFenceReadObserved = $learnerLockObserved;
+                return $query;
+            }
+            if (
+                stripos($query, "SELECT option_value FROM {$wpdb->options}") !== false
+                && stripos($query, $tombstoneName) !== false
+                && stripos($query, 'FOR UPDATE') === false
+            ) {
+                // Model a pre-admission snapshot that predates deletion. The
+                // real tombstone remains in storage for the locked current
+                // read; no re-entrant or second-connection write is needed.
+                return 'SELECT NULL AS option_value';
+            }
+            return $query;
+        };
+
+        add_filter('query', $hideStalePreflight);
+        try {
+            $result = $operation();
+        } finally {
+            remove_filter('query', $hideStalePreflight);
+        }
+
+        $this->assertTrue($learnerLockObserved, 'The mapping writer must lock the learner row before its final write path.');
+        $this->assertTrue($lockedFenceReadObserved, 'The real tombstone must be read with FOR UPDATE after the learner lock.');
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        return $result;
     }
 
     private function hashKey(string $value): string

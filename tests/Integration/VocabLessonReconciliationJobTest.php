@@ -52,7 +52,7 @@ final class VocabLessonReconciliationJobTest extends LL_Tools_TestCase
                 'manual' => true,
                 'cleanup_invalid' => true,
             ], true);
-            ll_tools_schedule_vocab_lesson_full_sync(1);
+            ll_tools_schedule_vocab_lesson_sync_event(1);
 
             $this->assertSame('queued', $queued['status']);
             $this->assertSame('cleanup', $queued['phase']);
@@ -216,9 +216,11 @@ final class VocabLessonReconciliationJobTest extends LL_Tools_TestCase
     private function resetJobState(): void
     {
         delete_option(LL_TOOLS_VOCAB_LESSON_SYNC_STATE_OPTION);
+        delete_option(LL_TOOLS_VOCAB_LESSON_FULL_SYNC_REQUEST_OPTION);
         delete_transient(LL_TOOLS_VOCAB_LESSON_SYNC_LOCK);
         delete_transient('ll_tools_vocab_lesson_sync_notice');
         wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+        wp_clear_scheduled_hook(LL_TOOLS_VOCAB_LESSON_FULL_SYNC_EVENT);
         delete_option('ll_vocab_lesson_wordsets');
         unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
     }

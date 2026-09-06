@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   isExpectedCloudflareRumAbort,
+  isExpectedPopupMediaCleanupAbort,
   isExpectedCategorySearchWarmingResponse,
   isPotentialCategorySearchWarmingConsoleError,
   isExpectedFlashcardPayloadWarmingResponse,
@@ -33,6 +34,29 @@ test('live smoke ignores only aborted Cloudflare RUM beacons', async () => {
   }
 });
 
+test('live smoke ignores only exact popup media requests aborted during cleanup', async () => {
+  const mediaUrl = 'https://example.test/wp-content/uploads/prompt.wav';
+  const expectedUrls = new Set([mediaUrl]);
+  expect(isExpectedPopupMediaCleanupAbort(
+    { method: 'GET', url: mediaUrl },
+    'net::ERR_ABORTED',
+    expectedUrls
+  )).toBe(true);
+
+  const rejectedCases = [
+    [{ method: 'POST', url: mediaUrl }, 'net::ERR_ABORTED', expectedUrls],
+    [{ method: 'GET', url: mediaUrl }, 'net::ERR_FAILED', expectedUrls],
+    [{ method: 'GET', url: mediaUrl + '?retry=1' }, 'net::ERR_ABORTED', expectedUrls],
+    [{ method: 'GET', url: mediaUrl }, 'net::ERR_ABORTED', new Set()],
+    [{ method: 'GET', url: mediaUrl }, 'net::ERR_ABORTED', [mediaUrl]],
+    [null, 'net::ERR_ABORTED', expectedUrls]
+  ];
+
+  for (const [details, errorText, urls] of rejectedCases) {
+    expect(isExpectedPopupMediaCleanupAbort(details, errorText, urls)).toBe(false);
+  }
+});
+
 test('live smoke keeps unexpected same-origin request failures fatal', async () => {
   const source = fs.readFileSync(
     path.join(repoRoot, 'tests', 'e2e', 'live-smoke', 'live-sites.spec.js'),
@@ -46,8 +70,14 @@ test('live smoke keeps unexpected same-origin request failures fatal', async () 
 
   const requestFailureBlock = source.slice(requestFailureStart, requestFailureEnd);
   expect(requestFailureBlock).toContain('isExpectedCloudflareRumAbort(requestDetails, errorText)');
+  expect(requestFailureBlock).toContain(
+    'isExpectedPopupMediaCleanupAbort(requestDetails, errorText, popupMediaCleanupAbortUrls)'
+  );
   expect(requestFailureBlock).toContain('summary.expectedSameOriginRequestAborts.push(failureDetails)');
   expect(requestFailureBlock).toContain('summary.sameOriginRequestFailures.push(failureDetails)');
+  expect(source).toContain("popup.locator('audio[src], video[src]')");
+  expect(source).toContain("typeof lifecycle.beforeClose === 'function'");
+  expect(source).toContain('popupMediaCleanupAbortUrls.add(normalizedUrl.href)');
   expect(source).toContain("expect(summary.sameOriginRequestFailures, 'Same-origin requests failed.').toEqual([])");
 });
 

@@ -1,10 +1,12 @@
 # Maintenance Backlog
 
-Updated August 26, 2026 during the 6.7.32 stability and stable-release pass.
-The current pass fixes verified privacy/session, progress-analytics, focus,
-accessibility, release-documentation, and i18n-tooling defects while leaving
-larger storage and compatibility work below for deliberate design. No real
-Google provider authorization was attempted.
+Updated September 5, 2026 during the 6.7.34 reliability and resource-boundary
+pass. The current pass closes the verified fail-closed count, request admission,
+bounded Line-Up, autosave/export recovery, accessibility, localization, and
+focused admin-browser coverage findings while leaving protocol-, deployment-,
+or human-review-dependent work below for deliberate review. The exact Local
+runtime was started and exercised; no deployed-site check, deployment, or real
+provider authorization was attempted.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -24,59 +26,53 @@ judgment:
 - A normalized teacher-class membership table only if measured class size,
   deserialization cost, or assignment latency justifies a dual-write/backfill
   migration.
-- Class-wide deletion serialization. Membership add/remove and privacy unlink
-  now use a consistent user-to-class lock order, but
-  `ll_tools_teacher_class_delete()` snapshots members and deletes the class
-  without a class-scoped deletion lock. A concurrent add can leave reverse user
-  meta pointing to a deleted class. Use a shared class advisory lock or durable
-  deleting state before changing the current ordering.
-- Legacy Favorites privacy ownership. Completion migration reads the external
-  `simplefavorites` user-meta key, but LL Tools must not erase that whole key
-  because it can contain unrelated favorites. Before any future replay on a
-  site that still uses the old Favorites plugin, define an owner-aware way to
-  remove only lesson-completion associations for erased users.
-- Direct LMS writer API locking. Current browser/request handlers take the
-  learner advisory lock and recheck the privacy fence before writes, but the
-  currently unused grade-delivery identity/recipient constructors and direct
-  low-level progress/meta helpers do not establish that boundary themselves.
-  Before a new adapter or integration calls those helpers directly, wrap their
-  final lookup/write in the learner-row transaction lock, recheck the fence,
-  and add a deterministic delete/write interleaving test.
-- Resumable Audio Processor file cleanup. The recording post deletion receipt
-  becomes terminal after unchecked file unlinks and does not reliably retain a
-  failed final receipt/parent cleanup. Use explicit durable deletion phases and
-  bounded orphan cleanup rather than retrying destructive steps implicitly.
-- Completeness-aware teacher/admin progress reports. Query failures in
-  `ll_tools_user_progress_report_query_users()` and
-  `ll_tools_user_progress_report_stats_for_users()` can reach teacher-class
-  rendering as empty/zero progress. Propagate a typed incomplete result and
-  render an unavailable state instead of a valid-looking zero.
-- An explicit compatibility contract for progress events without an
-  `event_uuid`. The sanitizer and retryable-failure helper currently generate a
-  fresh UUID, so a legacy retry can bypass ledger deduplication; simply rejecting
-  missing UUIDs may break older clients. Choose a deterministic fallback or a
-  bounded compatibility sunset with tests.
-- A bounded/materialized IPA Keyboard lesson URL map. The cold
-  `ll_tools_ipa_keyboard_get_wordset_lesson_url_map()` path loads every published
-  vocabulary lesson with `posts_per_page => -1`, disables meta priming, and then
-  resolves category meta/permalinks per lesson. Replace it only with measured,
-  paged or materialized behavior that preserves category-to-lesson links.
 - A durable lesson-map materializer only if production measurements justify
   replacing the winning cold full scan.
+- A normalized Line-Up order store with a physically bounded runtime projection
+  and a bounded migration for legacy `ll_category_lineup_word_order` termmeta.
+  Learner code now caps inspected IDs, candidate queries, and hydrated words,
+  but WordPress can still deserialize the complete legacy order when another
+  key primes that category's termmeta cache. Moving the authoring order must
+  preserve taxonomy/editor, export/import, isolation-fallback, and rollback
+  compatibility; a local prefix parser alone does not remove that peak.
+- A dependency revision/materialization protocol for isolated categories that
+  still inherit Line-Up order or direction from their source category. Current
+  category locks and revisions serialize direct writes to the target term, but
+  a later source-only change can alter the target's effective inherited value
+  without advancing the target revision. Closing that cross-term dependency
+  requires deterministic multi-term coordination plus dependency revisions,
+  materializing independent target values, or deliberately ending inheritance;
+  it should not be hidden inside the single-category autosave protocol.
+- A paged offline progress-snapshot protocol for bundles above the existing
+  5,000-word read scope. The compatibility sanitizer still caps that read list
+  so an oversized bundle can sync its state/events; rejecting the whole request
+  or changing client/server chunk semantics needs an explicit protocol rollout.
+- Idempotency/recovery identifiers before applying automatic client deadlines
+  or retries to offline-export job creation and Site Sync remote-write batches.
+  Offline-export continuation requests now time out into an explicit Resume
+  state, but a lost job-start or remote-write response remains ambiguous.
+- Early render-surface declaration before removing the login/language-switcher
+  base assets from unrelated public pages. Those shortcodes can render after
+  `wp_head`, when self-enqueuing their stylesheet would be too late.
+- An automated sweeper or dedicated admin view for rare Audio Processor
+  `cleanup_failed` journals only if operational evidence shows retained
+  non-autoloaded failure records accumulating after the bounded automatic
+  retries. The journal intentionally preserves the uploads-root-safe orphan
+  path for an authorized manual retry instead of discarding recovery evidence.
 
 Keep performance work evidence-led and scoped to a measured growth dimension.
 The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (August 26)
+### Current verification inventory (September 5)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical
   source/POT key comparison backed by a temporary WP-CLI extraction. The
   standalone command is `php scripts/check-i18n-source-pot.php`; it must be
   green after the catalog refresh and before catalog-count or locale-coverage
   checks are accepted. The source-frozen POT and complete Turkish/German core
-  catalogs contain 6,278 canonical keys each; both compiled MO/PHP catalogs
+  catalogs contain 6,313 canonical keys each; both compiled MO/PHP catalogs
   match exactly. The active public manifest and all eight active tier-2 locales
   pass 796/796.
 - The maintenance browser contract owns both automation REST documentation and
@@ -85,17 +81,98 @@ the normal regression suite.
   score/date, 30-day attempt counts, dynamic column indexes, descending order,
   `aria-sort`, and focus retention. It requires the serial Local Playwright
   environment and admin credentials.
-- Final Playwright discovery lists **706 tests in 108 files**. Eight serial
-  shards account for every case: 705 passed and the opt-in seeded performance
-  benchmark skipped once as expected, with zero failures.
+- Final Playwright discovery lists **726 tests in 114 files**. Eight serial
+  shards plus the corrected-catalog focused rerun account for every case: 725
+  passed and the opt-in seeded performance benchmark skipped once as expected,
+  with zero product failures. One invalid shard was restarted after the
+  manually started Local FastCGI worker ended and returned 502; the unchanged
+  shard then passed 62/62.
 - Both release-scale performance profiles passed without writing history. The
-  Genç fixture (209 categories, 2,717 words) passed 10/10 scenarios; the
+  force-seeded Genç fixture (209 categories, 2,717 words) passed 10/10
+  scenarios, including cold recorder-queue completion in 98,043 ms; the
   stress-2x fixture (100 categories, 5,000 words, 15,000 audio records, and
   5,100 images/attachments) passed 8/8 scenarios.
-- Final PHPUnit result: **2,324 tests, 59,337 assertions, 8 expected skips**.
+- Final PHPUnit result: **2,506 tests, 61,790 assertions, 9 expected skips**.
   The standard complete suite exited successfully.
 
 ## Recently Closed
+
+- September 4 runtime/resource follow-up: an incomplete targeted vocab-lesson
+  count now returns a retryable 503 before the legacy full-category fallback;
+  offline sync rejects event batches above 200 before authentication or
+  mutation; offline logout has atomic token/IP pre-auth admission; weighted
+  fixed-window counters use a non-overwriting atomic first create and recover
+  once from a concurrent zero-row cleanup without admitting on SQL errors; dictionary,
+  common-category, and Word Audio bulk-state inputs are raw-shape/byte/count
+  bounded before hydration; and learner Line-Up catalog/launch logic inspects
+  only a capped sequence prefix and issues bounded candidate queries instead of
+  sorting and hydrating every category word. Physical legacy-order storage is
+  tracked separately above because WordPress termmeta caching can still load it.
+- September 4 frontend/accessibility follow-up: vocab category autosave now
+  keeps the latest queued edit across failure, serializes category writes, and
+  fences stale or cross-tab revisions; title saves recover for explicit retry;
+  offline-export continuation requests abort/fence on timeout and expose
+  Resume; progress bars have programmatic labels; recorder animation/hover
+  motion respects reduced-motion; and the Turkish transliteration example
+  preserves its exact symbols.
+- September 4 category-state atomicity follow-up: lesson autosave, taxonomy
+  forms, Line-Up/default/audio/image settings, duplicate/copy, import, and
+  deletion now share one category lock. Settings writes require transactional
+  term metadata, verify their mutations, and commit with one revision advance;
+  imports validate canonical per-key shapes and bounds, exclude the private
+  revision, preserve omitted local Line-Up state, and verify failed-created-term
+  rollback instead of treating a best-effort delete as proof. WordPress 6.1 is
+  now the declared minimum so category creation can prove the exact raw term
+  mapping from scoped hook arguments; concurrent duplicate winners are never
+  adopted or Undo-tracked, template categories retain isolated ownership even
+  when the global option is off, and uncertain cleanup remains recoverable
+  without being counted as success. Regular imported term metadata now verifies
+  deletion, every add, and exact serialized readback, with failures propagated
+  through template and ordinary wordset imports. Failed deferred maintenance
+  also retains a durable, independently scheduled full-pass intent behind any
+  active quiz or vocab worker; follow-ups restart from cursor zero without
+  clobbering active state, losing forced orphan cleanup, recursively creating
+  passes, or being stranded by a failed worker-event write.
+- September 4 focused coverage follow-up: Word Audio bulk recording-type edits,
+  Site Sync orchestration, WebP mutation/retry behavior, autosave/title/export
+  deadlines, reduced motion, admission guards, stale bulk-selection responses,
+  and Line-Up query bounds now have direct PHP or browser regressions. The
+  offline builder lockfile also resolves `@xmldom/xmldom` to the patched 0.8.15
+  release; its npm audit is clean.
+
+- September 1 maintenance/performance audit follow-up: teacher-class deletion
+  now publishes an exact-owner deletion lease before its roster barrier, and
+  membership writers recheck that barrier under the established user-to-class
+  lock order. Privacy erasure preserves the externally owned `simplefavorites`
+  value while an LL-owned marker prevents its legacy completion associations
+  from replaying. Privacy decisions use error-detecting current usermeta reads.
+  Direct LMS identity/recipient writers now join the learner transaction,
+  require the verified assignment-schema marker, current-read both privacy
+  fences, and re-read authoritative mappings before mutation.
+- September 1 reporting, resource, and recovery follow-up: progress word stats
+  aggregate in 100-user SQL chunks. The parity fallback is independently
+  keyset-paged per learner, cap-bounded, aware of current recording
+  requirements, and fail-closed without a partial summary; all report query
+  failures remain typed through teacher rows/summaries and render `Unavailable`
+  with true empty sort values. Client progress events without a stable UUID are
+  rejected rather than assigned retry-breaking IDs. IPA Keyboard lesson links
+  now query only requested category IDs under a 100-default/250-hard ceiling.
+  Audio deletion uses durable non-autoloaded `pending`/`post_deleted`/
+  `cleanup_failed`/`deleted` phases, bounded scheduled retries, validated upload
+  paths, authoritative cleanup readback, and terminal verification.
+- September 1 recorder-summary performance follow-up: every six-category batch
+  reuses one complete-catalog manifest scope and generation. The optional
+  aggregate retains only exact card counts and two-item previews while the
+  richer per-category durable caches remain authoritative; the force-seeded
+  Genç cold completion improved from 128,993 ms to 98,043 ms without increasing
+  batch size or concurrency.
+- September 1 UI, localization, and coverage follow-up: reduced-motion users no
+  longer wait for decorative modal/delete transitions; upload prompt/option
+  controllers share tested fallback behavior; the transient matcher save test
+  uses deterministic request release; Google Classroom Disconnect and
+  authorized/private wordset behavior have WordPress-backed browser coverage.
+  The Turkish literal-token guard preserves API/import identifiers and the
+  reviewed entries follow the informal learner tone.
 
 - August 23 progress-event schema inventory: a 143,173-row fixed-high-water
   scan covered all six controlled sites. The 36,867 rows on WordBoat,
@@ -629,9 +706,6 @@ the normal regression suite.
   Saving a legacy collection Page materializes its index; a pre-index page
   outside that candidate window waits for a save/reindex instead of triggering
   an unbounded request scan.
-- Upload-form JavaScript retains two similar flows because their current
-  behavior diverges and there is not yet browser parity coverage for a safe
-  shared controller. The server-rendered Target Scope markup is shared.
 - Advanced grammar settings now share normalization/persistence. Category-order
   persistence remains separate because the manager aborts on `WP_Error` while
   taxonomy admin queues a notice and continues; unify it only after choosing an
@@ -657,11 +731,6 @@ the normal regression suite.
   keyset progress/assignment queries while preserving a tested dual-write,
   backfill, and rollback window; do not replace the bounded admin path with a
   full progress scan to recover class-wide page metrics.
-- Audio Processor deletion captures paths before deleting the post, but an
-  unlink failure after a successful post deletion can still leave an orphaned
-  file. Keep that rare cleanup out of the interactive request unless it is
-  observed in operation; if needed, add a bounded uploads audit/cleanup job with
-  dry-run and explicit path-scope verification.
 - Offline app service-worker/install behavior is still a future coverage item
   only if a browser PWA/service-worker runtime is added; the current offline app
   path is a local-first web/APK shell and does not register a service worker.

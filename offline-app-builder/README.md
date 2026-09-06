@@ -2,6 +2,25 @@
 
 This folder turns an `LL Offline App Export` bundle into an Android APK.
 
+## Source boundaries and navigation
+
+| Task | Start here |
+| --- | --- |
+| Export selection, resumable category/word/media/data/zip jobs | `../includes/admin/offline-app-export.php` |
+| Wordset manager export controls | `../js/wordset-offline-export.js` and the offline-export helpers in `../includes/pages/wordset-pages.php` |
+| Exported web shell and Study/Games launcher | `../templates/offline-app-shell-template.php`, `../offline-app/offline-app.js` |
+| Local progress queue and server synchronization | `../js/flashcard-widget/progress-tracker.js`, `../includes/offline-app-sync.php` |
+| Archive preparation and generated Capacitor configuration | `scripts/prepare-bundle.mjs` |
+| Android project, package/version properties, toolchain detection and signing | `scripts/build-apk.mjs` |
+| Optional STT injection and launcher icon | `scripts/inject-stt-bundle.mjs`, `scripts/apply-app-icon.mjs` |
+| First-party Android STT plugin, model resolution and PCM checks | `android-overrides/app/src/main/java/com/lltools/offline/offline/quiz/stt/` and `android-overrides/app/src/main/jni/lltools_whisper_jni.c` |
+| Vendored whisper.cpp/ggml boundary | `UPSTREAM_PROVENANCE.md` and `android-overrides/app/src/main/jni/w/` |
+
+Exporting from WordPress, preparing a web bundle, building an APK, and verifying
+the installed Android app are separate steps. A passing export or Node test
+does not prove native compilation or on-device inference. The vendored `w/`
+tree is upstream code; keep LL Tools integration changes outside it.
+
 ## Prerequisites
 
 - Node.js 22 or newer
@@ -22,7 +41,11 @@ npm install
 npm run prepare:bundle -- /absolute/path/to/ll-tools-offline-app.zip
 ```
 
-This extracts the bundle into `workspace/bundle/` and writes `capacitor.config.json`.
+This extracts the bundle into `workspace/bundle/`, records
+`workspace/bundle-state.json`, and writes `capacitor.config.json`. An extracted
+bundle directory is also accepted. Its root must contain `bundle-manifest.json`
+and `www/index.html`. Preparation replaces the single prepared workspace, so
+retain the original export outside `workspace/bundle/`.
 On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
 If the bundle includes a wordset-specific offline STT bundle, it is kept under `workspace/bundle/www/content/stt-models/...` and packaged into the APK with the rest of the web assets.
@@ -84,6 +107,29 @@ Then run:
 ```bash
 npm run build:release -- /absolute/path/to/ll-tools-offline-app.zip
 ```
+
+The signing configuration is written to the ignored `capacitor.config.json`
+for the release command and rewritten without signing secrets in its `finally`
+handler. Keep that file private during the build. Successful debug and release
+commands report their respective output directories under
+`android/app/build/outputs/apk/`; the Windows batch shortcut also copies the APK
+next to the input archive.
+
+## Focused verification
+
+From this directory, run `npm test` (`npm.cmd test` in PowerShell when needed)
+for the Node archive/icon/configuration checks in
+`tests/builder-hardening.test.mjs`. Android PCM unit coverage is in
+`android-overrides/app/src/test/java/com/lltools/offline/offline/quiz/stt/PcmAudioUtilsTest.java`;
+it needs a prepared Android project and toolchain.
+
+WordPress-side coverage lives outside the builder: `OfflineAppExportTest` and
+`OfflineAppSyncTest` under `../tests/Integration/`, plus
+`offline-app-export-job-progress.spec.js`,
+`wordset-offline-export-job-progress.spec.js`,
+`offline-app-shell-launcher.spec.js`, and `offline-app-sync-error-wp.spec.js`
+under `../tests/e2e/specs/`. Follow `../tests/AI_TESTING_PLAYBOOK.md` before
+running the WordPress or browser tests.
 
 ## Notes
 

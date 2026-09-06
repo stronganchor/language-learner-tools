@@ -3,6 +3,11 @@
 Start here when the task is broad or the owner is unclear. Pick the nearest
 pack, generate it, then verify against current source before editing.
 
+For a whole-repository review, use [codebase-map.md](codebase-map.md) to cover
+each subsystem and the tooling/native boundaries; one suggested pack is not a
+complete repository inventory. Review procedure and local findings storage are
+documented in [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
+
 ```bash
 php scripts/build-ai-context-pack.php --suggest-pack "short task description"
 php scripts/build-ai-context-pack.php --activity-report --output -
@@ -32,6 +37,15 @@ If the suggested pack looks wrong, update the `signals` for the relevant pack in
 | Wordset-isolation migration, category ownership/remapping, migration retry/status/CLI, stale recommendation activity cleanup, durable generated-page reconciliation | `core-runtime-data-model` | `wordset-isolation`, `LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION`, `LL_TOOLS_WORDSET_ISOLATION_MIGRATION_STATE_OPTION`, `LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_HOOK`, `LL_TOOLS_WORDSET_ISOLATION_RECONCILIATION_STATE_OPTION`, `LL_TOOLS_USER_RECOMMENDATION_QUEUE_META`, `LL_TOOLS_USER_LAST_RECOMMENDATION_META`, `LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META`, `LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META`, `wordset-isolation-migrate`, `allow-large-option-rules`, `ll_tools_wordset_isolation_continue_migration`, `ll_tools_begin_deferred_category_maintenance`, `ll_tools_schedule_quiz_page_full_sync`, `ll_tools_schedule_vocab_lesson_full_sync` |
 | Performance fixtures, benchmark scenarios, page-speed budgets, large-wordset evidence, bounded public aggregates, stored-fixture transport, expired transient or wp_options cache cleanup | `performance-benchmark` | `PERFORMANCE_ARCHITECTURE`, `LL_PERF_PROFILE`, `LL_PERF_SKIP_SEED`, `canonical-json-v1`, `LL_E2E_PERF_CONFIG_LOCKED`, `verify-performance-manifest`, `stored fixture JSON`, `performance-history`, `page-speed`, `large-wordset`, `wordset buttons`, `resumable aggregate`, `expired-transient-maintenance` |
 
+Some ownership boundaries need a direct entry point in addition to a pack:
+
+| Task signal | Start here | Focused guard or next search |
+| --- | --- | --- |
+| Stable ZIP, dev/main parity, version constants, missing deployed asset | `RELEASING.md`, `scripts/release-plugin.ps1`, `scripts/build-release-package.sh` | `ReleasePluginScriptTest`, `scripts/required-runtime-assets.txt`, `.gitattributes` |
+| Local PHP/MySQL/HTTP discovery, Git Bash, test bootstrap or docs contracts | `tests/README.md`, `tests/AI_TESTING_PLAYBOOK.md`, `tests/bin/resolve-local-runtime.php` | `maintenance-doc-contracts.spec.js`, `tests/bin/run-tests.sh`, `tests/bin/run-e2e.sh` |
+| APK packaging, Capacitor bridge, bundled speech models or native STT | `offline-app-builder/README.md`, `offline-app-builder/UPSTREAM_PROVENANCE.md` | `offline-app-builder/scripts/`, `offline-app-builder/android-overrides/`; override the normal builder exclusion |
+| Personal-data export/erasure, account deletion and LMS retention | `includes/privacy.php`, `includes/lms/assignments.php`, `includes/lms/grade-delivery.php` | `LmsPrivacyLifecycleTest`, `UserProgressRetentionTest`, `OfflineAppSyncTest` |
+
 ## Aliases
 
 The generator supports these shorter names:
@@ -40,8 +54,11 @@ The generator supports these shorter names:
 - `ranked-word-list` -> `wordset-vocab-manager`
 - `transcription-manager` -> `recording-media-transcription`
 - `dictionary` -> `dictionary-i18n-cache`
-- `llms.txt`, `ai-crawler`, `JSON-LD`, `Schema.org`, `WebMCP` -> `dictionary-i18n-cache`
 - `imports-sync` -> `automation-import-sync`
+
+`llms.txt`, `ai-crawler`, `JSON-LD`, `Schema.org`, and `WebMCP` are
+`--suggest-pack` signals for `dictionary-i18n-cache`, not `--pack` aliases.
+Use `--list` to verify accepted pack names and aliases.
 
 ## When No Row Fits
 

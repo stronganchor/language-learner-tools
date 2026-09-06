@@ -129,6 +129,19 @@ test('Classroom admin shows safe unconfigured and locally mocked connected state
       waitUntil: 'domcontentloaded'
     });
     await expect(page.locator('.ll-tools-google-classroom')).not.toContainText('raw-provider-secret');
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 90000 }),
+      page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+    ]);
+    await expect(page).toHaveURL(/ll_tools_gc_notice=disconnected/);
+    await expect(page.locator('.notice.notice-success')).toContainText(
+      'The local Google Classroom connection was removed.'
+    );
+    await expect(page.getByText('No Google Classroom account is connected.', { exact: true })).toBeVisible();
+    await expect(page.getByText(connectionFixture.accountEmail, { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Connect Google Classroom', exact: true })).toBeVisible();
     expect(browserGoogleRequests).toEqual([]);
   } finally {
     if (cleanupRequired) {

@@ -46,7 +46,14 @@ async function mountMatcher(page, scenario) {
       nextCalls: 0,
       assignCalls: 0,
       assignedImageIds: [],
-      aborts: 0
+      aborts: 0,
+      pendingAssignReleases: [],
+      releaseNextAssignment() {
+        const release = this.pendingAssignReleases.shift();
+        if (release) {
+          release();
+        }
+      }
     };
     window.llAimData = {
       ajaxurl: 'https://example.test/wp-admin/admin-ajax.php',
@@ -152,6 +159,11 @@ async function mountMatcher(page, scenario) {
         }, { once: true });
         if (activeScenario === 'assign-failure' && state.assignCalls === 1) {
           return Promise.reject(new Error('simulated assignment failure'));
+        }
+        if (activeScenario === 'keyboard') {
+          return new Promise((resolve) => {
+            state.pendingAssignReleases.push(() => resolve(response({})));
+          });
         }
         return delayedResponse({}, activeScenario === 'assign-slow' ? 120 : 80);
       }
@@ -270,14 +282,20 @@ test('image choices are ordinary buttons activated once by Enter or Space', asyn
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
   await expect(page.locator('#ll-aim-status')).toHaveText('Saving match...');
-  await expect(page.locator('#ll-aim-word-title')).toHaveText('Word 2');
+  expect(await page.evaluate(() => window.__llAimTest.pendingAssignReleases.length)).toBe(1);
   expect(await page.evaluate(() => window.__llAimTest.assignCalls)).toBe(1);
+  await page.evaluate(() => window.__llAimTest.releaseNextAssignment());
+  await expect(page.locator('#ll-aim-word-title')).toHaveText('Word 2');
   expect(await page.locator('.ll-aim-card[data-img-id="1"]').getAttribute('aria-pressed')).toBeNull();
 
   const secondChoice = page.locator('.ll-aim-card[data-img-id="2"]');
   await expect(secondChoice).toBeFocused();
   await page.keyboard.press('Space');
   await page.keyboard.press('Space');
+  await expect(page.locator('#ll-aim-status')).toHaveText('Saving match...');
+  expect(await page.evaluate(() => window.__llAimTest.pendingAssignReleases.length)).toBe(1);
+  expect(await page.evaluate(() => window.__llAimTest.assignCalls)).toBe(2);
+  await page.evaluate(() => window.__llAimTest.releaseNextAssignment());
   await expect(page.locator('#ll-aim-word-title')).toHaveText('Word 3');
 
   expect(await page.evaluate(() => ({

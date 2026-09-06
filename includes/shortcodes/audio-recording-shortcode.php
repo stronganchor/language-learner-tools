@@ -4913,7 +4913,32 @@ function ll_prepare_new_word_recording_handler() {
         if (empty($selected_types)) {
             $selected_types = in_array('isolation', $all_types, true) ? ['isolation'] : array_slice($all_types, 0, 1);
         }
-        update_term_meta($category_term_id, 'll_desired_recording_types', $selected_types);
+        $settings_result = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $category_term_id,
+            static function () use ($category_term_id, $selected_types) {
+                if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $category_term_id,
+                    'll_desired_recording_types',
+                    $selected_types
+                )) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_write',
+                        __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($settings_result)) {
+            $error_data = $settings_result->get_error_data();
+            $status = is_array($error_data) ? (int) ($error_data['status'] ?? 503) : 503;
+            wp_send_json_error([
+                'message' => $settings_result->get_error_message(),
+                'error' => ll_tools_get_vocab_lesson_category_settings_error_code($settings_result),
+            ], max(400, min(599, $status)));
+        }
 
         $category_term = get_term($category_term_id, 'word-category');
     } elseif (!empty($category_slug) && $category_slug !== 'uncategorized') {

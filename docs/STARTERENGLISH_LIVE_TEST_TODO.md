@@ -1,5 +1,9 @@
 # Starter English Live Test Todo
 
+> Historical June 2026 live-test checklist. Host health, deployed assets and
+> unchecked scenario results require fresh evidence for any newly authorized
+> live test. This checklist is separate from local code/documentation review.
+
 Created: 2026-06-29
 Expanded after deeper pass: 2026-06-29
 

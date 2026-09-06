@@ -273,6 +273,7 @@ final class DictionaryPublicFilterBoundsTest extends LL_Tools_TestCase
             'letter',
             'll_dictionary_dialect',
             'll_dictionary_entry',
+            'entry_id',
         ];
 
         foreach ($scalarKeys as $key) {
@@ -285,6 +286,44 @@ final class DictionaryPublicFilterBoundsTest extends LL_Tools_TestCase
             $this->assertWPError($sizeError, $key . ' should reject oversized scalar input.');
             $this->assertSame('raw_bytes', (string) (($sizeError->get_error_data()['reason'] ?? '')));
         }
+    }
+
+    public function test_entry_detail_alias_is_rejected_before_entry_resolution(): void
+    {
+        wp_set_current_user(0);
+        $_POST = [
+            'action' => 'll_tools_dictionary_entry_detail',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'wordset_id' => 0,
+            'entry_id' => [['nested-entry-id']],
+        ];
+        $_REQUEST = $_POST;
+        $queries = [];
+        $queryWatcher = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+        add_filter('query', $queryWatcher);
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_dictionary_handle_entry_detail();
+            });
+        } finally {
+            remove_filter('query', $queryWatcher);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame(
+            'll_tools_dictionary_filter_input_invalid',
+            (string) ($response['data']['code'] ?? '')
+        );
+        $this->assertSame('entry_id', (string) ($response['data']['parameter'] ?? ''));
+        $querySql = implode("\n", $queries);
+        $this->assertStringNotContainsString("post_type = 'll_dictionary_entry'", $querySql);
+        $this->assertStringNotContainsString('ll_dictionary_lookup', $querySql);
     }
 
     public function test_static_cache_drops_invalid_scalar_shapes_before_recursive_value_helpers(): void

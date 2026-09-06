@@ -111,6 +111,7 @@ function ll_tools_duplicate_category_words_get_error_message($code): string {
         'missing_new_category_name' => __('Enter a name for the new target category.', 'll-tools-text-domain'),
         'new_category_exists'     => __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'),
         'create_target_category_failed' => __('Could not create the target category. Please try a different name or slug.', 'll-tools-text-domain'),
+        'create_target_category_cleanup_failed' => __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain'),
         'same_category'           => __('Source and target categories must be different.', 'll-tools-text-domain'),
         'invalid_gender'          => __('The selected grammatical gender override is invalid for this word set.', 'll-tools-text-domain'),
         'invalid_plurality'       => __('The selected plurality override is invalid for this word set.', 'll-tools-text-domain'),
@@ -312,35 +313,190 @@ function ll_tools_duplicate_category_words_get_grammar_config($wordset_id): arra
  * @param int  $source_category_id Source category term ID.
  * @param int  $target_category_id Target category term ID.
  * @param bool $copy_translation   Whether to copy translation meta.
- * @return void
+ * @return true|WP_Error
  */
-function ll_tools_duplicate_category_words_copy_source_category_settings($source_category_id, $target_category_id, $copy_translation = true): void {
+function ll_tools_duplicate_category_words_copy_source_category_settings($source_category_id, $target_category_id, $copy_translation = true) {
     $source_category_id = (int) $source_category_id;
     $target_category_id = (int) $target_category_id;
     if ($source_category_id <= 0 || $target_category_id <= 0) {
-        return;
+        return new WP_Error(
+            'll_tools_duplicate_category_settings_invalid',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain')
+        );
     }
 
-    $meta_keys = [
+    $sharedMetaKeys = [
         'll_quiz_prompt_type',
         'll_quiz_option_type',
         'll_lesson_grid_text_visibility_override',
         'use_word_titles_for_audio',
         'll_desired_recording_types',
     ];
-
     if ($copy_translation) {
-        $meta_keys[] = 'term_translation';
+        $sharedMetaKeys[] = 'term_translation';
+    }
+    if (
+        !function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')
+        || !function_exists('ll_tools_write_verified_vocab_lesson_category_setting_meta')
+    ) {
+        return new WP_Error(
+            'll_tools_duplicate_category_settings_unavailable',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain')
+        );
     }
 
-    foreach ($meta_keys as $meta_key) {
-        $value = get_term_meta($source_category_id, $meta_key, true);
-        if ($value === '' || $value === null || $value === []) {
-            delete_term_meta($target_category_id, $meta_key);
-            continue;
+    try {
+        $settingsResult = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $target_category_id,
+            static function () use ($source_category_id, $target_category_id, $sharedMetaKeys) {
+                global $wpdb;
+
+                wp_cache_delete($source_category_id, 'term_meta');
+                $wpdb->last_error = '';
+                $sourceMeta = get_term_meta($source_category_id);
+                if (!is_array($sourceMeta) || $wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_source',
+                        __('Unable to read category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                foreach ($sharedMetaKeys as $metaKey) {
+                    $storedValues = isset($sourceMeta[$metaKey]) && is_array($sourceMeta[$metaKey])
+                        ? $sourceMeta[$metaKey]
+                        : [];
+                    $value = $storedValues === [] ? '' : maybe_unserialize(reset($storedValues));
+                    $delete = $storedValues === [] || $value === '' || $value === null || $value === [];
+                    if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                        $target_category_id,
+                        $metaKey,
+                        $value,
+                        $delete
+                    )) {
+                        return ll_tools_vocab_lesson_category_settings_error(
+                            'settings_write',
+                            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                            503,
+                            ['retryable' => true]
+                        );
+                    }
+                }
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($settingsResult)) {
+            return $settingsResult;
         }
-        update_term_meta($target_category_id, $meta_key, $value);
+
+        if (function_exists('ll_tools_wordset_page_touch_category')) {
+            ll_tools_wordset_page_touch_category($target_category_id);
+        } else {
+            clean_term_cache($target_category_id, 'word-category');
+        }
+    } catch (Throwable $throwable) {
+        return new WP_Error(
+            'll_tools_duplicate_category_settings_failed',
+            __('Unable to copy category settings right now.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
     }
+
+    return true;
+}
+
+/**
+ * Create a category for the explicit "new" duplication mode.
+ *
+ * Unlike ll_tools_create_or_get_wordset_category(), this never adopts a
+ * same-name category. The caller is about to copy settings and words, so reuse
+ * would silently mutate an existing target selected by neither ID nor mode.
+ *
+ * @return int|WP_Error
+ */
+function ll_tools_duplicate_category_words_create_new_target_category(
+    string $name,
+    int $wordset_id,
+    string $requested_slug = ''
+) {
+    $name = trim(sanitize_text_field($name));
+    $wordset_id = (int) $wordset_id;
+    $requested_slug = sanitize_title($requested_slug);
+    if (!function_exists('ll_tools_create_new_wordset_category')) {
+        return new WP_Error('ll_tools_duplicate_category_create_failed', __('Unable to create that category right now.', 'll-tools-text-domain'));
+    }
+
+    $create_args = [];
+    if ($requested_slug !== '') {
+        $create_args['slug'] = $requested_slug;
+    }
+    $created = ll_tools_create_new_wordset_category($name, $wordset_id, $create_args);
+    if (is_wp_error($created) && $created->get_error_code() === 'll_tools_new_wordset_category_exists') {
+        return new WP_Error(
+            'll_tools_duplicate_category_exists',
+            __('A category with that name already exists. Use existing-category mode or choose a different name.', 'll-tools-text-domain'),
+            $created->get_error_data()
+        );
+    }
+
+    return $created;
+}
+
+/**
+ * Roll back a target that the strict creator proved belongs to this request.
+ */
+function ll_tools_duplicate_category_words_rollback_new_target_after_error(int $target_category_id, WP_Error $failure): WP_Error {
+    if (function_exists('ll_tools_rollback_created_wordset_category_after_error')) {
+        return ll_tools_rollback_created_wordset_category_after_error($target_category_id, $failure);
+    }
+
+    return new WP_Error(
+        'll_tools_wordset_category_cleanup_failed',
+        __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain'),
+        [
+            'status'            => 503,
+            'retryable'         => false,
+            'term_id'           => $target_category_id,
+            'rollback_complete' => false,
+            'cause_code'        => sanitize_key((string) $failure->get_error_code()),
+        ]
+    );
+}
+
+/** @return true|WP_Error */
+function ll_tools_duplicate_category_words_write_new_target_translation(int $target_category_id, string $translation) {
+    $translation = sanitize_text_field($translation);
+    if (
+        $target_category_id <= 0
+        || $translation === ''
+        || !function_exists('ll_tools_write_verified_vocab_lesson_category_setting_meta')
+    ) {
+        return new WP_Error(
+            'll_tools_duplicate_category_translation_write_failed',
+            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    try {
+        $written = ll_tools_write_verified_vocab_lesson_category_setting_meta(
+            $target_category_id,
+            'term_translation',
+            $translation,
+            false
+        );
+    } catch (Throwable $throwable) {
+        $written = false;
+    }
+    if (!$written) {
+        return new WP_Error(
+            'll_tools_duplicate_category_translation_write_failed',
+            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+            ['status' => 503, 'retryable' => true]
+        );
+    }
+
+    return true;
 }
 
 /**
@@ -1106,48 +1262,76 @@ function ll_tools_handle_duplicate_category_words_save() {
             exit;
         }
 
-        if (function_exists('ll_tools_create_or_get_wordset_category')) {
-            $insert_args = [];
-            if ($new_category_slug !== '') {
-                $insert_args['slug'] = $new_category_slug;
+        $created_category = ll_tools_duplicate_category_words_create_new_target_category(
+            $new_category_name,
+            $wordset_id,
+            $new_category_slug
+        );
+        if (is_wp_error($created_category) || (int) $created_category <= 0) {
+            $error_code = 'create_target_category_failed';
+            if (is_wp_error($created_category)) {
+                if ($created_category->get_error_code() === 'll_tools_duplicate_category_exists') {
+                    $error_code = 'new_category_exists';
+                } elseif ($created_category->get_error_code() === 'll_tools_wordset_category_cleanup_failed') {
+                    $error_code = 'create_target_category_cleanup_failed';
+                    $error_data = $created_category->get_error_data();
+                    $retained_id = is_array($error_data) ? (int) ($error_data['term_id'] ?? 0) : 0;
+                    if ($retained_id > 0) {
+                        $redirect_base_args['ll_target_category_id'] = $retained_id;
+                    }
+                }
             }
-            $created_category = ll_tools_create_or_get_wordset_category($new_category_name, $wordset_id, $insert_args);
-            if (is_wp_error($created_category) || (int) $created_category <= 0) {
-                wp_safe_redirect(ll_tools_get_duplicate_category_words_page_url(array_merge($redirect_base_args, ['ll_dup_error' => 'create_target_category_failed'])));
-                exit;
-            }
-            $target_category_id = (int) $created_category;
-        } else {
-            $existing_term = term_exists($new_category_name, 'word-category');
-            if ($existing_term) {
-                wp_safe_redirect(ll_tools_get_duplicate_category_words_page_url(array_merge($redirect_base_args, ['ll_dup_error' => 'new_category_exists'])));
-                exit;
-            }
-
-            $insert_args = [];
-            if ($new_category_slug !== '') {
-                $insert_args['slug'] = $new_category_slug;
-            }
-            $inserted = wp_insert_term($new_category_name, 'word-category', $insert_args);
-            if (is_wp_error($inserted) || empty($inserted['term_id'])) {
-                wp_safe_redirect(ll_tools_get_duplicate_category_words_page_url(array_merge($redirect_base_args, ['ll_dup_error' => 'create_target_category_failed'])));
-                exit;
-            }
-
-            $target_category_id = (int) $inserted['term_id'];
+            wp_safe_redirect(ll_tools_get_duplicate_category_words_page_url(array_merge(
+                $redirect_base_args,
+                ['ll_dup_error' => $error_code]
+            )));
+            exit;
         }
+        $target_category_id = (int) $created_category;
         $redirect_base_args['ll_target_category_id'] = $target_category_id;
+        $abort_new_target = static function (WP_Error $failure) use (&$redirect_base_args, $target_category_id): void {
+            $failure = ll_tools_duplicate_category_words_rollback_new_target_after_error(
+                $target_category_id,
+                $failure
+            );
+            $failure_data = $failure->get_error_data();
+            $rollback_complete = is_array($failure_data) && !empty($failure_data['rollback_complete']);
+            if ($rollback_complete) {
+                unset($redirect_base_args['ll_target_category_id']);
+            }
+            $error_code = $failure->get_error_code() === 'll_tools_wordset_category_cleanup_failed'
+                ? 'create_target_category_cleanup_failed'
+                : 'create_target_category_failed';
+            wp_safe_redirect(ll_tools_get_duplicate_category_words_page_url(array_merge(
+                $redirect_base_args,
+                ['ll_dup_error' => $error_code]
+            )));
+            exit;
+        };
 
         $category_translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
             ? (bool) ll_tools_is_category_translation_enabled([$wordset_id])
             : false;
         if ($category_translation_enabled && $new_category_translation !== '') {
-            update_term_meta($target_category_id, 'term_translation', $new_category_translation);
+            $translation_result = ll_tools_duplicate_category_words_write_new_target_translation(
+                $target_category_id,
+                $new_category_translation
+            );
+            if (is_wp_error($translation_result)) {
+                $abort_new_target($translation_result);
+            }
         }
 
         if ($copy_source_settings) {
             $copy_translation = !($category_translation_enabled && $new_category_translation !== '');
-            ll_tools_duplicate_category_words_copy_source_category_settings($source_category_id, $target_category_id, $copy_translation);
+            $copyResult = ll_tools_duplicate_category_words_copy_source_category_settings(
+                $source_category_id,
+                $target_category_id,
+                $copy_translation
+            );
+            if (is_wp_error($copyResult)) {
+                $abort_new_target($copyResult);
+            }
         }
     } else {
         $target_category = get_term($target_category_id, 'word-category');

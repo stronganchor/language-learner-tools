@@ -5,6 +5,14 @@ function isExpectedCloudflareRumAbort(details, errorText) {
     && errorText === 'net::ERR_ABORTED';
 }
 
+function isExpectedPopupMediaCleanupAbort(details, errorText, expectedUrls) {
+  return !!details
+    && details.method === 'GET'
+    && errorText === 'net::ERR_ABORTED'
+    && expectedUrls instanceof Set
+    && expectedUrls.has(details.url);
+}
+
 function isExpectedCategorySearchWarmingResponse(details, status) {
   return !!details
     && details.method === 'POST'
@@ -62,6 +70,7 @@ function isPotentialFlashcardWarmingConsoleError(messageText, locationUrl, siteO
 
 module.exports = {
   isExpectedCloudflareRumAbort,
+  isExpectedPopupMediaCleanupAbort,
   isExpectedCategorySearchWarmingResponse,
   isPotentialCategorySearchWarmingConsoleError,
   isExpectedFlashcardPayloadWarmingResponse,

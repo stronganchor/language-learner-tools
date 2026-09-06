@@ -88,6 +88,9 @@ function buildCategorySettingsMarkup(options = {}) {
                 <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="91" />
                 <input type="hidden" name="ll_vocab_lesson_category_settings_wordset_id" value="11" />
                 <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="21" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_revision" value="0" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_client_id" value="00000000-0000-4000-8000-000000000000" />
+                <input type="hidden" name="ll_vocab_lesson_category_settings_sequence" value="1" />
                 <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="test-lineup-nonce" />
                 <div class="ll-vocab-lesson-category-settings-panel__title-row">
                   <div class="ll-vocab-lesson-category-settings-panel__title" id="ll-test-category-settings-title">Category settings</div>
@@ -238,10 +241,12 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
         },
         categorySettings: {
           action: 'll_tools_save_vocab_lesson_category_settings',
+          requestTimeoutMs: ${Number.isFinite(options.categorySettingsRequestTimeoutMs) ? options.categorySettingsRequestTimeoutMs : 20000},
           i18n: {
             saving: 'Saving changes...',
             saved: 'Changes saved.',
-            error: 'Unable to save category settings right now.'
+            error: 'Unable to save category settings right now.',
+            timeout: 'Saving took too long. Please retry.'
           }
         }
       };
@@ -254,6 +259,11 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
       };
 
       window.__llCategorySettingsSaves = [];
+      window.__llCategorySettingsSaveBehavior = '${options.categorySettingsSaveBehavior || 'success'}';
+      window.__llCategorySettingsRequestTimeouts = [];
+      window.__llCategorySettingsServerRevision = 0;
+      window.__llCategorySettingsServerState = null;
+      window.__llCategorySettingsServerWriter = { clientId: '', sequence: 0 };
       window.__llLineupRequests = [];
       window.__llLineupSequence = Array.from({ length: ${lineupCount} }, (_, index) => 41 + index);
       window.__llLineupCandidates = Array.from({ length: ${lineupCount} }, (_, index) => ({
@@ -347,11 +357,14 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
               window.__llLineupSequence[currentIndex] = next;
             }
             window.__llLineupRequests.push({ action, mutation, wordId });
+            window.__llCategorySettingsServerRevision += 1;
+            window.__llCategorySettingsServerWriter = { clientId: '', sequence: 0 };
             deferred.resolve({
               success: true,
               data: {
                 message: 'Sequence updated.',
-                sequence_count: window.__llLineupSequence.length
+                sequence_count: window.__llLineupSequence.length,
+                revision: window.__llCategorySettingsServerRevision
               }
             });
             return;
@@ -361,10 +374,93 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
             url: String(options && options.url ? options.url : ''),
             entries
           });
+          window.__llCategorySettingsRequestTimeouts.push(Number(options && options.timeout ? options.timeout : 0));
+          const submittedRevision = Number.parseInt(
+            value('ll_vocab_lesson_category_settings_revision', '-1'),
+            10
+          );
+          const submittedClientId = value('ll_vocab_lesson_category_settings_client_id');
+          const submittedSequence = Number.parseInt(
+            value('ll_vocab_lesson_category_settings_sequence', '0'),
+            10
+          );
+          const commitCategorySettings = function () {
+            window.__llCategorySettingsServerRevision += 1;
+            window.__llCategorySettingsServerState = entries;
+            window.__llCategorySettingsServerWriter = {
+              clientId: submittedClientId,
+              sequence: submittedSequence
+            };
+          };
+          if (
+            ['timeout-first', 'timeout-then-conflict'].includes(window.__llCategorySettingsSaveBehavior) &&
+            window.__llCategorySettingsSaves.length === 1
+          ) {
+            window.setTimeout(function () {
+              if (window.__llCategorySettingsSaveBehavior === 'timeout-then-conflict') {
+                commitCategorySettings();
+              }
+              deferred.reject({}, 'timeout');
+            }, Number(options && options.timeout ? options.timeout : 0));
+            return;
+          }
+          if (
+            window.__llCategorySettingsSaveBehavior === 'external-conflict' &&
+            window.__llCategorySettingsSaves.length === 1
+          ) {
+            window.__llCategorySettingsServerRevision = 1;
+            window.__llCategorySettingsServerState = { external: ['1'] };
+            window.__llCategorySettingsServerWriter = {
+              clientId: '11111111-1111-4111-8111-111111111111',
+              sequence: 1
+            };
+          }
+          if (
+            window.__llCategorySettingsSaveBehavior === 'retryable-source-once' &&
+            window.__llCategorySettingsSaves.length === 1
+          ) {
+            deferred.reject({
+              responseJSON: {
+                success: false,
+                data: {
+                  message: 'Unable to save category settings right now.',
+                  error: 'recording_types_source',
+                  retryable: true
+                }
+              }
+            }, 'error');
+            return;
+          }
+          const sameClient = window.__llCategorySettingsServerWriter.clientId === submittedClientId;
+          const revisionMismatch = submittedRevision !== window.__llCategorySettingsServerRevision;
+          const staleSameClientSequence = !revisionMismatch
+            && sameClient
+            && window.__llCategorySettingsServerWriter.sequence > 0
+            && submittedSequence <= window.__llCategorySettingsServerWriter.sequence;
+          if (revisionMismatch || staleSameClientSequence) {
+            const sameClientPredecessor = revisionMismatch
+              && sameClient
+              && window.__llCategorySettingsServerWriter.sequence > 0
+              && window.__llCategorySettingsServerWriter.sequence < submittedSequence;
+            deferred.reject({
+              responseJSON: {
+                success: false,
+                data: {
+                  message: 'Unable to save category settings right now.',
+                  error: 'revision_conflict',
+                  current_revision: window.__llCategorySettingsServerRevision,
+                  same_client_predecessor: sameClientPredecessor
+                }
+              }
+            }, 'error');
+            return;
+          }
+          commitCategorySettings();
           deferred.resolve({
             success: true,
             data: {
-              message: 'Changes saved.'
+              message: 'Changes saved.',
+              revision: window.__llCategorySettingsServerRevision
             }
           });
         }, 25);
@@ -545,4 +641,92 @@ test('lesson category settings keeps autosave feedback above overlapping lesson 
   )).toBeGreaterThan(0);
   const lastSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
   expect(lastSave.entries.ll_vocab_lesson_category_lineup_word_ids).toBeUndefined();
+});
+
+test('Line-Up mutations advance the shared revision before the next lesson autosave', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 });
+
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  await expect(page.locator('[data-ll-lineup-sequence-item]')).toHaveCount(3);
+  await page.locator('[data-ll-lineup-sequence-item][data-word-id="42"] [data-ll-lineup-mutation="move_up"]').click();
+
+  const revisionInput = page.locator('input[name="ll_vocab_lesson_category_settings_revision"]');
+  await expect(revisionInput).toHaveValue('1');
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
+  await expect(page.locator('[data-ll-category-settings-status]')).toHaveAttribute('data-state', 'saved');
+
+  const lastSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
+  expect(lastSave.entries.ll_vocab_lesson_category_settings_revision).toEqual(['1']);
+  await expect(revisionInput).toHaveValue('2');
+  expect(await page.evaluate(() => window.__llCategorySettingsServerRevision)).toBe(2);
+});
+
+test('lesson category settings fences a timed-out write and replays the latest queued autosave snapshot', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, {
+    categorySettingsRequestTimeoutMs: 1000,
+    categorySettingsSaveBehavior: 'timeout-then-conflict'
+  });
+
+  const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
+  const status = page.locator('[data-ll-category-settings-status]');
+  const visibility = page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]');
+  const prompt = page.locator('select[name="ll_vocab_lesson_quiz_prompt_type"]');
+
+  await visibility.selectOption('hide');
+  await expect(status).toHaveAttribute('data-state', 'saving');
+  await prompt.selectOption('text_translation');
+
+  await expect(status).toHaveAttribute('data-state', 'saved', { timeout: 4000 });
+  await expect(panel).toHaveAttribute('aria-busy', 'false');
+
+  const saves = await page.evaluate(() => window.__llCategorySettingsSaves);
+  expect(saves).toHaveLength(3);
+  expect(saves[1].entries.ll_vocab_lesson_grid_text_visibility).toEqual(['hide']);
+  expect(saves[1].entries.ll_vocab_lesson_quiz_prompt_type).toEqual(['text_translation']);
+  expect(saves[1].entries.ll_vocab_lesson_category_settings_revision).toEqual(['0']);
+  expect(saves[2].entries.ll_vocab_lesson_grid_text_visibility).toEqual(['hide']);
+  expect(saves[2].entries.ll_vocab_lesson_quiz_prompt_type).toEqual(['text_translation']);
+  expect(saves[2].entries.ll_vocab_lesson_category_settings_revision).toEqual(['1']);
+  expect(saves.map((save) => save.entries.ll_vocab_lesson_category_settings_sequence[0])).toEqual(['1', '2', '3']);
+  expect(new Set(saves.map((save) => save.entries.ll_vocab_lesson_category_settings_client_id[0])).size).toBe(1);
+  expect(await page.locator('input[name="ll_vocab_lesson_category_settings_revision"]').inputValue()).toBe('2');
+  expect(await page.evaluate(() => window.__llCategorySettingsServerRevision)).toBe(2);
+  expect(await page.evaluate(() => window.__llCategorySettingsRequestTimeouts)).toEqual([1000, 1000, 1000]);
+});
+
+test('lesson category settings retries a bounded transient source failure', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, {
+    categorySettingsSaveBehavior: 'retryable-source-once'
+  });
+
+  const status = page.locator('[data-ll-category-settings-status]');
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
+
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  const saves = await page.evaluate(() => window.__llCategorySettingsSaves);
+  expect(saves).toHaveLength(2);
+  expect(saves.map((save) => save.entries.ll_vocab_lesson_category_settings_sequence[0])).toEqual(['1', '2']);
+  expect(saves.map((save) => save.entries.ll_vocab_lesson_category_settings_revision[0])).toEqual(['0', '0']);
+  expect(new Set(saves.map((save) => save.entries.ll_vocab_lesson_category_settings_client_id[0])).size).toBe(1);
+  expect(await page.evaluate(() => window.__llCategorySettingsServerRevision)).toBe(1);
+  expect(await page.locator('input[name="ll_vocab_lesson_category_settings_revision"]').inputValue()).toBe('1');
+});
+
+test('lesson category settings surfaces an external-tab revision conflict without replaying it', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, {
+    categorySettingsSaveBehavior: 'external-conflict'
+  });
+
+  const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
+  const status = page.locator('[data-ll-category-settings-status]');
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
+
+  await expect(status).toHaveAttribute('data-state', 'error');
+  await expect(status).toContainText('Unable to save category settings right now.');
+  await expect(panel).toHaveAttribute('aria-busy', 'false');
+  await page.waitForTimeout(700);
+
+  expect(await page.evaluate(() => window.__llCategorySettingsSaves.length)).toBe(1);
+  expect(await page.locator('input[name="ll_vocab_lesson_category_settings_revision"]').inputValue()).toBe('0');
+  expect(await page.evaluate(() => window.__llCategorySettingsServerState)).toEqual({ external: ['1'] });
 });

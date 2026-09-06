@@ -2,6 +2,38 @@
 
 Use this workflow when the repo feels too large to inspect directly.
 
+## Whole-repository reviews
+
+1. Record the branch, reviewed HEAD and existing working-tree changes. Preserve
+   the current request's edit boundary: documentation-only work can correct
+   docs without implementing discovered code defects.
+2. Use [codebase-map.md](codebase-map.md) as the subsystem checklist and
+   `git ls-files` as the tracked inventory. Review each runtime area, its
+   focused tests, release/test tooling and first-party native builder. Override
+   normal pack exclusions for explicitly requested areas.
+3. Distinguish an inventory/source-contract scan from deeper behavior tracing
+   and a reproduced issue. Record remaining coverage limits, including upstream
+   code, generated catalogs, binaries, provider integration and live sites.
+4. Trace each candidate through callers, capability/scope guards, cache keys,
+   failure handling and current tests. A `posts_per_page => -1` match alone is
+   not a finding when the candidate set is bounded or the operation is an
+   intentional maintenance batch. A batch lock must also cover checkpoint
+   persistence, not just row mutation, to serialize job advancement.
+5. If findings must stay local, maintain
+   `docs/CODEBASE_REVIEW_FOLLOWUPS.local.md` (ignored by the root `.gitignore`).
+   Use stable IDs, priority, status, reviewed HEAD/date, evidence, trigger,
+   impact, confidence, proposed work and a regression/acceptance check. Verify
+   with `git check-ignore -v docs/CODEBASE_REVIEW_FOLLOWUPS.local.md` before
+   staging documentation. Reproducers/logs belong under ignored
+   `test-results/codebase-review/`.
+6. Rank verified exposure/data-loss defects before correctness, boundedness,
+   UX and maintenance work. Separate current bugs, hypotheses needing a
+   reproduction, known design limits, and completed documentation corrections.
+   Recheck old backlog entries instead of copying their status into a new list.
+
+Updating documentation or recording a proposed fix is not permission to apply
+that fix. Live checks and provider calls are separate from local review.
+
 ## First Pass
 
 1. Ask the local router for a starting pack:
@@ -71,8 +103,15 @@ the local Playwright environment is available:
 
 ```bash
 cd tests/e2e
-npx playwright test maintenance-doc-contracts.spec.js --grep "AI context"
+node node_modules/@playwright/test/cli.js test specs/maintenance-doc-contracts.spec.js --reporter=line
 ```
+
+This spec reads local files and exercises CLI fixtures; it does not request a
+browser/page fixture or contact the WordPress site. Calling the installed CLI
+directly avoids the normal E2E wrapper's HTTP readiness request for this
+filesystem-only check. In PowerShell, `npm.cmd`/`npx.cmd` are alternatives when
+execution policy blocks their `.ps1` shims. For actual WordPress/browser flows,
+keep using the runtime-aware wrappers in `tests/README.md`.
 
 The generated packs are local artifacts under `test-results/ai-context/`; do not
 commit them unless there is a specific review reason.

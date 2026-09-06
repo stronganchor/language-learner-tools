@@ -2158,6 +2158,7 @@ function ll_tools_legacy_lesson_completion_meta_snapshot(array $user_ids) {
         'simplefavorites',
         'tt_completed_lessons',
         LL_TOOLS_USER_CONTENT_LESSON_COMPLETION_META,
+        LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META,
     ];
     $user_placeholders = implode(',', array_fill(0, count($user_ids), '%d'));
     $key_placeholders = implode(',', array_fill(0, count($meta_keys), '%s'));
@@ -2503,9 +2504,14 @@ function ll_tools_migrate_legacy_lesson_completions_batch(
             } else {
                 $user_completion_meta = $completion_meta_snapshot[$user_id];
             }
-        $favorite_ids = ll_tools_extract_legacy_favorite_post_ids(
-            $user_completion_meta['simplefavorites']['raw']
-        );
+        $legacy_favorites_erased = !empty(
+            $user_completion_meta[LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META]['exists']
+        ) && (string) ($user_completion_meta[LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META]['raw'] ?? '') === '1';
+        $favorite_ids = $legacy_favorites_erased
+            ? []
+            : ll_tools_extract_legacy_favorite_post_ids(
+                $user_completion_meta['simplefavorites']['raw']
+            );
         if (is_wp_error($favorite_ids)) {
             $summary['processed']++;
             $summary['errors'][] = sprintf(

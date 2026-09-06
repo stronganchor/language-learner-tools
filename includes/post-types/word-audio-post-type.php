@@ -392,7 +392,9 @@ function ll_word_audio_render_bulk_edit_recording_type_controls($column_name, $p
 }
 add_action('bulk_edit_custom_box', 'll_word_audio_render_bulk_edit_recording_type_controls', 10, 2);
 
-function ll_word_audio_get_bulk_recording_type_state_for_posts(array $post_ids): array {
+function ll_word_audio_get_bulk_recording_type_state_for_posts(array $post_ids) {
+    global $wpdb;
+
     $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
         return $post_id > 0;
     })));
@@ -416,9 +418,14 @@ function ll_word_audio_get_bulk_recording_type_state_for_posts(array $post_ids):
             continue;
         }
 
+        $wpdb->last_error = '';
         $term_ids = wp_get_post_terms($post_id, 'recording_type', ['fields' => 'ids']);
-        if (is_wp_error($term_ids)) {
-            continue;
+        if (is_wp_error($term_ids) || $wpdb->last_error !== '') {
+            return new WP_Error(
+                'll_word_audio_bulk_recording_type_source_unavailable',
+                __('Recording types could not be loaded. No changes were made.', 'll-tools-text-domain'),
+                ['status' => 503]
+            );
         }
 
         $term_ids = array_values(array_unique(array_filter(array_map('intval', (array) $term_ids), function ($term_id) {
@@ -457,6 +464,64 @@ function ll_word_audio_get_bulk_recording_type_state_for_posts(array $post_ids):
     ];
 }
 
+/**
+ * Validate bulk recording-type post IDs before normalization or post hydration.
+ *
+ * @param mixed $raw_post_ids
+ */
+function ll_word_audio_bulk_recording_type_post_ids_request_error($raw_post_ids): ?WP_Error {
+    $max_values = max(1, min(500, (int) apply_filters(
+        'll_tools_word_audio_bulk_recording_type_post_ids_limit',
+        200
+    )));
+    $max_raw_bytes = max(1024, min(65536, (int) apply_filters(
+        'll_tools_word_audio_bulk_recording_type_post_ids_max_raw_bytes',
+        8192
+    )));
+    $max_value_bytes = max(1, min(64, (int) apply_filters(
+        'll_tools_word_audio_bulk_recording_type_post_id_max_raw_bytes',
+        20
+    )));
+    $values = is_array($raw_post_ids) ? $raw_post_ids : [$raw_post_ids];
+
+    if (count($values) > $max_values) {
+        return new WP_Error(
+            'll_word_audio_bulk_recording_type_too_large',
+            __('Invalid request.', 'll-tools-text-domain'),
+            ['status' => 413]
+        );
+    }
+
+    $raw_bytes = 0;
+    foreach ($values as $key => $value) {
+        $valid_id = (is_int($value) && $value > 0)
+            || (
+                is_string($value)
+                && preg_match('/^[1-9]\d*$/D', $value) === 1
+                && (string) (int) $value === $value
+            );
+        if (!$valid_id) {
+            return new WP_Error(
+                'll_word_audio_bulk_recording_type_input_invalid',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['status' => 400]
+            );
+        }
+
+        $value_bytes = strlen((string) $value);
+        $raw_bytes += strlen((string) $key) + $value_bytes;
+        if ($value_bytes > $max_value_bytes || $raw_bytes > $max_raw_bytes) {
+            return new WP_Error(
+                'll_word_audio_bulk_recording_type_too_large',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['status' => 413]
+            );
+        }
+    }
+
+    return null;
+}
+
 function ll_word_audio_get_bulk_recording_type_state_ajax() {
     check_ajax_referer('ll_word_audio_bulk_recording_type_edit', 'nonce');
 
@@ -466,8 +531,20 @@ function ll_word_audio_get_bulk_recording_type_state_ajax() {
         ]);
     }
 
-    $post_ids = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
-    $state = ll_word_audio_get_bulk_recording_type_state_for_posts($post_ids);
+    $raw_post_ids = $_POST['post_ids'] ?? [];
+    $request_error = ll_word_audio_bulk_recording_type_post_ids_request_error($raw_post_ids);
+    if ($request_error instanceof WP_Error) {
+        $error_data = (array) $request_error->get_error_data();
+        wp_send_json_error([
+            'code' => $request_error->get_error_code(),
+            'message' => $request_error->get_error_message(),
+        ], (int) ($error_data['status'] ?? 400));
+    }
+
+    $post_ids = (array) wp_unslash($raw_post_ids);
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
+        return $post_id > 0;
+    })));
 
     if (empty($post_ids)) {
         wp_send_json_error([
@@ -475,6 +552,14 @@ function ll_word_audio_get_bulk_recording_type_state_ajax() {
         ]);
     }
 
+    $state = ll_word_audio_get_bulk_recording_type_state_for_posts($post_ids);
+    if (is_wp_error($state)) {
+        $error_data = (array) $state->get_error_data();
+        wp_send_json_error([
+            'code' => $state->get_error_code(),
+            'message' => $state->get_error_message(),
+        ], (int) ($error_data['status'] ?? 503));
+    }
     wp_send_json_success($state);
 }
 add_action('wp_ajax_ll_word_audio_get_bulk_recording_type_state', 'll_word_audio_get_bulk_recording_type_state_ajax');

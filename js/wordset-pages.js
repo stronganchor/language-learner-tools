@@ -483,7 +483,11 @@
             function getCellValue(row, cellIndex, type) {
                 const cell = row && row.cells ? row.cells[cellIndex] : null;
                 const raw = cell
-                    ? String(cell.getAttribute('data-sort-value') || cell.textContent || '').trim()
+                    ? String(
+                        cell.hasAttribute('data-sort-value')
+                            ? cell.getAttribute('data-sort-value')
+                            : (cell.textContent || '')
+                    ).trim()
                     : '';
 
                 if (type === 'number') {
@@ -537,7 +541,9 @@
                 const defaultDirection = (String(button.getAttribute('data-sort-default') || 'asc') === 'desc') ? 'desc' : 'asc';
                 const currentKey = String(table.getAttribute('data-sort-key') || '');
                 const currentDirection = String(table.getAttribute('data-sort-direction') || '');
-                const direction = forceDirection || ((currentKey === sortKey && currentDirection === 'asc') ? 'desc' : defaultDirection);
+                const direction = forceDirection || (currentKey === sortKey
+                    ? (currentDirection === 'asc' ? 'desc' : 'asc')
+                    : defaultDirection);
                 const rows = Array.from(tbody.rows);
 
                 rows.sort(function (leftRow, rightRow) {

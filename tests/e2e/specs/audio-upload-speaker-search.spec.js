@@ -3,6 +3,20 @@ const { test, expect } = require('@playwright/test');
 
 const jqueryPath = path.resolve(__dirname, '..', 'node_modules', 'jquery', 'dist', 'jquery.min.js');
 const speakerSearchScriptPath = path.resolve(__dirname, '..', '..', '..', 'js', 'audio-upload-form-admin.js');
+const imageUploadFormScriptPath = path.resolve(__dirname, '..', '..', '..', 'js', 'image-upload-form-admin.js');
+
+const uploadFormControllers = [
+  {
+    name: 'audio',
+    formAttribute: 'data-ll-audio-upload-form',
+    scriptPath: speakerSearchScriptPath,
+  },
+  {
+    name: 'image',
+    formAttribute: 'data-ll-image-upload-form',
+    scriptPath: imageUploadFormScriptPath,
+  },
+];
 
 async function loadSpeakerSearchFixture(page) {
   await page.setContent(`
@@ -116,4 +130,141 @@ test('speaker search exposes no-results and request-error states', async ({ page
   });
   await expect(status).toHaveText('Speakers could not be loaded.');
   await expect(status).toHaveAttribute('data-ll-speaker-search-state', 'error');
+});
+
+function uploadFormParityMarkup(formAttribute) {
+  return `
+    <form ${formAttribute}="1">
+      <label><input type="radio" name="ll_wordset_scope_mode" value="single" checked> Single</label>
+      <label><input type="radio" name="ll_wordset_scope_mode" value="multiple"> Multiple</label>
+      <div data-ll-single-wordset-wrap>
+        <select data-ll-single-wordset>
+          <option value="10" selected>Alpha word set</option>
+          <option value="11">Beta word set</option>
+        </select>
+      </div>
+      <div data-ll-multi-wordset-wrap hidden>
+        <label><input type="checkbox" data-ll-multi-wordset data-ll-wordset-label="Beta word set" value="11" checked> Beta word set</label>
+      </div>
+
+      <label><input type="radio" name="ll_category_mode" value="existing" checked> Existing</label>
+      <label><input type="radio" name="ll_category_mode" value="new"> New</label>
+      <div data-ll-category-existing-wrap>
+        <select data-ll-existing-category>
+          <option value="0">Select</option>
+          <option value="100" data-ll-category-wordsets="10" selected>Alpha category</option>
+          <option value="200" data-ll-category-wordsets="11">Beta category</option>
+          <option value="300" data-ll-category-shared="1">Shared category</option>
+        </select>
+      </div>
+      <div data-ll-new-category-wrap hidden>
+        <input data-ll-new-category-title value="">
+      </div>
+      <div data-ll-new-category-advanced hidden>
+        <select data-ll-new-category-prompt>
+          <option value="audio" selected>Audio</option>
+          <option value="image">Image</option>
+          <option value="text_title">Text title</option>
+        </select>
+        <select data-ll-new-category-option>
+          <option value="audio">Audio</option>
+          <option value="image" selected>Image</option>
+          <option value="text_title">Text title</option>
+          <option value="text_translation">Text translation</option>
+        </select>
+      </div>
+      <div data-ll-target-preview hidden>
+        <span data-ll-target-preview-category></span>
+        <span data-ll-target-preview-wordsets></span>
+      </div>
+      <div data-ll-autocreate-note hidden></div>
+      <input type="file" data-ll-image-file-input>
+      <div data-ll-image-size-warning hidden>
+        <span data-ll-image-size-warning-message></span>
+        <span data-ll-image-size-warning-files></span>
+      </div>
+    </form>
+  `;
+}
+
+async function exerciseUploadFormController(page, controller) {
+  await page.goto('about:blank');
+  await page.setContent(uploadFormParityMarkup(controller.formAttribute));
+  await page.addScriptTag({ path: jqueryPath });
+  await page.addScriptTag({ path: controller.scriptPath });
+
+  const form = page.locator(`[${controller.formAttribute}]`);
+  const existingCategory = form.locator('[data-ll-existing-category]');
+  await expect(form.locator('[data-ll-single-wordset-wrap]')).toBeVisible();
+  await expect(form.locator('[data-ll-multi-wordset-wrap]')).toBeHidden();
+  await expect(existingCategory.locator('option[value="100"]')).toBeEnabled();
+  await expect(existingCategory.locator('option[value="200"]')).toBeDisabled();
+  await expect(form.locator('[data-ll-target-preview-category]')).toHaveText('Alpha category');
+  await expect(form.locator('[data-ll-target-preview-wordsets]')).toHaveText('Alpha word set');
+
+  await form.locator('[data-ll-single-wordset]').selectOption('11');
+  await expect(existingCategory).toHaveValue('0');
+  await expect(existingCategory.locator('option[value="100"]')).toBeDisabled();
+  await expect(existingCategory.locator('option[value="200"]')).toBeEnabled();
+  await existingCategory.selectOption('200');
+  await expect(form.locator('[data-ll-target-preview-category]')).toHaveText('Beta category');
+  await expect(form.locator('[data-ll-target-preview-wordsets]')).toHaveText('Beta word set');
+
+  await form.locator('input[name="ll_wordset_scope_mode"][value="multiple"]').check();
+  await expect(form.locator('[data-ll-single-wordset-wrap]')).toBeHidden();
+  await expect(form.locator('[data-ll-multi-wordset-wrap]')).toBeVisible();
+
+  await form.locator('input[name="ll_category_mode"][value="new"]').check();
+  await form.locator('[data-ll-new-category-title]').fill('New category');
+  await expect(form.locator('[data-ll-category-existing-wrap]')).toBeHidden();
+  await expect(form.locator('[data-ll-new-category-wrap]')).toBeVisible();
+  await expect(form.locator('[data-ll-new-category-advanced]')).toBeVisible();
+  await expect(form.locator('[data-ll-target-preview-category]')).toHaveText('New category');
+  await expect(form.locator('[data-ll-target-preview-wordsets]')).toHaveText('Beta word set');
+
+  const prompt = form.locator('[data-ll-new-category-prompt]');
+  const option = form.locator('[data-ll-new-category-option]');
+  await option.selectOption('image');
+  await prompt.selectOption('image');
+  await expect(option.locator('option[value="image"]')).toBeDisabled();
+
+  await option.selectOption('audio');
+  await prompt.selectOption('audio');
+  await expect(option.locator('option[value="audio"]')).toBeDisabled();
+
+  return form.evaluate((node) => ({
+    singleHidden: node.querySelector('[data-ll-single-wordset-wrap]').hasAttribute('hidden'),
+    multipleHidden: node.querySelector('[data-ll-multi-wordset-wrap]').hasAttribute('hidden'),
+    existingHidden: node.querySelector('[data-ll-category-existing-wrap]').hasAttribute('hidden'),
+    newHidden: node.querySelector('[data-ll-new-category-wrap]').hasAttribute('hidden'),
+    advancedHidden: node.querySelector('[data-ll-new-category-advanced]').hasAttribute('hidden'),
+    category: node.querySelector('[data-ll-target-preview-category]').textContent,
+    wordsets: node.querySelector('[data-ll-target-preview-wordsets]').textContent,
+    prompt: node.querySelector('[data-ll-new-category-prompt]').value,
+    option: node.querySelector('[data-ll-new-category-option]').value,
+    audioDisabled: node.querySelector('[data-ll-new-category-option] option[value="audio"]').disabled,
+    imageDisabled: node.querySelector('[data-ll-new-category-option] option[value="image"]').disabled,
+  }));
+}
+
+test('audio and image upload controllers keep their shared form behavior in parity', async ({ page }) => {
+  const snapshots = {};
+  for (const controller of uploadFormControllers) {
+    snapshots[controller.name] = await exerciseUploadFormController(page, controller);
+  }
+
+  expect(snapshots.audio).toEqual(snapshots.image);
+  expect(snapshots.audio).toEqual({
+    singleHidden: true,
+    multipleHidden: false,
+    existingHidden: true,
+    newHidden: false,
+    advancedHidden: false,
+    category: 'New category',
+    wordsets: 'Beta word set',
+    prompt: 'audio',
+    option: 'text_translation',
+    audioDisabled: true,
+    imageDisabled: false,
+  });
 });

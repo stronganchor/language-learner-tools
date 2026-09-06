@@ -407,12 +407,48 @@ if (!function_exists('ll_tools_offline_app_sync_counter_prefix')) {
 
 if (!function_exists('ll_tools_offline_app_sync_token_identifier')) {
     function ll_tools_offline_app_sync_token_identifier(string $token): string {
-        $token = ll_tools_offline_app_normalize_auth_token($token);
-        if ($token === '') {
+        $parsed_token = ll_tools_offline_app_parse_auth_token($token);
+        if ($parsed_token === []) {
             return '';
         }
 
-        return substr(hash('sha256', $token), 0, 32);
+        return substr(hash(
+            'sha256',
+            (int) $parsed_token['user_id'] . '|' . (string) $parsed_token['session_key']
+        ), 0, 32);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_refund_counter_reservation')) {
+    function ll_tools_offline_app_refund_counter_reservation(array $reservation): bool {
+        global $wpdb;
+
+        if (!ll_tools_public_ajax_refund_counter($reservation)) {
+            return false;
+        }
+
+        $option_name = (string) ($reservation['option_name'] ?? '');
+        if (strpos($option_name, '_transient_') !== 0) {
+            return true;
+        }
+        $timeout_option_name = '_transient_timeout_' . substr($option_name, strlen('_transient_'));
+
+        // Remove a fully refunded bucket and its timeout in one atomic query.
+        // A concurrent increment wins the row lock and prevents this delete.
+        $wpdb->query($wpdb->prepare(
+            "DELETE counter_value, counter_timeout
+             FROM {$wpdb->options} AS counter_value
+             LEFT JOIN {$wpdb->options} AS counter_timeout
+                ON counter_timeout.option_name = %s
+             WHERE counter_value.option_name = %s
+               AND CAST(counter_value.option_value AS UNSIGNED) = 0",
+            $timeout_option_name,
+            $option_name
+        ));
+        wp_cache_delete($option_name, 'options');
+        wp_cache_delete($timeout_option_name, 'options');
+
+        return true;
     }
 }
 
@@ -565,10 +601,10 @@ if (!function_exists('ll_tools_offline_app_get_sync_throttle_status')) {
         );
 
         $limited_status = [];
-        if (!empty($token_status['limited'])) {
-            $limited_status = $token_status;
-        } elseif (!empty($ip_status['limited'])) {
+        if (!empty($ip_status['limited'])) {
             $limited_status = $ip_status;
+        } elseif (!empty($token_status['limited'])) {
+            $limited_status = $token_status;
         }
 
         return [
@@ -592,44 +628,44 @@ if (!function_exists('ll_tools_offline_app_reserve_sync_throttle')) {
         $window = (int) ($config['window'] ?? MINUTE_IN_SECONDS);
         $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
         $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : ll_tools_offline_app_get_client_ip();
-        $token_status = ll_tools_offline_app_sync_reserve_bucket(
-            'token',
-            $token_identifier,
-            (int) ($config['request_limit'] ?? 0),
-            (int) ($config['resource_unit_limit'] ?? 0),
+        $ip_status = ll_tools_offline_app_sync_reserve_bucket(
+            'ip',
+            $normalized_ip,
+            (int) ($config['ip_request_limit'] ?? 0),
+            (int) ($config['ip_resource_unit_limit'] ?? 0),
             $window,
             $resource_units
         );
-        if (!empty($token_status['limited'])) {
-            $ip_status = ll_tools_offline_app_sync_bucket_status(
-                'ip',
-                $normalized_ip,
-                (int) ($config['ip_request_limit'] ?? 0),
-                (int) ($config['ip_resource_unit_limit'] ?? 0),
+        if (!empty($ip_status['limited'])) {
+            $token_status = ll_tools_offline_app_sync_bucket_status(
+                'token',
+                $token_identifier,
+                (int) ($config['request_limit'] ?? 0),
+                (int) ($config['resource_unit_limit'] ?? 0),
                 $window,
                 $resource_units
             );
-            $limited_status = $token_status;
+            $limited_status = $ip_status;
         } else {
-            $ip_status = ll_tools_offline_app_sync_reserve_bucket(
-                'ip',
-                $normalized_ip,
-                (int) ($config['ip_request_limit'] ?? 0),
-                (int) ($config['ip_resource_unit_limit'] ?? 0),
+            $token_status = ll_tools_offline_app_sync_reserve_bucket(
+                'token',
+                $token_identifier,
+                (int) ($config['request_limit'] ?? 0),
+                (int) ($config['resource_unit_limit'] ?? 0),
                 $window,
                 $resource_units
             );
-            if (!empty($ip_status['limited'])) {
-                ll_tools_offline_app_sync_refund_reservations($token_status);
-                $token_status = ll_tools_offline_app_sync_bucket_status(
-                    'token',
-                    $token_identifier,
-                    (int) ($config['request_limit'] ?? 0),
-                    (int) ($config['resource_unit_limit'] ?? 0),
+            if (!empty($token_status['limited'])) {
+                ll_tools_offline_app_sync_refund_reservations($ip_status);
+                $ip_status = ll_tools_offline_app_sync_bucket_status(
+                    'ip',
+                    $normalized_ip,
+                    (int) ($config['ip_request_limit'] ?? 0),
+                    (int) ($config['ip_resource_unit_limit'] ?? 0),
                     $window,
                     $resource_units
                 );
-                $limited_status = $ip_status;
+                $limited_status = $token_status;
             } else {
                 $limited_status = [];
             }
@@ -647,6 +683,111 @@ if (!function_exists('ll_tools_offline_app_reserve_sync_throttle')) {
             'token' => $token_status,
             'ip' => $ip_status,
         ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_logout_throttle_config')) {
+    function ll_tools_offline_app_logout_throttle_config(): array {
+        $defaults = [
+            'window' => 5 * MINUTE_IN_SECONDS,
+            'token_limit' => 10,
+            'ip_limit' => 60,
+        ];
+        $config = (array) apply_filters('ll_tools_offline_app_logout_throttle_config', $defaults);
+
+        return [
+            'window' => max(MINUTE_IN_SECONDS, (int) ($config['window'] ?? $defaults['window'])),
+            'token_limit' => max(0, min(1000, (int) ($config['token_limit'] ?? $defaults['token_limit']))),
+            'ip_limit' => max(0, min(5000, (int) ($config['ip_limit'] ?? $defaults['ip_limit']))),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_logout_counter_prefix')) {
+    function ll_tools_offline_app_logout_counter_prefix(string $scope): string {
+        return 'll_tools_off_logout_' . sanitize_key($scope) . '_';
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_refund_logout_throttle')) {
+    function ll_tools_offline_app_refund_logout_throttle(array $status): void {
+        foreach ((array) ($status['reservations'] ?? []) as $reservation) {
+            if (is_array($reservation)) {
+                ll_tools_offline_app_refund_counter_reservation($reservation);
+            }
+        }
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_reserve_logout_throttle')) {
+    function ll_tools_offline_app_reserve_logout_throttle(string $token = '', string $ip = ''): array {
+        $config = ll_tools_offline_app_logout_throttle_config();
+        $window = (int) $config['window'];
+        $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+        $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : ll_tools_offline_app_get_client_ip();
+        $reservations = [];
+
+        $targets = [
+            [
+                'scope' => 'ip',
+                'identifier' => $normalized_ip,
+                'limit' => (int) $config['ip_limit'],
+            ],
+            [
+                'scope' => 'token',
+                'identifier' => $token_identifier,
+                'limit' => (int) $config['token_limit'],
+            ],
+        ];
+
+        foreach ($targets as $target) {
+            $reservation = ll_tools_public_ajax_reserve_counter(
+                ll_tools_offline_app_logout_counter_prefix((string) $target['scope']),
+                (string) $target['identifier'],
+                (int) $target['limit'],
+                $window
+            );
+            if (empty($reservation['allowed'])) {
+                foreach ($reservations as $held_reservation) {
+                    ll_tools_offline_app_refund_counter_reservation($held_reservation);
+                }
+
+                return [
+                    'limited' => true,
+                    'retry_after' => max(1, (int) ($reservation['retry_after'] ?? $window)),
+                    'reservations' => [],
+                ];
+            }
+            if (!empty($reservation['reserved'])) {
+                $reservations[] = $reservation;
+            }
+        }
+
+        return [
+            'limited' => false,
+            'retry_after' => 0,
+            'reservations' => $reservations,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_reset_logout_throttle')) {
+    function ll_tools_offline_app_reset_logout_throttle(string $token = '', string $ip = ''): void {
+        $token_identifier = ll_tools_offline_app_sync_token_identifier($token);
+        if ($token_identifier !== '') {
+            ll_tools_public_ajax_reset_counter(
+                ll_tools_offline_app_logout_counter_prefix('token'),
+                $token_identifier
+            );
+        }
+
+        $normalized_ip = ($ip !== '') ? ll_tools_offline_app_normalize_ip($ip) : '';
+        if ($normalized_ip !== '') {
+            ll_tools_public_ajax_reset_counter(
+                ll_tools_offline_app_logout_counter_prefix('ip'),
+                $normalized_ip
+            );
+        }
     }
 }
 
@@ -1070,7 +1211,7 @@ if (!function_exists('ll_tools_offline_app_sync_reserve_bucket')) {
             );
             if (empty($resource_reservation['allowed'])) {
                 foreach ($reservations as $reservation) {
-                    ll_tools_public_ajax_refund_counter($reservation);
+                    ll_tools_offline_app_refund_counter_reservation($reservation);
                 }
                 $status = ll_tools_offline_app_sync_bucket_status(
                     $scope,
@@ -1110,7 +1251,7 @@ if (!function_exists('ll_tools_offline_app_sync_refund_reservations')) {
     function ll_tools_offline_app_sync_refund_reservations(array $status): void {
         foreach ((array) ($status['reservations'] ?? []) as $reservation) {
             if (is_array($reservation)) {
-                ll_tools_public_ajax_refund_counter($reservation);
+                ll_tools_offline_app_refund_counter_reservation($reservation);
             }
         }
     }
@@ -2189,6 +2330,19 @@ add_action('wp_ajax_ll_tools_offline_app_login', 'll_tools_offline_app_login_aja
 if (!function_exists('ll_tools_offline_app_logout_ajax')) {
     function ll_tools_offline_app_logout_ajax(): void {
         ll_tools_offline_app_prepare_json_response();
+        $token = ll_tools_offline_app_request_auth_token();
+        $throttle_status = ll_tools_offline_app_reserve_logout_throttle($token);
+        if (!empty($throttle_status['limited'])) {
+            $retry_after = max(1, (int) ($throttle_status['retry_after'] ?? MINUTE_IN_SECONDS));
+            if (!headers_sent()) {
+                header('Retry-After: ' . $retry_after);
+            }
+            wp_send_json_error([
+                'message' => __('Sign in required.', 'll-tools-text-domain'),
+                'retry_after' => $retry_after,
+            ], 429);
+        }
+
         $auth = ll_tools_offline_app_require_authenticated_user(false);
         if (!ll_tools_offline_app_revoke_session(
             (int) ($auth['user_id'] ?? 0),
@@ -2197,6 +2351,7 @@ if (!function_exists('ll_tools_offline_app_logout_ajax')) {
         )) {
             wp_send_json_error(['message' => __('Could not end this offline session right now.', 'll-tools-text-domain')], 503);
         }
+        ll_tools_offline_app_refund_logout_throttle($throttle_status);
         wp_send_json_success(['logged_out' => true]);
     }
 }
@@ -2217,7 +2372,12 @@ if (!function_exists('ll_tools_offline_app_sync_ajax')) {
 
         $events_raw = $_POST['events'] ?? '[]';
         $events = ll_tools_offline_app_decode_json_payload($events_raw);
-        $events = array_slice($events, 0, 200);
+        if (count($events) > 200) {
+            wp_send_json_error([
+                'code' => 'payload_too_large',
+                'message' => ll_tools_offline_app_sync_rate_limit_message('', 'resource_units'),
+            ], 413);
+        }
 
         $requested_word_ids = ll_tools_offline_app_parse_word_ids();
         if (empty($requested_word_ids)) {

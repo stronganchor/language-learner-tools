@@ -25,6 +25,45 @@ final class LegacyContentLessonMigrationTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_privacy_erasure_marker_prevents_legacy_favorites_completion_replay(): void
+    {
+        $wordset_id = $this->createWordset('Erased Favorites replay guard');
+        $source_id = self::factory()->post->create([
+            'post_status' => 'publish',
+            'post_title' => 'Erased Favorites legacy lesson',
+            'post_content' => '<p>Legacy lesson body.</p>',
+        ]);
+        $migration = ll_tools_migrate_legacy_lesson_post(
+            $source_id,
+            $wordset_id,
+            ['apply' => true, 'status' => 'publish']
+        );
+        $this->assertIsArray($migration);
+
+        $user_id = self::factory()->user->create();
+        $external_favorites = [[
+            'site_id' => 1,
+            'posts' => [$source_id, 987654],
+        ]];
+        update_user_meta($user_id, 'simplefavorites', $external_favorites);
+        update_user_meta($user_id, LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META, '1');
+        delete_option(LL_TOOLS_LEGACY_COMPLETION_AUDIT_OPTION);
+
+        $summary = ll_tools_migrate_legacy_content_lessons_batch([
+            'phase' => 'completions',
+            'wordset_id' => $wordset_id,
+            'limit' => 1,
+            'apply' => true,
+        ]);
+
+        $this->assertIsArray($summary);
+        $this->assertSame(1, (int) ($summary['processed'] ?? 0));
+        $this->assertSame(0, (int) ($summary['source_associations'] ?? -1));
+        $this->assertSame(0, (int) ($summary['mapped_associations'] ?? -1));
+        $this->assertSame([], ll_tools_get_completed_content_lesson_ids($user_id));
+        $this->assertSame($external_favorites, get_user_meta($user_id, 'simplefavorites', true));
+    }
+
     public function test_retained_source_bridge_is_empty_idempotent_and_maps_relations_and_completions(): void
     {
         $wordset_id = $this->createWordset('Retained source bridge');

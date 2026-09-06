@@ -330,6 +330,16 @@ body.ll-vocab-lesson-word-options-open {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .ll-vocab-lesson-word-options-modal__close {
+    transition: none !important;
+  }
+
+  .ll-vocab-lesson-word-options-modal__loading-dot {
+    animation: none !important;
+  }
+}
+
 @media (max-width: 782px) {
   .ll-vocab-lesson-word-options-modal {
     padding: 8px;

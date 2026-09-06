@@ -1,5 +1,12 @@
 # Overnight Automated Code Review TODO
 
+> Historical review log. The cadence, base HEAD and operating rules below
+> describe the July 2026 run, not an active authorization or current defect
+> inventory. Several unchecked findings were addressed in later changes;
+> revalidate against source and `MAINTENANCE_BACKLOG.md` before reopening them.
+> Use `docs/ai-context/codebase-map.md` for current navigation and the gitignored
+> `docs/CODEBASE_REVIEW_FOLLOWUPS.local.md` for a requested local review queue.
+
 Started: 2026-07-06 23:38 Europe/Istanbul
 Target branch: `dev`
 Review base HEAD: `1ecfbeb3688dde36fac9917990189fed6b1f3406`

@@ -5,6 +5,32 @@ This is the working map for performance changes in LL Tools. Read it after
 large wordsets, bulk media, or any page that can grow with `words`,
 `word_audio`, `word_images`, prompt cards, or generated media.
 
+## Find the owning path
+
+Start with the observed surface and its focused regression file before reading
+the detailed contracts below. Test filenames here are relative to
+`tests/Integration/`; run them through the serialized workflow in
+`tests/AI_TESTING_PLAYBOOK.md`.
+
+| Symptom | Source to inspect first | Focused coverage |
+| --- | --- | --- |
+| Full-category quiz payload remains in preparation | `includes/lib/flashcard-payload-materializer.php`, then the AJAX dispatch in `includes/shortcodes/flashcard-widget.php` | `FlashcardPayloadMaterializerTest.php`, `PublicAjaxResourceGuardTest.php` |
+| Quiz grid/dropdown catalog is empty or stale | `ll_get_all_quiz_pages_data()` and catalog workers in `includes/shortcodes/quiz-pages-shortcodes.php` | `QuizPagesShortcodeCatalogTest.php`, `QuizPagesScopedContentEpochTest.php` |
+| Wordset category search stays in preparation | `includes/lib/wordset-category-search-index.php`, the category-search handler in `includes/pages/wordset-pages.php`, then `js/wordset-pages.js` | `WordsetPageCategorySearchIndexTest.php` |
+| Wordset cards or lesson links are stale | Published-lesson-map and lazy-card helpers in `includes/pages/wordset-pages.php` | `WordsetPageWarmLessonMapTest.php`, `WordsetPageLazyCardsAjaxTest.php`, `WordsetPageDurableCacheTest.php` |
+| Vocabulary lesson grid loads slowly | `includes/pages/vocab-lesson-pages.php`, `includes/shortcodes/word-grid-shortcode.php`, then `js/vocab-lesson-page.js` | `VocabLessonDeferredGridTest.php` |
+| Games page or game startup grows with wordset size | Catalog/count/launch-pool helpers in `includes/pages/wordset-games.php`, then `js/wordset-games.js` | `WordsetGamesTest.php`, `WordsetGamesCategoryQueryTest.php` |
+| Dictionary browse, filters, or detail is slow | `includes/shortcodes/dictionary-shortcode.php`, `includes/lib/dictionary-browser.php`, `includes/lib/dictionary-search-index.php` | `DictionaryFeatureTest.php`, `DictionaryPublicFilterBoundsTest.php` |
+| Stale rendered HTML, cache headers, or nonce refresh | `includes/lib/public-static-cache.php` and `includes/lib/dictionary-static-cache.php` | `PublicStaticCacheTest.php`, `DictionaryFeatureTest.php` |
+| Markdown/JSON-LD crawler output | `includes/lib/ai-crawler-support.php`; see `docs/AI_CRAWLER_SUPPORT.md` | `AiCrawlerSupportTest.php` |
+
+Cache layers have different owners and lifetime rules. Filesystem HTML caches,
+wordset-page array/transient caches, quiz payload rows, the category-search
+index, and crawler export bodies are separate systems. Identify the layer
+responsible for the observed response before changing a cache key or purge.
+An ID-only query or a bounded inner batch does not establish a total request
+bound: follow its caller, continuation loop, and final rendering step as well.
+
 ## Core invariant
 
 Large wordsets are a normal production case. Interactive requests should be

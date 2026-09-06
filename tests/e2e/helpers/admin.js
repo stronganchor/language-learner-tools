@@ -123,7 +123,7 @@ async function ensureLoggedIntoAdmin(page, targetPath = '/wp-admin/') {
     await dismissAdminEmailVerification(page);
   }
 
-  await expect.poll(() => page.url(), { timeout: 60000 }).toMatch(/\/wp-admin(?:\/|$)/);
+  await expect(page.locator('body.wp-admin #wpwrap')).toBeVisible({ timeout: 60000 });
 }
 
 async function adminRest(page, path, { method = 'GET', body = null, timeoutMs = 30000 } = {}) {

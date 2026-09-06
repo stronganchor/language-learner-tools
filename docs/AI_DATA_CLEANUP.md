@@ -7,6 +7,14 @@ metadata, dictionary links, or similar per-word fields.
 This is plugin-wide guidance. Site-specific linguistic rules, category names,
 live credentials, and artifact paths belong in the relevant site/project folder.
 
+For implementation work, the snapshot and sync-plan owner is
+`includes/lib/site-sync.php`; mixed metadata jobs live in
+`includes/api/word-metadata-plan-rest.php`; category/title/helper routes live in
+`includes/api/automation-rest.php`. The focused integration tests are
+`SiteSyncTest.php` and `AutomationRestApiTest.php` under `tests/Integration/`.
+Use the endpoint and permission reference in [REST_AUTOMATION.md](REST_AUTOMATION.md)
+before adapting a request to a different account or authentication method.
+
 ## Operating Model
 
 Treat REST as the control plane and LL Tools jobs as the execution plane.
@@ -180,6 +188,9 @@ newer human or agent work.
 - Acquire the site's live automation lease or project lock before writes.
 - Run dry runs where the route supports them.
 - Keep automation calls serial. Do not process two write jobs at the same time.
+- For cookie-and-nonce automation, send `X-LL-Tools-Automation: 1` so the
+  requests participate in the REST resource guard. Keep process and discard
+  requests serial as well.
 - Honor `429 ll_tools_rest_resource_guard_wait` by waiting the reported delay
   and retrying the same request.
 - Prefer `purge_public_static_cache=false` during intermediate chunks. Purge
@@ -187,6 +198,10 @@ newer human or agent work.
   stale cache matters.
 - Release the live lease after writes.
 - Verify both route-level result JSON and a fresh site-sync snapshot.
+- Check `summary.errors` and `summary.skipped` even when the job status is
+  `completed`. Discarding a metadata plan stops future processing; it does not
+  undo rows that already ran. A failed row may have applied earlier fields, so
+  build any retry or rollback from fresh readback and the saved original plan.
 - Check the public site or `/wp-json/` after live writes on resource-constrained
   servers.
 

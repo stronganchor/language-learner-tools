@@ -30,6 +30,29 @@ final class UserProgressEventPayloadGuardTest extends LL_Tools_TestCase
         $this->assertSame(['units' => 2], $event['payload'] ?? null);
     }
 
+    public function test_client_progress_event_requires_a_stable_uuid_for_retry_idempotency(): void
+    {
+        $raw = [
+            'event_type' => 'category_study',
+            'mode' => 'practice',
+            'category_id' => 17,
+            'wordset_id' => 23,
+            'payload' => ['units' => 1],
+        ];
+
+        $this->assertNull(ll_tools_sanitize_progress_event($raw));
+        $this->assertNull(ll_tools_sanitize_progress_event(['event_uuid' => ''] + $raw));
+        $this->assertNull(ll_tools_sanitize_progress_event(['uuid' => ''] + $raw));
+
+        $failure = ll_tools_user_progress_core_engine_failure_stats([$raw], [
+            'failure_code' => 'progress_schema_unavailable',
+        ]);
+        $this->assertSame(1, (int) ($failure['received'] ?? 0));
+        $this->assertSame(1, (int) ($failure['invalid'] ?? 0));
+        $this->assertSame(0, (int) ($failure['failed'] ?? -1));
+        $this->assertSame([], $failure['failed_event_uuids'] ?? null);
+    }
+
     public function test_progress_event_rejects_oversized_or_overly_nested_raw_payloads(): void
     {
         $byte_limit = static function (): int {

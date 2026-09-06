@@ -110,11 +110,12 @@ function ll_tools_private_wordset_e2e_assert_term_available(string $slug, string
     }
 }
 
-function ll_tools_private_wordset_e2e_assert_post_available(string $slug): void {
-    $existing = get_page_by_path($slug, OBJECT, 'words');
+function ll_tools_private_wordset_e2e_assert_post_available(string $slug, string $post_type = 'words'): void {
+    $existing = get_page_by_path($slug, OBJECT, $post_type);
     if ($existing instanceof WP_Post && !ll_tools_private_wordset_e2e_marker_matches((int) $existing->ID, 'post')) {
         ll_tools_private_wordset_e2e_fail(sprintf(
-            'Refusing to replace the existing non-fixture word %s.',
+            'Refusing to replace the existing non-fixture %s post %s.',
+            $post_type,
             $slug
         ));
     }
@@ -130,7 +131,7 @@ function ll_tools_private_wordset_e2e_cleanup(): array {
     $bulk_state = ll_tools_private_wordset_e2e_begin_bulk_mode();
 
     $post_ids = get_posts([
-        'post_type' => ['words', 'll_vocab_lesson'],
+        'post_type' => ['words', 'll_vocab_lesson', 'page'],
         'post_status' => 'any',
         'posts_per_page' => -1,
         'fields' => 'ids',
@@ -202,6 +203,12 @@ function ll_tools_private_wordset_e2e_cleanup(): array {
     }
 
     ll_tools_private_wordset_e2e_end_bulk_mode($bulk_state);
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache')) {
+        ll_tools_purge_wordset_buttons_shortcode_cache();
+    }
+    if (function_exists('ll_tools_reset_wordset_buttons_navigation_manifests')) {
+        ll_tools_reset_wordset_buttons_navigation_manifests();
+    }
     flush_rewrite_rules(false);
     return $deleted;
 }
@@ -332,8 +339,9 @@ function ll_tools_private_wordset_e2e_insert_vocab_lesson(
 }
 
 function ll_tools_private_wordset_e2e_seed(): array {
-    $version = '2026-08-21.1';
+    $version = '2026-09-01.1';
     $wordset_slug = 'll-e2e-private-wordset-access';
+    $hub_slug = 'll-e2e-private-wordset-hub';
     $manager_login = 'll-e2e-private-wordset-manager';
     $outsider_login = 'll-e2e-private-wordset-outsider';
     $password = 'LL-E2E-private-wordset-2026!';
@@ -343,6 +351,7 @@ function ll_tools_private_wordset_e2e_seed(): array {
     ll_tools_private_wordset_e2e_assert_user_available($manager_login);
     ll_tools_private_wordset_e2e_assert_user_available($outsider_login);
     ll_tools_private_wordset_e2e_assert_term_available($wordset_slug, 'wordset');
+    ll_tools_private_wordset_e2e_assert_post_available($hub_slug, 'page');
     for ($category_index = 1; $category_index <= $category_count; $category_index++) {
         $category_slug = sprintf('ll-e2e-private-category-%02d', $category_index);
         ll_tools_private_wordset_e2e_assert_term_available($category_slug, 'word-category');
@@ -441,6 +450,21 @@ function ll_tools_private_wordset_e2e_seed(): array {
         );
     }
 
+    $hub_page_id = wp_insert_post([
+        'post_type' => 'page',
+        'post_status' => 'publish',
+        'post_title' => 'E2E Private Wordset Hub',
+        'post_name' => $hub_slug,
+        'post_content' => '[ll_wordset_buttons class="ll-e2e-private-wordset-hub" hide_empty="1"]',
+    ], true);
+    if (is_wp_error($hub_page_id) || (int) $hub_page_id <= 0) {
+        $message = is_wp_error($hub_page_id) ? $hub_page_id->get_error_message() : 'unknown error';
+        ll_tools_private_wordset_e2e_fail('Unable to create private-wordset fixture hub page: ' . $message);
+    }
+    $hub_page_id = (int) $hub_page_id;
+    ll_tools_private_wordset_e2e_tag_post($hub_page_id, $version);
+    $post_ids[] = $hub_page_id;
+
     if (function_exists('ll_tools_ensure_vocab_lessons_enabled_for_wordset')) {
         if (!ll_tools_ensure_vocab_lessons_enabled_for_wordset($wordset_id, false)) {
             ll_tools_private_wordset_e2e_fail('Unable to enable the fixture wordset route.');
@@ -462,6 +486,12 @@ function ll_tools_private_wordset_e2e_seed(): array {
     if (function_exists('ll_tools_bump_category_cache_version')) {
         ll_tools_bump_category_cache_version($category_ids);
     }
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache')) {
+        ll_tools_purge_wordset_buttons_shortcode_cache();
+    }
+    if (function_exists('ll_tools_reset_wordset_buttons_navigation_manifests')) {
+        ll_tools_reset_wordset_buttons_navigation_manifests();
+    }
     flush_rewrite_rules(false);
 
     return [
@@ -472,6 +502,7 @@ function ll_tools_private_wordset_e2e_seed(): array {
         'wordsetName' => 'E2E Private Wordset',
         'wordsetSlug' => $wordset_slug,
         'pagePath' => wp_make_link_relative(home_url('/' . $wordset_slug . '/')),
+        'hubPagePath' => wp_make_link_relative(home_url('/' . $hub_slug . '/')),
         'categoryCount' => $category_count,
         'firstCategoryName' => 'E2E Private Category 01',
         'lastCategoryName' => sprintf('E2E Private Category %02d', $category_count),

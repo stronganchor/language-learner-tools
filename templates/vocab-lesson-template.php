@@ -138,9 +138,12 @@ if (have_posts()) {
         ? ll_tools_get_vocab_lesson_category_settings_notice()
         : null;
     $category_settings_nonce = $can_manage_category_settings ? wp_create_nonce('ll_vocab_lesson_category_settings_' . $post_id) : '';
+    $category_settings_client_id = $can_manage_category_settings ? wp_generate_uuid4() : '';
     $category_settings_panel = ($can_manage_category_settings && function_exists('ll_tools_get_vocab_lesson_category_settings_panel_data'))
         ? ll_tools_get_vocab_lesson_category_settings_panel_data($category, $wordset_id)
         : [];
+    $category_settings_panel_complete = $can_manage_category_settings
+        && !empty($category_settings_panel['complete']);
     $category_split_url = ($can_manage_category_settings && function_exists('ll_tools_get_vocab_lesson_split_category_url'))
         ? ll_tools_get_vocab_lesson_split_category_url((int) $wordset_id, (int) $category_id, (int) $post_id)
         : '';
@@ -398,20 +401,36 @@ if (have_posts()) {
             ],
             'titleEditor' => [
                 'enabled' => $can_edit_category_title,
+                'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters(
+                    'll_tools_vocab_lesson_title_request_timeout_ms',
+                    20000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
                 'i18n' => [
                     'empty' => __('Enter a category title.', 'll-tools-text-domain'),
                     'saving' => __('Saving...', 'll-tools-text-domain'),
                     'saved' => __('Category title saved.', 'll-tools-text-domain'),
                     'error' => __('Unable to save this category title right now.', 'll-tools-text-domain'),
+                    'timeout' => __('Saving took too long. Please retry.', 'll-tools-text-domain'),
                 ],
             ],
             'categorySettings' => [
-                'enabled' => $can_manage_category_settings,
+                'enabled' => $category_settings_panel_complete,
                 'action' => 'll_tools_save_vocab_lesson_category_settings',
+                'requestTimeoutMs' => max(5000, min(60000, (int) apply_filters(
+                    'll_tools_vocab_lesson_category_settings_request_timeout_ms',
+                    20000,
+                    $post_id,
+                    $wordset_id,
+                    $category_id
+                ))),
                 'i18n' => [
                     'saving' => __('Saving changes...', 'll-tools-text-domain'),
                     'saved' => __('Changes saved.', 'll-tools-text-domain'),
                     'error' => __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    'timeout' => __('Saving took too long. Please retry.', 'll-tools-text-domain'),
                 ],
             ],
         ]);
@@ -963,7 +982,7 @@ if (have_posts()) {
                                 </div>
                             </div>
                         <?php endif; ?>
-                        <?php if ($can_manage_category_settings && $wordset_id > 0 && $category_id > 0) : ?>
+                        <?php if ($category_settings_panel_complete && $wordset_id > 0 && $category_id > 0) : ?>
                             <?php
                             $category_panel_quiz_config = is_array($category_settings_panel['quiz_config'] ?? null)
                                 ? $category_settings_panel['quiz_config']
@@ -1046,6 +1065,9 @@ if (have_posts()) {
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="<?php echo esc_attr((string) $post_id); ?>" />
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="<?php echo esc_attr((string) $category_id); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_revision" value="<?php echo esc_attr((string) ll_tools_get_vocab_lesson_category_settings_revision($category_id)); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_client_id" value="<?php echo esc_attr($category_settings_client_id); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_sequence" value="1" />
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="<?php echo esc_attr($category_settings_nonce); ?>" />
                                     <div class="ll-vocab-lesson-category-settings-panel__title-row">
                                         <div class="ll-vocab-lesson-category-settings-panel__title" id="<?php echo esc_attr($category_settings_title_id); ?>"><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></div>
@@ -1286,6 +1308,11 @@ if (have_posts()) {
                                         </span>
                                     </div>
                                 </form>
+                            </div>
+                        <?php elseif ($can_manage_category_settings && $wordset_id > 0 && $category_id > 0) : ?>
+                            <div class="ll-vocab-lesson-category-settings-unavailable" role="status">
+                                <span><?php echo esc_html__('Category settings are temporarily unavailable.', 'll-tools-text-domain'); ?></span>
+                                <a href="<?php echo esc_url(get_permalink($post_id)); ?>"><?php echo esc_html__('Reload', 'll-tools-text-domain'); ?></a>
                             </div>
                         <?php endif; ?>
                     </div>

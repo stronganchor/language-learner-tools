@@ -995,6 +995,19 @@ add_filter('get_terms', 'll_fix_word_category_counts_in_admin', 10, 3);
  * @return void
  */
 function ll_tools_initialize_word_category_meta_fields() {
+    add_action('pre_delete_term', 'll_tools_begin_word_category_delete_settings_lock', 1, 2);
+    add_action('delete_word-category', 'll_tools_end_word_category_delete_settings_lock', 100, 4);
+    add_action('shutdown', 'll_tools_release_word_category_delete_settings_locks', 100);
+
+    add_action('word-category_add_form_fields', 'll_tools_reset_word_category_shared_settings_render_state', 1);
+    add_action('word-category_edit_form_fields', 'll_tools_reset_word_category_shared_settings_render_state', 1);
+    add_action('word-category_add_form_fields', 'll_tools_add_category_settings_revision_field', 100);
+    add_action('word-category_edit_form_fields', 'll_tools_edit_category_settings_revision_field', 100);
+    add_action('created_word-category', 'll_tools_save_word_category_shared_settings', 5, 2);
+    add_action('edited_word-category', 'll_tools_save_word_category_shared_settings', 5, 2);
+    add_filter('redirect_term_location', 'll_tools_add_category_settings_error_to_redirect', 10, 2);
+    add_action('admin_notices', 'll_tools_render_category_settings_error_notice');
+
     // Add 'Translated Name' field for adding new categories
     add_action('word-category_add_form_fields', 'll_add_translation_field');
     // Add 'Translated Name' field for editing existing categories
@@ -1006,17 +1019,11 @@ function ll_tools_initialize_word_category_meta_fields() {
     // Prompt/answer presentation settings (category-level)
     add_action('word-category_add_form_fields', 'll_add_quiz_prompt_option_fields');
     add_action('word-category_edit_form_fields', 'll_edit_quiz_prompt_option_fields');
-    add_action('created_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
-    add_action('edited_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
     add_action('word-category_add_form_fields', 'll_tools_add_category_game_availability_field');
     add_action('word-category_edit_form_fields', 'll_tools_edit_category_game_availability_field');
-    add_action('created_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
-    add_action('edited_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
 
     add_action('word-category_add_form_fields', 'll_tools_add_category_lineup_field');
     add_action('word-category_edit_form_fields', 'll_tools_edit_category_lineup_field');
-    add_action('created_word-category', 'll_tools_save_category_lineup_field', 10, 2);
-    add_action('edited_word-category', 'll_tools_save_category_lineup_field', 10, 2);
 
     // Bulk‑add form display and processing hooks
     add_action('admin_notices', 'll_render_bulk_add_categories_form');
@@ -1025,8 +1032,6 @@ function ll_tools_initialize_word_category_meta_fields() {
     // Desired recording types meta (category-level)
     add_action('word-category_add_form_fields', 'll_add_desired_recording_types_field');
     add_action('word-category_edit_form_fields', 'll_edit_desired_recording_types_field');
-    add_action('created_word-category', 'll_save_desired_recording_types_field', 10, 2);
-    add_action('edited_word-category', 'll_save_desired_recording_types_field', 10, 2);
 
     // Privacy + explicit user access (admin-only)
     add_action('word-category_add_form_fields', 'll_tools_add_category_privacy_fields');
@@ -1035,39 +1040,1307 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('edited_word-category', 'll_tools_save_category_privacy_fields', 10, 2);
 }
 
+function ll_tools_reset_word_category_shared_settings_render_state(): void {
+    $GLOBALS['ll_tools_word_category_shared_settings_render_incomplete'] = false;
+}
+
+function ll_tools_mark_word_category_shared_settings_render_incomplete(): void {
+    $GLOBALS['ll_tools_word_category_shared_settings_render_incomplete'] = true;
+}
+
+function ll_tools_begin_word_category_delete_settings_lock($term_id, $taxonomy): void {
+    $term_id = (int) $term_id;
+    if ($taxonomy !== 'word-category' || $term_id <= 0) {
+        return;
+    }
+    if ((int) ($GLOBALS['ll_tools_failed_new_word_category_rollback_id'] ?? 0) === $term_id) {
+        return;
+    }
+
+    $locks = isset($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        && is_array($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        ? $GLOBALS['ll_tools_word_category_delete_settings_locks']
+        : [];
+    if (isset($locks[$term_id]) && is_array($locks[$term_id])) {
+        $locks[$term_id]['depth'] = max(1, (int) ($locks[$term_id]['depth'] ?? 1)) + 1;
+        $GLOBALS['ll_tools_word_category_delete_settings_locks'] = $locks;
+        return;
+    }
+
+    $lock_name = function_exists('ll_tools_acquire_vocab_lesson_category_settings_lock')
+        ? ll_tools_acquire_vocab_lesson_category_settings_lock($term_id)
+        : new WP_Error(
+            'lock_storage',
+            __('Category settings cannot be saved because database locking is unavailable.', 'll-tools-text-domain'),
+            ['status' => 503]
+        );
+    if (is_wp_error($lock_name) || $lock_name === '') {
+        $message = is_wp_error($lock_name)
+            ? $lock_name->get_error_message()
+            : __('This category is being updated elsewhere. Please try again shortly.', 'll-tools-text-domain');
+        $error_data = is_wp_error($lock_name) ? $lock_name->get_error_data() : [];
+        $status = is_array($error_data) ? (int) ($error_data['status'] ?? 409) : 409;
+        wp_die(
+            esc_html($message),
+            esc_html__('Category not deleted', 'll-tools-text-domain'),
+            ['response' => max(400, min(599, $status))]
+        );
+    }
+
+    $locks[$term_id] = [
+        'name' => (string) $lock_name,
+        'depth' => 1,
+    ];
+    $GLOBALS['ll_tools_word_category_delete_settings_locks'] = $locks;
+}
+
+function ll_tools_end_word_category_delete_settings_lock($term_id, $term_taxonomy_id = 0, $deleted_term = null, $object_ids = []): void {
+    $term_id = (int) $term_id;
+    $locks = isset($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        && is_array($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        ? $GLOBALS['ll_tools_word_category_delete_settings_locks']
+        : [];
+    if ($term_id <= 0 || !isset($locks[$term_id]) || !is_array($locks[$term_id])) {
+        return;
+    }
+
+    $depth = max(1, (int) ($locks[$term_id]['depth'] ?? 1));
+    if ($depth > 1) {
+        $locks[$term_id]['depth'] = $depth - 1;
+        $GLOBALS['ll_tools_word_category_delete_settings_locks'] = $locks;
+        return;
+    }
+
+    ll_tools_release_vocab_lesson_category_settings_lock((string) ($locks[$term_id]['name'] ?? ''));
+    unset($locks[$term_id]);
+    $GLOBALS['ll_tools_word_category_delete_settings_locks'] = $locks;
+}
+
+function ll_tools_release_word_category_delete_settings_locks(): void {
+    $locks = isset($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        && is_array($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+        ? $GLOBALS['ll_tools_word_category_delete_settings_locks']
+        : [];
+    foreach ($locks as $lock) {
+        if (is_array($lock)) {
+            ll_tools_release_vocab_lesson_category_settings_lock((string) ($lock['name'] ?? ''));
+        }
+    }
+    $GLOBALS['ll_tools_word_category_delete_settings_locks'] = [];
+}
+
+function ll_tools_rollback_failed_new_taxonomy_term(
+    int $term_id,
+    string $taxonomy,
+    int $expected_term_taxonomy_id = 0
+): bool {
+    global $wpdb;
+
+    $taxonomy = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '', $taxonomy));
+    if ($term_id <= 0 || $taxonomy === '' || !taxonomy_exists($taxonomy)) {
+        return false;
+    }
+    $expected_term_taxonomy_id = max(0, $expected_term_taxonomy_id);
+
+    $deleted = false;
+    $relationshipObjectIdsToClean = [];
+    try {
+        $wpdb->last_error = '';
+        $taxonomyMappings = $wpdb->get_results($wpdb->prepare(
+            "SELECT term_taxonomy_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_id = %d ORDER BY term_taxonomy_id ASC",
+            $term_id
+        ), ARRAY_A);
+        if ($wpdb->last_error !== '' || !is_array($taxonomyMappings)) {
+            return false;
+        }
+        $trackedTermTaxonomyIds = $expected_term_taxonomy_id > 0
+            ? [$expected_term_taxonomy_id]
+            : [];
+        $wordCategoryTermTaxonomyIds = [];
+        $liveWordCategoryMappingIds = [];
+        foreach ($taxonomyMappings as $taxonomyMapping) {
+            $termTaxonomyId = (int) ($taxonomyMapping['term_taxonomy_id'] ?? 0);
+            if ($termTaxonomyId <= 0) {
+                continue;
+            }
+            if ($termTaxonomyId === $expected_term_taxonomy_id && (string) ($taxonomyMapping['taxonomy'] ?? '') !== $taxonomy) {
+                return false;
+            }
+            if ((string) ($taxonomyMapping['taxonomy'] ?? '') === $taxonomy) {
+                if ($expected_term_taxonomy_id > 0 && $termTaxonomyId !== $expected_term_taxonomy_id) {
+                    // The caller proved ownership of one exact mapping. Never
+                    // adopt or delete a replacement mapping that later reused
+                    // the same term ID.
+                    return false;
+                }
+                $wordCategoryTermTaxonomyIds[] = $termTaxonomyId;
+                $liveWordCategoryMappingIds[$termTaxonomyId] = true;
+                $trackedTermTaxonomyIds[] = $termTaxonomyId;
+            }
+        }
+
+        if ($expected_term_taxonomy_id > 0 && !isset($liveWordCategoryMappingIds[$expected_term_taxonomy_id])) {
+            $wpdb->last_error = '';
+            $expectedMapping = $wpdb->get_row($wpdb->prepare(
+                "SELECT term_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d LIMIT 1",
+                $expected_term_taxonomy_id
+            ), ARRAY_A);
+            if ($wpdb->last_error !== '') {
+                return false;
+            }
+            if (is_array($expectedMapping)) {
+                if (
+                    (int) ($expectedMapping['term_id'] ?? 0) !== $term_id
+                    || (string) ($expectedMapping['taxonomy'] ?? '') !== $taxonomy
+                ) {
+                    return false;
+                }
+                $wordCategoryTermTaxonomyIds[] = $expected_term_taxonomy_id;
+                $liveWordCategoryMappingIds[$expected_term_taxonomy_id] = true;
+            }
+        }
+        $wordCategoryTermTaxonomyIds = array_values(array_unique(array_filter(array_map('intval', $wordCategoryTermTaxonomyIds))));
+        $trackedTermTaxonomyIds = array_values(array_unique(array_filter(array_map('intval', $trackedTermTaxonomyIds))));
+
+        $wpdb->last_error = '';
+        $termRows = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->terms} WHERE term_id = %d",
+            $term_id
+        ));
+        if ($wpdb->last_error !== '' || $termRows === null) {
+            return false;
+        }
+
+        // Relationships must be gone, with readback, before core is allowed to
+        // remove the taxonomy mapping that makes them discoverable. Otherwise
+        // wp_delete_term() can report success after a silently blocked delete
+        // and leave an orphan that a later Undo cannot derive from term_id.
+        foreach ($trackedTermTaxonomyIds as $termTaxonomyId) {
+            $wpdb->last_error = '';
+            $relationshipObjectIds = $wpdb->get_col($wpdb->prepare(
+                "SELECT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id = %d ORDER BY object_id ASC",
+                $termTaxonomyId
+            ));
+            if ($wpdb->last_error !== '' || !is_array($relationshipObjectIds)) {
+                return false;
+            }
+            foreach ($relationshipObjectIds as $relationshipObjectId) {
+                $relationshipObjectId = (int) $relationshipObjectId;
+                if ($relationshipObjectId > 0) {
+                    $relationshipObjectIdsToClean[$relationshipObjectId] = true;
+                }
+            }
+
+            if (!empty($relationshipObjectIds)) {
+                if ((int) $termRows > 0 && isset($liveWordCategoryMappingIds[$termTaxonomyId])) {
+                    foreach (array_values(array_unique(array_map('intval', $relationshipObjectIds))) as $objectId) {
+                        try {
+                            $removed = wp_remove_object_terms($objectId, $term_id, $taxonomy);
+                        } catch (Throwable $throwable) {
+                            return false;
+                        }
+                        if (is_wp_error($removed) || !$removed) {
+                            return false;
+                        }
+                    }
+                } else {
+                    $wpdb->last_error = '';
+                    $wpdb->delete($wpdb->term_relationships, ['term_taxonomy_id' => $termTaxonomyId], ['%d']);
+                    if ($wpdb->last_error !== '') {
+                        return false;
+                    }
+                }
+            }
+
+            $wpdb->last_error = '';
+            $remainingRelationshipRows = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->term_relationships} WHERE term_taxonomy_id = %d",
+                $termTaxonomyId
+            ));
+            if ($wpdb->last_error !== '' || $remainingRelationshipRows === null || (int) $remainingRelationshipRows !== 0) {
+                return false;
+            }
+        }
+
+        if (!empty($wordCategoryTermTaxonomyIds)) {
+            if ((int) $termRows > 0) {
+                $GLOBALS['ll_tools_failed_new_word_category_rollback_id'] = $term_id;
+                try {
+                    $deleteResult = wp_delete_term($term_id, $taxonomy);
+                } finally {
+                    unset($GLOBALS['ll_tools_failed_new_word_category_rollback_id']);
+                }
+                if (is_wp_error($deleteResult) || !$deleteResult) {
+                    return false;
+                }
+            } else {
+                // Core can leave the taxonomy half of a newly inserted mapping
+                // after its unchecked duplicate cleanup. With the term row
+                // already absent, only this exact captured mapping can be
+                // repaired safely without normal term hooks.
+                foreach ($wordCategoryTermTaxonomyIds as $termTaxonomyId) {
+                    $wpdb->last_error = '';
+                    $wpdb->delete(
+                        $wpdb->term_taxonomy,
+                        [
+                            'term_taxonomy_id' => $termTaxonomyId,
+                            'term_id' => $term_id,
+                            'taxonomy' => $taxonomy,
+                        ],
+                        ['%d', '%d', '%s']
+                    );
+                    if ($wpdb->last_error !== '') {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // A proven-created term can be left without a taxonomy row when core's
+        // duplicate cleanup or wp_delete_term() only partially succeeds. Once
+        // no taxonomy uses the ID, remove that exact orphan directly.
+        $wpdb->last_error = '';
+        $remainingTaxonomyRows = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE term_id = %d",
+            $term_id
+        ));
+        if ($wpdb->last_error !== '' || $remainingTaxonomyRows === null) {
+            return false;
+        }
+        if ((int) $remainingTaxonomyRows > 0) {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $wpdb->delete($wpdb->termmeta, ['term_id' => $term_id], ['%d']);
+        if ($wpdb->last_error !== '') {
+            return false;
+        }
+        $wpdb->last_error = '';
+        $wpdb->delete($wpdb->terms, ['term_id' => $term_id], ['%d']);
+        if ($wpdb->last_error !== '') {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $remainingMetaRows = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->termmeta} WHERE term_id = %d",
+            $term_id
+        ));
+        if ($wpdb->last_error !== '' || $remainingMetaRows === null) {
+            return false;
+        }
+
+        $wpdb->last_error = '';
+        $remainingTermRows = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->terms} WHERE term_id = %d",
+            $term_id
+        ));
+        if ($wpdb->last_error !== '' || $remainingTermRows === null) {
+            return false;
+        }
+
+        foreach ($trackedTermTaxonomyIds as $termTaxonomyId) {
+            $wpdb->last_error = '';
+            $remainingMappingRows = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id = %d",
+                $termTaxonomyId
+            ));
+            if ($wpdb->last_error !== '' || $remainingMappingRows === null || (int) $remainingMappingRows !== 0) {
+                return false;
+            }
+            $wpdb->last_error = '';
+            $remainingRelationshipRows = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->term_relationships} WHERE term_taxonomy_id = %d",
+                $termTaxonomyId
+            ));
+            if ($wpdb->last_error !== '' || $remainingRelationshipRows === null || (int) $remainingRelationshipRows !== 0) {
+                return false;
+            }
+        }
+
+        $deleted = (int) $remainingTaxonomyRows === 0
+            && (int) $remainingMetaRows === 0
+            && (int) $remainingTermRows === 0;
+        if ($deleted) {
+            foreach (array_keys($relationshipObjectIdsToClean) as $objectId) {
+                try {
+                    wp_cache_delete((int) $objectId, $taxonomy . '_relationships');
+                } catch (Throwable $throwable) {
+                    // Cache failures cannot reverse the verified SQL cleanup.
+                }
+            }
+            try {
+                wp_cache_delete($term_id, 'terms');
+            } catch (Throwable $throwable) {
+                // Cache failures cannot reverse the verified SQL cleanup.
+            }
+            try {
+                wp_cache_delete($term_id, 'term_meta');
+            } catch (Throwable $throwable) {
+                // Cache failures cannot reverse the verified SQL cleanup.
+            }
+            try {
+                wp_cache_set_terms_last_changed();
+            } catch (Throwable $throwable) {
+                // Cache failures cannot reverse the verified SQL cleanup.
+            }
+            try {
+                clean_term_cache($term_id, $taxonomy);
+            } catch (Throwable $throwable) {
+                // The exact cache keys above are already evicted; hook failures
+                // must not turn verified SQL cleanup into lost Undo evidence.
+            }
+        }
+    } catch (Throwable $throwable) {
+        $deleted = false;
+    }
+
+    return $deleted;
+}
+
+function ll_tools_rollback_failed_new_word_category(int $term_id, int $expected_term_taxonomy_id = 0): bool {
+    $lockName = '';
+    try {
+        $lockName = ll_tools_acquire_vocab_lesson_category_settings_lock($term_id);
+        if (is_wp_error($lockName) || $lockName === '') {
+            return false;
+        }
+
+        return ll_tools_rollback_failed_new_taxonomy_term(
+            $term_id,
+            'word-category',
+            $expected_term_taxonomy_id
+        );
+    } catch (Throwable $throwable) {
+        return false;
+    } finally {
+        if (is_string($lockName) && $lockName !== '') {
+            try {
+                ll_tools_release_vocab_lesson_category_settings_lock($lockName);
+            } catch (Throwable $throwable) {
+                // The named lock is connection-scoped and will be released when
+                // the request ends; never replace the verified cleanup result.
+            }
+        }
+    }
+}
+
+function ll_tools_word_category_shared_settings_render_is_complete($term = null): bool {
+    global $wpdb;
+
+    $complete = empty($GLOBALS['ll_tools_word_category_shared_settings_render_incomplete']);
+    if ($term !== null) {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            return false;
+        }
+
+        $quiz_complete = true;
+        ll_tools_get_category_quiz_config($term, $quiz_complete);
+        $complete = $complete && $quiz_complete;
+
+        $visibility_complete = true;
+        ll_tools_get_category_lesson_grid_text_visibility_override($term, $visibility_complete);
+        $complete = $complete && $visibility_complete;
+
+        $games_complete = true;
+        ll_tools_get_category_enabled_games($term, $games_complete);
+        $complete = $complete && $games_complete;
+
+        $lineup_complete = true;
+        ll_tools_get_category_lineup_stored_config($term, $lineup_complete);
+        $complete = $complete && $lineup_complete;
+
+        $recording_disabled_complete = true;
+        ll_tools_is_category_recording_disabled((int) $term->term_id, $recording_disabled_complete);
+        $complete = $complete && $recording_disabled_complete;
+
+        $recording_types_complete = true;
+        ll_tools_get_desired_recording_types_for_category((int) $term->term_id, $recording_types_complete);
+        $complete = $complete && $recording_types_complete;
+    }
+
+    $wpdb->last_error = '';
+    $recording_type_terms = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+        'fields' => 'ids',
+    ]);
+    if (is_wp_error($recording_type_terms) || $wpdb->last_error !== '') {
+        $complete = false;
+    }
+
+    return $complete;
+}
+
+function ll_tools_add_category_settings_revision_field(): void {
+    $render_complete = ll_tools_word_category_shared_settings_render_is_complete();
+    $GLOBALS['ll_tools_word_category_shared_settings_render_incomplete'] = false;
+    ?>
+    <input type="hidden" name="_ll_vocab_lesson_category_settings_taxonomy_submitted" value="1">
+    <input type="hidden" name="_ll_vocab_lesson_category_settings_render_complete" value="<?php echo $render_complete ? '1' : '0'; ?>">
+    <input type="hidden" name="ll_vocab_lesson_category_settings_revision" value="0">
+    <?php if (!$render_complete) : ?>
+        <div class="notice notice-error inline"><p role="status"><?php echo esc_html__('Category settings are temporarily unavailable. Reload the page and try again.', 'll-tools-text-domain'); ?></p></div>
+    <?php endif; ?>
+    <?php
+}
+
+function ll_tools_edit_category_settings_revision_field($term): void {
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return;
+    }
+
+    $revision_state = ll_tools_read_vocab_lesson_category_settings_revision_state((int) $term->term_id);
+    $revision = is_wp_error($revision_state) ? '' : (string) ((int) $revision_state['revision']);
+    $render_complete = !is_wp_error($revision_state)
+        && ll_tools_word_category_shared_settings_render_is_complete($term);
+    $GLOBALS['ll_tools_word_category_shared_settings_render_incomplete'] = false;
+    ?>
+    <tr hidden aria-hidden="true">
+        <th scope="row"></th>
+        <td>
+            <input type="hidden" name="_ll_vocab_lesson_category_settings_taxonomy_submitted" value="1">
+            <input type="hidden" name="_ll_vocab_lesson_category_settings_render_complete" value="<?php echo $render_complete ? '1' : '0'; ?>">
+            <input type="hidden" name="ll_vocab_lesson_category_settings_revision" value="<?php echo esc_attr($revision); ?>">
+        </td>
+    </tr>
+    <?php if (!$render_complete) : ?>
+        <tr class="form-field">
+            <th scope="row"><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></th>
+            <td><div class="notice notice-error inline"><p role="status"><?php echo esc_html__('Category settings are temporarily unavailable. Reload the page and try again.', 'll-tools-text-domain'); ?></p></div></td>
+        </tr>
+    <?php endif; ?>
+    <?php
+}
+
+function ll_tools_word_category_shared_settings_request_has_fields(array $request): bool {
+    foreach ([
+        '_ll_vocab_lesson_category_settings_taxonomy_submitted',
+        'll_quiz_prompt_type',
+        'll_quiz_option_type',
+        'll_lesson_grid_text_visibility_override',
+        'll_category_enabled_games_submitted',
+        'll_category_lineup_config_submitted',
+        'll_desired_recording_types_submitted',
+    ] as $field_name) {
+        if (array_key_exists($field_name, $request)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function ll_tools_word_category_shared_settings_error(
+    string $error_code,
+    string $message,
+    int $status = 400,
+    array $details = []
+): WP_Error {
+    return ll_tools_vocab_lesson_category_settings_error($error_code, $message, $status, $details);
+}
+
+/**
+ * @param mixed $value
+ * @return int|WP_Error
+ */
+function ll_tools_parse_word_category_settings_revision($value) {
+    if (is_array($value) || is_object($value)) {
+        return ll_tools_word_category_shared_settings_error(
+            'revision_request',
+            __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+            409
+        );
+    }
+
+    $raw_revision = trim((string) $value);
+    if (
+        $raw_revision === ''
+        || strlen($raw_revision) > 10
+        || !preg_match('/^\d+$/D', $raw_revision)
+        || (int) $raw_revision > 2147483646
+    ) {
+        return ll_tools_word_category_shared_settings_error(
+            'revision_request',
+            __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+            409
+        );
+    }
+
+    return (int) $raw_revision;
+}
+
+/**
+ * @param bool $valid Set false for arrays, objects, or overlong input.
+ */
+function ll_tools_word_category_settings_request_scalar(
+    array $request,
+    string $field_name,
+    int $max_length,
+    bool &$valid
+): string {
+    $valid = true;
+    if (!array_key_exists($field_name, $request)) {
+        return '';
+    }
+
+    $value = $request[$field_name];
+    if (is_array($value) || is_object($value)) {
+        $valid = false;
+        return '';
+    }
+
+    $value = (string) wp_unslash((string) $value);
+    if (strlen($value) > max(1, $max_length)) {
+        $valid = false;
+        return '';
+    }
+    return $value;
+}
+
+/**
+ * Apply the submitted shared category settings. The caller owns the named lock
+ * and transaction; every source read is completed before the first write.
+ *
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_apply_word_category_shared_settings_mutation(int $term_id, array $request) {
+    global $wpdb;
+
+    $term = get_term($term_id, 'word-category');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return ll_tools_word_category_shared_settings_error(
+            'category',
+            __('Category not found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    $writes = [];
+    $has_quiz_fields = array_key_exists('ll_quiz_prompt_type', $request)
+        || array_key_exists('ll_quiz_option_type', $request)
+        || array_key_exists('ll_lesson_grid_text_visibility_override', $request);
+    if ($has_quiz_fields) {
+        $quiz_config_complete = true;
+        $quiz_config = ll_tools_get_category_quiz_config($term, $quiz_config_complete);
+        if (!$quiz_config_complete) {
+            return ll_tools_word_category_shared_settings_error(
+                'quiz_config_source',
+                __('Unable to read the current category settings. Reload the page and try again.', 'll-tools-text-domain'),
+                503,
+                ['retryable' => true]
+            );
+        }
+
+        $use_titles = !empty($quiz_config['use_titles']);
+        $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
+        if (array_key_exists('ll_quiz_prompt_type', $request)) {
+            $valid = true;
+            $raw_prompt_type = ll_tools_word_category_settings_request_scalar(
+                $request,
+                'll_quiz_prompt_type',
+                64,
+                $valid
+            );
+            if (!$valid) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            $prompt_type = ll_tools_normalize_quiz_prompt_type($raw_prompt_type, $use_titles);
+            $writes[] = ['key' => 'll_quiz_prompt_type', 'value' => $prompt_type, 'delete' => false];
+        }
+
+        if (array_key_exists('ll_quiz_option_type', $request)) {
+            $valid = true;
+            $raw_option_type = ll_tools_word_category_settings_request_scalar(
+                $request,
+                'll_quiz_option_type',
+                64,
+                $valid
+            );
+            if (!$valid) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            $option_type = ll_tools_normalize_quiz_option_type(
+                $raw_option_type,
+                $use_titles,
+                $prompt_type
+            );
+            $keep_word_titles = ll_tools_should_keep_word_titles_for_audio_meta(
+                $prompt_type,
+                $option_type,
+                $use_titles
+            );
+            $writes[] = ['key' => 'll_quiz_option_type', 'value' => $option_type, 'delete' => false];
+            $writes[] = [
+                'key' => 'use_word_titles_for_audio',
+                'value' => '1',
+                'delete' => !$keep_word_titles,
+            ];
+        }
+
+        if (array_key_exists('ll_lesson_grid_text_visibility_override', $request)) {
+            $valid = true;
+            $visibility = sanitize_key(ll_tools_word_category_settings_request_scalar(
+                $request,
+                'll_lesson_grid_text_visibility_override',
+                16,
+                $valid
+            ));
+            if (!$valid || !in_array($visibility, ['inherit', 'show', 'hide'], true)) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            $writes[] = [
+                'key' => 'll_lesson_grid_text_visibility_override',
+                'value' => $visibility,
+                'delete' => $visibility === 'inherit',
+            ];
+        }
+    }
+
+    if (array_key_exists('ll_category_enabled_games_submitted', $request)) {
+        $valid = true;
+        $submitted_marker = ll_tools_word_category_settings_request_scalar(
+            $request,
+            'll_category_enabled_games_submitted',
+            1,
+            $valid
+        );
+        $raw_enabled_games = $request['ll_category_enabled_games'] ?? [];
+        if (!$valid || $submitted_marker !== '1' || (!is_array($raw_enabled_games) && !is_string($raw_enabled_games))) {
+            return ll_tools_word_category_shared_settings_error(
+                'settings_request',
+                __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        if (is_array($raw_enabled_games)) {
+            if (count($raw_enabled_games) > 32) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            foreach ($raw_enabled_games as $raw_game_slug) {
+                if (!is_string($raw_game_slug) || strlen($raw_game_slug) > 64) {
+                    return ll_tools_word_category_shared_settings_error(
+                        'settings_request',
+                        __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                        400
+                    );
+                }
+            }
+        } else {
+            $raw_enabled_games = (string) $raw_enabled_games;
+            $trimmed_enabled_games = ltrim($raw_enabled_games);
+            if (
+                strlen($raw_enabled_games) > 512
+                || ($trimmed_enabled_games !== '' && in_array($trimmed_enabled_games[0], ['[', '{'], true))
+            ) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+        }
+        $writes[] = [
+            'key' => LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY,
+            'value' => ll_tools_normalize_category_enabled_games(wp_unslash($raw_enabled_games)),
+            'delete' => false,
+        ];
+    }
+
+    if (array_key_exists('ll_category_lineup_config_submitted', $request)) {
+        $valid = true;
+        $submitted_marker = ll_tools_word_category_settings_request_scalar(
+            $request,
+            'll_category_lineup_config_submitted',
+            1,
+            $valid
+        );
+        $valid_direction = true;
+        $raw_direction = ll_tools_word_category_settings_request_scalar(
+            $request,
+            'll_category_lineup_direction',
+            8,
+            $valid_direction
+        );
+        $direction = sanitize_key($raw_direction);
+        if (
+            !$valid
+            || $submitted_marker !== '1'
+            || !$valid_direction
+            || !in_array($direction, ['auto', 'ltr', 'rtl'], true)
+        ) {
+            return ll_tools_word_category_shared_settings_error(
+                'settings_request',
+                __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        $writes[] = [
+            'key' => LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
+            'value' => $direction,
+            'delete' => false,
+        ];
+
+        if (array_key_exists('ll_category_lineup_replace', $request)) {
+            $valid_replace = true;
+            $replace_value = ll_tools_word_category_settings_request_scalar(
+                $request,
+                'll_category_lineup_replace',
+                1,
+                $valid_replace
+            );
+            if (!$valid_replace || !in_array($replace_value, ['0', '1'], true)) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            if ($replace_value === '1') {
+                $valid_sequence = true;
+                $raw_sequence = ll_tools_word_category_settings_request_scalar(
+                    $request,
+                    'll_category_lineup_word_ids',
+                    10000,
+                    $valid_sequence
+                );
+                if (!$valid_sequence) {
+                    return ll_tools_word_category_shared_settings_error(
+                        'lineup',
+                        __('Unable to validate the Line-Up sequence.', 'll-tools-text-domain'),
+                        400
+                    );
+                }
+                $wpdb->last_error = '';
+                $validated_word_ids = ll_tools_validate_category_lineup_candidate_ids(
+                    $term,
+                    $raw_sequence,
+                    ll_tools_category_lineup_replace_limit()
+                );
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_word_category_shared_settings_error(
+                        'lineup_source',
+                        __('Unable to validate the Line-Up sequence right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                if (is_wp_error($validated_word_ids)) {
+                    return ll_tools_word_category_shared_settings_error(
+                        'lineup',
+                        $validated_word_ids->get_error_message(),
+                        400
+                    );
+                }
+                $validated_word_ids = array_values(array_map('intval', $validated_word_ids));
+                $writes[] = [
+                    'key' => LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+                    'value' => $validated_word_ids,
+                    'delete' => empty($validated_word_ids),
+                ];
+            }
+        }
+    }
+
+    if (array_key_exists('ll_desired_recording_types_submitted', $request)) {
+        $valid = true;
+        $submitted_marker = ll_tools_word_category_settings_request_scalar(
+            $request,
+            'll_desired_recording_types_submitted',
+            1,
+            $valid
+        );
+        $raw_recording_types = $request['ll_desired_recording_types'] ?? [];
+        if (!$valid || $submitted_marker !== '1' || !is_array($raw_recording_types) || count($raw_recording_types) > 100) {
+            return ll_tools_word_category_shared_settings_error(
+                'settings_request',
+                __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                400
+            );
+        }
+
+        $wpdb->last_error = '';
+        $available_recording_types = get_terms([
+            'taxonomy' => 'recording_type',
+            'hide_empty' => false,
+            'fields' => 'slugs',
+        ]);
+        if (is_wp_error($available_recording_types) || $wpdb->last_error !== '') {
+            return ll_tools_word_category_shared_settings_error(
+                'recording_types_source',
+                __('Unable to read recording types right now. Reload the page and try again.', 'll-tools-text-domain'),
+                503,
+                ['retryable' => true]
+            );
+        }
+        $allowed_recording_types = array_fill_keys(array_map('sanitize_key', $available_recording_types), true);
+        $selected_recording_types = [];
+        foreach (wp_unslash($raw_recording_types) as $raw_recording_type) {
+            if (is_array($raw_recording_type) || is_object($raw_recording_type) || strlen((string) $raw_recording_type) > 200) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_request',
+                    __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+                    400
+                );
+            }
+            $recording_type = sanitize_key((string) $raw_recording_type);
+            if ($recording_type === '' || empty($allowed_recording_types[$recording_type])) {
+                return ll_tools_word_category_shared_settings_error(
+                    'recording_types_request',
+                    __('Recording types changed while this page was open. Reload the page and try again.', 'll-tools-text-domain'),
+                    409
+                );
+            }
+            $selected_recording_types[$recording_type] = $recording_type;
+        }
+        $writes[] = [
+            'key' => 'll_desired_recording_types',
+            'value' => empty($selected_recording_types)
+                ? [LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED]
+                : array_values($selected_recording_types),
+            'delete' => false,
+        ];
+    }
+
+    if (empty($writes)) {
+        return ll_tools_word_category_shared_settings_error(
+            'settings_request',
+            __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    foreach ($writes as $write) {
+        if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+            $term_id,
+            (string) $write['key'],
+            $write['value'],
+            !empty($write['delete'])
+        )) {
+            return ll_tools_word_category_shared_settings_error(
+                'settings_write',
+                __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                503,
+                ['retryable' => true]
+            );
+        }
+    }
+
+    return ['changed' => true];
+}
+
+/**
+ * @return array<string,mixed>|WP_Error
+ */
+function ll_tools_save_word_category_shared_settings_request(
+    int $term_id,
+    array $request,
+    bool $is_edit
+) {
+    if ($term_id <= 0 || !ll_tools_word_category_shared_settings_request_has_fields($request)) {
+        return ['changed' => false];
+    }
+
+    if (!current_user_can('manage_categories') && !current_user_can('edit_term', $term_id)) {
+        return ll_tools_word_category_shared_settings_error(
+            'permission',
+            __('You do not have permission to update this category.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    $render_complete_valid = true;
+    $render_complete = ll_tools_word_category_settings_request_scalar(
+        $request,
+        '_ll_vocab_lesson_category_settings_render_complete',
+        1,
+        $render_complete_valid
+    );
+    if (!$render_complete_valid || $render_complete !== '1') {
+        return ll_tools_word_category_shared_settings_error(
+            'settings_source',
+            __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+            503,
+            ['retryable' => true]
+        );
+    }
+
+    $nonce_field = $is_edit ? '_wpnonce' : '_wpnonce_add-tag';
+    $nonce_action = $is_edit ? 'update-tag_' . $term_id : 'add-tag';
+    $valid_nonce_scalar = true;
+    $nonce = ll_tools_word_category_settings_request_scalar(
+        $request,
+        $nonce_field,
+        128,
+        $valid_nonce_scalar
+    );
+    if (!$valid_nonce_scalar || $nonce === '' || !wp_verify_nonce($nonce, $nonce_action)) {
+        return ll_tools_word_category_shared_settings_error(
+            'nonce',
+            __('Your session expired. Reload the page and try again.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    if (!array_key_exists('ll_vocab_lesson_category_settings_revision', $request)) {
+        return ll_tools_word_category_shared_settings_error(
+            'revision_request',
+            __('Category settings were not saved. Reload the page and try again.', 'll-tools-text-domain'),
+            409
+        );
+    }
+    $expected_revision = ll_tools_parse_word_category_settings_revision(
+        $request['ll_vocab_lesson_category_settings_revision']
+    );
+    if (is_wp_error($expected_revision)) {
+        return $expected_revision;
+    }
+
+    return ll_tools_run_vocab_lesson_category_settings_external_mutation(
+        $term_id,
+        static function () use ($term_id, $request) {
+            return ll_tools_apply_word_category_shared_settings_mutation($term_id, $request);
+        },
+        $expected_revision
+    );
+}
+
+/** @return WP_Error|null */
+function ll_tools_get_word_category_shared_settings_request_error() {
+    $error = $GLOBALS['ll_tools_word_category_shared_settings_request_error'] ?? null;
+    return $error instanceof WP_Error ? $error : null;
+}
+
+function ll_tools_set_word_category_shared_settings_request_error(WP_Error $error): void {
+    $GLOBALS['ll_tools_word_category_shared_settings_request_error'] = $error;
+}
+
+/**
+ * Single guarded writer for all shared settings submitted by taxonomy forms.
+ */
+function ll_tools_save_word_category_shared_settings($term_id, $term_taxonomy_id = 0): void {
+    $term_id = (int) $term_id;
+    if ($term_id <= 0 || !ll_tools_word_category_shared_settings_request_has_fields($_POST)) {
+        return;
+    }
+
+    $result = ll_tools_save_word_category_shared_settings_request(
+        $term_id,
+        $_POST,
+        current_filter() === 'edited_word-category'
+    );
+    if (!is_wp_error($result)) {
+        return;
+    }
+
+    // A created-term hook runs after core inserted the taxonomy row. If its
+    // required settings snapshot cannot be committed, remove that otherwise
+    // unusable term so the add form can be retried without a term_exists trap.
+    $createdTermFailed = current_filter() === 'created_word-category';
+    $createdTermRolledBack = false;
+    if ($createdTermFailed && wp_doing_ajax()) {
+        $createdTermRolledBack = ll_tools_rollback_failed_new_word_category($term_id);
+    } elseif ($createdTermFailed) {
+        add_action(
+            'created_word-category',
+            static function ($createdTermId) use ($term_id): void {
+                if ((int) $createdTermId === $term_id) {
+                    $GLOBALS['ll_tools_word_category_shared_settings_created_rollback_pending'] =
+                        ll_tools_rollback_failed_new_word_category($term_id);
+                }
+            },
+            PHP_INT_MAX,
+            1
+        );
+    }
+
+    if ($createdTermFailed && wp_doing_ajax() && !$createdTermRolledBack) {
+        $errorData = $result->get_error_data();
+        $result = new WP_Error(
+            'category_created_settings_failed',
+            __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain'),
+            is_array($errorData) ? $errorData : ['status' => 503]
+        );
+    }
+
+    if (wp_doing_ajax()) {
+        $error_data = $result->get_error_data();
+        $status = is_array($error_data) ? (int) ($error_data['status'] ?? 400) : 400;
+        wp_die(
+            esc_html($result->get_error_message()),
+            esc_html__('Category settings not saved', 'll-tools-text-domain'),
+            ['response' => max(400, min(599, $status))]
+        );
+    }
+
+    ll_tools_set_word_category_shared_settings_request_error($result);
+}
+
+function ll_tools_add_category_settings_error_to_redirect($location, $taxonomy) {
+    if (!($taxonomy instanceof WP_Taxonomy) || $taxonomy->name !== 'word-category') {
+        return $location;
+    }
+
+    $error = ll_tools_get_word_category_shared_settings_request_error();
+    if (!($error instanceof WP_Error)) {
+        return $location;
+    }
+
+    unset($GLOBALS['ll_tools_word_category_shared_settings_request_error']);
+    if (!empty($GLOBALS['ll_tools_word_category_shared_settings_created_rollback_pending'])) {
+        unset($GLOBALS['ll_tools_word_category_shared_settings_created_rollback_pending']);
+        $location = remove_query_arg('message', (string) $location);
+    }
+    return add_query_arg(
+        'll_word_category_settings_error',
+        ll_tools_get_vocab_lesson_category_settings_error_code($error),
+        (string) $location
+    );
+}
+
+function ll_tools_get_category_settings_admin_error_message(string $error_code): string {
+    if ($error_code === 'category_created_settings_failed') {
+        return __('The category was created, but its settings were not saved. Open the category and try again.', 'll-tools-text-domain');
+    }
+    if ($error_code === 'revision_conflict' || $error_code === 'revision_request') {
+        return __('Category settings changed elsewhere and were not saved. Reload the category and try again.', 'll-tools-text-domain');
+    }
+    if ($error_code === 'busy') {
+        return __('Category settings are being updated elsewhere and were not saved. Try again.', 'll-tools-text-domain');
+    }
+    if ($error_code === 'transaction_storage') {
+        return __('Category settings cannot be saved until the term metadata table supports transactions. Ask an administrator to enable InnoDB storage.', 'll-tools-text-domain');
+    }
+    if ($error_code === 'lock_storage') {
+        return __('Category settings cannot be saved because database locking is unavailable. Ask an administrator to verify named-lock support.', 'll-tools-text-domain');
+    }
+    return __('Category settings could not be saved. Reload the category and try again.', 'll-tools-text-domain');
+}
+
+function ll_tools_render_category_settings_error_notice(): void {
+    if (!is_admin() || !isset($_GET['ll_word_category_settings_error'])) {
+        return;
+    }
+
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    $rawTaxonomy = $_GET['taxonomy'] ?? '';
+    $taxonomy = $screen && !empty($screen->taxonomy)
+        ? (string) $screen->taxonomy
+        : (is_string($rawTaxonomy) && strlen($rawTaxonomy) <= 64
+            ? sanitize_key(wp_unslash($rawTaxonomy))
+            : '');
+    if ($taxonomy !== 'word-category') {
+        return;
+    }
+
+    $rawErrorCode = $_GET['ll_word_category_settings_error'];
+    if (!is_string($rawErrorCode) || strlen($rawErrorCode) > 64) {
+        return;
+    }
+    $error_code = sanitize_key(wp_unslash($rawErrorCode));
+    if (!in_array($error_code, [
+        'busy',
+        'category',
+        'category_created_settings_failed',
+        'category_source',
+        'games_source',
+        'nonce',
+        'permission',
+        'quiz_config_source',
+        'recording_types_source',
+        'recording_types_request',
+        'lineup',
+        'lineup_source',
+        'lock_storage',
+        'revision_conflict',
+        'revision_request',
+        'revision_read',
+        'revision_write',
+        'settings_request',
+        'settings_source',
+        'settings_write',
+        'transaction_commit',
+        'transaction_start',
+        'transaction_storage',
+    ], true)) {
+        return;
+    }
+
+    echo '<div class="notice notice-error is-dismissible"><p>'
+        . esc_html(ll_tools_get_category_settings_admin_error_message($error_code))
+        . '</p></div>';
+}
+
 /**
  * One-time seeding of desired recording types for existing categories.
  * Uses the main defaults (isolation, question, introduction) and does not
  * overwrite categories that already have a selection.
  */
+function ll_tools_get_existing_category_settings_seed_batch(
+    string $cursor_option,
+    ?bool &$complete = null,
+    ?bool &$is_last_batch = null
+): array {
+    global $wpdb;
+
+    $complete = true;
+    $is_last_batch = false;
+    $cursor = max(0, (int) get_option($cursor_option, 0));
+    $batch_size = max(1, min(100, (int) apply_filters(
+        'll_tools_category_settings_seed_batch_size',
+        25,
+        $cursor_option
+    )));
+    $wpdb->last_error = '';
+    $term_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT term_id
+         FROM {$wpdb->term_taxonomy}
+         WHERE taxonomy = %s AND term_id > %d
+         ORDER BY term_id ASC
+         LIMIT %d",
+        'word-category',
+        $cursor,
+        $batch_size
+    ));
+    if (!is_array($term_ids) || $wpdb->last_error !== '') {
+        $complete = false;
+        return [];
+    }
+
+    $term_ids = array_values(array_unique(array_filter(array_map('intval', $term_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+    $is_last_batch = count($term_ids) < $batch_size;
+    return $term_ids;
+}
+
+function ll_tools_advance_existing_category_settings_seed(
+    string $cursor_option,
+    string $complete_option,
+    array $term_ids,
+    bool $is_last_batch
+): void {
+    if ($is_last_batch) {
+        delete_option($cursor_option);
+        update_option($complete_option, 1);
+        return;
+    }
+
+    $last_term_id = empty($term_ids) ? 0 : max(array_map('intval', $term_ids));
+    if ($last_term_id > 0) {
+        update_option($cursor_option, $last_term_id, false);
+    }
+}
+
 function ll_tools_seed_existing_categories_desired_types() {
+    global $wpdb;
+
     if (!is_admin()) { return; }
     // Run once; if you need to re-run, delete this option.
     if (get_option('ll_seeded_category_desired_types', false)) { return; }
+    if (!function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')) { return; }
 
-    $terms = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'fields'     => 'ids',
-    ]);
-    if (is_wp_error($terms) || empty($terms)) {
-        update_option('ll_seeded_category_desired_types', 1);
+    $batch_complete = true;
+    $is_last_batch = false;
+    $cursor_option = 'll_seeded_category_desired_types_cursor';
+    $terms = ll_tools_get_existing_category_settings_seed_batch(
+        $cursor_option,
+        $batch_complete,
+        $is_last_batch
+    );
+    if (!$batch_complete) {
         return;
     }
 
     $defaults = ll_tools_get_main_recording_types();
     foreach ($terms as $tid) {
+        $tid = (int) $tid;
+        if ($tid <= 0) {
+            continue;
+        }
+
+        $wpdb->last_error = '';
         $existing = get_term_meta($tid, 'll_desired_recording_types', true);
-        if (ll_tools_is_category_recording_disabled($tid)) { continue; }
-        // Only set if nothing exists yet; for text-only categories seed isolation-only
-        if (empty($existing)) {
-            $is_text_only = get_term_meta((int) $tid, 'use_word_titles_for_audio', true) === '1';
-            $to_seed = $is_text_only ? ['isolation'] : $defaults;
-            update_term_meta($tid, 'll_desired_recording_types', $to_seed);
+        if ($wpdb->last_error !== '') {
+            return;
+        }
+        if (!empty($existing)) {
+            continue;
+        }
+
+        $result = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $tid,
+            static function () use ($tid, $defaults) {
+                global $wpdb;
+
+                $wpdb->last_error = '';
+                $locked_existing = get_term_meta($tid, 'll_desired_recording_types', true);
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'recording_types_source',
+                        __('Unable to read recording types right now. Reload the page and try again.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                if (!empty($locked_existing)) {
+                    return ['changed' => false];
+                }
+
+                $wpdb->last_error = '';
+                $is_text_only = get_term_meta($tid, 'use_word_titles_for_audio', true) === '1';
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'quiz_config_source',
+                        __('Unable to read the current category settings. Reload the page and try again.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                $to_seed = $is_text_only ? ['isolation'] : $defaults;
+                if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $tid,
+                    'll_desired_recording_types',
+                    $to_seed
+                )) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_write',
+                        __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($result)) {
+            return;
         }
     }
 
-    update_option('ll_seeded_category_desired_types', 1);
+    ll_tools_advance_existing_category_settings_seed(
+        $cursor_option,
+        'll_seeded_category_desired_types',
+        $terms,
+        $is_last_batch
+    );
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_desired_types');
 
@@ -1929,26 +3202,48 @@ function ll_tools_normalize_category_enabled_games($value): array {
     return array_values($enabled);
 }
 
-function ll_tools_get_category_enabled_games($term): array {
+function ll_tools_get_category_enabled_games($term, ?bool &$complete = null): array {
+    $complete = true;
     if (!($term instanceof WP_Term)) {
-        $term = get_term($term, 'word-category');
+        $term_complete = true;
+        $term = ll_tools_resolve_word_category_term($term, $term_complete);
+        if (!$term_complete) {
+            $complete = false;
+            return [];
+        }
     }
-    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+    if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
         return [];
     }
 
-    return ll_tools_normalize_category_enabled_games(
-        ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY)
+    $meta_complete = true;
+    $enabled_games = ll_tools_get_category_meta_with_source_fallback(
+        $term,
+        LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY,
+        false,
+        $meta_complete
     );
+    if (!$meta_complete) {
+        $complete = false;
+        return [];
+    }
+
+    return ll_tools_normalize_category_enabled_games($enabled_games);
 }
 
-function ll_tools_is_category_enabled_for_game($term, string $game_slug): bool {
+function ll_tools_is_category_enabled_for_game($term, string $game_slug, ?bool &$complete = null): bool {
+    $complete = true;
     $game_slug = sanitize_key($game_slug);
     if ($game_slug === '') {
         return false;
     }
     if ($game_slug === 'line-up' && !($term instanceof WP_Term)) {
-        $term = get_term($term, 'word-category');
+        $term_complete = true;
+        $term = ll_tools_resolve_word_category_term($term, $term_complete);
+        if (!$term_complete) {
+            $complete = false;
+            return false;
+        }
     }
     if ($game_slug === 'line-up' && $term instanceof WP_Term) {
         $term_slug = sanitize_title((string) ($term->slug ?? ''));
@@ -1958,39 +3253,106 @@ function ll_tools_is_category_enabled_for_game($term, string $game_slug): bool {
         }
     }
 
-    return in_array($game_slug, ll_tools_get_category_enabled_games($term), true);
+    $enabled_games_complete = true;
+    $enabled_games = ll_tools_get_category_enabled_games($term, $enabled_games_complete);
+    if (!$enabled_games_complete) {
+        $complete = false;
+        return false;
+    }
+
+    return in_array($game_slug, $enabled_games, true);
 }
 
 function ll_tools_seed_existing_categories_enabled_games(): void {
+    global $wpdb;
+
     if (!is_admin()) {
         return;
     }
     if (get_option('ll_seeded_category_enabled_games_v1', false)) {
         return;
     }
+    if (!function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')) {
+        return;
+    }
 
     $enabled_games = ll_tools_get_category_default_enabled_game_slugs();
-    $term_ids = get_terms([
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-        'fields' => 'ids',
-    ]);
-
-    if (is_wp_error($term_ids) || empty($term_ids)) {
-        update_option('ll_seeded_category_enabled_games_v1', 1);
+    $batch_complete = true;
+    $is_last_batch = false;
+    $cursor_option = 'll_seeded_category_enabled_games_v1_cursor';
+    $term_ids = ll_tools_get_existing_category_settings_seed_batch(
+        $cursor_option,
+        $batch_complete,
+        $is_last_batch
+    );
+    if (!$batch_complete) {
         return;
     }
 
     foreach ((array) $term_ids as $term_id) {
         $term_id = (int) $term_id;
-        if ($term_id <= 0 || metadata_exists('term', $term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY)) {
+        if ($term_id <= 0) {
             continue;
         }
 
-        update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, $enabled_games);
+        $wpdb->last_error = '';
+        $has_existing_meta = metadata_exists('term', $term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY);
+        if ($wpdb->last_error !== '') {
+            return;
+        }
+        if ($has_existing_meta) {
+            continue;
+        }
+
+        $result = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $term_id,
+            static function () use ($term_id, $enabled_games) {
+                global $wpdb;
+
+                $wpdb->last_error = '';
+                $locked_has_existing_meta = metadata_exists(
+                    'term',
+                    $term_id,
+                    LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY
+                );
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'games_source',
+                        __('Unable to read the current category settings. Reload the page and try again.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                if ($locked_has_existing_meta) {
+                    return ['changed' => false];
+                }
+                if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $term_id,
+                    LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY,
+                    $enabled_games
+                )) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_write',
+                        __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($result)) {
+            return;
+        }
     }
 
-    update_option('ll_seeded_category_enabled_games_v1', 1);
+    ll_tools_advance_existing_category_settings_seed(
+        $cursor_option,
+        'll_seeded_category_enabled_games_v1',
+        $term_ids,
+        $is_last_batch
+    );
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games');
 
@@ -2016,20 +3378,27 @@ function ll_tools_should_upgrade_category_enabled_games_for_unscramble(array $en
 }
 
 function ll_tools_seed_existing_categories_enabled_games_v2(): void {
+    global $wpdb;
+
     if (!is_admin()) {
         return;
     }
     if (get_option('ll_seeded_category_enabled_games_v2', false)) {
         return;
     }
+    if (!function_exists('ll_tools_run_vocab_lesson_category_settings_external_mutation')) {
+        return;
+    }
 
-    $term_ids = get_terms([
-        'taxonomy' => 'word-category',
-        'hide_empty' => false,
-        'fields' => 'ids',
-    ]);
-    if (is_wp_error($term_ids) || empty($term_ids)) {
-        update_option('ll_seeded_category_enabled_games_v2', 1);
+    $batch_complete = true;
+    $is_last_batch = false;
+    $cursor_option = 'll_seeded_category_enabled_games_v2_cursor';
+    $term_ids = ll_tools_get_existing_category_settings_seed_batch(
+        $cursor_option,
+        $batch_complete,
+        $is_last_batch
+    );
+    if (!$batch_complete) {
         return;
     }
 
@@ -2039,24 +3408,94 @@ function ll_tools_seed_existing_categories_enabled_games_v2(): void {
             continue;
         }
 
+        $wpdb->last_error = '';
         $has_existing_meta = metadata_exists('term', $term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY);
+        if ($wpdb->last_error !== '') {
+            return;
+        }
+        $enabled_games_complete = true;
         $enabled_games = $has_existing_meta
-            ? ll_tools_get_category_enabled_games($term_id)
+            ? ll_tools_get_category_enabled_games($term_id, $enabled_games_complete)
             : [];
+        if (!$enabled_games_complete) {
+            return;
+        }
         if (!ll_tools_should_upgrade_category_enabled_games_for_unscramble($enabled_games, $has_existing_meta)) {
             continue;
         }
 
-        if (!$has_existing_meta) {
-            update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, ll_tools_get_category_default_enabled_game_slugs());
-            continue;
-        }
+        $result = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+            $term_id,
+            static function () use ($term_id) {
+                global $wpdb;
 
-        $enabled_games[] = 'unscramble';
-        update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, ll_tools_normalize_category_enabled_games($enabled_games));
+                $wpdb->last_error = '';
+                $locked_has_existing_meta = metadata_exists(
+                    'term',
+                    $term_id,
+                    LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY
+                );
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'games_source',
+                        __('Unable to read the current category settings. Reload the page and try again.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+
+                $locked_enabled_games_complete = true;
+                $locked_enabled_games = $locked_has_existing_meta
+                    ? ll_tools_get_category_enabled_games($term_id, $locked_enabled_games_complete)
+                    : [];
+                if (!$locked_enabled_games_complete) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'games_source',
+                        __('Unable to read the current category settings. Reload the page and try again.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                if (!ll_tools_should_upgrade_category_enabled_games_for_unscramble(
+                    $locked_enabled_games,
+                    $locked_has_existing_meta
+                )) {
+                    return ['changed' => false];
+                }
+
+                if ($locked_has_existing_meta) {
+                    $locked_enabled_games[] = 'unscramble';
+                    $games_to_store = ll_tools_normalize_category_enabled_games($locked_enabled_games);
+                } else {
+                    $games_to_store = ll_tools_get_category_default_enabled_game_slugs();
+                }
+                if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $term_id,
+                    LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY,
+                    $games_to_store
+                )) {
+                    return ll_tools_vocab_lesson_category_settings_error(
+                        'settings_write',
+                        __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+
+                return ['changed' => true];
+            }
+        );
+        if (is_wp_error($result)) {
+            return;
+        }
     }
 
-    update_option('ll_seeded_category_enabled_games_v2', 1);
+    ll_tools_advance_existing_category_settings_seed(
+        $cursor_option,
+        'll_seeded_category_enabled_games_v2',
+        $term_ids,
+        $is_last_batch
+    );
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games_v2');
 
@@ -2124,20 +3563,46 @@ function ll_tools_enqueue_category_lineup_manager_assets(array $context = []): v
     ]);
 }
 
-function ll_tools_get_category_lineup_stored_config($term): array {
+function ll_tools_get_category_lineup_stored_config($term, ?bool &$complete = null): array {
+    $complete = true;
+    $empty = [
+        'direction' => 'auto',
+        'word_ids' => [],
+    ];
     if (!($term instanceof WP_Term)) {
-        $term = get_term($term, 'word-category');
+        $term_complete = true;
+        $term = ll_tools_resolve_word_category_term($term, $term_complete);
+        if (!$term_complete) {
+            $complete = false;
+            return $empty;
+        }
     }
-    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
-        return [
-            'direction' => 'auto',
-            'word_ids' => [],
-        ];
+    if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
+        return $empty;
+    }
+
+    $word_order_complete = true;
+    $word_ids = ll_tools_get_category_meta_with_source_fallback(
+        $term,
+        LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+        false,
+        $word_order_complete
+    );
+    $direction_complete = true;
+    $direction = ll_tools_get_category_meta_with_source_fallback(
+        $term,
+        LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
+        false,
+        $direction_complete
+    );
+    if (!$word_order_complete || !$direction_complete) {
+        $complete = false;
+        return $empty;
     }
 
     return ll_tools_normalize_category_lineup_config([
-        'word_ids' => ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY),
-        'direction' => ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY),
+        'word_ids' => $word_ids,
+        'direction' => $direction,
     ]);
 }
 
@@ -2195,7 +3660,29 @@ function ll_tools_validate_category_lineup_candidate_ids($term, $value, int $lim
     return $candidate_ids;
 }
 
+function ll_tools_category_lineup_request_integer($value, bool $allow_zero, bool &$valid): int {
+    $valid = (is_int($value) && ($allow_zero ? $value >= 0 : $value > 0))
+        || (
+            is_string($value)
+            && strlen($value) <= 20
+            && preg_match($allow_zero ? '/^(?:0|[1-9]\d*)$/D' : '/^[1-9]\d*$/D', $value) === 1
+            && (string) (int) $value === $value
+        );
+    return $valid ? (int) $value : 0;
+}
+
+function ll_tools_category_lineup_request_scalar($value, int $max_bytes, bool &$valid): string {
+    $valid = is_string($value) || is_int($value);
+    if (!$valid || strlen((string) $value) > max(1, $max_bytes)) {
+        $valid = false;
+        return '';
+    }
+    return (string) $value;
+}
+
 function ll_tools_get_category_lineup_candidate_page($term, array $args = []) {
+    global $wpdb;
+
     if (!($term instanceof WP_Term)) {
         $term = get_term($term, 'word-category');
     }
@@ -2203,19 +3690,43 @@ function ll_tools_get_category_lineup_candidate_page($term, array $args = []) {
         return new WP_Error('lineup_category', __('Category not found.', 'll-tools-text-domain'));
     }
 
-    $view = isset($args['view']) ? sanitize_key((string) $args['view']) : 'candidates';
+    $view_valid = true;
+    $view = sanitize_key(ll_tools_category_lineup_request_scalar(
+        $args['view'] ?? 'candidates',
+        16,
+        $view_valid
+    ));
+    $page_valid = true;
+    $page = ll_tools_category_lineup_request_integer($args['page'] ?? 1, false, $page_valid);
+    $per_page_valid = true;
+    $per_page = ll_tools_category_lineup_request_integer(
+        $args['per_page'] ?? ll_tools_category_lineup_page_size(),
+        false,
+        $per_page_valid
+    );
+    $search_valid = true;
+    $search = ll_tools_category_lineup_request_scalar($args['search'] ?? '', 1000, $search_valid);
+    if (!$view_valid || !$page_valid || !$per_page_valid || !$search_valid) {
+        return new WP_Error('lineup_request', __('Invalid request.', 'll-tools-text-domain'));
+    }
     $view = $view === 'sequence' ? 'sequence' : 'candidates';
-    $page = max(1, (int) ($args['page'] ?? 1));
-    $per_page = (int) ($args['per_page'] ?? ll_tools_category_lineup_page_size());
     $per_page = max(5, min(ll_tools_category_lineup_page_size(), $per_page));
-    $search = isset($args['search']) ? sanitize_text_field((string) $args['search']) : '';
+    $search = sanitize_text_field($search);
     if (function_exists('mb_substr')) {
         $search = mb_substr($search, 0, 100);
     } else {
         $search = substr($search, 0, 100);
     }
 
-    $stored_config = ll_tools_get_category_lineup_stored_config($term);
+    $stored_config_complete = true;
+    $stored_config = ll_tools_get_category_lineup_stored_config($term, $stored_config_complete);
+    if (!$stored_config_complete) {
+        return new WP_Error(
+            'lineup_source_incomplete',
+            __('Unable to load the Line-Up sequence right now.', 'll-tools-text-domain'),
+            ['status' => 503]
+        );
+    }
     $sequence_ids = array_values(array_map('intval', (array) ($stored_config['word_ids'] ?? [])));
     $sequence_lookup = array_fill_keys($sequence_ids, true);
 
@@ -2227,6 +3738,7 @@ function ll_tools_get_category_lineup_candidate_page($term, array $args = []) {
         $page_ids = array_slice($sequence_ids, $offset, $per_page);
         $posts = [];
         if (!empty($page_ids)) {
+            $wpdb->last_error = '';
             $posts = get_posts([
                 'post_type' => 'words',
                 'post_status' => 'any',
@@ -2243,6 +3755,13 @@ function ll_tools_get_category_lineup_candidate_page($term, array $args = []) {
                     ],
                 ],
             ]);
+            if (is_wp_error($posts) || $wpdb->last_error !== '') {
+                return new WP_Error(
+                    'lineup_source_incomplete',
+                    __('Unable to load the Line-Up sequence right now.', 'll-tools-text-domain'),
+                    ['status' => 503]
+                );
+            }
         }
         $posts_by_id = [];
         foreach ((array) $posts as $post) {
@@ -2296,7 +3815,15 @@ function ll_tools_get_category_lineup_candidate_page($term, array $args = []) {
     if ($search !== '') {
         $query_args['s'] = $search;
     }
+    $wpdb->last_error = '';
     $query = new WP_Query($query_args);
+    if ($wpdb->last_error !== '') {
+        return new WP_Error(
+            'lineup_source_incomplete',
+            __('Unable to load the Line-Up sequence right now.', 'll-tools-text-domain'),
+            ['status' => 503]
+        );
+    }
     $items = [];
     foreach ((array) $query->posts as $post) {
         if (!($post instanceof WP_Post)) {
@@ -2331,77 +3858,123 @@ function ll_tools_apply_category_lineup_sequence_mutation($term, array $request)
         return new WP_Error('lineup_category', __('Category not found.', 'll-tools-text-domain'));
     }
 
-    $mutation = isset($request['mutation']) ? sanitize_key((string) $request['mutation']) : '';
-    if (!in_array($mutation, ['add', 'reset', 'move_up', 'move_down'], true)) {
+    $mutation_valid = true;
+    $mutation = sanitize_key(ll_tools_category_lineup_request_scalar(
+        $request['mutation'] ?? '',
+        16,
+        $mutation_valid
+    ));
+    if (!$mutation_valid || !in_array($mutation, ['add', 'reset', 'move_up', 'move_down'], true)) {
         return new WP_Error('lineup_mutation', __('Invalid Line-Up update.', 'll-tools-text-domain'));
     }
-    $word_id = max(0, (int) ($request['word_id'] ?? 0));
-    if ($word_id <= 0) {
+    $word_id_valid = true;
+    $word_id = ll_tools_category_lineup_request_integer($request['word_id'] ?? 0, false, $word_id_valid);
+    if (!$word_id_valid || $word_id <= 0) {
         return new WP_Error('lineup_word', __('Select a valid word.', 'll-tools-text-domain'));
     }
 
-    $config = ll_tools_get_category_lineup_stored_config($term);
-    $sequence_ids = array_values(array_map('intval', (array) ($config['word_ids'] ?? [])));
-    $index = array_search($word_id, $sequence_ids, true);
+    return ll_tools_run_vocab_lesson_category_settings_external_mutation(
+        (int) $term->term_id,
+        static function () use ($term, $mutation, $word_id) {
+            global $wpdb;
 
-    if ($mutation === 'reset') {
-        if ($index !== false) {
-            array_splice($sequence_ids, (int) $index, 1);
-        }
-    } else {
-        $validated_ids = ll_tools_validate_category_lineup_candidate_ids($term, [$word_id], 1);
-        if (is_wp_error($validated_ids)) {
-            return $validated_ids;
-        }
-
-        if ($mutation === 'add') {
-            if ($index === false) {
-                $sequence_ids[] = $word_id;
-            }
-        } else {
-            if ($index === false) {
-                return new WP_Error(
-                    'lineup_not_positioned',
-                    __('That word no longer has a custom Line-Up position.', 'll-tools-text-domain')
+            $config_complete = true;
+            $config = ll_tools_get_category_lineup_stored_config($term, $config_complete);
+            if (!$config_complete) {
+                return ll_tools_word_category_shared_settings_error(
+                    'lineup_source',
+                    __('Unable to read the Line-Up sequence right now.', 'll-tools-text-domain'),
+                    503,
+                    ['retryable' => true]
                 );
             }
-            $index = (int) $index;
-            $swap_index = $mutation === 'move_up' ? $index - 1 : $index + 1;
-            if ($swap_index >= 0 && $swap_index < count($sequence_ids)) {
-                $swap_word_id = $sequence_ids[$swap_index];
-                $sequence_ids[$swap_index] = $word_id;
-                $sequence_ids[$index] = $swap_word_id;
+            $sequence_ids = array_values(array_map('intval', (array) ($config['word_ids'] ?? [])));
+            $index = array_search($word_id, $sequence_ids, true);
+
+            if ($mutation === 'reset') {
+                if ($index !== false) {
+                    array_splice($sequence_ids, (int) $index, 1);
+                }
+            } else {
+                $wpdb->last_error = '';
+                $validated_ids = ll_tools_validate_category_lineup_candidate_ids($term, [$word_id], 1);
+                if ($wpdb->last_error !== '') {
+                    return ll_tools_word_category_shared_settings_error(
+                        'lineup_source',
+                        __('Unable to validate the Line-Up sequence right now.', 'll-tools-text-domain'),
+                        503,
+                        ['retryable' => true]
+                    );
+                }
+                if (is_wp_error($validated_ids)) {
+                    return $validated_ids;
+                }
+
+                if ($mutation === 'add') {
+                    if ($index === false) {
+                        $sequence_ids[] = $word_id;
+                    }
+                } else {
+                    if ($index === false) {
+                        return new WP_Error(
+                            'lineup_not_positioned',
+                            __('That word no longer has a custom Line-Up position.', 'll-tools-text-domain')
+                        );
+                    }
+                    $index = (int) $index;
+                    $swap_index = $mutation === 'move_up' ? $index - 1 : $index + 1;
+                    if ($swap_index >= 0 && $swap_index < count($sequence_ids)) {
+                        $swap_word_id = $sequence_ids[$swap_index];
+                        $sequence_ids[$swap_index] = $word_id;
+                        $sequence_ids[$index] = $swap_word_id;
+                    }
+                }
             }
+
+            $sequence_ids = array_values($sequence_ids);
+            if (!ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                (int) $term->term_id,
+                LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+                $sequence_ids,
+                empty($sequence_ids)
+            )) {
+                return ll_tools_word_category_shared_settings_error(
+                    'settings_write',
+                    __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    503,
+                    ['retryable' => true]
+                );
+            }
+
+            return [
+                'word_id' => $word_id,
+                'mutation' => $mutation,
+                'sequence_count' => count($sequence_ids),
+            ];
         }
-    }
-
-    if (empty($sequence_ids)) {
-        delete_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY);
-    } else {
-        update_term_meta(
-            (int) $term->term_id,
-            LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
-            array_values($sequence_ids)
-        );
-    }
-
-    return [
-        'word_id' => $word_id,
-        'mutation' => $mutation,
-        'sequence_count' => count($sequence_ids),
-    ];
+    );
 }
 
 function ll_tools_authorize_category_lineup_manager_request(array $request) {
-    $category_id = max(0, (int) ($request['category_id'] ?? 0));
+    $category_id_valid = true;
+    $category_id = ll_tools_category_lineup_request_integer($request['category_id'] ?? 0, false, $category_id_valid);
+    if (!$category_id_valid) {
+        return new WP_Error('lineup_request', __('Invalid request.', 'll-tools-text-domain'));
+    }
     $term = $category_id > 0 ? get_term($category_id, 'word-category') : null;
     if (!($term instanceof WP_Term) || is_wp_error($term)) {
         return new WP_Error('lineup_category', __('Category not found.', 'll-tools-text-domain'));
     }
 
-    $lesson_id = max(0, (int) ($request['lesson_id'] ?? 0));
-    $wordset_id = max(0, (int) ($request['wordset_id'] ?? 0));
-    $nonce = isset($request['nonce']) ? (string) $request['nonce'] : '';
+    $lesson_id_valid = true;
+    $lesson_id = ll_tools_category_lineup_request_integer($request['lesson_id'] ?? 0, true, $lesson_id_valid);
+    $wordset_id_valid = true;
+    $wordset_id = ll_tools_category_lineup_request_integer($request['wordset_id'] ?? 0, true, $wordset_id_valid);
+    $nonce_valid = true;
+    $nonce = ll_tools_category_lineup_request_scalar($request['nonce'] ?? '', 128, $nonce_valid);
+    if (!$lesson_id_valid || !$wordset_id_valid || !$nonce_valid) {
+        return new WP_Error('lineup_request', __('Invalid request.', 'll-tools-text-domain'));
+    }
     if ($lesson_id > 0) {
         $lesson = get_post($lesson_id);
         if (!($lesson instanceof WP_Post) || $lesson->post_type !== 'll_vocab_lesson') {
@@ -2467,7 +4040,9 @@ function ll_tools_get_category_lineup_candidates_ajax_handler(): void {
         'search' => $request['search'] ?? '',
     ]);
     if (is_wp_error($result)) {
-        wp_send_json_error(['message' => $result->get_error_message()], 400);
+        $error_data = $result->get_error_data();
+        $status = is_array($error_data) ? (int) ($error_data['status'] ?? 400) : 400;
+        wp_send_json_error(['message' => $result->get_error_message()], max(400, min(599, $status)));
     }
 
     wp_send_json_success($result);
@@ -2483,7 +4058,18 @@ function ll_tools_update_category_lineup_sequence_ajax_handler(): void {
 
     $result = ll_tools_apply_category_lineup_sequence_mutation($term, $request);
     if (is_wp_error($result)) {
-        wp_send_json_error(['message' => $result->get_error_message()], 400);
+        $error_data = $result->get_error_data();
+        $status = is_array($error_data) ? (int) ($error_data['status'] ?? 400) : 400;
+        $response = [
+            'message' => $result->get_error_message(),
+            'error' => function_exists('ll_tools_get_vocab_lesson_category_settings_error_code')
+                ? ll_tools_get_vocab_lesson_category_settings_error_code($result)
+                : sanitize_key((string) $result->get_error_code()),
+        ];
+        if (is_array($error_data) && array_key_exists('retryable', $error_data)) {
+            $response['retryable'] = !empty($error_data['retryable']);
+        }
+        wp_send_json_error($response, max(400, min(599, $status)));
     }
     ll_tools_touch_category_lineup_after_update((int) $term->term_id);
 
@@ -2676,15 +4262,27 @@ function ll_tools_get_category_lineup_word_items($term): array {
     return is_wp_error($page) ? [] : array_values((array) ($page['items'] ?? []));
 }
 
-function ll_tools_get_category_lesson_grid_text_visibility_override($term): string {
+function ll_tools_get_category_lesson_grid_text_visibility_override($term, ?bool &$complete = null): string {
+    global $wpdb;
+
+    $complete = true;
     if (!($term instanceof WP_Term)) {
+        $wpdb->last_error = '';
         $term = get_term($term, 'word-category');
+        if (is_wp_error($term) || $wpdb->last_error !== '') {
+            $complete = false;
+        }
     }
     if (!($term instanceof WP_Term)) {
         return 'inherit';
     }
 
+    $wpdb->last_error = '';
     $value = sanitize_key((string) get_term_meta($term->term_id, 'll_lesson_grid_text_visibility_override', true));
+    if ($wpdb->last_error !== '') {
+        $complete = false;
+        return 'inherit';
+    }
     if (in_array($value, ['show', 'hide'], true)) {
         return $value;
     }
@@ -2831,8 +4429,16 @@ function ll_add_quiz_prompt_option_fields($term) {
  * Field to capture prompt + answer option preferences (edit screen)
  */
 function ll_edit_quiz_prompt_option_fields($term) {
-    $config = ll_tools_get_category_quiz_config($term);
-    $lesson_grid_text_visibility_override = ll_tools_get_category_lesson_grid_text_visibility_override($term);
+    $configComplete = true;
+    $config = ll_tools_get_category_quiz_config($term, $configComplete);
+    $visibilityComplete = true;
+    $lesson_grid_text_visibility_override = ll_tools_get_category_lesson_grid_text_visibility_override(
+        $term,
+        $visibilityComplete
+    );
+    if (!$configComplete || !$visibilityComplete) {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+    }
     ?>
     <tr class="form-field term-quiz-prompt-wrap">
         <th scope="row" valign="top">
@@ -2958,7 +4564,11 @@ function ll_tools_add_category_game_availability_field(): void {
 }
 
 function ll_tools_edit_category_game_availability_field($term): void {
-    $enabled_games = array_fill_keys(ll_tools_get_category_enabled_games($term), true);
+    $gamesComplete = true;
+    $enabled_games = array_fill_keys(ll_tools_get_category_enabled_games($term, $gamesComplete), true);
+    if (!$gamesComplete) {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+    }
     $game_definitions = ll_tools_get_category_game_definitions();
     ?>
     <input type="hidden" name="ll_category_enabled_games_submitted" value="1">
@@ -2995,7 +4605,11 @@ function ll_tools_edit_category_lineup_field($term): void {
         return;
     }
 
-    $config = ll_tools_get_category_lineup_stored_config($term);
+    $configComplete = true;
+    $config = ll_tools_get_category_lineup_stored_config($term, $configComplete);
+    if (!$configComplete) {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+    }
     $manager_nonce = wp_create_nonce('ll_tools_category_lineup_manager');
     ?>
     <tr
@@ -3026,6 +4640,27 @@ function ll_tools_edit_category_lineup_field($term): void {
     <?php
 }
 
+/**
+ * Legacy direct-call compatibility for the individual save helpers below.
+ * Production taxonomy requests use ll_tools_save_word_category_shared_settings().
+ *
+ * @param mixed $term_id
+ * @param mixed $value
+ */
+function ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+    $term_id,
+    string $meta_key,
+    $value,
+    bool $delete = false
+): bool {
+    return ll_tools_write_verified_vocab_lesson_category_setting_meta(
+        (int) $term_id,
+        $meta_key,
+        $value,
+        $delete
+    );
+}
+
 function ll_tools_save_category_lineup_field($term_id): void {
     if (!isset($_POST['ll_category_lineup_config_submitted'])) {
         return;
@@ -3051,7 +4686,7 @@ function ll_tools_save_category_lineup_field($term_id): void {
     $raw_direction = isset($_POST['ll_category_lineup_direction'])
         ? wp_unslash((string) $_POST['ll_category_lineup_direction'])
         : 'auto';
-    update_term_meta(
+    ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
         $term_id,
         LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY,
         ll_tools_normalize_category_lineup_direction($raw_direction)
@@ -3075,11 +4710,20 @@ function ll_tools_save_category_lineup_field($term_id): void {
         return;
     }
     if (empty($validated_word_ids)) {
-        delete_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY);
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+            $term_id,
+            LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+            [],
+            true
+        );
         return;
     }
 
-    update_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, $validated_word_ids);
+    ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+        $term_id,
+        LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY,
+        $validated_word_ids
+    );
 }
 
 /**
@@ -3093,7 +4737,7 @@ function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
     );
     if (isset($_POST['ll_quiz_prompt_type'])) {
         $prompt = ll_tools_normalize_quiz_prompt_type(sanitize_text_field($_POST['ll_quiz_prompt_type']), $use_titles);
-        update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta($term_id, 'll_quiz_prompt_type', $prompt);
         $prompt_for_option = $prompt;
     }
     if (isset($_POST['ll_quiz_option_type'])) {
@@ -3102,15 +4746,34 @@ function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
             $use_titles,
             $prompt_for_option
         );
-        update_term_meta($term_id, 'll_quiz_option_type', $option);
-        ll_tools_sync_word_titles_for_audio_meta($term_id, $prompt_for_option, $option, $use_titles);
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta($term_id, 'll_quiz_option_type', $option);
+        $keep_word_titles = ll_tools_should_keep_word_titles_for_audio_meta(
+            $prompt_for_option,
+            $option,
+            $use_titles
+        );
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+            $term_id,
+            'use_word_titles_for_audio',
+            '1',
+            !$keep_word_titles
+        );
     }
     if (isset($_POST['ll_lesson_grid_text_visibility_override'])) {
         $visibility_override = sanitize_key((string) $_POST['ll_lesson_grid_text_visibility_override']);
         if (!in_array($visibility_override, ['show', 'hide'], true)) {
-            delete_term_meta($term_id, 'll_lesson_grid_text_visibility_override');
+            ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+                $term_id,
+                'll_lesson_grid_text_visibility_override',
+                '',
+                true
+            );
         } else {
-            update_term_meta($term_id, 'll_lesson_grid_text_visibility_override', $visibility_override);
+            ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+                $term_id,
+                'll_lesson_grid_text_visibility_override',
+                $visibility_override
+            );
         }
     }
 }
@@ -3141,18 +4804,28 @@ function ll_tools_save_category_game_availability_field($term_id): void {
         ? ll_tools_normalize_category_enabled_games(wp_unslash($_POST['ll_category_enabled_games']))
         : [];
 
-    update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, $enabled_games);
+    ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+        $term_id,
+        LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY,
+        $enabled_games
+    );
 }
 
 /**
  * Category meta UI: Desired Recording Types (add screen)
  */
 function ll_add_desired_recording_types_field($term) {
+    global $wpdb;
+
+    $wpdb->last_error = '';
     $types = get_terms([
         'taxonomy'   => 'recording_type',
         'hide_empty' => false,
     ]);
-    if (is_wp_error($types)) { $types = []; }
+    if (is_wp_error($types) || $wpdb->last_error !== '') {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+        $types = [];
+    }
     $default_checked = ll_tools_get_main_recording_types();
     ?>
     <input type="hidden" name="ll_desired_recording_types_submitted" value="1">
@@ -3175,19 +4848,27 @@ function ll_add_desired_recording_types_field($term) {
  * Category meta UI: Desired Recording Types (edit screen)
  */
 function ll_edit_desired_recording_types_field($term) {
-    $raw_selected = get_term_meta($term->term_id, 'll_desired_recording_types', true);
-    $disabled = ll_tools_is_category_recording_disabled($term->term_id);
-    $selected = array_filter(array_map('sanitize_text_field', (array) $raw_selected));
+    global $wpdb;
+
+    $selectedComplete = true;
+    $selected = ll_tools_get_desired_recording_types_for_category($term->term_id, $selectedComplete);
+    $disabledComplete = true;
+    $disabled = ll_tools_is_category_recording_disabled($term->term_id, $disabledComplete);
+    if (!$selectedComplete || !$disabledComplete) {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+    }
     if ($disabled) {
         $selected = [];
-    } elseif (empty($selected)) {
-        $selected = ll_tools_get_main_recording_types();
     }
+    $wpdb->last_error = '';
     $types = get_terms([
         'taxonomy'   => 'recording_type',
         'hide_empty' => false,
     ]);
-    if (is_wp_error($types)) { $types = []; }
+    if (is_wp_error($types) || $wpdb->last_error !== '') {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+        $types = [];
+    }
     ?>
     <input type="hidden" name="ll_desired_recording_types_submitted" value="1">
     <tr class="form-field term-desired-recording-types-wrap">
@@ -3230,9 +4911,17 @@ function ll_save_desired_recording_types_field($term_id, $maybe_tt_id = null) {
 
     if (empty($sanitized)) {
         // Explicitly disable recording when nothing is selected
-        update_term_meta($term_id, 'll_desired_recording_types', [LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED]);
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+            $term_id,
+            'll_desired_recording_types',
+            [LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED]
+        );
     } else {
-        update_term_meta($term_id, 'll_desired_recording_types', $sanitized);
+        ll_tools_write_vocab_lesson_category_settings_taxonomy_meta(
+            $term_id,
+            'll_desired_recording_types',
+            $sanitized
+        );
     }
 }
 
@@ -4244,6 +5933,16 @@ function ll_tools_bump_category_cache_versions_only($term_ids): array {
     })));
     $bumped_ids = [];
     foreach ($term_ids as $term_id) {
+        $delete_locks = isset($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+            && is_array($GLOBALS['ll_tools_word_category_delete_settings_locks'])
+            ? $GLOBALS['ll_tools_word_category_delete_settings_locks']
+            : [];
+        if (
+            isset($delete_locks[$term_id])
+            || (int) ($GLOBALS['ll_tools_failed_new_word_category_rollback_id'] ?? 0) === $term_id
+        ) {
+            continue;
+        }
         $term = get_term($term_id, 'word-category');
         if (!($term instanceof WP_Term) || is_wp_error($term)) {
             continue;
@@ -4335,9 +6034,20 @@ function ll_tools_bump_single_category_cache_version($term_id) {
     // every legacy/direct wordset that renders this category.
     ll_tools_bump_category_cache_epoch();
 }
+
+function ll_tools_bump_deleted_category_cache_epoch($term_id): void {
+    $term_id = (int) $term_id;
+    if ($term_id > 0 && function_exists('ll_tools_bump_quiz_content_failsafe_epoch')) {
+        ll_tools_bump_quiz_content_failsafe_epoch();
+    }
+    // The term has already been removed when delete_word-category fires. A
+    // per-term bump would recreate orphan term metadata, so invalidate only
+    // the global structural epochs for deletion.
+    ll_tools_bump_category_cache_epoch();
+}
 add_action('created_word-category', 'll_tools_bump_single_category_cache_version', 20, 1);
 add_action('edited_word-category',  'll_tools_bump_single_category_cache_version', 20, 1);
-add_action('delete_word-category',  'll_tools_bump_single_category_cache_version', 20, 1);
+add_action('delete_word-category',  'll_tools_bump_deleted_category_cache_epoch', 20, 1);
 
 function ll_tools_default_option_type_for_category(
     $term,
@@ -9781,6 +11491,10 @@ function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $scrip
         'nonce' => wp_create_nonce('ll_bulk_category_edit_' . $post_type),
         'postType' => $post_type,
         'actionName' => sanitize_key($ajax_action),
+        'i18n' => [
+            'categoryStateLoading' => __('Loading categories…', 'll-tools-text-domain'),
+            'categoryStateError' => __('Categories could not be loaded. Category changes are unavailable.', 'll-tools-text-domain'),
+        ],
     ]);
 }
 
@@ -9789,6 +11503,50 @@ function ll_enqueue_bulk_category_edit_script($post_type, $script_handle, $scrip
  *
  * @param string $post_type The post type to check ('words' or 'word_images')
  */
+function ll_tools_bulk_common_category_post_ids_request_error($raw_post_ids): ?WP_Error {
+    $max_values = max(1, min(500, (int) apply_filters('ll_tools_bulk_common_category_post_ids_limit', 200)));
+    $max_raw_bytes = max(1024, min(65536, (int) apply_filters('ll_tools_bulk_common_category_post_ids_max_raw_bytes', 8192)));
+    $max_value_bytes = max(1, min(64, (int) apply_filters('ll_tools_bulk_common_category_post_id_max_raw_bytes', 20)));
+    $values = is_array($raw_post_ids) ? $raw_post_ids : [$raw_post_ids];
+
+    if (count($values) > $max_values) {
+        return new WP_Error(
+            'll_tools_bulk_common_categories_too_large',
+            __('Invalid request.', 'll-tools-text-domain'),
+            ['status' => 413]
+        );
+    }
+
+    $raw_bytes = 0;
+    foreach ($values as $key => $value) {
+        $valid_id = (is_int($value) && $value > 0)
+            || (
+                is_string($value)
+                && preg_match('/^[1-9]\d*$/D', $value) === 1
+                && (string) (int) $value === $value
+            );
+        if (!$valid_id) {
+            return new WP_Error(
+                'll_tools_bulk_common_categories_input_invalid',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['status' => 400]
+            );
+        }
+
+        $value_bytes = strlen((string) $value);
+        $raw_bytes += strlen((string) $key) + $value_bytes;
+        if ($value_bytes > $max_value_bytes || $raw_bytes > $max_raw_bytes) {
+            return new WP_Error(
+                'll_tools_bulk_common_categories_too_large',
+                __('Invalid request.', 'll-tools-text-domain'),
+                ['status' => 413]
+            );
+        }
+    }
+
+    return null;
+}
+
 function ll_get_common_categories_for_post_type($post_type) {
     check_ajax_referer('ll_bulk_category_edit_' . $post_type, 'nonce');
 
@@ -9796,7 +11554,17 @@ function ll_get_common_categories_for_post_type($post_type) {
         wp_send_json_error(__('Permission denied', 'll-tools-text-domain'));
     }
 
-    $post_ids = isset($_POST['post_ids']) ? (array) $_POST['post_ids'] : [];
+    $raw_post_ids = $_POST['post_ids'] ?? [];
+    $request_error = ll_tools_bulk_common_category_post_ids_request_error($raw_post_ids);
+    if ($request_error instanceof WP_Error) {
+        $error_data = (array) $request_error->get_error_data();
+        wp_send_json_error([
+            'code' => $request_error->get_error_code(),
+            'message' => $request_error->get_error_message(),
+        ], (int) ($error_data['status'] ?? 400));
+    }
+
+    $post_ids = (array) wp_unslash($raw_post_ids);
     $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
         return $post_id > 0;
     })));
@@ -9806,6 +11574,13 @@ function ll_get_common_categories_for_post_type($post_type) {
     }
 
     $common = ll_tools_get_common_word_category_ids_for_posts($post_ids, (string) $post_type);
+    if (is_wp_error($common)) {
+        $error_data = (array) $common->get_error_data();
+        wp_send_json_error([
+            'code' => $common->get_error_code(),
+            'message' => $common->get_error_message(),
+        ], (int) ($error_data['status'] ?? 503));
+    }
     wp_send_json_success(['common' => array_values($common)]);
 }
 
@@ -9816,9 +11591,11 @@ function ll_get_common_categories_for_post_type($post_type) {
  *
  * @param int[]  $post_ids
  * @param string $post_type
- * @return int[]
+ * @return int[]|WP_Error
  */
-function ll_tools_get_common_word_category_ids_for_posts(array $post_ids, string $post_type): array {
+function ll_tools_get_common_word_category_ids_for_posts(array $post_ids, string $post_type) {
+    global $wpdb;
+
     $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), function ($post_id) {
         return $post_id > 0;
     })));
@@ -9837,9 +11614,14 @@ function ll_tools_get_common_word_category_ids_for_posts(array $post_ids, string
             continue;
         }
 
+        $wpdb->last_error = '';
         $terms = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
-        if (is_wp_error($terms)) {
-            continue;
+        if (is_wp_error($terms) || $wpdb->last_error !== '') {
+            return new WP_Error(
+                'll_tools_bulk_common_categories_source_unavailable',
+                __('Categories could not be loaded. No changes were made.', 'll-tools-text-domain'),
+                ['status' => 503]
+            );
         }
 
         $all_categories[] = array_values(array_unique(array_filter(array_map('intval', (array) $terms), function ($term_id) {

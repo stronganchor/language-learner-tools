@@ -14,6 +14,28 @@ mapped to a finalized, server-scored Wordboat assignment attempt.
 No Google OAuth credential, refresh token, or encryption key belongs in this
 repository or in a WordPress option.
 
+## Source and test map
+
+The implementation boundary below was checked against local source on
+2026-09-06; it is not evidence of a connected or tested Google tenant.
+
+| Concern | Start here |
+| --- | --- |
+| Admin page, connect/callback/disconnect actions, explicit course-list request | `includes/admin/google-classroom-integration.php` (`ll-tools-google-classroom`; `admin_post_ll_tools_google_classroom_*`) |
+| OAuth state/PKCE, connection ownership, schema, course reads and disabled write helpers | `includes/lms/google-classroom.php` |
+| Authenticated credential envelope and deployment key parsing | `includes/lms/credential-store.php` |
+| Immutable local assignment and authoritative grade | `includes/lms/assignments.php`, `includes/api/lms-rest.php` |
+| Adapter registration, exact mappings, delivery claims and retries | `includes/lms/grade-delivery.php` |
+| Personal-data export, erasure barriers and account-deletion continuation | `includes/privacy.php` |
+| Mocked connector and lifecycle contracts | `tests/Integration/GoogleClassroomFoundationTest.php`, `tests/Integration/LmsPrivacyLifecycleTest.php` |
+| Admin browser states | `tests/e2e/specs/google-classroom-admin-ui.spec.js`; fixtures `seed-google-classroom-admin.php` and `google-classroom-admin-mu.php` |
+
+There is no registered Google grade sender or CourseWork creation screen.
+Find `ll_tools_google_classroom_writes_ready()` before investigating an apparent
+write failure: it combines the configuration/schema checks, write gate,
+registered `google_classroom` adapter, and
+`ll_tools_google_classroom_write_adapter_ready` certification filter.
+
 ## Google Cloud preparation
 
 1. Create or select an organization-owned Google Cloud project.
@@ -103,10 +125,15 @@ ordered delivery worker.
    connected accounts, and at most five live authorization attempts may be
    pending at once; both ceilings are enforced server-side.
 7. Load active courses and confirm the bounded list contains only courses for
-   the selected connected teacher.
+   the selected connected teacher. The screen requests up to 50 courses; the
+   helper permits up to 100 and at most five API pages. This is a bounded preview
+   without a user-facing continuation control.
 8. Disconnect and verify that only that account's local encrypted credential is
-   removed. The teacher should also revoke the application's grant in their
-   Google Account when fully removing access.
+   removed. This explicit action attempts Google token revocation first and
+   still removes the local connection if revocation fails, showing a warning.
+   Pending OAuth states for that teacher are also cleared, so an already-open
+   authorization flow must be restarted. If revocation cannot be confirmed,
+   remove the application's grant in the Google Account as well.
 
 WordPress privacy export includes the connected profile's email, display name,
 Workspace hosted-domain value, verification state, scopes, and connection
@@ -141,8 +168,8 @@ following in a dedicated Google Workspace for Education sandbox:
   without using an email address as the durable identity key;
 - verify the expected Google user and exact submission together immediately
   before every grade PATCH and again in its response;
-- queue only the selected authoritative grade revision after the local
-  transaction commits;
+- persist only the selected authoritative grade revision in the outbox within
+  the local finalization transaction, then schedule delivery after commit;
 - send `draftGrade` by default, with bounded retry, redacted diagnostics,
   stale-grade suppression, and correction-order tests;
 - verify consent, token refresh/revocation, class removal, local erasure, and

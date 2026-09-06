@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const {
   isExpectedCloudflareRumAbort,
+  isExpectedPopupMediaCleanupAbort,
   isExpectedCategorySearchWarmingResponse,
   isPotentialCategorySearchWarmingConsoleError,
   isExpectedFlashcardPayloadWarmingResponse,
@@ -600,7 +601,7 @@ async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
   };
 }
 
-async function exercisePopupOpenClose(page, interactionConfig) {
+async function exercisePopupOpenClose(page, interactionConfig, lifecycle = {}) {
   const popupSelector = interactionConfig.popupSelector || '#ll-tools-flashcard-quiz-popup';
   const closeSelector = interactionConfig.closeSelector || '#ll-tools-close-flashcard';
   const popup = page.locator(popupSelector);
@@ -624,6 +625,16 @@ async function exercisePopupOpenClose(page, interactionConfig) {
 
   const closeButton = page.locator(closeSelector);
   await expect(closeButton).toBeVisible({ timeout: interactionConfig.closeVisibleTimeoutMs || 30000 });
+
+  const popupMediaUrls = await popup.locator('audio[src], video[src]').evaluateAll((elements) => (
+    elements
+      .map((element) => element.currentSrc || element.src || '')
+      .filter(Boolean)
+  ));
+  if (typeof lifecycle.beforeClose === 'function') {
+    lifecycle.beforeClose(popupMediaUrls);
+  }
+
   await closeButton.click({ timeout: interactionConfig.closeTimeoutMs || 15000, force: true });
   await expect(popup).toBeHidden({ timeout: interactionConfig.popupHiddenTimeoutMs || 30000 });
 
@@ -678,6 +689,7 @@ if (loadSitesError) {
       const potentialCategorySearchWarmingConsoleErrors = [];
       const potentialFlashcardWarmingConsoleErrors = [];
       const pendingResponseAudits = [];
+      const popupMediaCleanupAbortUrls = new Set();
 
       page.on('console', (message) => {
         if (message.type() === 'error') {
@@ -745,7 +757,10 @@ if (loadSitesError) {
           error: errorText
         };
 
-        if (isExpectedCloudflareRumAbort(requestDetails, errorText)) {
+        if (
+          isExpectedCloudflareRumAbort(requestDetails, errorText)
+          || isExpectedPopupMediaCleanupAbort(requestDetails, errorText, popupMediaCleanupAbortUrls)
+        ) {
           summary.expectedSameOriginRequestAborts.push(failureDetails);
           return;
         }
@@ -900,7 +915,20 @@ if (loadSitesError) {
       }
 
       if (interaction.openSelector) {
-        summary.popupExercise = await exercisePopupOpenClose(page, interaction);
+        summary.popupExercise = await exercisePopupOpenClose(page, interaction, {
+          beforeClose: (mediaUrls) => {
+            for (const mediaUrl of mediaUrls) {
+              try {
+                const normalizedUrl = new URL(mediaUrl, page.url());
+                if (normalizedUrl.origin === siteUrl.origin) {
+                  popupMediaCleanupAbortUrls.add(normalizedUrl.href);
+                }
+              } catch (_) {
+                // Ignore malformed or non-URL media sources; their failures remain fatal.
+              }
+            }
+          }
+        });
       }
 
       await Promise.all(pendingResponseAudits);

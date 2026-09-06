@@ -415,6 +415,12 @@
                     return;
                 }
 
+                var revision = parseInt(response.data.revision, 10);
+                if (Number.isFinite(revision) && revision >= 0) {
+                    $root.closest('form').find('[name="ll_vocab_lesson_category_settings_revision"]')
+                        .first()
+                        .val(String(revision));
+                }
                 var sequenceCount = Math.max(0, parseInt(response.data.sequence_count, 10) || 0);
                 if (mutation === 'add') {
                     state.sequencePage = Math.max(1, Math.ceil(sequenceCount / pageSize));

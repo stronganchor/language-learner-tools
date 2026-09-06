@@ -47,6 +47,24 @@ The helper script only resolves the WordPress root and forwards to `wp`. It does
 
 ## Commands
 
+### Resume wordset isolation maintenance
+
+```bash
+wp ll-tools wordset-isolation-migrate --format=json
+```
+
+This command resumes the durable, site-wide wordset-isolation migration and
+reports its status. It performs writes immediately; it has no `--dry-run` or
+wordset argument. Use it only for an authorized migration or repair, with a
+current backup. `--allow-large-option-rules` explicitly lifts the background
+option-rule size guard for this CLI run. The command exits with an error unless
+the returned migration status is `completed`.
+
+The implementation and persisted migration/reconciliation state live in
+`includes/wordset-isolation.php`; the command wrapper lives in
+`includes/cli/class-ll-tools-cli-command.php`. See [CODEBASE_ARCHITECTURE.md](../CODEBASE_ARCHITECTURE.md)
+for the migration and generated-page reconciliation invariants.
+
 ### Migrate legacy post-based lessons
 
 `wp ll-tools legacy-lessons-migrate` is a separate guarded migration for
@@ -140,6 +158,11 @@ Supported update fields:
 - `verb_tense`
 - `verb_mood`
 
+Use a separate resume file for each wordset, field/value, and filter plan. The
+current resume reader skips recorded word IDs without validating the stored
+operation metadata against the new command. `--limit` limits the rows selected
+for updating after scope rows are loaded; it is not a query or memory bound.
+
 ### Dump a live wordset report
 
 ```bash
@@ -200,5 +223,18 @@ This CLI surface currently targets:
 - word-level metadata inspection
 - safe partial word metadata updates
 - machine-readable reporting
+- durable wordset-isolation maintenance
+- bounded legacy lesson, prerequisite, and completion migration
 
 It does not yet replace every importer, audio-processing, or attribution-backfill workflow. Those can be added on top of the same `ll-tools` WP-CLI namespace later.
+
+## Source and test map
+
+| Surface | Implementation | Focused tests |
+| --- | --- | --- |
+| Registration, aliases, options and resume files | `includes/bootstrap.php`, `includes/cli/class-ll-tools-cli-command.php` | No dedicated WP-CLI command integration test; inspect command docblocks and call sites |
+| Shared word resolution and metadata helpers | `includes/cli/cli-support.php` | `tests/Integration/AutomationRestApiTest.php`, `tests/Integration/WordTextCanonicalFieldsTest.php`, `tests/Integration/WordsetScopedCategoryLookupTest.php` |
+| Legacy lesson migration | `includes/migrations/legacy-content-lessons.php` | `tests/Integration/LegacyContentLessonMigrationTest.php` |
+
+Use `wp help ll-tools <subcommand>` for the current argument contract; the CLI
+class docblocks are the source for WP-CLI help.

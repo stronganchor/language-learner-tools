@@ -38,9 +38,9 @@ function ll_tools_public_ajax_counter_option_names(
 /**
  * Atomically reserve capacity in a fixed-window request counter.
  *
- * The conditional SQL increment is the admission decision. Concurrent PHP
- * workers therefore cannot all observe the same stale transient value and
- * independently admit work beyond the configured limit.
+ * The insert-if-missing or conditional SQL increment is the admission
+ * decision. Concurrent PHP workers therefore cannot all observe the same
+ * stale transient value and independently admit work beyond the limit.
  *
  * @return array{allowed:bool,count:int,limit:int,retry_after:int,reserved:bool,option_name?:string,cost?:int}
  */
@@ -81,45 +81,108 @@ function ll_tools_public_ajax_reserve_counter(
         ];
     }
 
-    if (add_option($names['value'], (string) $cost, '', false)) {
-        update_option($names['timeout'], (string) $names['expires_at'], false);
-
+    $counter_result = static function (bool $allowed, int $count, bool $reserved) use (
+        $limit,
+        $retry_after,
+        $names,
+        $cost
+    ): array {
         return [
-            'allowed' => true,
-            'count' => $cost,
+            'allowed' => $allowed,
+            'count' => max(0, $count),
             'limit' => $limit,
             'retry_after' => $retry_after,
-            'reserved' => true,
+            'reserved' => $reserved,
             'option_name' => $names['value'],
             'cost' => $cost,
         ];
+    };
+    $serialized_cost = maybe_serialize((string) $cost);
+    $autoload = function_exists('wp_determine_option_autoload_value')
+        ? wp_determine_option_autoload_value($names['value'], (string) $cost, $serialized_cost, false)
+        : 'no';
+    $try_create = static function () use ($wpdb, $names, $serialized_cost, $autoload): array {
+        $wpdb->last_error = '';
+        $inserted = $wpdb->query($wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload)
+             VALUES (%s, %s, %s)",
+            $names['value'],
+            $serialized_cost,
+            $autoload
+        ));
+        $create_error = (string) $wpdb->last_error;
+
+        // Direct SQL must invalidate both the value cache and any remembered
+        // miss. This is needed whether this worker inserted or lost the race.
+        wp_cache_delete($names['value'], 'options');
+        $notoptions = wp_cache_get('notoptions', 'options');
+        if (is_array($notoptions) && isset($notoptions[$names['value']])) {
+            unset($notoptions[$names['value']]);
+            wp_cache_set('notoptions', $notoptions, 'options');
+        }
+
+        return [
+            'created' => ($inserted === 1 && $create_error === ''),
+            'error' => ($inserted === false || $create_error !== ''),
+        ];
+    };
+
+    $creation = $try_create();
+    if ($creation['error']) {
+        return $counter_result(false, 0, false);
+    }
+    if ($creation['created']) {
+        update_option($names['timeout'], (string) $names['expires_at'], false);
+        return $counter_result(true, $cost, true);
     }
 
-    $updated = $wpdb->query($wpdb->prepare(
-        "UPDATE {$wpdb->options}
-         SET option_value = CAST(option_value AS UNSIGNED) + %d
-         WHERE option_name = %s
-           AND CAST(option_value AS UNSIGNED) + %d <= %d",
-        $cost,
-        $names['value'],
-        $cost,
-        $limit
-    ));
-    wp_cache_delete($names['value'], 'options');
-    $count = max(0, (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
-        $names['value']
-    )));
+    // A fully refunded counter may be deleted after the insert observes it
+    // but before the conditional increment reaches the database. Retry that
+    // exact missing-row race once; all database errors remain fail-closed.
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        $wpdb->last_error = '';
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = CAST(option_value AS UNSIGNED) + %d
+             WHERE option_name = %s
+               AND CAST(option_value AS UNSIGNED) + %d <= %d",
+            $cost,
+            $names['value'],
+            $cost,
+            $limit
+        ));
+        $update_error = (string) $wpdb->last_error;
+        wp_cache_delete($names['value'], 'options');
+        if ($updated === false || $update_error !== '') {
+            return $counter_result(false, 0, false);
+        }
 
-    return [
-        'allowed' => ($updated === 1),
-        'count' => $count,
-        'limit' => $limit,
-        'retry_after' => $retry_after,
-        'reserved' => ($updated === 1),
-        'option_name' => $names['value'],
-        'cost' => $cost,
-    ];
+        $wpdb->last_error = '';
+        $raw_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+            $names['value']
+        ));
+        $read_error = (string) $wpdb->last_error;
+        if ($read_error !== '') {
+            return $counter_result(false, 0, false);
+        }
+
+        $count = max(0, (int) $raw_count);
+        if ($updated === 1 || $raw_count !== null || $attempt > 0) {
+            return $counter_result($updated === 1, $count, $updated === 1);
+        }
+
+        $creation = $try_create();
+        if ($creation['error']) {
+            return $counter_result(false, 0, false);
+        }
+        if ($creation['created']) {
+            update_option($names['timeout'], (string) $names['expires_at'], false);
+            return $counter_result(true, $cost, true);
+        }
+    }
+
+    return $counter_result(false, 0, false);
 }
 
 /**

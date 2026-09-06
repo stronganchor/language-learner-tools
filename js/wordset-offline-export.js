@@ -17,9 +17,11 @@
     var resumeButton = root.querySelector('[data-ll-wordset-offline-export-resume]');
     var downloadLink = root.querySelector('[data-ll-wordset-offline-export-download]');
     var strings = config.strings || {};
+    var stepRequestTimeoutMs = Math.max(100, Math.min(120000, Number(config.stepRequestTimeoutMs) || 20000));
     var activeToken = '';
     var running = false;
     var activeJobTerminal = true;
+    var stepRequestGeneration = 0;
     var submitInitiallyDisabled = !!(submitButton && submitButton.disabled);
 
     if (!form || !submitButton || !jobPanel || !jobPhase || !jobStatus || !jobProgress || !jobError || !resumeButton || !downloadLink) {
@@ -120,18 +122,54 @@
         payload.set('nonce', String(config.nonce || ''));
         payload.set('token', token);
 
-        fetch(config.ajaxUrl, {
+        stepRequestGeneration += 1;
+        var requestGeneration = stepRequestGeneration;
+        var settled = false;
+        var controller = typeof window.AbortController === 'function'
+            ? new window.AbortController()
+            : null;
+        var requestOptions = {
             method: 'POST',
             body: payload,
             credentials: 'same-origin'
-        }).then(parseResponse).then(function (job) {
-            renderJob(job);
-            if (running) {
-                window.setTimeout(function () {
-                    requestStep(String(job.token || token));
-                }, 150);
+        };
+        if (controller) {
+            requestOptions.signal = controller.signal;
+        }
+
+        function settleRequest(callback) {
+            if (settled || requestGeneration !== stepRequestGeneration) {
+                return false;
             }
-        }).catch(renderRequestError);
+            settled = true;
+            window.clearTimeout(timeoutId);
+            callback();
+            return true;
+        }
+
+        var timeoutId = window.setTimeout(function () {
+            settleRequest(function () {
+                if (controller) {
+                    controller.abort();
+                }
+                renderRequestError(new Error(String(strings.requestTimedOut || strings.requestFailed || '')));
+            });
+        }, stepRequestTimeoutMs);
+
+        fetch(config.ajaxUrl, requestOptions).then(parseResponse).then(function (job) {
+            settleRequest(function () {
+                renderJob(job);
+                if (running) {
+                    window.setTimeout(function () {
+                        requestStep(String(job.token || token));
+                    }, 150);
+                }
+            });
+        }).catch(function (error) {
+            settleRequest(function () {
+                renderRequestError(error);
+            });
+        });
     }
 
     form.addEventListener('submit', function (event) {

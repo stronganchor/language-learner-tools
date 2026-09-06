@@ -979,6 +979,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             ll_tools_word_grid_get_category_editor_rows($wordset_id)
         );
         $this->assertStringContainsString('Bulk action progress', $html);
+        $this->assertStringContainsString('id="ll-wordset-editor-bulk-job-title"', $html);
+        $this->assertStringContainsString('aria-labelledby="ll-wordset-editor-bulk-job-title"', $html);
         $this->assertStringContainsString('Processed 82 of 82', $html);
         $this->assertStringContainsString('Batch complete.', $html);
 

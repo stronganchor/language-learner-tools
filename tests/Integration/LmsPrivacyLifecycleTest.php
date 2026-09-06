@@ -441,25 +441,31 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         $this->assertLocalPrivacyFixturePresent($fixture);
     }
 
-    public function test_local_privacy_erasure_rolls_back_when_user_meta_is_retained(): void
+    public function test_local_privacy_erasure_rolls_back_when_user_meta_delete_fails(): void
     {
+        global $wpdb;
+
         $fixture = $this->createLocalPrivacyFixture('meta-failure');
-        $metaFault = static function ($delete, int $objectId, string $metaKey) use ($fixture) {
-            if ($objectId === $fixture['user_id'] && $metaKey === LL_TOOLS_USER_GOALS_META) {
-                return false;
+        $metaFault = static function (string $query) use ($wpdb): string {
+            if (
+                stripos($query, 'DELETE FROM') !== false
+                && stripos($query, $wpdb->usermeta) !== false
+                && stripos($query, LL_TOOLS_USER_GOALS_META) !== false
+            ) {
+                return 'DELETE FROM ll_tools_missing_privacy_user_meta';
             }
-            return $delete;
+            return $query;
         };
 
-        add_filter('delete_user_metadata', $metaFault, 10, 3);
+        add_filter('query', $metaFault);
         try {
             $result = ll_tools_privacy_erase_personal_data($fixture['email'], 1);
         } finally {
-            remove_filter('delete_user_metadata', $metaFault, 10);
+            remove_filter('query', $metaFault);
         }
 
         $this->assertWPError($result);
-        $this->assertSame('ll_tools_privacy_user_meta_retained', $result->get_error_code());
+        $this->assertSame('ll_tools_privacy_user_meta_delete_failed', $result->get_error_code());
         $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($fixture['user_id']));
         $this->assertLocalPrivacyFixturePresent($fixture);
     }

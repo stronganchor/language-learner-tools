@@ -337,6 +337,12 @@ if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_STATE_OPTION')) {
 if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_LOCK')) {
     define('LL_TOOLS_QUIZ_PAGE_SYNC_LOCK', 'll_tools_quiz_page_sync_lock');
 }
+if (!defined('LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT')) {
+    define('LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT', 'll_tools_quiz_page_full_sync_event');
+}
+if (!defined('LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION')) {
+    define('LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION', 'll_tools_quiz_page_full_sync_request');
+}
 
 if (!function_exists('ll_tools_get_category_maintenance_runtime')) {
     /**
@@ -439,36 +445,248 @@ function ll_tools_flush_deferred_category_maintenance(): array {
     $queued = isset($state['queued_category_ids']) && is_array($state['queued_category_ids'])
         ? array_keys($state['queued_category_ids'])
         : [];
-    $state['queued_category_ids'] = [];
-
     $category_ids = ll_tools_normalize_category_maintenance_ids($queued);
     if (empty($category_ids)) {
         return [];
     }
 
+    $failed = [];
     foreach ($category_ids as $category_id) {
-        ll_tools_handle_category_sync_immediate($category_id, true);
-    }
-
-    foreach ($category_ids as $category_id) {
-        if (function_exists('ll_tools_sync_vocab_lessons_for_category_immediate')) {
-            ll_tools_sync_vocab_lessons_for_category_immediate($category_id, true);
-        } elseif (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
-            ll_tools_sync_vocab_lessons_for_category($category_id);
+        try {
+            $result = ll_tools_handle_category_sync_immediate($category_id, true);
+            if (is_wp_error($result)) {
+                $failed[$category_id] = true;
+                unset($state['synced_quiz_category_ids'][$category_id]);
+            }
+        } catch (Throwable $throwable) {
+            $failed[$category_id] = true;
+            unset($state['synced_quiz_category_ids'][$category_id]);
         }
     }
 
-    return $category_ids;
+    foreach ($category_ids as $category_id) {
+        try {
+            if (function_exists('ll_tools_sync_vocab_lessons_for_category_immediate')) {
+                ll_tools_sync_vocab_lessons_for_category_immediate($category_id, true);
+            } elseif (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+                ll_tools_sync_vocab_lessons_for_category($category_id);
+            }
+        } catch (Throwable $throwable) {
+            $failed[$category_id] = true;
+            unset($state['synced_vocab_category_ids'][$category_id]);
+        }
+    }
+
+    foreach ($category_ids as $category_id) {
+        if (!isset($failed[$category_id])) {
+            unset($state['queued_category_ids'][$category_id]);
+        }
+    }
+    if (!empty($failed)) {
+        // Keep request-local retry evidence and also persist both bounded full
+        // reconciliation jobs. A maintenance exception must never escape after
+        // its originating database mutation has already committed.
+        try {
+            ll_tools_schedule_quiz_page_full_sync(1, false);
+        } catch (Throwable $throwable) {
+            // The queued category IDs remain available for another local flush.
+        }
+        try {
+            if (function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
+                ll_tools_schedule_vocab_lesson_full_sync(1);
+            }
+        } catch (Throwable $throwable) {
+            // The queued category IDs remain available for another local flush.
+        }
+    }
+
+    return array_values(array_filter($category_ids, static function (int $category_id) use ($failed): bool {
+        return !isset($failed[$category_id]);
+    }));
 }
 
-function ll_tools_schedule_quiz_page_full_sync(int $delay = 30, bool $delete_orphans = false): void {
-    $delay = max(0, $delay);
-    ll_tools_queue_quiz_page_sync($delete_orphans, false);
-    if (wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT)) {
+function ll_tools_quiz_page_full_sync_update_request_exact(array $before, array $after): bool {
+    global $wpdb;
+
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options}
+         SET option_value = %s
+         WHERE option_name = %s
+           AND option_value = %s",
+        maybe_serialize($after),
+        LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION,
+        maybe_serialize($before)
+    ));
+    wp_cache_delete(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, 'options');
+    return $updated === 1 && get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false) === $after;
+}
+
+function ll_tools_quiz_page_full_sync_delete_request_exact($before): bool {
+    global $wpdb;
+
+    if ($before === false) {
+        return true;
+    }
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options}
+         WHERE option_name = %s
+           AND option_value = %s",
+        LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION,
+        maybe_serialize($before)
+    ));
+    wp_cache_delete(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, 'options');
+    return $deleted === 1 || get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false) === false;
+}
+
+/**
+ * Persist one coalesced full-pass request without allowing a later ordinary
+ * request to weaken a pending forced orphan cleanup.
+ */
+function ll_tools_request_quiz_page_full_sync(bool $delete_orphans = false): array {
+    $token = strtolower(wp_generate_password(24, false, false));
+    $requested_at = time();
+
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $existing = get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false);
+        $request = [
+            'schema' => 1,
+            'token' => $token,
+            'delete_orphans' => $delete_orphans || (is_array($existing) && !empty($existing['delete_orphans'])),
+            'requested_at' => $requested_at,
+        ];
+
+        if ($existing === false) {
+            $saved = add_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, $request, '', false);
+        } elseif (is_array($existing)) {
+            $saved = ll_tools_quiz_page_full_sync_update_request_exact($existing, $request);
+        } else {
+            $saved = ll_tools_quiz_page_full_sync_delete_request_exact($existing)
+                && add_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, $request, '', false);
+        }
+        wp_cache_delete(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, 'options');
+        if (!$saved) {
+            continue;
+        }
+
+        $stored = get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false);
+        if (is_array($stored) && hash_equals($token, (string) ($stored['token'] ?? ''))) {
+            return $stored;
+        }
+    }
+
+    return [];
+}
+
+function ll_tools_schedule_quiz_page_sync_event(int $delay = 1): bool {
+    if (!wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT)) {
+        wp_schedule_single_event(time() + max(0, $delay), LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+    }
+    return wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT) !== false;
+}
+
+function ll_tools_schedule_quiz_page_full_sync_follow_up(int $delay = MINUTE_IN_SECONDS): bool {
+    if (!wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT)) {
+        wp_schedule_single_event(time() + max(1, $delay), LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT);
+    }
+    return wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT) !== false;
+}
+
+function ll_tools_quiz_page_state_matches_full_sync_request(array $state, array $request): bool {
+    return (string) ($state['status'] ?? '') === 'queued'
+        && (string) ($state['phase'] ?? '') === 'cleanup'
+        && (int) ($state['cursor'] ?? -1) === 0
+        && (int) ($state['queued_at'] ?? 0) >= max(1, (int) ($request['requested_at'] ?? 0))
+        && (empty($request['delete_orphans']) || !empty($state['delete_orphans']));
+}
+
+function ll_tools_run_quiz_page_full_sync_follow_up(): void {
+    $request = get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false);
+    if (!is_array($request) || (string) ($request['token'] ?? '') === '') {
+        if ($request !== false) {
+            ll_tools_quiz_page_full_sync_delete_request_exact($request);
+        }
         return;
     }
 
-    wp_schedule_single_event(time() + $delay, LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+    // WP-Cron consumes the current event before this callback. Re-arm first so
+    // the durable request survives a busy worker, a write failure, or a crash.
+    ll_tools_schedule_quiz_page_full_sync_follow_up(MINUTE_IN_SECONDS);
+
+    $state = ll_tools_get_quiz_page_sync_state();
+    $is_active = in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true);
+    if ($is_active) {
+        ll_tools_queue_quiz_page_sync(!empty($request['delete_orphans']), false);
+        ll_tools_schedule_quiz_page_sync_event(1);
+        return;
+    }
+
+    ll_tools_queue_quiz_page_sync(!empty($request['delete_orphans']), false);
+    $state = ll_tools_get_quiz_page_sync_state();
+    $worker_scheduled = in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true)
+        && ll_tools_schedule_quiz_page_sync_event(1);
+    if ($worker_scheduled && ll_tools_quiz_page_state_matches_full_sync_request($state, $request)) {
+        ll_tools_quiz_page_full_sync_delete_request_exact($request);
+    }
+}
+add_action(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_EVENT, 'll_tools_run_quiz_page_full_sync_follow_up');
+
+function ll_tools_maybe_schedule_quiz_page_full_sync_follow_up(): void {
+    $request = get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false);
+    if (is_array($request) && (string) ($request['token'] ?? '') !== '') {
+        ll_tools_schedule_quiz_page_full_sync_follow_up(1);
+    }
+    $state = ll_tools_get_quiz_page_sync_state();
+    if (in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true)) {
+        ll_tools_schedule_quiz_page_sync_event(1);
+    }
+}
+add_action('admin_init', 'll_tools_maybe_schedule_quiz_page_full_sync_follow_up', 6);
+
+function ll_tools_schedule_quiz_page_full_sync(int $delay = 30, bool $delete_orphans = false): void {
+    $delay = max(0, $delay);
+    $request = ll_tools_request_quiz_page_full_sync($delete_orphans);
+    $state = ll_tools_get_quiz_page_sync_state();
+    $is_active = in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true);
+
+    if ($is_active) {
+        // Preserve the current cursor. The distinct request event will launch a
+        // fresh pass only after this pass is no longer active.
+        ll_tools_queue_quiz_page_sync(!empty($request['delete_orphans']) || $delete_orphans, false);
+        ll_tools_schedule_quiz_page_sync_event($delay);
+        if (!empty($request)) {
+            ll_tools_schedule_quiz_page_full_sync_follow_up(max(1, $delay));
+        }
+        return;
+    }
+
+    ll_tools_queue_quiz_page_sync(!empty($request['delete_orphans']) || $delete_orphans, false);
+    $state = ll_tools_get_quiz_page_sync_state();
+    $worker_scheduled = in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true)
+        && ll_tools_schedule_quiz_page_sync_event($delay);
+    $consumed = $worker_scheduled
+        && !empty($request)
+        && ll_tools_quiz_page_state_matches_full_sync_request($state, $request)
+        && ll_tools_quiz_page_full_sync_delete_request_exact($request);
+    if (!$consumed && !empty($request)) {
+        ll_tools_schedule_quiz_page_full_sync_follow_up(max(1, $delay));
+    }
+}
+
+/** Ensure the daily safety net without chaining another pass behind this one. */
+function ll_tools_ensure_daily_quiz_page_full_sync(int $delay = 30): void {
+    $request = get_option(LL_TOOLS_QUIZ_PAGE_FULL_SYNC_REQUEST_OPTION, false);
+    if (is_array($request) && (string) ($request['token'] ?? '') !== '') {
+        ll_tools_schedule_quiz_page_full_sync_follow_up(1);
+        return;
+    }
+
+    $state = ll_tools_get_quiz_page_sync_state();
+    if (in_array((string) ($state['status'] ?? ''), ['queued', 'running'], true)) {
+        ll_tools_schedule_quiz_page_sync_event($delay);
+        return;
+    }
+
+    ll_tools_schedule_quiz_page_full_sync($delay);
 }
 
 function ll_tools_quiz_page_enforce_category_access(): void {
@@ -1016,7 +1234,10 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
 /** Create/update or remove a page when a category changes */
 function ll_tools_handle_category_sync_immediate($term_id, bool $force = false) {
     $term = get_term($term_id);
-    if (!$term || is_wp_error($term) || $term->taxonomy !== 'word-category') return;
+    if (is_wp_error($term)) {
+        return $term;
+    }
+    if (!$term || $term->taxonomy !== 'word-category') return;
 
     $category_id = (int) $term->term_id;
     $state = &ll_tools_get_category_maintenance_runtime();
@@ -1040,7 +1261,11 @@ function ll_tools_handle_category_sync_immediate($term_id, bool $force = false) 
         return;
     }
     if ($ok) {
-        ll_tools_get_or_create_quiz_page_for_category($category_id);
+        $result = ll_tools_get_or_create_quiz_page_for_category($category_id);
+        if (is_wp_error($result)) {
+            unset($state['synced_quiz_category_ids'][$category_id]);
+            return $result;
+        }
     } else {
         $existing = ll_tools_get_quiz_page_ids_for_category($category_id, ['publish','draft','pending','private'], true);
         foreach ($existing as $post_id) {
@@ -1326,8 +1551,8 @@ function ll_tools_sync_quiz_pages(): array {
 }
 
 /** Wire term create/edit/delete to sync */
-add_action('created_word-category', 'll_tools_handle_category_sync', 10, 1);
-add_action('edited_word-category',  'll_tools_handle_category_sync', 10, 1);
+add_action('created_word-category', 'll_tools_handle_category_sync', 15, 1);
+add_action('edited_word-category',  'll_tools_handle_category_sync', 15, 1);
 add_action('delete_word-category',  'll_tools_handle_category_delete', 10, 1);
 
 /** Daily safety net (admin only) */
@@ -1339,7 +1564,7 @@ add_action('admin_init', function () {
 
     $last = (int) get_option('ll_tools_quiz_page_sync_last', 0);
     if ($last < (time() - DAY_IN_SECONDS)) {
-        ll_tools_schedule_quiz_page_full_sync();
+        ll_tools_ensure_daily_quiz_page_full_sync();
     }
 });
 
@@ -1909,7 +2134,9 @@ function ll_tools_force_quiz_cleanup() {
 
     ll_tools_queue_quiz_page_sync(true, true);
     $sync_state = ll_tools_run_quiz_page_sync_batch();
-    ll_tools_schedule_quiz_page_full_sync(1, true);
+    if (in_array((string) ($sync_state['status'] ?? ''), ['queued', 'running'], true)) {
+        ll_tools_schedule_quiz_page_sync_event(1);
+    }
 
     $message = sprintf(
         esc_html__('Quiz page cleanup queued. %1$d pages checked and %2$d invalid or orphaned pages removed so far.', 'll-tools-text-domain'),
@@ -1960,8 +2187,10 @@ add_action('admin_init', function () {
     }
 
     ll_tools_queue_quiz_page_sync(true, true);
-    ll_tools_run_quiz_page_sync_batch();
-    ll_tools_schedule_quiz_page_full_sync(1, true);
+    $sync_state = ll_tools_run_quiz_page_sync_batch();
+    if (in_array((string) ($sync_state['status'] ?? ''), ['queued', 'running'], true)) {
+        ll_tools_schedule_quiz_page_sync_event(1);
+    }
     update_option($opt_key, $current_mtime, false);
 
     if (defined('WP_DEBUG') && WP_DEBUG) {

@@ -962,6 +962,8 @@ add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
  * @return int|WP_Error New or existing term ID, or WP_Error when validation fails.
  */
 function ll_image_upload_create_category_from_request() {
+    global $wpdb;
+
     $requested_wordset_ids = ll_image_upload_get_requested_wordset_ids_from_request();
     if (
         !current_user_can('manage_categories')
@@ -1098,18 +1100,12 @@ function ll_image_upload_create_category_from_request() {
         $option = $fallback_text_option;
     }
 
-    update_term_meta($term_id, 'll_quiz_prompt_type', $prompt);
-    update_term_meta($term_id, 'll_quiz_option_type', $option);
-    if ($option === 'text_title') {
-        update_term_meta($term_id, 'use_word_titles_for_audio', '1');
-    } else {
-        delete_term_meta($term_id, 'use_word_titles_for_audio');
-    }
-
     $default_types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
         : ['isolation', 'question', 'introduction'];
     $default_types = array_values(array_unique(array_filter(array_map('sanitize_text_field', (array) $default_types))));
+    $write_desired_types = false;
+    $desired_types_to_store = [];
 
     if (isset($_POST['ll_new_category_desired_recording_types_submitted'])) {
         $incoming = isset($_POST['ll_new_category_desired_recording_types'])
@@ -1117,13 +1113,17 @@ function ll_image_upload_create_category_from_request() {
             : [];
         $incoming = array_values(array_unique(array_filter(array_map('sanitize_text_field', $incoming))));
 
+        $wpdb->last_error = '';
         $allowed_types = get_terms([
             'taxonomy'   => 'recording_type',
             'hide_empty' => false,
             'fields'     => 'slugs',
         ]);
-        if (is_wp_error($allowed_types)) {
-            $allowed_types = [];
+        if (is_wp_error($allowed_types) || $wpdb->last_error !== '') {
+            return new WP_Error(
+                'll_image_upload_category_settings_source',
+                __('Unable to read category settings right now.', 'll-tools-text-domain')
+            );
         }
         $allowed_types = array_values(array_unique(array_filter(array_map('sanitize_text_field', (array) $allowed_types))));
 
@@ -1135,12 +1135,53 @@ function ll_image_upload_create_category_from_request() {
             $disabled_sentinel = defined('LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED')
                 ? LL_TOOLS_DESIRED_RECORDING_TYPES_DISABLED
                 : '__none__';
-            update_term_meta($term_id, 'll_desired_recording_types', [$disabled_sentinel]);
+            $desired_types_to_store = [$disabled_sentinel];
         } else {
-            update_term_meta($term_id, 'll_desired_recording_types', $selected_types);
+            $desired_types_to_store = $selected_types;
         }
+        $write_desired_types = true;
     } elseif (!empty($default_types)) {
-        update_term_meta($term_id, 'll_desired_recording_types', $default_types);
+        $desired_types_to_store = $default_types;
+        $write_desired_types = true;
+    }
+
+    $settings_result = ll_tools_run_vocab_lesson_category_settings_external_mutation(
+        $term_id,
+        static function () use ($term_id, $prompt, $option, $write_desired_types, $desired_types_to_store) {
+            $write_failed = !ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                $term_id,
+                'll_quiz_prompt_type',
+                $prompt
+            ) || !ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                $term_id,
+                'll_quiz_option_type',
+                $option
+            ) || !ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                $term_id,
+                'use_word_titles_for_audio',
+                '1',
+                $option !== 'text_title'
+            );
+            if (!$write_failed && $write_desired_types) {
+                $write_failed = !ll_tools_write_verified_vocab_lesson_category_setting_meta(
+                    $term_id,
+                    'll_desired_recording_types',
+                    $desired_types_to_store
+                );
+            }
+            if ($write_failed) {
+                return ll_tools_vocab_lesson_category_settings_error(
+                    'settings_write',
+                    __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    503,
+                    ['retryable' => true]
+                );
+            }
+            return ['changed' => true];
+        }
+    );
+    if (is_wp_error($settings_result)) {
+        return $settings_result;
     }
 
     return $term_id;

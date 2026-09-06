@@ -109,6 +109,44 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertIsArray($letterMapResponse['data']['letter_map'] ?? null);
     }
 
+    public function test_lesson_url_lookup_is_bounded_to_requested_categories(): void
+    {
+        $wordset_id = $this->create_wordset('Bounded IPA Lesson Lookup');
+        $requested_category_ids = [];
+        $lesson_urls = [];
+
+        foreach (range(1, 3) as $index) {
+            $category = wp_insert_term('IPA Lesson Category ' . $index . ' ' . wp_generate_password(5, false), 'word-category');
+            $this->assertFalse(is_wp_error($category));
+            $category_id = (int) $category['term_id'];
+            $requested_category_ids[] = $category_id;
+
+            $lesson_id = self::factory()->post->create([
+                'post_type' => 'll_vocab_lesson',
+                'post_status' => 'publish',
+                'post_title' => 'IPA Lookup Lesson ' . $index,
+            ]);
+            update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+            update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+            $lesson_urls[$category_id] = (string) get_permalink($lesson_id);
+        }
+
+        $limit = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_ipa_keyboard_lesson_url_lookup_limit', $limit);
+        try {
+            $map = ll_tools_ipa_keyboard_get_wordset_lesson_url_map($wordset_id, $requested_category_ids);
+        } finally {
+            remove_filter('ll_tools_ipa_keyboard_lesson_url_lookup_limit', $limit);
+        }
+
+        $this->assertCount(2, $map);
+        $this->assertSame($lesson_urls[$requested_category_ids[0]], (string) ($map[$requested_category_ids[0]] ?? ''));
+        $this->assertSame($lesson_urls[$requested_category_ids[1]], (string) ($map[$requested_category_ids[1]] ?? ''));
+        $this->assertArrayNotHasKey($requested_category_ids[2], $map);
+    }
+
     public function test_search_recordings_handler_returns_paginated_review_results(): void
     {
         $user_id = $this->create_viewer_user();
