@@ -6,6 +6,8 @@ the right mental model without sending the entire plugin to an external API.
 
 Start with:
 
+- [codebase-map.md](codebase-map.md) for a compact subsystem/source/test index
+  and the distinction between current reference docs and historical reports.
 - `task-router.md` to map user-facing task language to the right pack.
 - `AI_IGNORE.md` to keep generated, vendor, and builder-only files out of the
   first-pass context unless the task points there.
@@ -80,8 +82,11 @@ Available packs:
 | `performance-benchmark` | Benchmark fixtures, seeding, Playwright scenarios, and benchmark history behavior. |
 
 Convenience aliases are supported for older/narrower names: `wordset-page`,
-`wordset-editor`, `word-grid`, `transcription-manager`, `dictionary`,
-`llms.txt`, `ai-crawler`, `WebMCP`, and `imports-sync`.
+`wordset-editor`, `word-grid`, `ranked-word-list`, `transcription-manager`,
+`dictionary`, and `imports-sync`. `--list` prints the actual alias map.
+Crawler terms such as `llms.txt`, `ai-crawler`, `JSON-LD`, `Schema.org`, and
+`WebMCP` are suggestion signals for `--suggest-pack`, not accepted `--pack`
+aliases; use `--pack dictionary-i18n-cache` for that surface.
 
 The generated output is not a substitute for reading the current source before
 editing. Treat it as a map, then verify any proposed change against the live

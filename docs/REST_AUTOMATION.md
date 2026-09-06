@@ -1,7 +1,9 @@
 # LL Tools REST Automation
 
-Language Learner Tools now exposes a small REST surface for the same automation
-workflows that were recently added to WP-CLI.
+Language Learner Tools exposes REST routes for scoped content maintenance,
+media manifests, import jobs, dictionary operations, and site administration.
+Some routes share helpers with WP-CLI; their batch and permission contracts can
+differ.
 
 This is the better fit when you want to keep the current workflow of giving
 Codex a temporary WordPress admin or manager account instead of SSH access to
@@ -11,6 +13,21 @@ For AI-planned wordset data cleanup, read `AI_DATA_CLEANUP.md` first. That
 runbook explains the snapshot -> local plan -> bounded job -> result -> fresh
 snapshot workflow for category, title, helper, part-of-speech, grammar, and
 other per-word metadata cleanup.
+
+## Source and test map
+
+| Surface | Owning source | Focused tests |
+| --- | --- | --- |
+| Route registration, authentication, permission gates, reports and synchronous writes | `includes/api/automation-rest.php` | `tests/Integration/AutomationRestApiTest.php` |
+| Automation identification, pacing and resource locks | `ll_tools_rest_resource_guard_policy()` in `includes/api/automation-rest.php` | `tests/Integration/AutomationRestResourceGuardTest.php` |
+| Metadata plan normalization, processing, discard and results | `includes/api/word-metadata-plan-rest.php` | `tests/Integration/AutomationRestApiTest.php` |
+| Snapshot paging and three-way sync plans | `includes/lib/site-sync.php`, `includes/admin/site-sync-admin.php` | `tests/Integration/SiteSyncTest.php` |
+| ZIP preview, job phases, history and undo | `includes/admin/export-import.php` | `tests/Integration/AdminImportAjaxJobFlowTest.php`, `tests/Integration/ImportHistoryUndoTest.php` |
+| Shared word resolution and field updates | `includes/cli/cli-support.php` | `tests/Integration/AutomationRestApiTest.php` |
+
+Start with the `automation-import-sync` context pack for a cross-surface change.
+Read the route registration and its callback together: dictionary entry routes,
+for example, perform their object capability checks inside the callback.
 
 ## Operating model
 
@@ -163,6 +180,12 @@ values before starting large work. Site owners can adjust the defaults with the
 documented WordPress filters in the plugin code, but automation callers should
 always honor the response payload instead of assuming a fixed batch size.
 
+The resource guard recognizes an Authorization header, a nonempty
+`X-LL-Tools-Automation` or `X-Codex-Automation` header, or an automation-identifying
+User-Agent. Cookie-and-nonce clients should send `X-LL-Tools-Automation: 1`.
+Authentication alone does not make an ordinary browser request participate in
+this guard. Keep all process/discard calls serial regardless of auth method.
+
 ## Authentication
 
 The LL Tools automation routes support three auth paths:
@@ -281,6 +304,7 @@ Routes:
 - `POST /wordsets/{wordset}/bulk-update`
 - `POST /wordsets/{wordset}/word-title-updates`
 - `POST /wordsets/{wordset}/word-helper-updates`
+- `POST /wordsets/{wordset}/legacy-translation-cleanup`
 - `POST /wordsets/{wordset}/word-category-updates`
 - `POST /wordsets/{wordset}/word-category-terms`
 - `POST /wordsets/{wordset}/word-image-category-ownership`
@@ -1114,8 +1138,8 @@ route normalizes them to `word_translation`. Use `word_translations` or
 `word_translation_{locale}` for additional future display languages rather than
 putting parenthetical translations in titles or target text.
 
-The create response returns `job.id`, normalized `plans`, counts, supported batch
-limits, and no writes. Process with `POST
+The create response returns `job.id`, normalized `plans`, counts, and supported
+batch limits. It persists the job but does not apply word changes. Process with `POST
 /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/process`; send optional
 `limit`, which defaults to 10 and is capped at 25 unless the site customizes the
 filters. Each process call checkpoints `current_index`, coalesces cache
@@ -1127,6 +1151,11 @@ If an `expected` value no longer matches live state, that row is skipped with
 `reason: expected_mismatch`; other rows continue. This is the preferred route for
 AI-assisted category reorganization and mixed metadata cleanup where the agent
 has already decided the exact target word IDs and final values.
+
+`POST /wordsets/{wordset}/word-metadata-plan-jobs/{job_id}/discard` marks the job
+discarded; it does not undo already processed rows. A job can reach `completed`
+with skipped or errored rows, so inspect the final summary and compare its
+readback with the intended plan before treating the cleanup as complete.
 
 ### `POST /wordsets/{wordset}/legacy-translation-cleanup`
 
@@ -1530,10 +1559,16 @@ machine-readable replacement for parsing the short-lived wp-admin notice.
 The routes still respect LL Tools permissions:
 
 - Any automation caller must pass the `view_ll_tools` gate.
-- Wordset-scoped routes also require access to manage that specific wordset.
-- Review-note routes use the internal-review-note permission helper for the
-  target wordset, so staff/managers must be allowed to manage notes there.
+- Most wordset-scoped routes also require access to manage that specific
+  wordset, including reports and site-sync snapshots.
+- Review-note reads use the internal-review-note read helper; writes use its
+  management helper for the target wordset.
+- Interlinear reads use wordset visibility after the `view_ll_tools` gate;
+  writes require management access to that wordset.
 - Wordset creation requires `edit_wordsets`.
+- Dictionary entry mutations require `edit_post` for the affected entry inside
+  their callbacks; rebuilding the lookup index requires `manage_options`.
+- Plugin updates and static-cache purges use their dedicated permission helpers.
 - Import routes require the same capability as the LL Tools import admin page
   (`manage_options` by default, filterable through
   `ll_tools_export_import_capability`).

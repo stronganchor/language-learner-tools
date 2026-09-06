@@ -42,6 +42,12 @@ read_first:
 ---
 
 # Overview (30-second tour)
+
+For a compact source-to-test index, start with
+[the codebase map](docs/ai-context/codebase-map.md). Use
+[the task router](docs/ai-context/task-router.md) to select a context pack;
+this document owns the detailed contracts and ordered bootstrap include index.
+
 - WordPress plugin for vocabulary-driven language learning.
 - Custom post types for words, dictionary entries, word images, word audio recordings, vocab lessons, content lessons, prompt cards, and teacher classes.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
@@ -835,7 +841,7 @@ wordset can opt into it.
 - AJAX and POST handlers must verify nonces and capabilities.
 - Slugs are public contracts: `words`, `word_images`, `word_audio`, `word-category`, `wordset`, `recording_type`.
 - Auto quiz pages rely on `_ll_tools_word_category_id` meta and the generated `ll_quiz_page` CPT with `/quiz/<category>` rewrites; do not create ordinary child Pages for new quiz pages.
-- Learning state is client-side only; do not persist it server-side.
+- Learning-mode round/queue state belongs to the browser runtime. Learner exposure, outcome, and mode-completion events are persisted through `js/flashcard-widget/progress-tracker.js` and `includes/user-progress.php`; keep transient round control separate from durable study/progress and LMS attempt state.
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.

@@ -1,5 +1,9 @@
 # Starter English Live Issues Todo
 
+> Historical June 2026 site observations, not a statement about the current
+> checkout or deployment. Revalidate each item before treating it as open;
+> this record does not authorize new live checks or deployment.
+
 Created from the 2026-06-29 first live-test pass.
 Expanded after the 2026-06-29 deeper live pass.
 

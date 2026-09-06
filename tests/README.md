@@ -35,6 +35,11 @@ This directory contains the plugin test framework:
 - Composer.
 - WordPress PHPUnit test library (`wordpress-tests-lib`) and a test database.
 
+These are PHPUnit prerequisites; the installed plugin supports PHP 8.0+ as
+declared in `language-learner-tools.php`. Filesystem-only Playwright contracts
+need Node and the installed `tests/e2e` dependencies, but no WordPress database
+or running Local site. See the review checks below before starting services.
+
 ## 2) Install PHP test dependencies
 
 Run from plugin root:
@@ -72,15 +77,33 @@ svn co --quiet https://develop.svn.wordpress.org/trunk/tests/phpunit/includes/ /
 svn co --quiet https://develop.svn.wordpress.org/trunk/tests/phpunit/data/ /tmp/wordpress-tests-lib/data
 ```
 
-Alternative via WP-CLI (if available):
-
-```bash
-wp scaffold plugin-tests language-learner-tools --dir=. --force
-```
-
-Then keep this repo's `tests/` files (do not overwrite them).
+For this existing repository, prefer `tests/bin/install-wp-tests.sh` or the
+repair behavior in `tests/bin/run-tests.sh`. The test framework is already
+customized; `wp scaffold plugin-tests --force` would overwrite maintained
+configuration and is not a setup step for this checkout.
 
 ## 4) Run tests
+
+### Documentation and source review without WordPress
+
+From the plugin root, with local dependencies already installed:
+
+```bash
+php scripts/build-ai-context-pack.php --all --manifest-only --check
+php scripts/check-i18n-source-pot.php
+cd tests/e2e
+node node_modules/@playwright/test/cli.js test specs/maintenance-doc-contracts.spec.js --reporter=line
+```
+
+The maintenance spec checks shortcode/bootstrap/REST documentation, context
+packs, source guards and local CLI fixtures without using a browser/page
+fixture. Use the direct installed CLI for this spec: `run-e2e.sh` otherwise
+makes its normal HTTP readiness request. These checks establish documentation
+and source contracts, not end-to-end WordPress behavior. The source/POT guard
+also needs a locally available WP-CLI executable/PHAR; see the playbook for
+discovery and overrides.
+
+### WordPress integration tests
 
 From plugin root:
 

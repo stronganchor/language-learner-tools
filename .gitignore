@@ -19,3 +19,6 @@
 /dist/
 /_codex_temp/
 /.codex-remote-attachments/
+
+# Machine-local review findings; documentation maps remain tracked.
+/docs/CODEBASE_REVIEW_FOLLOWUPS.local.md

@@ -11,6 +11,16 @@ Purpose: quick operational guidance for future agents that need to run, add, or 
 
 Use both when changing core behavior that affects UI + backend.
 
+For documentation-only review, start with the filesystem-only maintenance
+spec and context manifests in [tests/README.md](README.md#documentation-and-source-review-without-wordpress).
+It uses the installed Playwright CLI without a browser/page fixture or Local
+HTTP request. Do not infer a need to start, reseed or reset WordPress from the
+fact that this source-contract spec lives under `e2e/`.
+
+Use [the codebase map](../docs/ai-context/codebase-map.md) to find representative
+tests by subsystem; use current discovery output instead of dated test counts
+from maintenance reports.
+
 ## 2) Fast Command Reference
 
 From plugin root:

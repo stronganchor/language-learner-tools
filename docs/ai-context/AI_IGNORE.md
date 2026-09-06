@@ -51,3 +51,14 @@ when evidence points there. Examples:
 Quiet files from the generated change-frequency signal are not off-limits. Treat
 them as lower-probability candidates until a route, helper, test, or invariant
 shows they own the behavior.
+
+For an entire-codebase review, explicitly inventory the excluded ownership
+boundaries too. Review first-party builder scripts/native bridge code through
+`offline-app-builder/README.md`; classify its embedded Whisper/GGML tree using
+`offline-app-builder/UPSTREAM_PROVENANCE.md`. Record upstream and generated
+coverage separately instead of describing a context-pack scan as a full audit.
+
+`docs/CODEBASE_REVIEW_FOLLOWUPS.local.md` and `test-results/codebase-review/`
+are ignored local review artifacts. Read an existing follow-up list when the
+task calls for continuing a review, but keep its contents out of tracked packs
+and documentation unless explicitly requested.

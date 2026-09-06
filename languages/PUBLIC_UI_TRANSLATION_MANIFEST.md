@@ -60,6 +60,22 @@ Emit concise JSON for automation:
 php scripts/check-public-i18n.php --json --all-tier2
 ```
 
+`--all-tier2` includes planned locales, including those with no PO file yet.
+Adding `--fail-on-missing` therefore fails for planned unshipped catalogs as
+well as incomplete active ones. For a release gate, check each active locale
+with `--locale=LOCALE --fail-on-missing`; use the full all-tier2 report to track
+the remaining rollout. Derive current activation from the source policy and
+shipped catalogs rather than treating every configured locale as shipped.
+
+Before accepting coverage counts, check source/POT freshness and both core
+catalogs (these commands do not regenerate files):
+
+```bash
+php scripts/check-i18n-source-pot.php
+php scripts/check-public-i18n.php --full-catalog=tr_TR --fail-on-missing --json
+php scripts/check-public-i18n.php --full-catalog=de_DE --fail-on-missing --json
+```
+
 Add `--details` when a workflow needs the per-string missing/untranslated keys.
 
 For translation wording and QA guidance, see

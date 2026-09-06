@@ -15,7 +15,7 @@ path to standards-based grade passback for major LMS platforms. Compatibility
 with any particular LMS is not complete until that platform's current sandbox
 and production setup have been tested.
 
-### Implementation status (August 2026)
+### Implementation status (source checked 2026-09-06)
 
 - Phase 1 is implemented: bounded formative Practice results appear in the
   existing teacher Classes report.
@@ -40,6 +40,35 @@ and production setup have been tested.
 
 See `docs/GOOGLE_CLASSROOM_SETUP.md` for the connector's deployment boundary
 and remaining acceptance gates.
+
+### Source and focused-test map
+
+| Surface | Owning source | Focused coverage |
+| --- | --- | --- |
+| Browser-reported Practice result producer and strict event contract | `js/flashcard-widget/progress-tracker.js`, `includes/user-progress.php` | `UserProgressPracticeResultTest`, `UserProgressEventPayloadGuardTest`, `UserProgressAtomicityTest` |
+| Paged class report and Practice-result display | `includes/teacher-classes.php`, `includes/user-progress-report-data.php`, `includes/admin/teacher-classes-page.php` | `TeacherClassesTest`, `UserProgressPracticeResultTest`, `teacher-classes-frontend.spec.js` |
+| Assignment schema, immutable revisions, scoring and grade selection | `includes/lms/assignments.php` | `LmsAssignmentFoundationTest` |
+| Native request shape, permissions and route registration | `includes/api/lms-rest.php` | `LmsRestApiTest` |
+| Provider-neutral mappings, outbox, leases and scheduling | `includes/lms/grade-delivery.php` | `LmsGradeDeliveryTest` |
+| Google connection and credential envelope | `includes/lms/google-classroom.php`, `includes/lms/credential-store.php`, `includes/admin/google-classroom-integration.php` | `GoogleClassroomFoundationTest`, `google-classroom-admin-ui.spec.js` |
+| Export/erasure and durable account-deletion cleanup | `includes/privacy.php` plus each LMS module's privacy helpers | `LmsPrivacyLifecycleTest`, `OfflineAppSyncTest`, `MultisiteRegistrationAndMaintenanceTest` |
+
+PHP test classes are in `tests/Integration/`; browser specs are in
+`tests/e2e/specs/`. Use the wrappers and environment rules in
+`tests/AI_TESTING_PLAYBOOK.md` and `tests/README.md`. These local tests do not
+establish external-platform compatibility.
+
+Schema and transaction failures are part of the domain contract. Start with
+the relevant module's schema-readiness helper and `includes/lib/schema-maintenance.php`
+when these APIs return unavailable errors. Finalization persists the grade and
+outbox rows in one transaction. For a caller-owned transaction, the returned
+`delivery_schedule_required` flag means the caller must schedule delivery only
+after its own commit; releasing the nested savepoint is insufficient.
+
+The `ll_tools_lms_assignment_create_revision()` PHP helper has no corresponding
+native REST route in the current inventory. Treat teacher authoring, learner
+assignment navigation/player UI, and provider mapping controls as unfinished
+product work; do not infer those interfaces from the domain helpers.
 
 ### Native LMS REST route inventory
 
