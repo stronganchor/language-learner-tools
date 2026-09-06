@@ -99,6 +99,7 @@ this document owns the detailed contracts and ordered bootstrap include index.
   - Also loads shared quiz/data helpers like `includes/lib/flashcard-payload-materializer.php`, `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/lib/learner-registration-settings.php`, `includes/lib/expired-transient-maintenance.php`, `includes/lib/public-ajax-resource-guards.php`, `includes/lib/wordset-category-search-index.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
   - Loads `includes/api/automation-rest.php` directly; that controller loads `includes/api/word-metadata-plan-rest.php` for durable word-metadata plan job storage, processing, status, discard, and result helpers.
   - Import jobs and metadata-plan jobs load `includes/lib/mutation-job-state.php` transitively. It owns connection-bound database locks, uncached durable state reads, and fenced checkpoints. Every processor acquires the canonical job lock before loading state and keeps it through the final checkpoint; an uncertain in-progress step requires recovery rather than automatic replay. See `tests/Integration/MutationJobReliabilityTest.php`.
+  - Recording metadata writers load `includes/lib/recording-metadata.php` transitively. Its reentrant per-recording lock covers transcription fields and review state across the frontend review tool, existing editor/admin helpers, imports and sync. Conditional metadata SQL and verified readback retain that boundary after connection loss and support nontransactional metadata storage. Keep logical multi-field review changes within `ll_tools_recording_write_run()`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -254,6 +255,7 @@ module list.
 - includes/pages/wordset-games.php
 - includes/pages/wordset-pages.php
 - includes/pages/wordset-editor.php
+- includes/pages/wordset-transcription-review.php
 - includes/pages/default-shortcode-page-helper.php
 - includes/pages/recording-page.php
 - includes/pages/editor-hub-page.php
@@ -272,6 +274,7 @@ module list.
 - includes/shortcodes/audio-credit-grid-shortcode.php
 - includes/shortcodes/quiz-pages-shortcodes.php
 - includes/shortcodes/audio-recording-shortcode.php
+- includes/lib/recording-history.php
 - includes/shortcodes/language-switcher-shortcode.php
 - includes/shortcodes/wordset-page-shortcode.php
 - includes/shortcodes/wordset-buttons-shortcode.php
@@ -345,6 +348,7 @@ includes/
     site-tools-page.php       # Front-end Site Tools page creation + URL helper
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     wordset-editor.php        # Frontend wordset editor tool for filtering, bulk edits, media review, recording moves, and action undo
+    wordset-transcription-review.php # Scoped recording transcription/IPA/review autosave tool
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
     content-lesson-pages.php  # Content lesson routing/rendering
     wordset-games.php         # Wordset game catalog/runtime helpers
@@ -699,7 +703,8 @@ wordset can opt into it.
   - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
 - `/<wordset>` wordset hub pages (handled by `includes/pages/wordset-pages.php`).
   - Views: main, `progress`, `hidden-categories`, `settings`, `games`, and `classes`.
-  - The settings view can launch the Wordset Editor tool (`ll_wordset_tool=editor`, implemented in `includes/pages/wordset-editor.php`) for searchable word tables, media-status filters, bulk category/status/review actions, recording moves, saved views, and recent-action undo.
+  - The settings view can launch the Wordset Editor tool (`ll_wordset_tool=editor`, implemented in `includes/pages/wordset-editor.php`) for searchable word tables, media-status filters, bulk category/status/review actions, recording moves, saved views, and recent-action undo. Copy/Split Word uses `includes/lib/word-copy.php` and `js/word-copy-dialog.js`; retaining the original recordings is the default, and selected moves are explicit.
+  - `ll_wordset_tool=transcription-review` loads `includes/pages/wordset-transcription-review.php` and its dedicated JS/CSS for scoped recording search, playback, transcription/IPA edits, and review-note autosave. The existing `transcription` tool continues to configure providers. See `docs/FRONTEND_RECORDING_TOOLS.md` for entry points and regression guards.
 - `/<wordset>/<category>` vocab lesson pages (handled by `includes/pages/vocab-lesson-pages.php`).
 - Vocab lesson category counts use compact relationship aggregates. When image eligibility includes wordset-isolated image copies, `ll_tools_effective_word_image_presence_sql()` materializes the target wordset's eligible source-image IDs once; do not restore a correlated owner/source postmeta scan per candidate word or replace the compact count with whole-wordset post hydration.
 - Standard vocab lessons above the generic paging threshold (48 visible words by default) use `ll_tools_get_vocab_lesson_grid` as a serial bounded loader for learners and staff. It keyset-scans at most 128 candidate IDs per preparation request, materializes the exact filtered/manual/grouped/title order behind an exact-owner lock, then renders at most 24 word cards per signed cursor page. Public and per-user staff order states are separate; staff scans also retain drafts and published words hidden by missing presentation media, moving those warning cards to the end rather than dropping them from candidate-specific pages. Staff pages render lightweight edit triggers rather than embedding the rich hidden editor and full wordset category catalog in every card; `ll_tools_get_word_edit_modal_grid` hydrates one detached editor only after an edit click. The browser replaces the shimmer shell with the first real page, appends later pages one request at a time, retains already-rendered cards on failure, and enforces a request timeout with Retry. Keep this category-agnostic; prompt-card lessons retain their specialized path.

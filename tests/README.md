@@ -105,6 +105,12 @@ discovery and overrides.
 
 ### WordPress integration tests
 
+For the frontend manager and recorder tools, see
+[`docs/FRONTEND_RECORDING_TOOLS.md`](../docs/FRONTEND_RECORDING_TOOLS.md) for source
+owners and focused PHP/browser guards. The real-route browser smoke test is
+`frontend-recording-tools-wp.spec.js`; it creates and cleans up a marked fixture
+using WP-CLI and must run serially with other tests using the Local site.
+
 From plugin root:
 
 ```bash

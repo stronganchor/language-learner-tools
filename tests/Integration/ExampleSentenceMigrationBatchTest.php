@@ -305,6 +305,7 @@ final class ExampleSentenceMigrationBatchTest extends LL_Tools_TestCase
                 stripos($query, 'SELECT meta_id, meta_value') !== false
                 && stripos($query, 'post_id = ' . $fixture['audio_ids'][0]) !== false
                 && stripos($query, "meta_key = 'recording_text'") !== false
+                && preg_match('/\bLIMIT\s+1\b/i', $query) === 1
             ) {
                 $recordingTextReads++;
                 if ($recordingTextReads === 2) {
@@ -340,6 +341,60 @@ final class ExampleSentenceMigrationBatchTest extends LL_Tools_TestCase
         $this->assertSame(1, $retried['migrated']);
         $this->assertSame('Retry audio readback example sentence', (string) get_post_meta($fixture['audio_ids'][0], 'recording_text', true));
         $this->assertSame('Retry audio readback example translation', (string) get_post_meta($fixture['audio_ids'][0], 'recording_translation', true));
+    }
+
+    public function test_shared_recording_write_readback_failure_pauses_before_translation_and_retry_keeps_text(): void
+    {
+        global $wpdb;
+        $fixture = $this->createMigrationFixture('Shared readback retry', 1);
+        add_filter('ll_tools_example_sentence_migration_batch_limit', static fn (): int => 2);
+        $textWritten = false;
+        $failedOnce = false;
+        $textWriteAttempts = 0;
+        $countTextWrites = static function ($check, $objectId, $metaKey) use ($fixture, &$textWriteAttempts) {
+            if ((int) $objectId === $fixture['audio_ids'][0] && $metaKey === 'recording_text') { $textWriteAttempts++; }
+            return $check;
+        };
+        $armAfterWrite = static function ($metaId, $objectId, $metaKey) use ($fixture, &$textWritten): void {
+            if ((int) $objectId === $fixture['audio_ids'][0] && $metaKey === 'recording_text') { $textWritten = true; }
+        };
+        $failSharedReadback = static function (string $query) use ($fixture, &$textWritten, &$failedOnce): string {
+            if ($textWritten && !$failedOnce
+                && stripos($query, 'SELECT meta_id, meta_value') !== false
+                && preg_match('/post_id\s*=\s*' . $fixture['audio_ids'][0] . '(?![0-9])/', $query) === 1
+                && stripos($query, "meta_key = 'recording_text'") !== false
+                && preg_match('/\bLIMIT\s+2\b/i', $query) === 1) {
+                $failedOnce = true;
+                return 'SELECT meta_value FROM ll_tools_missing_shared_recording_readback';
+            }
+            return $query;
+        };
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
+        add_filter('update_post_metadata', $countTextWrites, 10, 3);
+        add_action('added_post_meta', $armAfterWrite, 10, 3);
+        add_filter('query', $failSharedReadback);
+        try {
+            $failed = ll_tools_run_example_sentence_migration_batch();
+            $this->assertTrue($textWritten);
+            $this->assertTrue($failedOnce);
+            $this->assertSame('queued', $failed['status']);
+            $this->assertSame('recording_data_unavailable', $failed['last_error']);
+            $this->assertSame(0, $failed['audio_cursor']);
+            $this->assertSame('Shared readback retry example sentence', get_post_meta($fixture['audio_ids'][0], 'recording_text', true));
+            $this->assertSame('', get_post_meta($fixture['audio_ids'][0], 'recording_translation', true));
+            $this->assertSame('Shared readback retry example sentence', get_post_meta($fixture['word_id'], 'word_example_sentence', true));
+            $retried = ll_tools_run_example_sentence_migration_batch();
+            $this->assertSame('completed', $retried['status']);
+            $this->assertSame(1, $retried['migrated']);
+            $this->assertSame(1, $textWriteAttempts);
+            $this->assertSame('Shared readback retry example translation', get_post_meta($fixture['audio_ids'][0], 'recording_translation', true));
+        } finally {
+            remove_filter('query', $failSharedReadback);
+            remove_action('added_post_meta', $armAfterWrite, 10);
+            remove_filter('update_post_metadata', $countTextWrites, 10);
+            $wpdb->suppress_errors($previousSuppressErrors);
+            $wpdb->last_error = '';
+        }
     }
 
     public function test_partial_source_delete_failure_keeps_the_word_active_until_cleanup_retries(): void

@@ -1727,6 +1727,12 @@ function ll_audio_recording_interface_shortcode($atts) {
             </div>
         </div>
 
+        <?php
+        if (function_exists('ll_tools_recording_history_render')) {
+            echo ll_tools_recording_history_render((int) $current_wordset_id);
+        }
+        ?>
+
         <?php if ($recorder_view === 'overview') : ?>
         <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? 'false' : 'true'; ?>">
             <div class="ll-recorder-category-grid" data-ll-recorder-category-grid>

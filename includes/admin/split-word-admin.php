@@ -8,6 +8,7 @@
  */
 
 if (!defined('WPINC')) { die; }
+require_once __DIR__ . '/../lib/word-copy.php';
 
 add_action('admin_menu', 'll_tools_register_split_word_admin_page');
 function ll_tools_register_split_word_admin_page() {
@@ -321,20 +322,6 @@ function ll_tools_render_split_word_admin_page() {
             <div class="notice notice-error"><p><?php echo esc_html($error_message); ?></p></div>
         <?php endif; ?>
 
-        <?php if (empty($audio_posts)) : ?>
-            <div class="notice notice-warning">
-                <p><?php echo esc_html__('No audio recordings were found for this word.', 'll-tools-text-domain'); ?></p>
-            </div>
-            <p>
-                <a class="button" href="<?php echo esc_url($cancel_url); ?>">
-                    <?php echo esc_html($back_label); ?>
-                </a>
-            </p>
-            <?php
-            return;
-        endif;
-        ?>
-
         <form id="ll-tools-split-word-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="ll_tools_split_word_save">
             <input type="hidden" name="ll_source_word_id" value="<?php echo esc_attr($word_id); ?>">
@@ -524,12 +511,6 @@ function ll_tools_handle_split_word_save() {
     }
 
     $audio_posts = ll_tools_get_split_word_audio_children($source_word_id);
-    if (empty($audio_posts)) {
-        $redirect = ll_tools_get_split_word_page_url($source_word_id, ['ll_split_error' => 'no_audio'], $return_to);
-        wp_safe_redirect($redirect);
-        exit;
-    }
-
     $source_audio_ids = [];
     foreach ($audio_posts as $audio_post) {
         $source_audio_ids[] = (int) $audio_post->ID;
@@ -697,27 +678,8 @@ function ll_tools_copy_split_word_meta($source_word_id, $target_word_id) {
         return;
     }
 
-    $skip_keys = [
-        '_edit_lock',
-        '_edit_last',
-        '_ll_skip_audio_requirement_once',
-        'word_audio_file',
-        '_ll_picked_count',
-        '_ll_picked_last',
-        '_ll_autopicked_image_id',
-        '_thumbnail_id',
-    ];
-    $allow_protected = [
-        '_ll_similar_word_id',
-    ];
-
     foreach ($all_meta as $meta_key => $values) {
-        if (in_array($meta_key, $skip_keys, true)) {
-            continue;
-        }
-
-        $is_protected = is_protected_meta((string) $meta_key, 'post');
-        if ($is_protected && !in_array($meta_key, $allow_protected, true)) {
+        if (!ll_tools_word_copy_meta_allowed((string) $meta_key)) {
             continue;
         }
 

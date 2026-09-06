@@ -43,6 +43,7 @@ when changing those requirements.
 - **Audio recording & processing**
   - **Audio Recorder Role**: Dedicated user role for contributors to record audio.
   - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
+  - **My recordings**: Private, paginated playback history inside the recording interface, scoped to the speaker and selected wordset.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
   - **Audio-Image Matcher**: Admin tool to quickly match audio and images where needed.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
@@ -68,6 +69,8 @@ when changing those requirements.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
   - **Offline App Export**: Build a single-wordset offline quiz bundle with media, optional local STT games, and local-first progress sync back to the site.
   - Wordset manager workflows via the plugin’s custom wordset pages.
+  - **Copy/Split Word** in the Wordset Editor, including copies without moving recordings.
+  - **Transcription Review** in Word Set Tools: scoped recording search, playback, transcription/IPA edits, and autosaved review notes. See [frontend recording tools](docs/FRONTEND_RECORDING_TOOLS.md).
   - Teacher classes scoped to wordsets, with invite links, manual learner assignment, and sortable student progress views.
   - Settings page (translations, browser-language auto-switch, DeepL API key, image size, font, option caps, etc.).
 

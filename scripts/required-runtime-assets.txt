@@ -8,6 +8,9 @@ css/frontend-utility-menu.css
 css/ipa-fonts.css
 css/language-switcher.css
 css/wordset-pages.css
+css/word-copy-dialog.css
+css/wordset-transcription-review.css
+css/recording-history.css
 css/vocab-lesson-pages.css
 css/content-lesson-pages.css
 css/quiz-pages.css
@@ -24,6 +27,9 @@ js/locale-sort.js
 js/public-viewport-guard.js
 js/wordset-buttons-refresh.js
 js/wordset-pages.js
+js/word-copy-dialog.js
+js/wordset-transcription-review.js
+js/recording-history.js
 js/vocab-lesson-page.js
 js/word-grid.js
 js/quiz-pages.js

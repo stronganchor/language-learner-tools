@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/recording-metadata.php';
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_SITE_SYNC_SCHEMA_VERSION')) {
@@ -151,25 +152,33 @@ function ll_tools_site_sync_set_recording_review_note(int $recording_id, string 
 
     $review_note = sanitize_textarea_field($review_note);
     if ($review_note === '') {
-        delete_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key());
         return;
     }
 
-    update_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key(), $review_note);
+    ll_tools_recording_update_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key(), $review_note);
 }
 
 function ll_tools_site_sync_clear_recording_review_state(int $recording_id): void {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_site_sync_clear_recording_review_state_unlocked($recording_id));
+}
+
+function ll_tools_site_sync_clear_recording_review_state_unlocked(int $recording_id): void {
     if (function_exists('ll_tools_ipa_keyboard_clear_recording_auto_review')) {
         ll_tools_ipa_keyboard_clear_recording_auto_review($recording_id);
         return;
     }
 
-    delete_post_meta($recording_id, ll_tools_site_sync_auto_review_meta_key());
-    delete_post_meta($recording_id, ll_tools_site_sync_review_fields_meta_key());
-    delete_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_site_sync_auto_review_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_site_sync_review_fields_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_site_sync_review_note_meta_key());
 }
 
 function ll_tools_site_sync_apply_recording_review_state(int $recording_id, bool $needs_review, array $review_fields, string $review_note): void {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_site_sync_apply_recording_review_state_unlocked($recording_id, $needs_review, $review_fields, $review_note));
+}
+
+function ll_tools_site_sync_apply_recording_review_state_unlocked(int $recording_id, bool $needs_review, array $review_fields, string $review_note): void {
     if (!$needs_review) {
         ll_tools_site_sync_clear_recording_review_state($recording_id);
         return;
@@ -191,8 +200,8 @@ function ll_tools_site_sync_apply_recording_review_state(int $recording_id, bool
         return;
     }
 
-    update_post_meta($recording_id, ll_tools_site_sync_auto_review_meta_key(), '1');
-    update_post_meta($recording_id, ll_tools_site_sync_review_fields_meta_key(), array_fill_keys($review_fields, true));
+    ll_tools_recording_update_post_meta($recording_id, ll_tools_site_sync_auto_review_meta_key(), '1');
+    ll_tools_recording_update_post_meta($recording_id, ll_tools_site_sync_review_fields_meta_key(), array_fill_keys($review_fields, true));
     ll_tools_site_sync_set_recording_review_note($recording_id, $review_note);
 }
 
@@ -205,11 +214,11 @@ function ll_tools_site_sync_sanitize_recording_text_for_sync(string $recording_t
 function ll_tools_site_sync_write_recording_text(int $recording_id, string $recording_text): void {
     $recording_text = ll_tools_site_sync_sanitize_recording_text_for_sync($recording_text);
     if ($recording_text === '') {
-        delete_post_meta($recording_id, 'recording_text');
+        ll_tools_recording_delete_post_meta($recording_id, 'recording_text');
         return;
     }
 
-    update_post_meta($recording_id, 'recording_text', $recording_text);
+    ll_tools_recording_update_post_meta($recording_id, 'recording_text', $recording_text);
 }
 
 function ll_tools_site_sync_sanitize_recording_translation_for_sync(string $recording_translation): string {
@@ -219,11 +228,11 @@ function ll_tools_site_sync_sanitize_recording_translation_for_sync(string $reco
 function ll_tools_site_sync_write_recording_translation(int $recording_id, string $recording_translation): void {
     $recording_translation = ll_tools_site_sync_sanitize_recording_translation_for_sync($recording_translation);
     if ($recording_translation === '') {
-        delete_post_meta($recording_id, 'recording_translation');
+        ll_tools_recording_delete_post_meta($recording_id, 'recording_translation');
         return;
     }
 
-    update_post_meta($recording_id, 'recording_translation', $recording_translation);
+    ll_tools_recording_update_post_meta($recording_id, 'recording_translation', $recording_translation);
 }
 
 function ll_tools_site_sync_record_values(int $recording_id, int $wordset_id): array {
@@ -2246,7 +2255,7 @@ function ll_tools_site_sync_apply_remote_audio_media(int $recording_id, array $r
         return false;
     }
 
-    update_post_meta($recording_id, 'audio_file_path', $remote_url);
+    ll_tools_recording_update_post_meta($recording_id, 'audio_file_path', $remote_url);
     return true;
 }
 
@@ -2631,7 +2640,12 @@ function ll_tools_site_sync_compact_base_snapshot(array $snapshot): array {
     return $compacted;
 }
 
-function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_id, array $values): array {
+function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_id, array $values) {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_site_sync_apply_record_values_unlocked($recording_id, $wordset_id, $values));
+    return $result;
+}
+
+function ll_tools_site_sync_apply_record_values_unlocked(int $recording_id, int $wordset_id, array $values): array {
     $values = ll_tools_site_sync_normalize_record_values($values);
     $field_updates = [];
     $desired_recording_text = null;
@@ -2655,9 +2669,9 @@ function ll_tools_site_sync_apply_record_values(int $recording_id, int $wordset_
             foreach ($field_updates as $meta_key => $value) {
                 $value = sanitize_text_field($value);
                 if ($value === '') {
-                    delete_post_meta($recording_id, $meta_key);
+                    ll_tools_recording_delete_post_meta($recording_id, $meta_key);
                 } else {
-                    update_post_meta($recording_id, $meta_key, $value);
+                    ll_tools_recording_update_post_meta($recording_id, $meta_key, $value);
                 }
             }
         }
@@ -2766,7 +2780,7 @@ function ll_tools_site_sync_create_local_recording_from_remote(int $word_id, int
 
     $remote_recording_sync_id = trim((string) ($remote_record['sync_id'] ?? ''));
     if ($remote_recording_sync_id !== '') {
-        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), $remote_recording_sync_id);
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), $remote_recording_sync_id);
     }
 
     $remote_word_sync_id = trim((string) ($remote_record['word']['sync_id'] ?? ''));
@@ -2775,7 +2789,8 @@ function ll_tools_site_sync_create_local_recording_from_remote(int $word_id, int
     }
 
     ll_tools_site_sync_apply_recording_types($recording_id, (array) ($remote_recording['types'] ?? []));
-    ll_tools_site_sync_apply_record_values($recording_id, $wordset_id, (array) ($remote_record['values'] ?? []));
+    $written = ll_tools_site_sync_apply_record_values($recording_id, $wordset_id, (array) ($remote_record['values'] ?? []));
+    if (is_wp_error($written)) { return $written; }
 
     return $recording_id;
 }
@@ -2843,7 +2858,7 @@ function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id):
         $local_sync_id = trim((string) ($local_record['sync_id'] ?? ''));
         $remote_sync_id = trim((string) ($remote_record['sync_id'] ?? ''));
         if ($remote_sync_id !== '' && $local_sync_id !== $remote_sync_id) {
-            update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), $remote_sync_id);
+            ll_tools_recording_update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), $remote_sync_id);
             $summary['sync_ids_linked']++;
         }
 
@@ -2885,6 +2900,8 @@ function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id):
             $before = ll_tools_site_sync_record_values($recording_id, $local_wordset_id);
             $values = array_merge($before, (array) ($action['values'] ?? []));
             $after = ll_tools_site_sync_apply_record_values($recording_id, $local_wordset_id, $values);
+            if (is_wp_error($after)) { $summary['errors'][] = $after->get_error_message(); continue; }
+            if (is_wp_error($after)) { $summary['errors'][] = $after->get_error_message(); continue; }
             if ($after !== $before) {
                 $summary['records_updated']++;
                 $summary['fields_updated'] += count((array) ($action['value_fields'] ?? array_keys((array) ($action['values'] ?? []))));

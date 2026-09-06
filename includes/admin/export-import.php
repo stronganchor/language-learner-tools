@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 require_once __DIR__ . '/../lib/mutation-job-state.php';
 if (!defined('ABSPATH')) {
     exit;
@@ -9581,6 +9582,9 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
             }
 
             if ($needs_recording && $resolved_recording_id > 0) {
+                $recording_scope = ll_tools_recording_write_acquire($resolved_recording_id);
+                if (is_wp_error($recording_scope)) { $add_error($recording_scope->get_error_message()); continue; }
+                try {
                 $recording_changed_this_row = false;
                 $recording_review_fields_updated_this_row = [];
 
@@ -9616,7 +9620,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                                 $meta_keys
                             );
                             foreach ($meta_keys as $meta_key) {
-                                delete_post_meta($resolved_recording_id, $meta_key);
+                                ll_tools_recording_delete_post_meta($resolved_recording_id, $meta_key);
                             }
                             $recording_changed_this_row = true;
                             $result['stats']['metadata_fields_cleared']++;
@@ -9644,7 +9648,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                         $meta_keys
                     );
                     foreach ($meta_keys as $meta_key) {
-                        update_post_meta($resolved_recording_id, $meta_key, $sanitized);
+                        ll_tools_recording_update_post_meta($resolved_recording_id, $meta_key, $sanitized);
                     }
                     if (in_array($field_key, ['recording_text', 'recording_ipa'], true)) {
                         $recording_review_fields_updated_this_row[$field_key] = true;
@@ -9725,6 +9729,9 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                         }
                     }
                 }
+
+                } finally { ll_tools_recording_write_release($recording_scope); }
+                if ($recording_error = ll_tools_recording_write_error($resolved_recording_id)) { $add_error($recording_error->get_error_message()); continue; }
 
                 if ($recording_changed_this_row) {
                     if (!isset($changed_recording_ids[$resolved_recording_id])) {
@@ -10305,10 +10312,15 @@ function ll_tools_import_restore_updated_post_snapshots(array $snapshots, array 
                         continue;
                     }
 
-                    delete_post_meta($post_id, $meta_key);
-                    foreach ($expected_values as $expected_value) {
-                        add_post_meta($post_id, $meta_key, $expected_value);
-                    }
+                    $restore_meta = static function () use ($post_id, $meta_key, $expected_values): void {
+                        ll_tools_recording_delete_post_meta($post_id, $meta_key);
+                        foreach ($expected_values as $expected_value) {
+                            ll_tools_recording_add_post_meta($post_id, $meta_key, $expected_value);
+                        }
+                    };
+                    $restored = get_post_type($post_id) === 'word_audio'
+                        ? ll_tools_recording_write_run($post_id, $restore_meta) : $restore_meta();
+                    if (is_wp_error($restored)) { $result['errors'][] = $restored->get_error_message(); continue; }
 
                     $restored_this_post = true;
                     $restored_field_count++;
@@ -17150,7 +17162,12 @@ function ll_tools_import_should_replace_term_meta_key(string $key, string $taxon
     return (bool) apply_filters('ll_tools_import_allow_term_meta_key', false, $key, $taxonomy);
 }
 
-function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, string $post_type = ''): void {
+function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, string $post_type = '') {
+    if (get_post_type($post_id) !== 'word_audio') { ll_tools_import_replace_post_meta_values_unlocked($post_id, $meta, $post_type); return; }
+    return ll_tools_recording_write_run((int) $post_id, static fn() => ll_tools_import_replace_post_meta_values_unlocked($post_id, $meta, $post_type));
+}
+
+function ll_tools_import_replace_post_meta_values_unlocked(int $post_id, array $meta, string $post_type = ''): void {
     if ($post_id <= 0 || empty($meta)) {
         return;
     }
@@ -17189,9 +17206,9 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, str
             continue;
         }
 
-        delete_post_meta($post_id, $key);
+        ll_tools_recording_delete_post_meta($post_id, $key);
         foreach ($decoded_values as $decoded_value) {
-            add_post_meta($post_id, $key, $decoded_value);
+            ll_tools_recording_add_post_meta($post_id, $key, $decoded_value);
         }
     }
 
@@ -18163,7 +18180,8 @@ function ll_tools_import_upsert_words_chunk(
             }
 
             $audio_post_id = (int) $audio_post_id;
-            ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : [], 'word_audio');
+            $recording_meta_result = ll_tools_import_replace_post_meta_values($audio_post_id, isset($audio_item['meta']) && is_array($audio_item['meta']) ? $audio_item['meta'] : [], 'word_audio');
+            if (is_wp_error($recording_meta_result)) { $result['errors'][] = $recording_meta_result->get_error_message(); continue; }
 
             $recording_type_ids = ll_tools_import_resolve_taxonomy_term_ids_by_slugs((array) ($audio_item['recording_types'] ?? []), 'recording_type', true, $result['errors']);
             if (!empty($recording_type_ids)) {

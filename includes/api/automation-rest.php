@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 if (!defined('WPINC')) {
     die;
 }
@@ -5775,9 +5776,9 @@ function ll_tools_rest_automation_clear_transcription_review_state(int $recordin
         ? ll_tools_ipa_keyboard_review_note_meta_key()
         : 'll_auto_transcription_review_note';
 
-    delete_post_meta($recording_id, $auto_key);
-    delete_post_meta($recording_id, $fields_key);
-    delete_post_meta($recording_id, $note_key);
+    ll_tools_recording_delete_post_meta($recording_id, $auto_key);
+    ll_tools_recording_delete_post_meta($recording_id, $fields_key);
+    ll_tools_recording_delete_post_meta($recording_id, $note_key);
 }
 
 function ll_tools_rest_automation_apply_transcription_review_state(
@@ -5816,13 +5817,13 @@ function ll_tools_rest_automation_apply_transcription_review_state(
         return;
     }
 
-    update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
-    update_post_meta($recording_id, 'll_auto_transcription_review_fields', array_fill_keys($enabled_fields, true));
+    ll_tools_recording_update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
+    ll_tools_recording_update_post_meta($recording_id, 'll_auto_transcription_review_fields', array_fill_keys($enabled_fields, true));
     if ($review_note_submitted || $replace_review_fields) {
         if ($review_note === '') {
-            delete_post_meta($recording_id, 'll_auto_transcription_review_note');
+            ll_tools_recording_delete_post_meta($recording_id, 'll_auto_transcription_review_note');
         } else {
-            update_post_meta($recording_id, 'll_auto_transcription_review_note', $review_note);
+            ll_tools_recording_update_post_meta($recording_id, 'll_auto_transcription_review_note', $review_note);
         }
     }
 
@@ -5991,6 +5992,12 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
         $replace_review_fields = $has_explicit_review_fields || $clear_all_review;
 
         if (!$dry_run) {
+            $recording_scope = ll_tools_recording_write_acquire($recording_id);
+            if (is_wp_error($recording_scope)) {
+                $summary['errors'][] = ['index' => (int) $index, 'recording_id' => $recording_id, 'message' => $recording_scope->get_error_message()];
+                continue;
+            }
+            try {
             if (!empty($prepared_fields)) {
                 $cache_sensitive_fields = array_intersect_key($prepared_fields, array_flip(['recording_text', 'recording_ipa']));
                 if (function_exists('ll_tools_ipa_keyboard_update_recording_fields')) {
@@ -6001,18 +6008,18 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
                     foreach ($cache_sensitive_fields as $meta_key => $value) {
                         $value = sanitize_text_field($value);
                         if ($value === '') {
-                            delete_post_meta($recording_id, $meta_key);
+                            ll_tools_recording_delete_post_meta($recording_id, $meta_key);
                         } else {
-                            update_post_meta($recording_id, $meta_key, $value);
+                            ll_tools_recording_update_post_meta($recording_id, $meta_key, $value);
                         }
                     }
                 }
                 if (array_key_exists('recording_translation', $prepared_fields)) {
                     $recording_translation = sanitize_text_field((string) $prepared_fields['recording_translation']);
                     if ($recording_translation === '') {
-                        delete_post_meta($recording_id, 'recording_translation');
+                        ll_tools_recording_delete_post_meta($recording_id, 'recording_translation');
                     } else {
-                        update_post_meta($recording_id, 'recording_translation', $recording_translation);
+                        ll_tools_recording_update_post_meta($recording_id, 'recording_translation', $recording_translation);
                     }
                     clean_post_cache($recording_id);
                 }
@@ -6034,6 +6041,11 @@ function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request
                 && ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)
             ) {
                 ll_tools_ipa_keyboard_set_recording_review_note($recording_id, $review_note);
+            }
+            } finally { ll_tools_recording_write_release($recording_scope); }
+            if ($recording_error = ll_tools_recording_write_error($recording_id)) {
+                $summary['errors'][] = ['index' => (int) $index, 'recording_id' => $recording_id, 'message' => $recording_error->get_error_message()];
+                continue;
             }
         }
 
@@ -6183,7 +6195,7 @@ function ll_tools_rest_automation_update_word_audio_speakers(WP_REST_Request $re
         }
 
         if (!$dry_run) {
-            update_post_meta($recording_id, 'speaker_user_id', $speaker_user_id);
+            ll_tools_recording_update_post_meta($recording_id, 'speaker_user_id', $speaker_user_id);
             $updated = wp_update_post([
                 'ID' => $recording_id,
                 'post_author' => $speaker_user_id,

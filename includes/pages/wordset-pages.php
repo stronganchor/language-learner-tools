@@ -14227,7 +14227,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
 }
 
 function ll_tools_get_wordset_settings_tool_keys(): array {
-    return ['study', 'language', 'visibility', 'categories', 'editor', 'advanced', 'import', 'template', 'recorder', 'recorder-queues', 'transcription', 'offline-app', 'image-upload', 'audio-upload'];
+    return ['study', 'language', 'visibility', 'categories', 'editor', 'advanced', 'import', 'template', 'recorder', 'recorder-queues', 'transcription', 'transcription-review', 'offline-app', 'image-upload', 'audio-upload'];
 }
 
 function ll_tools_get_wordset_settings_tool(): string {
@@ -14291,6 +14291,9 @@ function ll_tools_wordset_settings_tool_label(string $tool): string {
     if ($tool === 'transcription') {
         return __('Transcription', 'll-tools-text-domain');
     }
+    if ($tool === 'transcription-review') {
+        return __('Transcription Review', 'll-tools-text-domain');
+    }
     if ($tool === 'offline-app') {
         return __('Offline App', 'll-tools-text-domain');
     }
@@ -14339,6 +14342,9 @@ function ll_tools_wordset_settings_tool_title(string $tool): string {
     if ($tool === 'transcription') {
         return __('Transcription Settings', 'll-tools-text-domain');
     }
+    if ($tool === 'transcription-review') {
+        return __('Transcription Review', 'll-tools-text-domain');
+    }
     if ($tool === 'offline-app') {
         return __('Offline App Export', 'll-tools-text-domain');
     }
@@ -14386,6 +14392,9 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
     }
     if ($tool === 'transcription') {
         return __('Choose whether lesson transcription uses AssemblyAI or a localhost model in your browser.', 'll-tools-text-domain');
+    }
+    if ($tool === 'transcription-review') {
+        return __('Listen to recordings and review transcription, IPA, and notes for this word set.', 'll-tools-text-domain');
     }
     if ($tool === 'offline-app') {
         return __('Export this word set as a standalone offline learner app bundle.', 'll-tools-text-domain');
@@ -14492,7 +14501,7 @@ function ll_tools_wordset_page_render_settings_tool_icon(string $tool, string $c
             . '<path d="M17.1 8.8 15.75 10.1l-.6-.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>'
             . '</svg>';
     }
-    if ($tool === 'transcription') {
+    if (in_array($tool, ['transcription', 'transcription-review'], true)) {
         return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
             . '<path d="M4.5 12.5h2.5M8.5 9.5h2.5M8.5 15.5h2.5M12.5 6.5h2.5M12.5 12.5h2.5M12.5 18.5h2.5M16.5 9.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
             . '<rect x="3.75" y="4.25" width="16.5" height="15.5" rx="3" stroke="currentColor" stroke-width="1.8"/>'
@@ -24663,7 +24672,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'settings_url' => $speaking_settings_url,
         ])
         : [];
-    if (!$can_manage_wordset_content && in_array($settings_tool, ['language', 'visibility', 'editor', 'advanced', 'import', 'template', 'recorder', 'recorder-queues', 'transcription', 'offline-app', 'image-upload', 'audio-upload'], true)) {
+    if (!$can_manage_wordset_content && in_array($settings_tool, ['language', 'visibility', 'editor', 'advanced', 'import', 'template', 'recorder', 'recorder-queues', 'transcription', 'transcription-review', 'offline-app', 'image-upload', 'audio-upload'], true)) {
         $settings_tool = '';
     }
     if (!$can_manage_wordset_categories && $settings_tool === 'categories') {
@@ -24691,6 +24700,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $settings_navigation_back_url),
         'recorder-queues' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues', $settings_navigation_back_url),
         'transcription' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $settings_navigation_back_url),
+        'transcription-review' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription-review', $settings_navigation_back_url),
         'offline-app' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'offline-app', $settings_navigation_back_url),
         'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $settings_navigation_back_url),
         'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $settings_navigation_back_url),
@@ -25722,6 +25732,15 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'description' => ll_tools_wordset_settings_tool_description('recorder-queues'),
             'status' => '',
             'url' => $settings_tool_urls['recorder-queues'],
+            'enabled' => true,
+        ];
+
+        $settings_hub_cards[] = [
+            'tool' => 'transcription-review',
+            'label' => ll_tools_wordset_settings_tool_label('transcription-review'),
+            'description' => ll_tools_wordset_settings_tool_description('transcription-review'),
+            'status' => '',
+            'url' => $settings_tool_urls['transcription-review'],
             'enabled' => true,
         ];
 
@@ -26976,6 +26995,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 <?php echo ll_tools_wordset_page_render_settings_advanced_tool($wordset_term, $wordset_id, $back_url, $advanced_settings); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'transcription' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_transcription_tool($wordset_term, $wordset_id, $back_url, $transcription_settings, $secondary_transcription_config); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'transcription-review' && $can_manage_wordset_content && function_exists('ll_tools_render_wordset_transcription_review')) : ?>
+                <?php
+                ll_tools_enqueue_wordset_transcription_review_assets($wordset_id);
+                echo ll_tools_render_wordset_transcription_review($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
             <?php elseif ($settings_tool === 'import' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_import_tool($wordset_term, $wordset_id, $back_url, $settings_import_categories); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'template' && $can_manage_wordset_content) : ?>
@@ -27932,6 +27956,16 @@ function ll_tools_wordset_page_enqueue_assets() {
     }
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
+    if (ll_tools_get_wordset_page_view() === 'settings'
+        && ll_tools_get_wordset_settings_tool() === 'transcription-review'
+        && function_exists('ll_tools_enqueue_wordset_transcription_review_assets')) {
+        $wordset_term = ll_tools_get_wordset_page_term();
+        if ($wordset_term instanceof WP_Term
+            && function_exists('ll_tools_current_user_can_manage_wordset_content')
+            && ll_tools_current_user_can_manage_wordset_content((int) $wordset_term->term_id)) {
+            ll_tools_enqueue_wordset_transcription_review_assets((int) $wordset_term->term_id);
+        }
+    }
 }
 add_action('wp_enqueue_scripts', 'll_tools_wordset_page_enqueue_assets');
 

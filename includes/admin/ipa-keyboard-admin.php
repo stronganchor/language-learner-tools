@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 /**
  * Admin page for managing recording transcription symbols by word set.
  */
@@ -2671,20 +2672,28 @@ function ll_tools_ipa_keyboard_get_recording_review_note(int $recording_id): str
 }
 
 function ll_tools_ipa_keyboard_set_recording_review_note(int $recording_id, string $review_note): void {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_set_recording_review_note_unlocked($recording_id, $review_note));
+}
+
+function ll_tools_ipa_keyboard_set_recording_review_note_unlocked(int $recording_id, string $review_note): void {
     if ($recording_id <= 0) {
         return;
     }
 
     $review_note = sanitize_textarea_field($review_note);
     if ($review_note === '') {
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
         return;
     }
 
-    update_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key(), $review_note);
+    ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key(), $review_note);
 }
 
-function ll_tools_ipa_keyboard_set_recording_review_state(
+function ll_tools_ipa_keyboard_set_recording_review_state(int $recording_id, bool $needs_review, string $review_field = 'recording_ipa', string $review_note = ''): void {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_set_recording_review_state_unlocked($recording_id, $needs_review, $review_field, $review_note));
+}
+
+function ll_tools_ipa_keyboard_set_recording_review_state_unlocked(
     int $recording_id,
     bool $needs_review,
     string $review_field = 'recording_ipa',
@@ -2704,8 +2713,8 @@ function ll_tools_ipa_keyboard_set_recording_review_state(
     $enabled_fields = array_values(array_keys(array_filter($fields)));
 
     if ($needs_review) {
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key(), array_fill_keys($enabled_fields, true));
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key(), array_fill_keys($enabled_fields, true));
         if (trim($review_note) !== '') {
             ll_tools_ipa_keyboard_set_recording_review_note($recording_id, $review_note);
         }
@@ -2713,14 +2722,14 @@ function ll_tools_ipa_keyboard_set_recording_review_state(
     }
 
     if (!empty($enabled_fields)) {
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key(), array_fill_keys($enabled_fields, true));
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key(), array_fill_keys($enabled_fields, true));
         return;
     }
 
-    delete_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key());
-    delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key());
-    delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key());
+    ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
 }
 
 function ll_tools_ipa_keyboard_recording_needs_auto_review(int $recording_id): bool {
@@ -2740,14 +2749,18 @@ function ll_tools_ipa_keyboard_mark_recording_needs_auto_review(
 }
 
 function ll_tools_ipa_keyboard_clear_recording_auto_review(int $recording_id, string $review_field = ''): void {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_clear_recording_auto_review_unlocked($recording_id, $review_field));
+}
+
+function ll_tools_ipa_keyboard_clear_recording_auto_review_unlocked(int $recording_id, string $review_field = ''): void {
     if ($recording_id <= 0) {
         return;
     }
 
     if ($review_field === '') {
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key());
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key());
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_fields_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_review_note_meta_key());
         return;
     }
 
@@ -3273,9 +3286,9 @@ function ll_tools_ipa_keyboard_get_recording_validation_exceptions(int $recordin
     $clean = ll_tools_ipa_keyboard_sanitize_validation_exceptions($raw);
     if ($clean !== $raw) {
         if (empty($clean)) {
-            delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key());
+            ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key());
         } else {
-            update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key(), $clean);
+            ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key(), $clean);
         }
     }
 
@@ -3318,9 +3331,9 @@ function ll_tools_ipa_keyboard_update_recording_validation_exception(
     }
 
     if (empty($exceptions)) {
-        delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key());
+        ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key());
     } else {
-        update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key(), $exceptions);
+        ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_exceptions_meta_key(), $exceptions);
     }
 
     return $exceptions;
@@ -7932,9 +7945,9 @@ function ll_tools_ipa_keyboard_get_recording_validation_state(int $recording_id)
     $clean = ll_tools_ipa_keyboard_sanitize_validation_state($raw);
     if ($clean !== $raw) {
         if (empty($clean)) {
-            delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key());
+            ll_tools_recording_delete_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key());
         } else {
-            update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), $clean);
+            ll_tools_recording_update_post_meta($recording_id, ll_tools_ipa_keyboard_validation_state_meta_key(), $clean);
         }
     }
 
@@ -8518,9 +8531,9 @@ function ll_tools_ipa_keyboard_save_recording_validation_state(int $recording_id
     $existing_state = ll_tools_ipa_keyboard_get_recording_validation_state($recording_id);
     if ($state !== $existing_state) {
         if (empty($state)) {
-            delete_post_meta($recording_id, $state_meta_key);
+            ll_tools_recording_delete_post_meta($recording_id, $state_meta_key);
         } else {
-            update_post_meta($recording_id, $state_meta_key, $state);
+            ll_tools_recording_update_post_meta($recording_id, $state_meta_key, $state);
         }
     }
 
@@ -8529,10 +8542,10 @@ function ll_tools_ipa_keyboard_save_recording_validation_state(int $recording_id
     $existing_issue_count = (int) get_post_meta($recording_id, $issue_count_meta_key, true);
     if ($active_issue_count > 0) {
         if ($active_issue_count !== $existing_issue_count) {
-            update_post_meta($recording_id, $issue_count_meta_key, $active_issue_count);
+            ll_tools_recording_update_post_meta($recording_id, $issue_count_meta_key, $active_issue_count);
         }
     } elseif ($existing_issue_count > 0 || metadata_exists('post', $recording_id, $issue_count_meta_key)) {
-        delete_post_meta($recording_id, $issue_count_meta_key);
+        ll_tools_recording_delete_post_meta($recording_id, $issue_count_meta_key);
     }
 
     return $state;
@@ -9626,7 +9639,12 @@ function ll_tools_ipa_keyboard_get_wordset_term(int $wordset_id): ?WP_Term {
     return $wordset;
 }
 
-function ll_tools_ipa_keyboard_update_recording_fields(
+function ll_tools_ipa_keyboard_update_recording_fields(int $recording_id, int $wordset_id, array $fields): array {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_update_recording_fields_unlocked($recording_id, $wordset_id, $fields));
+    return is_wp_error($result) ? [] : $result;
+}
+
+function ll_tools_ipa_keyboard_update_recording_fields_unlocked(
     int $recording_id,
     int $wordset_id,
     array $fields
@@ -9678,9 +9696,9 @@ function ll_tools_ipa_keyboard_update_recording_fields(
             : sanitize_text_field((string) $fields['recording_text']);
         if ($recording_text !== $previous_text_raw) {
             if ($recording_text !== '') {
-                update_post_meta($recording_id, 'recording_text', $recording_text);
+                ll_tools_recording_update_post_meta($recording_id, 'recording_text', $recording_text);
             } else {
-                delete_post_meta($recording_id, 'recording_text');
+                ll_tools_recording_delete_post_meta($recording_id, 'recording_text');
             }
         }
     }
@@ -9692,12 +9710,14 @@ function ll_tools_ipa_keyboard_update_recording_fields(
             : sanitize_text_field((string) $fields['recording_ipa']);
         if ($clean_ipa !== $previous_ipa_raw) {
             if ($clean_ipa !== '') {
-                update_post_meta($recording_id, 'recording_ipa', $clean_ipa);
+                ll_tools_recording_update_post_meta($recording_id, 'recording_ipa', $clean_ipa);
             } else {
-                delete_post_meta($recording_id, 'recording_ipa');
+                ll_tools_recording_delete_post_meta($recording_id, 'recording_ipa');
             }
         }
     }
+
+    if (ll_tools_recording_write_error($recording_id)) { return []; }
 
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output($clean_ipa, $transcription_mode);
     $symbol_counts = ll_tools_ipa_keyboard_count_special_symbols($recording_ipa, $transcription_mode);
@@ -10696,6 +10716,7 @@ function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
     $was_reviewed = !function_exists('ll_tools_word_grid_recording_ipa_is_reviewed')
         || ll_tools_word_grid_recording_ipa_is_reviewed($recording_id);
     ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review, $review_field, $review_note);
+    if ($write_error = ll_tools_recording_write_error($recording_id)) { wp_send_json_error($write_error->get_error_message(), (int) ($write_error->get_error_data()['status'] ?? 503)); }
     $is_reviewed = !function_exists('ll_tools_word_grid_recording_ipa_is_reviewed')
         || ll_tools_word_grid_recording_ipa_is_reviewed($recording_id);
     if ($review_field === 'recording_ipa' && $was_reviewed !== $is_reviewed) {

@@ -9326,10 +9326,6 @@ msgstr "Ungültiger Vokabelbeitrag."
 msgid "Split \"%s\" into two word posts by choosing which recordings move to the new word."
 msgstr "Teile \"%s\" in zwei Vokabelbeiträge auf, indem du auswählst, welche Aufnahmen in die neue Vokabel verschoben werden."
 
-#: includes/admin/split-word-admin.php:326
-msgid "No audio recordings were found for this word."
-msgstr "Es wurden keine Audioaufnahmen für diese Vokabel gefunden."
-
 #: includes/admin/split-word-admin.php:347
 msgid "Original title (optional)"
 msgstr "Originaltitel (optional)"
@@ -30146,3 +30142,263 @@ msgstr "Der Fortschrittsstand des Jobs konnte nicht gespeichert werden. Lies den
 #: includes/lib/mutation-job-state.php:135
 msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
 msgstr "Bei einem früheren Jobschritt wurde der Fortschrittsstand nicht vollständig gespeichert. Prüfe vor der Wiederherstellung die angewendeten Änderungen und den gespeicherten Status; eine automatische Wiederholung ist gesperrt."
+
+#: includes/lib/recording-history.php:6 includes/lib/recording-history.php:258
+msgid "Recordings could not be loaded. Please try again."
+msgstr "Die Aufnahmen konnten nicht geladen werden. Bitte versuche es erneut."
+
+#: includes/lib/recording-history.php:159
+msgid "Awaiting processing"
+msgstr "Wartet auf Verarbeitung"
+
+#: includes/lib/recording-history.php:162
+msgid "Pending review"
+msgstr "Wartet auf Prüfung"
+
+#: includes/lib/recording-history.php:164
+msgid "Scheduled"
+msgstr "Geplant"
+
+#: includes/lib/recording-history.php:225
+msgid "You do not have access to these recordings."
+msgstr "Du hast keinen Zugriff auf diese Aufnahmen."
+
+#: includes/lib/recording-history.php:231
+msgid "Please reload the page and try again."
+msgstr "Bitte lade die Seite neu und versuche es erneut."
+
+#: includes/lib/recording-history.php:235
+msgid "The recording history request is invalid."
+msgstr "Die Anfrage für den Aufnahmeverlauf ist ungültig."
+
+#: includes/lib/recording-history.php:256
+msgid "Loading recordings…"
+msgstr "Aufnahmen werden geladen…"
+
+#: includes/lib/recording-history.php:257
+msgid "No recordings to show."
+msgstr "Keine Aufnahmen zum Anzeigen."
+
+#: includes/lib/recording-history.php:259
+msgid "This recording could not be played."
+msgstr "Diese Aufnahme konnte nicht abgespielt werden."
+
+#: includes/lib/recording-history.php:260
+msgid "Audio unavailable"
+msgstr "Audio nicht verfügbar"
+
+#: includes/lib/recording-history.php:274
+msgid "My recordings"
+msgstr "Meine Aufnahmen"
+
+#: includes/lib/recording-history.php:277
+msgid "Recordings credited to you in this word set."
+msgstr "Dir zugeordnete Aufnahmen in diesem Vokabelset."
+
+#: includes/lib/recording-history.php:281
+msgid "Recording history pages"
+msgstr "Seiten des Aufnahmeverlaufs"
+
+#: includes/lib/recording-history.php:282
+msgid "Newer"
+msgstr "Neuere"
+
+#: includes/lib/recording-metadata.php:10
+#: includes/lib/recording-metadata.php:33
+#: includes/lib/recording-metadata.php:156
+#: includes/pages/wordset-transcription-review.php:180
+#: includes/pages/wordset-transcription-review.php:186
+#: includes/pages/wordset-transcription-review.php:220
+#: includes/pages/wordset-transcription-review.php:287
+msgid ""
+"The save could not be verified. Reload this recording before editing again."
+msgstr ""
+"Das Speichern konnte nicht bestätigt werden. Lade diese Aufnahme neu, bevor "
+"du sie weiter bearbeitest."
+
+#: includes/lib/word-copy.php:12
+msgid "The word could not be copied. Please try again."
+msgstr "Die Vokabel konnte nicht kopiert werden. Bitte versuche es erneut."
+
+#: includes/lib/word-copy.php:36 includes/lib/word-copy.php:43
+#: includes/lib/word-copy.php:54
+msgid "You do not have permission to copy this word."
+msgstr "Du hast keine Berechtigung, diese Vokabel zu kopieren."
+
+#: includes/lib/word-copy.php:52
+msgid "The word is no longer available in this word set."
+msgstr "Die Vokabel ist in diesem Vokabelset nicht mehr verfügbar."
+
+#: includes/lib/word-copy.php:216
+msgid "%d published recording"
+msgid_plural "%d published recordings"
+msgstr[0] "%d veröffentlichte Aufnahme"
+msgstr[1] "%d veröffentlichte Aufnahmen"
+
+#. translators: %d: ID of a retained draft word that needs administrative
+#. recovery.
+#: includes/lib/word-copy.php:221
+msgid ""
+"Draft word #%d was retained before word-set setup finished. Ask an "
+"administrator to review it; do not create another copy."
+msgstr ""
+"Die Entwurfsvokabel #%d wurde vor Abschluss der Vokabelset-Zuordnung "
+"beibehalten. Bitte einen Administrator, sie zu prüfen; erstelle keine "
+"weitere Kopie."
+
+#: includes/lib/word-copy.php:223
+msgid "Word copied."
+msgstr "Vokabel kopiert."
+
+#: includes/lib/word-copy.php:224
+msgid ""
+"This copy needs review before continuing. Check the saved word and "
+"recordings; do not submit another copy."
+msgstr ""
+"Diese Kopie muss vor dem Fortfahren geprüft werden. Prüfe die gespeicherte "
+"Vokabel und die Aufnahmen; erstelle keine weitere Kopie."
+
+#: includes/lib/word-copy.php:232 includes/lib/word-copy.php:439
+msgid "Choose at most 50 recordings for one copy."
+msgstr "Wähle höchstens 50 Aufnahmen für eine Kopie aus."
+
+#: includes/lib/word-copy.php:250
+msgid "This request already belongs to a different copy."
+msgstr "Diese Anfrage gehört bereits zu einer anderen Kopie."
+
+#: includes/lib/word-copy.php:261
+msgid "You must manage every word set using this word to move its recordings."
+msgstr ""
+"Um die Aufnahmen zu verschieben, musst du alle Vokabelsets verwalten, die "
+"diese Vokabel verwenden."
+
+#: includes/lib/word-copy.php:270
+msgid ""
+"A selected recording changed or is no longer available. Reopen the copy "
+"dialog."
+msgstr ""
+"Eine ausgewählte Aufnahme wurde geändert oder ist nicht mehr verfügbar. "
+"Öffne den Kopierdialog erneut."
+
+#: includes/lib/word-copy.php:395
+msgid "Invalid copy request."
+msgstr "Ungültige Kopieranfrage."
+
+#: includes/lib/word-copy.php:400
+msgid "Your session expired. Reload the page."
+msgstr "Deine Sitzung ist abgelaufen. Lade die Seite neu."
+
+#: includes/lib/word-copy.php:425
+msgid "Copy / Split Word"
+msgstr "Vokabel kopieren / aufteilen"
+
+#: includes/lib/word-copy.php:426
+msgid "New word title"
+msgstr "Titel der neuen Vokabel"
+
+#: includes/lib/word-copy.php:427
+msgid "Move selected recordings to the copy"
+msgstr "Ausgewählte Aufnahmen zur Kopie verschieben"
+
+#: includes/lib/word-copy.php:428
+msgid ""
+"The image and word details are copied. Recordings stay on the original "
+"unless selected below."
+msgstr ""
+"Das Bild und die Vokabeldetails werden kopiert. Aufnahmen bleiben beim "
+"Original, sofern du sie unten nicht auswählst."
+
+#: includes/lib/word-copy.php:429
+msgid "No recordings to move."
+msgstr "Keine Aufnahmen zum Verschieben."
+
+#: includes/lib/word-copy.php:431
+msgid "Copying…"
+msgstr "Wird kopiert…"
+
+#: includes/lib/word-copy.php:432
+msgid "Create copy"
+msgstr "Kopie erstellen"
+
+#: includes/lib/word-copy.php:434
+msgid "More recordings"
+msgstr "Weitere Aufnahmen"
+
+#: includes/lib/word-copy.php:434
+msgid "View copy"
+msgstr "Kopie ansehen"
+
+#: includes/lib/word-copy.php:435
+msgid "Check result"
+msgstr "Ergebnis prüfen"
+
+#: includes/lib/word-copy.php:436
+msgid "The request did not finish. Please try again."
+msgstr "Die Anfrage wurde nicht abgeschlossen. Bitte versuche es erneut."
+
+#: includes/lib/word-copy.php:437
+msgid ""
+"The result is not confirmed yet. Check it before starting another copy."
+msgstr ""
+"Das Ergebnis ist noch nicht bestätigt. Prüfe es, bevor du eine weitere Kopie"
+" erstellst."
+
+#: includes/lib/word-copy.php:438
+msgid ""
+"Your browser could not save this copy request. Enable session storage and "
+"try again."
+msgstr ""
+"Dein Browser konnte diese Kopieranfrage nicht speichern. Aktiviere den "
+"Sitzungsspeicher und versuche es erneut."
+
+#: includes/pages/wordset-editor.php:4829
+msgid "Copy or split word"
+msgstr "Vokabel kopieren oder aufteilen"
+
+#: includes/pages/wordset-editor.php:4830
+msgid "Copy / Split"
+msgstr "Kopieren / Aufteilen"
+
+#: includes/pages/wordset-pages.php:14295
+#: includes/pages/wordset-pages.php:14346
+msgid "Transcription Review"
+msgstr "Transkription prüfen"
+
+#: includes/pages/wordset-pages.php:14397
+msgid ""
+"Listen to recordings and review transcription, IPA, and notes for this word "
+"set."
+msgstr ""
+"Höre Aufnahmen an und prüfe Transkription, IPA und Notizen für dieses "
+"Vokabelset."
+
+#: includes/pages/wordset-transcription-review.php:134
+#: includes/pages/wordset-transcription-review.php:269
+#: includes/pages/wordset-transcription-review.php:286
+msgid "Could not load recordings."
+msgstr "Aufnahmen konnten nicht geladen werden."
+
+#: includes/pages/wordset-transcription-review.php:196
+msgid "This recording changed. Reload it before editing again."
+msgstr ""
+"Diese Aufnahme wurde geändert. Lade sie neu, bevor du sie weiter "
+"bearbeitest."
+
+#: includes/pages/wordset-transcription-review.php:284
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: includes/pages/wordset-transcription-review.php:284
+msgid "No recordings found on this page."
+msgstr "Auf dieser Seite wurden keine Aufnahmen gefunden."
+
+#: includes/pages/wordset-transcription-review.php:285
+msgid "More recordings remain. Continue to the next page."
+msgstr "Es gibt weitere Aufnahmen. Gehe zur nächsten Seite."
+
+#: includes/pages/wordset-transcription-review.php:288
+msgid ""
+"Finish saving or reload the changed recordings before leaving this page."
+msgstr ""
+"Schließe das Speichern ab oder lade die geänderten Aufnahmen neu, bevor du "
+"diese Seite verlässt."

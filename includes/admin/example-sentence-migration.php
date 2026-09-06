@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 if (!defined('WPINC')) { die; }
 
 if (!defined('LL_TOOLS_EXAMPLE_SENTENCE_MIGRATION_DONE_OPTION')) {
@@ -647,8 +648,8 @@ function ll_tools_process_active_example_sentence_migration_word(array &$state, 
         }
         if ((string) ($state['source_example'] ?? '') !== '' && $existing_text === '') {
             $wpdb->last_error = '';
-            update_post_meta($audio_id, 'recording_text', (string) $state['source_example']);
-            $write_error = $wpdb->last_error !== '';
+            ll_tools_recording_update_post_meta($audio_id, 'recording_text', (string) $state['source_example']);
+            $write_error = $wpdb->last_error !== '' || ll_tools_recording_write_error($audio_id) !== null;
             $readback_complete = true;
             $stored_text = ll_tools_read_example_sentence_migration_meta(
                 $audio_id,
@@ -664,8 +665,8 @@ function ll_tools_process_active_example_sentence_migration_word(array &$state, 
         }
         if ((string) ($state['source_translation'] ?? '') !== '' && $existing_translation === '') {
             $wpdb->last_error = '';
-            update_post_meta($audio_id, 'recording_translation', (string) $state['source_translation']);
-            $write_error = $wpdb->last_error !== '';
+            ll_tools_recording_update_post_meta($audio_id, 'recording_translation', (string) $state['source_translation']);
+            $write_error = $wpdb->last_error !== '' || ll_tools_recording_write_error($audio_id) !== null;
             $readback_complete = true;
             $stored_translation = ll_tools_read_example_sentence_migration_meta(
                 $audio_id,

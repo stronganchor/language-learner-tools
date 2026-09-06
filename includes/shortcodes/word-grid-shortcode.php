@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 if (!defined('WPINC')) { die; }
 
 $ll_tools_word_grid_bulk_operations_file = (defined('LL_TOOLS_BASE_PATH')
@@ -8119,15 +8120,15 @@ function ll_tools_word_grid_process_recording_audio_handler() {
     if ($previous_audio_file !== '' && function_exists('ll_tools_store_original_audio_if_enabled')) {
         ll_tools_store_original_audio_if_enabled($recording_id, $previous_audio_file, [], 'lesson_edit_processor');
     }
-    update_post_meta($recording_id, 'audio_file_path', $relative_path);
-    delete_post_meta($recording_id, '_ll_needs_audio_processing');
-    update_post_meta($recording_id, '_ll_processed_audio_date', current_time('mysql'));
-    delete_post_meta($recording_id, '_ll_needs_audio_review');
+    ll_tools_recording_update_post_meta($recording_id, 'audio_file_path', $relative_path);
+    ll_tools_recording_delete_post_meta($recording_id, '_ll_needs_audio_processing');
+    ll_tools_recording_update_post_meta($recording_id, '_ll_processed_audio_date', current_time('mysql'));
+    ll_tools_recording_delete_post_meta($recording_id, '_ll_needs_audio_review');
 
     $processing_settings = ll_tools_word_grid_collect_audio_processing_settings_from_request();
     if (!empty($processing_settings) && defined('LL_TOOLS_AUDIO_PROCESSING_SETTINGS_META_KEY')) {
         $processing_settings['used_original_source'] = $used_original_source ? 1 : 0;
-        update_post_meta($recording_id, LL_TOOLS_AUDIO_PROCESSING_SETTINGS_META_KEY, $processing_settings);
+        ll_tools_recording_update_post_meta($recording_id, LL_TOOLS_AUDIO_PROCESSING_SETTINGS_META_KEY, $processing_settings);
     }
 
     if ($recording_type_term_id > 0) {
@@ -8744,6 +8745,9 @@ function ll_tools_word_grid_update_word_handler() {
             continue;
         }
 
+        $recording_scope = ll_tools_recording_write_acquire($recording_id);
+        if (is_wp_error($recording_scope)) { wp_send_json_error($recording_scope->get_error_message(), 429); }
+        try {
         $recording_text = (string) ($recording['text'] ?? '');
         $recording_translation = (string) ($recording['translation'] ?? '');
         $recording_ipa = (string) ($recording['ipa'] ?? '');
@@ -8759,20 +8763,20 @@ function ll_tools_word_grid_update_word_handler() {
         }
 
         if ($recording_text !== '') {
-            update_post_meta($recording_id, 'recording_text', $recording_text);
+            ll_tools_recording_update_post_meta($recording_id, 'recording_text', $recording_text);
         } else {
-            delete_post_meta($recording_id, 'recording_text');
+            ll_tools_recording_delete_post_meta($recording_id, 'recording_text');
         }
         if ($recording_translation !== '') {
-            update_post_meta($recording_id, 'recording_translation', $recording_translation);
+            ll_tools_recording_update_post_meta($recording_id, 'recording_translation', $recording_translation);
         } else {
-            delete_post_meta($recording_id, 'recording_translation');
+            ll_tools_recording_delete_post_meta($recording_id, 'recording_translation');
         }
         if ($recording_ipa_submitted) {
             if ($recording_ipa !== '') {
-                update_post_meta($recording_id, 'recording_ipa', $recording_ipa);
+                ll_tools_recording_update_post_meta($recording_id, 'recording_ipa', $recording_ipa);
             } else {
-                delete_post_meta($recording_id, 'recording_ipa');
+                ll_tools_recording_delete_post_meta($recording_id, 'recording_ipa');
             }
         } else {
             $recording_ipa = (string) get_post_meta($recording_id, 'recording_ipa', true);
@@ -8805,6 +8809,8 @@ function ll_tools_word_grid_update_word_handler() {
                 ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
                 : '',
         ];
+        } finally { ll_tools_recording_write_release($recording_scope); }
+        if ($recording_error = ll_tools_recording_write_error($recording_id)) { wp_send_json_error($recording_error->get_error_message(), 503); }
     }
 
     $affected_word_ids = [$word_id];
@@ -10932,12 +10938,17 @@ function ll_tools_clear_lesson_transcriptions_handler() {
         if ($recording_id <= 0) {
             continue;
         }
+        $recording_scope = ll_tools_recording_write_acquire($recording_id);
+        if (is_wp_error($recording_scope)) { wp_send_json_error($recording_scope->get_error_message(), 429); }
+        try {
         if ($target_meta_key === 'recording_ipa') {
-            delete_post_meta($recording_id, 'recording_ipa');
+            ll_tools_recording_delete_post_meta($recording_id, 'recording_ipa');
         } else {
-            delete_post_meta($recording_id, 'recording_text');
-            delete_post_meta($recording_id, 'recording_translation');
+            ll_tools_recording_delete_post_meta($recording_id, 'recording_text');
+            ll_tools_recording_delete_post_meta($recording_id, 'recording_translation');
         }
+        } finally { ll_tools_recording_write_release($recording_scope); }
+        if ($recording_error = ll_tools_recording_write_error($recording_id)) { wp_send_json_error($recording_error->get_error_message(), 503); }
         $cleared[] = $recording_id;
     }
 
@@ -10969,6 +10980,11 @@ function ll_tools_clear_lesson_transcriptions_handler() {
  * @return array|WP_Error
  */
 function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $wordset_ids, $force, $raw_transcript) {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_word_grid_finalize_transcription_unlocked($recording_id, $recording, $wordset_ids, $force, $raw_transcript));
+    return $result;
+}
+
+function ll_tools_word_grid_finalize_transcription_unlocked($recording_id, $recording, $wordset_ids, $force, $raw_transcript) {
     $transcript = trim((string) $raw_transcript);
     if ($transcript !== '' && function_exists('ll_tools_normalize_transcript_case')) {
         $transcript = ll_tools_normalize_transcript_case($transcript, $wordset_ids);
@@ -10982,7 +10998,7 @@ function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $w
     if ($recording_is_isolation) {
         $recording_text = ll_tools_trim_isolation_transcript($recording_text);
     }
-    update_post_meta($recording_id, 'recording_text', $recording_text);
+    ll_tools_recording_update_post_meta($recording_id, 'recording_text', $recording_text);
 
     $recording_translation = '';
     $existing_translation = trim((string) get_post_meta($recording_id, 'recording_translation', true));
@@ -10996,7 +11012,7 @@ function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $w
             $translated = translate_with_deepl($recording_text, $target_lang, $source_lang);
             if (is_string($translated) && $translated !== '') {
                 $recording_translation = sanitize_text_field($translated);
-                update_post_meta($recording_id, 'recording_translation', $recording_translation);
+                ll_tools_recording_update_post_meta($recording_id, 'recording_translation', $recording_translation);
             }
         }
     } elseif ($existing_translation !== '') {
@@ -11074,6 +11090,11 @@ function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $w
 }
 
 function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $recording, $wordset_id, $raw_transcript) {
+    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_word_grid_finalize_secondary_transcription_unlocked($recording_id, $recording, $wordset_id, $raw_transcript));
+    return $result;
+}
+
+function ll_tools_word_grid_finalize_secondary_transcription_unlocked($recording_id, $recording, $wordset_id, $raw_transcript) {
     $word_id = (int) $recording->post_parent;
     $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
@@ -11086,7 +11107,7 @@ function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $rec
         return new WP_Error('empty_transcript', __('Empty transcript', 'll-tools-text-domain'));
     }
 
-    update_post_meta($recording_id, 'recording_ipa', $clean);
+    ll_tools_recording_update_post_meta($recording_id, 'recording_ipa', $clean);
     if (function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')) {
         ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id, 'recording_ipa');
     }
@@ -11173,7 +11194,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
 
     $existing_target_value = trim((string) get_post_meta($recording_id, $target_meta_key, true));
     if ($posted_transcript_id === '' && $local_transcript === '' && !$force && $existing_target_value !== '') {
-        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        ll_tools_recording_delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
         wp_send_json_success([
             'skipped' => true,
         ]);
@@ -11191,7 +11212,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
             wp_send_json_error($response->get_error_message(), 400);
         }
 
-        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        ll_tools_recording_delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
         wp_send_json_success($response);
     }
 
@@ -11237,7 +11258,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
             wp_send_json_error($response->get_error_message(), 400);
         }
 
-        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        ll_tools_recording_delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
         $response['pending'] = false;
         $response['transcript_id'] = '';
         $response['status'] = 'completed';
@@ -11266,7 +11287,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
     if ($posted_transcript_id === '') {
         $existing_text = trim((string) get_post_meta($recording_id, 'recording_text', true));
         if (!$force && $existing_text !== '') {
-            delete_post_meta($recording_id, $transcript_meta_key);
+            ll_tools_recording_delete_post_meta($recording_id, $transcript_meta_key);
             wp_send_json_success([
                 'skipped' => true,
             ]);
@@ -11307,7 +11328,7 @@ function ll_tools_transcribe_recording_by_id_handler() {
 
     $state = isset($status['status']) ? (string) $status['status'] : '';
     if ($state === 'completed') {
-        delete_post_meta($recording_id, $transcript_meta_key);
+        ll_tools_recording_delete_post_meta($recording_id, $transcript_meta_key);
         $response = ll_tools_word_grid_finalize_transcription(
             $recording_id,
             $recording,
@@ -11325,12 +11346,12 @@ function ll_tools_transcribe_recording_by_id_handler() {
     }
 
     if ($state === 'error') {
-        delete_post_meta($recording_id, $transcript_meta_key);
+        ll_tools_recording_delete_post_meta($recording_id, $transcript_meta_key);
         $message = isset($status['error']) ? (string) $status['error'] : __('AssemblyAI transcription failed.', 'll-tools-text-domain');
         wp_send_json_error($message, 500);
     }
 
-    update_post_meta($recording_id, $transcript_meta_key, $transcript_id);
+    ll_tools_recording_update_post_meta($recording_id, $transcript_meta_key, $transcript_id);
     wp_send_json_success([
         'pending' => true,
         'transcript_id' => $transcript_id,

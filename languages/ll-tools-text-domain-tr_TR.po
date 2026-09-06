@@ -5038,10 +5038,6 @@ msgstr "Ses kaydı bulunamadı"
 msgid "No audio recordings found in trash"
 msgstr "Çöp kutusunda ses kaydı bulunamadı"
 
-#: includes/admin/split-word-admin.php:326
-msgid "No audio recordings were found for this word."
-msgstr "Bu kelime için herhangi bir ses kaydı bulunamadı."
-
 #: includes/admin/word-option-rules-admin.php:2551
 msgid "No blocked pairs yet."
 msgstr "Henüz engellenmiş çift yok."
@@ -30147,3 +30143,259 @@ msgstr "İşin ilerleme durumu kaydedilemedi. Devam etmeden önce işin güncel 
 #: includes/lib/mutation-job-state.php:135
 msgid "An earlier job step did not finish checkpointing. Review its applied changes and saved state before recovery; automatic replay is blocked."
 msgstr "Önceki bir iş adımının ilerleme durumu tam olarak kaydedilemedi. Kurtarma işleminden önce uygulanan değişiklikleri ve kaydedilmiş durumu incele; otomatik yeniden çalıştırma engellendi."
+
+#: includes/lib/recording-history.php:6 includes/lib/recording-history.php:258
+msgid "Recordings could not be loaded. Please try again."
+msgstr "Ses kayıtları yüklenemedi. Lütfen yeniden dene."
+
+#: includes/lib/recording-history.php:159
+msgid "Awaiting processing"
+msgstr "İşlenmeyi bekliyor"
+
+#: includes/lib/recording-history.php:162
+msgid "Pending review"
+msgstr "İncelenmeyi bekliyor"
+
+#: includes/lib/recording-history.php:164
+msgid "Scheduled"
+msgstr "Zamanlandı"
+
+#: includes/lib/recording-history.php:225
+msgid "You do not have access to these recordings."
+msgstr "Bu ses kayıtlarına erişimin yok."
+
+#: includes/lib/recording-history.php:231
+msgid "Please reload the page and try again."
+msgstr "Lütfen sayfayı yeniden yükleyip tekrar dene."
+
+#: includes/lib/recording-history.php:235
+msgid "The recording history request is invalid."
+msgstr "Kayıt geçmişi isteği geçersiz."
+
+#: includes/lib/recording-history.php:256
+msgid "Loading recordings…"
+msgstr "Ses kayıtları yükleniyor…"
+
+#: includes/lib/recording-history.php:257
+msgid "No recordings to show."
+msgstr "Gösterilecek ses kaydı yok."
+
+#: includes/lib/recording-history.php:259
+msgid "This recording could not be played."
+msgstr "Bu ses kaydı oynatılamadı."
+
+#: includes/lib/recording-history.php:260
+msgid "Audio unavailable"
+msgstr "Ses kaydı kullanılamıyor"
+
+#: includes/lib/recording-history.php:274
+msgid "My recordings"
+msgstr "Ses kayıtlarım"
+
+#: includes/lib/recording-history.php:277
+msgid "Recordings credited to you in this word set."
+msgstr "Bu kelime setinde sana ait olarak belirtilen ses kayıtları."
+
+#: includes/lib/recording-history.php:281
+msgid "Recording history pages"
+msgstr "Kayıt geçmişi sayfaları"
+
+#: includes/lib/recording-history.php:282
+msgid "Newer"
+msgstr "Daha yeni"
+
+#: includes/lib/recording-metadata.php:10
+#: includes/lib/recording-metadata.php:33
+#: includes/lib/recording-metadata.php:156
+#: includes/pages/wordset-transcription-review.php:180
+#: includes/pages/wordset-transcription-review.php:186
+#: includes/pages/wordset-transcription-review.php:220
+#: includes/pages/wordset-transcription-review.php:287
+msgid ""
+"The save could not be verified. Reload this recording before editing again."
+msgstr ""
+"Kaydetme işlemi doğrulanamadı. Bu ses kaydını tekrar düzenlemeden önce "
+"yeniden yükle."
+
+#: includes/lib/word-copy.php:12
+msgid "The word could not be copied. Please try again."
+msgstr "Kelime kopyalanamadı. Lütfen yeniden dene."
+
+#: includes/lib/word-copy.php:36 includes/lib/word-copy.php:43
+#: includes/lib/word-copy.php:54
+msgid "You do not have permission to copy this word."
+msgstr "Bu kelimeyi kopyalama iznin yok."
+
+#: includes/lib/word-copy.php:52
+msgid "The word is no longer available in this word set."
+msgstr "Kelime artık bu kelime setinde bulunmuyor."
+
+#: includes/lib/word-copy.php:216
+msgid "%d published recording"
+msgid_plural "%d published recordings"
+msgstr[0] "%d yayımlanmış ses kaydı"
+msgstr[1] "%d yayımlanmış ses kaydı"
+
+#. translators: %d: ID of a retained draft word that needs administrative
+#. recovery.
+#: includes/lib/word-copy.php:221
+msgid ""
+"Draft word #%d was retained before word-set setup finished. Ask an "
+"administrator to review it; do not create another copy."
+msgstr ""
+"Kelime seti ayarları tamamlanmadan önce #%d numaralı taslak kelime korundu. "
+"Bir yöneticiden incelemesini iste; başka bir kopya oluşturma."
+
+#: includes/lib/word-copy.php:223
+msgid "Word copied."
+msgstr "Kelime kopyalandı."
+
+#: includes/lib/word-copy.php:224
+msgid ""
+"This copy needs review before continuing. Check the saved word and "
+"recordings; do not submit another copy."
+msgstr ""
+"Devam etmeden önce bu kopyayı incelemek gerekir. Kaydedilen kelimeyi ve ses "
+"kayıtlarını kontrol et; başka bir kopya oluşturma."
+
+#: includes/lib/word-copy.php:232 includes/lib/word-copy.php:439
+msgid "Choose at most 50 recordings for one copy."
+msgstr "Bir kopya için en fazla 50 ses kaydı seç."
+
+#: includes/lib/word-copy.php:250
+msgid "This request already belongs to a different copy."
+msgstr "Bu istek zaten farklı bir kopyaya ait."
+
+#: includes/lib/word-copy.php:261
+msgid "You must manage every word set using this word to move its recordings."
+msgstr ""
+"Ses kayıtlarını taşımak için bu kelimenin bulunduğu tüm kelime setlerini "
+"yönetiyor olman gerekir."
+
+#: includes/lib/word-copy.php:270
+msgid ""
+"A selected recording changed or is no longer available. Reopen the copy "
+"dialog."
+msgstr ""
+"Seçilen ses kayıtlarından biri değişti veya artık kullanılamıyor. Kopyalama "
+"penceresini yeniden aç."
+
+#: includes/lib/word-copy.php:395
+msgid "Invalid copy request."
+msgstr "Geçersiz kopyalama isteği."
+
+#: includes/lib/word-copy.php:400
+msgid "Your session expired. Reload the page."
+msgstr "Oturumunun süresi doldu. Sayfayı yeniden yükle."
+
+#: includes/lib/word-copy.php:425
+msgid "Copy / Split Word"
+msgstr "Kelimeyi Kopyala / Böl"
+
+#: includes/lib/word-copy.php:426
+msgid "New word title"
+msgstr "Yeni kelimenin başlığı"
+
+#: includes/lib/word-copy.php:427
+msgid "Move selected recordings to the copy"
+msgstr "Seçilen ses kayıtlarını kopyaya taşı"
+
+#: includes/lib/word-copy.php:428
+msgid ""
+"The image and word details are copied. Recordings stay on the original "
+"unless selected below."
+msgstr ""
+"Görsel ve kelime bilgileri kopyalanır. Aşağıda seçmediğin ses kayıtları asıl"
+" kelimede kalır."
+
+#: includes/lib/word-copy.php:429
+msgid "No recordings to move."
+msgstr "Taşınacak ses kaydı yok."
+
+#: includes/lib/word-copy.php:431
+msgid "Copying…"
+msgstr "Kopyalanıyor…"
+
+#: includes/lib/word-copy.php:432
+msgid "Create copy"
+msgstr "Kopya oluştur"
+
+#: includes/lib/word-copy.php:434
+msgid "More recordings"
+msgstr "Diğer ses kayıtları"
+
+#: includes/lib/word-copy.php:434
+msgid "View copy"
+msgstr "Kopyayı görüntüle"
+
+#: includes/lib/word-copy.php:435
+msgid "Check result"
+msgstr "Sonucu kontrol et"
+
+#: includes/lib/word-copy.php:436
+msgid "The request did not finish. Please try again."
+msgstr "İstek tamamlanmadı. Lütfen yeniden dene."
+
+#: includes/lib/word-copy.php:437
+msgid ""
+"The result is not confirmed yet. Check it before starting another copy."
+msgstr ""
+"Sonuç henüz doğrulanmadı. Başka bir kopya oluşturmadan önce kontrol et."
+
+#: includes/lib/word-copy.php:438
+msgid ""
+"Your browser could not save this copy request. Enable session storage and "
+"try again."
+msgstr ""
+"Tarayıcın bu kopyalama isteğini saklayamadı. Oturum depolamasını "
+"etkinleştirip yeniden dene."
+
+#: includes/pages/wordset-editor.php:4829
+msgid "Copy or split word"
+msgstr "Kelimeyi kopyala veya böl"
+
+#: includes/pages/wordset-editor.php:4830
+msgid "Copy / Split"
+msgstr "Kopyala / Böl"
+
+#: includes/pages/wordset-pages.php:14295
+#: includes/pages/wordset-pages.php:14346
+msgid "Transcription Review"
+msgstr "Transkripsiyon İncelemesi"
+
+#: includes/pages/wordset-pages.php:14397
+msgid ""
+"Listen to recordings and review transcription, IPA, and notes for this word "
+"set."
+msgstr ""
+"Bu kelime setindeki ses kayıtlarını dinle; transkripsiyonları, IPA "
+"metinlerini ve notları incele."
+
+#: includes/pages/wordset-transcription-review.php:134
+#: includes/pages/wordset-transcription-review.php:269
+#: includes/pages/wordset-transcription-review.php:286
+msgid "Could not load recordings."
+msgstr "Ses kayıtları yüklenemedi."
+
+#: includes/pages/wordset-transcription-review.php:196
+msgid "This recording changed. Reload it before editing again."
+msgstr "Bu ses kaydı değişti. Yeniden düzenlemeden önce yeniden yükle."
+
+#: includes/pages/wordset-transcription-review.php:284
+msgid "Saved"
+msgstr "Kaydedildi"
+
+#: includes/pages/wordset-transcription-review.php:284
+msgid "No recordings found on this page."
+msgstr "Bu sayfada ses kaydı bulunamadı."
+
+#: includes/pages/wordset-transcription-review.php:285
+msgid "More recordings remain. Continue to the next page."
+msgstr "Daha fazla ses kaydı var. Sonraki sayfaya geç."
+
+#: includes/pages/wordset-transcription-review.php:288
+msgid ""
+"Finish saving or reload the changed recordings before leaving this page."
+msgstr ""
+"Bu sayfadan ayrılmadan önce kaydetme işlemini tamamla veya değişen ses "
+"kayıtlarını yeniden yükle."

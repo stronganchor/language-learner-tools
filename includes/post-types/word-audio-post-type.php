@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/recording-metadata.php';
 /**
  * Register the "word_audio" custom post type
  * Each post represents one audio recording for a word
@@ -730,6 +731,9 @@ function ll_save_word_audio_meta($post_id) {
         return;
     }
 
+    $recording_scope = ll_tools_recording_write_acquire((int) $post_id);
+    if (is_wp_error($recording_scope)) { wp_die(esc_html($recording_scope->get_error_message()), '', ['response' => 429]); }
+    try {
     foreach (ll_tools_get_audio_attribution_fields() as $meta_key => $field_config) {
         if (!array_key_exists($meta_key, $_POST)) {
             continue;
@@ -751,11 +755,13 @@ function ll_save_word_audio_meta($post_id) {
         }
 
         if ($value === '') {
-            delete_post_meta($post_id, $meta_key);
+            ll_tools_recording_delete_post_meta($post_id, $meta_key);
         } else {
-            update_post_meta($post_id, $meta_key, $value);
+            ll_tools_recording_update_post_meta($post_id, $meta_key, $value);
         }
     }
+    } finally { ll_tools_recording_write_release($recording_scope); }
+    if ($write_error = ll_tools_recording_write_error((int) $post_id)) { wp_die(esc_html($write_error->get_error_message()), '', ['response' => 503]); }
 
     $parent_id = (int) wp_get_post_parent_id($post_id);
     if ($parent_id > 0) {

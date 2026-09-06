@@ -1,5 +1,6 @@
 <?php
 if (!defined('WPINC')) { die; }
+require_once __DIR__ . '/../lib/word-copy.php';
 
 if (!defined('LL_TOOLS_WORDSET_EDITOR_HISTORY_OPTION')) {
     define('LL_TOOLS_WORDSET_EDITOR_HISTORY_OPTION', 'll_tools_wordset_editor_action_history');
@@ -4446,6 +4447,7 @@ function ll_tools_wordset_editor_render_bulk_job_panel(array $job, int $wordset_
 }
 
 function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $category_rows): string {
+    ll_tools_word_copy_enqueue_assets($wordset_id);
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor', $back_url);
     $filters = ll_tools_wordset_editor_get_filters();
     $per_page = 75;
@@ -4803,7 +4805,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                         $text_fields = (array) ($row['text_fields'] ?? []);
                         $metadata_tags = (array) ($row['metadata_tags'] ?? []);
                         ?>
-                        <div class="ll-wordset-editor-row" role="row" data-ll-wordset-editor-row data-word-id="<?php echo esc_attr((string) $word_id); ?>">
+                        <div class="ll-wordset-editor-row" id="ll-wordset-editor-word-<?php echo esc_attr((string) $word_id); ?>" role="row" data-ll-wordset-editor-row data-word-id="<?php echo esc_attr((string) $word_id); ?>">
                             <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell">
                                 <input type="checkbox" name="ll_wordset_editor_word_ids[]" value="<?php echo esc_attr((string) $word_id); ?>" form="<?php echo esc_attr($bulk_form_id); ?>" data-ll-wordset-editor-word />
                                 <span class="screen-reader-text"><?php echo esc_html(sprintf(__('Select %s', 'll-tools-text-domain'), (string) ($row['title'] ?? ''))); ?></span>
@@ -4823,6 +4825,9 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                         <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="<?php echo esc_attr((string) $word_id); ?>" data-ll-wordset-editor-edit-url="<?php echo esc_url((string) ($row['edit_url'] ?? '')); ?>" aria-label="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>">
                                             <?php echo ll_tools_wordset_editor_icon('edit'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                             <span><?php echo esc_html__('Edit', 'll-tools-text-domain'); ?></span>
+                                        </button>
+                                        <button type="button" class="ll-word-copy-trigger" data-ll-word-copy data-word-id="<?php echo esc_attr((string) $word_id); ?>" aria-label="<?php echo esc_attr__('Copy or split word', 'll-tools-text-domain'); ?>">
+                                            <span aria-hidden="true">⧉</span><span><?php echo esc_html__('Copy / Split', 'll-tools-text-domain'); ?></span>
                                         </button>
                                     </span>
                                 </div>
@@ -4861,7 +4866,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     </span>
                                     <span class="ll-wordset-editor-media__item <?php echo ((int) ($row['published_audio_count'] ?? 0) > 0) ? 'is-ready' : (!empty($row['missing_audio']) ? 'is-missing' : 'is-muted'); ?>" title="<?php echo esc_attr(!empty($row['missing_audio']) ? __('Missing audio', 'll-tools-text-domain') : sprintf(_n('%d published recording', '%d published recordings', (int) ($row['published_audio_count'] ?? 0), 'll-tools-text-domain'), (int) ($row['published_audio_count'] ?? 0))); ?>">
                                         <?php echo ll_tools_wordset_editor_icon('audio'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                        <span><?php echo esc_html((string) ((int) ($row['published_audio_count'] ?? 0))); ?></span>
+                                        <span data-ll-word-copy-audio-count><?php echo esc_html((string) ((int) ($row['published_audio_count'] ?? 0))); ?></span>
                                     </span>
                                 </div>
                             </div>
