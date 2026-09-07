@@ -308,6 +308,7 @@ function ll_tools_context_pack_definitions(): array
                 'recording_text',
                 'data-ll-expected-card-count',
                 'vocab lesson',
+                'guest lesson columns',
                 'll_vocab_lesson_wordsets',
                 'stale vocab wordset IDs',
                 'vocab lesson category sync',
@@ -361,6 +362,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'invariants' => [
                 'Large wordsets are production data; first paint must stay bounded.',
+                'Vocabulary lesson roots must fill flex-based theme wrappers independently of guest/staff controls; vocab-lesson-theme-width.spec.js guards responsive columns before and after hydration.',
                 'Use shell cards, paged editor rows, ID queries, and lazy hydration before full word/media hydration.',
                 'Keep the complete browser category registry sparse, use ID-only lazy category shell references, and retain bounded content-shell metadata needed by unloaded-content search.',
                 'Search and progress summaries should use bounded or materialized data paths.',

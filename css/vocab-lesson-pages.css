@@ -7,6 +7,10 @@
     --ll-vlp-muted: #6b6256;
     --ll-vlp-accent: #1f6b5c;
     color: var(--ll-vlp-text);
+    /* Fill flex-based theme wrappers regardless of guest/staff toolbar content. */
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     padding: clamp(24px, 4vw, 48px) clamp(18px, 5vw, 60px) clamp(40px, 6vw, 70px);
     min-height: 70vh;
 }
