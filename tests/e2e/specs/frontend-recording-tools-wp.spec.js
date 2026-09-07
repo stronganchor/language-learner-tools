@@ -66,8 +66,14 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
 
     const editorResponse = await page.goto(state.editorPath, { waitUntil: 'domcontentloaded' });
     expect(editorResponse.status()).toBe(200);
-    const trigger = page.locator(`[data-ll-word-copy][data-word-id="${state.wordId}"]`);
-    await expect(trigger).toBeVisible({ timeout: 60000 });
+    const editTrigger = page.locator(`[data-ll-wordset-editor-open-word-edit][data-word-id="${state.wordId}"]`);
+    await expect(editTrigger).toBeVisible({ timeout: 60000 });
+    await editTrigger.click();
+    const popup = page.locator('[data-ll-word-edit-panel][aria-hidden="false"]');
+    await expect(popup).toBeVisible({ timeout: 60000 });
+    await expect(popup.locator('.ll-word-edit-recording')).toHaveCount(2);
+    const trigger = popup.locator(`[data-ll-word-copy][data-word-id="${state.wordId}"]`);
+    await expect(trigger).toBeVisible();
     await trigger.click();
     const dialog = page.locator('.ll-word-copy-dialog');
     await expect(dialog).toBeVisible();
@@ -82,6 +88,12 @@ test('scoped manager reviews and copies a word; attributed recorder sees private
     expect(persisted.copies[0].title).toBe(state.copyTitle);
     expect(persisted.parents).toEqual([state.wordId, persisted.copies[0].id]);
     await dialog.locator('.ll-word-copy-actions').getByRole('button', { name: 'Close', exact: true }).first().click();
+    await expect(trigger).toBeFocused();
+    await expect(popup.locator(`.ll-word-edit-recording[data-recording-id="${state.recordingIds[1]}"]`)).toHaveCount(0);
+    await popup.locator('[data-ll-word-edit-cancel]').click();
+    await editTrigger.click();
+    await expect(popup).toBeVisible({ timeout: 60000 });
+    await expect(popup.locator('.ll-word-edit-recording')).toHaveCount(1);
 
     await login(page, state.recorder);
     await page.goto(state.recorderPath, { waitUntil: 'domcontentloaded' });

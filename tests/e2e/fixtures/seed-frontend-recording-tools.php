@@ -187,6 +187,8 @@ function ll_frontend_tools_seed(string $run_id): array {
     $wav = 'RIFF' . pack('V', 36 + strlen($pcm)) . 'WAVEfmt ' . pack('VvvVVvv', 16, 1, 1, 8000, 16000, 2, 16) . 'data' . pack('V', strlen($pcm)) . $pcm;
     if (file_put_contents($state['mediaPath'], $wav) !== strlen($wav)) { WP_CLI::error('Could not write fixture media.'); }
     $audio_url = trailingslashit($uploads['baseurl']) . basename($state['mediaPath']);
+    $recording_type = get_term_by('slug', 'isolation', 'recording_type');
+    if (!$recording_type instanceof WP_Term) { WP_CLI::error('The standard isolation recording type is required.'); }
     $state['recordingIds'] = [];
     foreach ([1, 2] as $number) {
         $id = wp_insert_post(['post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $state['wordId'],
@@ -196,6 +198,7 @@ function ll_frontend_tools_seed(string $run_id): array {
         if (is_wp_error($id)) { WP_CLI::error($id->get_error_message()); }
         $state['recordingIds'][] = $id;
         ll_frontend_tools_save($state);
+        wp_set_object_terms($id, [(int) $recording_type->term_id], 'recording_type');
     }
     wp_update_post(['ID' => $state['wordId'], 'post_status' => 'publish']);
     ll_tools_ipa_keyboard_mark_recording_needs_auto_review($state['recordingIds'][0], 'recording_ipa', 'Fixture review note');

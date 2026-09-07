@@ -1,5 +1,6 @@
 <?php
 require_once dirname(__DIR__) . '/lib/recording-metadata.php';
+require_once dirname(__DIR__) . '/lib/word-copy.php';
 if (!defined('WPINC')) { die; }
 
 $ll_tools_word_grid_bulk_operations_file = (defined('LL_TOOLS_BASE_PATH')
@@ -3982,6 +3983,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         'editI18n'   => [
             'saving' => __('Saving...', 'll-tools-text-domain'),
             'savingBackground' => __('Saving in background...', 'll-tools-text-domain'),
+            'copySaveFirst' => __('Save changes before copying or splitting this word.', 'll-tools-text-domain'),
             'saved'  => __('Saved.', 'll-tools-text-domain'),
             'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
             'processingAudio' => __('Processing audio...', 'll-tools-text-domain'),
@@ -4091,6 +4093,9 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
 
 function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, array $overrides = []): array {
     $can_edit_words = !empty($context['can_edit_words']);
+    if ($can_edit_words) {
+        ll_tools_word_copy_enqueue_assets((int) ($context['wordset_id'] ?? 0));
+    }
     if ($can_edit_words && function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
         ll_tools_enqueue_jquery_ui_autocomplete_assets();
     }
@@ -4134,6 +4139,7 @@ function ll_tools_word_edit_modal_enqueue_assets(
         ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
     }
     ll_enqueue_asset_by_timestamp('/js/word-edit-modal.js', 'll-tools-word-edit-modal', ['jquery', 'll-tools-word-grid'], true);
+    ll_tools_word_copy_enqueue_assets($wordset_id);
     wp_localize_script('ll-tools-word-edit-modal', 'llToolsWordEditModalData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('ll_word_edit_modal'),
@@ -6801,6 +6807,9 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '</div>';
                 echo '<div class="ll-word-edit-footer">';
                 echo '<div class="ll-word-edit-actions">';
+                if ($wordset_id > 0 && current_user_can('view_ll_tools') && ll_tools_current_user_can_manage_wordset_content($wordset_id)) {
+                    echo '<button type="button" class="ll-word-copy-trigger" data-ll-word-copy data-word-id="' . esc_attr($word_id) . '" data-wordset-id="' . esc_attr($wordset_id) . '" data-word-copy-nonce="' . esc_attr(wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id)) . '" aria-label="' . esc_attr__('Copy or split word', 'll-tools-text-domain') . '"><span aria-hidden="true">⧉</span><span>' . esc_html__('Copy / Split', 'll-tools-text-domain') . '</span></button>';
+                }
                 echo '<button type="button" class="ll-word-edit-action ll-word-edit-save" data-ll-word-edit-save aria-label="' . esc_attr($edit_labels['save']) . '" title="' . esc_attr($edit_labels['save']) . '">';
                 echo '<span aria-hidden="true">';
                 echo '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';

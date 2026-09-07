@@ -30399,3 +30399,7 @@ msgid ""
 msgstr ""
 "Bu sayfadan ayrılmadan önce kaydetme işlemini tamamla veya değişen ses "
 "kayıtlarını yeniden yükle."
+
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Save changes before copying or splitting this word."
+msgstr "Bu kelimeyi kopyalamadan veya bölmeden önce değişiklikleri kaydet."

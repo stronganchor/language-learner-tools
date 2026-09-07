@@ -4826,7 +4826,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                             <?php echo ll_tools_wordset_editor_icon('edit'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                             <span><?php echo esc_html__('Edit', 'll-tools-text-domain'); ?></span>
                                         </button>
-                                        <button type="button" class="ll-word-copy-trigger" data-ll-word-copy data-word-id="<?php echo esc_attr((string) $word_id); ?>" aria-label="<?php echo esc_attr__('Copy or split word', 'll-tools-text-domain'); ?>">
+                                        <button type="button" class="ll-word-copy-trigger" data-ll-word-copy data-word-id="<?php echo esc_attr((string) $word_id); ?>" data-wordset-id="<?php echo esc_attr((string) $wordset_id); ?>" data-word-copy-nonce="<?php echo esc_attr(wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id)); ?>" aria-label="<?php echo esc_attr__('Copy or split word', 'll-tools-text-domain'); ?>">
                                             <span aria-hidden="true">⧉</span><span><?php echo esc_html__('Copy / Split', 'll-tools-text-domain'); ?></span>
                                         </button>
                                     </span>

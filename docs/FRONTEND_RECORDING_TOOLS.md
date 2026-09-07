@@ -6,7 +6,10 @@ for a contributor's own playback history.
 
 ## Copy or split a word
 
-Open **Editor**, find the source word, and choose **Copy / Split**. The dialog
+Open a word's **Edit word** popup from a lesson or Wordset Editor and choose
+**Copy / Split** beside the save/cancel controls. The same action is also available
+directly in **Word Set Tools → Editor**. Save pending word edits before copying;
+the popup preserves unsaved values and asks you to save them first. The dialog
 starts with the same title and retains all recordings on the original. The copy
 shares the existing image attachment and copies eligible word metadata. A source
 with no recordings can also be copied.
@@ -56,12 +59,18 @@ published readable words. History does not add deletion or rerecording rights.
 
 | Surface | Source / request boundary | Canonical tests |
 | --- | --- | --- |
-| Copy/Split | `includes/lib/word-copy.php`, `includes/pages/wordset-editor.php`, `js/word-copy-dialog.js`; `ll_tools_word_copy_preview`, `ll_tools_word_copy_apply`, `ll_tools_word_copy_status` | `WordCopySplitTest.php`, `word-copy-dialog.spec.js`, existing `SplitWordReturnFlowTest.php` |
+| Copy/Split | `includes/lib/word-copy.php`, `includes/pages/wordset-editor.php`, `includes/shortcodes/word-grid-shortcode.php`, `js/word-copy-dialog.js`; `ll_tools_word_copy_preview`, `ll_tools_word_copy_apply`, `ll_tools_word_copy_status` | `WordCopySplitTest.php`, `word-copy-dialog.spec.js`, `word-copy-popup.spec.js`, existing `SplitWordReturnFlowTest.php` |
 | Transcription review | `includes/pages/wordset-transcription-review.php`, `js/wordset-transcription-review.js`; `ll_tools_get_wordset_transcription_review`, `ll_tools_save_wordset_transcription_review`; settings tool `transcription-review` | `WordsetTranscriptionReviewTest.php`, `wordset-transcription-review.spec.js`, existing `IpaKeyboardAdminAjaxTest.php` |
 | Private history | `includes/lib/recording-history.php`, `includes/shortcodes/audio-recording-shortcode.php`, `js/recording-history.js`; authenticated `ll_tools_recording_history` | `RecordingHistoryTest.php`, `recording-history.spec.js`, existing recorder/upload attribution tests |
 
 Each feature has matching dedicated CSS and timestamped assets. AJAX endpoints
 check nonces and current object/wordset access before exposing media or writing.
+Popup copy triggers carry their own wordset and scoped nonce, including deferred
+editors. The nested native dialog owns focus and Escape while open. Its result
+event `ll-word-copy-source-updated` updates recording ownership in visible source cards
+and invalidates cached detached editor markup without a page refresh, including
+confirmed partial moves in an incomplete copy. Creation stays blocked while the
+receipt needs review.
 `includes/lib/recording-metadata.php` serializes recording text and review writes
 across these tools and existing editor, admin, import and sync paths. The shared
 lock, conditional metadata writes and fresh readback work with both InnoDB and

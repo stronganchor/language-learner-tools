@@ -5,13 +5,14 @@
     let dialog, body, message, submit, cancel, more, titleInput, list, opener;
     let sourceId = 0, requestId = '', afterId = 0, busy = false, generation = 0, controller;
     let mode = 'preview', intent = null;
+    let wordsetId = Number(cfg.wordsetId) || 0, nonce = cfg.nonce;
     const node = (tag, text, className) => {
         const el = document.createElement(tag);
         if (text) el.textContent = text;
         if (className) el.className = className;
         return el;
     };
-    const key = () => 'll-word-copy:' + cfg.userId + ':' + cfg.wordsetId + ':' + sourceId;
+    const key = () => 'll-word-copy:' + cfg.userId + ':' + wordsetId + ':' + sourceId;
     function remember(value) {
         try {
             if (!value) { sessionStorage.removeItem(key()); return true; }
@@ -33,7 +34,7 @@
     async function send(action, values = {}) {
         const ownedController = new AbortController(); controller = ownedController;
         const timeout = window.setTimeout(() => ownedController.abort(), Number(cfg.timeoutMs) || 30000);
-        const data = new URLSearchParams({ action, nonce: cfg.nonce, wordset_id: cfg.wordsetId, word_id: sourceId, request_id: requestId });
+        const data = new URLSearchParams({ action, nonce, wordset_id: wordsetId, word_id: sourceId, request_id: requestId });
         Object.keys(values).forEach(name => {
             const value = values[name];
             if (Array.isArray(value)) value.forEach(item => data.append(name + '[]', item));
@@ -109,26 +110,33 @@
     }
     function finished(data) {
         more.hidden = true;
+        // A pending copy may already own some recordings. Readback is authoritative
+        // even though creation must remain blocked until the receipt is resolved.
+        const sourceRow = opener.closest('[data-ll-wordset-editor-row]')
+            || document.querySelector('[data-ll-wordset-editor-row][data-word-id="' + sourceId + '"]');
+        if (sourceRow) {
+            data.moved_ids.forEach(id => sourceRow.querySelector('[data-recording-id="' + Number(id) + '"]')?.remove());
+            const status = sourceRow.querySelector('.ll-wordset-editor-cell--state .ll-wordset-editor-state');
+            if (status) { status.textContent = data.source_status_label; status.className = 'll-wordset-editor-state ll-wordset-editor-state--' + data.source_status; }
+            const audioCount = sourceRow.querySelector('[data-ll-word-copy-audio-count]');
+            if (audioCount) {
+                audioCount.textContent = String(data.source_audio_count);
+                audioCount.parentElement.title = data.source_audio_label;
+                audioCount.parentElement.classList.toggle('is-ready', data.source_audio_count > 0);
+                audioCount.parentElement.classList.toggle('is-missing', data.source_audio_count === 0);
+            }
+        }
+        document.dispatchEvent(new CustomEvent('ll-word-copy-source-updated', { detail: { ...data, wordId: sourceId, wordsetId } }));
         if (data.state !== 'completed') {
             mode = 'uncertain'; submit.textContent = cfg.check;
             showMessage(data.message || cfg.uncertain);
         } else {
             mode = 'completed'; remember(null); submit.textContent = cfg.close; showMessage(data.message);
-            const sourceRow = opener.closest('[data-ll-wordset-editor-row]');
             if (sourceRow) {
-                data.moved_ids.forEach(id => sourceRow.querySelector('[data-recording-id="' + Number(id) + '"]')?.remove());
-                const status = sourceRow.querySelector('.ll-wordset-editor-cell--state .ll-wordset-editor-state');
-                if (status) { status.textContent = data.source_status_label; status.className = 'll-wordset-editor-state ll-wordset-editor-state--' + data.source_status; }
-                const audioCount = sourceRow.querySelector('[data-ll-word-copy-audio-count]');
-                if (audioCount) {
-                    audioCount.textContent = String(data.source_audio_count);
-                    audioCount.parentElement.title = data.source_audio_label;
-                    audioCount.parentElement.classList.toggle('is-ready', data.source_audio_count > 0);
-                    audioCount.parentElement.classList.toggle('is-missing', data.source_audio_count === 0);
-                }
                 const resultLink = node('a', cfg.open + ': ' + data.title, 'll-word-copy-result'); resultLink.href = data.url;
-                opener.after(resultLink);
+                (sourceRow.querySelector('[data-ll-word-copy]') || opener).after(resultLink);
             }
+            document.dispatchEvent(new CustomEvent('ll-word-copy-completed', { detail: { ...data, wordId: sourceId, wordsetId } }));
         }
         dialog.querySelector('.ll-word-copy-outcome')?.remove();
         if (data.new_word_id && data.url) {
@@ -169,7 +177,10 @@
         if (!trigger) return;
         event.preventDefault();
         if (dialog?.open) return;
+        if (!trigger.dispatchEvent(new CustomEvent('ll-word-copy-before-open', { bubbles: true, cancelable: true }))) return;
         if (!dialog) build();
+        wordsetId = Number(trigger.dataset.wordsetId || cfg.wordsetId) || 0;
+        nonce = trigger.dataset.wordCopyNonce || cfg.nonce;
         opener = trigger; sourceId = Number(trigger.dataset.wordId); generation++; busy = false; mode = 'preview'; afterId = 0; intent = null;
         requestId = crypto.randomUUID();
         list.replaceChildren(); titleInput.value = ''; more.hidden = true; submit.textContent = cfg.submit; cancel.textContent = cfg.cancel;

@@ -30402,3 +30402,7 @@ msgid ""
 msgstr ""
 "Schließe das Speichern ab oder lade die geänderten Aufnahmen neu, bevor du "
 "diese Seite verlässt."
+
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Save changes before copying or splitting this word."
+msgstr "Speichere die Änderungen, bevor du diese Vokabel kopierst oder aufteilst."

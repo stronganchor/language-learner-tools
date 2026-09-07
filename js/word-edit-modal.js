@@ -517,6 +517,7 @@
     window.LLToolsWordEditModal.prepare = prepareWordEditor;
     window.LLToolsWordEditModal.cancelPrepared = cancelPreparedWordEditor;
     window.LLToolsWordEditModal.open = openWordEditor;
+    document.addEventListener('ll-word-copy-source-updated', clearGridResponseCache);
     $(document).on(
         'lltools:word-grid-word-updated.llToolsWordEditModal lltools:word-grid-word-deleted.llToolsWordEditModal lltools:word-grid-recording-deleted.llToolsWordEditModal lltools:word-grid-recording-moved.llToolsWordEditModal lltools:internal-review-note-updated.llToolsWordEditModal',
         clearGridResponseCache

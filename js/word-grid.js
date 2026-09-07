@@ -675,7 +675,7 @@
     function isWordEditDialogIsolationException(element, allowedBackdrop) {
         if (!(element instanceof HTMLElement)) { return true; }
         if (element === allowedBackdrop) { return true; }
-        return element.matches('.media-modal, .media-modal-backdrop, .ui-dialog, .ui-autocomplete, #wp-link-wrap');
+        return element.matches('.media-modal, .media-modal-backdrop, .ui-dialog, .ui-autocomplete, #wp-link-wrap, dialog.ll-word-copy-dialog');
     }
 
     function isolateWordEditDialogBackground(panel, allowedBackdrop) {
@@ -755,7 +755,7 @@
 
     function isWordEditDialogFocusException(target, panel) {
         if (!(target instanceof Element)) { return false; }
-        const secondaryDialog = target.closest('.media-modal, .ui-dialog, .ui-autocomplete, #wp-link-wrap, [role="dialog"][aria-modal="true"]');
+        const secondaryDialog = target.closest('.media-modal, .ui-dialog, .ui-autocomplete, #wp-link-wrap, [role="dialog"][aria-modal="true"], dialog.ll-word-copy-dialog[open]');
         return !!secondaryDialog && secondaryDialog !== panel && !panel.contains(secondaryDialog);
     }
 
@@ -3152,6 +3152,33 @@
         restoreOriginalImageState($item);
         setMetaFieldState($item);
         syncDictionaryEntrySelectionState($item);
+    }
+
+    // Copy uses persisted content; preserve edits until the editor save succeeds.
+    function wordCopyNeedsSave($item) {
+        let dirty = $item.attr('aria-busy') === 'true'
+            || $item.find('.is-saving, [data-ll-process-recording-audio]:disabled').length > 0;
+        $item.find(EDITABLE_INPUT_SELECTOR).each(function () {
+            const $input = $(this);
+            if ($input.is(':checkbox')) {
+                const original = $input.data('originalChecked');
+                dirty = dirty || (typeof original === 'string' && ($input.prop('checked') ? '1' : '0') !== original);
+            } else {
+                const original = $input.data('original');
+                dirty = dirty || (typeof original === 'string' && String($input.val() || '') !== original);
+            }
+        });
+        $item.find('[data-ll-recording-review-toggle]').each(function () {
+            const original = $(this).data('originalPressed');
+            dirty = dirty || (typeof original === 'string' && (this.getAttribute('aria-pressed') === 'true' ? '1' : '0') !== original);
+        });
+        $item.find('[data-ll-internal-review-note-input]').each(function () {
+            dirty = dirty || String($(this).val() || '') !== getInternalNoteOriginalValue($(this));
+        });
+        const file = $item.find('[data-ll-word-image-input]').get(0);
+        const picker = $item.data('llWordImagePickerState') || {};
+        return dirty || !!file?.files?.length
+            || String($item.find('[data-ll-word-image-existing-id]').first().val() || '') !== String(picker.id || '');
     }
 
     function normalizeWordImageData(imageData) {
@@ -9508,8 +9535,33 @@
 
         $(document).on('focusin.llWordEditModalA11y', containWordEditDialogFocus);
 
+        $(document).off('ll-word-copy-before-open.llWordCopy').on('ll-word-copy-before-open.llWordCopy', function (event) {
+            const $item = $(event.target).closest('.word-item');
+            if (!$item.length || !$(event.target).closest('[data-ll-word-edit-panel]').length) { return; }
+            if (wordCopyNeedsSave($item)) {
+                event.preventDefault();
+                setEditStatus($item, editI18n.copySaveFirst, true);
+                return;
+            }
+            setEditStatus($item, '');
+            stopLessonEditProcessingPlayback($item);
+        });
+
+        $(document).off('ll-word-copy-source-updated.llWordCopy').on('ll-word-copy-source-updated.llWordCopy', function (event) {
+            const data = event.originalEvent?.detail || {};
+            const wordId = parseInt(data.wordId, 10) || 0;
+            if (!wordId || !Array.isArray(data.moved_ids)) { return; }
+            $('.word-item[data-word-id="' + wordId + '"]').each(function () {
+                const $item = $(this);
+                data.moved_ids.forEach(function (id) { removeRecordingDom($item, id); });
+                if (data.source_status) { $item.attr('data-ll-word-status', data.source_status); }
+            });
+            clearMoveWordCache();
+        });
+
         $(document).on('keydown.llWordEditModal', function (event) {
             if (!event) { return; }
+            if (document.querySelector('dialog.ll-word-copy-dialog[open]')) { return; }
             if (event.key === 'Tab' && trapWordEditDialogTab(event)) { return; }
             if (event.key !== 'Escape') { return; }
             if ($('.ui-autocomplete:visible').length) { return; }
