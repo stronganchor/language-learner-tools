@@ -9,6 +9,33 @@ if (!class_exists('WP_CLI_Command')) {
 
 class LL_Tools_CLI_Command extends WP_CLI_Command {
     /**
+     * Run only bounded wordset category-search maintenance.
+     *
+     * ## OPTIONS
+     *
+     * [--max-seconds=<seconds>]
+     * : Time budget between batches (1-20, default 10).
+     *
+     * [--max-batches=<batches>]
+     * : Maximum batches per invocation (1-100, default 20).
+     *
+     * ## EXAMPLES
+     *
+     *     wp ll-tools wordset-search-worker --max-seconds=10 --max-batches=20
+     */
+    public function wordset_search_worker(array $args, array $assoc_args): void {
+        unset($args);
+        $result = ll_tools_run_wordset_category_search_worker(
+            (int) ($assoc_args['max-seconds'] ?? 10),
+            (int) ($assoc_args['max-batches'] ?? 20)
+        );
+        WP_CLI::line(ll_tools_cli_json_encode($result));
+        if (!empty($result['errors'])) {
+            WP_CLI::halt(1);
+        }
+    }
+
+    /**
      * Resume the durable wordset-isolation migration until completion.
      *
      * ## OPTIONS

@@ -346,6 +346,8 @@ function ll_tools_get_wordset_category_search_state(int $wordset_id): array {
         ),
         'last_id' => max(0, (int) ($raw['last_id'] ?? 0)),
         'processed' => max(0, (int) ($raw['processed'] ?? 0)),
+        'incremental_updates' => max(0, (int) ($raw['incremental_updates'] ?? 0)),
+        'last_incremental_at' => trim((string) ($raw['last_incremental_at'] ?? '')),
         'started_at' => trim((string) ($raw['started_at'] ?? '')),
         'completed_at' => trim((string) ($raw['completed_at'] ?? '')),
         'last_error' => trim((string) ($raw['last_error'] ?? '')),
@@ -385,6 +387,8 @@ function ll_tools_update_wordset_category_search_state(
         ),
         'last_id' => max(0, (int) ($state['last_id'] ?? 0)),
         'processed' => max(0, (int) ($state['processed'] ?? 0)),
+        'incremental_updates' => max(0, (int) ($state['incremental_updates'] ?? 0)),
+        'last_incremental_at' => trim((string) ($state['last_incremental_at'] ?? '')),
         'started_at' => trim((string) ($state['started_at'] ?? '')),
         'completed_at' => trim((string) ($state['completed_at'] ?? '')),
         'last_error' => trim((string) ($state['last_error'] ?? '')),
@@ -909,7 +913,7 @@ function ll_tools_wordset_category_search_get_sweep_wordset_batch(
 /**
  * Queue one bounded page of per-wordset rebuild events.
  */
-function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, $after_wordset_id = 0): void {
+function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, $after_wordset_id = 0): bool {
     $generation = (int) $generation;
     $after_wordset_id = max(0, (int) $after_wordset_id);
     if ($generation <= 0) {
@@ -917,7 +921,7 @@ function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, 
         $after_wordset_id = 0;
     }
     if ($generation !== ll_tools_wordset_category_search_sweep_generation()) {
-        return;
+        return true;
     }
 
     $batch_size = (int) apply_filters('ll_tools_wordset_category_search_sweep_batch_size', 10);
@@ -937,15 +941,15 @@ function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, 
                 $args
             );
         }
-        return;
+        return false;
     }
 
     ll_tools_schedule_wordset_category_search_rebuild_scope($wordset_ids);
     if (count($wordset_ids) < $batch_size) {
-        return;
+        return true;
     }
     if ($generation !== ll_tools_wordset_category_search_sweep_generation()) {
-        return;
+        return true;
     }
 
     $next_cursor = (int) end($wordset_ids);
@@ -957,6 +961,7 @@ function ll_tools_wordset_category_search_run_scheduling_sweep($generation = 0, 
             $args
         );
     }
+    return true;
 }
 add_action(
     LL_TOOLS_WORDSET_CATEGORY_SEARCH_SWEEP_HOOK,
@@ -1165,7 +1170,7 @@ function ll_tools_wordset_category_search_on_word_updated(int $post_id, WP_Post 
         return;
     }
 
-    ll_tools_wordset_category_search_invalidate_scope(
+    ll_tools_wordset_category_search_record_word_change($post_id,
         ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
     );
 }
@@ -1233,7 +1238,7 @@ function ll_tools_wordset_category_search_on_word_status_change(string $new_stat
         $current_scope = $post->post_type === 'words'
             ? ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
             : ['wordset_ids' => [], 'complete' => true];
-        ll_tools_wordset_category_search_invalidate_scope([
+        ll_tools_wordset_category_search_record_word_change($post_id, [
             'wordset_ids' => array_merge(
                 (array) ($old_scope['wordset_ids'] ?? []),
                 (array) ($current_scope['wordset_ids'] ?? [])
@@ -1245,7 +1250,7 @@ function ll_tools_wordset_category_search_on_word_status_change(string $new_stat
 
     unset($GLOBALS['ll_tools_wcs_scope_before_published_word_exit'][$post_id]);
     if ($new_status === 'publish' && $post->post_type === 'words') {
-        ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_record_word_change($post_id,
             ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
         );
     }
@@ -1278,7 +1283,7 @@ function ll_tools_wordset_category_search_on_word_type_change(
 
     $current_scope = ll_tools_wordset_category_search_wordset_scope_for_word($post_id);
     if ($post_before->post_type === 'words' && is_array($old_scope)) {
-        ll_tools_wordset_category_search_invalidate_scope([
+        ll_tools_wordset_category_search_record_word_change($post_id, [
             'wordset_ids' => array_merge(
                 (array) ($old_scope['wordset_ids'] ?? []),
                 (array) ($current_scope['wordset_ids'] ?? [])
@@ -1288,7 +1293,7 @@ function ll_tools_wordset_category_search_on_word_type_change(
         return;
     }
 
-    ll_tools_wordset_category_search_invalidate_scope($current_scope);
+    ll_tools_wordset_category_search_record_word_change($post_id, $current_scope);
 }
 add_action('post_updated', 'll_tools_wordset_category_search_on_word_type_change', 25, 3);
 
@@ -1307,7 +1312,7 @@ function ll_tools_wordset_category_search_on_word_translation_change($meta_id, i
         return;
     }
 
-    ll_tools_wordset_category_search_invalidate_scope(
+    ll_tools_wordset_category_search_record_word_change($post_id,
         ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
     );
 }
@@ -1381,14 +1386,14 @@ function ll_tools_wordset_category_search_on_word_terms_change(
             array_merge($new_ids, $old_ids),
             'wordset'
         );
-        ll_tools_wordset_category_search_invalidate_scope([
+        ll_tools_wordset_category_search_record_word_change($object_id, [
             'wordset_ids' => (array) ($term_scope['term_ids'] ?? []),
             'complete' => !empty($term_scope['complete']),
         ]);
         return;
     }
 
-    ll_tools_wordset_category_search_invalidate_scope(
+    ll_tools_wordset_category_search_record_word_change($object_id,
         ll_tools_wordset_category_search_wordset_scope_for_word($object_id)
     );
 }
@@ -1414,7 +1419,7 @@ function ll_tools_wordset_category_search_on_word_terms_removed(
     }
 
     if ($taxonomy === 'word-category') {
-        ll_tools_wordset_category_search_invalidate_scope(
+        ll_tools_wordset_category_search_record_word_change($object_id,
             ll_tools_wordset_category_search_wordset_scope_for_word($object_id)
         );
         return;
@@ -1422,7 +1427,7 @@ function ll_tools_wordset_category_search_on_word_terms_removed(
 
     $removed_scope = ll_tools_wordset_category_search_term_taxonomy_scope($tt_ids, 'wordset');
     $current_scope = ll_tools_wordset_category_search_wordset_scope_for_word($object_id);
-    ll_tools_wordset_category_search_invalidate_scope([
+    ll_tools_wordset_category_search_record_word_change($object_id, [
         'wordset_ids' => array_merge(
             (array) ($removed_scope['term_ids'] ?? []),
             (array) ($current_scope['wordset_ids'] ?? [])
@@ -1440,8 +1445,8 @@ function ll_tools_wordset_category_search_before_word_delete(int $post_id, WP_Po
         return;
     }
 
-    ll_tools_wordset_category_search_invalidate_scope(
-        ll_tools_wordset_category_search_wordset_scope_for_word($post_id)
+    $GLOBALS['ll_tools_wcs_word_deletion_plans'][$post_id] = ll_tools_wordset_category_search_record_word_change(
+        $post_id, ll_tools_wordset_category_search_wordset_scope_for_word($post_id), true
     );
     $GLOBALS['ll_tools_wcs_word_deletion'][$post_id] = true;
 }
@@ -1449,10 +1454,12 @@ add_action('before_delete_post', 'll_tools_wordset_category_search_before_word_d
 
 function ll_tools_wordset_category_search_clear_word_deletion(int $post_id, WP_Post $post): void {
     if ($post->post_type === 'words' && isset($GLOBALS['ll_tools_wcs_word_deletion'][$post_id])) {
-        unset($GLOBALS['ll_tools_wcs_word_deletion'][$post_id]);
+        foreach ((array) ($GLOBALS['ll_tools_wcs_word_deletion_plans'][$post_id] ?? []) as $wordset_id => $plan) {
+            ll_tools_wordset_category_search_refresh_word((int) $wordset_id, $post_id, $plan);
+        }
+        unset($GLOBALS['ll_tools_wcs_word_deletion'][$post_id], $GLOBALS['ll_tools_wcs_word_deletion_plans'][$post_id]);
     }
 }
-add_action('delete_post', 'll_tools_wordset_category_search_clear_word_deletion', 1, 2);
 add_action('deleted_post', 'll_tools_wordset_category_search_clear_word_deletion', 1, 2);
 
 /**
@@ -1540,12 +1547,14 @@ function ll_tools_wordset_category_search_get_word_batch(
     int $wordset_id,
     int $last_id,
     int $batch_size,
-    ?bool &$complete = null
+    ?bool &$complete = null,
+    int $only_word_id = 0
 ): array {
     global $wpdb;
 
     $complete = true;
     $limit = max(1, $batch_size) + 1;
+    $exact_word_clause = $only_word_id > 0 ? $wpdb->prepare("AND posts.ID = %d", $only_word_id) : "";
     $sql = "
         SELECT
             posts.ID AS word_id,
@@ -1579,6 +1588,7 @@ function ll_tools_wordset_category_search_get_word_batch(
         WHERE posts.post_type = 'words'
           AND posts.post_status = 'publish'
           AND posts.ID > %d
+          {$exact_word_clause}
         ORDER BY posts.ID ASC
         LIMIT %d
     ";
@@ -2075,11 +2085,11 @@ function ll_tools_wordset_category_search_process_rebuild_batch(int $wordset_id)
         }
 
         $insert_rows = [];
-        $now = current_time('mysql', true);
         foreach ($word_rows as $word_row) {
             $word_id = (int) $word_row['word_id'];
             $deepest_complete = true;
-            $deepest_category_ids = ll_tools_wordset_category_search_get_deepest_categories(
+            $word_insert_rows = ll_tools_wordset_category_search_build_word_rows(
+                $wordset_id, $generation, $word_row,
                 (array) ($category_map[$word_id] ?? []),
                 $deepest_complete
             );
@@ -2100,29 +2110,7 @@ function ll_tools_wordset_category_search_process_rebuild_batch(int $wordset_id)
                 );
             }
 
-            $title = ll_tools_wordset_category_search_cap_value((string) $word_row['title_value']);
-            $translation = ll_tools_wordset_category_search_cap_value((string) $word_row['translation_value']);
-            $title_normalized = ll_tools_wordset_category_search_normalize_value($title);
-            $translation_normalized = ll_tools_wordset_category_search_normalize_value($translation);
-            if ($title_normalized === '' && $translation_normalized === '') {
-                continue;
-            }
-
-            foreach ($deepest_category_ids as $category_id) {
-                $insert_rows[] = [
-                    'wordset_id' => $wordset_id,
-                    'generation' => $generation,
-                    'category_id' => (int) $category_id,
-                    'word_id' => $word_id,
-                    'title_value' => $title,
-                    'translation_value' => $translation,
-                    'title_normalized' => $title_normalized,
-                    'translation_normalized' => $translation_normalized,
-                    'title_tokens' => ll_tools_wordset_category_search_token_value($title_normalized),
-                    'translation_tokens' => ll_tools_wordset_category_search_token_value($translation_normalized),
-                    'updated_at' => $now,
-                ];
-            }
+            array_push($insert_rows, ...$word_insert_rows);
         }
 
         if (!ll_tools_wordset_category_search_insert_rows($insert_rows, $lock)) {
@@ -2236,6 +2224,7 @@ function ll_tools_wordset_category_search_state_is_ready(
         && $generation !== ''
         && hash_equals($generation, $published_generation)
         && hash_equals($signature, (string) ($state['signature'] ?? ''))
+        && hash_equals($signature, ll_tools_wordset_category_search_fresh_signature($wordset_id))
         && !ll_tools_wordset_category_search_lock_exists($wordset_id);
 }
 
@@ -2252,6 +2241,9 @@ function ll_tools_wordset_category_search_ensure_ready(int $wordset_id): bool {
     $state = ll_tools_get_wordset_category_search_state($wordset_id);
     if (ll_tools_wordset_category_search_state_is_ready($wordset_id, $signature, $state)) {
         return true;
+    }
+    if (ll_tools_wordset_category_search_background_only()) {
+        return false;
     }
     if (
         hash_equals($signature, (string) $state['signature'])

@@ -327,6 +327,8 @@ function ll_tools_context_pack_definitions(): array
                 'word copy receipt',
                 'inline edit',
                 'category search',
+                'search background worker',
+                'incremental word indexing',
                 'progress summary',
                 'progress-filtered selection launch',
                 'progress Select all',
@@ -361,6 +363,7 @@ function ll_tools_context_pack_definitions(): array
                 'll_tools_wordset_recorder_queue_summaries',
             ],
             'invariants' => [
+                'Managed category search runs only through an independently scheduled bounded CLI worker; search requests cannot build or enqueue work in background-only mode. Ordinary word changes advance source epochs and replace only that word under a proven current generation and owner lease; conflicts or incomplete scopes retain the bounded full-rebuild fallback.',
                 'Large wordsets are production data; first paint must stay bounded.',
                 'Vocabulary lesson roots must fill flex-based theme wrappers independently of guest/staff controls; vocab-lesson-theme-width.spec.js guards responsive columns before and after hydration.',
                 'Use shell cards, paged editor rows, ID queries, and lazy hydration before full word/media hydration.',
@@ -403,6 +406,8 @@ function ll_tools_context_pack_definitions(): array
                 'Public wordset-button counts use bounded keyset discovery plus resumable prompt-card and raw-word budgets; partial generations are never authoritative, anonymous last-known-good HTML remains structurally scoped, and a cold anonymous response is non-cacheable with signed status-only polling that schedules rather than executes worker scans.',
             ],
             'sources' => [
+                'includes/lib/wordset-category-search-*.php',
+                'docs/WORDSET_SEARCH_MAINTENANCE.md',
                 'includes/pages/wordset-pages.php',
                 'includes/taxonomies/wordset-taxonomy.php',
                 'includes/pages/wordset-editor.php',
