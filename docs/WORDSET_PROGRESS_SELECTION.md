@@ -11,7 +11,7 @@ It stays available at portrait phone widths even when the Last column is hidden.
   30 days** replace the word filters/search with the named group and select it.
   The existing selection bar launches the group in the chosen study mode.
 - Applying a summary pill, search, category filter, or column filter selects
-  the matching scope and reveals the study actions when results arrive. Pills
+  the matching scope and immediately reveals the study actions. Pills
   still toggle their filter off on a second tap. Clearing the selection hides
   the actions until another filter or selection action. The older-words pill
   uses purple and a clock icon.
@@ -26,10 +26,17 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - `includes/user-progress.php` supplies `summary.older_words` in summary-only,
   paged, and selection-ID payloads. Count during existing aggregate passes; do
   not add another whole-wordset hydration or a per-pill request.
-- A requested group selection waits for an authoritative response for that
-  exact filter. Another filter change cancels it; a failed response preserves
-  the intent for Retry without selecting stale rows. Choosing the same preset
-  after a failure also requests fresh results.
+- A requested group immediately creates a filter-bound selection descriptor,
+  without taking IDs from the previous table. Pure summary groups reuse the
+  displayed summary count; combined filters show a loading count until their
+  own response arrives. The Select dropdown and mode buttons remain available
+  while table analytics loads. Launch uses the authoritative ID-only lookup,
+  independently of the slower table refresh; an unknown count never borrows
+  the previous filter's total. Known-empty selections hide the actions.
+- Another filter change cancels the previous intent. Failed table analytics
+  preserves the descriptor and cannot block the independent launch lookup.
+  Choosing the same preset after a failure also requests fresh table results.
+  An active launch keeps its exact ID count if table analytics arrives later.
 - Table autoload pauses during a full analytics/filter refresh and after a
   failure. Scrolling or rotating a phone must not queue redundant refreshes
   that discard an otherwise useful response or leave Select disabled.
@@ -46,7 +53,7 @@ It stays available at portrait phone widths even when the Last column is hidden.
 `UserStudyAnalyticsTest` verifies older counts and equivalent Last/summary
 filters without hydrating selection rows. `wordset-page-progress-loading.spec.js`
 verifies complete selection scopes, both older-word study modes, empty/failing
-filters, retry recovery, automatic filter selection, mobile refresh concurrency,
+filters, retry recovery, immediate actions before table responses, mobile refresh concurrency,
 pending selection, and bounded launches. `wordset-progress-mobile-layout.spec.js`
 checks the native control and table layout across phone widths and themes.
 Both browser harnesses supply their own page and API responses and can run with
