@@ -5298,9 +5298,15 @@
         const loadingDelay = shouldShowLoading ? 80 : 0;
         const renderDelay = shouldShowLoading ? 95 : 0;
         const desiredFilterKey = getCurrentProgressWordRequestFilterKey();
-        const needsAnalyticsRefresh = desiredFilterKey !== progressWordRequestFilterKey;
+        const needsAnalyticsRefresh = desiredFilterKey !== progressWordRequestFilterKey
+            || progressAnalyticsFailed
+            || (progressWordPendingFilterKey !== null && progressWordPendingFilterKey !== desiredFilterKey);
         clearTimeout(analyticsWordRenderTimer);
         clearTimeout(analyticsWordLoadingTimer);
+
+        if (opts.selectFiltered && getProgressSelectAllContextLabel()) {
+            progressPendingSelectionFilterKey = getCurrentProgressSelectionFilterKey();
+        }
 
         if (needsAnalyticsRefresh) {
             progressWordPendingFilterKey = desiredFilterKey;
@@ -6584,6 +6590,9 @@
                     : !!(launchPlan && Array.isArray(launchPlan.categoryIds) && launchPlan.categoryIds.length);
                 const disabled = !mode
                     || progressSelectionLaunchBusy
+                    || filterRefreshPending
+                    || progressAnalyticsLoading
+                    || progressAnalyticsFailed
                     || !hasLaunchPlan
                     || launchableWordCount < minimumWordCount
                     || (mode === 'gender' && !allowGender);
@@ -7608,7 +7617,7 @@
             try { request.abort('timeout'); } catch (_) { /* no-op */ }
         }, PROGRESS_ANALYTICS_REQUEST_TIMEOUT_MS);
         return request.done(function (res) {
-            if (token !== analyticsRequestToken) { return; }
+            if (token !== analyticsRequestToken || wordFilterKey !== getCurrentProgressWordRequestFilterKey()) { return; }
             if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose(opts);
                 return;
@@ -7642,28 +7651,26 @@
                 return;
             }
             progressWordPendingFilterKey = null;
-            progressPendingSelectionFilterKey = null;
             invalidateProgressWordIdsSnapshot();
-            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             progressAnalyticsLoading = false;
             progressAnalyticsFailed = true;
+            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
                 renderProgressAnalytics();
             }
             setProgressStatus(i18n.analyticsUnavailable || '', 'error');
         }).fail(function () {
-            if (token !== analyticsRequestToken) { return; }
+            if (token !== analyticsRequestToken || wordFilterKey !== getCurrentProgressWordRequestFilterKey()) { return; }
             if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose(opts);
                 return;
             }
             progressWordPendingFilterKey = null;
-            progressPendingSelectionFilterKey = null;
             invalidateProgressWordIdsSnapshot();
-            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             progressAnalyticsLoading = false;
             progressAnalyticsFailed = true;
+            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             setSummaryMetricsLoadingState(false);
             if (!progressAnalyticsLoaded || !!analytics.wordsOmitted) {
                 renderProgressAnalytics();
@@ -7789,7 +7796,9 @@
     }
 
     function loadMoreProgressWords() {
-        if (!$progressRoot.length || !isLoggedIn || !ajaxUrl || !nonce || progressWordPageLoading) {
+        if (!$progressRoot.length || !isLoggedIn || !ajaxUrl || !nonce || progressWordPageLoading
+            || analyticsInFlightRequest || progressWordFilterRefreshIsPending()
+            || progressAnalyticsLoading || progressAnalyticsFailed) {
             return $.Deferred().resolve(null).promise();
         }
         const pagination = getProgressWordPagination();
@@ -7846,7 +7855,9 @@
 
     function checkProgressWordsAutoLoad() {
         progressWordAutoLoadTimer = 0;
-        if (analyticsTab !== 'words' || !progressWordsHaveMore() || progressWordPageLoading) {
+        if (analyticsTab !== 'words' || !progressWordsHaveMore() || progressWordPageLoading
+            || analyticsInFlightRequest || progressWordFilterRefreshIsPending()
+            || progressAnalyticsLoading || progressAnalyticsFailed) {
             return;
         }
 
@@ -20090,7 +20101,7 @@
             setProgressTab('words', { skipRender: true });
             triggerProgressKpiFeedback($button);
             triggerProgressWordFilterAnimation();
-            scheduleProgressWordTableRender({ showLoading: false });
+            scheduleProgressWordTableRender({ showLoading: false, selectFiltered: true });
         });
 
         $root.on('input', '[data-ll-wordset-progress-search]', function () {
@@ -20099,7 +20110,7 @@
             renderProgressWordColumnFilterOptions();
             renderProgressCategoryFilterOptions();
             renderProgressFilterTriggerStates();
-            scheduleProgressWordTableRender({ showLoading: true });
+            scheduleProgressWordTableRender({ showLoading: true, selectFiltered: true });
         });
 
         $root.on('input', '[data-ll-wordset-progress-category-search]', function () {
@@ -20130,7 +20141,7 @@
             renderProgressWordColumnFilterOptions();
             renderProgressCategoryFilterOptions();
             renderProgressFilterTriggerStates();
-            scheduleProgressWordTableRender({ showLoading: false });
+            scheduleProgressWordTableRender({ showLoading: false, selectFiltered: true });
         });
 
         $root.on('change', '[data-ll-wordset-progress-category-filter-check]', function () {
@@ -20146,7 +20157,7 @@
             renderProgressWordColumnFilterOptions();
             renderProgressCategoryFilterOptions();
             renderProgressFilterTriggerStates();
-            scheduleProgressWordTableRender({ showLoading: false });
+            scheduleProgressWordTableRender({ showLoading: false, selectFiltered: true });
         });
 
         $root.on('click', '[data-ll-wordset-progress-clear-filters]', function (evt) {
@@ -20158,7 +20169,7 @@
             renderProgressCategoryFilterOptions();
             renderProgressFilterTriggerStates();
             triggerProgressWordFilterAnimation();
-            scheduleProgressWordTableRender({ showLoading: false });
+            scheduleProgressWordTableRender({ showLoading: false, selectFiltered: true });
         });
 
         $root.on('change', '[data-ll-wordset-progress-select-all]', function () {

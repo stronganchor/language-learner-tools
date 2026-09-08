@@ -10,8 +10,11 @@ It stays available at portrait phone widths even when the Last column is hidden.
 - **Learned**, **In progress**, **New**, **Starred**, **Hard**, and **Older than
   30 days** replace the word filters/search with the named group and select it.
   The existing selection bar launches the group in the chosen study mode.
-- Summary pills remain filter toggles; they do not automatically select words.
-  The older-words pill uses purple and a clock icon.
+- Applying a summary pill, search, category filter, or column filter selects
+  the matching scope and reveals the study actions when results arrive. Pills
+  still toggle their filter off on a second tap. Clearing the selection hides
+  the actions until another filter or selection action. The older-words pill
+  uses purple and a clock icon.
 - **Older than 30 days** uses the same last-seen rule as the Last column's
   **Older** option: a recorded last-seen time strictly more than 30 days ago.
   Never-seen, recent, and future-dated words are excluded.
@@ -24,7 +27,12 @@ It stays available at portrait phone widths even when the Last column is hidden.
   paged, and selection-ID payloads. Count during existing aggregate passes; do
   not add another whole-wordset hydration or a per-pill request.
 - A requested group selection waits for an authoritative response for that
-  exact filter. Another filter change or a failed response cancels it.
+  exact filter. Another filter change cancels it; a failed response preserves
+  the intent for Retry without selecting stale rows. Choosing the same preset
+  after a failure also requests fresh results.
+- Table autoload pauses during a full analytics/filter refresh and after a
+  failure. Scrolling or rotating a phone must not queue redundant refreshes
+  that discard an otherwise useful response or leave Select disabled.
 - A complete unfiltered page can reuse explicit candidate IDs. A paged All
   selection uses `__all_words__` as its client selection identity and an empty
   server filter, retaining the existing `selection_ids_only` lookup and bounded
@@ -38,7 +46,8 @@ It stays available at portrait phone widths even when the Last column is hidden.
 `UserStudyAnalyticsTest` verifies older counts and equivalent Last/summary
 filters without hydrating selection rows. `wordset-page-progress-loading.spec.js`
 verifies complete selection scopes, both older-word study modes, empty/failing
-filters, pending selection, and bounded launches. `wordset-progress-mobile-layout.spec.js`
+filters, retry recovery, automatic filter selection, mobile refresh concurrency,
+pending selection, and bounded launches. `wordset-progress-mobile-layout.spec.js`
 checks the native control and table layout across phone widths and themes.
 Both browser harnesses supply their own page and API responses and can run with
 the installed Playwright CLI while Local HTTP is stopped. PHP integration tests

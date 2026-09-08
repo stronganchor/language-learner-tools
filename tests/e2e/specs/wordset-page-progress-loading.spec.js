@@ -1244,6 +1244,189 @@ test('a failed preset cannot select stale rows and an empty filter still allows 
   await expect.poll(async () => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(4);
 });
 
+test('Older preset recovers after its current filter has a background refresh failure', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    words: buildProgressWords(1, 8)
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const select = page.getByRole('combobox', { name: 'Select words' });
+  const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
+  const olderRows = buildProgressWords(101, 6).map(row => ({ ...row, last_seen_at: '2000-01-01 00:00:00' }));
+  await select.selectOption('older');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    olderWords: 6, words: olderRows
+  }));
+  await expect(selectionBar).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('6 selected words');
+  await page.locator('[data-ll-wordset-progress-selection-clear]').click();
+  await expect(selectionBar).toBeHidden();
+
+  await page.evaluate(() => window.jQuery(document).trigger('lltools:progress-updated'));
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  await page.evaluate(() => window.__rejectAnalyticsRequest(2));
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toHaveText('Progress unavailable.');
+  await expect(select).toBeEnabled();
+
+  await select.selectOption('older');
+  await expect(selectionBar).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(4);
+  expect(await page.evaluate(() => JSON.parse(window.__llAnalyticsRequests[3].request.word_filter).summary)).toBe('older');
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(3, payload), buildAnalytics({
+    olderWords: 5, words: olderRows.slice(1)
+  }));
+  await expect(select).toBeEnabled();
+  await expect(selectionBar).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('5 selected words');
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr.is-selected')).toHaveCount(5);
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeEnabled();
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toBeHidden();
+});
+
+test('Retry restores a failed Older preset selection and its launch menu', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    words: buildProgressWords(1, 8)
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const select = page.getByRole('combobox', { name: 'Select words' });
+  const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
+  await select.selectOption('older');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(() => window.__rejectAnalyticsRequest(1));
+  await expect(selectionBar).toBeHidden();
+  await expect(select).toBeEnabled();
+  const retry = page.locator('[data-ll-wordset-progress-retry]');
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => JSON.parse(window.__llAnalyticsRequests[2].request.word_filter).summary)).toBe('older');
+  await expect(selectionBar).toBeHidden();
+  const olderRows = buildProgressWords(101, 6).map(row => ({ ...row, last_seen_at: '2000-01-01 00:00:00' }));
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(2, payload), buildAnalytics({
+    olderWords: 6, words: olderRows
+  }));
+  await expect(retry).toBeHidden();
+  await expect(select).toBeEnabled();
+  await expect(selectionBar).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('6 selected words');
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr.is-selected')).toHaveCount(6);
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="listening"]')).toBeEnabled();
+});
+
+test('mobile autoload events preserve an in-flight Older filter response without a duplicate refresh', async ({ page }) => {
+  await mountProgressPage(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    totalWords: 80, words: buildProgressWords(1, 30),
+    wordsPagination: { enabled: true, total: 80, loaded: 30, limit: 30, offset: 0, next_offset: 30, has_more: true }
+  }));
+  await page.getByRole('tab', { name: 'Words' }).click();
+  const select = page.getByRole('combobox', { name: 'Select words' });
+  await select.selectOption('older');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await expect(select).toBeDisabled();
+  await page.evaluate(() => {
+    const wrap = document.querySelector('.ll-wordset-progress-table-wrap');
+    wrap.scrollTop = wrap.scrollHeight;
+    wrap.dispatchEvent(new Event('scroll'));
+    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event('scroll'));
+  });
+  // Allow the 80ms autoload debounce to run while the filter response is held.
+  await page.waitForTimeout(180);
+  const olderRows = buildProgressWords(101, 6).map(row => ({ ...row, last_seen_at: '2000-01-01 00:00:00' }));
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    totalWords: 80, olderWords: 6, words: olderRows
+  }));
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('6 selected words');
+  await expect(select).toBeEnabled();
+  // A queued trailing refresh would start after 80ms and discard this response.
+  await page.waitForTimeout(180);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await expect(page.locator('[data-ll-wordset-progress-status]')).toBeHidden();
+});
+
+test('turning Older off during its request never applies the stale filtered response', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  const initial = buildAnalytics({ olderWords: 6, words: buildProgressWords(1, 8) });
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), initial);
+  const olderPill = page.locator('[data-ll-wordset-progress-kpi-filter="older"]');
+  await olderPill.click();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await expect(olderPill).toHaveAttribute('aria-pressed', 'true');
+  await olderPill.click();
+  await expect(olderPill).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toBeHidden();
+  await page.evaluate(() => {
+    window.__staleOlderResponseRendered = false;
+    const body = document.querySelector('[data-ll-wordset-progress-words-body]');
+    window.__olderResponseObserver = new MutationObserver(() => {
+      if (body.querySelector('tr[data-word-id="101"]')) {
+        window.__staleOlderResponseRendered = true;
+      }
+    });
+    window.__olderResponseObserver.observe(body, { childList: true, subtree: true });
+  });
+  const olderRows = buildProgressWords(101, 6).map(row => ({ ...row, last_seen_at: '2000-01-01 00:00:00' }));
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    olderWords: 6, words: olderRows
+  }));
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  expect(await page.evaluate(() => window.__llAnalyticsRequests[2].request.word_filter || '')).toBe('');
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(2, payload), initial);
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr[data-word-id]')).toHaveCount(8);
+  await expect(page.locator('[data-ll-wordset-progress-selection-bar]')).toBeHidden();
+  await expect(page.getByRole('combobox', { name: 'Select words' })).toBeEnabled();
+  await expect(olderPill).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => {
+    window.__olderResponseObserver.disconnect();
+    return window.__staleOlderResponseRendered;
+  })).toBe(false);
+});
+
+test('Older pill and search filters show the launch menu while clearing selection keeps it dismissed', async ({ page }) => {
+  await mountProgressPage(page);
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(1);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(0, payload), buildAnalytics({
+    olderWords: 6, words: buildProgressWords(1, 8)
+  }));
+  const selectionBar = page.locator('[data-ll-wordset-progress-selection-bar]');
+  const olderRows = buildProgressWords(101, 6).map(row => ({ ...row, last_seen_at: '2000-01-01 00:00:00' }));
+  await page.locator('[data-ll-wordset-progress-kpi-filter="older"]').click();
+  await expect(page.getByRole('tab', { name: 'Words' })).toHaveAttribute('aria-selected', 'true');
+  await expect(selectionBar).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(2);
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(1, payload), buildAnalytics({
+    olderWords: 6, words: olderRows
+  }));
+  await expect(selectionBar).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('6 selected words');
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeEnabled();
+  await page.locator('[data-ll-wordset-progress-selection-clear]').click();
+  await expect(selectionBar).toBeHidden();
+  await page.getByRole('tab', { name: 'Categories' }).click();
+  await page.getByRole('tab', { name: 'Words' }).click();
+  await expect(selectionBar).toBeHidden();
+
+  await page.locator('[data-ll-wordset-progress-search]').fill('Progress Word 102');
+  await expect.poll(() => page.evaluate(() => window.__llAnalyticsRequests.length)).toBe(3);
+  await expect(selectionBar).toBeHidden();
+  expect(await page.evaluate(() => JSON.parse(window.__llAnalyticsRequests[2].request.word_filter).search)).toBe('Progress Word 102');
+  await page.evaluate(payload => window.__resolveAnalyticsRequest(2, payload), buildAnalytics({
+    olderWords: 6, words: olderRows.slice(1, 2)
+  }));
+  await expect(selectionBar).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-selection-count]')).toHaveText('1 selected words');
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr.is-selected')).toHaveCount(1);
+});
+
 test('progress summary counts stay blank while initial analytics loads', async ({ page }) => {
   await mountProgressPage(page, {
     config: {
