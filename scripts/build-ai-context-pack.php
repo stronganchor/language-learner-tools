@@ -408,6 +408,7 @@ function ll_tools_context_pack_definitions(): array
             'sources' => [
                 'includes/lib/wordset-category-search-*.php',
                 'docs/WORDSET_SEARCH_MAINTENANCE.md',
+                'docs/WORDSET_PROGRESS_SELECTION.md',
                 'includes/pages/wordset-pages.php',
                 'includes/taxonomies/wordset-taxonomy.php',
                 'includes/pages/wordset-editor.php',

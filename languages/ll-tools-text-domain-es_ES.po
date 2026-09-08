@@ -5658,3 +5658,19 @@ msgstr "La actualización de la imagen remota se ha aplazado temporalmente."
 #: includes/shortcodes/dictionary-shortcode.php:3043 includes/shortcodes/dictionary-shortcode.php:3725
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Los datos del diccionario no están disponibles temporalmente. Inténtalo de nuevo dentro de un momento."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "Seleccionar"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "Filtradas"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "Seleccionar palabras"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "Hace más de 30 días"

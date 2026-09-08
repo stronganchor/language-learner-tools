@@ -14,6 +14,44 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_older_summary_pill_and_selection_share_last_seen_filter_across_payload_shapes(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->createAnalyticsFixture();
+        [$older, $recent, $future] = $fixture['word_ids'];
+        foreach ([$older => -31, $recent => -29, $future => 1] as $word_id => $days) {
+            $this->seedWordProgressRow($user_id, $word_id, $fixture['category_ids'][0], $fixture['wordset_id'], [
+                'total_coverage' => 2,
+                'last_seen_at' => gmdate('Y-m-d H:i:s', time() + $days * DAY_IN_SECONDS),
+            ]);
+        }
+        // Other words have no progress: Never must not be counted as Older.
+        $build = static function (array $options) use ($user_id, $fixture): array {
+            return ll_tools_build_user_study_analytics_payload($user_id, $fixture['wordset_id'], $fixture['category_ids'], 14, false, $options);
+        };
+        $summary = $build(['summary_only' => true]);
+        $page = $build(['include_words' => true, 'word_limit' => 1]);
+        $all = $build(['include_words' => false, 'include_word_ids' => true, 'selection_ids_only' => true]);
+        foreach ([$summary, $page, $all] as $payload) {
+            $this->assertSame(1, $payload['summary']['older_words']);
+        }
+        $this->assertCount(1, $page['words']);
+        $this->assertCount(10, $all['word_ids'], 'All must include words beyond the loaded page.');
+        $this->assertSame([], $all['words']);
+        foreach ([['summary' => 'older'], ['column_filters' => ['last' => ['older']]]] as $filter) {
+            $selection = $build([
+                'include_words' => false,
+                'include_word_ids' => true,
+                'selection_ids_only' => true,
+                'word_filter' => $filter,
+            ]);
+            $this->assertSame([$older], $selection['word_ids']);
+            $this->assertSame([], $selection['words']);
+            $this->assertSame(1, $selection['summary']['older_words']);
+        }
+    }
+
     public function test_build_analytics_payload_includes_summary_categories_and_words(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

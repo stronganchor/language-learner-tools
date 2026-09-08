@@ -13608,6 +13608,11 @@ function ll_tools_wordset_page_render_progress_icon(string $status, string $clas
             . '<line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line>'
             . '<circle cx="32" cy="45" r="3.2" fill="currentColor"></circle>'
             . '</svg>';
+    } elseif ($status === 'older') {
+        $svg = '<svg viewBox="0 0 64 64" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
+            . '<circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="5"></circle>'
+            . '<path d="M32 17v16l11 7" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>'
+            . '</svg>';
     }
 
     if ($svg === '') {
@@ -13732,6 +13737,7 @@ function ll_tools_wordset_page_summary_counts(array $analytics): array {
         'new' => $new_words,
         'starred' => $starred_words,
         'hard' => $hard_words,
+        'older' => max(0, (int) ($summary['older_words'] ?? 0)),
     ];
 }
 
@@ -25153,6 +25159,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'label' => __('Hard', 'll-tools-text-domain'),
             'icon' => ll_tools_wordset_page_render_progress_icon('hard', 'll-wordset-progress-kpi-icon'),
         ],
+        [
+            'key' => 'older',
+            'count_key' => 'older',
+            'label' => __('Older than 30 days', 'll-tools-text-domain'),
+            'icon' => ll_tools_wordset_page_render_progress_icon('older', 'll-wordset-progress-kpi-icon'),
+        ],
     ];
     $category_progress_lookup = [];
     $category_metrics_lookup = [];
@@ -26214,6 +26226,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsNew' => __('New', 'll-tools-text-domain'),
             'analyticsStarred' => __('Starred', 'll-tools-text-domain'),
             'analyticsHard' => __('Hard', 'll-tools-text-domain'),
+            'analyticsOlder' => __('Older than 30 days', 'll-tools-text-domain'),
+            'analyticsSelect' => __('Select', 'll-tools-text-domain'),
+            'analyticsSelectAll' => __('All', 'll-tools-text-domain'),
+            'analyticsSelectFiltered' => __('Filtered', 'll-tools-text-domain'),
             'analyticsDaily' => __('Last 14 days', 'll-tools-text-domain'),
             'analyticsDailyEmpty' => __('No activity yet.', 'll-tools-text-domain'),
             'analyticsTabCategories' => __('Categories', 'll-tools-text-domain'),
@@ -26587,9 +26603,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 />
                                 <span class="ll-wordset-progress-search__loading" data-ll-wordset-progress-search-loading hidden aria-hidden="true"></span>
                             </div>
-                            <button type="button" class="ll-wordset-select-all ll-wordset-progress-select-all" data-ll-wordset-progress-select-all aria-pressed="false">
-                                <?php echo esc_html__('Select all', 'll-tools-text-domain'); ?>
-                            </button>
+                            <select class="ll-wordset-progress-select" data-ll-wordset-progress-select-all aria-label="<?php echo esc_attr__('Select words', 'll-tools-text-domain'); ?>">
+                                <option value="" selected disabled><?php echo esc_html__('Select', 'll-tools-text-domain'); ?></option>
+                                <option value="all"><?php echo esc_html__('All', 'll-tools-text-domain'); ?></option>
+                                <?php foreach ($progress_summary_cards as $progress_selection_option) : ?>
+                                    <option value="<?php echo esc_attr($progress_selection_option['key']); ?>"><?php echo esc_html($progress_selection_option['label']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                             <button type="button" class="ll-wordset-progress-clear-filters" data-ll-wordset-progress-clear-filters hidden>
                                 <?php echo esc_html__('Clear filters', 'll-tools-text-domain'); ?>
                             </button>

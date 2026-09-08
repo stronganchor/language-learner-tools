@@ -30414,3 +30414,19 @@ msgstr "Bu sayfadan ayrılmadan önce kaydetme işlemini tamamla veya değişen 
 #: includes/shortcodes/word-grid-shortcode.php:3986
 msgid "Save changes before copying or splitting this word."
 msgstr "Bu kelimeyi kopyalamadan veya bölmeden önce değişiklikleri kaydet."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "Seç"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "Filtrelenenler"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "Kelimeleri seç"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "30 günden eski"

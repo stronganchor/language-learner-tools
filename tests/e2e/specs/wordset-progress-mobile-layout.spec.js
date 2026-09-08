@@ -306,6 +306,10 @@ function buildProgressPageConfig(overrides = {}) {
     hardWordDifficultyThreshold: 4,
     i18n: {
       analyticsSelectionCount: '%d selected words',
+      analyticsSelect: 'Select',
+      analyticsSelectAll: 'All',
+      analyticsSelectFiltered: 'Filtered',
+      analyticsOlder: 'Older than 30 days',
       analyticsScopeAll: 'All categories (%d)',
       analyticsWord: 'Word',
       analyticsCategory: 'Category',
@@ -441,7 +445,7 @@ function buildProgressPageMarkup() {
               <input class="ll-wordset-progress-search__input" type="search" data-ll-wordset-progress-search />
               <span class="ll-wordset-progress-search__loading" data-ll-wordset-progress-search-loading hidden aria-hidden="true"></span>
             </div>
-            <button type="button" class="ll-wordset-select-all ll-wordset-progress-select-all" data-ll-wordset-progress-select-all aria-pressed="false">Select all</button>
+            <select class="ll-wordset-progress-select" data-ll-wordset-progress-select-all aria-label="Select words"><option value="">Select</option></select>
             <button type="button" class="ll-wordset-progress-clear-filters" data-ll-wordset-progress-clear-filters hidden>Clear filters</button>
           </div>
 
@@ -594,7 +598,11 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
     pageErrors.push(String(error && error.message ? error.message : error));
   });
   await page.setViewportSize(viewport);
-  await page.goto(process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local/');
+  const origin = process.env.LL_E2E_BASE_URL || 'https://starter-english-local.local/';
+  // This harness supplies its own DOM, styles and API responses. Keep an origin
+  // for storage without depending on the Local WordPress service being running.
+  await page.route(origin, (route) => route.fulfill({ contentType: 'text/html', body: '<html><body></body></html>' }));
+  await page.goto(origin);
   await page.setContent(buildProgressPageMarkup());
   await page.addStyleTag({ content: wordsetCssSource });
   await page.addScriptTag({ content: jquerySource });
@@ -923,7 +931,7 @@ test('progress practice launch skips selected categories that cannot form a vali
     }
   });
 
-  await page.locator('[data-ll-wordset-progress-select-all]').click();
+  await page.locator('[data-ll-wordset-progress-select-all]').selectOption('all');
   const practiceButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
   await expect(practiceButton).toBeEnabled();
   await practiceButton.click();
@@ -1033,12 +1041,37 @@ test('progress selection disables practice when only one distinct option remains
     }
   });
 
-  await page.locator('[data-ll-wordset-progress-select-all]').click();
+  await page.locator('[data-ll-wordset-progress-select-all]').selectOption('all');
 
   await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeDisabled();
 
   const launchCount = await page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
   expect(launchCount).toBe(0);
+});
+
+test('Select stays usable in portrait and the older pill keeps its own color under theme styles', async ({ page }, testInfo) => {
+  await mountProgressPage(page);
+  await page.addStyleTag({ content: 'button:hover, button:focus, select { background: black; color: yellow; text-transform: uppercase; border-radius: 0; font-size: 28px; }' });
+  const select = page.getByRole('combobox', { name: 'Select words' });
+  const older = page.locator('[data-ll-wordset-progress-kpi-filter="older"]');
+  await expect(older).toContainText('Older than 30 days');
+  await expect(select.locator('option[value="older"]')).toHaveText('Older than 30 days');
+  for (const width of [320, 390, 860]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(select).toBeVisible();
+    await expect(select).toHaveCSS('font-size', '16px');
+    await expect(select).toHaveCSS('text-transform', 'none');
+    const bounds = await select.boundingBox();
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await older.focus();
+    await expect(older).toHaveCSS('background-color', 'rgb(238, 227, 250)');
+    await expect(older).toHaveCSS('color', 'rgb(104, 54, 154)');
+    await expect(older).toHaveCSS('border-radius', '10px');
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: testInfo.outputPath('progress-selection-mobile.png'), fullPage: true });
 });
 
 test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {

@@ -6065,6 +6065,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
     $summary_mastered = 0;
     $summary_studied = 0;
     $summary_hard = 0;
+    $summary_older = 0;
     foreach ($progress_rows as $wid => $progress) {
         $wid = (int) $wid;
         if ($wid <= 0 || empty($all_word_lookup[$wid]) || !is_array($progress)) {
@@ -6079,6 +6080,9 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
         }
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
+        }
+        if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+            $summary_older++;
         }
     }
 
@@ -6254,6 +6258,7 @@ function ll_tools_build_user_study_analytics_summary_only_payload(
             'studied_words' => $summary_studied,
             'new_words' => max(0, $summary_total - $summary_studied),
             'hard_words' => $summary_hard,
+            'older_words' => $summary_older,
             'starred_words' => $summary_starred,
         ],
         'daily_activity' => ll_tools_user_study_daily_activity_series($uid, $scope_wordset_id, $scope_category_ids, $days),
@@ -6333,7 +6338,7 @@ function ll_tools_user_progress_normalize_analytics_word_filter(array $options):
     }
 
     $summary = sanitize_key((string) ($raw_filter['summary'] ?? ''));
-    if (!in_array($summary, ['mastered', 'studied', 'new', 'starred', 'hard'], true)) {
+    if (!in_array($summary, ['mastered', 'studied', 'new', 'starred', 'hard', 'older'], true)) {
         $summary = '';
     }
 
@@ -6551,6 +6556,9 @@ function ll_tools_user_progress_analytics_word_matches_filter(
         return false;
     }
     if ($summary === 'hard' && !$is_hard) {
+        return false;
+    }
+    if ($summary === 'older' && !ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
         return false;
     }
 
@@ -6932,6 +6940,7 @@ function ll_tools_build_user_study_analytics_payload(
                 'studied_words' => 0,
                 'new_words' => 0,
                 'hard_words' => 0,
+                'older_words' => 0,
                 'starred_words' => 0,
             ],
             'daily_activity' => [
@@ -7201,6 +7210,7 @@ function ll_tools_build_user_study_analytics_payload(
         $summary_mastered = 0;
         $summary_studied = 0;
         $summary_hard = 0;
+        $summary_older = 0;
         $summary_starred = 0;
         foreach ($all_word_ids as $word_id) {
             $word_id = (int) $word_id;
@@ -7215,6 +7225,9 @@ function ll_tools_build_user_study_analytics_payload(
             }
             if (ll_tools_user_progress_word_is_hard($progress)) {
                 $summary_hard++;
+            }
+            if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+                $summary_older++;
             }
             if (isset($starred_lookup[$word_id])) {
                 $summary_starred++;
@@ -7235,6 +7248,7 @@ function ll_tools_build_user_study_analytics_payload(
                 'studied_words' => $summary_studied,
                 'new_words' => max(0, $unfiltered_word_total - $summary_studied),
                 'hard_words' => $summary_hard,
+                'older_words' => $summary_older,
                 'starred_words' => $summary_starred,
             ],
             'daily_activity' => [
@@ -7423,6 +7437,7 @@ function ll_tools_build_user_study_analytics_payload(
     $summary_studied = 0;
     $summary_hard = 0;
     $summary_starred = 0;
+    $summary_older = 0;
     $category_studied_lookup = [];
     $category_mastered_lookup = [];
     $category_last_word_seen = [];
@@ -7652,6 +7667,9 @@ function ll_tools_build_user_study_analytics_payload(
         if (ll_tools_user_progress_word_is_hard($progress)) {
             $summary_hard++;
         }
+        if (ll_tools_user_progress_last_seen_matches_analytics_filter((string) ($progress['last_seen_at'] ?? ''), 'older')) {
+            $summary_older++;
+        }
         if (!empty($starred_lookup[$wid])) {
             $summary_starred++;
         }
@@ -7814,6 +7832,7 @@ function ll_tools_build_user_study_analytics_payload(
             'studied_words' => $summary_studied,
             'new_words' => max(0, $summary_total - $summary_studied),
             'hard_words' => $summary_hard,
+            'older_words' => $summary_older,
             'starred_words' => $summary_starred,
         ],
         'daily_activity' => $daily_activity,

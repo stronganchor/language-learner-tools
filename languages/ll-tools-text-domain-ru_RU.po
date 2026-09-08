@@ -5682,3 +5682,19 @@ msgstr "Обновление удалённого изображения вре�
 #: includes/shortcodes/dictionary-shortcode.php:3043 includes/shortcodes/dictionary-shortcode.php:3725
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Данные словаря временно недоступны. Пожалуйста, попробуйте снова через некоторое время."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "Выбрать"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "По фильтру"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "Выбрать слова"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "Более 30 дней назад"

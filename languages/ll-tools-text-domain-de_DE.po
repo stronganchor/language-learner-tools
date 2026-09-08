@@ -30413,3 +30413,19 @@ msgstr "Schließe das Speichern ab oder lade die geänderten Aufnahmen neu, bevo
 #: includes/shortcodes/word-grid-shortcode.php:3986
 msgid "Save changes before copying or splitting this word."
 msgstr "Speichere die Änderungen, bevor du diese Vokabel kopierst oder aufteilst."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "Auswählen"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "Gefilterte"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "Wörter auswählen"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "Älter als 30 Tage"

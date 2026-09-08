@@ -5658,3 +5658,19 @@ msgstr "Penyegaran gambar jarak jauh ditunda sementara."
 #: includes/shortcodes/dictionary-shortcode.php:3043 includes/shortcodes/dictionary-shortcode.php:3725
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "Data kamus untuk sementara tidak tersedia. Silakan coba lagi sebentar lagi."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "Pilih"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "Hasil filter"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "Pilih kata"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "Lebih dari 30 hari lalu"

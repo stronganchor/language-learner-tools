@@ -5658,3 +5658,19 @@ msgstr "दूरस्थ छवि का रीफ़्रेश कुछ �
 #: includes/shortcodes/dictionary-shortcode.php:3043 includes/shortcodes/dictionary-shortcode.php:3725
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "शब्दकोश का डेटा अस्थायी रूप से उपलब्ध नहीं है। कृपया कुछ ही देर में फिर से प्रयास करें।"
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "चुनें"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "फ़िल्टर किए गए"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "शब्द चुनें"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "30 दिनों से अधिक समय से नहीं देखे"

@@ -5634,3 +5634,19 @@ msgstr "원격 이미지 새로 고침이 일시적으로 연기되었습니다.
 #: includes/shortcodes/dictionary-shortcode.php:3043 includes/shortcodes/dictionary-shortcode.php:3725
 msgid "Dictionary data is temporarily unavailable. Please try again in a moment."
 msgstr "사전 데이터를 일시적으로 이용할 수 없습니다. 잠시 후 다시 시도해 주세요."
+
+#: includes/pages/wordset-pages.php
+msgid "Select"
+msgstr "선택"
+
+#: includes/pages/wordset-pages.php
+msgid "Filtered"
+msgstr "필터 결과"
+
+#: includes/pages/wordset-pages.php
+msgid "Select words"
+msgstr "단어 선택"
+
+#: includes/pages/wordset-pages.php
+msgid "Older than 30 days"
+msgstr "30일 넘게 보지 않은 단어"

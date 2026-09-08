@@ -148,6 +148,8 @@
     let progressSelectedAllWordFilterKey = '';
     let progressSelectedAllWordCount = 0;
     let progressSelectedAllWordCountIsExact = false;
+    let progressPendingSelectionFilterKey = null;
+    const ALL_PROGRESS_WORDS_FILTER_KEY = '__all_words__';
     let progressSelectionLaunchBusy = false;
     let progressSelectionLaunchMode = '';
     let progressSelectionLaunchStage = '';
@@ -788,7 +790,7 @@
     const $progressWordSearchInput = $root.find('[data-ll-wordset-progress-search]');
     const $progressWordSearchLoading = $root.find('[data-ll-wordset-progress-search-loading]');
     const $progressClearFiltersButton = $root.find('[data-ll-wordset-progress-clear-filters]');
-    const $progressSelectAllButton = $root.find('[data-ll-wordset-progress-select-all]');
+    const $progressSelectionSelect = $root.find('[data-ll-wordset-progress-select-all]');
     const $progressCategorySearchInput = $root.find('[data-ll-wordset-progress-category-search]');
     const $progressCategorySearchLoading = $root.find('[data-ll-wordset-progress-category-search-loading]');
     const $progressWordColumnFilterOptions = $root.find('[data-ll-wordset-progress-column-filter-options]');
@@ -2156,7 +2158,8 @@
                 studied_words: Math.max(0, parseInt(summaryRaw.studied_words, 10) || 0),
                 new_words: Math.max(0, parseInt(summaryRaw.new_words, 10) || 0),
                 hard_words: Math.max(0, parseInt(summaryRaw.hard_words, 10) || 0),
-                starred_words: Math.max(0, parseInt(summaryRaw.starred_words, 10) || 0)
+                starred_words: Math.max(0, parseInt(summaryRaw.starred_words, 10) || 0),
+                older_words: Math.max(0, parseInt(summaryRaw.older_words, 10) || 0)
             },
             daily_activity: {
                 days: dailyDays,
@@ -3225,6 +3228,9 @@
         if (key === 'hard') {
             return '<span class="' + escapeHtml(cls) + '" aria-hidden="true">' + progressHardIconSvgMarkup() + '</span>';
         }
+        if (key === 'older') {
+            return '<span class="' + escapeHtml(cls) + '" aria-hidden="true"><svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" stroke-width="5"></circle><path d="M32 17v16l11 7" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>';
+        }
         return '';
     }
 
@@ -3278,7 +3284,8 @@
             studiedTotal: studiedTotal,
             newWords: newWords,
             starred: starred,
-            hard: hard
+            hard: hard,
+            older: Math.max(0, parseInt(summary.older_words, 10) || 0)
         };
     }
 
@@ -3556,7 +3563,7 @@
 
     function normalizeSummaryFilter(value) {
         const key = String(value || '').trim().toLowerCase();
-        if (key === 'mastered' || key === 'studied' || key === 'new' || key === 'starred' || key === 'hard') {
+        if (['mastered', 'studied', 'new', 'starred', 'hard', 'older'].indexOf(key) !== -1) {
             return key;
         }
         return '';
@@ -3604,7 +3611,7 @@
     }
 
     function progressAllFilteredSelectionIsActive() {
-        const currentKey = getCurrentProgressWordRequestFilterKey();
+        const currentKey = getCurrentProgressSelectionFilterKey();
         return !!(
             currentKey &&
             progressSelectedAllWordFilterKey &&
@@ -3821,6 +3828,10 @@
         return Math.max(0, parseInt(progressSelectedAllWordCount, 10) || 0);
     }
 
+    function getCurrentProgressSelectionFilterKey() {
+        return getCurrentProgressWordRequestFilterKey() || ALL_PROGRESS_WORDS_FILTER_KEY;
+    }
+
     function progressSelectionLaunchRequestTimeoutMs(wordCount) {
         const normalizedWordCount = Math.max(0, parseInt(wordCount, 10) || 0);
         if (normalizedWordCount < LARGE_PROGRESS_SELECTION_WORD_COUNT) {
@@ -3899,6 +3910,9 @@
         if (normalized === 'hard') {
             return String(i18n.analyticsHard || '');
         }
+        if (normalized === 'older') {
+            return String(i18n.analyticsOlder || '');
+        }
         return '';
     }
 
@@ -3921,20 +3935,66 @@
         return '';
     }
 
-    function buildProgressSelectAllButtonLabel(allVisibleSelected) {
-        const context = getProgressSelectAllContextLabel();
-        const template = allVisibleSelected
-            ? String(i18n.analyticsDeselectAllWithContext || '')
-            : String(i18n.analyticsSelectAllWithContext || '');
-        if (template && context) {
-            return formatTemplate(template, [context]);
+    function syncProgressSelectionOptions() {
+        if (!$progressSelectionSelect.length) { return; }
+        const hasFilter = !!getProgressSelectAllContextLabel();
+        const optionKey = hasFilter ? 'filtered' : 'all';
+        if ($progressSelectionSelect.attr('data-options-scope') === optionKey) { return; }
+        $progressSelectionSelect.empty().attr('data-options-scope', optionKey);
+        $('<option>', { value: '', text: i18n.analyticsSelect || '', disabled: true }).appendTo($progressSelectionSelect);
+        $('<option>', { value: 'all', text: i18n.analyticsSelectAll || '' }).appendTo($progressSelectionSelect);
+        if (hasFilter) {
+            $('<option>', { value: 'filtered', text: i18n.analyticsSelectFiltered || '' }).appendTo($progressSelectionSelect);
         }
-        return allVisibleSelected
-            ? (i18n.analyticsDeselectAllShown || '')
-            : (i18n.analyticsSelectAllShown || '');
+        ['mastered', 'studied', 'new', 'starred', 'hard', 'older'].forEach(function (key) {
+            $('<option>', { value: key, text: summaryFilterLabel(key) }).appendTo($progressSelectionSelect);
+        });
+        $progressSelectionSelect.val('');
+    }
+
+    function selectProgressMatchingWords(rows) {
+        const ids = uniqueIntList((Array.isArray(rows) ? rows : []).map(function (row) { return row.id; }));
+        const pagination = getProgressWordPagination();
+        const total = Math.max(0, parseInt(pagination.total, 10) || 0);
+        // A complete unfiltered page can use the existing explicit-ID launch.
+        // Paged scopes retain a selection descriptor until bounded launch lookup.
+        if (isGenderProgressViewActive() || (!getCurrentProgressWordRequestFilterKey() && !pagination.hasMore && ids.length === total)) {
+            progressSelectedWordIds = ids;
+            clearProgressAllFilteredSelection();
+            return;
+        }
+        progressSelectedWordIds = [];
+        progressSelectedAllWordFilterKey = getCurrentProgressSelectionFilterKey();
+        progressSelectedAllWordCountIsExact = false;
+        progressSelectedAllWordCount = total;
+    }
+
+    function selectProgressWordGroup(value) {
+        const key = String(value || '');
+        if (key !== 'all' && key !== 'filtered' && !normalizeSummaryFilter(key)) { return; }
+        if (key === 'filtered' && !getProgressSelectAllContextLabel()) { return; }
+        clearProgressSelection();
+        if (key !== 'filtered') {
+            resetProgressTableFilters();
+            analyticsWordSearchQuery = '';
+            $progressWordSearchInput.val('');
+            if (key !== 'all' && isGenderProgressViewActive()) {
+                analyticsProgressMode = '';
+                setProgressTableSortDefaults('');
+            }
+            analyticsSummaryFilter = normalizeSummaryFilter(key);
+        }
+        progressPendingSelectionFilterKey = getCurrentProgressSelectionFilterKey();
+        renderProgressSummary();
+        renderProgressWordColumnFilterOptions();
+        renderProgressCategoryFilterOptions();
+        renderProgressFilterTriggerStates();
+        setProgressTab('words', { skipRender: true });
+        scheduleProgressWordTableRender({ showLoading: false });
     }
 
     function clearProgressSelection() {
+        progressPendingSelectionFilterKey = null;
         cancelProgressSelectionLaunch();
         if (!progressSelectedWordIds.length && !progressSelectedAllWordFilterKey && progressSelectedAllWordCount <= 0) {
             return;
@@ -4377,6 +4437,9 @@
             }
             if (key === 'hard') {
                 return analyticsWordIsDifficult(row);
+            }
+            if (key === 'older') {
+                return analyticsWordMatchesLastFilter(row, 'older');
             }
             return true;
         });
@@ -5556,7 +5619,8 @@
             { key: 'studied', value: counts.studied, label: i18n.analyticsStudied || '', icon: buildProgressIconMarkup('studied', 'll-wordset-progress-kpi-icon') },
             { key: 'new', value: counts.newWords, label: i18n.analyticsNew || '', icon: buildProgressIconMarkup('new', 'll-wordset-progress-kpi-icon') },
             { key: 'starred', value: counts.starred, label: i18n.analyticsStarred || '', icon: buildProgressIconMarkup('starred', 'll-wordset-progress-kpi-icon') },
-            { key: 'hard', value: counts.hard, label: i18n.analyticsHard || '', icon: buildProgressIconMarkup('hard', 'll-wordset-progress-kpi-icon') }
+            { key: 'hard', value: counts.hard, label: i18n.analyticsHard || '', icon: buildProgressIconMarkup('hard', 'll-wordset-progress-kpi-icon') },
+            { key: 'older', value: counts.older, label: i18n.analyticsOlder || '', icon: buildProgressIconMarkup('older', 'll-wordset-progress-kpi-icon') }
         ];
 
         items.forEach(function (item) {
@@ -6448,29 +6512,24 @@
 
     function syncProgressSelectionControls(visibleRows) {
         const rows = Array.isArray(visibleRows) ? visibleRows : [];
-        const visibleWordIds = uniqueIntList(rows.map(function (row) {
-            return parseInt(row && row.id, 10) || 0;
-        }));
         const filterRefreshPending = progressWordFilterRefreshIsPending();
+        if (progressPendingSelectionFilterKey !== null
+            && progressPendingSelectionFilterKey === getCurrentProgressSelectionFilterKey()
+            && progressWordRequestFilterKey === getCurrentProgressWordRequestFilterKey()
+            && !filterRefreshPending && !progressAnalyticsLoading && !progressAnalyticsFailed) {
+            progressPendingSelectionFilterKey = null;
+            selectProgressMatchingWords(rows);
+        }
         const selectedWordIds = getProgressSelectedWordIds();
-        const selectedLookup = {};
-        selectedWordIds.forEach(function (id) {
-            selectedLookup[id] = true;
-        });
         const allFilteredSelected = progressAllFilteredSelectionIsActive();
-        const allVisibleSelected = !filterRefreshPending && visibleWordIds.length > 0 && visibleWordIds.every(function (id) {
-            return allFilteredSelected || !!selectedLookup[id];
-        });
-
-        if ($progressSelectAllButton.length) {
-            const selectAllDisabled = progressSelectionLaunchBusy || filterRefreshPending || visibleWordIds.length === 0;
-            $progressSelectAllButton
-                .prop('disabled', selectAllDisabled)
+        syncProgressSelectionOptions();
+        if ($progressSelectionSelect.length) {
+            const selectDisabled = progressSelectionLaunchBusy || filterRefreshPending || progressAnalyticsLoading;
+            $progressSelectionSelect
+                .prop('disabled', selectDisabled)
                 .toggleClass('is-loading', filterRefreshPending)
                 .attr('aria-busy', filterRefreshPending ? 'true' : 'false')
-                .attr('aria-disabled', selectAllDisabled ? 'true' : 'false')
-                .attr('aria-pressed', allVisibleSelected ? 'true' : 'false')
-                .text(buildProgressSelectAllButtonLabel(allVisibleSelected));
+                .attr('aria-disabled', selectDisabled ? 'true' : 'false');
         }
 
         if (!$progressSelectionBar.length) {
@@ -6544,7 +6603,7 @@
     function buildProgressAllFilteredSelectionLaunchSpec(mode) {
         const normalizedMode = normalizeMode(mode) || 'practice';
         const filterPayload = buildProgressWordRequestFilter();
-        const filterKey = getProgressWordRequestFilterKey(filterPayload);
+        const filterKey = getProgressWordRequestFilterKey(filterPayload) || ALL_PROGRESS_WORDS_FILTER_KEY;
         const launchCategoryIds = getProgressAllFilteredLaunchCategoryIds();
         if (
             !filterKey
@@ -7225,6 +7284,7 @@
 
         $progressWordRows.empty().removeAttr('aria-busy');
         const renderGenderTable = isGenderProgressViewActive();
+        syncProgressSelectionControls(rows);
         const selectedLookup = {};
         if (progressAllFilteredSelectionIsActive()) {
             rows.forEach(function (row) {
@@ -7239,7 +7299,6 @@
             });
         }
 
-        syncProgressSelectionControls(rows);
         if (!rows.length) {
             if (progressAnalyticsFailed && (!progressAnalyticsLoaded || !!analytics.wordsOmitted)) {
                 renderProgressWordPaginationControls();
@@ -7561,7 +7620,7 @@
                 progressWordPagination = analytics.wordsPagination || null;
                 progressWordRequestFilterKey = wordFilterKey;
                 progressWordPendingFilterKey = null;
-                if (progressSelectedAllWordFilterKey === wordFilterKey) {
+                if (progressSelectedAllWordFilterKey === (wordFilterKey || ALL_PROGRESS_WORDS_FILTER_KEY)) {
                     progressSelectedAllWordCountIsExact = false;
                 }
                 const filteredWordIds = uniqueIntList(analytics.wordIds || []);
@@ -7583,6 +7642,7 @@
                 return;
             }
             progressWordPendingFilterKey = null;
+            progressPendingSelectionFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             progressAnalyticsLoading = false;
@@ -7599,6 +7659,7 @@
                 return;
             }
             progressWordPendingFilterKey = null;
+            progressPendingSelectionFilterKey = null;
             invalidateProgressWordIdsSnapshot();
             syncProgressSelectionControls(buildProgressWordRowsForDisplay());
             progressAnalyticsLoading = false;
@@ -20100,42 +20161,11 @@
             scheduleProgressWordTableRender({ showLoading: false });
         });
 
-        $root.on('click', '[data-ll-wordset-progress-select-all]', function (evt) {
-            evt.preventDefault();
-            if (progressWordFilterRefreshIsPending() || $(this).prop('disabled')) {
-                return;
-            }
-            const visibleRows = buildProgressWordRowsForDisplay();
-            const visibleWordIds = uniqueIntList(visibleRows.map(function (row) {
-                return parseInt(row && row.id, 10) || 0;
-            }));
-            if (!visibleWordIds.length) {
-                return;
-            }
-            const selectedIds = getProgressSelectedWordIds();
-            const selectedLookup = {};
-            selectedIds.forEach(function (id) {
-                selectedLookup[id] = true;
-            });
-            const allFilteredSelected = progressAllFilteredSelectionIsActive();
-            const allVisibleSelected = visibleWordIds.every(function (id) {
-                return allFilteredSelected || !!selectedLookup[id];
-            });
-            if (allVisibleSelected) {
-                clearProgressSelection();
-            } else if (getCurrentProgressWordRequestFilterKey()) {
-                progressSelectedWordIds = [];
-                progressSelectedAllWordFilterKey = getCurrentProgressWordRequestFilterKey();
-                progressSelectedAllWordCountIsExact = false;
-                progressSelectedAllWordCount = Math.max(
-                    visibleWordIds.length,
-                    Math.max(0, parseInt(getProgressWordPagination().total, 10) || 0)
-                );
-            } else {
-                clearProgressAllFilteredSelection();
-                progressSelectedWordIds = uniqueIntList(selectedIds.concat(visibleWordIds));
-            }
-            renderProgressWordTable();
+        $root.on('change', '[data-ll-wordset-progress-select-all]', function () {
+            const value = String($(this).val() || '');
+            $(this).val('');
+            if (progressWordFilterRefreshIsPending() || $(this).prop('disabled')) { return; }
+            selectProgressWordGroup(value);
         });
 
         $root.on('click', '[data-ll-wordset-progress-selection-clear]', function (evt) {
