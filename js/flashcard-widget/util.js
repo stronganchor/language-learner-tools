@@ -271,6 +271,15 @@
             }
 
             const normalizedOptionType = Util.normalizeOptionType(optionType);
+            const usesTranslationLabel = Util.optionTypeUsesTranslationLabel(normalizedOptionType);
+            // Answer choices identify the word; recording translations describe the prompt.
+            if (usesTranslationLabel) {
+                const translation = String(word.translation || '').trim();
+                if (translation) {
+                    return translation;
+                }
+            }
+
             const opts = (options && typeof options === 'object') ? options : {};
             const promptRecordingType = Util.normalizeRecordingTypeKey(
                 opts.promptRecordingType
@@ -281,19 +290,12 @@
 
             if (
                 Util.promptTypeHasAudio(promptType)
-                && Util.optionTypeUsesTranslationLabel(normalizedOptionType)
+                && usesTranslationLabel
                 && promptRecordingType
             ) {
                 const recordingTranslation = Util.getRecordingTranslationForType(word, promptRecordingType);
                 if (recordingTranslation) {
                     return recordingTranslation;
-                }
-            }
-
-            if (Util.optionTypeUsesTranslationLabel(normalizedOptionType)) {
-                const translation = String(word.translation || '').trim();
-                if (translation) {
-                    return translation;
                 }
             }
 

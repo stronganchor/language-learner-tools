@@ -3,6 +3,14 @@ const fs = require('fs');
 const path = require('path');
 
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const utilSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/util.js'),
+  'utf8'
+);
+const cardsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/cards.js'),
+  'utf8'
+);
 const selectionSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
@@ -134,6 +142,16 @@ async function mountSelectionHarness(page, options = {}) {
     };
   }, data);
 
+  if (options.realOptionLabels) {
+    await page.addScriptTag({ content: options.utilSource || utilSource });
+    await page.evaluate(() => {
+      // Stabilize ordering without replacing either label resolver or renderer.
+      window.LLFlashcards.Util.randomlySort = (items) => Array.isArray(items) ? items.slice() : [];
+      Math.random = () => 0.999;
+      window.llToolsFlashcardsData.imageSize = 'small';
+    });
+    await page.addScriptTag({ content: cardsSource });
+  }
   await page.addScriptTag({ content: selectionSource });
 }
 
@@ -723,12 +741,13 @@ test('practice options exclude wrong answers with the same active recording-type
   expect(pickedIds).toEqual([301, 303]);
 });
 
-test('audio-to-text options prefer active recording-type translations and de-dupe on the rendered label', async ({ page }) => {
+test('audio-to-text options prefer word translations and de-dupe on the rendered label', async ({ page }) => {
   const category = 'Recording translation labels';
   const targetWord = {
     id: 901,
     title: 'Caminar',
     label: 'Walk',
+    translation: 'Walk',
     recording_translations_by_type: {
       isolation: 'Walk now'
     }
@@ -736,26 +755,30 @@ test('audio-to-text options prefer active recording-type translations and de-dup
   const duplicateRenderedLabel = {
     id: 902,
     title: 'Marchar',
-    label: 'March',
+    label: 'Walk',
+    translation: 'Walk',
     recording_translations_by_type: {
-      isolation: 'Walk now'
+      isolation: 'March now'
     }
   };
   const distinctRenderedLabel = {
     id: 903,
     title: 'Correr',
     label: 'Run',
+    translation: 'Run',
     recording_translations_by_type: {
-      isolation: 'Run now'
+      isolation: 'Walk now'
     }
   };
   const fallbackLabel = {
     id: 904,
     title: 'Saltar',
-    label: 'Jump'
+    label: 'Jump',
+    translation: 'Jump'
   };
 
   await mountSelectionHarness(page, {
+    realOptionLabels: true,
     categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
     targetCategoryName: category,
     desiredCount: 4,
@@ -772,15 +795,120 @@ test('audio-to-text options prefer active recording-type translations and de-dup
     window.LLFlashcards.Selection.fillQuizOptions(target);
     return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container')).map((el) => ({
       id: Number(el.getAttribute('data-word-id')) || 0,
-      label: String(el.getAttribute('data-word-label') || '')
+      label: String(el.querySelector('.quiz-text')?.textContent || '')
     }));
   }, targetWord);
 
   expect(picked).toEqual([
-    { id: 901, label: 'Walk now' },
-    { id: 903, label: 'Run now' },
+    { id: 901, label: 'Walk' },
+    { id: 903, label: 'Run' },
     { id: 904, label: 'Jump' }
   ]);
+});
+
+for (const optionType of ['text_translation', 'image_text_translation', 'text_audio']) {
+  for (const recordingType of ['introduction', 'question']) {
+    test(`practice ${optionType} keeps concise number and place labels in ${recordingType} rounds`, async ({ page }) => {
+      const category = 'Concise practice answers';
+      const words = [
+        { id: 8971, title: 'Hirıs', translation: '30', introduction: '30', question: 'Otuz nerede?' },
+        { id: 9200, title: 'Howtsê', translation: '700', introduction: 'Yedi yüz sayısı nerede?', question: 'Yedi yüz sayısı nerede?' },
+        { id: 70804, title: 'Anqara', translation: 'Ankara', introduction: 'Biz bu memlekete Ankara deriz.', question: 'Ankara nerede?' },
+        { id: 70808, title: 'Avrûpa', translation: 'Avrupa', introduction: 'Avrupa uzak diyarlardadır.', question: 'Avrupa nerede?' }
+      ].map((word) => Object.assign({}, word, {
+        label: word.translation,
+        image: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><text y="20">${word.id}</text></svg>`)}`,
+        audio: `fixture-${word.id}.mp3`,
+        recording_translations_by_type: {
+          isolation: word.translation,
+          introduction: word.introduction,
+          question: word.question
+        }
+      }));
+      await mountSelectionHarness(page, {
+        realOptionLabels: true,
+        categories: [{ name: category, prompt_type: 'audio', option_type: optionType }],
+        targetCategoryName: category,
+        desiredCount: 4,
+        wordsByCategory: { [category]: words },
+        optionWordsByCategory: { [category]: words }
+      });
+
+      for (const targetWord of words) {
+        const rendered = await page.evaluate(({ word, categoryName, type }) => {
+          window.jQuery('#ll-tools-flashcard').empty();
+          const target = Object.assign({}, word, { __categoryName: categoryName, __promptRecordingType: type });
+          window.LLFlashcards.Selection.fillQuizOptions(target);
+          return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container')).map((el) => ({
+            id: Number(el.getAttribute('data-word-id')),
+            label: el.querySelector('.quiz-text')?.textContent || ''
+          }));
+        }, { word: targetWord, categoryName: category, type: recordingType });
+        const expected = [targetWord, ...words.filter((word) => word.id !== targetWord.id)]
+          .map((word) => ({ id: word.id, label: word.translation }));
+        expect(rendered).toEqual(expected);
+      }
+    });
+  }
+}
+
+test('title-only practice options keep target labels despite Turkish recording captions', async ({ page }) => {
+  const category = 'Target-language answers';
+  const words = [
+    { id: 8971, title: 'Hirıs', label: 'Hirıs', translation: '30', recording_translations_by_type: { introduction: 'Otuz sayısı.' } },
+    { id: 9200, title: 'Howtsê', label: 'Howtsê', translation: '700', recording_translations_by_type: { introduction: 'Yedi yüz sayısı nerede?' } }
+  ];
+  await mountSelectionHarness(page, {
+    realOptionLabels: true,
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_title' }],
+    targetCategoryName: category,
+    desiredCount: 2,
+    wordsByCategory: { [category]: words },
+    optionWordsByCategory: { [category]: words }
+  });
+  await page.evaluate(({ word, categoryName }) => {
+    window.LLFlashcards.Selection.fillQuizOptions(Object.assign({}, word, {
+      __categoryName: categoryName, __promptRecordingType: 'introduction'
+    }));
+  }, { word: words[0], categoryName: category });
+  await expect(page.locator('#ll-tools-flashcard .quiz-text')).toHaveText(['Hirıs', 'Howtsê']);
+});
+
+test('missing word translation retains the recording then legacy-label fallback', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.addScriptTag({ content: utilSource });
+  const labels = await page.evaluate(() => {
+    const resolve = window.LLFlashcards.Util.getEffectiveOptionLabel;
+    return ['text_translation', 'image_text_translation', 'text_audio'].map((optionType) => ({
+      recording: resolve({ translation: '  ', label: 'Legacy', recording_translations_by_type: { introduction: 'Recording fallback' } }, optionType, 'audio', { promptRecordingType: 'introduction' }),
+      legacy: resolve({ translation: '', label: 'Legacy', title: 'Target' }, optionType, 'audio', { promptRecordingType: 'introduction' }),
+      title: resolve({ translation: '', label: '', title: 'Target' }, optionType, 'audio', { promptRecordingType: 'introduction' })
+    }));
+  });
+  expect(labels).toEqual(Array(3).fill({ recording: 'Recording fallback', legacy: 'Legacy', title: 'Target' }));
+});
+
+test('selection fallback keeps concise word translations without the shared utility', async ({ page }) => {
+  const category = 'Fallback number answers';
+  const words = [
+    { id: 8971, title: 'Hirıs', label: 'Old thirty label', translation: '30', recording_translations_by_type: { question: 'Otuz nerede?' } },
+    { id: 9200, title: 'Howtsê', label: 'Old seven hundred label', translation: '700', recording_translations_by_type: { question: 'Yedi yüz sayısı nerede?' } }
+  ];
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 2,
+    wordsByCategory: { [category]: words },
+    optionWordsByCategory: { [category]: words }
+  });
+  const labels = await page.evaluate(({ word, categoryName }) => {
+    window.LLFlashcards.Selection.fillQuizOptions(Object.assign({}, word, {
+      __categoryName: categoryName, __promptRecordingType: 'question'
+    }));
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => el.getAttribute('data-word-label'));
+  }, { word: words[0], categoryName: category });
+  expect(labels).toEqual(['30', '700']);
 });
 
 test('practice options still allow words whose other recording types differ', async ({ page }) => {

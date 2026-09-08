@@ -1086,6 +1086,17 @@
         }
 
         const normalizedOptionType = String(optionType || '').trim().toLowerCase();
+        const usesTranslationLabel = (Util && typeof Util.optionTypeUsesTranslationLabel === 'function')
+            ? Util.optionTypeUsesTranslationLabel(normalizedOptionType)
+            : (normalizedOptionType === 'image_text_translation' || normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio');
+        // Keep fallback rendering and duplicate filtering aligned with the shared utility.
+        if (usesTranslationLabel) {
+            const translation = String(word.translation || '').trim();
+            if (translation) {
+                return translation;
+            }
+        }
+
         const activeRecordingType = normalizeRecordingTypeKey(
             promptRecordingType
                 || word.__activeOptionRecordingType
@@ -1094,26 +1105,12 @@
         );
         if (
             promptTypeHasAudio(promptType)
-            && (
-                (Util && typeof Util.optionTypeUsesTranslationLabel === 'function')
-                    ? Util.optionTypeUsesTranslationLabel(normalizedOptionType)
-                    : (normalizedOptionType === 'image_text_translation' || normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
-            )
+            && usesTranslationLabel
             && activeRecordingType
         ) {
             const recordingTranslation = getRecordingTranslationForType(word, activeRecordingType);
             if (recordingTranslation) {
                 return recordingTranslation;
-            }
-        }
-
-        const usesTranslationLabel = (Util && typeof Util.optionTypeUsesTranslationLabel === 'function')
-            ? Util.optionTypeUsesTranslationLabel(normalizedOptionType)
-            : (normalizedOptionType === 'image_text_translation' || normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio');
-        if (usesTranslationLabel) {
-            const translation = String(word.translation || '').trim();
-            if (translation) {
-                return translation;
             }
         }
 
