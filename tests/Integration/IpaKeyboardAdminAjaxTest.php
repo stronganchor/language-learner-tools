@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+
 final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
 {
     /** @var array<string,mixed> */
@@ -21,6 +24,105 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
         parent::tearDown();
+    }
+
+    // WordPress skips status_header() once PHPUnit has printed progress output.
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_search_autosave_updates_both_fields_and_keeps_invalid_recording_validation(): void
+    {
+        [$wordset_id, $recording_id] = $this->prepare_search_autosave_request();
+        $response = $this->runJsonEndpoint('ll_tools_update_ipa_keyboard_recording_handler');
+        $this->assertTrue($response['success']);
+        $this->assertSame('Edited text', get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('ʒa', get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertSame('Edited text', $response['data']['recording']['recording_text']);
+        $this->assertSame('ʒa', $response['data']['recording']['recording_ipa']);
+
+        $_POST['wordset_id'] = $this->create_wordset('Other autosave wordset');
+        $_POST['recording_text'] = 'Wrong wordset';
+        $_REQUEST = $_POST;
+        $status = 0;
+        $response = $this->runJsonEndpoint('ll_tools_update_ipa_keyboard_recording_handler', $status);
+        $this->assertFalse($response['success']);
+        $this->assertSame(400, $status);
+        $this->assertSame('Invalid recording', $response['data']);
+        $this->assertSame('Edited text', get_post_meta($recording_id, 'recording_text', true));
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_recording_save_endpoints_preserve_busy_write_status(): void
+    {
+        [$wordset_id, $recording_id] = $this->prepare_search_autosave_request();
+        $lease = ll_tools_mutation_job_acquire('recording_metadata', (string) $recording_id);
+        $this->assertIsArray($lease);
+        try {
+            $result = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, ['recording_text' => 'Blocked']);
+            $this->assertWPError($result);
+            $this->assertSame(429, $result->get_error_data()['status']);
+            $_POST['rule_key'] = 'orthography_mismatch';
+            $_POST['enabled'] = 1;
+            $_REQUEST = $_POST;
+            foreach ([
+                'll_tools_update_ipa_keyboard_recording_handler',
+                'll_tools_update_recording_ipa_handler',
+                'll_tools_toggle_ipa_keyboard_validation_exception_handler',
+            ] as $handler) {
+                $status = 0;
+                $response = $this->runJsonEndpoint($handler, $status);
+                $this->assertFalse($response['success'], $handler);
+                $this->assertSame(429, $status, $handler);
+                $this->assertSame($result->get_error_message(), $response['data'], $handler);
+            }
+        } finally {
+            ll_tools_mutation_job_release($lease);
+        }
+        $this->assertSame('Original text', get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('ʃa', get_post_meta($recording_id, 'recording_ipa', true));
+        $response = $this->runJsonEndpoint('ll_tools_update_ipa_keyboard_recording_handler');
+        $this->assertTrue($response['success']);
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function test_search_autosave_preserves_storage_failure_status_and_stops_later_fields(): void
+    {
+        [, $recording_id] = $this->prepare_search_autosave_request();
+        $block = static fn($check, $object_id, $key) => (int) $object_id === $recording_id && $key === 'recording_text' ? false : $check;
+        add_filter('update_post_metadata', $block, 10, 3);
+        $status = 0;
+        try {
+            $response = $this->runJsonEndpoint('ll_tools_update_ipa_keyboard_recording_handler', $status);
+        } finally {
+            remove_filter('update_post_metadata', $block, 10);
+        }
+        $this->assertFalse($response['success']);
+        $this->assertSame(503, $status);
+        $this->assertSame(ll_tools_recording_write_error($recording_id)->get_error_message(), $response['data']);
+        $this->assertSame('Original text', get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('ʃa', get_post_meta($recording_id, 'recording_ipa', true));
+    }
+
+    /** @return array{int,int} */
+    private function prepare_search_autosave_request(): array
+    {
+        wp_set_current_user($this->create_viewer_user());
+        $wordset_id = $this->create_wordset('Search Autosave Wordset');
+        $word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'publish', 'post_title' => 'Save fixture']);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        $recording_id = self::factory()->post->create(['post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $word_id]);
+        update_post_meta($recording_id, 'recording_text', 'Original text');
+        update_post_meta($recording_id, 'recording_ipa', 'ʃa');
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+            'recording_id' => $recording_id,
+            'recording_text' => 'Edited text',
+            'recording_ipa' => 'ʒa',
+        ];
+        $_REQUEST = $_POST;
+        return [$wordset_id, $recording_id];
     }
 
     public function test_update_recording_ipa_returns_symbol_diff_and_updated_recording_payload(): void
@@ -1187,8 +1289,12 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
     /**
      * @return array<string,mixed>
      */
-    private function runJsonEndpoint(callable $callback): array
+    private function runJsonEndpoint(callable $callback, ?int &$status = null): array
     {
+        $statusFilter = static function ($header, $code) use (&$status) {
+            $status = (int) $code;
+            return $header;
+        };
         $dieHandler = static function (): void {
             throw new RuntimeException('wp_die');
         };
@@ -1205,6 +1311,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         add_filter('wp_die_handler', $dieFilter);
         add_filter('wp_die_ajax_handler', $ajaxDieFilter);
         add_filter('wp_doing_ajax', $doingAjaxFilter);
+        add_filter('status_header', $statusFilter, 10, 2);
 
         ob_start();
         try {
@@ -1216,6 +1323,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             remove_filter('wp_die_handler', $dieFilter);
             remove_filter('wp_die_ajax_handler', $ajaxDieFilter);
             remove_filter('wp_doing_ajax', $doingAjaxFilter);
+            remove_filter('status_header', $statusFilter, 10);
         }
 
         $decoded = json_decode($output, true);

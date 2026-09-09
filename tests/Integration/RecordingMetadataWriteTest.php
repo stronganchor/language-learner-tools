@@ -11,6 +11,18 @@ final class RecordingMetadataWriteTest extends LL_Tools_TestCase
         return $id;
     }
 
+    private function withLatin1Connection(callable $callback): void
+    {
+        global $wpdb;
+        $previous = $wpdb->get_row('SELECT @@character_set_client AS client_charset, @@character_set_connection AS connection_charset, @@character_set_results AS results_charset, @@collation_connection AS connection_collation', ARRAY_A);
+        $wpdb->set_charset($wpdb->dbh, 'latin1', 'latin1_swedish_ci');
+        try { $callback(); }
+        finally {
+            $wpdb->set_charset($wpdb->dbh, $previous['client_charset']);
+            $wpdb->query($wpdb->prepare('SET character_set_connection = %s, character_set_results = %s, collation_connection = %s', $previous['connection_charset'], $previous['results_charset'], $previous['connection_collation']));
+        }
+    }
+
     public function test_nested_writers_keep_the_outer_lock_and_release_it_once(): void
     {
         $id = $this->recording();
@@ -94,7 +106,7 @@ final class RecordingMetadataWriteTest extends LL_Tools_TestCase
         $id = $this->recording();
         $scope = ll_tools_recording_write_acquire($id);
         $this->assertIsArray($scope);
-        $before = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id=%d AND meta_key='recording_text'", $id), ARRAY_A);
+        $before = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value, HEX(meta_value) AS meta_value_hex FROM {$wpdb->postmeta} WHERE post_id=%d AND meta_key='recording_text'", $id), ARRAY_A);
         try {
             delete_post_meta($id, 'recording_text');
             $replacement_id = add_post_meta($id, 'recording_text', 'Replacement');
@@ -102,7 +114,7 @@ final class RecordingMetadataWriteTest extends LL_Tools_TestCase
             $this->assertSame(0, $wpdb->query(ll_tools_recording_write_fence_query($delete, $scope['lease'], $id, 'recording_text', $before)));
             $update = $wpdb->prepare("UPDATE `{$wpdb->postmeta}` SET `meta_value` = %s WHERE `post_id` = %d AND `meta_key` = %s", 'Stale', $id, 'recording_text');
             $this->assertSame(0, $wpdb->query(ll_tools_recording_write_fence_query($update, $scope['lease'], $id, 'recording_text', $before)));
-            $current = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id=%d AND meta_key='recording_text'", $id), ARRAY_A);
+            $current = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value, HEX(meta_value) AS meta_value_hex FROM {$wpdb->postmeta} WHERE post_id=%d AND meta_key='recording_text'", $id), ARRAY_A);
             ll_tools_mutation_job_release($scope['lease']);
             $this->assertSame(0, $wpdb->query(ll_tools_recording_write_fence_query($update, $scope['lease'], $id, 'recording_text', $current)));
         } finally { ll_tools_recording_write_release($scope); }
@@ -118,6 +130,69 @@ final class RecordingMetadataWriteTest extends LL_Tools_TestCase
         $this->assertSame(['Original'], get_post_meta($id, 'recording_text', false));
         $this->assertFalse(ll_tools_recording_add_post_meta($id, 'recording_text', 'Original', true));
         $this->assertNull(ll_tools_recording_write_error($id));
+    }
+
+    public function test_unicode_transcriptions_with_apostrophes_and_combining_marks_keep_exact_preimages(): void
+    {
+        $id = $this->recording();
+        update_post_meta($id, 'recording_text', "Şâ'hmeran ha ça da");
+        update_post_meta($id, 'recording_ipa', 'ʃahmɛran ha t͡ʃa da');
+        $result = ll_tools_recording_write_run($id, static function () use ($id): void {
+            ll_tools_recording_update_post_meta($id, 'recording_text', "Şâ'hmeran ha çê da");
+            ll_tools_recording_update_post_meta($id, 'recording_ipa', 'ʃahmæran ha t͡ʃɛ da');
+        });
+        $this->assertNotWPError($result);
+        $this->assertNull(ll_tools_recording_write_error($id));
+        $this->assertSame("Şâ'hmeran ha çê da", get_post_meta($id, 'recording_text', true));
+        $this->assertSame('ʃahmæran ha t͡ʃɛ da', get_post_meta($id, 'recording_ipa', true));
+    }
+
+    public function test_unicode_field_updates_and_deletes_work_when_connection_and_storage_bytes_differ(): void
+    {
+        global $wpdb;
+        $id = $this->recording();
+        $this->withLatin1Connection(function () use ($wpdb, $id): void {
+            // Model legacy UTF-8 application text written through a latin1
+            // connection to a Unicode column, without changing its encoding.
+            $original = "Şâ'hmeran ha ça da";
+            $updated = "Şâ'hmeran ha çê da";
+            update_post_meta($id, 'recording_text', $original);
+            $stored = $wpdb->get_row($wpdb->prepare("SELECT HEX(meta_value) AS stored_hex, BINARY meta_value = BINARY %s AS old_fence_matches, meta_value = %s AS text_matches FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = 'recording_text'", $original, $original, $id), ARRAY_A);
+            $this->assertNotSame(strtoupper(bin2hex($original)), $stored['stored_hex']);
+            $this->assertSame('0', (string) $stored['old_fence_matches']);
+            $this->assertSame('1', (string) $stored['text_matches']);
+            $result = ll_tools_recording_write_run($id, function () use ($id, $updated): void {
+                $this->assertNotFalse(ll_tools_recording_update_post_meta($id, 'recording_text', $updated));
+                $this->assertSame($updated, get_post_meta($id, 'recording_text', true));
+                $this->assertNotFalse(ll_tools_recording_update_post_meta($id, 'recording_ipa', 'ʃahmæran ha t͡ʃɛ da'));
+                $this->assertNotFalse(ll_tools_recording_update_post_meta($id, 'recording_ipa', 'ʃahmæran ha t͡ʃa da'));
+                $this->assertTrue(ll_tools_recording_delete_post_meta($id, 'recording_text'));
+            });
+            $this->assertNotWPError($result);
+            $this->assertNull(ll_tools_recording_write_error($id));
+            $this->assertSame('', get_post_meta($id, 'recording_text', true));
+            $this->assertSame('ʃahmæran ha t͡ʃa da', get_post_meta($id, 'recording_ipa', true));
+        });
+    }
+
+    public function test_connection_transcoding_cannot_hide_physical_changes_from_outer_snapshot(): void
+    {
+        global $wpdb;
+        $id = $this->recording();
+        $this->withLatin1Connection(function () use ($wpdb, $id): void {
+            $this->assertSame(1, $wpdb->query($wpdb->prepare("UPDATE {$wpdb->postmeta} SET meta_value = CONVERT(UNHEX('CA83') USING utf8mb4) WHERE post_id = %d AND meta_key = 'recording_text'", $id)));
+            $scope = ll_tools_recording_write_acquire($id);
+            $this->assertIsArray($scope);
+            try {
+                $original = get_post_meta($id, 'recording_text', true);
+                $this->assertSame(1, $wpdb->query($wpdb->prepare("UPDATE {$wpdb->postmeta} SET meta_value = CONVERT(UNHEX('C99B') USING utf8mb4) WHERE post_id = %d AND meta_key = 'recording_text'", $id)));
+                $current = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = 'recording_text'", $id));
+                $this->assertSame($original, $current, 'The latin1 result charset masks distinct Unicode storage bytes.');
+                $this->assertFalse(ll_tools_recording_update_post_meta($id, 'recording_text', 'Stale overwrite'));
+                $this->assertWPError(ll_tools_recording_write_error($id));
+                $this->assertSame('C99B', $wpdb->get_var($wpdb->prepare("SELECT HEX(meta_value) FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = 'recording_text'", $id)));
+            } finally { ll_tools_recording_write_release($scope); }
+        });
     }
 
     public function test_update_fence_does_not_match_another_recording_with_the_same_id_prefix(): void

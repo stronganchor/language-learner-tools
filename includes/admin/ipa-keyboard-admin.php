@@ -7444,6 +7444,9 @@ function ll_tools_ipa_orthography_apply_conversion_to_word(int $wordset_id, int 
     $recording_payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
         'recording_text' => $predicted_text,
     ]);
+    if (is_wp_error($recording_payload)) {
+        return $recording_payload;
+    }
     if (empty($recording_payload)) {
         return new WP_Error('recording_update_failed', __('Failed to save the converted recording text.', 'll-tools-text-domain'));
     }
@@ -7513,6 +7516,9 @@ function ll_tools_ipa_orthography_apply_suggestion_to_recording(int $wordset_id,
     $recording_payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
         'recording_text' => $predicted_text,
     ]);
+    if (is_wp_error($recording_payload)) {
+        return $recording_payload;
+    }
     if (empty($recording_payload)) {
         return new WP_Error('recording_update_failed', __('Failed to save the suggested recording text.', 'll-tools-text-domain'));
     }
@@ -9639,9 +9645,9 @@ function ll_tools_ipa_keyboard_get_wordset_term(int $wordset_id): ?WP_Term {
     return $wordset;
 }
 
-function ll_tools_ipa_keyboard_update_recording_fields(int $recording_id, int $wordset_id, array $fields): array {
-    $result = ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_update_recording_fields_unlocked($recording_id, $wordset_id, $fields));
-    return is_wp_error($result) ? [] : $result;
+/** @return array|WP_Error Preserve write failures so callers can distinguish them from invalid recordings. */
+function ll_tools_ipa_keyboard_update_recording_fields(int $recording_id, int $wordset_id, array $fields) {
+    return ll_tools_recording_write_run((int) $recording_id, static fn() => ll_tools_ipa_keyboard_update_recording_fields_unlocked($recording_id, $wordset_id, $fields));
 }
 
 function ll_tools_ipa_keyboard_update_recording_fields_unlocked(
@@ -10200,7 +10206,7 @@ function ll_tools_apply_ipa_keyboard_orthography_suggestion_handler() {
         ll_tools_ipa_orthography_build_engine_rules_for_wordset($wordset_id)
     );
     if (is_wp_error($result)) {
-        wp_send_json_error($result->get_error_message(), 400);
+        wp_send_json_error($result->get_error_message(), (int) ($result->get_error_data()['status'] ?? 400));
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -10284,6 +10290,9 @@ function ll_tools_update_recording_ipa_handler() {
     $payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
         'recording_ipa' => (string) ($_POST['recording_ipa'] ?? ''),
     ]);
+    if (is_wp_error($payload)) {
+        wp_send_json_error($payload->get_error_message(), (int) ($payload->get_error_data()['status'] ?? 503));
+    }
     if (empty($payload)) {
         wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
@@ -10474,6 +10483,9 @@ function ll_tools_update_ipa_keyboard_recording_handler() {
         'recording_text' => (string) ($_POST['recording_text'] ?? ''),
         'recording_ipa' => (string) ($_POST['recording_ipa'] ?? ''),
     ]);
+    if (is_wp_error($payload)) {
+        wp_send_json_error($payload->get_error_message(), (int) ($payload->get_error_data()['status'] ?? 503));
+    }
     if (empty($payload)) {
         wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
@@ -10536,6 +10548,9 @@ function ll_tools_toggle_ipa_keyboard_validation_exception_handler() {
     }
 
     $payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, []);
+    if (is_wp_error($payload)) {
+        wp_send_json_error($payload->get_error_message(), (int) ($payload->get_error_data()['status'] ?? 503));
+    }
     if (empty($payload)) {
         wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }

@@ -17,12 +17,12 @@ function ll_tools_recording_write_acquire(int $recording_id) {
     unset($GLOBALS['ll_tools_recording_write_errors'][$recording_id]);
     $GLOBALS['ll_tools_recording_write_scopes'][$recording_id] = ['lease' => $lease, 'depth' => 1];
     global $wpdb;
-    $rows = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_id LIMIT 1001", $recording_id), ARRAY_A);
+    $rows = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_key, meta_value, HEX(meta_value) AS meta_value_hex FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_id LIMIT 1001", $recording_id), ARRAY_A);
     $meta = [];
     $expected = [];
     foreach ((array) $rows as $row) {
         $meta[$row['meta_key']][] = $row['meta_value'];
-        $expected[$row['meta_key']][] = ['meta_id' => $row['meta_id'], 'meta_value' => $row['meta_value']];
+        $expected[$row['meta_key']][] = ['meta_id' => $row['meta_id'], 'meta_value' => $row['meta_value'], 'meta_value_hex' => $row['meta_value_hex']];
     }
     $invalid = $wpdb->last_error !== '' || !is_array($rows) || count($rows) > 1000;
     foreach ($meta as $key => $values) {
@@ -85,9 +85,15 @@ function ll_tools_recording_write_fence_query(string $sql, array $lease, int $id
         }
         throw new RuntimeException('recording_metadata_insert_shape');
     }
-    $preimage = count($before) === 1
-        ? $wpdb->prepare('meta_id = %d AND BINARY meta_value = BINARY %s', (int) $before[0]['meta_id'], $before[0]['meta_value'])
-        : '1 = 0';
+    // Result text is converted to the connection charset. Retain the column's
+    // actual bytes independently so a latin1 connection can fence UTF-8 data.
+    $preimage = '1 = 0';
+    if (count($before) === 1 && array_key_exists('meta_value_hex', $before[0])) {
+        $stored_value = $before[0]['meta_value_hex'] === null
+            ? 'NULL'
+            : $wpdb->prepare('UNHEX(%s)', $before[0]['meta_value_hex']);
+        $preimage = $wpdb->prepare('meta_id = %d AND BINARY meta_value <=> ', (int) $before[0]['meta_id']) . $stored_value;
+    }
     if ($kind === 'DELETE FROM') {
         // A hook can replace/add rows after WordPress selects IDs. Protect every
         // row for this exact field while unrelated hook metadata remains writable.
@@ -107,7 +113,7 @@ function ll_tools_recording_write_meta(string $operation, int $id, string $key, 
     try {
         if (ll_tools_recording_write_error($id)) { return false; }
         wp_cache_delete($id, 'post_meta');
-        $before = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 2", $id, $key), ARRAY_A);
+        $before = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value, HEX(meta_value) AS meta_value_hex FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 2", $id, $key), ARRAY_A);
         $expected_before = $GLOBALS['ll_tools_recording_write_scopes'][$id]['expected'][$key] ?? [];
         if ($wpdb->last_error !== '' || !is_array($before) || count($before) > 1 || $before !== $expected_before) {
             throw new RuntimeException('recording_metadata_read_failed');
@@ -133,7 +139,7 @@ function ll_tools_recording_write_meta(string $operation, int $id, string $key, 
             remove_filter('add_post_metadata', $capture_value, PHP_INT_MAX);
         }
         wp_cache_delete($id, 'post_meta');
-        $after_rows = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 2", $id, $key), ARRAY_A);
+        $after_rows = $wpdb->get_results($wpdb->prepare("SELECT meta_id, meta_value, HEX(meta_value) AS meta_value_hex FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s ORDER BY meta_id LIMIT 2", $id, $key), ARRAY_A);
         $after = array_column((array) $after_rows, 'meta_value');
         if ($wpdb->last_error !== '' || count($after) > 1 || !ll_tools_mutation_job_owns($scope['lease'])) {
             throw new RuntimeException('recording_metadata_read_failed');

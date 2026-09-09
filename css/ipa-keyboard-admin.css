@@ -1916,6 +1916,9 @@ body.ll-ipa-keyboard-open {
 
 .ll-ipa-search-save-state.is-error {
     color: #b91c1c;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .ll-ipa-search-save-state.is-error .ll-ipa-search-save-indicator::before {

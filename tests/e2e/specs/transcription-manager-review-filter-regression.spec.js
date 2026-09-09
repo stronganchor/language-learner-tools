@@ -2927,7 +2927,7 @@ test('detached word editor times out a stalled request and permits a clean retry
   await expect(page.locator('[data-ll-word-edit-modal-loading-shell]')).toBeHidden();
 });
 
-test('transcription autosave keeps fields editable and preserves newer edits', async ({ page }) => {
+test('transcription autosave keeps fields editable and preserves newer edits through save failures', async ({ page }) => {
   await page.route('**/*', route => route.fulfill({
     status: 200,
     contentType: 'text/html',
@@ -3051,6 +3051,9 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
 
         if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
           mock.pendingUpdateRequests.push({
+            fail(status, response) {
+              deferred.reject({ status, responseJSON: response }, 'error');
+            },
             finish() {
               mock.recording = Object.assign({}, mock.recording, {
                 recording_text: String(requestData.recording_text || ''),
@@ -3179,6 +3182,45 @@ test('transcription autosave keeps fields editable and preserves newer edits', a
       recording_ipa: 'ipa edited'
     }
   ]);
+
+  const failures = [
+    { status: 429, data: 'This job is already processing. Wait and retry.' },
+    { status: 503, data: { message: 'The save could not be verified. Reload this recording before editing again.' } }
+  ];
+  for (const failure of failures) {
+    const unsavedText = 'Unsaved text ' + failure.status;
+    const message = typeof failure.data === 'string' ? failure.data : failure.data.message;
+    await textInput.fill(unsavedText);
+    await page.locator('#ll-ipa-search-btn').focus();
+    await expect.poll(() => page.evaluate(() => window.__llAutosaveResponsivenessMock.pendingUpdateRequests.length)).toBe(1);
+    await page.evaluate((failure) => {
+      window.__llAutosaveResponsivenessMock.pendingUpdateRequests.shift().fail(failure.status, {
+        success: false,
+        data: failure.data
+      });
+    }, failure);
+
+    await expect(row.locator('.ll-ipa-search-save-state')).toHaveText(message);
+    await expect(page.locator('#ll-ipa-admin-status')).toHaveText(message);
+    await expect(textInput).toHaveValue(unsavedText);
+    await expect(textInput).toHaveAttribute('data-saved-value', 'alpha edited');
+    await expect(ipaInput).toHaveValue('ipa edited');
+    await expect(textInput).toBeEnabled();
+    await expect(ipaInput).toBeEnabled();
+    expect(await page.evaluate(() => window.__llAutosaveResponsivenessMock.recording.recording_text)).toBe('alpha edited');
+    expect(await row.locator('.ll-ipa-search-save-state').evaluate((element) => (
+      element.getBoundingClientRect().width <= element.closest('td').getBoundingClientRect().width
+    ))).toBe(true);
+  }
+
+  // A later blur retries the retained edit and advances the baseline only on acknowledgement.
+  await textInput.focus();
+  await page.locator('#ll-ipa-search-btn').focus();
+  await expect.poll(() => page.evaluate(() => window.__llAutosaveResponsivenessMock.pendingUpdateRequests.length)).toBe(1);
+  await page.evaluate(() => window.__llAutosaveResponsivenessMock.pendingUpdateRequests.shift().finish());
+  await expect(row.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+  await expect(textInput).toHaveValue('Unsaved text 503');
+  await expect(textInput).toHaveAttribute('data-saved-value', 'Unsaved text 503');
 });
 
 test('orthography suggestion chips update the field and autosave inline', async ({ page }) => {

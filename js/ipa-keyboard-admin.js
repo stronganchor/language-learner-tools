@@ -2663,7 +2663,7 @@
         return (typeof value === 'string' && value) ? value : fallback;
     }
 
-    function readInternalNoteResponseMessage(response, fallback) {
+    function readSaveResponseMessage(response, fallback) {
         if (!response || typeof response !== 'object') {
             return fallback;
         }
@@ -2679,9 +2679,9 @@
         return fallback;
     }
 
-    function readInternalNoteAjaxMessage(jqXHR, fallback) {
+    function readSaveAjaxMessage(jqXHR, fallback) {
         const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
-        return readInternalNoteResponseMessage(response, fallback);
+        return readSaveResponseMessage(response, fallback);
     }
 
     function getRecordInternalReviewNote(rec) {
@@ -2944,7 +2944,7 @@
             if (!response || response.success !== true) {
                 setSearchWordReviewNoteSavingUi(
                     state,
-                    readInternalNoteResponseMessage(response, getInternalNoteMessage('error', 'Unable to save the review note.')),
+                    readSaveResponseMessage(response, getInternalNoteMessage('error', 'Unable to save the review note.')),
                     'error'
                 );
                 return;
@@ -2971,7 +2971,7 @@
             shouldContinue = state.revision !== requestRevision || state.desiredNote !== requestNote;
             setSearchWordReviewNoteSavingUi(
                 state,
-                readInternalNoteAjaxMessage(jqXHR, getInternalNoteMessage('error', 'Unable to save the review note.')),
+                readSaveAjaxMessage(jqXHR, getInternalNoteMessage('error', 'Unable to save the review note.')),
                 'error'
             );
         }).always(function () {
@@ -5505,8 +5505,9 @@
             if (!response || response.success !== true) {
                 clearPendingSearchReviewState(values.recordingId);
                 clearPendingSearchEditorOpen(values.recordingId);
-                setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                const message = readSaveResponseMessage(response, t('searchSaveFailed', 'Save failed'));
+                setSearchRowSaveState($row, 'error', message);
+                setStatus(message, true);
                 return;
             }
 
@@ -5557,11 +5558,12 @@
             }
 
             setStatus(t('saved', 'Saved.'), false);
-        }).fail(function () {
+        }).fail(function (jqXHR) {
             clearPendingSearchReviewState(values.recordingId);
             clearPendingSearchEditorOpen(values.recordingId);
-            setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+            const message = readSaveAjaxMessage(jqXHR, t('searchSaveFailed', 'Save failed'));
+            setSearchRowSaveState($row, 'error', message);
+            setStatus(message, true);
         }).always(function () {
             $row.data('llSearchRowSaving', false);
             if ($row.closest('html').length && $row.data('llSearchRowPending')) {
