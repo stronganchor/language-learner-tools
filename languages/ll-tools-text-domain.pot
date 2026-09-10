@@ -793,32 +793,32 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:590
 #: includes/admin/audio-image-matcher.php:598
 #: includes/admin/audio-image-matcher.php:601
-#: includes/admin/ipa-keyboard-admin.php:9804
-#: includes/admin/ipa-keyboard-admin.php:9841
-#: includes/admin/ipa-keyboard-admin.php:9872
-#: includes/admin/ipa-keyboard-admin.php:9903
-#: includes/admin/ipa-keyboard-admin.php:9943
-#: includes/admin/ipa-keyboard-admin.php:9959
-#: includes/admin/ipa-keyboard-admin.php:9980
-#: includes/admin/ipa-keyboard-admin.php:10001
-#: includes/admin/ipa-keyboard-admin.php:10056
-#: includes/admin/ipa-keyboard-admin.php:10105
-#: includes/admin/ipa-keyboard-admin.php:10159
-#: includes/admin/ipa-keyboard-admin.php:10184
-#: includes/admin/ipa-keyboard-admin.php:10217
-#: includes/admin/ipa-keyboard-admin.php:10270
-#: includes/admin/ipa-keyboard-admin.php:10300
-#: includes/admin/ipa-keyboard-admin.php:10369
-#: includes/admin/ipa-keyboard-admin.php:10464
-#: includes/admin/ipa-keyboard-admin.php:10490
-#: includes/admin/ipa-keyboard-admin.php:10527
-#: includes/admin/ipa-keyboard-admin.php:10559
-#: includes/admin/ipa-keyboard-admin.php:10637
-#: includes/admin/ipa-keyboard-admin.php:10680
-#: includes/admin/ipa-keyboard-admin.php:10756
-#: includes/admin/ipa-keyboard-admin.php:10795
-#: includes/admin/ipa-keyboard-admin.php:10874
-#: includes/admin/ipa-keyboard-admin.php:10933
+#: includes/admin/ipa-keyboard-admin.php:9810
+#: includes/admin/ipa-keyboard-admin.php:9847
+#: includes/admin/ipa-keyboard-admin.php:9878
+#: includes/admin/ipa-keyboard-admin.php:9909
+#: includes/admin/ipa-keyboard-admin.php:9949
+#: includes/admin/ipa-keyboard-admin.php:9965
+#: includes/admin/ipa-keyboard-admin.php:9986
+#: includes/admin/ipa-keyboard-admin.php:10007
+#: includes/admin/ipa-keyboard-admin.php:10062
+#: includes/admin/ipa-keyboard-admin.php:10111
+#: includes/admin/ipa-keyboard-admin.php:10165
+#: includes/admin/ipa-keyboard-admin.php:10190
+#: includes/admin/ipa-keyboard-admin.php:10223
+#: includes/admin/ipa-keyboard-admin.php:10276
+#: includes/admin/ipa-keyboard-admin.php:10309
+#: includes/admin/ipa-keyboard-admin.php:10378
+#: includes/admin/ipa-keyboard-admin.php:10473
+#: includes/admin/ipa-keyboard-admin.php:10502
+#: includes/admin/ipa-keyboard-admin.php:10539
+#: includes/admin/ipa-keyboard-admin.php:10574
+#: includes/admin/ipa-keyboard-admin.php:10652
+#: includes/admin/ipa-keyboard-admin.php:10695
+#: includes/admin/ipa-keyboard-admin.php:10771
+#: includes/admin/ipa-keyboard-admin.php:10810
+#: includes/admin/ipa-keyboard-admin.php:10889
+#: includes/admin/ipa-keyboard-admin.php:10948
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/pages/wordset-transcription-review.php:268
 #: includes/shortcodes/editor-hub-shortcode.php:975
@@ -847,7 +847,7 @@ msgid "Missing parameters"
 msgstr ""
 
 #: includes/admin/audio-image-matcher.php:584
-#: includes/admin/ipa-keyboard-admin.php:10171
+#: includes/admin/ipa-keyboard-admin.php:10177
 msgid "Invalid word"
 msgstr ""
 
@@ -8058,188 +8058,188 @@ msgstr ""
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7448
+#: includes/admin/ipa-keyboard-admin.php:7451
 msgid "Failed to save the converted recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7473
+#: includes/admin/ipa-keyboard-admin.php:7476
 #: includes/shortcodes/word-grid-shortcode.php:8033
 #: includes/shortcodes/word-grid-shortcode.php:9058
 #: includes/shortcodes/word-grid-shortcode.php:9139
 msgid "Invalid recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7478
+#: includes/admin/ipa-keyboard-admin.php:7481
 msgid "Recording does not belong to this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7483
+#: includes/admin/ipa-keyboard-admin.php:7486
 msgid "No IPA transcription is available for this recording."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7491
+#: includes/admin/ipa-keyboard-admin.php:7494
 msgid "Current rules cannot suggest a written transcription for this recording yet."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:7517
+#: includes/admin/ipa-keyboard-admin.php:7523
 msgid "Failed to save the suggested recording text."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8102
+#: includes/admin/ipa-keyboard-admin.php:8108
 msgid "A modifier or diacritic appears without a main sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8122
+#: includes/admin/ipa-keyboard-admin.php:8128
 msgid "A tie bar appears without two joined sounds."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8142
+#: includes/admin/ipa-keyboard-admin.php:8148
 msgid "A tie bar joins a sound pair outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8160
+#: includes/admin/ipa-keyboard-admin.php:8166
 msgid "The same IPA modifier is repeated on one sound."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8187
+#: includes/admin/ipa-keyboard-admin.php:8193
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8207
+#: includes/admin/ipa-keyboard-admin.php:8213
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8226
+#: includes/admin/ipa-keyboard-admin.php:8232
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr ""
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:8251
+#: includes/admin/ipa-keyboard-admin.php:8257
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8326
+#: includes/admin/ipa-keyboard-admin.php:8332
 msgid "Saved text does not match the current orthography rules."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:8354
+#: includes/admin/ipa-keyboard-admin.php:8360
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9809
-#: includes/admin/ipa-keyboard-admin.php:9814
-#: includes/admin/ipa-keyboard-admin.php:9846
-#: includes/admin/ipa-keyboard-admin.php:9851
-#: includes/admin/ipa-keyboard-admin.php:9877
-#: includes/admin/ipa-keyboard-admin.php:9882
-#: includes/admin/ipa-keyboard-admin.php:9908
-#: includes/admin/ipa-keyboard-admin.php:9911
-#: includes/admin/ipa-keyboard-admin.php:9948
-#: includes/admin/ipa-keyboard-admin.php:9951
-#: includes/admin/ipa-keyboard-admin.php:9985
-#: includes/admin/ipa-keyboard-admin.php:9989
-#: includes/admin/ipa-keyboard-admin.php:10006
-#: includes/admin/ipa-keyboard-admin.php:10010
-#: includes/admin/ipa-keyboard-admin.php:10061
-#: includes/admin/ipa-keyboard-admin.php:10065
-#: includes/admin/ipa-keyboard-admin.php:10110
-#: includes/admin/ipa-keyboard-admin.php:10114
-#: includes/admin/ipa-keyboard-admin.php:10194
-#: includes/admin/ipa-keyboard-admin.php:10222
-#: includes/admin/ipa-keyboard-admin.php:10226
-#: includes/admin/ipa-keyboard-admin.php:10281
-#: includes/admin/ipa-keyboard-admin.php:10305
-#: includes/admin/ipa-keyboard-admin.php:10310
-#: includes/admin/ipa-keyboard-admin.php:10374
-#: includes/admin/ipa-keyboard-admin.php:10379
-#: includes/admin/ipa-keyboard-admin.php:10495
-#: includes/admin/ipa-keyboard-admin.php:10642
-#: includes/admin/ipa-keyboard-admin.php:10761
-#: includes/admin/ipa-keyboard-admin.php:10765
-#: includes/admin/ipa-keyboard-admin.php:10800
-#: includes/admin/ipa-keyboard-admin.php:10805
-#: includes/admin/ipa-keyboard-admin.php:10879
-#: includes/admin/ipa-keyboard-admin.php:10884
-#: includes/admin/ipa-keyboard-admin.php:10938
-#: includes/admin/ipa-keyboard-admin.php:10943
+#: includes/admin/ipa-keyboard-admin.php:9815
+#: includes/admin/ipa-keyboard-admin.php:9820
+#: includes/admin/ipa-keyboard-admin.php:9852
+#: includes/admin/ipa-keyboard-admin.php:9857
+#: includes/admin/ipa-keyboard-admin.php:9883
+#: includes/admin/ipa-keyboard-admin.php:9888
+#: includes/admin/ipa-keyboard-admin.php:9914
+#: includes/admin/ipa-keyboard-admin.php:9917
+#: includes/admin/ipa-keyboard-admin.php:9954
+#: includes/admin/ipa-keyboard-admin.php:9957
+#: includes/admin/ipa-keyboard-admin.php:9991
+#: includes/admin/ipa-keyboard-admin.php:9995
+#: includes/admin/ipa-keyboard-admin.php:10012
+#: includes/admin/ipa-keyboard-admin.php:10016
+#: includes/admin/ipa-keyboard-admin.php:10067
+#: includes/admin/ipa-keyboard-admin.php:10071
+#: includes/admin/ipa-keyboard-admin.php:10116
+#: includes/admin/ipa-keyboard-admin.php:10120
+#: includes/admin/ipa-keyboard-admin.php:10200
+#: includes/admin/ipa-keyboard-admin.php:10228
+#: includes/admin/ipa-keyboard-admin.php:10232
+#: includes/admin/ipa-keyboard-admin.php:10287
+#: includes/admin/ipa-keyboard-admin.php:10314
+#: includes/admin/ipa-keyboard-admin.php:10319
+#: includes/admin/ipa-keyboard-admin.php:10383
+#: includes/admin/ipa-keyboard-admin.php:10388
+#: includes/admin/ipa-keyboard-admin.php:10507
+#: includes/admin/ipa-keyboard-admin.php:10657
+#: includes/admin/ipa-keyboard-admin.php:10776
+#: includes/admin/ipa-keyboard-admin.php:10780
+#: includes/admin/ipa-keyboard-admin.php:10815
+#: includes/admin/ipa-keyboard-admin.php:10820
+#: includes/admin/ipa-keyboard-admin.php:10894
+#: includes/admin/ipa-keyboard-admin.php:10899
+#: includes/admin/ipa-keyboard-admin.php:10953
+#: includes/admin/ipa-keyboard-admin.php:10958
 msgid "Invalid word set"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9918
-#: includes/admin/ipa-keyboard-admin.php:10897
-#: includes/admin/ipa-keyboard-admin.php:10956
+#: includes/admin/ipa-keyboard-admin.php:9924
+#: includes/admin/ipa-keyboard-admin.php:10912
+#: includes/admin/ipa-keyboard-admin.php:10971
 msgid "Invalid mapping"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:9956
+#: includes/admin/ipa-keyboard-admin.php:9962
 msgid "Invalid action"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10016
+#: includes/admin/ipa-keyboard-admin.php:10022
 msgid "Invalid segment"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10075
-#: includes/admin/ipa-keyboard-admin.php:10124
+#: includes/admin/ipa-keyboard-admin.php:10081
+#: includes/admin/ipa-keyboard-admin.php:10130
 msgid "Invalid rule"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10166
-#: includes/admin/ipa-keyboard-admin.php:10190
-#: includes/admin/ipa-keyboard-admin.php:10276
-#: includes/admin/ipa-keyboard-admin.php:10470
-#: includes/admin/ipa-keyboard-admin.php:10535
-#: includes/admin/ipa-keyboard-admin.php:10572
-#: includes/admin/ipa-keyboard-admin.php:10693
+#: includes/admin/ipa-keyboard-admin.php:10172
+#: includes/admin/ipa-keyboard-admin.php:10196
+#: includes/admin/ipa-keyboard-admin.php:10282
+#: includes/admin/ipa-keyboard-admin.php:10479
+#: includes/admin/ipa-keyboard-admin.php:10547
+#: includes/admin/ipa-keyboard-admin.php:10587
+#: includes/admin/ipa-keyboard-admin.php:10708
 #: includes/shortcodes/audio-recording-shortcode.php:9514
 #: includes/shortcodes/word-grid-shortcode.php:11164
 msgid "Missing data"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10237
+#: includes/admin/ipa-keyboard-admin.php:10243
 msgid "No words selected"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10288
-#: includes/admin/ipa-keyboard-admin.php:10478
-#: includes/admin/ipa-keyboard-admin.php:10540
-#: includes/admin/ipa-keyboard-admin.php:10582
-#: includes/admin/ipa-keyboard-admin.php:10587
-#: includes/admin/ipa-keyboard-admin.php:10592
-#: includes/admin/ipa-keyboard-admin.php:10701
-#: includes/admin/ipa-keyboard-admin.php:10706
-#: includes/admin/ipa-keyboard-admin.php:10711
+#: includes/admin/ipa-keyboard-admin.php:10297
+#: includes/admin/ipa-keyboard-admin.php:10490
+#: includes/admin/ipa-keyboard-admin.php:10555
+#: includes/admin/ipa-keyboard-admin.php:10597
+#: includes/admin/ipa-keyboard-admin.php:10602
+#: includes/admin/ipa-keyboard-admin.php:10607
+#: includes/admin/ipa-keyboard-admin.php:10716
+#: includes/admin/ipa-keyboard-admin.php:10721
+#: includes/admin/ipa-keyboard-admin.php:10726
 #: includes/shortcodes/word-grid-shortcode.php:11189
 msgid "Invalid recording"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10500
-#: includes/admin/ipa-keyboard-admin.php:10577
-#: includes/admin/ipa-keyboard-admin.php:10648
+#: includes/admin/ipa-keyboard-admin.php:10512
+#: includes/admin/ipa-keyboard-admin.php:10592
+#: includes/admin/ipa-keyboard-admin.php:10663
 msgid "Rules unavailable"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10605
+#: includes/admin/ipa-keyboard-admin.php:10620
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10610
+#: includes/admin/ipa-keyboard-admin.php:10625
 msgid "Could not approve this symbol mapping."
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10656
+#: includes/admin/ipa-keyboard-admin.php:10671
 msgid "Invalid symbol"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10696
+#: includes/admin/ipa-keyboard-admin.php:10711
 msgid "Invalid review field"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10771
+#: includes/admin/ipa-keyboard-admin.php:10786
 msgid "No symbols found"
 msgstr ""
 
-#: includes/admin/ipa-keyboard-admin.php:10815
+#: includes/admin/ipa-keyboard-admin.php:10830
 msgid "Invalid letter"
 msgstr ""
 
@@ -15049,7 +15049,7 @@ msgstr ""
 
 #: includes/lib/recording-metadata.php:10
 #: includes/lib/recording-metadata.php:33
-#: includes/lib/recording-metadata.php:156
+#: includes/lib/recording-metadata.php:162
 #: includes/pages/wordset-transcription-review.php:180
 #: includes/pages/wordset-transcription-review.php:186
 #: includes/pages/wordset-transcription-review.php:220
