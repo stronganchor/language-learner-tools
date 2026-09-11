@@ -76,6 +76,41 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
+### Current verification inventory (September 11)
+
+- The complete PHPUnit suite passed **2,657 tests, 65,239 assertions, and nine
+  expected skips**. A focused run of the cache, Games, lazy-card, and Copy/Split
+  regressions passed 151 tests with 2,742 assertions. Failure diagnostics traced
+  the earlier suite-only failures to request-local recording-type and taxonomy
+  identity caches surviving fixture ID reuse. Simulated request boundaries now
+  reset those exact caches; persisted-cache assertions remain unchanged.
+- Final Playwright discovery lists **849 tests in 122 files**. Eight initial
+  serial shards plus focused post-fix runs account for all 848 regular cases;
+  this is coverage across runs, not one final unsharded run. The remaining
+  opt-in performance case was exercised separately. Focused checks passed all
+  59 Transcription Manager/Copy/Review cases, 47 startup/maintenance contracts,
+  and 14 performance-runner contracts. The real WordPress recording-tools
+  scenario also passed, including independent persistence readback.
+- Local readiness was verified against the running site. Thirteen simulated
+  startup cases cover stopped, starting, running, and failure states without
+  stopping the user's app. Fourteen additional warmup contracts cover transient
+  gateway/connection recovery, permanent failures, and the shared deadline.
+  No real stopped-to-started Local transition was performed in this pass.
+- Source/POT is fresh at 6,384 canonical keys. Turkish and German are complete
+  at 6,384/6,384 with exact compiled MO/PHP parity; all eight active public
+  locales pass 800/800. All eight AI context packs validate. Builder tests pass
+  13/13 and its npm audit reports no vulnerabilities after adm-zip 0.6.1.
+- Genç completed nine of ten performance scenarios, then exceeded the unchanged
+  120-second cold recorder-completion budget. The measured follow-up is at the
+  top of this backlog. A failed run does not replace the last successful
+  aggregate report, so historical report files are not current-run evidence.
+- Stress-2x passed all eight scenarios with the existing budgets against 100
+  categories, 5,000 words, 15,000 audio records, and 5,100 images/attachments.
+  The run reused the verified fixture after a transient Local PHP-CGI recycle
+  had interrupted the first attempt's warmup. It measured one run per scenario
+  without writing history; no comparable previous record was available, so this
+  establishes current budget compliance rather than a performance improvement.
+
 ### Previous verification inventory (September 5)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical

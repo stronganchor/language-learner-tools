@@ -454,6 +454,19 @@ private-wordset hub readiness timeout while bounded catalog counts were still
 building; all access assertions remained intact. The canonical PHP suite passed
 2,547 tests with 62,346 assertions and nine expected skips; builder filesystem
 checks passed 13/13, with 6,328 canonical gettext keys and eight valid context packs.
+The September 11 maintenance follow-up (6.7.39) discovered 849 tests in 122
+files. Eight initial serial shards plus focused post-fix runs account for all
+848 regular cases; this is coverage across runs, not one final unsharded run.
+The opt-in performance case was run separately: Genç completed nine scenarios
+before cold recorder-queue completion exceeded its unchanged 120-second budget.
+See `MAINTENANCE_BACKLOG.md` for the measured follow-up and performance results.
+The complete PHP suite passed 2,657 tests with 65,239 assertions and nine expected
+skips. Focused browser checks passed 59 editor cases, 47 startup/maintenance
+contracts, 14 performance-runner contracts, and the real WordPress recording
+tools scenario. Builder tests passed 13/13; catalogs passed with 6,384 canonical
+keys, 800 public keys, and eight valid context packs. Local startup states are
+covered by simulation; this pass verified the real already-running-site path
+without stopping the user's Local app.
 These are dated local discovery snapshots, not fixed suite-size expectations.
 Treat a short unsharded timeout as an automation budget problem unless a
 shard isolates a hung spec; if the unsharded command still stalls beyond 35
