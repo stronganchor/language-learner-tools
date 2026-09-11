@@ -628,7 +628,8 @@ test('Windows PHP test wrappers prefer the Git Bash path converter', async () =>
   expect(e2eRunner).toContain('LL_TOOLS_E2E_SKIP_READINESS');
   expect(e2eRunner).toContain('LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS');
   expect(e2eRunner).toContain('readiness_url="${LL_E2E_BASE_URL%/}/wp-admin/"');
-  expect(e2eRunner).toContain('curl --fail --insecure --location --silent --show-error');
+  expect(e2eRunner).toContain('source "$SCRIPT_DIR/wordpress-readiness.sh"');
+  expect(e2eRunner).toContain('ll_tools_warm_wordpress "$readiness_url" "$readiness_timeout"');
   expect(e2eRunner).toContain('NPM_RUNNER=(node "$npm_cli_candidate")');
   expect(e2eRunner).toContain('PLAYWRIGHT_CLI="node_modules/@playwright/test/cli.js"');
   expect(e2eRunner).toContain('exec node "$PLAYWRIGHT_CLI" test');
@@ -691,6 +692,103 @@ test('WordPress test bootstrap tolerates an unset USER and shares one canonical 
     stderr: '',
     output: '"C:\\fixture\\php.exe" -n -d extension_dir="C:\\fixture\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll'
   });
+});
+
+function runWordpressReadinessCase(responses, { timeout = '180', sleepElapsed = 1, url = 'https://readiness-fixture.invalid/wp-admin/' } = {}) {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'll-tools-readiness-'));
+  const bash = process.platform === 'win32'
+    ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe')
+    : (process.env.BASH || 'bash');
+  try {
+    fs.writeFileSync(path.join(fixture, 'responses'), responses.map(([status, code]) => `${status} ${code}`).join('\n') + '\n');
+    const script = `
+set -euo pipefail
+source tests/bin/wordpress-readiness.sh
+fixture_dir="$1"
+SECONDS=0
+# Simulate elapsed time without sleeping or connecting to any server.
+clock_step="$4"
+sleep() { SECONDS=$((SECONDS + clock_step)); }
+curl() {
+    local attempt=0 status=000 code=99 row=0
+    if [[ -f "$fixture_dir/count" ]]; then read -r attempt < "$fixture_dir/count"; fi
+    attempt=$((attempt + 1))
+    printf '%s\\n' "$attempt" > "$fixture_dir/count"
+    printf '%s\\n' "$*" >> "$fixture_dir/calls"
+    while read -r status code; do
+        row=$((row + 1))
+        if (( row == attempt )); then printf '%s' "$status"; return "$code"; fi
+    done < "$fixture_dir/responses"
+    return 99
+}
+ll_tools_warm_wordpress "$2" "$3"
+`;
+    const result = childProcess.spawnSync(bash, ['-c', script, 'wordpress-readiness-contract', fixture.replace(/\\/g, '/'), url, timeout, String(sleepElapsed)], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 10000
+    });
+    const callsPath = path.join(fixture, 'calls');
+    const calls = fs.existsSync(callsPath) ? fs.readFileSync(callsPath, 'utf8').trim().split(/\r?\n/) : [];
+    return { ...result, calls };
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+}
+
+for (const responses of [
+  [['502', 22], ['200', 0]],
+  [['503', 22], ['504', 22], ['200', 0]],
+  [['000', 7], ['200', 0]],
+  [['000', 56], ['200', 0]]
+]) {
+  test(`WordPress warmup recovers from transient ${responses.map(([status, code]) => `${status}/${code}`).join(' then ')}`, () => {
+    const result = runWordpressReadinessCase(responses);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.calls).toHaveLength(responses.length);
+    for (const call of result.calls) {
+      expect(call).toContain('--disable --fail --insecure --location --silent --show-error');
+      expect(call).toContain('https://readiness-fixture.invalid/wp-admin/');
+      expect(call).not.toMatch(/--(?:user|data|cookie|retry)\b/);
+    }
+  });
+}
+
+test('WordPress warmup caps persistent gateway failures at three attempts', () => {
+  const result = runWordpressReadinessCase([['502', 22], ['502', 22], ['502', 22], ['200', 0]]);
+  expect(result.status).toBe(1);
+  expect(result.calls).toHaveLength(3);
+  expect(result.stderr).toContain('WordPress did not become ready');
+});
+
+for (const [status, code] of [['400', 22], ['401', 22], ['403', 22], ['404', 22], ['500', 22], ['000', 60], ['000', 28]]) {
+  test(`WordPress warmup does not retry HTTP ${status} / curl ${code}`, () => {
+    const result = runWordpressReadinessCase([[status, code], ['200', 0]], { timeout: '3' });
+    expect(result.status).toBe(1);
+    expect(result.calls).toHaveLength(1);
+    expect(result.calls[0]).toContain('--max-time 3');
+    expect(result.stderr).not.toContain('retrying');
+  });
+}
+
+test('WordPress warmup gives retries only the time left in its original deadline', () => {
+  const result = runWordpressReadinessCase([['503', 22], ['503', 22], ['200', 0]], { timeout: '3', sleepElapsed: 2 });
+  expect(result.status).toBe(1);
+  expect(result.calls).toHaveLength(2);
+  expect(result.calls.map(call => Number(call.match(/--max-time (\d+)/)[1]))).toEqual([3, 1]);
+});
+
+test('WordPress warmup rejects credentials and invalid deadlines before invoking curl', () => {
+  for (const timeout of ['0', '601', '999999999999999999999999', 'not-a-number']) {
+    const result = runWordpressReadinessCase([['200', 0]], { timeout });
+    expect(result.status).toBe(1);
+    expect(result.calls).toEqual([]);
+    expect(result.stderr).toContain('integer from 1 to 600');
+  }
+  const result = runWordpressReadinessCase([['200', 0]], { url: 'https://fixture-user:fixture-secret@readiness-fixture.invalid/wp-admin/' });
+  expect(result.status).toBe(1);
+  expect(result.calls).toEqual([]);
+  expect(result.stdout + result.stderr).not.toContain('fixture-secret');
 });
 
 test('local test bootstrap resolves the matching active runtime without Python', async () => {

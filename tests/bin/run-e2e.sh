@@ -349,20 +349,10 @@ done
 # first admin request even though the warmed application is healthy.
 if [[ "$readiness_required" == "1" && "${LL_TOOLS_E2E_SKIP_READINESS:-0}" != "1" ]]; then
     readiness_timeout="${LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS:-180}"
-    if ! [[ "$readiness_timeout" =~ ^[1-9][0-9]*$ ]] || (( readiness_timeout > 600 )); then
-        echo "LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS must be an integer from 1 to 600." >&2
-        exit 1
-    fi
-    if ! command -v curl >/dev/null 2>&1; then
-        echo "curl is required for the Playwright WordPress readiness check." >&2
-        exit 1
-    fi
-
     readiness_url="${LL_E2E_BASE_URL%/}/wp-admin/"
-    echo "Warming WordPress at ${readiness_url} (timeout ${readiness_timeout}s)"
-    if ! curl --fail --insecure --location --silent --show-error \
-        --output /dev/null --max-time "$readiness_timeout" "$readiness_url"; then
-        echo "WordPress did not become ready at ${readiness_url}." >&2
+    # shellcheck source=tests/bin/wordpress-readiness.sh
+    source "$SCRIPT_DIR/wordpress-readiness.sh"
+    if ! ll_tools_warm_wordpress "$readiness_url" "$readiness_timeout"; then
         exit 1
     fi
 fi

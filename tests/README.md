@@ -24,7 +24,7 @@ This directory contains the plugin test framework:
 - `bin/setup-local-http-env.sh`: matches the current Local HTTP runtime for this site path, reads its canonical domain from `local-site.json`, and exports Playwright URL vars through the same cross-platform PHP resolver.
 - `bin/ensure-local-site.cjs` and `bin/local-test-runtime.sh`: prepare the matching Local site before database/browser tests. On Windows they can open Local and start a stopped site through Local's authenticated loopback API, then wait for readiness. They never restart an already-running site or stop Local after testing.
 - `bin/run-e2e.sh`: preserves a configured canonical `LL_E2E_BASE_URL` from the caller or local env files, falls back to matching Local runtime detection only when no URL is configured, then installs Playwright deps/browsers only when the bundled Chromium executable is actually absent and runs browser E2E tests.
-  - Before an executing run (but not `--list`/help), it performs one credential-free canonical `/wp-admin/` request with a bounded 180-second timeout so cold Local startup does not consume the first test's navigation budget. Set `LL_TOOLS_E2E_SKIP_READINESS=1` only for a runner that has an equivalent readiness gate; `LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS` may override the bound from 1 to 600 seconds.
+  - Before an executing run (but not `--list`/help), `bin/wordpress-readiness.sh` warms the credential-free canonical `/wp-admin/` URL within one 180-second total deadline so cold Local startup does not consume the first test's navigation budget. A PHP-CGI recycle may briefly return 502/503/504 or close/refuse its connection; only those readiness failures receive up to three attempts with one-second delays, each using the remaining deadline. Authentication/configuration errors and timeouts fail immediately; browser tests keep their normal budgets. Set `LL_TOOLS_E2E_SKIP_READINESS=1` only for a runner that has an equivalent readiness gate; `LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS` may override the bound from 1 to 600 seconds.
   - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
   - Under Git Bash, the wrapper runs npm's JavaScript entry point and Playwright's installed CLI through the resolved Node executable. This avoids PATHEXT selecting npm's extensionless shell shim or handing its shebang to WSL.
 - `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture, completes and verifies the target wordset's bounded durable category-search materialization outside timed scenarios, and runs the opt-in performance benchmark.
@@ -468,6 +468,8 @@ error log and a changed worker PID/start time, then rerun the exact failed spec
 or request-heavy file on the fresh worker. Keep 5xx assertions strict: do not
 add a generic retry, and treat a route that fails again before the recycle
 boundary as an application failure.
+The separate pre-test `/wp-admin/` warmup has the narrowly bounded readiness
+retries described above; measured requests and assertions remain strict.
 
 Read-only live-site smoke checks use a separate Playwright config and a local-only site list:
 
