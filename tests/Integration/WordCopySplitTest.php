@@ -123,6 +123,48 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         $this->assertWPError($this->apply($other_set, $word));
     }
 
+    public function test_split_refreshes_cached_audio_in_every_source_wordset(): void
+    {
+        [$set_a, $word, $category_a, $audio_ids] = $this->fixture(2);
+        $set_b = self::factory()->term->create(['taxonomy' => 'wordset']);
+        $category_b = self::factory()->term->create(['taxonomy' => 'word-category']);
+        ll_tools_set_category_wordset_owner($category_b, $set_b);
+        wp_set_object_terms($word, [$set_a, $set_b], 'wordset');
+        wp_set_object_terms($word, [$category_a, $category_b], 'word-category');
+        foreach ($audio_ids as $audio_id) {
+            wp_update_post(['ID' => $audio_id, 'post_status' => 'publish']);
+        }
+        wp_update_post(['ID' => $word, 'post_status' => 'publish']);
+        $this->completeLlToolsSimulatedRequest();
+
+        $category = get_term($category_b, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+        $config = ['prompt_type' => 'audio', 'option_type' => 'text_title'];
+        $rows = ll_get_words_by_category($category, 'text_title', [$set_b], $config);
+        $this->assertCount(1, $rows);
+        $this->assertCount(2, $rows[0]['audio_files']);
+        $moved_url = ll_tools_resolve_audio_file_url(get_post_meta($audio_ids[0], 'audio_file_path', true));
+        $remaining_url = ll_tools_resolve_audio_file_url(get_post_meta($audio_ids[1], 'audio_file_path', true));
+
+        $result = $this->apply($set_a, $word, [$audio_ids[0]], 'Split meaning');
+        $this->assertNotWPError($result);
+        $this->assertSame('completed', $result['state']);
+        $this->assertSame('publish', get_post_status($word));
+        $this->assertSame($result['new_word_id'], (int) wp_get_post_parent_id($audio_ids[0]));
+        $this->assertSame($word, (int) wp_get_post_parent_id($audio_ids[1]));
+        $this->assertSame([$set_a], array_map('intval', wp_get_object_terms($result['new_word_id'], 'wordset', ['fields' => 'ids'])));
+        $this->completeLlToolsSimulatedRequest();
+
+        // Exercise the warmed payload reader, including persistent cache keys;
+        // flushing caches manually would conceal the invalidation regression.
+        $rows = ll_get_words_by_category($category, 'text_title', [$set_b], $config);
+        $this->assertCount(1, $rows);
+        $this->assertSame($word, (int) $rows[0]['id']);
+        $urls = wp_list_pluck($rows[0]['audio_files'], 'url');
+        $this->assertSame([$remaining_url], $urls);
+        $this->assertNotContains($moved_url, $urls);
+    }
+
     public function test_copy_is_scoped_to_current_wordset_and_foreign_recordings_are_rejected(): void
     {
         [$set, $word, $category, $ids] = $this->fixture(1);
