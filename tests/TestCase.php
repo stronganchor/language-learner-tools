@@ -122,6 +122,9 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         if (function_exists('ll_tools_reset_category_maintenance_runtime')) {
             ll_tools_reset_category_maintenance_runtime();
         }
+        if (function_exists('ll_tools_reset_word_practice_recording_types_request_cache')) {
+            ll_tools_reset_word_practice_recording_types_request_cache();
+        }
         if (function_exists('ll_tools_epoch_request_cache_reset')) {
             ll_tools_epoch_request_cache_reset();
         }

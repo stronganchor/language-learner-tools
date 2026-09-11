@@ -510,6 +510,63 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         $this->assertSame(0, $word_audio_queries, 'Practice recording type resolution should not hydrate word_audio post rows.');
     }
 
+    public function test_simulated_request_boundary_refreshes_empty_and_positive_recording_type_cache_entries(): void
+    {
+        [$empty_word_id] = $this->createScopedWordWithRecordingTypes([]);
+        [$positive_word_id] = $this->createScopedWordWithRecordingTypes(['question' => 'Original question']);
+        $ids = [$empty_word_id, $positive_word_id];
+        $queries = 0;
+        $observe = static function (string $sql) use (&$queries): string {
+            if (str_contains($sql, 'SELECT p.post_parent AS word_id, t.slug AS recording_type')) {
+                $queries++;
+            }
+            return $sql;
+        };
+        add_filter('query', $observe);
+        try {
+            $initial = ll_tools_get_word_practice_recording_types_map($ids);
+            $this->assertSame([], $initial[$empty_word_id]);
+            $this->assertSame(['question'], $initial[$positive_word_id]);
+            $this->assertSame($initial, ll_tools_get_word_practice_recording_types_map($ids));
+            $this->assertSame(1, $queries, 'Repeated reads in one request remain memoized and batched.');
+        } finally {
+            remove_filter('query', $observe);
+        }
+
+        foreach (['isolation', 'introduction'] as $slug) {
+            if (!term_exists($slug, 'recording_type')) {
+                $this->assertIsArray(wp_insert_term(ucfirst($slug), 'recording_type', ['slug' => $slug]));
+            }
+        }
+        $new_audio = self::factory()->post->create([
+            'post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $empty_word_id,
+            'post_title' => 'New question in next fixture state',
+        ]);
+        update_post_meta($new_audio, 'audio_file_path', '/wp-content/uploads/request-boundary-question.mp3');
+        $this->assertIsArray(wp_set_post_terms($new_audio, ['question'], 'recording_type', false));
+        $existing_audio = get_posts([
+            'post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $positive_word_id,
+            'numberposts' => 1, 'fields' => 'ids',
+        ]);
+        $this->assertCount(1, $existing_audio);
+        $this->assertIsArray(wp_set_post_terms((int) $existing_audio[0], ['isolation', 'introduction'], 'recording_type', false));
+
+        $this->completeLlToolsSimulatedRequest();
+        $queries = 0;
+        add_filter('query', $observe);
+        try {
+            $complete = false;
+            $next = ll_tools_get_word_practice_recording_types_map($ids, $complete);
+            $this->assertTrue($complete);
+            $this->assertSame(['question'], $next[$empty_word_id]);
+            $this->assertSame(['isolation', 'introduction'], $next[$positive_word_id]);
+            $this->assertSame($next, ll_tools_get_word_practice_recording_types_map($ids));
+            $this->assertSame(1, $queries, 'The new request reloads both reused IDs in one bounded query.');
+        } finally {
+            remove_filter('query', $observe);
+        }
+    }
+
     /**
      * @param array<string,string> $recording_types
      * @return array{0:int,1:int,2:int}

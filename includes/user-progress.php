@@ -600,6 +600,11 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
     ];
 }
 
+/** Reset memoized recording types when a long-lived caller starts a new request. */
+function ll_tools_reset_word_practice_recording_types_request_cache(): void {
+    unset($GLOBALS['ll_tools_word_practice_recording_types_request_cache']);
+}
+
 function ll_tools_get_word_practice_recording_types_map(array $word_ids, ?bool &$complete = null): array {
     global $wpdb;
 
@@ -617,7 +622,10 @@ function ll_tools_get_word_practice_recording_types_map(array $word_ids, ?bool &
         return [];
     }
 
-    static $cache = [];
+    if (!isset($GLOBALS['ll_tools_word_practice_recording_types_request_cache'])) {
+        $GLOBALS['ll_tools_word_practice_recording_types_request_cache'] = [];
+    }
+    $cache =& $GLOBALS['ll_tools_word_practice_recording_types_request_cache'];
     $missing = [];
     foreach ($word_ids as $word_id) {
         if (!array_key_exists($word_id, $cache)) {
