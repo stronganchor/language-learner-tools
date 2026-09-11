@@ -101,14 +101,15 @@ function ll_tools_ai_crawler_maybe_serve_export(): void {
     }
 
     $response = ll_tools_ai_crawler_prepare_export_response($method, $export);
-    if (empty($response['ok'])) {
-        return;
-    }
-
-    status_header(200);
+    status_header((int) ($response['status'] ?? 200));
     header('Content-Type: ' . $export['content_type']);
-    header('X-Robots-Tag: index, follow');
-    header('Cache-Control: ' . ll_tools_ai_crawler_response_cache_control_value());
+    if (!empty($response['ok'])) {
+        header('X-Robots-Tag: index, follow');
+    } else {
+        header('Retry-After: ' . max(1, (int) ($response['retry_after'] ?? 5)));
+    }
+    header('Cache-Control: ' . (!empty($response['ok'])
+        ? ll_tools_ai_crawler_response_cache_control_value() : 'private, no-store, max-age=0'));
     header('Vary: Accept-Language, Cookie');
     header('X-LL-Tools-AI-Crawler-Cache: ' . (string) ($response['cache_status'] ?? 'MISS'));
 
@@ -237,24 +238,45 @@ function ll_tools_ai_crawler_export_cache_args(array $export): array {
     $locale = function_exists('determine_locale') ? determine_locale() : get_locale();
 
     return [
-        'schema' => 3,
+        'schema' => 4,
         'key' => sanitize_key((string) ($export['key'] ?? '')),
         'letter' => isset($export['letter']) ? ll_tools_ai_crawler_normalize_dictionary_letter((string) $export['letter']) : '',
         'locale' => (string) $locale,
         'blog_id' => function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 0,
-        'dictionary_version' => function_exists('ll_tools_get_dictionary_browser_cache_version') ? max(1, (int) ll_tools_get_dictionary_browser_cache_version()) : 1,
-        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
-        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
-        'quiz_content_epoch' => function_exists('ll_tools_get_quiz_content_cache_epoch') ? ll_tools_get_quiz_content_cache_epoch() : '',
+        'epochs' => ll_tools_ai_crawler_export_epochs(),
     ];
 }
 
+/** One fresh, bounded read; an unavailable generation is never a stable default. */
+function ll_tools_ai_crawler_export_epochs(): array {
+    global $wpdb;
+    $names = [LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION, 'll_tools_wordset_cache_epoch',
+        'll_tools_wc_cache_epoch', 'll_tools_structural_failsafe_epoch',
+        'll_tools_quiz_content_cache_epoch', 'll_tools_quiz_content_failsafe_epoch'];
+    $wpdb->last_error = '';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name IN ("
+            . implode(',', array_fill(0, count($names), '%s')) . ')', $names
+    ), ARRAY_A);
+    if (!is_array($rows) || $wpdb->last_error !== '') {
+        ll_tools_ai_crawler_mark_source_incomplete();
+        return [];
+    }
+    $epochs = array_fill_keys($names, 1);
+    foreach ($rows as $row) {
+        $epochs[$row['option_name']] = max(1, (int) $row['option_value']);
+    }
+    return $epochs;
+}
+
 function ll_tools_ai_crawler_export_cache_key(array $export): string {
-    return 'll_ai_export_' . md5((string) wp_json_encode(ll_tools_ai_crawler_export_cache_args($export)));
+    $args = ll_tools_ai_crawler_export_cache_args($export);
+    return !empty($args['epochs']) ? 'll_ai_export_' . md5((string) wp_json_encode($args)) : '';
 }
 
 function ll_tools_ai_crawler_get_cached_export(array $export): ?string {
     $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    if ($cache_key === '') { return null; }
     $cached = wp_cache_get($cache_key, ll_tools_ai_crawler_cache_group());
     if (false === $cached) {
         $cached = get_transient($cache_key);
@@ -263,12 +285,13 @@ function ll_tools_ai_crawler_get_cached_export(array $export): ?string {
     return is_string($cached) && $cached !== '' ? $cached : null;
 }
 
-function ll_tools_ai_crawler_set_cached_export(array $export, string $body): void {
+function ll_tools_ai_crawler_set_cached_export(array $export, string $body, string $captured_key = ''): void {
     if ($body === '') {
         return;
     }
 
-    $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    $cache_key = $captured_key !== '' ? $captured_key : ll_tools_ai_crawler_export_cache_key($export);
+    if ($cache_key === '') { return; }
     $ttl = ll_tools_ai_crawler_response_cache_seconds();
     wp_cache_set($cache_key, $body, ll_tools_ai_crawler_cache_group(), $ttl);
     set_transient($cache_key, $body, $ttl);
@@ -276,6 +299,7 @@ function ll_tools_ai_crawler_set_cached_export(array $export, string $body): voi
 
 function ll_tools_ai_crawler_delete_cached_export(array $export): void {
     $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    if ($cache_key === '') { return; }
     wp_cache_delete($cache_key, ll_tools_ai_crawler_cache_group());
     delete_transient($cache_key);
 }
@@ -285,8 +309,20 @@ function ll_tools_ai_crawler_delete_cached_export(array $export): void {
  */
 function ll_tools_ai_crawler_prepare_export_response(string $method, array $export): array {
     $method = strtoupper($method);
+    ll_tools_dictionary_browser_clear_query_error();
+    unset($GLOBALS['ll_tools_ai_crawler_source_error']);
     $cache_key = ll_tools_ai_crawler_export_cache_key($export);
+    if ($cache_key === '') {
+        $response = ll_tools_ai_crawler_unavailable_response();
+        $response['send_body'] = $method !== 'HEAD';
+        return $response;
+    }
     $cached_body = ll_tools_ai_crawler_get_cached_export($export);
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) {
+        $response = ll_tools_ai_crawler_unavailable_response();
+        $response['send_body'] = $method !== 'HEAD';
+        return $response;
+    }
 
     if ($method === 'HEAD') {
         return [
@@ -308,26 +344,85 @@ function ll_tools_ai_crawler_prepare_export_response(string $method, array $expo
         ];
     }
 
-    $body = ll_tools_ai_crawler_build_export((string) ($export['key'] ?? ''), $export);
-    if ($body === '' || ll_tools_ai_crawler_export_cache_key($export) !== $cache_key) {
-        return [
-            'ok' => false,
-            'send_body' => false,
-            'body' => '',
-            'cache_status' => 'BYPASS',
-            'content_length' => 0,
-        ];
+    $lease = ll_tools_public_ajax_acquire_client_lease('ll_ai_export_build_', $cache_key, 1, 60);
+    if (empty($lease['acquired'])) {
+        return ll_tools_ai_crawler_unavailable_response(503, min(5, (int) $lease['retry_after']));
     }
+    $client_lease = [];
+    try {
+        // Another builder may have finished between the miss and admission.
+        $cached_body = ll_tools_ai_crawler_get_cached_export($export);
+        if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) {
+            return ll_tools_ai_crawler_unavailable_response();
+        }
+        if (is_string($cached_body)) {
+            return ['ok' => true, 'send_body' => true, 'body' => $cached_body,
+                'cache_status' => 'HIT', 'content_length' => strlen($cached_body)];
+        }
+        if (!is_user_logged_in()) {
+            $identity = ll_tools_ai_crawler_client_identity();
+            $allowance = ll_tools_public_ajax_reserve_counter('ll_ai_export_miss_', $identity,
+                max(1, min(120, (int) apply_filters('ll_tools_ai_crawler_miss_limit', 30))), MINUTE_IN_SECONDS);
+            if (empty($allowance['allowed'])) {
+                return ll_tools_ai_crawler_unavailable_response(429, (int) $allowance['retry_after']);
+            }
+            $client_lease = ll_tools_public_ajax_acquire_client_lease('ll_ai_export_inflight_', $identity, 2, 60);
+            if (empty($client_lease['acquired'])) {
+                return ll_tools_ai_crawler_unavailable_response(429, min(5, (int) $client_lease['retry_after']));
+            }
+        }
+        $body = ll_tools_ai_crawler_source_read(static function () use ($export): string {
+            return ll_tools_ai_crawler_build_export((string) ($export['key'] ?? ''), $export);
+        });
+        if ($body === '' || !empty($GLOBALS['ll_tools_ai_crawler_source_error'])
+            || ll_tools_dictionary_browser_get_query_error() instanceof WP_Error
+            || ll_tools_ai_crawler_export_cache_key($export) !== $cache_key
+            || !ll_tools_ai_crawler_owns_build_lease($lease)) {
+            return ll_tools_ai_crawler_unavailable_response();
+        }
+        // Never recompute the write key after checking the captured generation.
+        ll_tools_ai_crawler_set_cached_export($export, $body, $cache_key);
+        return ['ok' => true, 'send_body' => true, 'body' => $body,
+            'cache_status' => 'MISS', 'content_length' => strlen($body)];
+    } finally {
+        ll_tools_public_ajax_release_client_lease($client_lease);
+        ll_tools_public_ajax_release_client_lease($lease);
+    }
+}
 
-    ll_tools_ai_crawler_set_cached_export($export, $body);
+function ll_tools_ai_crawler_unavailable_response(int $status = 503, int $retry_after = 5): array {
+    $body = __('Dictionary data is temporarily unavailable. Please try again in a moment.', 'll-tools-text-domain') . "\n";
+    return ['ok' => false, 'status' => $status, 'retry_after' => max(1, $retry_after),
+        'send_body' => true, 'body' => $body, 'cache_status' => 'BYPASS', 'content_length' => strlen($body)];
+}
 
-    return [
-        'ok' => true,
-        'send_body' => true,
-        'body' => $body,
-        'cache_status' => 'MISS',
-        'content_length' => strlen($body),
-    ];
+function ll_tools_ai_crawler_client_identity(): string {
+    $peer = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    $packed = @inet_pton($peer);
+    return $packed !== false ? bin2hex($packed) : 'unknown';
+}
+
+function ll_tools_ai_crawler_owns_build_lease(array $lease): bool {
+    global $wpdb;
+    if (empty($lease['option_name']) || (int) ($lease['expires_at'] ?? 0) <= time()) { return false; }
+    $wpdb->last_error = '';
+    $value = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $lease['option_name']));
+    return $wpdb->last_error === '' && is_string($value) && hash_equals((string) $lease['lease_value'], $value);
+}
+
+/** Capture each source failure before a later successful query can hide it. */
+function ll_tools_ai_crawler_source_read(callable $read) {
+    ll_tools_dictionary_browser_prepare_source_read();
+    $value = $read();
+    if (ll_tools_dictionary_browser_capture_query_error('ai_export_source', $value) instanceof WP_Error) {
+        $GLOBALS['ll_tools_ai_crawler_source_error'] = true;
+    }
+    return $value;
+}
+
+function ll_tools_ai_crawler_mark_source_incomplete(): void {
+    $GLOBALS['ll_tools_ai_crawler_source_error'] = true;
+    ll_tools_dictionary_browser_mark_query_error('ai_export_source');
 }
 
 function ll_tools_ai_crawler_build_export(string $key, array $args = []): string {
@@ -498,12 +593,12 @@ function ll_tools_ai_crawler_can_view_wordset($wordset): bool {
     if ($wordset instanceof WP_Term) {
         $wordset_id = (int) $wordset->term_id;
     } elseif (function_exists('ll_tools_resolve_wordset_term_id')) {
-        $wordset_id = (int) ll_tools_resolve_wordset_term_id($wordset);
+        $wordset_id = (int) ll_tools_ai_crawler_source_read(static fn() => ll_tools_resolve_wordset_term_id($wordset));
     } else {
         $wordset_id = (int) $wordset;
     }
 
-    if ($wordset_id <= 0 || !(get_term($wordset_id, 'wordset') instanceof WP_Term)) {
+    if ($wordset_id <= 0 || !(ll_tools_ai_crawler_source_read(static fn() => get_term($wordset_id, 'wordset')) instanceof WP_Term)) {
         return false;
     }
 
@@ -512,6 +607,7 @@ function ll_tools_ai_crawler_can_view_wordset($wordset): bool {
     $complete = true;
     $private = !function_exists('ll_tools_is_wordset_private')
         || ll_tools_is_wordset_private($wordset_id, $complete);
+    if (!$complete) { ll_tools_ai_crawler_mark_source_incomplete(); }
     return $complete && !$private;
 }
 
@@ -520,45 +616,50 @@ function ll_tools_ai_crawler_can_view_category($category): bool {
     if ($category instanceof WP_Term) {
         $category_id = (int) $category->term_id;
     } elseif (function_exists('ll_tools_resolve_word_category_term_id')) {
-        $category_id = (int) ll_tools_resolve_word_category_term_id($category);
+        $category_id = (int) ll_tools_ai_crawler_source_read(static fn() => ll_tools_resolve_word_category_term_id($category));
     } else {
         $category_id = (int) $category;
     }
 
-    if ($category_id <= 0 || !(get_term($category_id, 'word-category') instanceof WP_Term)) {
+    if ($category_id <= 0 || !(ll_tools_ai_crawler_source_read(static fn() => get_term($category_id, 'word-category')) instanceof WP_Term)) {
         return false;
     }
 
     $complete = true;
     $private = !function_exists('ll_tools_is_category_private')
         || ll_tools_is_category_private($category_id, $complete);
+    if (!$complete) { ll_tools_ai_crawler_mark_source_incomplete(); }
     if (!$complete || $private) {
         return false;
     }
     $owner_id = function_exists('ll_tools_get_category_wordset_owner_id')
         ? (int) ll_tools_get_category_wordset_owner_id($category_id, $complete)
         : 0;
+    if (!$complete) { ll_tools_ai_crawler_mark_source_incomplete(); }
     return $complete && ($owner_id <= 0 || ll_tools_ai_crawler_can_view_wordset($owner_id));
 }
 
 function ll_tools_ai_crawler_can_view_dictionary_entry(int $entry_id): bool {
-    if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry' || get_post_status($entry_id) !== 'publish') {
+    $entry = ll_tools_ai_crawler_source_read(static fn() => get_post($entry_id));
+    if ($entry_id <= 0 || !($entry instanceof WP_Post) || $entry->post_type !== 'll_dictionary_entry' || $entry->post_status !== 'publish') {
         return false;
     }
-    if ((string) get_post_field('post_password', $entry_id) !== '') {
+    if ((string) $entry->post_password !== '') {
         return false;
     }
 
     $explicit_wordset_id = defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')
-        ? (int) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true)
+        ? (int) ll_tools_ai_crawler_source_read(static fn() => get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true))
         : 0;
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) { return false; }
     if ($explicit_wordset_id > 0 && !ll_tools_ai_crawler_can_view_wordset($explicit_wordset_id)) {
         return false;
     }
 
     $scope_wordset_ids = function_exists('ll_tools_get_dictionary_entry_scope_wordset_ids')
-        ? array_values(array_filter(array_map('intval', ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id))))
+        ? array_values(array_filter(array_map('intval', ll_tools_ai_crawler_source_read(static fn() => ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id)))))
         : [];
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) { return false; }
     if (!empty($scope_wordset_ids)) {
         foreach ($scope_wordset_ids as $wordset_id) {
             if (ll_tools_ai_crawler_can_view_wordset($wordset_id)) {
@@ -586,13 +687,13 @@ function ll_tools_ai_crawler_get_wordset_url(WP_Term $wordset): string {
  */
 function ll_tools_ai_crawler_get_public_wordsets(int $limit): array {
     $limit = max(1, min(100, $limit));
-    $terms = get_terms([
+    $terms = ll_tools_ai_crawler_source_read(static fn() => get_terms([
         'taxonomy' => 'wordset',
         'hide_empty' => false,
         'orderby' => 'name',
         'order' => 'ASC',
         'number' => min(200, max($limit, $limit * 3)),
-    ]);
+    ]));
     if (is_wp_error($terms) || !is_array($terms)) {
         return [];
     }
@@ -623,7 +724,7 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
     $items = [];
     if ($letter !== '' && function_exists('ll_tools_dictionary_query_entry_ids_by_browse_constraints')) {
         $candidate_limit = min(500, max(100, $limit * 10));
-        $ids = array_values(array_filter(array_map('intval', ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+        $ids = array_values(array_filter(array_map('intval', ll_tools_ai_crawler_source_read(static fn() => ll_tools_dictionary_query_entry_ids_by_browse_constraints(
             ['publish'],
             0,
             $letter,
@@ -632,9 +733,13 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
             '',
             $candidate_limit,
             $language
-        ))));
+        )))));
         if (!empty($ids)) {
-            update_postmeta_cache($ids);
+            ll_tools_ai_crawler_source_read(static fn() => update_postmeta_cache($ids));
+            if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) {
+                ll_tools_dictionary_clear_failed_postmeta_prime($ids);
+                return [];
+            }
         }
         foreach ($ids as $entry_id) {
             $item = ll_tools_ai_crawler_dictionary_entry_item($entry_id, $sense_limit);
@@ -655,7 +760,7 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
     $scan_limit = min(500, max($chunk_size, $limit * 5));
 
     while (count($items) < $limit && $offset < $scan_limit) {
-        $ids = array_values(array_filter(array_map('intval', (array) get_posts([
+        $ids = array_values(array_filter(array_map('intval', (array) ll_tools_ai_crawler_source_read(static fn() => get_posts([
             'post_type' => 'll_dictionary_entry',
             'post_status' => 'publish',
             'posts_per_page' => min($chunk_size, $scan_limit - $offset),
@@ -664,14 +769,18 @@ function ll_tools_ai_crawler_get_public_dictionary_entries(int $limit, int $sens
             'orderby' => 'title',
             'order' => 'ASC',
             'no_found_rows' => true,
-        ]))));
+        ])))));
 
         if (empty($ids)) {
             break;
         }
 
         $offset += count($ids);
-        update_postmeta_cache($ids);
+        ll_tools_ai_crawler_source_read(static fn() => update_postmeta_cache($ids));
+        if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) {
+            ll_tools_dictionary_clear_failed_postmeta_prime($ids);
+            return [];
+        }
 
         foreach ($ids as $entry_id) {
             if ($letter !== '' && function_exists('ll_tools_dictionary_entry_matches_browse_letter')
@@ -703,8 +812,9 @@ function ll_tools_ai_crawler_dictionary_entry_item(int $entry_id, int $sense_lim
     }
 
     $item = function_exists('ll_tools_dictionary_get_entry_data')
-        ? ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, 0)
+        ? ll_tools_ai_crawler_source_read(static fn() => ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, 0))
         : [];
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) { return null; }
     if (!is_array($item) || empty($item)) {
         $item = [
             'id' => $entry_id,
@@ -720,7 +830,7 @@ function ll_tools_ai_crawler_dictionary_entry_item(int $entry_id, int $sense_lim
 
     $public_wordset_names = [];
     if (function_exists('ll_tools_get_dictionary_entry_scope_wordsets')) {
-        foreach (ll_tools_get_dictionary_entry_scope_wordsets($entry_id) as $wordset) {
+        foreach (ll_tools_ai_crawler_source_read(static fn() => ll_tools_get_dictionary_entry_scope_wordsets($entry_id)) as $wordset) {
             if (ll_tools_ai_crawler_can_view_wordset((int) ($wordset['id'] ?? 0))) {
                 $public_wordset_names[] = (string) ($wordset['name'] ?? '');
             }
@@ -765,7 +875,7 @@ function ll_tools_ai_crawler_get_dictionary_letters(int $limit = 64): array {
     }
 
     if (empty($candidates)) {
-        $raw_titles = get_posts([
+        $raw_titles = ll_tools_ai_crawler_source_read(static fn() => get_posts([
             'post_type' => 'll_dictionary_entry',
             'post_status' => 'publish',
             'posts_per_page' => 500,
@@ -773,7 +883,7 @@ function ll_tools_ai_crawler_get_dictionary_letters(int $limit = 64): array {
             'orderby' => 'title',
             'order' => 'ASC',
             'no_found_rows' => true,
-        ]);
+        ]));
         foreach (array_map('intval', (array) $raw_titles) as $entry_id) {
             if (!ll_tools_ai_crawler_can_view_dictionary_entry($entry_id)) {
                 continue;
@@ -791,6 +901,7 @@ function ll_tools_ai_crawler_get_dictionary_letters(int $limit = 64): array {
         ? ll_tools_dictionary_order_browse_letters($candidates, $language)
         : array_keys($candidates);
 
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) { return []; }
     $request_cache[$cache_key] = array_slice($ordered_candidates, 0, $limit);
     return $request_cache[$cache_key];
 }
@@ -836,7 +947,7 @@ function ll_tools_ai_crawler_query_public_dictionary_raw_letters(int $limit = 20
         LIMIT %d
     ";
 
-    $raw_letters = (array) $wpdb->get_col($wpdb->prepare($sql, $params));
+    $raw_letters = (array) ll_tools_ai_crawler_source_read(static fn() => $wpdb->get_col($wpdb->prepare($sql, $params)));
     return array_values(array_filter(array_map('strval', $raw_letters), static function (string $letter): bool {
         return trim($letter) !== '';
     }));
@@ -853,17 +964,16 @@ function ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters(): ar
         return $request_cache[$cache_key];
     }
 
-    $terms = get_terms([
+    $terms = ll_tools_ai_crawler_source_read(static fn() => get_terms([
         'taxonomy' => 'wordset',
         'hide_empty' => false,
         'fields' => 'ids',
         'number' => 500,
         'orderby' => 'id',
         'order' => 'ASC',
-    ]);
+    ]));
     if (is_wp_error($terms) || !is_array($terms)) {
-        $request_cache[$cache_key] = [];
-        return $request_cache[$cache_key];
+        return [];
     }
 
     $ids = [];
@@ -873,6 +983,7 @@ function ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters(): ar
         }
     }
 
+    if (!empty($GLOBALS['ll_tools_ai_crawler_source_error'])) { return []; }
     $request_cache[$cache_key] = array_values(array_unique($ids));
     return $request_cache[$cache_key];
 }
@@ -882,14 +993,14 @@ function ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters(): ar
  */
 function ll_tools_ai_crawler_get_public_vocab_lessons(int $limit): array {
     $limit = max(1, min(100, $limit));
-    $posts = get_posts([
+    $posts = ll_tools_ai_crawler_source_read(static fn() => get_posts([
         'post_type' => 'll_vocab_lesson',
         'post_status' => 'publish',
         'posts_per_page' => min(200, max($limit, $limit * 3)),
         'orderby' => 'title',
         'order' => 'ASC',
         'no_found_rows' => true,
-    ]);
+    ]));
 
     $lessons = [];
     foreach ((array) $posts as $post) {
@@ -898,10 +1009,10 @@ function ll_tools_ai_crawler_get_public_vocab_lessons(int $limit): array {
         }
 
         $wordset_id = defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')
-            ? (int) get_post_meta((int) $post->ID, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true)
+            ? (int) ll_tools_ai_crawler_source_read(static fn() => get_post_meta((int) $post->ID, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true))
             : 0;
         $category_id = defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')
-            ? (int) get_post_meta((int) $post->ID, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true)
+            ? (int) ll_tools_ai_crawler_source_read(static fn() => get_post_meta((int) $post->ID, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true))
             : 0;
         if ($wordset_id > 0 && !ll_tools_ai_crawler_can_view_wordset($wordset_id)) {
             continue;
@@ -924,7 +1035,7 @@ function ll_tools_ai_crawler_get_public_vocab_lessons(int $limit): array {
  */
 function ll_tools_ai_crawler_get_public_content_lessons(int $limit): array {
     $limit = max(1, min(100, $limit));
-    $posts = get_posts([
+    $posts = ll_tools_ai_crawler_source_read(static fn() => get_posts([
         'post_type' => 'll_content_lesson',
         'post_status' => 'publish',
         'posts_per_page' => min(200, max($limit, $limit * 3)),
@@ -934,7 +1045,7 @@ function ll_tools_ai_crawler_get_public_content_lessons(int $limit): array {
         'meta_query' => [
             ll_tools_legacy_lesson_retained_source_catalog_exclusion(),
         ],
-    ]);
+    ]));
 
     $lessons = [];
     foreach ((array) $posts as $post) {
@@ -943,7 +1054,7 @@ function ll_tools_ai_crawler_get_public_content_lessons(int $limit): array {
         }
 
         $wordset_id = function_exists('ll_tools_get_content_lesson_wordset_id')
-            ? (int) ll_tools_get_content_lesson_wordset_id((int) $post->ID)
+            ? (int) ll_tools_ai_crawler_source_read(static fn() => ll_tools_get_content_lesson_wordset_id((int) $post->ID))
             : 0;
         if ($wordset_id > 0 && !ll_tools_ai_crawler_can_view_wordset($wordset_id)) {
             continue;
@@ -1432,10 +1543,10 @@ function ll_tools_ai_crawler_build_wordsets_markdown(array $args = []): string {
 function ll_tools_ai_crawler_vocab_lesson_description(WP_Post $lesson): string {
     $parts = [];
     $wordset_id = defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')
-        ? (int) get_post_meta((int) $lesson->ID, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true)
+        ? (int) ll_tools_ai_crawler_source_read(static fn() => get_post_meta((int) $lesson->ID, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true))
         : 0;
     if ($wordset_id > 0) {
-        $wordset = get_term($wordset_id, 'wordset');
+        $wordset = ll_tools_ai_crawler_source_read(static fn() => get_term($wordset_id, 'wordset'));
         if ($wordset instanceof WP_Term && !is_wp_error($wordset)) {
             $parts[] = sprintf(
                 /* translators: %s: Wordset name. */
@@ -1446,10 +1557,10 @@ function ll_tools_ai_crawler_vocab_lesson_description(WP_Post $lesson): string {
     }
 
     $category_id = defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')
-        ? (int) get_post_meta((int) $lesson->ID, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true)
+        ? (int) ll_tools_ai_crawler_source_read(static fn() => get_post_meta((int) $lesson->ID, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true))
         : 0;
     if ($category_id > 0 && ll_tools_ai_crawler_can_view_category($category_id)) {
-        $category = get_term($category_id, 'word-category');
+        $category = ll_tools_ai_crawler_source_read(static fn() => get_term($category_id, 'word-category'));
         if ($category instanceof WP_Term && !is_wp_error($category)) {
             $label = function_exists('ll_tools_get_category_display_name')
                 ? (string) ll_tools_get_category_display_name($category, ['wordset_ids' => [$wordset_id]])

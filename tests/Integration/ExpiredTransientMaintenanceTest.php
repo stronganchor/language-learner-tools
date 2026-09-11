@@ -183,6 +183,31 @@ final class ExpiredTransientMaintenanceTest extends LL_Tools_TestCase
         $this->assertFalse(get_option('_transient_timeout_' . $key, false));
     }
 
+    public function test_crawler_direct_guards_are_cleaned_with_external_object_cache(): void
+    {
+        wp_using_ext_object_cache(true);
+        $keys = [];
+        foreach (['ll_ai_export_build_', 'll_ai_export_inflight_', 'll_ai_export_miss_'] as $prefix) {
+            $key = $prefix . $this->uniqueSuffix('crawler');
+            $keys[] = $key;
+            $is_lease = $prefix !== 'll_ai_export_miss_';
+            $this->assertSame($is_lease, ll_tools_expired_transient_maintenance_is_direct_db_lease($key));
+            $this->addTransientRows($key, $is_lease ? '1|crashed-owner' : '1', 1);
+        }
+        $candidates = ll_tools_expired_transient_maintenance_select_candidates(
+            time() - 5 * MINUTE_IN_SECONDS, 200,
+            array_values(ll_tools_expired_transient_maintenance_direct_db_namespaces())
+        );
+        foreach ($keys as $key) {
+            $candidate = $this->findCandidate($candidates, $key);
+            $this->assertNotNull($candidate);
+            $result = ll_tools_expired_transient_maintenance_delete_candidate($candidate, time() - 5 * MINUTE_IN_SECONDS);
+            $this->assertTrue($result['deleted']);
+            $this->assertFalse(get_option('_transient_' . $key, false));
+            $this->assertFalse(get_option('_transient_timeout_' . $key, false));
+        }
+    }
+
     public function test_batch_limit_is_hard_capped_and_a_run_processes_only_the_configured_batch(): void
     {
         wp_clear_scheduled_hook(LL_TOOLS_EXPIRED_TRANSIENT_MAINTENANCE_CONTINUATION_HOOK);

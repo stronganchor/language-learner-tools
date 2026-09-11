@@ -4,6 +4,9 @@ if (!defined('WPINC')) { die; }
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION', '5');
 }
+if (!defined('LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION')) {
+    define('LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION', '1');
+}
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION', 'll_tools_dictionary_lookup_version');
 }
@@ -344,7 +347,7 @@ function ll_tools_install_dictionary_lookup_schema(): bool {
 /**
  * Return sanitized rebuild-state data for the lookup table.
  *
- * @return array{status:string,last_id:int,processed:int,started_at:string,completed_at:string,truncate_pending:int}
+ * @return array{status:string,last_id:int,processed:int,started_at:string,completed_at:string,truncate_pending:int,browse_version:string}
  */
 function ll_tools_get_dictionary_lookup_rebuild_state(): array {
     $raw = get_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION, []);
@@ -358,6 +361,7 @@ function ll_tools_get_dictionary_lookup_rebuild_state(): array {
         'started_at' => trim((string) ($raw['started_at'] ?? '')),
         'completed_at' => trim((string) ($raw['completed_at'] ?? '')),
         'truncate_pending' => !empty($raw['truncate_pending']) ? 1 : 0,
+        'browse_version' => (string) ($raw['browse_version'] ?? ''),
     ];
 }
 
@@ -376,6 +380,7 @@ function ll_tools_update_dictionary_lookup_rebuild_state(array $state): array {
         'started_at' => trim((string) ($state['started_at'] ?? '')),
         'completed_at' => trim((string) ($state['completed_at'] ?? '')),
         'truncate_pending' => !empty($state['truncate_pending']) ? 1 : 0,
+        'browse_version' => (string) ($state['browse_version'] ?? ''),
     ];
 
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION, $sanitized, false);
@@ -513,6 +518,25 @@ function ll_tools_maybe_upgrade_dictionary_lookup_schema(): bool {
 }
 add_action('init', 'll_tools_maybe_upgrade_dictionary_lookup_schema', 13);
 
+/** Queue the logical initial-letter backfill without changing the table schema. */
+function ll_tools_dictionary_maybe_schedule_browse_lookup_backfill(): void {
+    $state = ll_tools_get_dictionary_lookup_rebuild_state();
+    if ($state['browse_version'] !== LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION
+        || $state['status'] !== 'completed' || $state['truncate_pending'] !== 0) {
+        ll_tools_schedule_dictionary_lookup_rebuild_event();
+    }
+}
+add_action('init', 'll_tools_dictionary_maybe_schedule_browse_lookup_backfill', 14);
+
+/** Never treat partially backfilled initial-letter rows as an empty bucket. */
+function ll_tools_dictionary_browse_lookup_is_ready(): bool {
+    if (!ll_tools_dictionary_lookup_is_ready()) {
+        return false;
+    }
+    $state = ll_tools_get_dictionary_lookup_rebuild_state();
+    return $state['browse_version'] === LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION;
+}
+
 /**
  * Normalize one lookup-table value and cap it to the indexed column width.
  */
@@ -648,6 +672,17 @@ function ll_tools_dictionary_build_lookup_rows_for_entry(int $entry_id): array {
     }
     foreach ($dialects as $dialect) {
         $append('dialect', (string) $dialect);
+    }
+
+    // Browse grouping uses the original title, not sense aliases or search
+    // normalization. Hex retains exact Unicode identity under any SQL collation.
+    // These are the only two casing policies used by the canonical normalizer.
+    $title = (string) get_post_field('post_title', $entry_id, 'raw');
+    foreach (['browse_initial' => '', 'browse_initial_tr' => 'tr'] as $kind => $language) {
+        $initial = ll_tools_dictionary_normalize_browse_letter($title, $language);
+        if ($initial !== '') {
+            $append($kind, bin2hex($initial));
+        }
     }
 
     return $rows;
@@ -905,6 +940,22 @@ function ll_tools_dictionary_delete_lookup_rows_before_delete($post_id): void {
 }
 add_action('before_delete_post', 'll_tools_dictionary_delete_lookup_rows_before_delete');
 
+/** A failed checkpoint must leave another bounded attempt queued. */
+function ll_tools_dictionary_lookup_publish_rebuild_state(array $state): bool {
+    global $wpdb;
+    $state = ll_tools_update_dictionary_lookup_rebuild_state($state);
+    $wpdb->last_error = '';
+    $stored = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s",
+        LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION
+    ));
+    if ($wpdb->last_error !== '' || !is_string($stored) || $stored !== maybe_serialize($state)) {
+        ll_tools_schedule_dictionary_lookup_rebuild_event(30);
+        return false;
+    }
+    return true;
+}
+
 /**
  * Process one lookup-table rebuild batch.
  */
@@ -928,6 +979,15 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
 
         $table = ll_tools_dictionary_lookup_table_name();
         $state = ll_tools_get_dictionary_lookup_rebuild_state();
+        if ($state['browse_version'] !== LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION) {
+            // Existing search rows remain in place. Only this background worker
+            // starts the full ID-keyset pass; public requests never scan it.
+            $state = array_merge($state, [
+                'status' => 'pending', 'last_id' => 0, 'processed' => 0,
+                'started_at' => '', 'completed_at' => '',
+                'browse_version' => LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION,
+            ]);
+        }
         if ($state['status'] === 'completed' && $state['truncate_pending'] === 0) {
             return;
         }
@@ -945,7 +1005,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
             $state['status'] = 'running';
             $state['started_at'] = current_time('mysql');
             $state['completed_at'] = '';
-            ll_tools_update_dictionary_lookup_rebuild_state($state);
+            if (!ll_tools_dictionary_lookup_publish_rebuild_state($state)) { return; }
         } elseif ($state['started_at'] === '') {
             $state['started_at'] = current_time('mysql');
             $state['status'] = 'running';
@@ -966,7 +1026,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
             $batch_size
         ));
         if (!is_array($raw_ids) || (string) $wpdb->last_error !== '') {
-            ll_tools_update_dictionary_lookup_rebuild_state($state);
+            ll_tools_dictionary_lookup_publish_rebuild_state($state);
             ll_tools_schedule_dictionary_lookup_rebuild_event(30);
             return;
         }
@@ -975,7 +1035,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
         if (empty($ids)) {
             $state['status'] = 'completed';
             $state['completed_at'] = current_time('mysql');
-            ll_tools_update_dictionary_lookup_rebuild_state($state);
+            if (!ll_tools_dictionary_lookup_publish_rebuild_state($state)) { return; }
             if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
                 ll_tools_bump_dictionary_browser_cache_version();
             }
@@ -984,7 +1044,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
 
         foreach ($ids as $entry_id) {
             if (!ll_tools_dictionary_sync_lookup_rows_for_entry((int) $entry_id, false, true)) {
-                ll_tools_update_dictionary_lookup_rebuild_state($state);
+                ll_tools_dictionary_lookup_publish_rebuild_state($state);
                 ll_tools_schedule_dictionary_lookup_rebuild_event(30);
                 return;
             }
@@ -1001,7 +1061,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
             ll_tools_schedule_dictionary_lookup_rebuild_event(1);
         }
 
-        ll_tools_update_dictionary_lookup_rebuild_state($state);
+        if (!ll_tools_dictionary_lookup_publish_rebuild_state($state)) { return; }
         if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
             ll_tools_bump_dictionary_browser_cache_version();
         }

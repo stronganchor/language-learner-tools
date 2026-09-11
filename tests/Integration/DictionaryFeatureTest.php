@@ -2687,6 +2687,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'started_at' => '',
             'completed_at' => '',
             'truncate_pending' => 0,
+            'browse_version' => LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION,
         ]);
         wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
         clean_post_cache($entry_id);
@@ -2760,98 +2761,35 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ), ARRAY_A));
     }
 
-    public function test_dictionary_browse_constraint_faults_do_not_cache_first_or_later_partial_batches(): void
+    public function test_dictionary_indexed_browse_constraint_fault_does_not_cache_empty(): void
     {
         global $wpdb;
 
         $letter = "\xC3\x87";
         $this->seedDictionaryEntriesDirectly(501, $letter . ' Browse Source');
-        ll_tools_bump_dictionary_browser_cache_version();
-
-        $chunk_query_count = 0;
-        $fail_on_chunk = 1;
-        $fail_chunk = static function (string $query) use ($wpdb, &$chunk_query_count, &$fail_on_chunk): string {
-            if (
-                stripos($query, 'p.ID, p.post_title') !== false
-                && stripos($query, 'ORDER BY p.ID ASC') !== false
-                && stripos($query, 'LIMIT 500') !== false
-            ) {
-                $chunk_query_count++;
-                if ($chunk_query_count === $fail_on_chunk) {
-                    return "SELECT ID, post_title FROM {$wpdb->prefix}missing_dictionary_browse_chunk";
-                }
+        $this->prepareBrowseLookup();
+        $query_count = 0;
+        $fail_query = static function (string $query) use ($wpdb, &$query_count): string {
+            if (str_contains($query, 'browse_initial.lookup_value =')) {
+                $query_count++;
+                return "SELECT ID FROM {$wpdb->prefix}missing_dictionary_browse_initial";
             }
             return $query;
         };
-
-        add_filter('query', $fail_chunk);
+        add_filter('query', $fail_query);
         $previous_suppress_errors = $wpdb->suppress_errors(true);
         try {
-            $first_failed = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
-                ['publish'],
-                0,
-                $letter,
-                '',
-                '',
-                '',
-                0,
-                'tr'
-            );
+            $failed = ll_tools_dictionary_query_entry_ids_by_browse_constraints(['publish'], 0, $letter, '', '', '', 0, 'tr');
         } finally {
             $wpdb->suppress_errors($previous_suppress_errors);
-            remove_filter('query', $fail_chunk);
+            remove_filter('query', $fail_query);
         }
-        $this->assertSame([], $first_failed);
-        $this->assertSame(1, $chunk_query_count);
+        $this->assertSame([], $failed);
+        $this->assertSame(1, $query_count);
         $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
 
-        $first_retry = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
-            ['publish'],
-            0,
-            $letter,
-            '',
-            '',
-            '',
-            0,
-            'tr'
-        );
-        $this->assertCount(501, $first_retry, 'A failed first chunk must not publish an empty request/persistent cache entry.');
-
-        ll_tools_bump_dictionary_browser_cache_version();
-        $chunk_query_count = 0;
-        $fail_on_chunk = 2;
-        add_filter('query', $fail_chunk);
-        $previous_suppress_errors = $wpdb->suppress_errors(true);
-        try {
-            $later_failed = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
-                ['publish'],
-                0,
-                $letter,
-                '',
-                '',
-                '',
-                0,
-                'tr'
-            );
-        } finally {
-            $wpdb->suppress_errors($previous_suppress_errors);
-            remove_filter('query', $fail_chunk);
-        }
-        $this->assertSame([], $later_failed, 'A later chunk failure must not return an authoritative partial candidate list.');
-        $this->assertSame(2, $chunk_query_count);
-        $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
-
-        $later_retry = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
-            ['publish'],
-            0,
-            $letter,
-            '',
-            '',
-            '',
-            0,
-            'tr'
-        );
-        $this->assertCount(501, $later_retry, 'A failed later chunk must not cache the first 500 IDs.');
+        $retry = ll_tools_dictionary_query_entry_ids_by_browse_constraints(['publish'], 0, $letter, '', '', '', 0, 'tr');
+        $this->assertCount(501, $retry, 'A failed indexed query must not publish an empty cache entry or cap the healthy retry.');
     }
 
     public function test_dictionary_final_browse_query_fault_returns_uncached_retryable_result(): void
@@ -6424,6 +6362,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ]);
 
         $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
+        $this->prepareBrowseLookup();
 
         $_GET = [];
         $idle_queries = [];
@@ -6690,6 +6629,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ]);
 
         $this->assertSame(11, (int) ($summary['entries_created'] ?? 0));
+        $this->prepareBrowseLookup();
         $this->assertSame('zza', ll_tools_dictionary_get_effective_title_language_code(0));
 
         $_GET = [];
@@ -6771,6 +6711,17 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('üniversite', $uumlaut_html);
         $this->assertStringNotContainsString('Lapik', $uumlaut_html);
         $this->assertStringContainsString('Showing 1-1 of 1', $uumlaut_html);
+    }
+
+    private function prepareBrowseLookup(): void
+    {
+        $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        for ($batch = 0; $batch < 20 && !ll_tools_dictionary_browse_lookup_is_ready(); $batch++) {
+            ll_tools_dictionary_lookup_process_rebuild_batch();
+        }
+        $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready());
+        ll_tools_bump_dictionary_browser_cache_version();
     }
 
     private function seedDictionaryEntriesDirectly(int $count, string $title_prefix): void

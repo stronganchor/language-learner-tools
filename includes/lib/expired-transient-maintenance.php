@@ -45,6 +45,9 @@ if (!defined('LL_TOOLS_MEDIA_PROXY_CACHE_MAINTENANCE_CONTINUATION_HOOK')) {
  */
 function ll_tools_expired_transient_maintenance_direct_db_namespaces(): array {
     return [
+        'ai-export-build-lock' => 'll_ai_export_build_',
+        'ai-export-client-inflight' => 'll_ai_export_inflight_',
+        'ai-export-rate-limit' => 'll_ai_export_miss_',
         'audio-delete-lock' => 'll_ap_delete_',
         'dictionary-client-inflight' => 'll_dict_live_search_inflight_',
         'dictionary-rate-limit' => 'll_dict_live_search_rl_',
@@ -76,6 +79,8 @@ function ll_tools_expired_transient_maintenance_direct_db_namespaces(): array {
  */
 function ll_tools_expired_transient_maintenance_direct_db_lease_prefixes(): array {
     return [
+        'll_ai_export_build_',
+        'll_ai_export_inflight_',
         'll_ap_delete_',
         'll_dict_live_search_inflight_',
         'll_fc_ajax_inflight_',

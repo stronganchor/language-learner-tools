@@ -4711,7 +4711,7 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         'dialect' => $dialect,
         'limit' => $limit,
         'language' => $language,
-        'letter_query_schema' => 4,
+        'letter_query_schema' => 5,
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('browse_entry_ids', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -4747,8 +4747,8 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         $params = array_merge($params, $pos_slugs);
     }
 
-    $filter_letter_in_php = $letter !== '' && !ll_tools_dictionary_can_query_browse_letter_by_sql_prefix($letter);
-    if ($letter !== '' && !$filter_letter_in_php) {
+    $indexed_unicode_letter = $letter !== '' && !ll_tools_dictionary_can_query_browse_letter_by_sql_prefix($letter);
+    if ($letter !== '' && !$indexed_unicode_letter) {
         $letter_variants = ll_tools_dictionary_get_browse_letter_raw_variants($letter, $language);
         if (!empty($letter_variants)) {
             $letter_clauses = [];
@@ -4785,65 +4785,33 @@ function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
         }
     }
 
-    if ($filter_letter_in_php) {
-        $ids = [];
-        $last_id = 0;
-        $chunk_size = 500;
-        do {
-            $chunk_where = $where;
-            $chunk_params = $params;
-            $chunk_where[] = 'p.ID > %d';
-            $chunk_params[] = $last_id;
-            $chunk_params[] = $chunk_size;
-            $chunk_sql = "
-                SELECT " . (!empty($joins) ? 'DISTINCT ' : '') . "p.ID, p.post_title
-                FROM {$wpdb->posts} p
-                " . implode("\n", $joins) . "
-                WHERE " . implode(' AND ', $chunk_where) . "
-                ORDER BY p.ID ASC
-                LIMIT %d
-            ";
-            $wpdb->last_error = '';
-            $raw_rows = $wpdb->get_results($wpdb->prepare($chunk_sql, $chunk_params), ARRAY_A);
-            $query_error = (string) $wpdb->last_error;
-            if (!is_array($raw_rows) || $query_error !== '') {
-                ll_tools_dictionary_browser_mark_query_error('browse_constraints_chunk', $query_error);
-                $wpdb->last_error = '';
-                return [];
-            }
-            $rows = array_values(array_filter($raw_rows));
-            foreach ($rows as $row) {
-                $entry_id = (int) ($row['ID'] ?? 0);
-                if ($entry_id <= 0) {
-                    continue;
-                }
-                $last_id = max($last_id, $entry_id);
-                if (!ll_tools_dictionary_title_matches_browse_letter((string) ($row['post_title'] ?? ''), $letter, $language)) {
-                    continue;
-                }
-
-                $ids[] = $entry_id;
-                if ($limit > 0 && count($ids) >= $limit) {
-                    break 2;
-                }
-            }
-        } while (count($rows) === $chunk_size);
-
-        return ll_tools_dictionary_browser_store_cached_payload(
-            'browse_entry_ids',
-            $cache_args,
-            $ids,
-            10 * MINUTE_IN_SECONDS,
-            $request_cache
+    $from = "{$wpdb->posts} p";
+    if ($indexed_unicode_letter) {
+        if (!ll_tools_dictionary_browse_lookup_is_ready()) {
+            ll_tools_dictionary_browser_mark_query_error('browse_initials_preparing');
+            return [];
+        }
+        $kind = ll_tools_dictionary_language_uses_turkish_casing($language)
+            ? 'browse_initial_tr' : 'browse_initial';
+        // Match the same final normalization used by title_matches_browse_letter,
+        // including Unicode uppercase expansions, without scanning source titles.
+        $initial = ll_tools_dictionary_normalize_browse_letter($letter, $language);
+        // Start at the selective bucket index even when an ID-order plan could
+        // otherwise choose to inspect every post for a rare or absent initial.
+        $from = $wpdb->prepare(
+            ll_tools_dictionary_lookup_table_name() . " browse_initial FORCE INDEX (idx_kind_value)
+                STRAIGHT_JOIN {$wpdb->posts} p ON browse_initial.entry_id = p.ID
+                AND browse_initial.lookup_kind = %s AND browse_initial.lookup_value = %s",
+            $kind, bin2hex($initial)
         );
     }
 
     $sql = "
         SELECT " . (!empty($joins) ? 'DISTINCT ' : '') . "p.ID
-        FROM {$wpdb->posts} p
+        FROM {$from}
         " . implode("\n", $joins) . "
         WHERE " . implode(' AND ', $where) . "
-        ORDER BY p.post_title ASC
+        ORDER BY " . ($indexed_unicode_letter ? 'p.ID' : 'p.post_title') . " ASC
     ";
     if ($limit > 0) {
         $sql .= "\nLIMIT %d";
