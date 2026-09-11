@@ -516,7 +516,7 @@ msgstr "Eylemler"
 msgid "Activity"
 msgstr "Etkinlik"
 
-#: includes/admin/ipa-keyboard-admin.php:668
+#: includes/admin/ipa-keyboard-admin.php:669
 msgid "Add"
 msgstr "Ekle"
 
@@ -583,7 +583,7 @@ msgstr "Çift ekle"
 msgid "Add Recording Type"
 msgstr "Kayıt Türü Ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:753
+#: includes/admin/ipa-keyboard-admin.php:754
 #: includes/lib/wordset-language-settings.php:1328
 msgid "Add symbols"
 msgstr "Semboller ekle"
@@ -1256,7 +1256,7 @@ msgstr "Bir döngü oluşturacağı için %s eklenemiyor."
 msgid "Canonical ratio"
 msgstr "Standart oran"
 
-#: includes/admin/ipa-keyboard-admin.php:476
+#: includes/admin/ipa-keyboard-admin.php:477
 #: includes/admin/offline-app-export.php:759
 #: includes/admin/user-progress-report.php:1111
 #: includes/flashcard-shell.php:107
@@ -1505,7 +1505,7 @@ msgstr "Artık geçerli quizler oluşturamayan kategoriler için quiz sayfaları
 
 #: includes/admin/bulk-translation-admin.php:239
 #: includes/admin/ipa-keyboard-admin.php:410
-#: includes/admin/ipa-keyboard-admin.php:563
+#: includes/admin/ipa-keyboard-admin.php:564
 #: includes/admin/word-option-rules-admin.php:1945
 #: includes/pages/wordset-pages.php:17515
 #: includes/pages/wordset-pages.php:26197
@@ -1526,7 +1526,7 @@ msgstr "Filtreleri temizle"
 msgid "Clear search"
 msgstr "Temiz arama"
 
-#: includes/admin/ipa-keyboard-admin.php:592
+#: includes/admin/ipa-keyboard-admin.php:593
 #: includes/pages/wordset-pages.php:26855
 #: includes/pages/wordset-pages.php:27389
 #: includes/shortcodes/flashcard-widget.php:726
@@ -2352,8 +2352,8 @@ msgstr "Kopyalar gizlenir, böylece önce kelime ve kayıt türü başına bir k
 msgid "e.g. 4:3"
 msgstr "örn. 4:3"
 
-#: includes/admin/ipa-keyboard-admin.php:667
-#: includes/admin/ipa-keyboard-admin.php:754
+#: includes/admin/ipa-keyboard-admin.php:668
+#: includes/admin/ipa-keyboard-admin.php:755
 #: includes/lib/wordset-language-settings.php:1329
 msgid "e.g. IPA symbols"
 msgstr "örneğin IPA sembolleri"
@@ -2405,9 +2405,9 @@ msgstr "Kayıt Türünü Düzenle"
 msgid "Edit Vocab Lesson"
 msgstr "Kelime Dersini Düzenle"
 
-#: includes/admin/audio-processor-admin.php:151
 #: includes/admin/audio-processor-admin.php:1194
-#: includes/admin/ipa-keyboard-admin.php:528
+#: includes/admin/audio-processor-admin.php:151
+#: includes/admin/ipa-keyboard-admin.php:529
 #: includes/pages/wordset-editor.php:4825
 #: includes/pages/wordset-pages.php:22505
 #: includes/shortcodes/word-grid-shortcode.php:5761
@@ -2513,7 +2513,7 @@ msgstr "Kelime seti için bir ad gir."
 msgid "Enter a valid ratio like 4:3."
 msgstr "4:3 gibi geçerli bir oran gir."
 
-#: includes/admin/ipa-keyboard-admin.php:762
+#: includes/admin/ipa-keyboard-admin.php:763
 #: includes/lib/wordset-language-settings.php:1339
 msgid "Enter letters and IPA symbols to add."
 msgstr "Eklemek için harfleri ve IPA sembollerini gir."
@@ -2612,8 +2612,8 @@ msgid "Example imported item"
 msgstr "Örnek içe aktarılan öğe"
 
 #: includes/admin/ipa-keyboard-admin.php:411
-#: includes/admin/ipa-keyboard-admin.php:553
-#: includes/lib/dictionary-browser.php:7124
+#: includes/admin/ipa-keyboard-admin.php:554
+#: includes/lib/dictionary-browser.php:7092
 #: includes/shortcodes/dictionary-shortcode.php:2795
 msgid "Examples"
 msgstr "Örnekler"
@@ -3008,35 +3008,39 @@ msgstr "Her gün gönderilen ilk kayıt e-postası için, en son yüklemeden son
 #: includes/admin/audio-image-matcher.php:590
 #: includes/admin/audio-image-matcher.php:598
 #: includes/admin/audio-image-matcher.php:601
-#: includes/admin/ipa-keyboard-admin.php:9810
-#: includes/admin/ipa-keyboard-admin.php:9847
-#: includes/admin/ipa-keyboard-admin.php:9878
-#: includes/admin/ipa-keyboard-admin.php:9909
-#: includes/admin/ipa-keyboard-admin.php:9949
-#: includes/admin/ipa-keyboard-admin.php:9965
-#: includes/admin/ipa-keyboard-admin.php:9986
-#: includes/admin/ipa-keyboard-admin.php:10007
-#: includes/admin/ipa-keyboard-admin.php:10062
-#: includes/admin/ipa-keyboard-admin.php:10111
-#: includes/admin/ipa-keyboard-admin.php:10165
-#: includes/admin/ipa-keyboard-admin.php:10190
-#: includes/admin/ipa-keyboard-admin.php:10223
-#: includes/admin/ipa-keyboard-admin.php:10276
-#: includes/admin/ipa-keyboard-admin.php:10309
-#: includes/admin/ipa-keyboard-admin.php:10378
-#: includes/admin/ipa-keyboard-admin.php:10473
-#: includes/admin/ipa-keyboard-admin.php:10502
-#: includes/admin/ipa-keyboard-admin.php:10539
-#: includes/admin/ipa-keyboard-admin.php:10574
-#: includes/admin/ipa-keyboard-admin.php:10652
-#: includes/admin/ipa-keyboard-admin.php:10695
-#: includes/admin/ipa-keyboard-admin.php:10771
-#: includes/admin/ipa-keyboard-admin.php:10810
-#: includes/admin/ipa-keyboard-admin.php:10889
-#: includes/admin/ipa-keyboard-admin.php:10948
+#: includes/admin/ipa-keyboard-admin.php:10008
+#: includes/admin/ipa-keyboard-admin.php:10063
+#: includes/admin/ipa-keyboard-admin.php:10112
+#: includes/admin/ipa-keyboard-admin.php:10166
+#: includes/admin/ipa-keyboard-admin.php:10191
+#: includes/admin/ipa-keyboard-admin.php:10224
+#: includes/admin/ipa-keyboard-admin.php:10277
+#: includes/admin/ipa-keyboard-admin.php:10310
+#: includes/admin/ipa-keyboard-admin.php:10379
+#: includes/admin/ipa-keyboard-admin.php:10474
+#: includes/admin/ipa-keyboard-admin.php:10503
+#: includes/admin/ipa-keyboard-admin.php:10540
+#: includes/admin/ipa-keyboard-admin.php:10575
+#: includes/admin/ipa-keyboard-admin.php:10653
+#: includes/admin/ipa-keyboard-admin.php:10696
+#: includes/admin/ipa-keyboard-admin.php:10772
+#: includes/admin/ipa-keyboard-admin.php:10811
+#: includes/admin/ipa-keyboard-admin.php:10890
+#: includes/admin/ipa-keyboard-admin.php:10949
+#: includes/admin/ipa-keyboard-admin.php:9811
+#: includes/admin/ipa-keyboard-admin.php:9848
+#: includes/admin/ipa-keyboard-admin.php:9879
+#: includes/admin/ipa-keyboard-admin.php:9910
+#: includes/admin/ipa-keyboard-admin.php:9950
+#: includes/admin/ipa-keyboard-admin.php:9966
+#: includes/admin/ipa-keyboard-admin.php:9987
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/pages/wordset-transcription-review.php:268
 #: includes/shortcodes/editor-hub-shortcode.php:975
+#: includes/shortcodes/word-grid-shortcode.php:10180
+#: includes/shortcodes/word-grid-shortcode.php:10846
+#: includes/shortcodes/word-grid-shortcode.php:10930
+#: includes/shortcodes/word-grid-shortcode.php:11177
 #: includes/shortcodes/word-grid-shortcode.php:8044
 #: includes/shortcodes/word-grid-shortcode.php:8192
 #: includes/shortcodes/word-grid-shortcode.php:8312
@@ -3050,10 +3054,6 @@ msgstr "Her gün gönderilen ilk kayıt e-postası için, en son yüklemeden son
 #: includes/shortcodes/word-grid-shortcode.php:9332
 #: includes/shortcodes/word-grid-shortcode.php:9361
 #: includes/shortcodes/word-grid-shortcode.php:9364
-#: includes/shortcodes/word-grid-shortcode.php:10180
-#: includes/shortcodes/word-grid-shortcode.php:10846
-#: includes/shortcodes/word-grid-shortcode.php:10930
-#: includes/shortcodes/word-grid-shortcode.php:11177
 msgid "Forbidden"
 msgstr "İznin yok"
 
@@ -3252,10 +3252,10 @@ msgstr "Gizlenmiş Kategoriler"
 msgid "Hidden words"
 msgstr "Gizlenmiş kelimeler"
 
-#: includes/admin/ipa-keyboard-admin.php:543
+#: includes/admin/ipa-keyboard-admin.php:544
+#: includes/pages/wordset-pages.php:26187
 #: includes/pages/wordset-pages.php:7282
 #: includes/pages/wordset-pages.php:7291
-#: includes/pages/wordset-pages.php:26187
 #, php-format
 msgid "Hide %s"
 msgstr "%s'yi gizle"
@@ -3350,7 +3350,7 @@ msgid "If none selected, recording is disabled for this category."
 msgstr "Hiçbiri seçilmezse, bu kategori için kayıt devre dışı bırakılır."
 
 #: includes/admin/bulk-translation-admin.php:221
-#: includes/admin/ipa-keyboard-admin.php:474
+#: includes/admin/ipa-keyboard-admin.php:475
 #: includes/admin/orphan-media-admin.php:1855
 #: includes/admin/site-sync-admin.php:1060
 #: includes/admin/word-option-rules-admin.php:2272
@@ -3855,7 +3855,7 @@ msgid "Invalid vocab lesson settings request."
 msgstr "Geçersiz kelime dersi ayarları isteği."
 
 #: includes/admin/audio-image-matcher.php:584
-#: includes/admin/ipa-keyboard-admin.php:10177
+#: includes/admin/ipa-keyboard-admin.php:10178
 msgid "Invalid word"
 msgstr "Geçersiz kelime"
 
@@ -3888,25 +3888,25 @@ msgstr "Geçersiz kelime seti veya kategori."
 msgid "Invalid word set selection for export."
 msgstr "Dışa aktarma için geçersiz kelime seti seçimi."
 
-#: includes/admin/ipa-keyboard-admin.php:742
-#: includes/admin/ipa-keyboard-admin.php:756
+#: includes/admin/ipa-keyboard-admin.php:743
+#: includes/admin/ipa-keyboard-admin.php:757
 #: includes/admin/site-sync-admin.php:1055
-#: includes/lib/wordset-language-settings.php:896
-#: includes/lib/wordset-language-settings.php:932
 #: includes/lib/wordset-language-settings.php:1316
 #: includes/lib/wordset-language-settings.php:1317
 #: includes/lib/wordset-language-settings.php:1331
 #: includes/lib/wordset-language-settings.php:1336
+#: includes/lib/wordset-language-settings.php:896
+#: includes/lib/wordset-language-settings.php:932
 #: includes/pages/wordset-editor.php:1261
 #: includes/pages/wordset-games.php:5805
 #: includes/pages/wordset-pages.php:13549
 #: includes/pages/wordset-pages.php:25564
 #: includes/pages/wordset-pages.php:28412
 #: includes/pages/wordset-transcription-review.php:280
-#: includes/shortcodes/editor-hub-shortcode.php:644
-#: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/editor-hub-shortcode.php:1039
 #: includes/shortcodes/editor-hub-shortcode.php:1040
+#: includes/shortcodes/editor-hub-shortcode.php:644
+#: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/interlinear-shortcode.php:304
 #: includes/shortcodes/word-grid-shortcode.php:5743
 #: includes/shortcodes/word-grid-shortcode.php:5754
@@ -3914,9 +3914,9 @@ msgid "IPA"
 msgstr "IPA"
 
 #: includes/admin/ipa-keyboard-admin.php:446
-#: includes/admin/ipa-keyboard-admin.php:647
-#: includes/admin/ipa-keyboard-admin.php:663
-#: includes/admin/ipa-keyboard-admin.php:751
+#: includes/admin/ipa-keyboard-admin.php:648
+#: includes/admin/ipa-keyboard-admin.php:664
+#: includes/admin/ipa-keyboard-admin.php:752
 #: includes/lib/wordset-language-settings.php:1326
 msgid "IPA Special Characters"
 msgstr "IPA Özel Karakterleri"
@@ -3927,9 +3927,9 @@ msgstr "IPA Özel Karakterleri"
 msgid "IPA suggestions"
 msgstr "IPA önerileri"
 
-#: includes/admin/ipa-keyboard-admin.php:760
-#: includes/admin/ipa-keyboard-admin.php:763
-#: includes/admin/ipa-keyboard-admin.php:806
+#: includes/admin/ipa-keyboard-admin.php:761
+#: includes/admin/ipa-keyboard-admin.php:764
+#: includes/admin/ipa-keyboard-admin.php:807
 #: includes/lib/wordset-language-settings.php:1333
 #: includes/lib/wordset-language-settings.php:1337
 #: includes/shortcodes/word-grid-shortcode.php:5748
@@ -3937,12 +3937,12 @@ msgstr "IPA önerileri"
 msgid "IPA symbols"
 msgstr "IPA sembolleri"
 
-#: includes/admin/ipa-keyboard-admin.php:761
+#: includes/admin/ipa-keyboard-admin.php:762
 #: includes/lib/wordset-language-settings.php:1338
 msgid "IPA symbols (e.g. r)"
 msgstr "IPA sembolleri (örn. r)"
 
-#: includes/admin/ipa-keyboard-admin.php:759
+#: includes/admin/ipa-keyboard-admin.php:760
 msgid "IPA:"
 msgstr "IPA:"
 
@@ -4247,9 +4247,9 @@ msgid "Lesson/grid text visibility"
 msgstr "Ders/grid metin görünürlüğü"
 
 #: includes/admin/ipa-keyboard-admin.php:445
-#: includes/admin/ipa-keyboard-admin.php:646
-#: includes/admin/ipa-keyboard-admin.php:657
-#: includes/admin/ipa-keyboard-admin.php:757
+#: includes/admin/ipa-keyboard-admin.php:647
+#: includes/admin/ipa-keyboard-admin.php:658
+#: includes/admin/ipa-keyboard-admin.php:758
 #: includes/lib/wordset-language-settings.php:1334
 msgid "Letter to IPA Map"
 msgstr "Harf-IPA Haritası"
@@ -4610,7 +4610,7 @@ msgstr "Manuel sıralama yönü"
 msgid "Manual sort field"
 msgstr "Manuel sıralama alanı"
 
-#: includes/admin/ipa-keyboard-admin.php:758
+#: includes/admin/ipa-keyboard-admin.php:759
 #: includes/lib/wordset-language-settings.php:1335
 msgid "Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes."
 msgstr "Transkripsiyonlardan çıkarılan eşlemeler. Öneri hatalarını düzeltmek için manuel geçersiz kılmalar ekle."
@@ -4714,13 +4714,13 @@ msgstr "Eksik Ses"
 msgid "Missing audio file."
 msgstr "Eksik ses dosyası."
 
-#: includes/admin/ipa-keyboard-admin.php:10172
-#: includes/admin/ipa-keyboard-admin.php:10196
-#: includes/admin/ipa-keyboard-admin.php:10282
-#: includes/admin/ipa-keyboard-admin.php:10479
-#: includes/admin/ipa-keyboard-admin.php:10547
-#: includes/admin/ipa-keyboard-admin.php:10587
-#: includes/admin/ipa-keyboard-admin.php:10708
+#: includes/admin/ipa-keyboard-admin.php:10173
+#: includes/admin/ipa-keyboard-admin.php:10197
+#: includes/admin/ipa-keyboard-admin.php:10283
+#: includes/admin/ipa-keyboard-admin.php:10480
+#: includes/admin/ipa-keyboard-admin.php:10548
+#: includes/admin/ipa-keyboard-admin.php:10588
+#: includes/admin/ipa-keyboard-admin.php:10709
 #: includes/shortcodes/audio-recording-shortcode.php:9514
 #: includes/shortcodes/word-grid-shortcode.php:11164
 msgid "Missing data"
@@ -4967,11 +4967,11 @@ msgstr "Yeni kelime başlığı (isteğe bağlı)"
 msgid "New words"
 msgstr "Yeni kelimeler"
 
-#: includes/admin/audio-processor-admin.php:218
 #: includes/admin/audio-processor-admin.php:1324
+#: includes/admin/audio-processor-admin.php:218
 #: includes/admin/image-webp-optimizer-admin.php:1737
-#: includes/admin/ipa-keyboard-admin.php:470
-#: includes/admin/ipa-keyboard-admin.php:494
+#: includes/admin/ipa-keyboard-admin.php:471
+#: includes/admin/ipa-keyboard-admin.php:495
 #: includes/admin/site-sync-admin.php:1131
 #: includes/admin/teacher-classes-page.php:502
 #: includes/admin/word-option-rules-admin.php:1974
@@ -5131,7 +5131,7 @@ msgstr "Henüz gizlenmiş bir kelime yok."
 msgid "No Image"
 msgstr "Resim yok"
 
-#: includes/admin/ipa-keyboard-admin.php:478
+#: includes/admin/ipa-keyboard-admin.php:479
 #: includes/admin/site-sync-admin.php:1785
 #: includes/admin/word-option-rules-admin.php:2299
 #: includes/shortcodes/word-grid-shortcode.php:5780
@@ -5154,7 +5154,7 @@ msgstr "Bu kategoride hiçbir görüntü ses gerektirmez."
 msgid "No input devices detected: Windows Settings → Privacy & Security → Microphone → allow apps and desktop apps; then check Sound settings for the default input."
 msgstr "Giriş aygıtı algılanmadı: Windows Ayarları → Gizlilik ve Güvenlik → Mikrofon → uygulamalara ve masaüstü uygulamalarına izin ver; ardından varsayılan giriş için Ses ayarlarını kontrol et."
 
-#: includes/admin/ipa-keyboard-admin.php:752
+#: includes/admin/ipa-keyboard-admin.php:753
 #: includes/lib/wordset-language-settings.php:1327
 msgid "No IPA symbols found for this word set."
 msgstr "Bu kelime seti için IPA sembolü bulunamadı."
@@ -5673,7 +5673,7 @@ msgstr "Genel Bakış"
 
 #. translators: 1: current page, 2: total pages
 #: includes/admin/image-webp-optimizer-admin.php:1735
-#: includes/admin/ipa-keyboard-admin.php:466
+#: includes/admin/ipa-keyboard-admin.php:467
 #: includes/pages/content-lesson-pages.php:1102
 #: includes/pages/wordset-pages.php:17713
 #: includes/pages/wordset-pages.php:23259
@@ -5804,7 +5804,7 @@ msgstr "Oyna"
 #. translators: %s: recording type label
 #. translators: %s is the recording type label.
 #: includes/admin/export-import.php:4654
-#: includes/admin/ipa-keyboard-admin.php:1325
+#: includes/admin/ipa-keyboard-admin.php:1326
 #: includes/admin/word-option-rules-admin.php:2317
 #: includes/pages/wordset-editor.php:4148
 #: includes/shortcodes/flashcard-widget.php:675
@@ -6195,11 +6195,11 @@ msgstr "Önizleme ortam türü desteklenmiyor."
 msgid "Preview shows 2 random answer-option labels from text-based quiz categories in this word set. Use the button to cycle to 2 more examples. The quiz still auto-resizes text to fit each answer card."
 msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 rastgele cevap-seçenek etiketini gösterir. Diğer 2 örneğe geçmek için düğmeyi kullan. Quiz, metni her bir cevap kartına sığacak şekilde otomatik olarak yeniden boyutlandırmaya devam eder."
 
-#: includes/admin/audio-processor-admin.php:217
 #: includes/admin/audio-processor-admin.php:1320
+#: includes/admin/audio-processor-admin.php:217
 #: includes/admin/image-webp-optimizer-admin.php:1736
-#: includes/admin/ipa-keyboard-admin.php:469
-#: includes/admin/ipa-keyboard-admin.php:493
+#: includes/admin/ipa-keyboard-admin.php:470
+#: includes/admin/ipa-keyboard-admin.php:494
 #: includes/admin/site-sync-admin.php:1128
 #: includes/admin/teacher-classes-page.php:497
 #: includes/admin/word-option-rules-admin.php:1967
@@ -6510,8 +6510,8 @@ msgstr "Bu kelime seti için kaydedici ataması güncellendi."
 msgid "Recorders:"
 msgstr "Kaydediciler:"
 
+#: includes/admin/ipa-keyboard-admin.php:1323
 #: includes/admin/ipa-keyboard-admin.php:427
-#: includes/admin/ipa-keyboard-admin.php:1322
 #: includes/admin/split-word-admin.php:381
 #: includes/admin/split-word-admin.php:393
 #: includes/admin/split-word-admin.php:400
@@ -6614,12 +6614,12 @@ msgid "Rematch mode (include already-matched words)"
 msgstr "Yeniden eşleştirme modu (önceden eşleştirilmiş kelimeleri içerir)"
 
 #: includes/admin/audio-processor-admin.php:197
-#: includes/admin/ipa-keyboard-admin.php:501
+#: includes/admin/ipa-keyboard-admin.php:502
 #: includes/admin/teacher-classes-page.php:1038
 #: includes/admin/teacher-classes-page.php:1099
-#: includes/admin/word-option-rules-admin.php:290
 #: includes/admin/word-option-rules-admin.php:2261
 #: includes/admin/word-option-rules-admin.php:2442
+#: includes/admin/word-option-rules-admin.php:290
 #: includes/pages/wordset-pages.php:13245
 #: includes/pages/wordset-pages.php:13271
 msgid "Remove"
@@ -6728,10 +6728,11 @@ msgid "Result"
 msgstr "Sonuç"
 
 #: includes/admin/audio-image-matcher.php:76
-#: includes/admin/audio-processor-admin.php:213
 #: includes/admin/audio-processor-admin.php:1314
-#: includes/admin/site-sync-admin.php:655
+#: includes/admin/audio-processor-admin.php:213
+#: includes/admin/ipa-keyboard-admin.php:450
 #: includes/admin/site-sync-admin.php:1934
+#: includes/admin/site-sync-admin.php:655
 #: includes/lib/recording-history.php:279
 #: includes/lib/word-copy.php:435
 #: includes/pages/content-lesson-pages.php:1299
@@ -6943,9 +6944,9 @@ msgstr "Öne çıkan görseli olan ama buna karşılık gelen bir \"word_images\
 #: includes/admin/bulk-translation-admin.php:169
 #: includes/admin/image-webp-optimizer-admin.php:1806
 #: includes/admin/ipa-keyboard-admin.php:447
-#: includes/admin/ipa-keyboard-admin.php:648
-#: includes/admin/ipa-keyboard-admin.php:674
-#: includes/admin/ipa-keyboard-admin.php:697
+#: includes/admin/ipa-keyboard-admin.php:649
+#: includes/admin/ipa-keyboard-admin.php:675
+#: includes/admin/ipa-keyboard-admin.php:698
 #: includes/admin/teacher-classes-page.php:704
 #: includes/admin/teacher-classes-page.php:819
 #: includes/admin/word-option-rules-admin.php:1943
@@ -7115,7 +7116,7 @@ msgstr "Bir zip dosyası seç"
 msgid "Select All"
 msgstr "Tümünü Seç"
 
-#: includes/admin/ipa-keyboard-admin.php:591
+#: includes/admin/ipa-keyboard-admin.php:592
 #: includes/flashcard-shell.php:110
 #: includes/pages/wordset-pages.php:26184
 #: includes/pages/wordset-pages.php:26268
@@ -7579,7 +7580,7 @@ msgstr "Azalan sıralama"
 #: includes/admin/dictionary-import-admin.php:2424
 #: includes/admin/export-import.php:3791
 #: includes/admin/export-import.php:4384
-#: includes/lib/dictionary-browser.php:7123
+#: includes/lib/dictionary-browser.php:7091
 #: includes/shortcodes/audio-credit-grid-shortcode.php:381
 #: includes/shortcodes/image-copyright-grid-shortcode.php:257
 msgid "Source"
@@ -7722,7 +7723,7 @@ msgid "Starting upload for image:"
 msgstr "Görüntü için yükleme başlatılıyor:"
 
 #: includes/admin/bulk-translation-admin.php:204
-#: includes/admin/ipa-keyboard-admin.php:596
+#: includes/admin/ipa-keyboard-admin.php:597
 #: includes/admin/split-word-admin.php:383
 #: includes/admin/user-progress-report.php:1159
 #: includes/lms/assignments.php:2039
@@ -7811,7 +7812,7 @@ msgstr "Modu Değiştir"
 msgid "Switching category..."
 msgstr "Kategori değiştiriliyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:755
+#: includes/admin/ipa-keyboard-admin.php:756
 #: includes/lib/wordset-language-settings.php:1330
 msgid "Symbols used in this word set. Update recordings or add new symbols to the keyboard."
 msgstr "Bu kelime setinde kullanılan semboller. Kayıtları güncelle veya klavyeye yeni semboller ekle."
@@ -8277,7 +8278,7 @@ msgstr "Döşeme"
 #: includes/admin/bulk-translation-admin.php:200
 #: includes/admin/dictionary-import-admin.php:2423
 #: includes/admin/split-word-admin.php:382
-#: includes/lib/dictionary-browser.php:7119
+#: includes/lib/dictionary-browser.php:7087
 #: includes/post-types/dictionary-entry-post-type.php:1963
 #: includes/post-types/word-audio-post-type.php:117
 msgid "Type"
@@ -8936,7 +8937,7 @@ msgid "Vocab lesson sync completed. %d created, %d updated, %d removed."
 msgstr "Kelime dersi senkronizasyonu tamamlandı. %d oluşturuldu, %d güncellendi, %d kaldırıldı."
 
 #: includes/admin/admin-dashboard-menu.php:641
-#: includes/lib/ai-crawler-support.php:1419
+#: includes/lib/ai-crawler-support.php:1530
 #: includes/post-types/vocab-lesson-post-type.php:10
 #: includes/post-types/vocab-lesson-post-type.php:19
 #: includes/post-types/vocab-lesson-post-type.php:23
@@ -8990,13 +8991,13 @@ msgstr "Bu kullanıcı hangi kelime setini kaydetmelidir?"
 msgid "Windows/Chrome: Click the lock icon → Site settings → Microphone: Allow."
 msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: İzin ver."
 
-#: includes/admin/audio-processor-admin.php:154
 #: includes/admin/audio-processor-admin.php:1211
+#: includes/admin/audio-processor-admin.php:154
 #: includes/admin/bulk-translation-admin.php:199
 #: includes/admin/bulk-translation-admin.php:221
 #: includes/admin/export-import.php:4636
 #: includes/admin/ipa-keyboard-admin.php:426
-#: includes/admin/ipa-keyboard-admin.php:473
+#: includes/admin/ipa-keyboard-admin.php:474
 #: includes/admin/missing-audio-admin-page.php:939
 #: includes/admin/orphan-media-admin.php:854
 #: includes/admin/user-progress-report.php:1157
@@ -9010,10 +9011,10 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/pages/wordset-pages.php:28408
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/words-post-type.php:22
-#: includes/privacy.php:846
 #: includes/privacy.php:1015
-#: includes/shortcodes/editor-hub-shortcode.php:510
+#: includes/privacy.php:846
 #: includes/shortcodes/editor-hub-shortcode.php:1052
+#: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
 #: includes/shortcodes/ranked-word-list-shortcode.php:652
 #: includes/shortcodes/word-grid-shortcode.php:5764
@@ -9167,15 +9168,15 @@ msgstr "Kelime Seti"
 
 #: includes/admin/export-import.php:4319
 #: includes/admin/export-import.php:4415
-#: includes/admin/ipa-keyboard-admin.php:630
+#: includes/admin/ipa-keyboard-admin.php:631
 #: includes/admin/teacher-classes-page.php:743
 #: includes/admin/word-option-rules-admin.php:1875
 #: includes/pages/wordset-pages.php:12949
 #: includes/post-types/content-lesson-post-type.php:1930
+#: includes/privacy.php:1021
 #: includes/privacy.php:470
 #: includes/privacy.php:850
 #: includes/privacy.php:939
-#: includes/privacy.php:1021
 #: includes/shortcodes/audio-recording-shortcode.php:1668
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:131
@@ -9526,7 +9527,7 @@ msgstr "Bu sayfayı görüntülemek için iznin yok."
 msgid "You do not have permission."
 msgstr "İznin yok."
 
-#: includes/admin/ipa-keyboard-admin.php:613
+#: includes/admin/ipa-keyboard-admin.php:614
 #: includes/admin/recording-types-admin.php:22
 #: includes/admin/word-option-rules-admin.php:1733
 msgid "You do not have sufficient permissions to access this page."
@@ -9889,7 +9890,7 @@ msgstr "Çevrimdışı Uygulama Dışa Aktarma"
 #: includes/admin/admin-dashboard-menu.php:168
 #: includes/admin/admin-dashboard-menu.php:585
 #: includes/admin/ipa-keyboard-admin.php:13
-#: includes/admin/ipa-keyboard-admin.php:625
+#: includes/admin/ipa-keyboard-admin.php:626
 msgid "Transcription Manager"
 msgstr "Transkripsiyon Yöneticisi"
 
@@ -10704,7 +10705,7 @@ msgid "Stable slug used by imports, filters, and snapshots."
 msgstr "İçe aktarmalar, filtreler ve anlık görüntüler tarafından kullanılan kararlı bilgi."
 
 #: includes/admin/dictionary-sources-admin.php:163
-#: includes/admin/ipa-keyboard-admin.php:491
+#: includes/admin/ipa-keyboard-admin.php:492
 #: includes/admin/missing-audio-admin-page.php:636
 msgid "Label"
 msgstr "Etiket"
@@ -12096,9 +12097,9 @@ msgstr "Henüz bu karakteri kullanan kayıt yok."
 msgid "No word sets are available for this page."
 msgstr "Bu sayfa için kelime seti mevcut değil."
 
+#: includes/admin/ipa-keyboard-admin.php:2558
 #: includes/admin/ipa-keyboard-admin.php:425
-#: includes/admin/ipa-keyboard-admin.php:515
-#: includes/admin/ipa-keyboard-admin.php:2557
+#: includes/admin/ipa-keyboard-admin.php:516
 #: includes/lib/wordset-language-settings.php:1395
 #: includes/lib/wordset-language-settings.php:1396
 #: includes/lib/wordset-language-settings.php:1410
@@ -12144,8 +12145,8 @@ msgid "Download recording"
 msgstr "Kaydı indir"
 
 #: includes/admin/ipa-keyboard-admin.php:448
-#: includes/admin/ipa-keyboard-admin.php:649
-#: includes/admin/ipa-keyboard-admin.php:718
+#: includes/admin/ipa-keyboard-admin.php:650
+#: includes/admin/ipa-keyboard-admin.php:719
 msgid "IPA to Orthography"
 msgstr "IPA'dan Yazım'a"
 
@@ -12153,193 +12154,193 @@ msgstr "IPA'dan Yazım'a"
 msgid "Searching recordings..."
 msgstr "Kayıtlar aranıyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:450
+#: includes/admin/ipa-keyboard-admin.php:451
 msgid "This can take a moment for larger word sets."
 msgstr "Daha büyük kelime setleri için bu biraz zaman alabilir."
 
-#: includes/admin/ipa-keyboard-admin.php:451
+#: includes/admin/ipa-keyboard-admin.php:452
 msgid "No recordings matched this search."
 msgstr "Bu aramayla eşleşen kayıt yok."
 
-#: includes/admin/ipa-keyboard-admin.php:453
+#: includes/admin/ipa-keyboard-admin.php:454
 #, php-format
 msgid "%1$d result"
 msgstr "%1$d sonuç"
 
-#: includes/admin/ipa-keyboard-admin.php:454
+#: includes/admin/ipa-keyboard-admin.php:455
 #, php-format
 msgid "%1$d results"
 msgstr "%1$d sonuç"
 
-#: includes/admin/ipa-keyboard-admin.php:457
+#: includes/admin/ipa-keyboard-admin.php:458
 #, php-format
 msgid "Showing %1$d flagged recording"
 msgstr "%1$d işaretli kayıt gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:458
+#: includes/admin/ipa-keyboard-admin.php:459
 #, php-format
 msgid "Showing %1$d flagged recordings"
 msgstr "%1$d işaretli kayıt gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:459
+#: includes/admin/ipa-keyboard-admin.php:460
 #, php-format
 msgid "Showing %1$d transcription needing review"
 msgstr "İncelenmesi gereken %1$d transkripsiyon gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:460
+#: includes/admin/ipa-keyboard-admin.php:461
 #, php-format
 msgid "Showing %1$d transcriptions needing review"
 msgstr "İncelenmesi gereken %1$d çeviri yazı gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:461
+#: includes/admin/ipa-keyboard-admin.php:462
 #, php-format
 msgid "Showing %1$d-%2$d of %3$d results"
 msgstr "%3$d sonuçtan %1$d-%2$d gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:462
+#: includes/admin/ipa-keyboard-admin.php:463
 #, php-format
 msgid "Showing %1$d-%2$d of %3$d flagged recordings"
 msgstr "%3$d işaretli kayıttan %1$d-%2$d tanesi gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:463
+#: includes/admin/ipa-keyboard-admin.php:464
 #, php-format
 msgid "Showing %1$d-%2$d of %3$d transcriptions needing review"
 msgstr "İncelenmesi gereken %3$d transkripsiyondan %1$d-%2$d tanesi gösteriliyor"
 
-#: includes/admin/ipa-keyboard-admin.php:464
+#: includes/admin/ipa-keyboard-admin.php:465
 #, php-format
 msgid "Showing the first %1$d results. Narrow the search to see more."
 msgstr "İlk %1$d sonuç gösteriliyor. Daha fazlasını görmek için aramayı daraltın."
 
-#: includes/admin/ipa-keyboard-admin.php:465
+#: includes/admin/ipa-keyboard-admin.php:466
 msgid "Search result pages"
 msgstr "Arama sonucu sayfaları"
 
-#: includes/admin/ipa-keyboard-admin.php:467
+#: includes/admin/ipa-keyboard-admin.php:468
 #, php-format
 msgid "Go to page %1$d"
 msgstr "%1$d. sayfaya git"
 
-#: includes/admin/ipa-keyboard-admin.php:468
+#: includes/admin/ipa-keyboard-admin.php:469
 #, php-format
 msgid "Current page %1$d"
 msgstr "Geçerli sayfa %1$d"
 
-#: includes/admin/ipa-keyboard-admin.php:477
+#: includes/admin/ipa-keyboard-admin.php:478
 msgid "Checks"
 msgstr "Çekler"
 
-#: includes/admin/ipa-keyboard-admin.php:479
+#: includes/admin/ipa-keyboard-admin.php:480
 msgid "No categories"
 msgstr "Kategori yok"
 
-#: includes/admin/ipa-keyboard-admin.php:480
+#: includes/admin/ipa-keyboard-admin.php:481
 msgid "No warnings"
 msgstr "Uyarı yok"
 
-#: includes/admin/ipa-keyboard-admin.php:481
+#: includes/admin/ipa-keyboard-admin.php:482
 msgid "Ignored"
 msgstr "Yoksayıldı"
 
-#: includes/admin/ipa-keyboard-admin.php:482
+#: includes/admin/ipa-keyboard-admin.php:483
 msgid "Review warnings"
 msgstr "Uyarıları inceleyin"
 
-#: includes/admin/ipa-keyboard-admin.php:483
+#: includes/admin/ipa-keyboard-admin.php:484
 msgid "Use * as a wildcard."
 msgstr "*'ı joker karakter olarak kullan."
 
-#: includes/admin/ipa-keyboard-admin.php:484
+#: includes/admin/ipa-keyboard-admin.php:485
 msgid "IPA checks and typo rules"
 msgstr "IPA kontrolleri ve yazım hatası kuralları"
 
-#: includes/admin/ipa-keyboard-admin.php:485
+#: includes/admin/ipa-keyboard-admin.php:486
 msgid "Expand to review built-in checks and wordset-specific IPA rules."
 msgstr "Yerleşik kontrolleri ve kelime setine özgü IPA kurallarını incelemek için genişletin."
 
-#: includes/admin/ipa-keyboard-admin.php:486
+#: includes/admin/ipa-keyboard-admin.php:487
 msgid "Wordset-specific IPA checks"
 msgstr "Kelime setine özgü IPA kontrolleri"
 
-#: includes/admin/ipa-keyboard-admin.php:487
+#: includes/admin/ipa-keyboard-admin.php:488
 msgid "Add sounds that should never appear in this word set, or ban sounds in specific immediate environments."
 msgstr "Bu kelime setinde hiçbir zaman yer almaması gereken sesleri ekleyin veya belirli yakın çevrelerdeki sesleri yasaklayın."
 
-#: includes/admin/ipa-keyboard-admin.php:488
+#: includes/admin/ipa-keyboard-admin.php:489
 msgid "Standard IPA checks"
 msgstr "Standart IPA kontrolleri"
 
-#: includes/admin/ipa-keyboard-admin.php:489
+#: includes/admin/ipa-keyboard-admin.php:490
 msgid "No custom IPA checks for this word set yet."
 msgstr "Bu kelime seti için henüz özel bir IPA kontrolü yok."
 
-#: includes/admin/ipa-keyboard-admin.php:490
+#: includes/admin/ipa-keyboard-admin.php:491
 msgid "Custom IPA checks are only available when this word set uses IPA transcription mode."
 msgstr "Özel IPA kontrolleri yalnızca bu kelime seti IPA transkripsiyon modunu kullandığında kullanılabilir."
 
-#: includes/admin/ipa-keyboard-admin.php:492
+#: includes/admin/ipa-keyboard-admin.php:493
 msgid "Sound"
 msgstr "Ses"
 
-#: includes/admin/ipa-keyboard-admin.php:495
+#: includes/admin/ipa-keyboard-admin.php:496
 msgid "Optional note"
 msgstr "İsteğe bağlı not"
 
-#: includes/admin/ipa-keyboard-admin.php:496
+#: includes/admin/ipa-keyboard-admin.php:497
 msgid "e.g. t"
 msgstr "örneğin t"
 
-#: includes/admin/ipa-keyboard-admin.php:497
+#: includes/admin/ipa-keyboard-admin.php:498
 msgid "Previous sound(s)"
 msgstr "Önceki ses(ler)"
 
-#: includes/admin/ipa-keyboard-admin.php:498
+#: includes/admin/ipa-keyboard-admin.php:499
 msgid "Next sound(s)"
 msgstr "Sonraki ses(ler)"
 
-#: includes/admin/ipa-keyboard-admin.php:499
+#: includes/admin/ipa-keyboard-admin.php:500
 msgid "Leave Previous and Next empty to ban a sound everywhere. Separate multiple sounds with spaces."
 msgstr "Bir sesi her yerde yasaklamak için Önceki ve Sonraki'yi boş bırakın. Birden fazla sesi boşluklarla ayırın."
 
-#: includes/admin/ipa-keyboard-admin.php:500
+#: includes/admin/ipa-keyboard-admin.php:501
 msgid "Add check"
 msgstr "Denetim ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:502
+#: includes/admin/ipa-keyboard-admin.php:503
 msgid "Enter a sound to check."
 msgstr "Kontrol etmek için bir ses gir."
 
-#: includes/admin/ipa-keyboard-admin.php:503
+#: includes/admin/ipa-keyboard-admin.php:504
 msgid "Save checks"
 msgstr "Denetimleri kaydet"
 
-#: includes/admin/ipa-keyboard-admin.php:504
+#: includes/admin/ipa-keyboard-admin.php:505
 msgid "Checks saved and rescanned."
 msgstr "Denetimler kaydedildi ve yeniden tarandı."
 
-#: includes/admin/ipa-keyboard-admin.php:505
+#: includes/admin/ipa-keyboard-admin.php:506
 msgid "Saving checks and rescanning this word set..."
 msgstr "Denetimler kaydediliyor ve bu kelime seti yeniden taranıyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:506
+#: includes/admin/ipa-keyboard-admin.php:507
 msgid "Open word"
 msgstr "Kelimeyi aç"
 
-#: includes/admin/ipa-keyboard-admin.php:507
+#: includes/admin/ipa-keyboard-admin.php:508
 msgid "Unknown category"
 msgstr "Bilinmeyen kategori"
 
-#: includes/admin/ipa-keyboard-admin.php:508
+#: includes/admin/ipa-keyboard-admin.php:509
 msgid "Open category"
 msgstr "Kategoriyi aç"
 
-#: includes/admin/ipa-keyboard-admin.php:509
-#: includes/admin/ipa-keyboard-admin.php:691
+#: includes/admin/ipa-keyboard-admin.php:510
+#: includes/admin/ipa-keyboard-admin.php:692
 msgid "Only needs review"
 msgstr "Yalnızca inceleme gerekiyor"
 
-#: includes/admin/ipa-keyboard-admin.php:510
-#: includes/admin/ipa-keyboard-admin.php:516
+#: includes/admin/ipa-keyboard-admin.php:511
+#: includes/admin/ipa-keyboard-admin.php:517
 #: includes/admin/site-sync-admin.php:1056
 #: includes/admin/site-sync-admin.php:1269
 #: includes/pages/wordset-transcription-review.php:290
@@ -12350,435 +12351,435 @@ msgstr "Yalnızca inceleme gerekiyor"
 msgid "Needs review"
 msgstr "İncelenmesi gerekiyor"
 
-#: includes/admin/ipa-keyboard-admin.php:511
+#: includes/admin/ipa-keyboard-admin.php:512
 msgid "This transcription is marked for follow-up review."
 msgstr "Bu transkripsiyon daha sonra incelenmek üzere işaretlendi."
 
-#: includes/admin/ipa-keyboard-admin.php:512
+#: includes/admin/ipa-keyboard-admin.php:513
 #: includes/pages/wordset-transcription-review.php:290
 msgid "Mark reviewed"
 msgstr "İncelendi olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:513
+#: includes/admin/ipa-keyboard-admin.php:514
 #: includes/shortcodes/dictionary-shortcode.php:1396
 msgid "Mark for review"
 msgstr "İnceleme için işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:526
+#: includes/admin/ipa-keyboard-admin.php:527
 msgid "Marked for review."
 msgstr "İncelenmek üzere işaretlendi."
 
-#: includes/admin/ipa-keyboard-admin.php:527
+#: includes/admin/ipa-keyboard-admin.php:528
 msgid "Reviewed."
 msgstr "İncelendi."
 
-#: includes/admin/ipa-keyboard-admin.php:534
+#: includes/admin/ipa-keyboard-admin.php:535
 msgid "Ignore for this transcription"
 msgstr "Bu transkripsiyon için yoksay"
 
-#: includes/admin/ipa-keyboard-admin.php:535
-#: includes/admin/ipa-keyboard-admin.php:578
+#: includes/admin/ipa-keyboard-admin.php:536
+#: includes/admin/ipa-keyboard-admin.php:579
 msgid "Undo exception"
 msgstr "İstisnayı geri al"
 
-#: includes/admin/ipa-keyboard-admin.php:544
+#: includes/admin/ipa-keyboard-admin.php:545
 msgid "Save failed"
 msgstr "Kaydetme başarısız oldu"
 
-#: includes/admin/ipa-keyboard-admin.php:545
+#: includes/admin/ipa-keyboard-admin.php:546
 msgid "Loading orthography conversion data..."
 msgstr "Yazım dönüştürme verileri yükleniyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:546
+#: includes/admin/ipa-keyboard-admin.php:547
 msgid "IPA-to-orthography conversion is only available when this word set uses IPA transcription mode."
 msgstr "IPA'dan ortografiye dönüştürme yalnızca bu kelime seti IPA transkripsiyon modunu kullandığında kullanılabilir."
 
-#: includes/admin/ipa-keyboard-admin.php:547
+#: includes/admin/ipa-keyboard-admin.php:548
 msgid "Detected conversion rules"
 msgstr "Algılanan dönüşüm kuralları"
 
-#: includes/admin/ipa-keyboard-admin.php:548
+#: includes/admin/ipa-keyboard-admin.php:549
 msgid "Review the inferred IPA-to-orthography rules, block bad guesses, and add manual overrides."
 msgstr "Çıkarılan IPA'dan yazım kurallarını inceleyin, hatalı tahminleri engelleyin ve manuel geçersiz kılmalar ekleyin."
 
-#: includes/admin/ipa-keyboard-admin.php:549
+#: includes/admin/ipa-keyboard-admin.php:550
 msgid "No usable IPA/text pairings were found yet for this word set."
 msgstr "Bu kelime seti için henüz kullanılabilir bir IPA/metin eşleştirmesi bulunamadı."
 
-#: includes/admin/ipa-keyboard-admin.php:550
-#: includes/admin/ipa-keyboard-admin.php:555
+#: includes/admin/ipa-keyboard-admin.php:551
+#: includes/admin/ipa-keyboard-admin.php:556
 msgid "IPA segment"
 msgstr "IPA segmenti"
 
-#: includes/admin/ipa-keyboard-admin.php:551
+#: includes/admin/ipa-keyboard-admin.php:552
 msgid "Auto rules"
 msgstr "Otomatik kurallar"
 
-#: includes/admin/ipa-keyboard-admin.php:552
+#: includes/admin/ipa-keyboard-admin.php:553
 msgid "Manual overrides"
 msgstr "Manuel geçersiz kılmalar"
 
-#: includes/admin/ipa-keyboard-admin.php:554
+#: includes/admin/ipa-keyboard-admin.php:555
 msgid "Add manual rule"
 msgstr "Manuel kural ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:556
+#: includes/admin/ipa-keyboard-admin.php:557
 msgid "e.g. ʃ or t͡ʃ"
 msgstr "örneğin ʃ veya t͡ʃ"
 
-#: includes/admin/ipa-keyboard-admin.php:557
+#: includes/admin/ipa-keyboard-admin.php:558
 msgid "Position"
 msgstr "Pozisyon"
 
-#: includes/admin/ipa-keyboard-admin.php:514
-#: includes/admin/ipa-keyboard-admin.php:558
-#: includes/admin/ipa-keyboard-admin.php:2556
+#: includes/admin/ipa-keyboard-admin.php:2557
+#: includes/admin/ipa-keyboard-admin.php:515
+#: includes/admin/ipa-keyboard-admin.php:559
 #: includes/admin/site-sync-admin.php:1053
 msgid "Orthography"
 msgstr "Yazım"
 
-#: includes/admin/ipa-keyboard-admin.php:559
+#: includes/admin/ipa-keyboard-admin.php:560
 msgid "e.g. sh"
 msgstr "örneğin ş"
 
-#: includes/admin/ipa-keyboard-admin.php:560
+#: includes/admin/ipa-keyboard-admin.php:561
 msgid "Add rule"
 msgstr "Kural ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:561
+#: includes/admin/ipa-keyboard-admin.php:562
 msgid "Enter both an IPA segment and an orthography output."
 msgstr "Hem IPA segmentini hem de yazım çıktısını gir."
 
-#: includes/admin/ipa-keyboard-admin.php:562
+#: includes/admin/ipa-keyboard-admin.php:563
 msgid "Save rules"
 msgstr "Kuralları kaydet"
 
-#: includes/admin/ipa-keyboard-admin.php:564
+#: includes/admin/ipa-keyboard-admin.php:565
 msgid "Hide auto rule"
 msgstr "Otomatik kuralı gizle"
 
-#: includes/admin/ipa-keyboard-admin.php:565
+#: includes/admin/ipa-keyboard-admin.php:566
 msgid "Restore"
 msgstr "Geri yükle"
 
-#: includes/admin/ipa-keyboard-admin.php:566
-#: includes/admin/ipa-keyboard-admin.php:3575
+#: includes/admin/ipa-keyboard-admin.php:3576
+#: includes/admin/ipa-keyboard-admin.php:567
 msgid "Anywhere"
 msgstr "Her yerde"
 
-#: includes/admin/ipa-keyboard-admin.php:567
-#: includes/admin/ipa-keyboard-admin.php:3570
+#: includes/admin/ipa-keyboard-admin.php:3571
+#: includes/admin/ipa-keyboard-admin.php:568
 msgid "Word-final"
 msgstr "Kelime finali"
 
-#: includes/admin/ipa-keyboard-admin.php:568
-#: includes/admin/ipa-keyboard-admin.php:3573
+#: includes/admin/ipa-keyboard-admin.php:3574
+#: includes/admin/ipa-keyboard-admin.php:569
 msgid "Elsewhere"
 msgstr "Başka yerde"
 
-#: includes/admin/ipa-keyboard-admin.php:569
+#: includes/admin/ipa-keyboard-admin.php:570
 msgid "Hidden auto rules"
 msgstr "Gizli otomatik kurallar"
 
-#: includes/admin/ipa-keyboard-admin.php:570
+#: includes/admin/ipa-keyboard-admin.php:571
 msgid "Contradicting words"
 msgstr "Çelişkili kelimeler"
 
-#: includes/admin/ipa-keyboard-admin.php:571
+#: includes/admin/ipa-keyboard-admin.php:572
 msgid "These saved IPA/text pairings do not match the current rules. You can approve a word as an exception or keep adjusting the rules."
 msgstr "Kaydedilen bu IPA/metin eşleştirmeleri mevcut kurallarla eşleşmiyor. Bir kelimeyi istisna olarak onaylayabilir veya kuralları değiştirmeye devam edebilirsiniz."
 
-#: includes/admin/ipa-keyboard-admin.php:572
+#: includes/admin/ipa-keyboard-admin.php:573
 msgid "No contradictions found with the current rules."
 msgstr "Mevcut kurallarla herhangi bir çelişki bulunamadı."
 
-#: includes/admin/ipa-keyboard-admin.php:573
+#: includes/admin/ipa-keyboard-admin.php:574
 #, php-format
 msgid "%1$d contradicting word"
 msgstr "%1$d çelişkili kelime"
 
-#: includes/admin/ipa-keyboard-admin.php:574
+#: includes/admin/ipa-keyboard-admin.php:575
 #, php-format
 msgid "%1$d contradicting words"
 msgstr "%1$d çelişkili kelime"
 
-#: includes/admin/ipa-keyboard-admin.php:575
+#: includes/admin/ipa-keyboard-admin.php:576
 msgid "Saved text"
 msgstr "Kayıtlı metin"
 
-#: includes/admin/ipa-keyboard-admin.php:576
-#: includes/admin/ipa-keyboard-admin.php:595
+#: includes/admin/ipa-keyboard-admin.php:577
+#: includes/admin/ipa-keyboard-admin.php:596
 msgid "Predicted text"
 msgstr "Tahmin edilen metin"
 
-#: includes/admin/ipa-keyboard-admin.php:577
+#: includes/admin/ipa-keyboard-admin.php:578
 msgid "Approve exception"
 msgstr "İstisnayı onayla"
 
-#: includes/admin/ipa-keyboard-admin.php:579
+#: includes/admin/ipa-keyboard-admin.php:580
 msgid "Approved exception"
 msgstr "Onaylanmış istisna"
 
-#: includes/admin/ipa-keyboard-admin.php:586
+#: includes/admin/ipa-keyboard-admin.php:587
 msgid "Words missing written text"
 msgstr "Yazılı metinde eksik olan kelimeler"
 
-#: includes/admin/ipa-keyboard-admin.php:587
+#: includes/admin/ipa-keyboard-admin.php:588
 msgid "Apply the current rules to words that have IPA saved but still need written text."
 msgstr "Mevcut kuralları IPA'nın kayıtlı olduğu ancak yine de yazılı metne ihtiyaç duyan kelimelere uygulayın."
 
-#: includes/admin/ipa-keyboard-admin.php:588
+#: includes/admin/ipa-keyboard-admin.php:589
 msgid "No words are waiting for IPA-to-orthography conversion."
 msgstr "IPA'dan imlaya dönüşüm için hiçbir kelime beklemiyor."
 
-#: includes/admin/ipa-keyboard-admin.php:589
+#: includes/admin/ipa-keyboard-admin.php:590
 #, php-format
 msgid "%1$d word ready to convert"
 msgstr "%1$d kelime dönüştürülmeye hazır"
 
-#: includes/admin/ipa-keyboard-admin.php:590
+#: includes/admin/ipa-keyboard-admin.php:591
 #, php-format
 msgid "%1$d words ready to convert"
 msgstr "%1$d kelime dönüştürülmeye hazır"
 
-#: includes/admin/ipa-keyboard-admin.php:593
+#: includes/admin/ipa-keyboard-admin.php:594
 msgid "Convert selected"
 msgstr "Seçileni dönüştür"
 
-#: includes/admin/ipa-keyboard-admin.php:594
+#: includes/admin/ipa-keyboard-admin.php:595
 msgid "Convert"
 msgstr "Dönüştür"
 
-#: includes/admin/ipa-keyboard-admin.php:597
+#: includes/admin/ipa-keyboard-admin.php:598
 msgid "Needs more rules"
 msgstr "Daha fazla kurala ihtiyaç var"
 
-#: includes/admin/ipa-keyboard-admin.php:598
+#: includes/admin/ipa-keyboard-admin.php:599
 msgid "Converted."
 msgstr "Dönüştürüldü."
 
-#: includes/admin/ipa-keyboard-admin.php:599
+#: includes/admin/ipa-keyboard-admin.php:600
 msgid "Select at least one word to convert."
 msgstr "Dönüştürülecek en az bir kelime seç."
 
-#: includes/admin/ipa-keyboard-admin.php:600
+#: includes/admin/ipa-keyboard-admin.php:601
 msgid "Conversion saved."
 msgstr "Dönüşüm kaydedildi."
 
-#: includes/admin/ipa-keyboard-admin.php:601
+#: includes/admin/ipa-keyboard-admin.php:602
 msgid "Rules"
 msgstr "Kurallar"
 
-#: includes/admin/ipa-keyboard-admin.php:602
+#: includes/admin/ipa-keyboard-admin.php:603
 msgid "Contradictions"
 msgstr "Çelişkiler"
 
-#: includes/admin/ipa-keyboard-admin.php:603
+#: includes/admin/ipa-keyboard-admin.php:604
 msgid "Missing text"
 msgstr "Eksik metin"
 
-#: includes/admin/ipa-keyboard-admin.php:626
+#: includes/admin/ipa-keyboard-admin.php:627
 msgid "Manage letter maps, IPA helper characters, searches, and typo checks for each word set."
 msgstr "Her kelime seti için harf haritalarını, IPA yardımcı karakterlerini, aramaları ve yazım hatası kontrollerini yönetin."
 
-#: includes/admin/ipa-keyboard-admin.php:633
+#: includes/admin/ipa-keyboard-admin.php:634
 msgid "No available word sets"
 msgstr "Kullanılabilir kelime seti yok"
 
-#: includes/admin/ipa-keyboard-admin.php:645
+#: includes/admin/ipa-keyboard-admin.php:646
 msgid "Transcription Manager sections"
 msgstr "Transkripsiyon Yöneticisi bölümleri"
 
-#: includes/admin/ipa-keyboard-admin.php:658
+#: includes/admin/ipa-keyboard-admin.php:659
 msgid "Mappings inferred from this word set. Add manual overrides to fix suggestion mistakes."
 msgstr "Bu kelime setinden çıkarılan eşlemeler. Öneri hatalarını düzeltmek için manuel geçersiz kılmalar ekleyin."
 
-#: includes/admin/ipa-keyboard-admin.php:664
+#: includes/admin/ipa-keyboard-admin.php:665
 msgid "Characters used in this word set. Update recordings or add new characters to the keyboard."
 msgstr "Bu kelime setinde kullanılan karakterler. Kayıtları güncelleyin veya klavyeye yeni karakterler ekleyin."
 
-#: includes/admin/ipa-keyboard-admin.php:666
+#: includes/admin/ipa-keyboard-admin.php:667
 #: includes/lib/wordset-language-settings.php:1353
 #: includes/lib/wordset-language-settings.php:1378
 #: includes/lib/wordset-language-settings.php:1407
 msgid "Add characters"
 msgstr "Karakter ekle"
 
-#: includes/admin/ipa-keyboard-admin.php:675
+#: includes/admin/ipa-keyboard-admin.php:676
 msgid "Search written text or IPA and edit recordings inline. Typo checks are available below as an advanced section."
 msgstr "Yazılı metni veya IPA'yı arayın ve kayıtları satır içi düzenleyin. Yazım hatası kontrolleri aşağıda gelişmiş bir bölüm olarak mevcuttur."
 
-#: includes/admin/ipa-keyboard-admin.php:677
+#: includes/admin/ipa-keyboard-admin.php:678
 #: includes/pages/wordset-transcription-review.php:301
 msgid "Search recordings"
 msgstr "Kayıtları ara"
 
-#: includes/admin/ipa-keyboard-admin.php:678
+#: includes/admin/ipa-keyboard-admin.php:679
 msgid "Search written text or IPA"
 msgstr "Yazılı metinde veya IPA’da ara"
 
-#: includes/admin/ipa-keyboard-admin.php:679
+#: includes/admin/ipa-keyboard-admin.php:680
 msgid "Search field"
 msgstr "Arama alanı"
 
-#: includes/admin/ipa-keyboard-admin.php:681
+#: includes/admin/ipa-keyboard-admin.php:682
 msgid "Written or transcription"
 msgstr "Yazılı veya transkripsiyon"
 
-#: includes/admin/ipa-keyboard-admin.php:682
+#: includes/admin/ipa-keyboard-admin.php:683
 msgid "Written text only"
 msgstr "Yalnızca yazılı metin"
 
-#: includes/admin/ipa-keyboard-admin.php:683
+#: includes/admin/ipa-keyboard-admin.php:684
 msgid "Transcription only"
 msgstr "Yalnızca transkripsiyon"
 
-#: includes/admin/ipa-keyboard-admin.php:687
+#: includes/admin/ipa-keyboard-admin.php:688
 msgid "Only flagged typos"
 msgstr "Yalnızca işaretlenen yazım hataları"
 
-#: includes/admin/ipa-keyboard-admin.php:695
+#: includes/admin/ipa-keyboard-admin.php:696
 #: includes/pages/wordset-editor.php:4611
 msgid "Exact letters + diacritics"
 msgstr "Tam harfler + aksan işaretleri"
 
-#: includes/admin/ipa-keyboard-admin.php:700
+#: includes/admin/ipa-keyboard-admin.php:701
 msgid "Pattern help"
 msgstr "Desen yardımı"
 
-#: includes/admin/ipa-keyboard-admin.php:702
+#: includes/admin/ipa-keyboard-admin.php:703
 msgid "Use plain text for simple searches. For IPA context searches, switch to Transcription only and use one of these patterns:"
 msgstr "Basit aramalar için düz metin kullanın. IPA bağlam aramaları için Yalnızca Transkripsiyon'a geçin ve aşağıdaki kalıplardan birini kullanın:"
 
-#: includes/admin/ipa-keyboard-admin.php:704
+#: includes/admin/ipa-keyboard-admin.php:705
 msgid "Find k not immediately followed by ʰ."
 msgstr "Hemen ardından ʰ gelmeyen k'yi bulun."
 
-#: includes/admin/ipa-keyboard-admin.php:705
+#: includes/admin/ipa-keyboard-admin.php:706
 msgid "Find k immediately followed by i or e."
 msgstr "Hemen ardından i veya e gelen k'yi bul."
 
-#: includes/admin/ipa-keyboard-admin.php:706
+#: includes/admin/ipa-keyboard-admin.php:707
 msgid "Find k immediately preceded by a, o, or u."
 msgstr "Hemen önünde a, o veya u bulunan k'yi bul."
 
-#: includes/admin/ipa-keyboard-admin.php:707
+#: includes/admin/ipa-keyboard-admin.php:708
 msgid "Run a regex search on the current field."
 msgstr "Geçerli alanda bir normal ifade araması çalıştır."
 
-#: includes/admin/ipa-keyboard-admin.php:708
+#: includes/admin/ipa-keyboard-admin.php:709
 msgid "Use wildcard matches for simpler text searches."
 msgstr "Daha basit metin aramaları için joker karakter eşleşmelerini kullanın."
 
-#: includes/admin/ipa-keyboard-admin.php:719
+#: includes/admin/ipa-keyboard-admin.php:720
 msgid "Infer written-word spellings from IPA, inspect contradictions, and bulk-fill missing text once the rules look right."
 msgstr "IPA'dan yazılı kelimelerin yazılışlarını çıkarın, çelişkileri inceleyin ve kurallar doğru göründüğünde eksik metni toplu olarak doldurun."
 
-#: includes/admin/ipa-keyboard-admin.php:2898
+#: includes/admin/ipa-keyboard-admin.php:2899
 msgid "Modifier without base sound"
 msgstr "Temel ses içermeyen değiştirici"
 
-#: includes/admin/ipa-keyboard-admin.php:2899
+#: includes/admin/ipa-keyboard-admin.php:2900
 msgid "Flags tokens made only of modifiers or diacritics, without a main sound."
 msgstr "Ana ses olmadan, yalnızca değiştiricilerden veya aksan işaretlerinden oluşan belirteçleri işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:2902
+#: includes/admin/ipa-keyboard-admin.php:2903
 msgid "Tie bar without a pair"
 msgstr "Çift olmadan kravat çubuğu"
 
-#: includes/admin/ipa-keyboard-admin.php:2903
+#: includes/admin/ipa-keyboard-admin.php:2904
 msgid "Flags tie bars that do not join two sounds into a single affricate-style token."
 msgstr "İki sesi tek bir Afrika tarzı simgede birleştirmeyen bağlantı çubuklarını işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:2910
+#: includes/admin/ipa-keyboard-admin.php:2911
 msgid "Repeated IPA modifier"
 msgstr "Tekrarlanan IPA değiştirici"
 
-#: includes/admin/ipa-keyboard-admin.php:2911
+#: includes/admin/ipa-keyboard-admin.php:2912
 msgid "Flags the same modifier appearing more than once on one token."
 msgstr "Aynı değiştiricinin bir belirteçte birden fazla görünmesini işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:2914
+#: includes/admin/ipa-keyboard-admin.php:2915
 msgid "Stress marker placement"
 msgstr "Stres işaretleyici yerleşimi"
 
-#: includes/admin/ipa-keyboard-admin.php:2915
+#: includes/admin/ipa-keyboard-admin.php:2916
 msgid "Flags stress markers left at the end or doubled together."
 msgstr "Bayraklar, sonunda bırakılan veya birlikte ikiye katlanan vurgu işaretlerini gösterir."
 
-#: includes/admin/ipa-keyboard-admin.php:2918
+#: includes/admin/ipa-keyboard-admin.php:2919
 msgid "Aspiration placement"
 msgstr "Aspirasyon yerleşimi"
 
-#: includes/admin/ipa-keyboard-admin.php:2919
+#: includes/admin/ipa-keyboard-admin.php:2920
 msgid "Flags ʰ unless it follows a voiceless stop or affricate."
 msgstr "İşaretler ʰ sessiz bir durma veya bağlılaşmayı takip etmediği sürece."
 
 #. translators: 1: target sound, 2: previous sounds, 3: next sounds
-#: includes/admin/ipa-keyboard-admin.php:3181
+#: includes/admin/ipa-keyboard-admin.php:3182
 #, php-format
 msgid "Do not allow %1$s after %2$s and before %3$s."
 msgstr "%2$s'den sonra ve %3$s'den önce %1$s'a izin vermeyin."
 
 #. translators: 1: target sound, 2: previous sounds
-#: includes/admin/ipa-keyboard-admin.php:3191
+#: includes/admin/ipa-keyboard-admin.php:3192
 #, php-format
 msgid "Do not allow %1$s after %2$s."
 msgstr "%2$s'den sonra %1$s'a izin verme."
 
 #. translators: 1: target sound, 2: next sounds
-#: includes/admin/ipa-keyboard-admin.php:3200
+#: includes/admin/ipa-keyboard-admin.php:3201
 #, php-format
 msgid "Do not allow %1$s before %2$s."
 msgstr "%2$s'dan önce %1$s'a izin vermeyin."
 
 #. translators: %s: target sound
-#: includes/admin/ipa-keyboard-admin.php:3208
+#: includes/admin/ipa-keyboard-admin.php:3209
 #, php-format
 msgid "Do not allow %s anywhere in this word set."
 msgstr "Bu kelime setinin hiçbir yerinde %s'ye izin vermeyin."
 
-#: includes/admin/ipa-keyboard-admin.php:7415
+#: includes/admin/ipa-keyboard-admin.php:7416
 msgid "Invalid word for this word set."
 msgstr "Bu kelime seti için geçersiz kelime."
 
-#: includes/admin/ipa-keyboard-admin.php:7420
+#: includes/admin/ipa-keyboard-admin.php:7421
 msgid "This word already has written text."
 msgstr "Bu kelimenin zaten yazılı metni var."
 
-#: includes/admin/ipa-keyboard-admin.php:7425
+#: includes/admin/ipa-keyboard-admin.php:7426
 msgid "No IPA recording is available for this word."
 msgstr "Bu kelime için IPA kaydı mevcut değil."
 
-#: includes/admin/ipa-keyboard-admin.php:7432
+#: includes/admin/ipa-keyboard-admin.php:7433
 msgid "This source recording already has text."
 msgstr "Bu kaynak kaydında zaten metin var."
 
-#: includes/admin/ipa-keyboard-admin.php:7441
+#: includes/admin/ipa-keyboard-admin.php:7442
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr "Mevcut kurallar bu IPA transkripsiyonunu henüz tam olarak dönüştüremiyor."
 
-#: includes/admin/ipa-keyboard-admin.php:7451
+#: includes/admin/ipa-keyboard-admin.php:7452
 msgid "Failed to save the converted recording text."
 msgstr "Dönüştürülen kayıt metni kaydedilemedi."
 
-#: includes/admin/ipa-keyboard-admin.php:8108
+#: includes/admin/ipa-keyboard-admin.php:8109
 msgid "A modifier or diacritic appears without a main sound."
 msgstr "Bir değiştirici veya aksan işareti, ana ses olmadan görünür."
 
-#: includes/admin/ipa-keyboard-admin.php:8128
+#: includes/admin/ipa-keyboard-admin.php:8129
 msgid "A tie bar appears without two joined sounds."
 msgstr "Birleştirilmiş iki sesin olmadığı bir bağlantı çubuğu görünür."
 
-#: includes/admin/ipa-keyboard-admin.php:8166
+#: includes/admin/ipa-keyboard-admin.php:8167
 msgid "The same IPA modifier is repeated on one sound."
 msgstr "Aynı IPA değiştiricisi bir ses üzerinde tekrarlanır."
 
-#: includes/admin/ipa-keyboard-admin.php:8193
+#: includes/admin/ipa-keyboard-admin.php:8194
 msgid "Stress markers should appear before a sound, not at the end or doubled together."
 msgstr "Vurgu işaretleri sesin sonunda veya iki katına değil, sesin önünde görünmelidir."
 
-#: includes/admin/ipa-keyboard-admin.php:8213
+#: includes/admin/ipa-keyboard-admin.php:8214
 msgid "Aspiration ʰ should usually appear only after a voiceless stop or affricate."
 msgstr "Aspirasyon ʰ genellikle sessiz bir duraklamadan veya birleşmeden sonra ortaya çıkmalıdır."
 
@@ -14820,29 +14821,29 @@ msgstr "Sayfa %s"
 msgid "Unable to save dictionary entry."
 msgstr "Sözlük girdisi kaydedilemiyor."
 
-#: includes/lib/dictionary-browser.php:7089
+#: includes/lib/dictionary-browser.php:7057
 msgid "Imported Senses"
 msgstr "İçe Aktarılan Anlamlar"
 
-#: includes/lib/dictionary-browser.php:7111
+#: includes/lib/dictionary-browser.php:7079
 msgid "No structured senses have been imported for this entry yet."
 msgstr "Bu girdi için henüz yapılandırılmış anlamlar içe aktarılmadı."
 
-#: includes/lib/dictionary-browser.php:7118
+#: includes/lib/dictionary-browser.php:7086
 msgid "Glosses"
 msgstr "Glosslar"
 
-#: includes/lib/dictionary-browser.php:7120
+#: includes/lib/dictionary-browser.php:7088
 #: includes/post-types/dictionary-entry-post-type.php:1965
 msgid "Gender/Number"
 msgstr "Cinsiyet/Sayı"
 
-#: includes/lib/dictionary-browser.php:7121
+#: includes/lib/dictionary-browser.php:7089
 #: includes/post-types/dictionary-entry-post-type.php:1966
 msgid "Parent"
 msgstr "Ebeveyn"
 
-#: includes/lib/dictionary-browser.php:7122
+#: includes/lib/dictionary-browser.php:7090
 #: includes/post-types/dictionary-entry-post-type.php:1964
 #: includes/shortcodes/site-tools-shortcode.php:264
 msgid "Page"
@@ -15490,7 +15491,7 @@ msgstr "Mevcut transkript satırı"
 msgid "Lesson transcript"
 msgstr "Ders transkripti"
 
-#: includes/lib/ai-crawler-support.php:972
+#: includes/lib/ai-crawler-support.php:1083
 #: includes/pages/dictionary-page.php:11
 #: includes/shortcodes/dictionary-shortcode.php:4587
 #: includes/shortcodes/site-tools-shortcode.php:925
@@ -17717,9 +17718,9 @@ msgid "Filter level"
 msgstr "Filtre düzeyi"
 
 #: includes/admin/audio-image-matcher.php:70
-#: includes/admin/image-aspect-normalizer-admin.php:89
 #: includes/admin/image-aspect-normalizer-admin.php:141
-#: includes/admin/ipa-keyboard-admin.php:471
+#: includes/admin/image-aspect-normalizer-admin.php:89
+#: includes/admin/ipa-keyboard-admin.php:472
 #: includes/flashcard-shell.php:116
 #: includes/pages/wordset-pages.php:22993
 #: includes/pages/wordset-pages.php:26306
@@ -18763,7 +18764,7 @@ msgstr "Almanca"
 msgid "Dictionary entry not found."
 msgstr "Sözlük girdisi bulunamadı."
 
-#: includes/admin/ipa-keyboard-admin.php:517
+#: includes/admin/ipa-keyboard-admin.php:518
 #: includes/shortcodes/dictionary-shortcode.php:1182
 #: includes/shortcodes/dictionary-shortcode.php:1391
 msgid "Reviewed"
@@ -18833,7 +18834,7 @@ msgstr "Sözlüğe geri dön"
 msgid "Definitions"
 msgstr "Tanımlar"
 
-#: includes/lib/ai-crawler-support.php:1298
+#: includes/lib/ai-crawler-support.php:1409
 #: includes/shortcodes/dictionary-shortcode.php:2719
 msgid "Senses"
 msgstr "Anlamlar"
@@ -19640,7 +19641,7 @@ msgstr "Giriş yapmış olman gerekir"
 msgid "Missing required audio data."
 msgstr "Gerekli ses verileri eksik."
 
-#: includes/admin/ipa-keyboard-admin.php:7476
+#: includes/admin/ipa-keyboard-admin.php:7477
 #: includes/shortcodes/word-grid-shortcode.php:8033
 #: includes/shortcodes/word-grid-shortcode.php:9058
 #: includes/shortcodes/word-grid-shortcode.php:9139
@@ -20970,88 +20971,88 @@ msgid_plural "%d published words do not match this presentation and will not app
 msgstr[0] "%d yayınlanmış kelime bu sunumla eşleşmiyor ve ders ya da quiz sayfalarında öğrencilere görünmeyecek."
 msgstr[1] "%d yayınlanmış kelime bu sunumla eşleşmiyor ve ders ya da quiz sayfalarında öğrencilere görünmeyecek."
 
-#: includes/admin/ipa-keyboard-admin.php:9815
-#: includes/admin/ipa-keyboard-admin.php:9820
-#: includes/admin/ipa-keyboard-admin.php:9852
-#: includes/admin/ipa-keyboard-admin.php:9857
-#: includes/admin/ipa-keyboard-admin.php:9883
-#: includes/admin/ipa-keyboard-admin.php:9888
-#: includes/admin/ipa-keyboard-admin.php:9914
-#: includes/admin/ipa-keyboard-admin.php:9917
-#: includes/admin/ipa-keyboard-admin.php:9954
-#: includes/admin/ipa-keyboard-admin.php:9957
-#: includes/admin/ipa-keyboard-admin.php:9991
-#: includes/admin/ipa-keyboard-admin.php:9995
-#: includes/admin/ipa-keyboard-admin.php:10012
-#: includes/admin/ipa-keyboard-admin.php:10016
-#: includes/admin/ipa-keyboard-admin.php:10067
-#: includes/admin/ipa-keyboard-admin.php:10071
-#: includes/admin/ipa-keyboard-admin.php:10116
-#: includes/admin/ipa-keyboard-admin.php:10120
-#: includes/admin/ipa-keyboard-admin.php:10200
-#: includes/admin/ipa-keyboard-admin.php:10228
-#: includes/admin/ipa-keyboard-admin.php:10232
-#: includes/admin/ipa-keyboard-admin.php:10287
-#: includes/admin/ipa-keyboard-admin.php:10314
-#: includes/admin/ipa-keyboard-admin.php:10319
-#: includes/admin/ipa-keyboard-admin.php:10383
-#: includes/admin/ipa-keyboard-admin.php:10388
-#: includes/admin/ipa-keyboard-admin.php:10507
-#: includes/admin/ipa-keyboard-admin.php:10657
-#: includes/admin/ipa-keyboard-admin.php:10776
-#: includes/admin/ipa-keyboard-admin.php:10780
-#: includes/admin/ipa-keyboard-admin.php:10815
-#: includes/admin/ipa-keyboard-admin.php:10820
-#: includes/admin/ipa-keyboard-admin.php:10894
-#: includes/admin/ipa-keyboard-admin.php:10899
-#: includes/admin/ipa-keyboard-admin.php:10953
-#: includes/admin/ipa-keyboard-admin.php:10958
+#: includes/admin/ipa-keyboard-admin.php:10013
+#: includes/admin/ipa-keyboard-admin.php:10017
+#: includes/admin/ipa-keyboard-admin.php:10068
+#: includes/admin/ipa-keyboard-admin.php:10072
+#: includes/admin/ipa-keyboard-admin.php:10117
+#: includes/admin/ipa-keyboard-admin.php:10121
+#: includes/admin/ipa-keyboard-admin.php:10201
+#: includes/admin/ipa-keyboard-admin.php:10229
+#: includes/admin/ipa-keyboard-admin.php:10233
+#: includes/admin/ipa-keyboard-admin.php:10288
+#: includes/admin/ipa-keyboard-admin.php:10315
+#: includes/admin/ipa-keyboard-admin.php:10320
+#: includes/admin/ipa-keyboard-admin.php:10384
+#: includes/admin/ipa-keyboard-admin.php:10389
+#: includes/admin/ipa-keyboard-admin.php:10508
+#: includes/admin/ipa-keyboard-admin.php:10658
+#: includes/admin/ipa-keyboard-admin.php:10777
+#: includes/admin/ipa-keyboard-admin.php:10781
+#: includes/admin/ipa-keyboard-admin.php:10816
+#: includes/admin/ipa-keyboard-admin.php:10821
+#: includes/admin/ipa-keyboard-admin.php:10895
+#: includes/admin/ipa-keyboard-admin.php:10900
+#: includes/admin/ipa-keyboard-admin.php:10954
+#: includes/admin/ipa-keyboard-admin.php:10959
+#: includes/admin/ipa-keyboard-admin.php:9816
+#: includes/admin/ipa-keyboard-admin.php:9821
+#: includes/admin/ipa-keyboard-admin.php:9853
+#: includes/admin/ipa-keyboard-admin.php:9858
+#: includes/admin/ipa-keyboard-admin.php:9884
+#: includes/admin/ipa-keyboard-admin.php:9889
+#: includes/admin/ipa-keyboard-admin.php:9915
+#: includes/admin/ipa-keyboard-admin.php:9918
+#: includes/admin/ipa-keyboard-admin.php:9955
+#: includes/admin/ipa-keyboard-admin.php:9958
+#: includes/admin/ipa-keyboard-admin.php:9992
+#: includes/admin/ipa-keyboard-admin.php:9996
 msgid "Invalid word set"
 msgstr "Geçersiz kelime seti"
 
-#: includes/admin/ipa-keyboard-admin.php:10022
+#: includes/admin/ipa-keyboard-admin.php:10023
 msgid "Invalid segment"
 msgstr "Geçersiz segment"
 
-#: includes/admin/ipa-keyboard-admin.php:10081
-#: includes/admin/ipa-keyboard-admin.php:10130
+#: includes/admin/ipa-keyboard-admin.php:10082
+#: includes/admin/ipa-keyboard-admin.php:10131
 msgid "Invalid rule"
 msgstr "Geçersiz kural"
 
-#: includes/admin/ipa-keyboard-admin.php:10243
+#: includes/admin/ipa-keyboard-admin.php:10244
 msgid "No words selected"
 msgstr "Hiç kelime seçilmedi"
 
-#: includes/admin/ipa-keyboard-admin.php:10297
-#: includes/admin/ipa-keyboard-admin.php:10490
-#: includes/admin/ipa-keyboard-admin.php:10555
-#: includes/admin/ipa-keyboard-admin.php:10597
-#: includes/admin/ipa-keyboard-admin.php:10602
-#: includes/admin/ipa-keyboard-admin.php:10607
-#: includes/admin/ipa-keyboard-admin.php:10716
-#: includes/admin/ipa-keyboard-admin.php:10721
-#: includes/admin/ipa-keyboard-admin.php:10726
+#: includes/admin/ipa-keyboard-admin.php:10298
+#: includes/admin/ipa-keyboard-admin.php:10491
+#: includes/admin/ipa-keyboard-admin.php:10556
+#: includes/admin/ipa-keyboard-admin.php:10598
+#: includes/admin/ipa-keyboard-admin.php:10603
+#: includes/admin/ipa-keyboard-admin.php:10608
+#: includes/admin/ipa-keyboard-admin.php:10717
+#: includes/admin/ipa-keyboard-admin.php:10722
+#: includes/admin/ipa-keyboard-admin.php:10727
 #: includes/shortcodes/word-grid-shortcode.php:11189
 msgid "Invalid recording"
 msgstr "Geçersiz kayıt"
 
-#: includes/admin/ipa-keyboard-admin.php:10512
-#: includes/admin/ipa-keyboard-admin.php:10592
-#: includes/admin/ipa-keyboard-admin.php:10663
+#: includes/admin/ipa-keyboard-admin.php:10513
+#: includes/admin/ipa-keyboard-admin.php:10593
+#: includes/admin/ipa-keyboard-admin.php:10664
 msgid "Rules unavailable"
 msgstr "Kurallar kullanılamıyor"
 
-#: includes/admin/ipa-keyboard-admin.php:10786
+#: includes/admin/ipa-keyboard-admin.php:10787
 msgid "No symbols found"
 msgstr "Hiç sembol bulunamadı"
 
-#: includes/admin/ipa-keyboard-admin.php:10830
+#: includes/admin/ipa-keyboard-admin.php:10831
 msgid "Invalid letter"
 msgstr "Geçersiz harf"
 
-#: includes/admin/ipa-keyboard-admin.php:9924
-#: includes/admin/ipa-keyboard-admin.php:10912
-#: includes/admin/ipa-keyboard-admin.php:10971
+#: includes/admin/ipa-keyboard-admin.php:10913
+#: includes/admin/ipa-keyboard-admin.php:10972
+#: includes/admin/ipa-keyboard-admin.php:9925
 msgid "Invalid mapping"
 msgstr "Geçersiz eşleme"
 
@@ -22739,12 +22740,12 @@ msgstr "Oluşturulacak kelimeler: %d"
 msgid "You do not have permission to use site sync."
 msgstr "Site senkronizasyonunu kullanma iznin yok."
 
-#: includes/admin/ipa-keyboard-admin.php:521
+#: includes/admin/ipa-keyboard-admin.php:522
 #, php-format
 msgid "%s: mark as needing review"
 msgstr "%s: inceleme gerekiyor olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:520
+#: includes/admin/ipa-keyboard-admin.php:521
 #, php-format
 msgid "%s: mark as reviewed"
 msgstr "%s: incelendi olarak işaretle"
@@ -22761,12 +22762,12 @@ msgstr "Öğrenci ekle"
 msgid "Allow this recorder to record new words"
 msgstr "Bu ses kaydedicinin yeni kelimeler kaydetmesine izin ver"
 
-#: includes/admin/ipa-keyboard-admin.php:536
+#: includes/admin/ipa-keyboard-admin.php:537
 #, php-format
 msgid "Approve %1$s symbol and map it to %2$s in orthography"
 msgstr "%1$s sembolünü onayla ve yazımda %2$s ile eşle"
 
-#: includes/admin/ipa-keyboard-admin.php:537
+#: includes/admin/ipa-keyboard-admin.php:538
 msgid "Approved symbol mapping."
 msgstr "Sembol eşlemesi onaylandı."
 
@@ -22823,11 +22824,11 @@ msgstr "Quiz, oyun ve kayıt ayarlarını kopyala"
 msgid "Corpus text"
 msgstr "Korpus metni"
 
-#: includes/admin/ipa-keyboard-admin.php:10625
+#: includes/admin/ipa-keyboard-admin.php:10626
 msgid "Could not approve this symbol mapping."
 msgstr "Bu sembol eşlemesi onaylanamadı."
 
-#: includes/admin/ipa-keyboard-admin.php:10620
+#: includes/admin/ipa-keyboard-admin.php:10621
 msgid "Could not infer an orthography mapping for this symbol."
 msgstr "Bu sembol için yazım eşlemesi çıkarılamadı."
 
@@ -22835,7 +22836,7 @@ msgstr "Bu sembol için yazım eşlemesi çıkarılamadı."
 msgid "Create a fresh lesson category."
 msgstr "Yeni bir ders kategorisi oluştur."
 
-#: includes/admin/ipa-keyboard-admin.php:2922
+#: includes/admin/ipa-keyboard-admin.php:2923
 msgid "Dental diacritic placement"
 msgstr "Dental aksan yerleşimi"
 
@@ -22843,11 +22844,11 @@ msgstr "Dental aksan yerleşimi"
 msgid "Existing target"
 msgstr "Mevcut hedef"
 
-#: includes/admin/ipa-keyboard-admin.php:2923
+#: includes/admin/ipa-keyboard-admin.php:2924
 msgid "Flags dental marks that are not attached to t or d."
 msgstr "t veya d harfine bağlı olmayan dental işaretleri işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:2931
+#: includes/admin/ipa-keyboard-admin.php:2932
 msgid "Flags symbols outside the approved IPA inventory for this workflow."
 msgstr "Bu iş akışı için onaylı IPA envanterinin dışındaki sembolleri işaretler."
 
@@ -22860,7 +22861,7 @@ msgstr "Kaynak kategori: %s"
 msgid "Hidden by Category"
 msgstr "Kategoriye Göre Gizli"
 
-#: includes/admin/ipa-keyboard-admin.php:10711
+#: includes/admin/ipa-keyboard-admin.php:10712
 msgid "Invalid review field"
 msgstr "Geçersiz inceleme alanı"
 
@@ -22872,11 +22873,11 @@ msgstr "Her kayıt türünü dahil etmek için tümünü işaretsiz bırak."
 msgid "Lesson kind"
 msgstr "Ders türü"
 
-#: includes/admin/ipa-keyboard-admin.php:519
+#: includes/admin/ipa-keyboard-admin.php:520
 msgid "Mark as needing review"
 msgstr "İnceleme gerekiyor olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:518
+#: includes/admin/ipa-keyboard-admin.php:519
 msgid "Mark as reviewed"
 msgstr "İncelendi olarak işaretle"
 
@@ -22885,21 +22886,21 @@ msgstr "İncelendi olarak işaretle"
 msgid "Mark imported transcription changes as needing review"
 msgstr "İçe aktarılan transkripsiyon değişikliklerini inceleme gerekiyor olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:525
+#: includes/admin/ipa-keyboard-admin.php:526
 #: includes/shortcodes/word-grid-shortcode.php:5791
 msgid "Mark pronunciation for review"
 msgstr "Telaffuzu inceleme için işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:523
+#: includes/admin/ipa-keyboard-admin.php:524
 msgid "Mark pronunciation reviewed"
 msgstr "Telaffuzu incelendi olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:524
+#: includes/admin/ipa-keyboard-admin.php:525
 #: includes/shortcodes/word-grid-shortcode.php:5789
 msgid "Mark text for review"
 msgstr "Metni inceleme için işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:522
+#: includes/admin/ipa-keyboard-admin.php:523
 msgid "Mark text reviewed"
 msgstr "Metni incelendi olarak işaretle"
 
@@ -23037,7 +23038,7 @@ msgstr "Ses kaydedici için önerilen ifade"
 msgid "That category is no longer in this recorder queue."
 msgstr "Bu kategori artık bu ses kaydedici kuyruğunda değil."
 
-#: includes/admin/ipa-keyboard-admin.php:8232
+#: includes/admin/ipa-keyboard-admin.php:8233
 msgid "The dental diacritic should be attached to t or d in this IPA inventory."
 msgstr "Bu IPA envanterinde dental aksan t veya d harfine bağlı olmalıdır."
 
@@ -23045,7 +23046,7 @@ msgstr "Bu IPA envanterinde dental aksan t veya d harfine bağlı olmalıdır."
 msgid "These are hidden from the recorder queue unless the only-include list is set."
 msgstr "Yalnızca dahil edilecekler listesi ayarlanmadıkça bunlar ses kaydedici kuyruğundan gizlenir."
 
-#: includes/admin/ipa-keyboard-admin.php:8360
+#: includes/admin/ipa-keyboard-admin.php:8361
 msgid "This IPA token contains a symbol outside the approved inventory."
 msgstr "Bu IPA belirteci onaylı envanterin dışında bir sembol içeriyor."
 
@@ -23068,7 +23069,7 @@ msgstr "Ayarlanacak transkripsiyon inceleme işaretleri: %d"
 msgid "Transcription reviews flagged: %d"
 msgstr "İşaretlenen transkripsiyon incelemeleri: %d"
 
-#: includes/admin/ipa-keyboard-admin.php:475
+#: includes/admin/ipa-keyboard-admin.php:476
 msgid "Transcriptions"
 msgstr "Transkripsiyonlar"
 
@@ -23124,7 +23125,7 @@ msgstr "Kategori ayarları şu anda kaydedilemiyor."
 msgid "Unable to save prompts for that queue item."
 msgstr "Bu kuyruk öğesi için istemler kaydedilemiyor."
 
-#: includes/admin/ipa-keyboard-admin.php:2930
+#: includes/admin/ipa-keyboard-admin.php:2931
 msgid "Unapproved IPA symbol"
 msgstr "Onaylanmamış IPA sembolü"
 
@@ -23376,25 +23377,25 @@ msgstr "Giriş engelleri"
 msgid "Release frontend login and sign-up rate-limit blocks for a connection."
 msgstr "Bir bağlantı için ön uç giriş ve kayıt hız sınırı engellerini kaldır."
 
-#: includes/admin/ipa-keyboard-admin.php:538
+#: includes/admin/ipa-keyboard-admin.php:539
 msgid "Flag as illegal symbol"
 msgstr "İzin verilmeyen sembol olarak işaretle"
 
-#: includes/admin/ipa-keyboard-admin.php:539
+#: includes/admin/ipa-keyboard-admin.php:540
 #, php-format
 msgid "Mark %s as illegal for this word set?"
 msgstr "%s bu kelime setinde izin verilmeyen sembol olarak işaretlensin mi?"
 
-#: includes/admin/ipa-keyboard-admin.php:540
+#: includes/admin/ipa-keyboard-admin.php:541
 msgid "Flagging symbol and rescanning this word set..."
 msgstr "Sembol işaretleniyor ve bu kelime seti yeniden taranıyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:541
+#: includes/admin/ipa-keyboard-admin.php:542
 msgid "Symbol marked illegal and checks rescanned."
 msgstr "Sembol izin verilmeyen olarak işaretlendi ve kontroller yeniden tarandı."
 
-#: includes/admin/ipa-keyboard-admin.php:749
-#: includes/admin/ipa-keyboard-admin.php:802
+#: includes/admin/ipa-keyboard-admin.php:750
+#: includes/admin/ipa-keyboard-admin.php:803
 #: includes/lib/sort.php:1037
 #: includes/lib/wordset-language-settings.php:1324
 #: includes/shortcodes/word-grid-shortcode.php:3833
@@ -23403,7 +23404,7 @@ msgstr "Sembol izin verilmeyen olarak işaretlendi ve kontroller yeniden tarand�
 msgid "Diacritics and signs"
 msgstr "Aksanlar ve işaretler"
 
-#: includes/admin/ipa-keyboard-admin.php:750
+#: includes/admin/ipa-keyboard-admin.php:751
 #: includes/lib/wordset-language-settings.php:1325
 #: includes/lib/wordset-language-settings.php:1404
 #: includes/shortcodes/word-grid-shortcode.php:3834
@@ -23412,21 +23413,21 @@ msgstr "Aksanlar ve işaretler"
 msgid "Wordset symbols"
 msgstr "Kelime seti sembolleri"
 
-#: includes/admin/ipa-keyboard-admin.php:2926
+#: includes/admin/ipa-keyboard-admin.php:2927
 msgid "Illegal IPA symbol"
 msgstr "İzin verilmeyen IPA sembolü"
 
-#: includes/admin/ipa-keyboard-admin.php:2927
+#: includes/admin/ipa-keyboard-admin.php:2928
 msgid "Flags symbols that have been marked illegal for this word set."
 msgstr "Bu kelime setinde izin verilmeyen olarak işaretlenmiş sembolleri belirtir."
 
 #. translators: %s is an IPA symbol.
-#: includes/admin/ipa-keyboard-admin.php:8257
+#: includes/admin/ipa-keyboard-admin.php:8258
 #, php-format
 msgid "This transcription contains %s, which is marked illegal for this word set."
 msgstr "Bu transkripsiyon %s içeriyor; bu sembol bu kelime setinde izin verilmeyen olarak işaretlenmiş."
 
-#: includes/admin/ipa-keyboard-admin.php:10671
+#: includes/admin/ipa-keyboard-admin.php:10672
 msgid "Invalid symbol"
 msgstr "Geçersiz sembol"
 
@@ -24109,12 +24110,12 @@ msgstr "Dil kodu"
 msgid "Category ordering, profile image and intro, answer text styling, grammar options, and game image sizing."
 msgstr "Kategori sıralaması, profil görseli ve giriş, yanıt metni stili, gramer seçenekleri ve oyun görseli boyutlandırması."
 
-#: includes/admin/ipa-keyboard-admin.php:604
+#: includes/admin/ipa-keyboard-admin.php:605
 #: includes/pages/wordset-pages.php:15156
 msgid "Profile"
 msgstr "Profil"
 
-#: includes/admin/ipa-keyboard-admin.php:605
+#: includes/admin/ipa-keyboard-admin.php:606
 msgid "Generic"
 msgstr "Genel"
 
@@ -24162,71 +24163,71 @@ msgstr "Sesi indir"
 msgid "Too many flashcard category requests. Please try again shortly."
 msgstr "Çok fazla bilgi kartı kategorisi isteği var. Lütfen kısa süre sonra yeniden dene."
 
-#: includes/admin/ipa-keyboard-admin.php:580
+#: includes/admin/ipa-keyboard-admin.php:581
 msgid "Use suggested orthography"
 msgstr "Önerilen yazımı kullan"
 
-#: includes/admin/ipa-keyboard-admin.php:581
+#: includes/admin/ipa-keyboard-admin.php:582
 #, php-format
 msgid "Use IPA: %1$s"
 msgstr "IPA kullan: %1$s"
 
-#: includes/admin/ipa-keyboard-admin.php:582
+#: includes/admin/ipa-keyboard-admin.php:583
 #, php-format
 msgid "Change to: %s"
 msgstr "Şuna değiştir: %s"
 
-#: includes/admin/ipa-keyboard-admin.php:583
+#: includes/admin/ipa-keyboard-admin.php:584
 msgid "Suggestion saved."
 msgstr "Öneri kaydedildi."
 
-#: includes/admin/ipa-keyboard-admin.php:584
+#: includes/admin/ipa-keyboard-admin.php:585
 msgid "IPA suggestion saved."
 msgstr "IPA önerisi kaydedildi."
 
-#: includes/admin/ipa-keyboard-admin.php:585
+#: includes/admin/ipa-keyboard-admin.php:586
 msgid "Saved local edits. Click the suggestion again to apply it."
 msgstr "Yerel düzenlemeler kaydedildi. Uygulamak için öneriye tekrar tıkla."
 
-#: includes/admin/ipa-keyboard-admin.php:2934
+#: includes/admin/ipa-keyboard-admin.php:2935
 msgid "Orthography mismatch"
 msgstr "Yazım uyumsuzluğu"
 
-#: includes/admin/ipa-keyboard-admin.php:2935
+#: includes/admin/ipa-keyboard-admin.php:2936
 msgid "Flags saved IPA and orthography text that do not agree with the active conversion profile."
 msgstr "Aktif dönüşüm profiliyle uyuşmayan kayıtlı IPA ve yazım metnini işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:4698
+#: includes/admin/ipa-keyboard-admin.php:4699
 msgid "Genç-Palu Zazaki"
 msgstr "Genç-Palu Zazakicesi"
 
-#: includes/admin/ipa-keyboard-admin.php:4699
+#: includes/admin/ipa-keyboard-admin.php:4700
 msgid "Genç-Palu"
 msgstr "Genç-Palu"
 
-#: includes/admin/ipa-keyboard-admin.php:4702
+#: includes/admin/ipa-keyboard-admin.php:4703
 msgid "Uses the Genç-Palu IPA-to-orthography conversion profile, including lexical and phrase exceptions."
 msgstr "Sözlüksel ve ifade istisnaları dahil Genç-Palu IPA'dan yazıma dönüşüm profilini kullanır."
 
-#: includes/admin/ipa-keyboard-admin.php:7216
-#: includes/admin/ipa-keyboard-admin.php:7295
-#: includes/admin/ipa-keyboard-admin.php:7402
+#: includes/admin/ipa-keyboard-admin.php:7217
+#: includes/admin/ipa-keyboard-admin.php:7296
+#: includes/admin/ipa-keyboard-admin.php:7403
 msgid "Current rules"
 msgstr "Geçerli kurallar"
 
-#: includes/admin/ipa-keyboard-admin.php:7481
+#: includes/admin/ipa-keyboard-admin.php:7482
 msgid "Recording does not belong to this word set."
 msgstr "Bu ses kaydı bu kelime setine ait değil."
 
-#: includes/admin/ipa-keyboard-admin.php:7486
+#: includes/admin/ipa-keyboard-admin.php:7487
 msgid "No IPA transcription is available for this recording."
 msgstr "Bu ses kaydı için IPA transkripsiyonu yok."
 
-#: includes/admin/ipa-keyboard-admin.php:7494
+#: includes/admin/ipa-keyboard-admin.php:7495
 msgid "Current rules cannot suggest a written transcription for this recording yet."
 msgstr "Geçerli kurallar bu ses kaydı için henüz yazılı transkripsiyon öneremez."
 
-#: includes/admin/ipa-keyboard-admin.php:7523
+#: includes/admin/ipa-keyboard-admin.php:7524
 msgid "Failed to save the suggested recording text."
 msgstr "Önerilen kayıt metni kaydedilemedi."
 
@@ -24312,35 +24313,35 @@ msgstr "Manuel yazım kuralları IPA segmentine göre anahtarlanmış bir nesne 
 
 #: includes/admin/audio-image-matcher.php:71
 #: includes/admin/image-aspect-normalizer-admin.php:90
-#: includes/admin/ipa-keyboard-admin.php:472
+#: includes/admin/ipa-keyboard-admin.php:473
 msgid "Loading more..."
 msgstr "Daha fazlası yükleniyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:529
+#: includes/admin/ipa-keyboard-admin.php:530
 msgid "Opening word editor..."
 msgstr "Kelime düzenleyici açılıyor..."
 
-#: includes/admin/ipa-keyboard-admin.php:530
+#: includes/admin/ipa-keyboard-admin.php:531
 msgid "Word editor opened."
 msgstr "Kelime düzenleyici açıldı."
 
-#: includes/admin/ipa-keyboard-admin.php:531
+#: includes/admin/ipa-keyboard-admin.php:532
 #: includes/shortcodes/word-grid-shortcode.php:4157
 #: includes/shortcodes/word-grid-shortcode.php:4158
 #: includes/shortcodes/word-grid-shortcode.php:4236
 msgid "Unable to open the word editor."
 msgstr "Kelime düzenleyici açılamadı."
 
-#: includes/admin/ipa-keyboard-admin.php:533
+#: includes/admin/ipa-keyboard-admin.php:534
 msgid "Transcription rows updated."
 msgstr "Transkripsiyon satırları güncellendi."
 
-#: includes/admin/ipa-keyboard-admin.php:542
+#: includes/admin/ipa-keyboard-admin.php:543
 #, php-format
 msgid "Show %s"
 msgstr "%s göster"
 
-#: includes/admin/ipa-keyboard-admin.php:8332
+#: includes/admin/ipa-keyboard-admin.php:8333
 msgid "Saved text does not match the current orthography rules."
 msgstr "Kaydedilen metin geçerli yazım kurallarıyla eşleşmiyor."
 
@@ -24904,7 +24905,7 @@ msgstr "Kelimeler yükleniyor..."
 msgid "Card previews are still being prepared. Please try again in a moment."
 msgstr "Kart önizlemeleri hâlâ hazırlanıyor. Lütfen birazdan tekrar dene."
 
-#: includes/admin/ipa-keyboard-admin.php:532
+#: includes/admin/ipa-keyboard-admin.php:533
 msgid "Saving changes before opening the word editor..."
 msgstr "Kelime düzenleyiciyi açmadan önce değişiklikler kaydediliyor..."
 
@@ -25030,15 +25031,15 @@ msgid_plural "%d quizzable words"
 msgstr[0] "%d quiz'e uygun kelime"
 msgstr[1] "%d quiz'e uygun kelime"
 
-#: includes/admin/ipa-keyboard-admin.php:2906
+#: includes/admin/ipa-keyboard-admin.php:2907
 msgid "Unexpected tie-bar pair"
 msgstr "Beklenmeyen bağ çizgisi çifti"
 
-#: includes/admin/ipa-keyboard-admin.php:2907
+#: includes/admin/ipa-keyboard-admin.php:2908
 msgid "Flags tie bars joining sounds outside the approved affricate and cluster inventory."
 msgstr "Onaylanmış afrikat ve küme envanterinin dışındaki sesleri birleştiren bağ çizgilerini işaretler."
 
-#: includes/admin/ipa-keyboard-admin.php:8148
+#: includes/admin/ipa-keyboard-admin.php:8149
 msgid "A tie bar joins a sound pair outside the approved inventory."
 msgstr "Bir bağ çizgisi onaylanmış envanterin dışındaki bir ses çiftini birleştiriyor."
 
@@ -25190,27 +25191,27 @@ msgstr "Eşleşen başlık kelimeleri, tanımlar, çeviriler, kaynaklar ve lehç
 msgid "Dictionary search query. Use a headword, translated meaning, example text, source name, or dialect term."
 msgstr "Sözlük arama sorgusu. Bir başlık kelimesi, çevrilmiş anlam, örnek metin, kaynak adı veya lehçe terimi kullan."
 
-#: includes/lib/ai-crawler-support.php:393
+#: includes/lib/ai-crawler-support.php:488
 msgid "Untitled"
 msgstr "Başlıksız"
 
-#: includes/lib/ai-crawler-support.php:419
+#: includes/lib/ai-crawler-support.php:514
 msgid "LL Tools Site"
 msgstr "LL Tools Sitesi"
 
-#: includes/lib/ai-crawler-support.php:966
+#: includes/lib/ai-crawler-support.php:1077
 msgid "Public LL Tools language-learning content, optimized for AI agents and crawlers."
 msgstr "AI aracıları ve tarayıcılar için optimize edilmiş herkese açık LL Tools dil öğrenme içeriği."
 
-#: includes/lib/ai-crawler-support.php:971
+#: includes/lib/ai-crawler-support.php:1082
 msgid "LL Tools AI index"
 msgstr "LL Tools AI dizini"
 
-#: includes/lib/ai-crawler-support.php:971
+#: includes/lib/ai-crawler-support.php:1082
 msgid "Compact generated Markdown index for AI agents."
 msgstr "AI aracıları için oluşturulmuş kompakt Markdown dizini."
 
-#: includes/lib/ai-crawler-support.php:972
+#: includes/lib/ai-crawler-support.php:1083
 msgid "Public dictionary search and browse page."
 msgstr "Herkese açık sözlük arama ve göz atma sayfası."
 
@@ -25240,75 +25241,75 @@ msgstr "Beklenen sözlük girişi çevirisi canlı durumla eşleşmiyor."
 msgid "Cannot canonicalize a word without target text."
 msgstr "Hedef metni olmayan bir kelime kanonikleştirilemez."
 
-#: includes/lib/ai-crawler-support.php:1002
+#: includes/lib/ai-crawler-support.php:1113
 msgid "LL Tools llms.txt"
 msgstr "LL Tools llms.txt"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:994
+#: includes/lib/ai-crawler-support.php:1105
 #, php-format
 msgid "%s LL Tools AI Index"
 msgstr "%s LL Tools yapay zeka dizini"
 
-#: includes/lib/ai-crawler-support.php:1001
+#: includes/lib/ai-crawler-support.php:1112
 msgid "Site-level AI discovery file."
 msgstr "Site düzeyinde yapay zeka keşif dosyası."
 
-#: includes/lib/ai-crawler-support.php:980
-#: includes/lib/ai-crawler-support.php:1003
+#: includes/lib/ai-crawler-support.php:1091
+#: includes/lib/ai-crawler-support.php:1114
 msgid "Schema.org structured discovery graph for the generated public exports."
 msgstr "Üretilen herkese açık dışa aktarımlar için Schema.org yapılandırılmış keşif grafiği."
 
-#: includes/lib/ai-crawler-support.php:1142
+#: includes/lib/ai-crawler-support.php:1253
 msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
 msgstr "Yapay zeka aracıları için oluşturulmuş, sınırlı, anonim-herkese açık LL Tools keşif dizini."
 
-#: includes/lib/ai-crawler-support.php:998
+#: includes/lib/ai-crawler-support.php:1109
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "Bu oluşturulmuş dizin, yapay zeka aracılarını kompakt herkese açık LL Tools içeriğine yönlendirir. Bilerek salt okunur ve sınırlıdır; bağlantılı HTML sayfaları alıntı için kanonik kaynak olmaya devam eder."
 
-#: includes/lib/ai-crawler-support.php:968
+#: includes/lib/ai-crawler-support.php:1079
 msgid "This file lists anonymous, read-only public content. Use canonical HTML URLs for citation and the Markdown exports for compact context. Admin screens, editor workflows, recording tools, REST mutation endpoints, and private wordsets are not public crawl targets."
 msgstr "Bu dosya anonim, salt okunur herkese açık içeriği listeler. Alıntı için kanonik HTML URL'lerini, kompakt bağlam için Markdown dışa aktarımlarını kullan. Yönetici ekranları, editör iş akışları, kayıt araçları, REST değişiklik uç noktaları ve özel kelime setleri herkese açık tarama hedefleri değildir."
 
-#: includes/lib/ai-crawler-support.php:975
-#: includes/lib/ai-crawler-support.php:1006
-#: includes/lib/ai-crawler-support.php:1056
+#: includes/lib/ai-crawler-support.php:1086
+#: includes/lib/ai-crawler-support.php:1117
+#: includes/lib/ai-crawler-support.php:1167
 msgid "Dictionary Markdown"
 msgstr "Sözlük Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:975
+#: includes/lib/ai-crawler-support.php:1086
 msgid "Bounded public dictionary entries with definitions, sources, and canonical detail links."
 msgstr "Tanımlar, kaynaklar ve kanonik ayrıntı bağlantıları içeren sınırlı herkese açık sözlük girişleri."
 
-#: includes/lib/ai-crawler-support.php:976
-#: includes/lib/ai-crawler-support.php:1007
-#: includes/lib/ai-crawler-support.php:1062
+#: includes/lib/ai-crawler-support.php:1087
+#: includes/lib/ai-crawler-support.php:1118
+#: includes/lib/ai-crawler-support.php:1173
 msgid "Wordsets Markdown"
 msgstr "Kelime setleri Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:976
+#: includes/lib/ai-crawler-support.php:1087
 msgid "Public wordset hubs and public vocab lessons."
 msgstr "Herkese açık kelime seti merkezleri ve herkese açık kelime dersleri."
 
-#: includes/lib/ai-crawler-support.php:977
-#: includes/lib/ai-crawler-support.php:1008
-#: includes/lib/ai-crawler-support.php:1068
+#: includes/lib/ai-crawler-support.php:1088
+#: includes/lib/ai-crawler-support.php:1119
+#: includes/lib/ai-crawler-support.php:1179
 msgid "Content Lessons Markdown"
 msgstr "İçerik dersleri Markdown'ı"
 
-#: includes/lib/ai-crawler-support.php:980
-#: includes/lib/ai-crawler-support.php:1003
+#: includes/lib/ai-crawler-support.php:1091
+#: includes/lib/ai-crawler-support.php:1114
 msgid "AI index JSON-LD"
 msgstr "AI dizini JSON-LD"
 
-#: includes/lib/ai-crawler-support.php:983
-#: includes/lib/ai-crawler-support.php:1011
+#: includes/lib/ai-crawler-support.php:1094
+#: includes/lib/ai-crawler-support.php:1122
 msgid "AI crawler notes"
 msgstr "AI tarayıcı notları"
 
-#: includes/lib/ai-crawler-support.php:1001
-#: includes/lib/ai-crawler-support.php:1044
+#: includes/lib/ai-crawler-support.php:1112
+#: includes/lib/ai-crawler-support.php:1155
 msgid "Root llms.txt"
 msgstr "Kök llms.txt"
 
@@ -26076,21 +26077,21 @@ msgstr "Sayımlar ve örnekler yeniden oluşturuldu."
 msgid "The rebuild stopped. Start it again."
 msgstr "Yeniden oluşturma durdu. Tekrar başlat."
 
-#: includes/admin/ipa-keyboard-admin.php:452
+#: includes/admin/ipa-keyboard-admin.php:453
 msgid "No matches in this batch. Continue searching to check the remaining recordings."
 msgstr "Bu grupta eşleşen ses kaydı yok. Kalan ses kayıtlarını kontrol etmek için aramaya devam et."
 
-#: includes/admin/ipa-keyboard-admin.php:455
+#: includes/admin/ipa-keyboard-admin.php:456
 #, php-format
 msgid "%1$d matching recording loaded"
 msgstr "%1$d eşleşen ses kaydı yüklendi"
 
-#: includes/admin/ipa-keyboard-admin.php:456
+#: includes/admin/ipa-keyboard-admin.php:457
 #, php-format
 msgid "%1$d matching recordings loaded"
 msgstr "%1$d eşleşen ses kaydı yüklendi"
 
-#: includes/admin/ipa-keyboard-admin.php:9962
+#: includes/admin/ipa-keyboard-admin.php:9963
 msgid "Invalid action"
 msgstr "Geçersiz işlem"
 
@@ -26585,247 +26586,247 @@ msgstr "Bu adaylar için başka otomatik çakışmalar da var. Daha küçük bir
 msgid "Saved pair page %1$d of %2$d"
 msgstr "Kaydedilmiş çift sayfası %1$d / %2$d"
 
-#: includes/lib/ai-crawler-support.php:977
+#: includes/lib/ai-crawler-support.php:1088
 msgid "Public content lessons with compact transcript samples."
 msgstr "Kısa transkript örnekleri içeren herkese açık içerik dersleri."
 
-#: includes/lib/ai-crawler-support.php:983
+#: includes/lib/ai-crawler-support.php:1094
 msgid "Operational notes about how these generated files should be interpreted."
 msgstr "Bu dosyaların nasıl yorumlanması gerektiğine dair kullanım notları."
 
-#: includes/lib/ai-crawler-support.php:1002
+#: includes/lib/ai-crawler-support.php:1113
 msgid "Plugin-scoped copy of the discovery file."
 msgstr "Keşif dosyasının eklenti kapsamındaki kopyası."
 
-#: includes/lib/ai-crawler-support.php:1006
+#: includes/lib/ai-crawler-support.php:1117
 msgid "Headwords, summaries, sources, dialects, and dictionary detail links."
 msgstr "Madde başları, özetler, kaynaklar, lehçeler ve sözlük ayrıntı bağlantıları."
 
-#: includes/lib/ai-crawler-support.php:1007
+#: includes/lib/ai-crawler-support.php:1118
 msgid "Public wordset landing pages and vocab lesson routes."
 msgstr "Herkese açık kelime seti açılış sayfaları ve kelime dersi rotaları."
 
-#: includes/lib/ai-crawler-support.php:1008
+#: includes/lib/ai-crawler-support.php:1119
 msgid "Content lessons and compact transcript cue samples."
 msgstr "İçerik dersleri ve kısa transkript bölümü örnekleri."
 
-#: includes/lib/ai-crawler-support.php:1011
+#: includes/lib/ai-crawler-support.php:1122
 msgid "Scope and interpretation notes for these generated exports."
 msgstr "Bu otomatik olarak oluşturulan dışa aktarımlar için kapsam ve yorum notları."
 
-#: includes/lib/ai-crawler-support.php:1017
-#: includes/lib/ai-crawler-support.php:1199
+#: includes/lib/ai-crawler-support.php:1128
+#: includes/lib/ai-crawler-support.php:1310
 msgid "Dictionary Letter Chunks"
 msgstr "Sözlük Harfi Parçaları"
 
-#: includes/lib/ai-crawler-support.php:1018
+#: includes/lib/ai-crawler-support.php:1129
 msgid "Letter chunks expose smaller dictionary slices for agents that need focused context instead of a broad sample."
 msgstr "Harf parçaları, geniş bir örnek yerine odaklanmış bağlama ihtiyaç duyan yapay zeka ajanlarına sözlüğün daha küçük bölümlerini sunar."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1023
+#: includes/lib/ai-crawler-support.php:1134
 #, php-format
 msgid "Dictionary letter %s"
 msgstr "Sözlük harfi %s"
 
-#: includes/lib/ai-crawler-support.php:1050
+#: includes/lib/ai-crawler-support.php:1161
 msgid "AI index Markdown"
 msgstr "Yapay Zeka Dizini (Markdown)"
 
 #. translators: %s: Site name.
-#: includes/lib/ai-crawler-support.php:1139
+#: includes/lib/ai-crawler-support.php:1250
 #, php-format
 msgid "%s LL Tools AI discovery index"
 msgstr "%s LL Tools Yapay Zeka Keşif Dizini"
 
-#: includes/lib/ai-crawler-support.php:1150
-#: includes/lib/ai-crawler-support.php:1186
+#: includes/lib/ai-crawler-support.php:1261
+#: includes/lib/ai-crawler-support.php:1297
 msgid "Public Dictionary"
 msgstr "Herkese Açık Sözlük"
 
-#: includes/lib/ai-crawler-support.php:1151
+#: includes/lib/ai-crawler-support.php:1262
 msgid "Bounded public dictionary entries exposed for compact AI context."
 msgstr "Kısa yapay zeka bağlamı için sunulan sınırlı sayıdaki herkese açık sözlük girişleri."
 
-#: includes/lib/ai-crawler-support.php:1163
+#: includes/lib/ai-crawler-support.php:1274
 msgid "Dictionary letter Markdown exports"
 msgstr "Sözlük harflerine göre Markdown dışa aktarımları"
 
 #. translators: %d: Entry limit.
-#: includes/lib/ai-crawler-support.php:1190
+#: includes/lib/ai-crawler-support.php:1301
 #, php-format
 msgid "This bounded export includes up to %d anonymous public dictionary entries. Use each canonical detail URL for citation and the public dictionary page for search."
 msgstr "Bu sınırlı dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen en fazla %d herkese açık sözlük girişi içerir. Alıntı için her girişin kanonik ayrıntı URL'sini, arama için herkese açık sözlük sayfasını kullan."
 
-#: includes/lib/ai-crawler-support.php:1194
-#: includes/lib/ai-crawler-support.php:1246
+#: includes/lib/ai-crawler-support.php:1305
+#: includes/lib/ai-crawler-support.php:1357
 msgid "Public dictionary page"
 msgstr "Herkese açık sözlük sayfası"
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1204
+#: includes/lib/ai-crawler-support.php:1315
 #, php-format
 msgid "Letter %s"
 msgstr "Harf %s"
 
-#: includes/lib/ai-crawler-support.php:1214
+#: includes/lib/ai-crawler-support.php:1325
 msgid "No public dictionary entries are currently available."
 msgstr "Şu anda herkese açık sözlük girişi yok."
 
 #. translators: %s: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1234
+#: includes/lib/ai-crawler-support.php:1345
 #, php-format
 msgid "Public Dictionary: %s"
 msgstr "Herkese Açık Sözlük: %s"
 
 #. translators: 1: Entry limit. 2: Dictionary browse letter.
-#: includes/lib/ai-crawler-support.php:1240
+#: includes/lib/ai-crawler-support.php:1351
 #, php-format
 msgid "This bounded export includes up to %1$d anonymous public dictionary entries for the browse letter %2$s."
 msgstr "Bu sınırlı dışa aktarım, göz atılan %2$s harfi için kimlik doğrulaması gerektirmeden erişilebilen en fazla %1$d herkese açık sözlük girişi içerir."
 
-#: includes/lib/ai-crawler-support.php:1245
+#: includes/lib/ai-crawler-support.php:1356
 msgid "Dictionary Markdown index"
 msgstr "Sözlük Markdown dizini"
 
-#: includes/lib/ai-crawler-support.php:1251
+#: includes/lib/ai-crawler-support.php:1362
 msgid "No public dictionary entries are currently available for this letter."
 msgstr "Şu anda bu harf için herkese açık sözlük girişi yok."
 
-#: includes/lib/ai-crawler-support.php:1270
-#: includes/lib/ai-crawler-support.php:1494
+#: includes/lib/ai-crawler-support.php:1381
+#: includes/lib/ai-crawler-support.php:1605
 msgid "Canonical URL:"
 msgstr "Kanonik URL:"
 
-#: includes/lib/ai-crawler-support.php:1272
-#: includes/lib/ai-crawler-support.php:1501
+#: includes/lib/ai-crawler-support.php:1383
+#: includes/lib/ai-crawler-support.php:1612
 msgid "Summary:"
 msgstr "Özet:"
 
-#: includes/lib/ai-crawler-support.php:1277
+#: includes/lib/ai-crawler-support.php:1388
 msgid "Part of speech:"
 msgstr "Konuşma parçası:"
 
-#: includes/lib/ai-crawler-support.php:1282
+#: includes/lib/ai-crawler-support.php:1393
 msgid "Wordsets:"
 msgstr "Kelime setleri:"
 
-#: includes/lib/ai-crawler-support.php:1287
+#: includes/lib/ai-crawler-support.php:1398
 msgid "Sources:"
 msgstr "Kaynaklar:"
 
-#: includes/lib/ai-crawler-support.php:1292
+#: includes/lib/ai-crawler-support.php:1403
 msgid "Dialects:"
 msgstr "Lehçeler:"
 
-#: includes/lib/ai-crawler-support.php:1399
+#: includes/lib/ai-crawler-support.php:1510
 msgid "Public Wordsets and Vocab Lessons"
 msgstr "Herkese Açık Kelime Setleri ve Kelime Dersleri"
 
-#: includes/lib/ai-crawler-support.php:1401
+#: includes/lib/ai-crawler-support.php:1512
 msgid "This export lists anonymous public wordset hubs and vocab lessons. Private wordsets and private categories are excluded."
 msgstr "Bu dışa aktarım, kimlik doğrulaması gerektirmeden erişilebilen herkese açık kelime seti merkezlerini ve kelime derslerini listeler. Özel kelime setleri ve özel kategoriler dahil edilmez."
 
-#: includes/lib/ai-crawler-support.php:1403
+#: includes/lib/ai-crawler-support.php:1514
 msgid "Wordsets"
 msgstr "Kelime setleri"
 
-#: includes/lib/ai-crawler-support.php:1407
+#: includes/lib/ai-crawler-support.php:1518
 msgid "No public wordsets are currently available."
 msgstr "Şu anda herkese açık kelime seti yok."
 
-#: includes/lib/ai-crawler-support.php:1421
+#: includes/lib/ai-crawler-support.php:1532
 msgid "No public vocab lessons are currently available."
 msgstr "Şu anda herkese açık kelime dersi yok."
 
 #. translators: %s: Wordset name.
-#: includes/lib/ai-crawler-support.php:1442
+#: includes/lib/ai-crawler-support.php:1553
 #, php-format
 msgid "Wordset: %s"
 msgstr "Kelime seti: %s"
 
 #. translators: %s: Category name.
-#: includes/lib/ai-crawler-support.php:1460
+#: includes/lib/ai-crawler-support.php:1571
 #, php-format
 msgid "Category: %s"
 msgstr "Kategori: %s"
 
-#: includes/lib/ai-crawler-support.php:1476
+#: includes/lib/ai-crawler-support.php:1587
 msgid "Public Content Lessons"
 msgstr "Herkese Açık İçerik Dersleri"
 
 #. translators: %d: Lesson limit.
-#: includes/lib/ai-crawler-support.php:1480
+#: includes/lib/ai-crawler-support.php:1591
 #, php-format
 msgid "This bounded export includes up to %d public content lessons. Transcript cues are compact samples; use the canonical lesson URL for the full page."
 msgstr "Bu sınırlı dışa aktarım, en fazla %d herkese açık içerik dersi içerir. Transkript bölümleri kısa örneklerdir; tam sayfa için kanonik ders URL'sini kullan."
 
-#: includes/lib/ai-crawler-support.php:1487
+#: includes/lib/ai-crawler-support.php:1598
 msgid "No public content lessons are currently available."
 msgstr "Şu anda herkese açık içerik dersi yok."
 
-#: includes/lib/ai-crawler-support.php:1506
+#: includes/lib/ai-crawler-support.php:1617
 msgid "Media:"
 msgstr "Medya:"
 
 #: includes/admin/audio-processor-admin.php:223
-#: includes/lib/ai-crawler-support.php:1513
+#: includes/lib/ai-crawler-support.php:1624
 msgid "Wordset:"
 msgstr "Kelime seti:"
 
-#: includes/lib/ai-crawler-support.php:1519
+#: includes/lib/ai-crawler-support.php:1630
 msgid "Categories:"
 msgstr "Kategoriler:"
 
-#: includes/lib/ai-crawler-support.php:1525
+#: includes/lib/ai-crawler-support.php:1636
 msgid "Transcript Sample"
 msgstr "Transkript Örneği"
 
-#: includes/lib/ai-crawler-support.php:1604
+#: includes/lib/ai-crawler-support.php:1715
 msgid "LL Tools AI Crawler Notes"
 msgstr "LL Tools AI Tarama Botu Notları"
 
-#: includes/lib/ai-crawler-support.php:1606
+#: includes/lib/ai-crawler-support.php:1717
 msgid "These generated files are intended to help AI agents discover and summarize public LL Tools content efficiently."
 msgstr "Bu oluşturulan dosyalar, AI aracılarının herkese açık LL Tools içeriğini verimli biçimde keşfedip özetlemesine yardımcı olur."
 
-#: includes/lib/ai-crawler-support.php:1608
+#: includes/lib/ai-crawler-support.php:1719
 msgid "Scope"
 msgstr "Kapsam"
 
-#: includes/lib/ai-crawler-support.php:1609
+#: includes/lib/ai-crawler-support.php:1720
 msgid "Only anonymous public content is included."
 msgstr "Yalnızca kimlik doğrulaması gerektirmeden erişilebilen herkese açık içerik dahil edilir."
 
-#: includes/lib/ai-crawler-support.php:1610
+#: includes/lib/ai-crawler-support.php:1721
 msgid "Exports are bounded snapshots and may omit older or less relevant public records."
 msgstr "Dışa aktarımlar sınırlı anlık görüntülerdir ve daha eski veya daha az ilgili herkese açık kayıtları içermeyebilir."
 
-#: includes/lib/ai-crawler-support.php:1611
+#: includes/lib/ai-crawler-support.php:1722
 msgid "Canonical HTML pages remain the source of record for citation and full context."
 msgstr "Alıntı ve tam bağlam için kanonik HTML sayfaları yetkili kaynak olmaya devam eder."
 
-#: includes/lib/ai-crawler-support.php:1612
+#: includes/lib/ai-crawler-support.php:1723
 msgid "These files do not grant access to private wordsets, admin pages, editor flows, recording tools, or mutation endpoints."
 msgstr "Bu dosyalar özel kelime setlerine, yönetici sayfalarına, düzenleyici akışlarına, kayıt araçlarına veya değişiklik yapan uç noktalara erişim sağlamaz."
 
-#: includes/lib/ai-crawler-support.php:1614
+#: includes/lib/ai-crawler-support.php:1725
 msgid "Crawler Interpretation"
 msgstr "Tarayıcı Yorumlama Kuralları"
 
-#: includes/lib/ai-crawler-support.php:1615
+#: includes/lib/ai-crawler-support.php:1726
 msgid "Prefer Markdown exports for compact context gathering."
 msgstr "Kısa bağlam toplamak için Markdown dışa aktarımlarını tercih et."
 
-#: includes/lib/ai-crawler-support.php:1616
+#: includes/lib/ai-crawler-support.php:1727
 msgid "Prefer canonical HTML URLs when citing or sending a user to the site."
 msgstr "Alıntı yaparken veya kullanıcıyı siteye yönlendirirken kanonik HTML URL'lerini tercih et."
 
-#: includes/lib/ai-crawler-support.php:1617
+#: includes/lib/ai-crawler-support.php:1728
 msgid "Use the public dictionary WebMCP tool only for read-only dictionary search."
 msgstr "Herkese açık sözlük WebMCP aracını yalnızca salt okunur sözlük aramalarında kullan."
 
-#: includes/lib/ai-crawler-support.php:1618
+#: includes/lib/ai-crawler-support.php:1729
 msgid "Treat robots.txt and response headers as the authority for crawl and training policy where the site defines them."
 msgstr "Site bunları tanımladığında tarama ve eğitim politikası için robots.txt ile yanıt başlıklarını yetkili kaynak kabul et."
 
@@ -27603,7 +27604,7 @@ msgid "Loading"
 msgstr "Yükleniyor"
 
 #. translators: 1: migrated wordset count, 2: URL to the Wordsets admin screen
-#: includes/admin/ipa-keyboard-admin.php:4637
+#: includes/admin/ipa-keyboard-admin.php:4638
 #, php-format
 msgid "Preserved the Genç-Palu orthography profile on %1$d existing Zazaki wordsets. Review each regional profile under <a href=\"%2$s\">Wordsets</a>; new Zazaki wordsets do not select a regional profile automatically."
 msgstr "%1$d mevcut Zazaki kelime setinde Genç-Palu yazım profili korundu. <a href=\"%2$s\">Kelime Setleri</a> altındaki her bölgesel profili incele; yeni Zazaki kelime setleri otomatik olarak bölgesel profil seçmez."
@@ -28585,6 +28586,7 @@ msgstr "İçe aktarılan meta veriler geçersiz bir serileştirilmiş değer iç
 msgid "Skipped restoring metadata key \"%1$s\" on post %2$d during undo because its stored value was unsafe."
 msgstr "Saklanan değeri güvenli olmadığından, %2$d numaralı gönderideki \"%1$s\" meta veri anahtarını geri alma sırasında geri yükleme işlemi atlandı."
 
+#: includes/lib/ai-crawler-support.php:394
 #: includes/lib/dictionary-browser.php:190
 #: includes/shortcodes/dictionary-shortcode.php:2530
 #: includes/shortcodes/dictionary-shortcode.php:3043

@@ -1,12 +1,13 @@
 # Maintenance Backlog
 
-Updated September 5, 2026 during the 6.7.34 reliability and resource-boundary
-pass. The current pass closes the verified fail-closed count, request admission,
-bounded Line-Up, autosave/export recovery, accessibility, localization, and
-focused admin-browser coverage findings while leaving protocol-, deployment-,
-or human-review-dependent work below for deliberate review. The exact Local
-runtime was started and exercised; no deployed-site check, deployment, or real
-provider authorization was attempted.
+Updated September 11, 2026 during the 6.7.39 maintenance follow-up. This pass
+adds automatic startup of the matching Local test site, preserves queued
+Transcription Manager edits across view changes, bounds Unicode dictionary
+browse and anonymous crawler cache misses, repairs localized failure messages,
+and updates the offline builder dependency and high-confidence Turkish copy.
+The protocol-, deployment-, and human-review-dependent work below remains for
+deliberate review. Validation uses the local test site; no deployed-site check,
+deployment, or real provider authorization is part of this pass.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
@@ -65,7 +66,7 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (September 5)
+### Previous verification inventory (September 5)
 
 - `PublicUiTranslationManifestTest` now includes a database-free canonical
   source/POT key comparison backed by a temporary WP-CLI extraction. The
@@ -97,6 +98,23 @@ the normal regression suite.
 
 ## Recently Closed
 
+- September 11 follow-up: regression wrappers identify a registered Local site
+  by its exact document root and target settings, probe only its required
+  services, and start that site through Local when stopped. Existing running
+  services are preserved. Transcription Manager drains pending transcription,
+  review, and internal-note saves before replacing rows, retains failed drafts,
+  and fences stale searches and view callbacks. Copy/Split and Transcription
+  Review use translated defaults for transport/parser failures while retaining
+  structured server errors and the existing no-replay recovery behavior.
+- September 11 crawler follow-up: non-ASCII letter reads use exact indexed
+  initial buckets populated by a bounded background backfill; incomplete source
+  reads, changing epochs, and lost build leases produce retryable uncached
+  failures. Anonymous cold builds use atomic client budgets and leases while
+  cached reads and HEAD requests remain inexpensive. The Copy/Split cross-wordset
+  cache concern is now a targeted regression for the existing invalidation
+  protocol, not a speculative production change. The offline builder uses
+  adm-zip 0.6.1; Turkish product names and immediate-adjacency regex help have
+  explicit translation guards. Broad native-language review remains above.
 - September 4 runtime/resource follow-up: an incomplete targeted vocab-lesson
   count now returns a retryable 503 before the legacy full-category fallback;
   offline sync rejects event batches above 200 before authentication or

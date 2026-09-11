@@ -40,6 +40,7 @@ normalization as the public dictionary browser.
 | Dictionary letter discovery | `ll_tools_ai_crawler_get_dictionary_letters()`, `ll_tools_ai_crawler_query_public_dictionary_raw_letters()`, `ll_tools_ai_crawler_get_public_wordset_ids_for_dictionary_letters()` |
 | Rendered Markdown and JSON-LD | `ll_tools_ai_crawler_build_*()` and the dictionary/cue formatting helpers in the same file |
 | Shared dictionary labels, senses, and letter rules | `includes/lib/dictionary-browser.php`; dictionary entry metadata is owned by `includes/post-types/dictionary-entry-post-type.php` |
+| Unicode initial lookup and resumable backfill | `includes/lib/dictionary-search-index.php`, `ll_tools_dictionary_browse_lookup_is_ready()`; `DictionaryBrowseLookupTest.php` |
 | Focused integration coverage | `tests/Integration/AiCrawlerSupportTest.php` |
 
 Use the normal serialized test workflow in `tests/AI_TESTING_PLAYBOOK.md`:
@@ -84,10 +85,31 @@ content epoch. Bodies are strings stored in both object cache and transients;
 these exports do not use the filesystem HTML caches or durable payload-row
 materializers. The default TTL is ten minutes, filterable through
 `ll_tools_ai_crawler_response_cache_seconds` within 60 seconds to one day.
-Cold GET requests build synchronously; HEAD only reads an existing body.
-Schema 3 separates anonymous-safe bodies from older shared exports. A build
-whose cache identity changes before publication fails closed without storing
-or returning its body; letter-discovery request caches follow the same epochs.
+Admitted cold GET requests build synchronously; HEAD only reads an existing
+body. Schema 4 separates source-verified bodies from older shared exports.
+The generation is read fresh from six bounded epoch options. A failed source
+read, incomplete projection, changed generation, or lost build lease returns
+503 with `Retry-After` and `private, no-store, max-age=0`, without publishing
+an empty or partial body. Cache writes use the originally captured key;
+letter-discovery request caches follow the same epochs.
+
+Only cold anonymous misses consume admission: at most 30 per minute by default
+(`ll_tools_ai_crawler_miss_limit`, clamped to 1–120), with two concurrent builds
+per client. Excess admission returns 429 with retry timing. Every cold body
+also needs a 60-second exact-key lease; contention returns a retryable 503.
+Cached GET and HEAD requests bypass these build budgets. The existing expired
+transient maintenance worker cleans all three guard namespaces, including when
+an external object cache is enabled.
+
+Non-ASCII letter candidates use two exact initial projections in the existing
+lookup table: ordinary and Turkic casing, stored as hex to preserve Unicode
+identity under the database collation. The selective indexed query bounds
+candidate reads even when the requested letter is absent or appears late in a
+large dictionary. Existing installations queue a resumable ID-keyset backfill
+through the dictionary lookup worker. The logical browse version becomes usable
+only after a verified completion checkpoint; incomplete work is rescheduled.
+Until then, Unicode browse returns a retryable unavailable state. This adds no
+physical schema migration and no public-request title scan.
 
 Responses vary on `Accept-Language` and `Cookie`. The site-default locale uses
 public cache headers, while other request locales use `private, no-store`.

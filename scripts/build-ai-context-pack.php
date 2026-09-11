@@ -489,6 +489,7 @@ function ll_tools_context_pack_definitions(): array
                 'Initial admin loads should be paged/lazy; validation can be deeper but must be explicit.',
                 'Publishing words may be blocked without published word_audio depending on category config.',
                 'Autosave/editing flows should avoid page refreshes after successful saves when practical.',
+                'Transcription Manager view transitions must preserve and settle original-scope drafts before replacing rows; failed saves cancel deferred navigation, stale reads cannot overwrite the current view, and only reads expose deadline retry.',
                 'Frontend transcription review uses explicit managed-wordset and object access before media resolution; field revisions and verified storage prevent silent stale edits. The transcription settings route remains provider configuration only.',
                 'My recordings is read-only and current-speaker-only. Effective speaker attribution overrides upload author, prompt history requires the canonical attachment pointer, and expiring keyset cursors bind user and wordset. Recheck assignment and category privacy on every bounded request.',
                 'Automatic audio/image matching must use the bounded normalized-title index before applying the existing confidence gate; never hydrate every image in a selected category during an upload request.',
@@ -632,6 +633,8 @@ function ll_tools_context_pack_definitions(): array
             ],
             'invariants' => [
                 'Public dictionary search should avoid broad postmeta contains scans.',
+                'Unicode letter browse uses exact generic/Turkic initial projections in the lookup table; require the completed bounded backfill and never fall back to a foreground title scan.',
+                'Cold crawler exports require atomic client admission and exact-key ownership; failed source or epoch reads return non-cacheable retryable errors, and only complete bodies publish under the captured key.',
                 'Anonymous live-search misses take the same-query build lock before atomic client admission and return retryable warming payloads while another builder owns the key.',
                 'Static cache keys must be deterministic and locale-safe.',
                 'Public language-switcher choices must use nonce-protected POST forms rather than crawler-discoverable locale query links.',

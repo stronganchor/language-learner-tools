@@ -554,8 +554,8 @@
                 "includes/admin/audio-processor-admin.php:1320",
                 "includes/admin/audio-processor-admin.php:217",
                 "includes/admin/image-webp-optimizer-admin.php:1736",
-                "includes/admin/ipa-keyboard-admin.php:469",
-                "includes/admin/ipa-keyboard-admin.php:493",
+                "includes/admin/ipa-keyboard-admin.php:470",
+                "includes/admin/ipa-keyboard-admin.php:494",
                 "includes/admin/site-sync-admin.php:1128",
                 "includes/admin/teacher-classes-page.php:497",
                 "includes/admin/word-option-rules-admin.php:1967",
@@ -613,8 +613,8 @@
                 "includes/admin/audio-processor-admin.php:1324",
                 "includes/admin/audio-processor-admin.php:218",
                 "includes/admin/image-webp-optimizer-admin.php:1737",
-                "includes/admin/ipa-keyboard-admin.php:470",
-                "includes/admin/ipa-keyboard-admin.php:494",
+                "includes/admin/ipa-keyboard-admin.php:471",
+                "includes/admin/ipa-keyboard-admin.php:495",
                 "includes/admin/site-sync-admin.php:1131",
                 "includes/admin/teacher-classes-page.php:502",
                 "includes/admin/word-option-rules-admin.php:1974",
@@ -1847,8 +1847,8 @@
             "msgid": "IPA",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:742",
-                "includes/admin/ipa-keyboard-admin.php:756",
+                "includes/admin/ipa-keyboard-admin.php:743",
+                "includes/admin/ipa-keyboard-admin.php:757",
                 "includes/admin/site-sync-admin.php:1055",
                 "includes/lib/wordset-language-settings.php:1316",
                 "includes/lib/wordset-language-settings.php:1317",
@@ -2510,7 +2510,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/image-webp-optimizer-admin.php:1735",
-                "includes/admin/ipa-keyboard-admin.php:466",
+                "includes/admin/ipa-keyboard-admin.php:467",
                 "includes/pages/content-lesson-pages.php:1102",
                 "includes/pages/wordset-pages.php:17713",
                 "includes/pages/wordset-pages.php:23259"
@@ -2692,7 +2692,7 @@
             "msgid": "Dictionary",
             "msgid_plural": null,
             "references": [
-                "includes/lib/ai-crawler-support.php:972",
+                "includes/lib/ai-crawler-support.php:1083",
                 "includes/pages/dictionary-page.php:11",
                 "includes/shortcodes/dictionary-shortcode.php:4587",
                 "includes/shortcodes/site-tools-shortcode.php:925"
@@ -2858,6 +2858,7 @@
                 "includes/admin/audio-image-matcher.php:76",
                 "includes/admin/audio-processor-admin.php:1314",
                 "includes/admin/audio-processor-admin.php:213",
+                "includes/admin/ipa-keyboard-admin.php:450",
                 "includes/admin/site-sync-admin.php:1934",
                 "includes/admin/site-sync-admin.php:655",
                 "includes/lib/recording-history.php:279",
@@ -4962,7 +4963,7 @@
                 "includes/admin/bulk-translation-admin.php:221",
                 "includes/admin/export-import.php:4636",
                 "includes/admin/ipa-keyboard-admin.php:426",
-                "includes/admin/ipa-keyboard-admin.php:473",
+                "includes/admin/ipa-keyboard-admin.php:474",
                 "includes/admin/missing-audio-admin-page.php:939",
                 "includes/admin/orphan-media-admin.php:854",
                 "includes/admin/user-progress-report.php:1157",
@@ -5644,7 +5645,7 @@
             "msgid": "Categories",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:476",
+                "includes/admin/ipa-keyboard-admin.php:477",
                 "includes/admin/offline-app-export.php:759",
                 "includes/admin/user-progress-report.php:1111",
                 "includes/flashcard-shell.php:107",
@@ -6291,7 +6292,7 @@
             "msgid": "Select all",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:591",
+                "includes/admin/ipa-keyboard-admin.php:592",
                 "includes/flashcard-shell.php:110",
                 "includes/pages/wordset-pages.php:26184",
                 "includes/pages/wordset-pages.php:26268",
@@ -6345,7 +6346,7 @@
             "msgid": "Hide %s",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:543",
+                "includes/admin/ipa-keyboard-admin.php:544",
                 "includes/pages/wordset-pages.php:26187",
                 "includes/pages/wordset-pages.php:7282",
                 "includes/pages/wordset-pages.php:7291"
@@ -6405,7 +6406,7 @@
             "references": [
                 "includes/admin/bulk-translation-admin.php:239",
                 "includes/admin/ipa-keyboard-admin.php:410",
-                "includes/admin/ipa-keyboard-admin.php:563",
+                "includes/admin/ipa-keyboard-admin.php:564",
                 "includes/admin/word-option-rules-admin.php:1945",
                 "includes/pages/wordset-pages.php:17515",
                 "includes/pages/wordset-pages.php:26197",
@@ -6911,7 +6912,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/bulk-translation-admin.php:204",
-                "includes/admin/ipa-keyboard-admin.php:596",
+                "includes/admin/ipa-keyboard-admin.php:597",
                 "includes/admin/split-word-admin.php:383",
                 "includes/admin/user-progress-report.php:1159",
                 "includes/lms/assignments.php:2039",
@@ -7440,7 +7441,7 @@
                 "includes/admin/audio-image-matcher.php:70",
                 "includes/admin/image-aspect-normalizer-admin.php:141",
                 "includes/admin/image-aspect-normalizer-admin.php:89",
-                "includes/admin/ipa-keyboard-admin.php:471",
+                "includes/admin/ipa-keyboard-admin.php:472",
                 "includes/flashcard-shell.php:116",
                 "includes/pages/wordset-pages.php:22993",
                 "includes/pages/wordset-pages.php:26306",
@@ -7778,7 +7779,7 @@
             "msgid": "Clear selection",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:592",
+                "includes/admin/ipa-keyboard-admin.php:593",
                 "includes/pages/wordset-pages.php:26855",
                 "includes/pages/wordset-pages.php:27389",
                 "includes/shortcodes/flashcard-widget.php:726",
@@ -8426,7 +8427,7 @@
                 "includes/admin/dictionary-import-admin.php:2424",
                 "includes/admin/export-import.php:3791",
                 "includes/admin/export-import.php:4384",
-                "includes/lib/dictionary-browser.php:7123",
+                "includes/lib/dictionary-browser.php:7091",
                 "includes/shortcodes/audio-credit-grid-shortcode.php:381",
                 "includes/shortcodes/image-copyright-grid-shortcode.php:257"
             ],
@@ -8864,7 +8865,7 @@
             "msgid": "Senses",
             "msgid_plural": null,
             "references": [
-                "includes/lib/ai-crawler-support.php:1298",
+                "includes/lib/ai-crawler-support.php:1409",
                 "includes/shortcodes/dictionary-shortcode.php:2719"
             ],
             "public_references": [
@@ -8890,8 +8891,8 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/ipa-keyboard-admin.php:411",
-                "includes/admin/ipa-keyboard-admin.php:553",
-                "includes/lib/dictionary-browser.php:7124",
+                "includes/admin/ipa-keyboard-admin.php:554",
+                "includes/lib/dictionary-browser.php:7092",
                 "includes/shortcodes/dictionary-shortcode.php:2795"
             ],
             "public_references": [
@@ -8954,6 +8955,7 @@
             "msgid": "Dictionary data is temporarily unavailable. Please try again in a moment.",
             "msgid_plural": null,
             "references": [
+                "includes/lib/ai-crawler-support.php:394",
                 "includes/lib/dictionary-browser.php:190",
                 "includes/shortcodes/dictionary-shortcode.php:2530",
                 "includes/shortcodes/dictionary-shortcode.php:3043",
@@ -9208,9 +9210,9 @@
                 "includes/admin/bulk-translation-admin.php:169",
                 "includes/admin/image-webp-optimizer-admin.php:1806",
                 "includes/admin/ipa-keyboard-admin.php:447",
-                "includes/admin/ipa-keyboard-admin.php:648",
-                "includes/admin/ipa-keyboard-admin.php:674",
-                "includes/admin/ipa-keyboard-admin.php:697",
+                "includes/admin/ipa-keyboard-admin.php:649",
+                "includes/admin/ipa-keyboard-admin.php:675",
+                "includes/admin/ipa-keyboard-admin.php:698",
                 "includes/admin/teacher-classes-page.php:704",
                 "includes/admin/teacher-classes-page.php:819",
                 "includes/admin/word-option-rules-admin.php:1943",
@@ -9799,7 +9801,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/admin/export-import.php:4654",
-                "includes/admin/ipa-keyboard-admin.php:1325",
+                "includes/admin/ipa-keyboard-admin.php:1326",
                 "includes/admin/word-option-rules-admin.php:2317",
                 "includes/pages/wordset-editor.php:4148",
                 "includes/shortcodes/flashcard-widget.php:675",
@@ -10272,7 +10274,7 @@
             "references": [
                 "includes/admin/export-import.php:4319",
                 "includes/admin/export-import.php:4415",
-                "includes/admin/ipa-keyboard-admin.php:630",
+                "includes/admin/ipa-keyboard-admin.php:631",
                 "includes/admin/teacher-classes-page.php:743",
                 "includes/admin/word-option-rules-admin.php:1875",
                 "includes/pages/wordset-pages.php:12949",
@@ -10861,9 +10863,9 @@
             "msgid": "IPA symbols",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:760",
-                "includes/admin/ipa-keyboard-admin.php:763",
-                "includes/admin/ipa-keyboard-admin.php:806",
+                "includes/admin/ipa-keyboard-admin.php:761",
+                "includes/admin/ipa-keyboard-admin.php:764",
+                "includes/admin/ipa-keyboard-admin.php:807",
                 "includes/lib/wordset-language-settings.php:1333",
                 "includes/lib/wordset-language-settings.php:1337",
                 "includes/shortcodes/word-grid-shortcode.php:5748",
@@ -10927,7 +10929,7 @@
             "msgid": "Recording",
             "msgid_plural": null,
             "references": [
-                "includes/admin/ipa-keyboard-admin.php:1322",
+                "includes/admin/ipa-keyboard-admin.php:1323",
                 "includes/admin/ipa-keyboard-admin.php:427",
                 "includes/admin/split-word-admin.php:381",
                 "includes/admin/split-word-admin.php:393",

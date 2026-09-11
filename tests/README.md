@@ -338,6 +338,15 @@ find tests/Integration -maxdepth 1 -name '*Test.php' | sort
 - `WordAudioBulkRecordingTypeEditTest` verifies selected-row state is byte/count/shape and canonical-ID bounded before post or taxonomy hydration, inaccessible recordings are excluded, any eligible-row taxonomy failure invalidates the complete response, uniform versus mixed recording-type sets are distinguished, and explicit bulk replacements or clears preserve capability checks.
 - Legacy Word Images fixer batching, durable cursor readback, and scan-free page rendering.
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
+- `DictionaryBrowseLookupTest` covers Unicode initial-bucket parity, selective
+  reads beyond 1,500 nonmatches, absent buckets, backfill readiness, and failed
+  completion checkpoint recovery. `AiCrawlerSupportTest` covers uncached source
+  failures, fresh epoch fences, cold-build budgets, exact-owner leases, and
+  inexpensive cached/HEAD responses. `ExpiredTransientMaintenanceTest` includes
+  the crawler admission and build-lease namespaces.
+- `WordCopySplitTest::test_split_refreshes_cached_audio_in_every_source_wordset`
+  warms a second source wordset before moving a recording and proves that its
+  refreshed payload contains only the recordings that still belong there.
 - Teacher-class integration coverage observes the legacy admin query shapes, proving bounded plus-one class/account pages, deterministic ID tie-breakers, globally ordered bounded learner-progress hydration, empty/stale-page normalization, continuation links, redirect-state preservation, and exact-owner deletion barriers under interleaved membership writes. `UserProgressReportTest` covers 100-user SQL word aggregation plus the independently keyset-paged per-learner fallback, its page/default/hard scan caps, current audio-requirement resolution, typed source/cap/lookup failures, and rejection of partial teacher summaries. `UserProgressPracticeResultTest` separately proves canonical formative result storage, the 16 KiB SQL payload guard, the default 500+1 per-learner scan, adaptive two-to-one learner batching under the approximately 24 MiB query budget, and `query_failed` propagation to translated unavailable cells rather than false zero data.
 - `LmsAssignmentFoundationTest` covers exact InnoDB schema/readiness and public schedule-only admission, bounded private manifests, immutable publication, class owner/member/window/attempt fences, idempotent first answers and finalization, server-derived scoring, first/latest/best grade selection, real-commit versus nested-savepoint delivery scheduling, and bounded privacy export/erasure.
 - `LmsGradeDeliveryTest` covers strict adapter and hash-only mapping contracts, verified assignment-schema-marker admission plus learner-row/current-fence locking for direct identity and recipient writers, nested-savepoint rollback, deterministic delete/write interleavings, no-destination finalization, deduplicated/corrected-grade enqueue, exact-owner leases and takeover, stale-grade suppression, bounded retry/`Retry-After`, diagnostic redaction and response-body rejection, repair/runtime rescheduling, the twenty-row worker cap, neutral exports, and no-network erasure that preserves live-leased audit rows.
@@ -609,6 +618,10 @@ Representative E2E coverage areas:
   - Verifies one-flight/latest-queued autosave, saved-value CAS bases, server-normalization reconciliation without a save loop, timeout/late-response fencing, and visible same-key conflicts without automatic overwrite.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
   - Verifies marking a transcription as reviewed updates the row in place without refreshing the filtered result list out from under the current admin session; review responses preserve text/IPA typed after the request began; duplicate word-note editors serialize latest-value-wins autosaves; and dirty rows display the detached editor loading shell immediately, save once before fetching, advance their saved baseline cleanly, and release a timed-out prepared shell without aborting or duplicating the ambiguous save.
+  - Search and view-transition races hold text/IPA, review, and internal-note
+    saves, then prove newer drafts survive until saved or explicit retry.
+    Reversed and timed-out search responses cannot replace current results;
+    delayed symbol, letter-map, and orthography callbacks remain in their view.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
   - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-word-editor-mobile.spec.js`

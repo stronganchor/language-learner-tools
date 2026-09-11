@@ -71,6 +71,14 @@ event `ll-word-copy-source-updated` updates recording ownership in visible sourc
 and invalidates cached detached editor markup without a page refresh, including
 confirmed partial moves in an incomplete copy. Creation stays blocked while the
 receipt needs review.
+
+Copy and transcription-review transport failures use the configured translated
+messages for network, malformed-response, and timeout errors. Validated server
+rejections retain their specific message. The localized error path preserves
+the same saved-copy receipt or unsaved transcription draft; it never retries
+an uncertain mutation automatically. `WordCopySplitTest` also warms another
+source wordset's audio payload before moving a recording, then verifies that
+the existing cross-wordset invalidation removes the moved audio from that view.
 `includes/lib/recording-metadata.php` serializes recording text and review writes
 across these tools and existing editor, admin, import and sync paths. The shared
 lock, conditional metadata writes and fresh readback work with both InnoDB and
