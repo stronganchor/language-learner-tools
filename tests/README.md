@@ -167,8 +167,10 @@ Configuration:
 - `LL_TOOLS_LOCAL_APP_PATH` overrides the Windows Local executable path.
 - `LL_TOOLS_LOCAL_USER_DATA` overrides Local's user-data directory.
 
-Discovery/help and the filesystem-only maintenance/startup contracts do not
-start Local. Explicit targets that do not match this registered site retain
+Playwright discovery, runner help, and the filesystem-only maintenance/startup
+contracts do not start Local. PHPUnit discovery still loads WordPress and needs
+the database, and `bootstrap-and-test.sh` always prepares it before installation.
+Explicit targets that do not match this registered site retain
 their existing runtime behavior. A startup failure stops the test command with
 guidance rather than resetting a database or restarting healthy services.
 

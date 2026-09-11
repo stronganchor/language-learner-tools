@@ -121,6 +121,8 @@ test('wrapper discovery and filesystem-only selections bypass startup with split
     'source tests/bin/local-test-runtime.sh',
     'if ll_tools_tests_need_local http --list; then exit 1; fi',
     'if ll_tools_tests_need_local db --help; then exit 2; fi',
+    'll_tools_tests_need_local db --list-tests || exit 7',
+    'll_tools_tests_need_local db --list-suites || exit 8',
     'if ll_tools_tests_need_local http specs/maintenance-doc-contracts.spec.js --reporter line --project chromium; then exit 3; fi',
     'if ll_tools_tests_need_local http specs/local-site-startup.spec.js specs/maintenance-doc-contracts.spec.js --workers 1; then exit 4; fi',
     'll_tools_tests_need_local http specs/page-speed-throttled-load.spec.js || exit 5',

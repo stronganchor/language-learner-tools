@@ -93,8 +93,9 @@ tests/bin/run-performance-benchmark.sh
   already-running services, and leaves Local open after testing. Use
   `LL_TOOLS_LOCAL_AUTOSTART=0` for a manually managed runtime; startup waits
   default to 120 seconds and are configurable with
-  `LL_TOOLS_LOCAL_START_TIMEOUT_SECONDS` (1–600). Discovery/help and
-  filesystem-only contracts skip startup; an explicit unrelated test target
+  `LL_TOOLS_LOCAL_START_TIMEOUT_SECONDS` (1–600). Playwright discovery, help, and
+  filesystem-only contracts skip startup; PHPUnit discovery still needs its
+  WordPress database bootstrap. An explicit unrelated test target
   does not authorize starting a local site. See `tests/README.md` for platform
   support, path overrides, and Local API compatibility.
 - Primary runtime values come from `tests/.env` (ignored by git).

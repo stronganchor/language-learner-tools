@@ -5,7 +5,12 @@ ll_tools_tests_need_local() {
     shift
     for arg in "$@"; do
         case "$arg" in
-            --list|--list-*|--help|-h|--version|-V) return 1 ;;
+            --help|-h|--version|-V) return 1 ;;
+            --list|--list-*)
+                # PHPUnit loads its WordPress/database bootstrap before listing
+                # suites or tests; only Playwright discovery is runtime-free.
+                [[ "$kind" != "http" ]] || return 1
+                ;;
         esac
         if [[ "$option_value" == "1" ]]; then
             option_value=0
