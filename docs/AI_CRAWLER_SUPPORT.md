@@ -108,7 +108,9 @@ candidate reads even when the requested letter is absent or appears late in a
 large dictionary. Existing installations queue a resumable ID-keyset backfill
 through the dictionary lookup worker. The logical browse version becomes usable
 only after a verified completion checkpoint; incomplete work is rescheduled.
-Until then, Unicode browse returns a retryable unavailable state. This adds no
+Until then, Unicode browse returns a retryable unavailable state. A previously
+completed search generation stays indexed during this additive backfill; an
+initial or full schema rebuild remains unavailable until complete. This adds no
 physical schema migration and no public-request title scan.
 
 Responses vary on `Accept-Language` and `Cookie`. The site-default locale uses

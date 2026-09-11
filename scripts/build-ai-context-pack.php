@@ -633,7 +633,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'invariants' => [
                 'Public dictionary search should avoid broad postmeta contains scans.',
-                'Unicode letter browse uses exact generic/Turkic initial projections in the lookup table; require the completed bounded backfill and never fall back to a foreground title scan.',
+                'Unicode letter browse uses exact generic/Turkic initial projections in the lookup table; require the completed bounded backfill and never fall back to a foreground title scan. Preserve a previously completed search generation during the additive browse-only backfill.',
                 'Cold crawler exports require atomic client admission and exact-key ownership; failed source or epoch reads return non-cacheable retryable errors, and only complete bodies publish under the captured key.',
                 'Anonymous live-search misses take the same-query build lock before atomic client admission and return retryable warming payloads while another builder owns the key.',
                 'Static cache keys must be deterministic and locale-safe.',

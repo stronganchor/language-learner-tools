@@ -143,6 +143,11 @@ Recommended `.env` keys to verify before debugging code:
      runs pending plugin-owned mutation shutdown finalizers before clearing
      their request-local state, matching production; do not replace it by
      unsetting pending invalidation globals.
+   - The same boundary resets the recording-type and term-taxonomy identity
+     memoizations. Database fixtures can reuse IDs while PHPUnit keeps one PHP
+     process alive; those identities must be read afresh for the next simulated
+     request. Keep persistent cache invalidation assertions intact rather than
+     substituting a global WordPress cache flush.
 5. Run targeted test first, then full suite.
 
 Pattern:
