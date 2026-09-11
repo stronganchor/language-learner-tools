@@ -5,6 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 E2E_DIR="$TESTS_DIR/e2e"
 BASH_RUNNER="${BASH:-bash}"
+# shellcheck source=tests/bin/local-test-runtime.sh
+source "$SCRIPT_DIR/local-test-runtime.sh"
+readiness_required=0
+if ll_tools_tests_need_local http "$@"; then
+    readiness_required=1
+fi
 caller_base_url_set=0
 caller_base_url=""
 if [[ -n "${LL_E2E_BASE_URL:-}" ]]; then
@@ -105,6 +111,11 @@ fi
 # A configured browser origin (including one loaded from tests/.env) is
 # authoritative. Local's internal HTTP listener is not interchangeable with a
 # canonical HTTPS origin because WordPress redirects can change scheme/port.
+if [[ "$readiness_required" == "1" && "${LL_TOOLS_E2E_SKIP_READINESS:-0}" != "1" ]]; then
+    ll_tools_ensure_local_site http "${LL_E2E_BASE_URL:-}"
+fi
+
+if [[ "$readiness_required" == "1" ]]; then
 if [[ -z "${LL_E2E_BASE_URL:-}" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != "1" ]]; then
     configured_learn_path="${LL_E2E_LEARN_PATH:-}"
     if detected_http_env="$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh" 2>&1)"; then
@@ -121,6 +132,7 @@ if [[ -z "${LL_E2E_BASE_URL:-}" && "${LL_TOOLS_SKIP_AUTO_LOCAL_HTTP_ENV:-0}" != 
 elif [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     echo "LL_E2E_BASE_URL is required when automatic Local HTTP detection is disabled." >&2
     exit 1
+fi
 fi
 
 for env_var in \
@@ -302,7 +314,7 @@ fi
 # Avoid invoking Playwright's installer (and its network/cache probes) when the
 # exact bundled Chromium executable is already present. This keeps focused and
 # full local gates deterministic in restricted/offline runners.
-if ! node -e "const fs=require('fs'); const {chromium}=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);"; then
+if [[ "$readiness_required" == "1" ]] && ! node -e "const fs=require('fs'); const {chromium}=require('@playwright/test'); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1);"; then
     if [[ "${LL_TOOLS_E2E_SKIP_BROWSER_INSTALL:-0}" == "1" || "${CODEX_SANDBOX_NETWORK_DISABLED:-0}" == "1" ]]; then
         echo "Chromium could not be inspected; skipping browser installation in the network-restricted runner." >&2
     else
@@ -332,14 +344,6 @@ for arg in "$@"; do
     normalized_args+=("$(normalize_playwright_arg "$arg")")
 done
 
-readiness_required=1
-for arg in "${normalized_args[@]}"; do
-    if [[ "$arg" == "--list" || "$arg" == "--help" || "$arg" == "-h" ]]; then
-        readiness_required=0
-        break
-    fi
-done
-
 # Prime WordPress' admin bootstrap before Playwright starts its per-navigation
 # clocks. A cold Local runtime can legitimately spend more than a minute in its
 # first admin request even though the warmed application is healthy.
@@ -363,6 +367,8 @@ if [[ "$readiness_required" == "1" && "${LL_TOOLS_E2E_SKIP_READINESS:-0}" != "1"
     fi
 fi
 
-echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
+if [[ "$readiness_required" == "1" ]]; then
+    echo "Running Playwright tests against ${LL_E2E_BASE_URL}${LL_E2E_LEARN_PATH:-/learn/}"
+fi
 
 exec node "$PLAYWRIGHT_CLI" test "${normalized_args[@]}"

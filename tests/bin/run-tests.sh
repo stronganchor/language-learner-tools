@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASH_RUNNER="${BASH:-bash}"
 PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")
+# shellcheck source=tests/bin/local-test-runtime.sh
+source "$SCRIPT_DIR/local-test-runtime.sh"
 
 preserve_env=(
     WP_TEST_DB_NAME
@@ -60,6 +62,14 @@ maybe_apply_auto_local_env() {
     # Keep the active Local runtime authoritative when .env ports drift.
     eval "$("$BASH_RUNNER" "$setup_script")"
 }
+
+if ll_tools_tests_need_local db "$@"; then
+    startup_db_target="${__LL_TOOLS_PRE_WP_TEST_DB_HOST:-}"
+    if [[ "${LL_TOOLS_SKIP_AUTO_LOCAL_ENV:-0}" == "1" ]]; then
+        startup_db_target="${startup_db_target:-${WP_TEST_DB_HOST:-}}"
+    fi
+    ll_tools_ensure_local_site db "$startup_db_target"
+fi
 
 maybe_apply_auto_local_env
 

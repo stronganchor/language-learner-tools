@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROOT_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 BASH_RUNNER="${BASH:-bash}"
+# shellcheck source=tests/bin/local-test-runtime.sh
+source "$SCRIPT_DIR/local-test-runtime.sh"
 PHP_LOCAL=("$BASH_RUNNER" "$SCRIPT_DIR/php-local.sh")
 WP_ROOT="$(cd "$ROOT_DIR/../../.." && pwd)"
 SEED_SCRIPT="$TESTS_DIR/performance/seed-performance-fixtures.php"
@@ -202,6 +204,10 @@ find_wp_cli() {
 
 load_env_file_literal "$TESTS_DIR/.env"
 load_env_file_literal "$TESTS_DIR/.env.local"
+
+if ll_tools_tests_need_local http "$@"; then
+    ll_tools_ensure_local_site http "${LL_E2E_BASE_URL:-}"
+fi
 
 if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-http-env.sh")"

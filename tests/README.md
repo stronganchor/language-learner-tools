@@ -22,6 +22,7 @@ This directory contains the plugin test framework:
   - It also runs PHPUnit with a temporary cache directory outside the repo and cleans stale `tests/.phpunit.cache` leftovers so test runs do not dirty the plugin worktree.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: matches the current Local HTTP runtime for this site path, reads its canonical domain from `local-site.json`, and exports Playwright URL vars through the same cross-platform PHP resolver.
+- `bin/ensure-local-site.cjs` and `bin/local-test-runtime.sh`: prepare the matching Local site before database/browser tests. On Windows they can open Local and start a stopped site through Local's authenticated loopback API, then wait for readiness. They never restart an already-running site or stop Local after testing.
 - `bin/run-e2e.sh`: preserves a configured canonical `LL_E2E_BASE_URL` from the caller or local env files, falls back to matching Local runtime detection only when no URL is configured, then installs Playwright deps/browsers only when the bundled Chromium executable is actually absent and runs browser E2E tests.
   - Before an executing run (but not `--list`/help), it performs one credential-free canonical `/wp-admin/` request with a bounded 180-second timeout so cold Local startup does not consume the first test's navigation budget. Set `LL_TOOLS_E2E_SKIP_READINESS=1` only for a runner that has an equivalent readiness gate; `LL_TOOLS_E2E_READINESS_TIMEOUT_SECONDS` may override the bound from 1 to 600 seconds.
   - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
@@ -97,8 +98,9 @@ node node_modules/@playwright/test/cli.js test specs/maintenance-doc-contracts.s
 
 The maintenance spec checks shortcode/bootstrap/REST documentation, context
 packs, source guards and local CLI fixtures without using a browser/page
-fixture. Use the direct installed CLI for this spec: `run-e2e.sh` otherwise
-makes its normal HTTP readiness request. These checks establish documentation
+fixture. The direct installed CLI works without Local; `run-e2e.sh` also skips
+startup and HTTP readiness when only this spec and/or `local-site-startup.spec.js`
+are selected. These checks establish documentation
 and source contracts, not end-to-end WordPress behavior. The source/POT guard
 also needs a locally available WP-CLI executable/PHAR; see the playbook for
 discovery and overrides.
@@ -145,7 +147,39 @@ Or run all steps together:
 tests/bin/bootstrap-and-test.sh
 ```
 
-If your shell cannot reach Local's database port, start the Local site first, then rerun the commands.
+The regression wrappers prepare a matching registered Local site automatically
+before a database, browser, or benchmark run. They verify the checkout's
+`app/public` path against Local's registration and runtime configuration before
+starting anything. Already-ready services take the fast no-op path; a site
+already starting is allowed to finish. Existing Local sessions and unrelated
+sites are left alone.
+
+Automatic application launch currently supports Windows Node, including Git
+Bash and WSL using `node.exe`. Other environments can use an already-open Local
+API or start Local manually. This uses Local 9's loopback API, so an incompatible
+future Local release may require updating the helper; authentication material
+is kept inside the helper process and is never included in test output.
+
+Configuration:
+
+- `LL_TOOLS_LOCAL_AUTOSTART=0` disables the startup preflight for manually managed runtimes.
+- `LL_TOOLS_LOCAL_START_TIMEOUT_SECONDS` sets the bounded startup wait (120 seconds by default; 1–600 accepted).
+- `LL_TOOLS_LOCAL_APP_PATH` overrides the Windows Local executable path.
+- `LL_TOOLS_LOCAL_USER_DATA` overrides Local's user-data directory.
+
+Discovery/help and the filesystem-only maintenance/startup contracts do not
+start Local. Explicit targets that do not match this registered site retain
+their existing runtime behavior. A startup failure stops the test command with
+guidance rather than resetting a database or restarting healthy services.
+
+The preflight checks the MySQL greeting, the site's configured internal
+listener, and its canonical loopback router using a small static WordPress
+asset. The browser wrapper then performs its existing single, longer
+`/wp-admin/` warmup before timing tests. This avoids repeatedly launching slow
+WordPress page requests while a site is cold. Concurrent helpers share one
+temporary startup lock. If a runner is forcibly killed, the error identifies
+the retained lock; remove it only after confirming that runner has ended.
+
 If the site is running but the detected DB port still refuses connections, compare:
 
 ```bash

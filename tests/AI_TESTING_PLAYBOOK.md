@@ -87,6 +87,16 @@ tests/bin/run-performance-benchmark.sh
 
 ## 3) Environment Rules
 
+- Local-backed regression wrappers use `tests/bin/ensure-local-site.cjs` to
+  open Local on Windows and start only the registered site matching this
+  checkout when it is stopped. The helper waits for readiness, preserves
+  already-running services, and leaves Local open after testing. Use
+  `LL_TOOLS_LOCAL_AUTOSTART=0` for a manually managed runtime; startup waits
+  default to 120 seconds and are configurable with
+  `LL_TOOLS_LOCAL_START_TIMEOUT_SECONDS` (1–600). Discovery/help and
+  filesystem-only contracts skip startup; an explicit unrelated test target
+  does not authorize starting a local site. See `tests/README.md` for platform
+  support, path overrides, and Local API compatibility.
 - Primary runtime values come from `tests/.env` (ignored by git).
 - `tests/bin/run-tests.sh` and `tests/bin/run-e2e.sh` load `.env` automatically.
   - `tests/bin/run-tests.sh` also auto-applies `tests/bin/setup-local-env.sh` when it can detect this Local site, so stale `.env` DB ports should not win by default.

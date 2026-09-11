@@ -4,6 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TESTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASH_RUNNER="${BASH:-bash}"
+# shellcheck source=tests/bin/local-test-runtime.sh
+source "$SCRIPT_DIR/local-test-runtime.sh"
+
+if ll_tools_tests_need_local db "$@"; then
+    ll_tools_ensure_local_site db "${WP_TEST_DB_HOST:-}"
+fi
 
 eval "$("$BASH_RUNNER" "$SCRIPT_DIR/setup-local-env.sh")"
 
