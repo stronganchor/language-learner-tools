@@ -212,6 +212,8 @@ test('profile runner locks one authoritative manifest history and report through
   const tempRunnerPath = path.join(tempBinDir, 'run-e2e.sh');
   fs.mkdirSync(tempBinDir, { recursive: true });
   fs.copyFileSync(e2eRunnerPath, tempRunnerPath);
+  // The runner sources its shared startup selector even in contract-only mode.
+  fs.copyFileSync(path.join(path.dirname(e2eRunnerPath), 'local-test-runtime.sh'), path.join(tempBinDir, 'local-test-runtime.sh'));
 
   const conflictingValues = {
     LL_E2E_PERF_FIXTURE_MANIFEST: 'env-file-manifest.json',
