@@ -43,7 +43,15 @@
         try {
             const response = await fetch(cfg.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin', signal: ownedController.signal });
             const payload = JSON.parse(await response.text());
-            if (!response.ok || !payload.success) throw new Error(payload.data?.message || cfg.failed);
+            if (!response.ok || payload?.success !== true || !payload.data) {
+                const error = new Error(cfg.failed);
+                // Only a structured server rejection owns user-facing copy.
+                // Browser/network/parser exceptions must use localized text.
+                if (payload?.success === false && typeof payload.data?.message === 'string' && payload.data.message.trim()) {
+                    error.displayMessage = payload.data.message;
+                }
+                throw error;
+            }
             return payload.data;
         } finally { window.clearTimeout(timeout); }
     }
@@ -104,7 +112,7 @@
             mode = 'preview'; submit.textContent = cfg.submit; showMessage(list.children.length ? '' : cfg.empty);
         } catch (error) {
             if (own !== generation) return;
-            showMessage(error.message || cfg.failed);
+            showMessage(error.displayMessage || cfg.failed);
             if (!append) { mode = 'load_failed'; submit.textContent = cfg.retry; }
         } finally { if (own === generation) { setBusy(false, false); if (!append && mode === 'preview') titleInput.focus(); } }
     }
@@ -169,7 +177,7 @@
             const data = await send('ll_tools_word_copy_apply', intent);
             if (own === generation) finished(data);
         } catch (error) {
-            if (own === generation) { showMessage((error.message || cfg.failed) + ' ' + cfg.uncertain); submit.textContent = cfg.check; }
+            if (own === generation) { showMessage((error.displayMessage || cfg.failed) + ' ' + cfg.uncertain); submit.textContent = cfg.check; }
         } finally { if (own === generation) setBusy(false, false); }
     }
     document.addEventListener('click', event => {

@@ -186,3 +186,70 @@ test('phone layout and symbol controls remain usable under conflicting theme sty
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await expect(page.locator('.ll-transcription-review__save-status')).toHaveText('Saved');
 });
+
+const turkishLoadError = 'Kayıtlar yüklenemedi. Lütfen yeniden deneyin.';
+const turkishSaveError = 'Düzenlemeye devam etmeden önce bu kaydı yeniden yükleyin.';
+const turkishServerError = 'Bu kayıt değişti. Düzenlemeden önce yeniden yükleyin.';
+
+async function failNextRequest(page, action, kind) {
+  await page.evaluate(({ action, kind, loadError, saveError, serverError }) => {
+    Object.assign(window.llWordsetTranscriptionReview.messages, { error: loadError, saveError });
+    window.llWordsetTranscriptionReview.requestTimeoutMs = 40;
+    const original = window.fetch;
+    window.fetch = async (url, options) => {
+      if (new URLSearchParams(options.body).get('action') !== action) return original(url, options);
+      window.fetch = original;
+      window.failedRequests = (window.failedRequests || 0) + 1;
+      if (kind === 'network') throw new TypeError('Failed to fetch');
+      if (kind === 'json') return new Response('Unexpected <html> gateway response', { status: 200 });
+      if (kind === 'abort') return new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new DOMException('signal is aborted without reason', 'AbortError')));
+      });
+      const message = kind === 'invalid_message' ? { debug: 'Native backend exception' } : serverError;
+      return new Response(JSON.stringify({ success: false, data: { message } }), { status: 409 });
+    };
+  }, { action, kind, loadError: turkishLoadError, saveError: turkishSaveError, serverError: turkishServerError });
+}
+
+for (const kind of ['network', 'json', 'abort', 'server', 'invalid_message']) {
+  test(`list ${kind} failure uses localized recovery and preserves structured server messages`, async ({ page }) => {
+    await setup(page, async () => pageData());
+    await failNextRequest(page, 'll_tools_get_wordset_transcription_review', kind);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('[data-review-status]')).toHaveText(kind === 'server' ? turkishServerError : turkishLoadError);
+    await expect(page.locator('[data-recording-id]')).toHaveCount(0);
+    await expect(page.locator('audio')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('[data-recording-id="11"]')).toBeVisible();
+  });
+}
+
+for (const kind of ['network', 'json', 'abort', 'server']) {
+  test(`save and reload ${kind} failures keep local drafts and use localized recovery`, async ({ page }) => {
+    let saves = 0;
+    await setup(page, async params => {
+      if (params.action === 'll_tools_save_wordset_transcription_review') { saves++; return { recording: row() }; }
+      return params.recording_id ? { recording: row() } : pageData();
+    });
+    await failNextRequest(page, 'll_tools_save_wordset_transcription_review', kind);
+    const input = page.getByLabel('Recording text', { exact: true });
+    await input.fill('Keep this local draft');
+    await expect(page.locator('.ll-transcription-review__save-status')).toHaveText(kind === 'server' ? turkishServerError : turkishSaveError);
+    await expect(input).toHaveValue('Keep this local draft');
+    await input.fill('Still keep this draft');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.locator('[data-review-status]')).toHaveText(messages.pending);
+    expect(saves).toBe(0);
+    expect(await page.evaluate(() => window.failedRequests)).toBe(1);
+
+    await failNextRequest(page, 'll_tools_get_wordset_transcription_review', kind);
+    await page.getByRole('button', { name: 'Reload', exact: true }).click();
+    await expect(page.locator('.ll-transcription-review__save-status')).toHaveText(kind === 'server' ? turkishServerError : turkishLoadError);
+    await expect(input).toHaveValue('Still keep this draft');
+    await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeEnabled();
+    expect(saves).toBe(0);
+    await page.getByRole('button', { name: 'Reload', exact: true }).click();
+    await expect(input).toHaveValue('Original text');
+    expect(saves).toBe(0);
+  });
+}

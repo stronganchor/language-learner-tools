@@ -40,11 +40,15 @@
             });
             const result = await response.json();
             if (!response.ok || !result || result.success !== true || !result.data) {
-                throw new Error(result && result.data && result.data.message || fallback);
+                const error = new Error(fallback);
+                // Keep validated server messages, but never display native
+                // fetch, JSON parser, or request-abort exception text.
+                if (result?.success === false && typeof result.data?.message === 'string' && result.data.message.trim()) {
+                    error.displayMessage = result.data.message;
+                }
+                throw error;
             }
             return result.data;
-        } catch (error) {
-            throw new Error(error.name === 'AbortError' ? fallback : (error.message || fallback));
         } finally { window.clearTimeout(timer); }
     }
     function dirty() {
@@ -86,7 +90,7 @@
             state.message.textContent = messages.saved;
         } catch (error) {
             state.failed = true;
-            state.message.textContent = error.message || messages.saveError;
+            state.message.textContent = error.displayMessage || messages.saveError;
             state.reload.hidden = false;
         } finally {
             state.running = false;
@@ -166,7 +170,7 @@
                 if (!data.recording || Number(data.recording.recording_id) !== Number(row.recording_id)) throw new Error(messages.error);
                 window.clearTimeout(state.timer);
                 card.replaceWith(renderRow(data.recording));
-            } catch (error) { state.message.textContent = error.message; }
+            } catch (error) { state.message.textContent = error.displayMessage || messages.error; }
             finally { state.reload.disabled = false; }
         });
         updateReview(state, row);
@@ -201,7 +205,7 @@
                 list.replaceChildren();
                 states.clear();
                 hasMore = false;
-                status.textContent = error.message || messages.error;
+                status.textContent = error.displayMessage || messages.error;
             }
         } finally {
             if (token === generation) {

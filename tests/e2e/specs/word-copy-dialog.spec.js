@@ -146,3 +146,59 @@ test('unreadable session recovery state blocks creation after reopening', async 
   await expect(page.getByRole('button', { name: 'Create copy', exact: true })).toBeDisabled();
   expect(await page.evaluate(() => window.calls.filter(call => call.action === 'll_tools_word_copy_apply'))).toEqual([]);
 });
+
+const turkishFailed = 'İstek tamamlanamadı. Lütfen yeniden deneyin.';
+const turkishUncertain = 'Başka bir kopya oluşturmadan önce sonucu kontrol edin.';
+const turkishServer = 'Bu sözcüğü kopyalama izniniz yok.';
+
+async function failNextRequest(page, action, kind) {
+  await page.evaluate(({ action, kind, failed, uncertain, serverMessage }) => {
+    Object.assign(window.llWordCopy, { failed, uncertain, timeoutMs: 40 });
+    const original = window.fetch;
+    window.fetch = async (url, options) => {
+      if (options.body.get('action') !== action) return original(url, options);
+      window.fetch = original;
+      const params = Object.fromEntries(options.body.entries());
+      params.moveIds = options.body.getAll('move_ids[]');
+      window.calls.push(params);
+      if (kind === 'network') throw new TypeError('Failed to fetch');
+      if (kind === 'json') return new Response('Unexpected <html> gateway response', { status: 200 });
+      if (kind === 'abort') return new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new DOMException('signal is aborted without reason', 'AbortError')));
+      });
+      const message = kind === 'invalid_message' ? { debug: 'Native backend exception' } : serverMessage;
+      return new Response(JSON.stringify({ success: false, data: { message } }), { status: 403 });
+    };
+  }, { action, kind, failed: turkishFailed, uncertain: turkishUncertain, serverMessage: turkishServer });
+}
+
+for (const kind of ['network', 'json', 'abort', 'server', 'invalid_message']) {
+  test(`preview ${kind} failure uses localized recovery and retains structured server messages`, async ({ page }) => {
+    await mount(page);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await failNextRequest(page, 'll_tools_word_copy_preview', kind);
+    await page.getByRole('button', { name: 'Copy / Split', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText(kind === 'server' ? turkishServer : turkishFailed);
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'New word title' })).toHaveValue('Same title');
+    expect(await page.evaluate(() => window.calls.filter(call => call.action === 'll_tools_word_copy_apply'))).toEqual([]);
+  });
+}
+
+for (const kind of ['network', 'json', 'abort', 'server']) {
+  test(`copy ${kind} failure stays localized and checks the same request before any new mutation`, async ({ page }) => {
+    await mount(page);
+    await failNextRequest(page, 'll_tools_word_copy_apply', kind);
+    await page.getByRole('button', { name: 'Create copy', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText(`${kind === 'server' ? turkishServer : turkishFailed} ${turkishUncertain}`);
+    await expect(page.getByRole('textbox')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Check result', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Copy / Split', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Word copied.');
+    const calls = await page.evaluate(() => window.calls.filter(call => ['ll_tools_word_copy_apply', 'll_tools_word_copy_status'].includes(call.action)));
+    expect(calls.map(call => call.action)).toEqual(['ll_tools_word_copy_apply', 'll_tools_word_copy_status']);
+    expect(calls[1].request_id).toBe(calls[0].request_id);
+  });
+}
