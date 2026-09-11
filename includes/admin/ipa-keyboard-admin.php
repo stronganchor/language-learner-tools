@@ -447,6 +447,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'tabSearch' => __('Search', 'll-tools-text-domain'),
             'tabOrthography' => __('IPA to Orthography', 'll-tools-text-domain'),
             'searchLoading' => __('Searching recordings...', 'll-tools-text-domain'),
+            'searchRetry' => __('Retry', 'll-tools-text-domain'),
             'searchLoadingHint' => __('This can take a moment for larger word sets.', 'll-tools-text-domain'),
             'searchResultsEmpty' => __('No recordings matched this search.', 'll-tools-text-domain'),
             'searchResultsWindowEmpty' => __('No matches in this batch. Continue searching to check the remaining recordings.', 'll-tools-text-domain'),

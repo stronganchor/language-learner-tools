@@ -17,6 +17,7 @@
     const wordsetStorageKey = 'llTranscriptionManagerLastWordsetId';
     const tabStorageKey = 'llTranscriptionManagerLastTab';
     const searchPageSize = Math.max(1, Math.min(500, parseInt(cfg.searchInitialPerPage, 10) || 20));
+    const searchReadTimeoutMs = Math.max(50, Math.min(120000, parseInt(cfg.searchReadTimeoutMs, 10) || 60000));
 
     const $admin = $('.ll-ipa-admin').first();
     if (!$admin.length) {
@@ -90,6 +91,95 @@
     let suppressSearchWordReviewNoteBlurSave = false;
     const searchWordReviewNoteSaves = {};
     let searchWordEditorRefreshTimer = null;
+    let pendingSearchTransition = null;
+    let searchTransitionTimer = null;
+    let activeSearchRead = null;
+    let searchReadGeneration = 0;
+    let viewGeneration = 0;
+
+    function searchHasPendingDrafts() {
+        let pending = false;
+        // Search may be hidden behind another tab. Its drafts still own their
+        // rows and must settle before any view or wordset replaces them.
+        $searchResults.find('tr[data-recording-id]').each(function () {
+            const $row = $(this);
+            const id = parseInt($row.attr('data-recording-id'), 10) || 0;
+            pending = pending || !!$row.data('llSearchRowSaving') || searchReviewStateIsSaving($row)
+                || hasPendingSearchReviewState(id) || searchRowHasUnsavedChanges($row);
+        });
+        $searchResults.find('[data-ll-search-word-review-note]').each(function () {
+            const $input = $(this).find('[data-ll-internal-review-note-input]').first();
+            pending = pending || ($input.val() || '').toString() !== getSearchWordReviewNoteOriginalValue($input);
+        });
+        return pending || Object.keys(searchWordReviewNoteSaves).some(function (key) {
+            const state = searchWordReviewNoteSaves[key];
+            return state.wordsetId === currentWordsetId && (state.inFlight || state.desiredNote !== state.savedNote);
+        });
+    }
+
+    function cancelPendingSearchTransition() {
+        pendingSearchTransition = null;
+        window.clearTimeout(searchTransitionTimer);
+        searchTransitionTimer = null;
+    }
+
+    function resumePendingSearchTransition() {
+        window.clearTimeout(searchTransitionTimer);
+        searchTransitionTimer = window.setTimeout(function () {
+            searchTransitionTimer = null;
+            const pending = pendingSearchTransition;
+            if (!pending || pending.wordsetId !== currentWordsetId || searchHasPendingDrafts()) {
+                return;
+            }
+            pendingSearchTransition = null;
+            pending.run();
+        }, 0);
+    }
+
+    function deferSearchTransition(run) {
+        if (!searchHasPendingDrafts()) {
+            cancelPendingSearchTransition();
+            return false;
+        }
+        // Keep only the latest destination; closures capture immutable search,
+        // page, tab and wordset values before the user can change the controls.
+        pendingSearchTransition = { wordsetId: currentWordsetId, run: run };
+        cancelSearchRead();
+        setStatus(t('saving', 'Saving...'), false);
+        $searchResults.find('tr[data-recording-id]').each(function () {
+            const $row = $(this);
+            if (searchRowHasUnsavedChanges($row) && !$row.data('llSearchRowSaving') && !searchReviewStateIsSaving($row)) {
+                autosaveSearchRow($row);
+            }
+        });
+        $searchResults.find('[data-ll-search-word-review-note]').each(function () {
+            saveSearchWordReviewNote($(this));
+        });
+        resumePendingSearchTransition();
+        return true;
+    }
+
+    function cancelSearchRead() {
+        searchReadGeneration += 1;
+        const active = activeSearchRead;
+        activeSearchRead = null;
+        if (active) {
+            window.clearTimeout(active.timer);
+            if (active.request && typeof active.request.abort === 'function') {
+                active.request.abort();
+            }
+        }
+        setSearchLoadMoreState(false);
+    }
+
+    function changeReadView() {
+        viewGeneration += 1;
+        cancelSearchRead();
+        if (searchWordEditorRefreshTimer) {
+            window.clearTimeout(searchWordEditorRefreshTimer);
+            searchWordEditorRefreshTimer = null;
+        }
+    }
 
     function t(key, fallback) {
         if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
@@ -1066,8 +1156,12 @@
     }
 
     function setTab(tabName) {
-        hideIpaKeyboard();
         const nextTab = normalizeTabName(tabName);
+        if (deferSearchTransition(function () { setTab(nextTab); })) {
+            return;
+        }
+        changeReadView();
+        hideIpaKeyboard();
         currentTab = nextTab;
         rememberTab(nextTab);
 
@@ -1232,6 +1326,12 @@
 
     function loadActiveTab(force) {
         const wordsetId = currentWordsetId;
+        if (wordsetId && !force && !tabDirty[currentTab]) {
+            return;
+        }
+        if (deferSearchTransition(function () {
+            if (wordsetId === currentWordsetId) { loadActiveTab(force); }
+        })) { return; }
         clearCurrentTab();
 
         if (!wordsetId) {
@@ -1260,6 +1360,11 @@
     function selectWordset(wordsetId, options) {
         const settings = $.extend({ forceLoad: false }, options || {});
         const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        if (deferSearchTransition(function () { selectWordset(safeWordsetId, settings); })) {
+            $wordset.val(String(currentWordsetId));
+            return;
+        }
+        changeReadView();
         aggregateRebuildRequestId += 1;
         if (aggregateRebuildTimer) {
             window.clearTimeout(aggregateRebuildTimer);
@@ -1283,12 +1388,14 @@
             return;
         }
 
+        const token = viewGeneration;
         setStatus(t('loading', 'Loading transcription data...'), false);
         $.post(ajaxUrl, {
             action: 'll_tools_get_ipa_keyboard_letter_map',
             nonce: nonce,
             wordset_id: wordsetId
         }).done(function (response) {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -1298,6 +1405,7 @@
             tabDirty.map = false;
             setStatus('');
         }).fail(function () {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
     }
@@ -1307,12 +1415,14 @@
             return;
         }
 
+        const token = viewGeneration;
         setStatus(t('loading', 'Loading transcription data...'), false);
         $.post(ajaxUrl, {
             action: 'll_tools_get_ipa_keyboard_symbols',
             nonce: nonce,
             wordset_id: wordsetId
         }).done(function (response) {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -1322,6 +1432,7 @@
             tabDirty.symbols = false;
             setStatus('');
         }).fail(function () {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
     }
@@ -1338,13 +1449,45 @@
 
     function loadSearch(wordsetId, shouldLoad, options) {
         const settings = $.extend({ quietStatus: false, showLoading: null, successStatus: null, append: false }, options || {});
-        if (!shouldLoad) {
+        if (!shouldLoad || wordsetId !== currentWordsetId) {
+            return;
+        }
+        const searchState = $.extend({}, settings.searchState || getSearchState());
+        const requestedPage = normalizeSearchPage(settings.page || currentSearchPage);
+        settings.searchState = searchState;
+        settings.page = requestedPage;
+        if (!settings.append && deferSearchTransition(function () { loadSearch(wordsetId, true, settings); })) {
             return;
         }
 
+        cancelSearchRead();
+        const token = searchReadGeneration;
+        const readView = viewGeneration;
+        const active = { request: null, timer: null };
+        activeSearchRead = active;
+        const isCurrent = function () {
+            return activeSearchRead === active && token === searchReadGeneration
+                && readView === viewGeneration && wordsetId === currentWordsetId;
+        };
+        const failRead = function () {
+            if (!isCurrent()) { return; }
+            if (settings.showLoading) {
+                $searchResults.empty();
+                setSearchSummary('');
+                currentSearchPayload = null;
+            }
+            setSearchLoadMoreState(false);
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+            $('<button>', {
+                type: 'button', class: 'button button-secondary ll-ipa-search-retry',
+                text: t('searchRetry', 'Retry')
+            }).on('click', function () {
+                if (token === searchReadGeneration && readView === viewGeneration && wordsetId === currentWordsetId) {
+                    loadSearch(wordsetId, true, settings);
+                }
+            }).appendTo($status);
+        };
         hideIpaKeyboard();
-        const searchState = getSearchState();
-        const requestedPage = normalizeSearchPage(settings.page || currentSearchPage);
         currentSearchPage = requestedPage;
         if (settings.showLoading === null) {
             settings.showLoading = !settings.quietStatus && !settings.append;
@@ -1357,7 +1500,7 @@
         if (!settings.quietStatus) {
             setStatus(settings.append ? t('searchLoadingMore', 'Loading more...') : t('searchLoading', 'Searching recordings...'), false);
         }
-        return $.post(ajaxUrl, {
+        const request = $.post(ajaxUrl, {
             action: 'll_tools_search_ipa_keyboard_recordings',
             nonce: nonce,
             wordset_id: wordsetId,
@@ -1368,12 +1511,23 @@
             exact_transcription: searchState.exactTranscription ? 1 : 0,
             search_page: requestedPage,
             per_page: searchPageSize
-        }).done(function (response) {
+        });
+        active.request = request;
+        active.timer = window.setTimeout(function () {
+            if (!isCurrent()) { return; }
+            failRead();
+            activeSearchRead = null;
+            if (typeof request.abort === 'function') { request.abort('timeout'); }
+        }, searchReadTimeoutMs);
+        return request.done(function (response) {
+            if (!isCurrent()) { return; }
             if (!response || response.success !== true) {
-                if (settings.append) {
-                    setSearchLoadMoreState(false);
-                }
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                failRead();
+                return;
+            }
+            // Quiet refreshes keep rows editable. A draft created during the
+            // read must finish before a fresh replacement can be requested.
+            if (!settings.append && deferSearchTransition(function () { loadSearch(wordsetId, true, settings); })) {
                 return;
             }
             handleWordsetResponse(response);
@@ -1389,18 +1543,14 @@
             } else if (!settings.quietStatus) {
                 setStatus('');
             }
-        }).fail(function (xhr) {
-            if (settings.showLoading) {
-                $searchResults.empty();
-                setSearchSummary('');
-                currentSearchPayload = null;
-            } else if (settings.append) {
+        }).fail(function () {
+            failRead();
+        }).always(function () {
+            window.clearTimeout(active.timer);
+            if (isCurrent()) {
+                activeSearchRead = null;
                 setSearchLoadMoreState(false);
             }
-            const responseMessage = xhr && xhr.responseJSON && typeof xhr.responseJSON.data === 'string'
-                ? xhr.responseJSON.data
-                : '';
-            setStatus(responseMessage || t('error', 'Something went wrong. Please try again.'), true);
         });
     }
 
@@ -2977,7 +3127,8 @@
         }).always(function () {
             state.inFlight = false;
             getSearchWordReviewNoteWrapsForWord(state.objectId).removeClass('is-saving');
-            if (shouldContinue && state.desiredNote !== state.savedNote) {
+            if (!requestSucceeded) { cancelPendingSearchTransition(); }
+            if (requestSucceeded && shouldContinue && state.desiredNote !== state.savedNote) {
                 dispatchSearchWordReviewNoteSave(state);
                 return;
             }
@@ -2986,6 +3137,7 @@
                     $(this).data('llSearchWordReviewNoteDirty', true);
                 });
             }
+            resumePendingSearchTransition();
         });
     }
 
@@ -3814,12 +3966,14 @@
             return;
         }
 
+        const token = viewGeneration;
         setStatus(t('orthographyLoading', 'Loading orthography conversion data...'), false);
         $.post(ajaxUrl, {
             action: 'll_tools_get_ipa_keyboard_orthography',
             nonce: nonce,
             wordset_id: wordsetId
         }).done(function (response) {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -3829,6 +3983,7 @@
             tabDirty.orthography = false;
             setStatus('');
         }).fail(function () {
+            if (token !== viewGeneration || wordsetId !== currentWordsetId) { return; }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
     }
@@ -5021,12 +5176,20 @@
         }
 
         const scrollState = getWindowScrollState();
+        const requestWordsetId = currentWordsetId;
+        const requestView = viewGeneration;
+        const readGeneration = searchReadGeneration;
+        const isCurrent = function () {
+            return requestWordsetId === currentWordsetId && requestView === viewGeneration
+                && readGeneration === searchReadGeneration;
+        };
         $.post(ajaxUrl, {
             action: 'll_tools_get_ipa_keyboard_recordings',
             nonce: nonce,
-            wordset_id: currentWordsetId,
+            wordset_id: requestWordsetId,
             recording_ids: ids
         }).done(function (response) {
+            if (!isCurrent()) { return; }
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -5069,9 +5232,10 @@
             markTabsDirty(['map', 'symbols', 'orthography']);
             setStatus(t('searchRowsSynced', 'Transcription rows updated.'), false);
         }).fail(function () {
+            if (!isCurrent()) { return; }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
-            restoreWindowScrollState(scrollState);
+            if (isCurrent()) { restoreWindowScrollState(scrollState); }
         });
     }
 
@@ -5403,6 +5567,7 @@
             return $.Deferred().reject().promise();
         }
         const field = normalizeSearchReviewField(reviewField);
+        const requestWordsetId = currentWordsetId;
         let requestSucceeded = false;
 
         lockSearchRowLayout(getSearchRowByRecordingId(recordingId));
@@ -5411,11 +5576,12 @@
         return $.post(ajaxUrl, {
             action: 'll_tools_set_ipa_keyboard_transcription_review_state',
             nonce: nonce,
-            wordset_id: currentWordsetId,
+            wordset_id: requestWordsetId,
             recording_id: recordingId,
             review_field: field,
             needs_review: needsReview ? 1 : 0
         }).done(function (response) {
+            if (requestWordsetId !== currentWordsetId) { return; }
             if (!response || response.success !== true) {
                 clearPendingSearchReviewState(recordingId);
                 clearPendingSearchEditorOpen(recordingId);
@@ -5439,10 +5605,13 @@
                 false
             );
         }).fail(function () {
+            if (requestWordsetId !== currentWordsetId) { return; }
             clearPendingSearchReviewState(recordingId);
             clearPendingSearchEditorOpen(recordingId);
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
+            if (!requestSucceeded) { cancelPendingSearchTransition(); }
+            if (requestWordsetId !== currentWordsetId) { return; }
             setSearchReviewSavingStateByRecordingId(recordingId, field, false);
             const $currentRow = getSearchRowByRecordingId(recordingId);
             if ($currentRow.length && searchRowHasUnsavedChanges($currentRow)) {
@@ -5459,6 +5628,7 @@
                     flushPendingSearchEditorOpen(recordingId);
                 }
             }
+            resumePendingSearchTransition();
         });
     }
 
@@ -5489,7 +5659,10 @@
         }
 
         const preserveScroll = !!(options && options.preserveScroll);
+        const requestWordsetId = currentWordsetId;
+        let requestSucceeded = false;
         const focusState = captureSearchRowFocusState($row, options && options.restoreFocusField);
+        $row.data('llSearchRowSaveGeneration', (parseInt($row.data('llSearchRowSaveGeneration'), 10) || 0) + 1);
         $row.data('llSearchRowSaving', true);
         $row.data('llSearchRowPending', false);
         setSearchRowSaveState($row, 'saving', t('saving', 'Saving...'));
@@ -5497,11 +5670,12 @@
         $.post(ajaxUrl, {
             action: 'll_tools_update_ipa_keyboard_recording',
             nonce: nonce,
-            wordset_id: currentWordsetId,
+            wordset_id: requestWordsetId,
             recording_id: values.recordingId,
             recording_text: values.recordingText,
             recording_ipa: values.recordingIpa
         }).done(function (response) {
+            if (requestWordsetId !== currentWordsetId) { return; }
             if (!response || response.success !== true) {
                 clearPendingSearchReviewState(values.recordingId);
                 clearPendingSearchEditorOpen(values.recordingId);
@@ -5511,6 +5685,7 @@
                 return;
             }
 
+            requestSucceeded = true;
             const data = response.data || {};
             const latestValues = getSearchRowValues($row);
             const rowChangedAfterSubmit = latestValues.recordingText !== values.recordingText
@@ -5559,17 +5734,21 @@
 
             setStatus(t('saved', 'Saved.'), false);
         }).fail(function (jqXHR) {
+            if (requestWordsetId !== currentWordsetId) { return; }
             clearPendingSearchReviewState(values.recordingId);
             clearPendingSearchEditorOpen(values.recordingId);
             const message = readSaveAjaxMessage(jqXHR, t('searchSaveFailed', 'Save failed'));
             setSearchRowSaveState($row, 'error', message);
             setStatus(message, true);
         }).always(function () {
+            if (!requestSucceeded) { cancelPendingSearchTransition(); }
+            $row.data('llSearchRowSaveGeneration', (parseInt($row.data('llSearchRowSaveGeneration'), 10) || 0) + 1);
             $row.data('llSearchRowSaving', false);
-            if ($row.closest('html').length && $row.data('llSearchRowPending')) {
+            if (requestSucceeded && requestWordsetId === currentWordsetId && $row.closest('html').length && $row.data('llSearchRowPending')) {
                 $row.data('llSearchRowPending', false);
                 autosaveSearchRow($row);
             }
+            resumePendingSearchTransition();
         });
     }
 
@@ -6158,7 +6337,11 @@
             return;
         }
 
+        const saveGeneration = parseInt($row.data('llSearchRowSaveGeneration'), 10) || 0;
         window.setTimeout(function () {
+            // A navigation barrier may already have dispatched or settled this
+            // blur's save. Do not replay it after an uncertain failure.
+            if (saveGeneration !== (parseInt($row.data('llSearchRowSaveGeneration'), 10) || 0)) { return; }
             const activeElement = document.activeElement;
             const activeIsSearchInput = activeElement
                 && $row.has(activeElement).length
@@ -6440,6 +6623,13 @@
     }
 
     $(window).on('resize.llIpaKeyboardAdmin', handleIpaViewportChange);
+
+    window.addEventListener('beforeunload', function (event) {
+        if (searchHasPendingDrafts()) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
 
     if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
         window.visualViewport.addEventListener('resize', handleIpaViewportChange);

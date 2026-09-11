@@ -88,6 +88,214 @@ function buildSummaryMarkup() {
   `;
 }
 
+async function mountSearchTransitionFixture(page, options = {}) {
+  await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<html><body></body></html>' }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.unroute('**/*');
+  await page.setContent(buildMarkup()
+    .replace('</select>', '<option value="8">Other wordset</option></select>')
+    .replace('<section data-ll-tab-panel="search">', '<button data-ll-tab-trigger="symbols">Symbols</button><section data-ll-tab-panel="symbols" hidden><div id="ll-ipa-symbols"></div></section><section data-ll-tab-panel="search">'));
+  await page.addStyleTag({ content: ipaKeyboardAdminCss });
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(options => {
+    localStorage.clear();
+    window.llIpaKeyboardAdmin = {
+      ajaxUrl: '/fake-admin-ajax.php', nonce: 'nonce', selectedWordsetId: 7, initialTab: 'search',
+      searchReadTimeoutMs: options.timeoutMs || 60000,
+      internalNotes: { enabled: true, action: 'll_tools_save_internal_review_note', nonce: 'note-nonce', saveDelayMs: 3000, i18n: {} },
+      i18n: { searchRetry: 'Retry' }
+    };
+    const mock = window.__llSearchTransitions = { calls: [], reads: [], writes: [], holdReads: false,
+      text: 'Original', ipa: 'original ipa', note: '', reviewed: false };
+    const recording = (wordsetId = 7) => ({
+      recording_id: wordsetId === 7 ? 101 : 201, word_id: wordsetId === 7 ? 55 : 65,
+      word_text: 'Word ' + wordsetId, recording_text: mock.text, recording_ipa: mock.ipa,
+      categories: [], issues: [], ignored_issues: [], image: {},
+      review_fields: { recording_text: !mock.reviewed, recording_ipa: false }, needs_review: !mock.reviewed,
+      internal_review_note: mock.note, can_manage_internal_review_note: true
+    });
+    window.jQuery.post = (_url, data) => {
+      const deferred = window.jQuery.Deferred();
+      const request = { data: { ...data }, aborted: false, fail: () => { deferred.reject({}, 'error'); } };
+      mock.calls.push(request);
+      const promise = deferred.promise();
+      // Deliberately let a cancelled transport deliver a late response so the
+      // regression verifies ownership fencing as well as abort initiation.
+      promise.abort = () => { request.aborted = true; };
+      const base = () => ({ can_edit: true, wordset: { id: Number(data.wordset_id) }, transcription: { mode: 'ipa' } });
+      if (data.action === 'll_tools_search_ipa_keyboard_recordings') {
+        request.finish = label => deferred.resolve({ success: true, data: {
+          ...base(), results: [{ ...recording(Number(data.wordset_id)), ...(label ? { recording_text: label } : {}) }],
+          total_matches: 2, shown_count: 1, current_page: Number(data.search_page), total_pages: 2,
+          has_more: Number(data.search_page) === 1, next_page: 2, per_page: 1, page_start: 1, page_end: 1,
+          validation_config: { supports_rules: true, builtin_rules: [], custom_rules: [] }
+        } });
+        mock.reads.push(request);
+        if (!mock.holdReads) window.setTimeout(() => request.finish(), 0);
+      } else if (data.action === 'll_tools_get_ipa_keyboard_symbols') {
+        window.setTimeout(() => deferred.resolve({ success: true, data: { ...base(), symbols: [] } }), 0);
+      } else {
+        request.finish = () => {
+          if (data.action === 'll_tools_update_ipa_keyboard_recording') { mock.text = data.recording_text; mock.ipa = data.recording_ipa; }
+          if (data.action === 'll_tools_set_ipa_keyboard_transcription_review_state') mock.reviewed = !Number(data.needs_review);
+          if (data.action === 'll_tools_save_internal_review_note') mock.note = data.note;
+          deferred.resolve({ success: true, data: { ...base(), recording: recording(), note: mock.note, keyboard_symbols: [] } });
+        };
+        mock.writes.push(request);
+      }
+      return promise;
+    };
+  }, options);
+  await page.addScriptTag({ content: ipaKeyboardAdminSource });
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Original');
+}
+
+test('search navigation preserves the newest queued transcription and captures its destination', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  const input = page.locator('.ll-ipa-search-text-input');
+  await input.fill('First edit');
+  await page.locator('#ll-ipa-search-btn').focus();
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(1);
+  await input.fill('Newest edit');
+  await page.locator('#ll-ipa-search-query').fill('first destination');
+  await page.locator('#ll-ipa-search-btn').click();
+  await page.locator('#ll-ipa-search-query').fill('latest destination');
+  await page.locator('#ll-ipa-search-btn').click();
+  await page.locator('#ll-ipa-search-query').fill('unsubmitted text');
+  await expect(input).toHaveValue('Newest edit');
+  expect(await page.evaluate(() => window.__llSearchTransitions.reads.length)).toBe(1);
+  await page.evaluate(() => window.__llSearchTransitions.writes[0].finish());
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(2);
+  expect(await page.evaluate(() => window.__llSearchTransitions.reads.length)).toBe(1);
+  await page.evaluate(() => window.__llSearchTransitions.writes[1].finish());
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.reads.length)).toBe(2);
+  await expect(input).toHaveValue('Newest edit');
+  expect(await page.evaluate(() => ({ text: window.__llSearchTransitions.text,
+    query: window.__llSearchTransitions.reads[1].data.query,
+    scopes: window.__llSearchTransitions.writes.map(request => request.data.wordset_id) })))
+    .toEqual({ text: 'Newest edit', query: 'latest destination', scopes: [7, 7] });
+});
+
+test('failed autosave retains drafts and cancels queued search instead of retrying a mutation', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  await page.locator('.ll-ipa-search-text-input').fill('Earlier submitted value');
+  await page.locator('#ll-ipa-search-btn').focus();
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(1);
+  await page.locator('.ll-ipa-search-text-input').fill('Keep this draft');
+  await page.locator('#ll-ipa-search-btn').click();
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(1);
+  await page.evaluate(() => window.__llSearchTransitions.writes[0].fail());
+  await expect(page.locator('#ll-ipa-admin-status')).toHaveText('Save failed');
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Keep this draft');
+  expect(await page.evaluate(() => ({ reads: window.__llSearchTransitions.reads.length, writes: window.__llSearchTransitions.writes.length })))
+    .toEqual({ reads: 1, writes: 1 });
+});
+
+test('wordset and tab changes wait for drafts with the latest transition winning', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  await page.locator('.ll-ipa-search-text-input').fill('Saved in the original wordset');
+  await page.locator('#ll-ipa-wordset').selectOption('8');
+  await expect(page.locator('#ll-ipa-wordset')).toHaveValue('7');
+  await page.locator('[data-ll-tab-trigger="symbols"]').click();
+  await expect(page.locator('[data-ll-tab-panel="search"]')).toBeVisible();
+  await page.evaluate(() => window.__llSearchTransitions.writes[0].finish());
+  await expect(page.locator('[data-ll-tab-panel="symbols"]')).toBeVisible();
+  await expect(page.locator('#ll-ipa-wordset')).toHaveValue('7');
+  expect(await page.evaluate(() => window.__llSearchTransitions.writes[0].data.wordset_id)).toBe(7);
+  await page.locator('[data-ll-tab-trigger="search"]').click();
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Saved in the original wordset');
+  await page.locator('[data-ll-tab-trigger="symbols"]').click();
+  // Hidden search rows remain part of the barrier (for example after a plugin
+  // switches visibility while an editor still owns its draft).
+  await page.evaluate(() => window.jQuery('.ll-ipa-search-text-input').val('Hidden draft').trigger('input'));
+  await page.locator('#ll-ipa-wordset').selectOption('8');
+  await expect(page.locator('#ll-ipa-wordset')).toHaveValue('7');
+  await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(2);
+  await page.evaluate(() => window.__llSearchTransitions.writes[1].finish());
+  await expect(page.locator('#ll-ipa-wordset')).toHaveValue('8');
+  expect(await page.evaluate(() => window.__llSearchTransitions.writes.map(request => request.data.wordset_id))).toEqual([7, 7]);
+});
+
+for (const kind of ['review flag', 'internal note']) {
+  test(`search waits for a pending ${kind} before replacing recording rows`, async ({ page }) => {
+    await mountSearchTransitionFixture(page);
+    if (kind === 'review flag') {
+      await page.locator('.ll-ipa-review-toggle[data-review-field="recording_text"]').click();
+    } else {
+      await page.locator('[data-ll-search-word-review-note] summary').click();
+      await page.locator('[data-ll-internal-review-note-input]').fill('Keep this note');
+    }
+    await page.locator('#ll-ipa-search-btn').click();
+    await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(1);
+    expect(await page.evaluate(() => window.__llSearchTransitions.reads.length)).toBe(1);
+    await page.evaluate(() => window.__llSearchTransitions.writes[0].finish());
+    await expect.poll(() => page.evaluate(() => window.__llSearchTransitions.reads.length)).toBe(2);
+    if (kind === 'internal note') expect(await page.evaluate(() => window.__llSearchTransitions.note)).toBe('Keep this note');
+  });
+}
+
+test('superseded search success and failure cannot replace current rows or status', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  await page.evaluate(() => { window.__llSearchTransitions.holdReads = true; });
+  for (const query of ['old success', 'old failure', 'current']) {
+    await page.locator('#ll-ipa-search-query').fill(query);
+    await page.locator('#ll-ipa-search-btn').click();
+  }
+  expect(await page.evaluate(() => window.__llSearchTransitions.reads.slice(1).map(request => request.aborted))).toEqual([true, true, false]);
+  await page.evaluate(() => window.__llSearchTransitions.reads[3].finish('Current result'));
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Current result');
+  await page.evaluate(() => { window.__llSearchTransitions.reads[1].finish('Stale result'); window.__llSearchTransitions.reads[2].fail(); });
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Current result');
+  await expect(page.locator('#ll-ipa-admin-status')).toBeEmpty();
+});
+
+test('wordset changes fence old search and append responses', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  await page.evaluate(() => { window.__llSearchTransitions.holdReads = true; });
+  await page.locator('.ll-ipa-search-load-more').click();
+  await page.locator('#ll-ipa-search-btn').click();
+  await page.locator('#ll-ipa-wordset').selectOption('8');
+  await page.evaluate(() => window.__llSearchTransitions.reads[3].finish('Other wordset'));
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Other wordset');
+  await page.evaluate(() => { window.__llSearchTransitions.reads[1].finish('Stale append'); window.__llSearchTransitions.reads[2].finish('Stale search'); });
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Other wordset');
+  await expect(page.locator('tr[data-recording-id="101"]')).toHaveCount(0);
+  await expect(page.locator('#ll-ipa-wordset')).toHaveValue('8');
+});
+
+test('search read deadline exposes explicit retry for the same query and fences late data', async ({ page }) => {
+  await mountSearchTransitionFixture(page, { timeoutMs: 100 });
+  await page.evaluate(() => { window.__llSearchTransitions.holdReads = true; });
+  await page.locator('#ll-ipa-search-query').fill('Captured query');
+  await page.locator('#ll-ipa-search-btn').click();
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+  await expect(page.locator('.ll-ipa-search-loading')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__llSearchTransitions.reads[1].aborted)).toBe(true);
+  await page.locator('#ll-ipa-search-query').fill('Unsubmitted query');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  expect(await page.evaluate(() => window.__llSearchTransitions.reads[2].data.query)).toBe('Captured query');
+  await page.evaluate(() => window.__llSearchTransitions.reads[2].finish('Retried result'));
+  await page.evaluate(() => window.__llSearchTransitions.reads[1].finish('Late timed-out result'));
+  await expect(page.locator('.ll-ipa-search-text-input')).toHaveValue('Retried result');
+  expect(await page.evaluate(() => window.__llSearchTransitions.writes.length)).toBe(0);
+});
+
+test('beforeunload protects dirty and pending transcription work only', async ({ page }) => {
+  await mountSearchTransitionFixture(page);
+  const prevented = () => page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event); return event.defaultPrevented;
+  });
+  expect(await prevented()).toBe(false);
+  await page.locator('.ll-ipa-search-text-input').fill('Draft');
+  expect(await prevented()).toBe(true);
+  await page.locator('#ll-ipa-search-btn').focus();
+  expect(await prevented()).toBe(true);
+  await page.evaluate(() => window.__llSearchTransitions.writes[0].finish());
+  await expect(page.locator('.ll-ipa-search-save-state')).toHaveText('Saved.');
+  expect(await prevented()).toBe(false);
+});
+
 async function getOrthographySuggestionLayout(page) {
   return page.evaluate(() => {
     function roundedRect(element) {
