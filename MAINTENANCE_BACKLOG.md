@@ -18,6 +18,16 @@ The active maintenance list is narrowed to work that needs product,
 compatibility, schema/backfill, live evidence, credentials, or human-language
 judgment:
 
+- Profile the cold Genç recorder-summary path before changing its batch size or
+  performance limit. On September 11, 132 of 209 categories completed within the
+  existing 120-second action budget; 77 remained. Completed six-category batches
+  returned successful, complete responses in roughly 5.2–5.8 seconds, with no
+  transport errors or stalled viewport trigger. Concurrent previews transferred
+  about 23.8 MB with browser caching disabled on the 1,600 kbps profile; HTTP
+  waiting time cannot isolate PHP work from that contention. Measure server
+  summary construction separately from preview sizing and media transfer before
+  optimizing. This is a current Local measurement, not evidence of a
+  deployed-site or change-induced regression.
 - Native review of machine-assisted German and residual Turkish admin/formal
   copy. Automated completeness and curated high-confidence regressions do not
   establish native fluency across the full catalogs.
