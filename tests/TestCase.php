@@ -128,6 +128,14 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         if (function_exists('ll_tools_epoch_request_cache_reset')) {
             ll_tools_epoch_request_cache_reset();
         }
+        // Database fixture cleanup can reuse term IDs with different taxonomy
+        // rows. Production starts these identity caches fresh on each request.
+        if (function_exists('ll_tools_vocab_lesson_reset_term_taxonomy_request_cache')) {
+            ll_tools_vocab_lesson_reset_term_taxonomy_request_cache();
+        }
+        if (function_exists('ll_tools_wordset_page_reset_term_taxonomy_request_cache')) {
+            ll_tools_wordset_page_reset_term_taxonomy_request_cache();
+        }
         if (function_exists('ll_tools_public_static_cache_reset_purge_once_state')) {
             ll_tools_public_static_cache_reset_purge_once_state();
         }

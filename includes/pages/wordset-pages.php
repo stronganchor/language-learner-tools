@@ -1018,8 +1018,16 @@ function ll_tools_wordset_page_prepare_sql(string $query, array $args): string {
     return (string) call_user_func_array([$wpdb, 'prepare'], array_merge([$query], $args));
 }
 
+/** Reset only request-local taxonomy identities between simulated requests. */
+function ll_tools_wordset_page_reset_term_taxonomy_request_cache(): void {
+    $GLOBALS['ll_tools_wordset_page_term_taxonomy_request_cache'] = [];
+}
+
 function ll_tools_wordset_page_get_term_taxonomy_id(int $term_id, string $taxonomy, ?bool &$complete = null): int {
-    static $request_cache = [];
+    if (!isset($GLOBALS['ll_tools_wordset_page_term_taxonomy_request_cache'])) {
+        ll_tools_wordset_page_reset_term_taxonomy_request_cache();
+    }
+    $request_cache = &$GLOBALS['ll_tools_wordset_page_term_taxonomy_request_cache'];
 
     $complete = true;
     $term_id = (int) $term_id;

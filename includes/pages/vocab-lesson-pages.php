@@ -2071,8 +2071,16 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(
     return trim((string) ob_get_clean());
 }
 
+/** Reset only request-local taxonomy identities between simulated requests. */
+function ll_tools_vocab_lesson_reset_term_taxonomy_request_cache(): void {
+    $GLOBALS['ll_tools_vocab_lesson_term_taxonomy_request_cache'] = [];
+}
+
 function ll_tools_vocab_lesson_get_wordset_term_taxonomy_id(int $wordset_id, ?bool &$complete = null): int {
-    static $request_cache = [];
+    if (!isset($GLOBALS['ll_tools_vocab_lesson_term_taxonomy_request_cache'])) {
+        ll_tools_vocab_lesson_reset_term_taxonomy_request_cache();
+    }
+    $request_cache = &$GLOBALS['ll_tools_vocab_lesson_term_taxonomy_request_cache'];
 
     $complete = true;
     $wordset_id = (int) $wordset_id;
