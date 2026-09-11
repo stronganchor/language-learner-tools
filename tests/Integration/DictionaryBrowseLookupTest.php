@@ -10,17 +10,24 @@ final class DictionaryBrowseLookupTest extends LL_Tools_TestCase
         parent::setUp();
         ll_tools_dictionary_browser_clear_query_error();
         unset($GLOBALS['ll_tools_ai_crawler_source_error']);
+        // TRUNCATE in the production rebuild can commit Core's test transaction;
+        // its rollback may resurrect the pre-TRUNCATE transient lock next test.
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
         ll_tools_dictionary_lookup_reset_request_schema_cache();
         $this->assertTrue(ll_tools_install_dictionary_lookup_schema());
     }
 
     protected function tearDown(): void
     {
-        foreach ($this->entries as $id) { wp_delete_post($id, true); }
         wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
         ll_tools_dictionary_browser_clear_query_error();
         unset($GLOBALS['ll_tools_ai_crawler_source_error']);
         parent::tearDown();
+        // A production rebuild's TRUNCATE can commit the fixture inserts.
+        // Delete after Core's rollback so teardown cannot resurrect those posts.
+        foreach ($this->entries as $id) { wp_delete_post($id, true); }
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
+        ll_tools_dictionary_browser_clear_query_error();
     }
 
     private function entry(string $title): int
@@ -43,11 +50,15 @@ final class DictionaryBrowseLookupTest extends LL_Tools_TestCase
 
     private function rebuild(): void
     {
+        global $wpdb;
         ll_tools_schedule_dictionary_lookup_rebuild(true);
         for ($batch = 0; $batch < 20 && !ll_tools_dictionary_browse_lookup_is_ready(); $batch++) {
             ll_tools_dictionary_lookup_process_rebuild_batch();
         }
-        $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready());
+        $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready(), (string) wp_json_encode([
+            'state' => ll_tools_get_dictionary_lookup_rebuild_state(), 'error' => $wpdb->last_error,
+            'lock' => get_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY),
+        ]));
         ll_tools_bump_dictionary_browser_cache_version();
     }
 
@@ -179,5 +190,41 @@ final class DictionaryBrowseLookupTest extends LL_Tools_TestCase
         ll_tools_dictionary_lookup_process_rebuild_batch();
         $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready());
         $this->assertSame([$id], $this->browse('Ç'));
+    }
+
+    public function test_additive_backfill_keeps_existing_search_ready_until_unicode_buckets_complete(): void
+    {
+        global $wpdb;
+        $first = $this->entry('Existing indexed headword');
+        for ($index = 0; $index < 250; $index++) { $this->entry('Ordinary legacy entry ' . $index); }
+        $late = $this->entry('Ç Late legacy initial');
+        $this->rebuild();
+        $wpdb->query('DELETE FROM ' . ll_tools_dictionary_lookup_table_name() . " WHERE lookup_kind IN ('browse_initial', 'browse_initial_tr')");
+        ll_tools_update_dictionary_lookup_rebuild_state(['status' => 'completed', 'last_id' => $late, 'processed' => 252]);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertSame('running', ll_tools_get_dictionary_lookup_rebuild_state()['status']);
+        $this->assertTrue(ll_tools_dictionary_lookup_is_ready(), 'A browse-only backfill must retain the verified search generation.');
+        $this->assertFalse(ll_tools_dictionary_browse_lookup_is_ready());
+        $queries = [];
+        $observe = static function (string $sql) use (&$queries): string { $queries[] = $sql; return $sql; };
+        add_filter('query', $observe);
+        try {
+            $this->assertSame([$first], ll_tools_dictionary_query_entry_ids_from_lookup_table('Existing indexed headword', ['publish'], 'all', 10));
+            $public = ll_tools_dictionary_query_entries(['search' => 'Existing indexed headword', 'per_page' => 10]);
+            $this->assertSame([$first], array_map('intval', array_column($public['items'], 'id')));
+            $this->assertSame([], $this->browse('Ç'));
+        } finally { remove_filter('query', $observe); }
+        $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), implode("\n", $queries));
+        $this->assertStringNotContainsString('search_index.meta_value LIKE', implode("\n", $queries));
+        $this->assertInstanceOf(WP_Error::class, ll_tools_dictionary_browser_get_query_error());
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertTrue(ll_tools_dictionary_browse_lookup_is_ready());
+        $this->assertSame([$late], $this->browse('Ç'));
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+        $this->assertSame(0, ll_tools_get_dictionary_lookup_rebuild_state()['browse_only']);
+        $this->assertFalse(ll_tools_dictionary_lookup_is_ready(), 'An initial full rebuild must remain unavailable until complete.');
+        $this->assertFalse(ll_tools_dictionary_browse_lookup_is_ready());
     }
 }

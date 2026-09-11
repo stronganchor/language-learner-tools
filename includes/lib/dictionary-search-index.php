@@ -347,7 +347,7 @@ function ll_tools_install_dictionary_lookup_schema(): bool {
 /**
  * Return sanitized rebuild-state data for the lookup table.
  *
- * @return array{status:string,last_id:int,processed:int,started_at:string,completed_at:string,truncate_pending:int,browse_version:string}
+ * @return array{status:string,last_id:int,processed:int,started_at:string,completed_at:string,truncate_pending:int,browse_version:string,browse_only:int}
  */
 function ll_tools_get_dictionary_lookup_rebuild_state(): array {
     $raw = get_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION, []);
@@ -362,6 +362,7 @@ function ll_tools_get_dictionary_lookup_rebuild_state(): array {
         'completed_at' => trim((string) ($raw['completed_at'] ?? '')),
         'truncate_pending' => !empty($raw['truncate_pending']) ? 1 : 0,
         'browse_version' => (string) ($raw['browse_version'] ?? ''),
+        'browse_only' => !empty($raw['browse_only']) ? 1 : 0,
     ];
 }
 
@@ -381,6 +382,7 @@ function ll_tools_update_dictionary_lookup_rebuild_state(array $state): array {
         'completed_at' => trim((string) ($state['completed_at'] ?? '')),
         'truncate_pending' => !empty($state['truncate_pending']) ? 1 : 0,
         'browse_version' => (string) ($state['browse_version'] ?? ''),
+        'browse_only' => !empty($state['browse_only']) ? 1 : 0,
     ];
 
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION, $sanitized, false);
@@ -480,7 +482,8 @@ function ll_tools_dictionary_lookup_is_ready(): bool {
     }
 
     $state = ll_tools_get_dictionary_lookup_rebuild_state();
-    return $state['status'] === 'completed' && $state['truncate_pending'] === 0;
+    return ($state['status'] === 'completed' || $state['browse_only'] === 1)
+        && $state['truncate_pending'] === 0;
 }
 
 /**
@@ -534,7 +537,8 @@ function ll_tools_dictionary_browse_lookup_is_ready(): bool {
         return false;
     }
     $state = ll_tools_get_dictionary_lookup_rebuild_state();
-    return $state['browse_version'] === LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION;
+    return $state['status'] === 'completed' && $state['truncate_pending'] === 0
+        && $state['browse_version'] === LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION;
 }
 
 /**
@@ -983,6 +987,10 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
             // Existing search rows remain in place. Only this background worker
             // starts the full ID-keyset pass; public requests never scan it.
             $state = array_merge($state, [
+                // A verified, complete search generation remains usable while
+                // this additive projection is filled. Initial/schema rebuilds
+                // have no such generation and must still fail readiness closed.
+                'browse_only' => $state['status'] === 'completed' && $state['truncate_pending'] === 0 ? 1 : 0,
                 'status' => 'pending', 'last_id' => 0, 'processed' => 0,
                 'started_at' => '', 'completed_at' => '',
                 'browse_version' => LL_TOOLS_DICTIONARY_BROWSE_LOOKUP_VERSION,
@@ -1034,6 +1042,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
 
         if (empty($ids)) {
             $state['status'] = 'completed';
+            $state['browse_only'] = 0;
             $state['completed_at'] = current_time('mysql');
             if (!ll_tools_dictionary_lookup_publish_rebuild_state($state)) { return; }
             if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
@@ -1055,6 +1064,7 @@ function ll_tools_dictionary_lookup_process_rebuild_batch(): void {
 
         if (count($ids) < $batch_size) {
             $state['status'] = 'completed';
+            $state['browse_only'] = 0;
             $state['completed_at'] = current_time('mysql');
         } else {
             $state['status'] = 'running';

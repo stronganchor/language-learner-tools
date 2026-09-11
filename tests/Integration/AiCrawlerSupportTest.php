@@ -593,7 +593,7 @@ final class AiCrawlerSupportTest extends LL_Tools_TestCase
         $fail = static function ($check, $id, $key) use ($entry) {
             if ((int) $id === $entry && $key === LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY) {
                 ll_tools_dictionary_browser_mark_query_error('crawler_fixture_entry_data');
-                return [];
+                return [[]];
             }
             return $check;
         };

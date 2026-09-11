@@ -6,6 +6,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        ll_tools_dictionary_browser_clear_query_error();
 
         if (function_exists('ll_tools_reset_dictionary_static_cache_purge_once_state')) {
             ll_tools_reset_dictionary_static_cache_purge_once_state();
@@ -135,6 +136,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             ll_tools_cloudflare_static_cache_reset_purge_once_state();
         }
         parent::tearDown();
+        ll_tools_dictionary_browser_clear_query_error();
     }
 
     public function test_dictionary_shortcode_defaults_to_unscoped_page_configuration(): void
@@ -5168,6 +5170,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ]);
 
         $this->assertSame(5, (int) ($summary['entries_created'] ?? 0));
+        $this->prepareBrowseLookup();
 
         $entry_id = ll_tools_dictionary_find_entry_by_title('Dar', 0);
         $this->assertGreaterThan(0, $entry_id);
@@ -5528,6 +5531,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
 
+        $this->prepareBrowseLookup();
         $initial_index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
         $this->assertSame(['A'], (array) ($initial_index['letters'] ?? []));
         $this->assertContains('Palu - Bingöl', (array) ($initial_index['dialect_options'] ?? []));
