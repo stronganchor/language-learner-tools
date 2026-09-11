@@ -1479,7 +1479,7 @@ msgstr "En çok kullanılan kelime setlerinden birini seç"
 
 #: includes/admin/settings.php:479
 msgid "Choose one of the fonts that are already loaded on your site. If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually."
-msgstr "Sitenizde zaten yüklü olan yazı tiplerinden birini seç. Özel bir yazı tipi eklemek istiyorsanız, Herhangi Bir Yazı Tipi Kullan eklentisi ile ekle veya manuel olarak sıraya al."
+msgstr "Sitende zaten yüklü olan yazı tiplerinden birini seç. Özel bir yazı tipi eklemek istiyorsan, Use Any Font eklentisiyle ekle veya kodla yükle."
 
 #: includes/admin/recording-types-admin.php:177
 msgid "Choose which recording types to prompt for when a word has no category. Leave all unchecked to use the main defaults (Isolation, Question, Introduction)."
@@ -4164,7 +4164,7 @@ msgstr "Site yöneticisi e-postasını kullanmak için boş bırak."
 #: includes/user-roles/audio-recorder-role.php:158
 #: includes/user-roles/audio-recorder-role.php:287
 msgid "Leave empty to allow all types. Select specific types to limit what they record. Hold Ctrl/Cmd to select multiple."
-msgstr "Tüm türlere izin vermek için boş bırak. Kaydettiklerini sınırlamak için belirli türleri seç. Birden fazla seçmek için Ctrl/Cmd tuşlarını basılı tutun."
+msgstr "Tüm türlere izin vermek için boş bırak. Kaydettiklerini sınırlamak için belirli türleri seç. Birden fazla seçmek için Ctrl/Cmd tuşunu basılı tut."
 
 #: includes/pages/wordset-pages.php:18071
 msgid "Leave this off to skip duplicates and review the import count first."
@@ -5105,7 +5105,7 @@ msgstr "Kaydedilecek dosya yok."
 
 #: includes/admin/settings.php:475
 msgid "No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin."
-msgstr "Yazı tipi bulunamadı. Lütfen fontların temanız veya Use Any Font eklentisi tarafından sıralandığından emin ol."
+msgstr "Yazı tipi bulunamadı. Yazı tiplerinin teman veya Use Any Font eklentisi tarafından yüklendiğinden emin ol."
 
 #: includes/pages/wordset-pages.php:26202
 msgid "No hard words are available for this selection."
@@ -5294,7 +5294,7 @@ msgstr "Yanıt yok veya getirilemedi."
 
 #: includes/taxonomies/wordset-taxonomy.php:3896
 msgid "No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set LL Tools Font stylesheet URL in settings, then reload this page."
-msgstr "Bu ekranda henüz hiçbir site yazı tipi algılanmadı. Tema/Herhangi Bir Yazı Tipini Kullan aracılığıyla bir yazı tipi ekle veya ayarlardan LL Tools Yazı Tipi stil sayfası URL'sini ayarla, ardından bu sayfayı yeniden yükle."
+msgstr "Bu ekranda henüz site yazı tipi algılanmadı. Teman veya Use Any Font aracılığıyla bir yazı tipi ekle ya da ayarlarda LL Tools Yazı Tipi stil sayfası URL'sini belirt, ardından bu sayfayı yeniden yükle."
 
 #: includes/admin/duplicate-category-words-admin.php:890
 msgid "No source categories with words were found in this word set."
@@ -8095,7 +8095,7 @@ msgstr "İpucu: Büyük medya kütüphaneleri için her seferinde bir kategoriyi
 
 #: includes/admin/export-import.php:4252
 msgid "Tip: Hold Ctrl (Windows) or Command (Mac) to select multiple categories."
-msgstr "İpucu: Birden fazla kategori seçmek için Ctrl (Windows) veya Command (Mac) tuşunu basılı tutun."
+msgstr "İpucu: Birden fazla kategori seçmek için Ctrl (Windows) veya Command (Mac) tuşunu basılı tut."
 
 #: includes/admin/recording-types-admin.php:201
 msgid "Tip: Uncheck all and click Save to reset to main defaults."
@@ -12656,15 +12656,15 @@ msgstr "Hemen ardından ʰ gelmeyen k'yi bulun."
 
 #: includes/admin/ipa-keyboard-admin.php:705
 msgid "Find k immediately followed by i or e."
-msgstr "Hemen k'yi ve ardından i veya e'yi bulun."
+msgstr "Hemen ardından i veya e gelen k'yi bul."
 
 #: includes/admin/ipa-keyboard-admin.php:706
 msgid "Find k immediately preceded by a, o, or u."
-msgstr "Hemen önünde a, o veya u bulunan k'yi bulun."
+msgstr "Hemen önünde a, o veya u bulunan k'yi bul."
 
 #: includes/admin/ipa-keyboard-admin.php:707
 msgid "Run a regex search on the current field."
-msgstr "Geçerli alanda bir normal ifade araması çalıştırın."
+msgstr "Geçerli alanda bir normal ifade araması çalıştır."
 
 #: includes/admin/ipa-keyboard-admin.php:708
 msgid "Use wildcard matches for simpler text searches."
@@ -16943,7 +16943,7 @@ msgstr "Space Shooter ve Bubble Pop'u kontrol eder. Büyük, görüntülerin dah
 
 #: includes/pages/wordset-pages.php:15246
 msgid "No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set the LL Tools font stylesheet URL in settings, then reload this page."
-msgstr "Bu ekranda henüz site yazı tipi algılanmadı. Tema yoluyla bir yazı tipi ekleyin/Herhangi Bir Yazı Tipini Kullanın veya ayarlarda LL Tools yazı tipi stil sayfası URL'sini ayarlayın ve ardından bu sayfayı yeniden yükleyin."
+msgstr "Bu ekranda henüz site yazı tipi algılanmadı. Teman veya Use Any Font aracılığıyla bir yazı tipi ekle ya da ayarlarda LL Tools yazı tipi stil sayfası URL'sini belirt, ardından bu sayfayı yeniden yükle."
 
 #: includes/pages/wordset-pages.php:15257
 msgid "This font is also used for this word set’s lesson and word-grid word text where supported."

@@ -357,6 +357,8 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         }
 
         $expected = [
+            'Find k immediately followed by i or e.' => 'Hemen ardından i veya e gelen k\'yi bul.',
+            'Find k immediately preceded by a, o, or u.' => 'Hemen önünde a, o veya u bulunan k\'yi bul.',
             'Could not link word "%1$s" to source word image "%2$s".' => '"%1$s" kelimesi "%2$s" kaynak kelime görseline bağlanamadı.',
             'Failed to create word "%s": %s' => '"%s" kelimesi oluşturulamadı: %s',
             'Failed to update audio "%1$s" for word "%2$s": %3$s' => '"%2$s" kelimesi için "%1$s" sesi güncellenemedi: %3$s',
@@ -402,6 +404,10 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
         // input contract. These reviewed strings expose operational post-type
         // names, keys, field names, or filenames that must remain copyable.
         $contracts = [
+            'Choose one of the fonts that are already loaded on your site. If you want to add a custom font, add it with the Use Any Font plugin or enqueue it manually.' => ['Use Any Font'],
+            'No fonts found. Please ensure fonts are enqueued by your theme or the Use Any Font plugin.' => ['Use Any Font'],
+            'No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set LL Tools Font stylesheet URL in settings, then reload this page.' => ['Use Any Font'],
+            'No site fonts were detected on this screen yet. Add a font via theme/Use Any Font, or set the LL Tools font stylesheet URL in settings, then reload this page.' => ['Use Any Font'],
             'Failed to create word_audio post: %s' => ['word_audio'],
             'Failed to delete word_audio post %d during undo.' => ['word_audio'],
             'Keep stable identifiers in every row: use word_id when possible, and use recording_id for recording fields when possible.'
@@ -422,7 +428,7 @@ final class PublicUiTranslationManifestTest extends LL_Tools_TestCase
                 => ['line_alignment.vtt', 'line_alignment.tsv', 'sentence_alignment.vtt', 'highlight_approx.json'],
         ];
 
-        $this->assertCount(11, $contracts);
+        $this->assertCount(15, $contracts);
         foreach ($contracts as $msgid => $tokens) {
             $this->assertArrayHasKey($msgid, $translations, 'Missing Turkish catalog entry: ' . $msgid);
             $translation = (string) $translations[$msgid];
