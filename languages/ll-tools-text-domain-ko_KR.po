@@ -3935,37 +3935,37 @@ msgid "Transliteration"
 msgstr "음역"
 
 #. ll-tools-public-key: 496e1f31b5a1a12129bafbc102c0736ba493f694
-#: includes/lib/wordset-language-settings.php:1368 includes/lib/wordset-language-settings.php:1369 includes/lib/wordset-language-settings.php:1381 includes/lib/wordset-language-settings.php:1386 includes/pages/wordset-pages.php:14298 includes/pages/wordset-pages.php:17783
+#: includes/lib/wordset-language-settings.php:1368 includes/lib/wordset-language-settings.php:1369 includes/lib/wordset-language-settings.php:1381 includes/lib/wordset-language-settings.php:1386 includes/pages/wordset-pages.php:14306 includes/pages/wordset-pages.php:17791
 msgid "Transcription"
 msgstr "전사"
 
 #. ll-tools-public-key: ba8f54097a986552c9d2b09b0179dc9a29e0fbf1
-#: includes/pages/wordset-pages.php:26159 includes/pages/wordset-pages.php:7229
+#: includes/pages/wordset-pages.php:26167 includes/pages/wordset-pages.php:7237
 msgid "Not public"
 msgstr "공개되지 않음"
 
 #. ll-tools-public-key: ae8e964fbcf8f603a8ba6e5e1828ec0ddc98eb3e
-#: includes/pages/wordset-pages.php:26160 includes/pages/wordset-pages.php:3208 includes/pages/wordset-pages.php:3307 includes/pages/wordset-pages.php:5436 includes/pages/wordset-pages.php:7225
+#: includes/pages/wordset-pages.php:26168 includes/pages/wordset-pages.php:3216 includes/pages/wordset-pages.php:3315 includes/pages/wordset-pages.php:5444 includes/pages/wordset-pages.php:7233
 msgid "Not public yet."
 msgstr "아직 공개되지 않았습니다."
 
 #. ll-tools-public-key: fc4e53d24d659a57151e2425441a7a8d97efd995
-#: includes/pages/wordset-pages.php:26188 includes/pages/wordset-pages.php:7301
+#: includes/pages/wordset-pages.php:26196 includes/pages/wordset-pages.php:7309
 msgid "Delete %s"
 msgstr "%s 삭제"
 
 #. ll-tools-public-key: 33adb391abf29321e2aa53eba8c77b7bf81e64c1
-#: includes/pages/wordset-pages.php:26362
+#: includes/pages/wordset-pages.php:26370
 msgid "Sign in or create an account"
 msgstr "로그인하거나 계정을 만드세요"
 
 #. ll-tools-public-key: 579587a31a6db4735840b05575ee570e746e79c0
-#: includes/pages/wordset-pages.php:27223
+#: includes/pages/wordset-pages.php:27231
 msgid "Lesson pages are not enabled for this word set yet."
 msgstr "이 단어 세트에는 아직 강의 페이지가 활성화되어 있지 않습니다."
 
 #. ll-tools-public-key: 13798d14c48bea9ae66601c2de98fe97d4c62cfa
-#: includes/pages/wordset-pages.php:3180 includes/pages/wordset-pages.php:9072
+#: includes/pages/wordset-pages.php:3188 includes/pages/wordset-pages.php:9080
 msgid "Category hidden."
 msgstr "카테고리가 숨겨졌습니다."
 
@@ -4135,7 +4135,7 @@ msgid "Export"
 msgstr "내보내기"
 
 #. ll-tools-public-key: f1cc6db1617aea3c30dab873ceb2b7e230b38dd3
-#: includes/admin/admin-dashboard-menu.php:164 includes/admin/admin-dashboard-menu.php:549 includes/admin/export-import.php:4478 includes/admin/word-option-rules-admin.php:2607 includes/pages/wordset-pages.php:14286
+#: includes/admin/admin-dashboard-menu.php:164 includes/admin/admin-dashboard-menu.php:549 includes/admin/export-import.php:4478 includes/admin/word-option-rules-admin.php:2607 includes/pages/wordset-pages.php:14294
 msgid "Import"
 msgstr "가져오기"
 
@@ -4145,12 +4145,12 @@ msgid "Site Sync"
 msgstr "사이트 동기화"
 
 #. ll-tools-public-key: 2c0f5f0ef656610389998ef38775ebcdd8c1e7ae
-#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/pages/wordset-pages.php:14355
+#: includes/admin/admin-dashboard-menu.php:166 includes/admin/admin-dashboard-menu.php:567 includes/pages/wordset-pages.php:14363
 msgid "Offline App Export"
 msgstr "오프라인 앱 내보내기"
 
 #. ll-tools-public-key: 78ceed9d4405cf669ac8439d137bec28e101015a
-#: includes/admin/admin-dashboard-menu.php:168 includes/admin/admin-dashboard-menu.php:585 includes/admin/ipa-keyboard-admin.php:13 includes/admin/ipa-keyboard-admin.php:625
+#: includes/admin/admin-dashboard-menu.php:168 includes/admin/admin-dashboard-menu.php:585 includes/admin/ipa-keyboard-admin.php:13 includes/admin/ipa-keyboard-admin.php:626
 msgid "Transcription Manager"
 msgstr "전사 관리자"
 
@@ -4190,177 +4190,177 @@ msgid "Editor Hub"
 msgstr "편집자 허브"
 
 #. ll-tools-public-key: 4e035f5cbf72e9cad4c4ec3f30f03ae2814a92d1
-#: includes/pages/wordset-pages.php:14065 includes/pages/wordset-pages.php:14292 includes/pages/wordset-pages.php:24737 includes/shortcodes/site-tools-shortcode.php:914
+#: includes/pages/wordset-pages.php:14073 includes/pages/wordset-pages.php:14300 includes/pages/wordset-pages.php:24745 includes/shortcodes/site-tools-shortcode.php:914
 msgid "Recorder"
 msgstr "녹음기"
 
 #. ll-tools-public-key: 972b97d4bb4862c9faefa4e85c375b0828409203
-#: includes/admin/admin-dashboard-menu.php:183 includes/admin/admin-dashboard-menu.php:385 includes/admin/teacher-classes-page.php:36 includes/admin/teacher-classes-page.php:37 includes/admin/teacher-classes-page.php:674 includes/pages/wordset-pages.php:12875 includes/pages/wordset-pages.php:12980 includes/pages/wordset-pages.php:14076 includes/pages/wordset-pages.php:27094 includes/teacher-classes.php:26
+#: includes/admin/admin-dashboard-menu.php:183 includes/admin/admin-dashboard-menu.php:385 includes/admin/teacher-classes-page.php:36 includes/admin/teacher-classes-page.php:37 includes/admin/teacher-classes-page.php:674 includes/pages/wordset-pages.php:12883 includes/pages/wordset-pages.php:12988 includes/pages/wordset-pages.php:14084 includes/pages/wordset-pages.php:27102 includes/teacher-classes.php:26
 msgid "Classes"
 msgstr "수업"
 
 #. ll-tools-public-key: 2d06dd8050a948d93bc2bda4221ac9b1946853c2
-#: includes/pages/site-tools-page.php:16 includes/pages/wordset-pages.php:14087 includes/shortcodes/site-tools-shortcode.php:1040 includes/shortcodes/site-tools-shortcode.php:892
+#: includes/pages/site-tools-page.php:16 includes/pages/wordset-pages.php:14095 includes/shortcodes/site-tools-shortcode.php:1040 includes/shortcodes/site-tools-shortcode.php:892
 msgid "Site Tools"
 msgstr "사이트 도구"
 
 #. ll-tools-public-key: 69acdb2e9c5b85a27f7e9cb5f5f7c619746adcd3
-#: includes/pages/wordset-pages.php:24083
+#: includes/pages/wordset-pages.php:24091
 msgid "Bundle details"
 msgstr "번들 세부정보"
 
 #. ll-tools-public-key: 2c74dcbbeb4ee761fb19b3532104a979e4398c6d
-#: includes/pages/wordset-pages.php:24087
+#: includes/pages/wordset-pages.php:24095
 msgid "App name"
 msgstr "앱 이름"
 
 #. ll-tools-public-key: 98e19e4700ba484cea5892087094e78f78362ddb
-#: includes/admin/offline-app-export.php:788 includes/pages/wordset-pages.php:24097
+#: includes/admin/offline-app-export.php:788 includes/pages/wordset-pages.php:24105
 msgid "Used in the offline app shell and Android build metadata."
 msgstr "오프라인 앱 셸과 Android 빌드 메타데이터에 사용됩니다."
 
 #. ll-tools-public-key: 2c438641fc8aa46ed983512c82a915f09ac1646b
-#: includes/pages/wordset-pages.php:24102
+#: includes/pages/wordset-pages.php:24110
 msgid "Android app ID suffix"
 msgstr "Android 앱 ID 접미사"
 
 #. ll-tools-public-key: cbbde343bd3e84a9d7e10e39fb3619fb85e141ab
-#: includes/pages/wordset-pages.php:24111
+#: includes/pages/wordset-pages.php:24119
 msgid "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes this automatically."
 msgstr "문자, 숫자, 밑줄, 점을 사용할 수 있습니다. 내보내기 도구가 이를 자동으로 정리합니다."
 
 #. ll-tools-public-key: 3d83cf8654396b5398b030aba64a9106d80825ce
-#: includes/pages/wordset-pages.php:24116
+#: includes/pages/wordset-pages.php:24124
 msgid "Version name"
 msgstr "버전 이름"
 
 #. ll-tools-public-key: 464f2b8dc586d4d9fcd01b29520e9b4f6961ef48
-#: includes/pages/wordset-pages.php:24130
+#: includes/pages/wordset-pages.php:24138
 msgid "Version code"
 msgstr "버전 코드"
 
 #. ll-tools-public-key: 3a0ec75428f70342fac3218a7a0d93b162fca5fe
-#: includes/pages/wordset-pages.php:24142
+#: includes/pages/wordset-pages.php:24150
 msgid "Increase this integer when distributing an updated Android build."
 msgstr "업데이트된 Android 빌드를 배포할 때 이 정수를 늘리세요."
 
 #. ll-tools-public-key: a1b790a7758198e4a59e78d697ad08f8b2f5d6ce
-#: includes/pages/wordset-pages.php:24148
+#: includes/pages/wordset-pages.php:24156
 msgid "Export notes"
 msgstr "내보내기 참고사항"
 
 #. ll-tools-public-key: 818e4bc0b4ac78ea73af5a8242f46322e7122f9d
-#: includes/pages/wordset-pages.php:24150
+#: includes/pages/wordset-pages.php:24158
 msgid "No site icon set"
 msgstr "사이트 아이콘이 설정되지 않음"
 
 #. ll-tools-public-key: e2de3811709ecb1384ad750984483511e0f325f3
-#: includes/pages/wordset-pages.php:24150
+#: includes/pages/wordset-pages.php:24158
 msgid "Uses current site icon"
 msgstr "현재 사이트 아이콘 사용"
 
 #. ll-tools-public-key: 2ff2f9b08ad6d1fd335c1f0dc5ad0aa55b73780f
-#: includes/pages/wordset-pages.php:24151
+#: includes/pages/wordset-pages.php:24159
 msgid "Offline speaking disabled in exports"
 msgstr "내보내기에서 오프라인 발음 연습 비활성화됨"
 
 #. ll-tools-public-key: 9f61bdc348c9870915626c8dedc7228df695fc4d
-#: includes/pages/wordset-pages.php:24157
+#: includes/pages/wordset-pages.php:24165
 msgid "This export uses the current site icon automatically. Advanced one-off icon overrides can stay in the dashboard exporter until we migrate that piece too."
 msgstr "이 내보내기는 현재 사이트 아이콘을 자동으로 사용합니다. 고급 일회성 아이콘 재정의는 해당 부분을 마이그레이션할 때까지 대시보드 내보내기 도구에 남겨둘 수 있습니다."
 
 #. ll-tools-public-key: c6d80373930c99c8591babf3c6906da97552a98a
-#: includes/pages/wordset-pages.php:24158
+#: includes/pages/wordset-pages.php:24166
 msgid "No site icon is set for this site, so the Android builder keeps its default launcher icon unless you add one later."
 msgstr "이 사이트에는 사이트 아이콘이 설정되어 있지 않으므로, 나중에 아이콘을 추가하지 않는 한 Android 빌더는 기본 런처 아이콘을 유지합니다."
 
 #. ll-tools-public-key: 6d7929ab809e24fa8f1034f6122094fb440032b5
-#: includes/pages/wordset-pages.php:24162
+#: includes/pages/wordset-pages.php:24170
 msgid "The offline bundle includes the standalone shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then link a site account later to sync study state and progress."
 msgstr "오프라인 번들은 독립 실행형 셸과 지원되는 퀴즈 모드용 번들 미디어를 포함합니다. 학습자는 앱을 로컬에서 계속 사용한 뒤 나중에 사이트 계정을 연결해 학습 상태와 진도를 동기화할 수 있습니다."
 
 #. ll-tools-public-key: 485f0855e6715d80ca276342efb08fdb3591b234
-#: includes/pages/wordset-pages.php:24164
+#: includes/pages/wordset-pages.php:24172
 msgid "Export Offline App"
 msgstr "오프라인 앱 내보내기"
 
 #. ll-tools-public-key: bba20261a8e43bdf1d3f643de19108ea13ae8896
-#: includes/admin/audio-processor-admin.php:199 includes/admin/missing-audio-admin-page.php:657 includes/admin/orphan-media-admin.php:1875 includes/admin/recording-types-admin.php:163 includes/admin/teacher-classes-page.php:843 includes/admin/teacher-classes-page.php:878 includes/pages/wordset-pages.php:13035 includes/pages/wordset-pages.php:26163 includes/shortcodes/site-tools-shortcode.php:1289
+#: includes/admin/audio-processor-admin.php:199 includes/admin/missing-audio-admin-page.php:657 includes/admin/orphan-media-admin.php:1875 includes/admin/recording-types-admin.php:163 includes/admin/teacher-classes-page.php:843 includes/admin/teacher-classes-page.php:878 includes/pages/wordset-pages.php:13043 includes/pages/wordset-pages.php:26171 includes/shortcodes/site-tools-shortcode.php:1289
 msgid "Delete"
 msgstr "삭제"
 
 #. ll-tools-public-key: 6c9ec82137a08ae8ca15498a2b28ab66716252d9
-#: includes/pages/wordset-pages.php:26164 includes/pages/wordset-pages.php:7306
+#: includes/pages/wordset-pages.php:26172 includes/pages/wordset-pages.php:7314
 msgid "Delete this category and any linked vocab lesson? This cannot be undone."
 msgstr "이 카테고리와 연결된 어휘 레슨을 삭제할까요? 이 작업은 되돌릴 수 없습니다."
 
 #. ll-tools-public-key: 5beaac066641d171f36b221f48ffe879e6af96b8
-#: includes/pages/wordset-pages.php:26169 includes/pages/wordset-pages.php:7286
+#: includes/pages/wordset-pages.php:26177 includes/pages/wordset-pages.php:7294
 msgid "Category management for %s"
 msgstr "%s 카테고리 관리"
 
 #. ll-tools-public-key: f5a83117446c0c03f9a93ba8f9784cd0e1cda477
-#: includes/pages/wordset-pages.php:26310
+#: includes/pages/wordset-pages.php:26318
 msgid "Saved!"
 msgstr "저장됨!"
 
 #. ll-tools-public-key: 6718dc34c21554ebfb8550d8d8429b3f9831f800
-#: includes/pages/wordset-pages.php:26364
+#: includes/pages/wordset-pages.php:26372
 msgid "Use the invited email address to manage this word set."
 msgstr "초대된 이메일 주소로 이 단어 세트를 관리하세요."
 
 #. ll-tools-public-key: 6bdcc5d9893ec6896ad266e167606f9dc7796a90
-#: includes/pages/wordset-pages.php:26370 includes/pages/wordset-pages.php:26376
+#: includes/pages/wordset-pages.php:26378 includes/pages/wordset-pages.php:26384
 msgid "Create manager account"
 msgstr "관리자 계정 만들기"
 
 #. ll-tools-public-key: 378e446652d17f8e0fc15f7e9de895ccc81fd5fa
-#: includes/pages/wordset-pages.php:26373
+#: includes/pages/wordset-pages.php:26381
 msgid "This invite can create or connect a Word Set Manager account for this word set."
 msgstr "이 초대로 이 단어 세트의 단어 세트 관리자 계정을 만들거나 연결할 수 있습니다."
 
 #. ll-tools-public-key: 6ea44e419ca80d23bd47cd91a68603b920e994e2
-#: includes/pages/wordset-pages.php:14358 includes/pages/wordset-pages.php:27040
+#: includes/pages/wordset-pages.php:14366 includes/pages/wordset-pages.php:27048
 msgid "Image Upload"
 msgstr "이미지 업로드"
 
 #. ll-tools-public-key: ad0c920f5506014d6746731e5d6eb070928cf10d
-#: includes/pages/wordset-pages.php:27040
+#: includes/pages/wordset-pages.php:27048
 msgid "Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes."
 msgstr "이 단어 세트에서 카테고리가 이미지-텍스트 퀴즈를 지원할 때 이미지를 업로드하고 선택적으로 초안 단어를 자동 생성합니다."
 
 #. ll-tools-public-key: 01a5a6ff2d6f2168d7e42f35c7d7f60d83cbd304
-#: includes/pages/wordset-pages.php:14361 includes/pages/wordset-pages.php:27042
+#: includes/pages/wordset-pages.php:14369 includes/pages/wordset-pages.php:27050
 msgid "Audio Upload"
 msgstr "오디오 업로드"
 
 #. ll-tools-public-key: 29f5e5d66256a35f02c618df1dddd966e467aa9a
-#: includes/pages/wordset-pages.php:27042
+#: includes/pages/wordset-pages.php:27050
 msgid "Bulk upload audio files and create or match draft words in this word set."
 msgstr "오디오 파일을 일괄 업로드하고 이 단어 세트에서 초안 단어를 만들거나 일치시킵니다."
 
 #. ll-tools-public-key: a6505f249cf2032d7d3bd97499deee29306473cd
-#: includes/pages/wordset-pages.php:27047
+#: includes/pages/wordset-pages.php:27055
 msgid "No settings tools are available for this word set right now."
 msgstr "지금 이 단어 세트에 사용할 수 있는 설정 도구가 없습니다."
 
 #. ll-tools-public-key: 3f237413b868b8571b30d7bdf3cffd3af904f704
-#: includes/pages/wordset-pages.php:12884 includes/pages/wordset-pages.php:27090
+#: includes/pages/wordset-pages.php:12892 includes/pages/wordset-pages.php:27098
 msgid "Open classes"
 msgstr "수업 열기"
 
 #. ll-tools-public-key: 22bd77d115beb237e368721890f6293004594bdf
-#: includes/pages/wordset-pages.php:27101
+#: includes/pages/wordset-pages.php:27109
 msgid "Update Language Learner Tools to version %s"
 msgstr "Language Learner Tools를 버전 %s(으)로 업데이트"
 
 #. ll-tools-public-key: ae5af4695aa6a8f0f5aae087ccbeaae87b281afa
-#: includes/pages/wordset-pages.php:27104 language-learner-tools.php:905
+#: includes/pages/wordset-pages.php:27112 language-learner-tools.php:905
 msgid "Update to %s"
 msgstr "%s(으)로 업데이트"
 
 #. ll-tools-public-key: 556e309c62f15a6542735e15d5b65ae623931d58
-#: includes/pages/wordset-pages.php:27109
+#: includes/pages/wordset-pages.php:27117
 msgid "Word set tools"
 msgstr "단어 세트 도구"
 
@@ -4380,7 +4380,7 @@ msgid "Next letter"
 msgstr "다음 글자"
 
 #. ll-tools-public-key: edde503143d38ba46ff9c4c3aa730cf95d1f12b6
-#: includes/pages/vocab-lesson-pages.php:5346
+#: includes/pages/vocab-lesson-pages.php:5354
 msgid "Category settings were saved. This category no longer has a vocab lesson page for the current setup."
 msgstr "카테고리 설정이 저장되었습니다. 이 카테고리는 현재 설정에서 더 이상 어휘 학습 페이지가 없습니다."
 
@@ -4390,17 +4390,17 @@ msgid "Ready"
 msgstr "준비됨"
 
 #. ll-tools-public-key: a1ee46b2b9cd7b0b549972c08c855596e7ed56ed
-#: includes/pages/wordset-pages.php:25815 includes/pages/wordset-pages.php:25826
+#: includes/pages/wordset-pages.php:25823 includes/pages/wordset-pages.php:25834
 msgid "Upload permission required"
 msgstr "업로드 권한 필요"
 
 #. ll-tools-public-key: 05860685d26d8d0f45af748c2ba0822fd502c6a8
-#: includes/pages/wordset-pages.php:25841
+#: includes/pages/wordset-pages.php:25849
 msgid "Generate lesson pages"
 msgstr "학습 페이지 생성"
 
 #. ll-tools-public-key: 022e5d066b1cf9cbbf0f9db9a286792fd6d3f33b
-#: includes/pages/wordset-pages.php:25833
+#: includes/pages/wordset-pages.php:25841
 msgid "Enable lesson pages"
 msgstr "학습 페이지 사용"
 
@@ -4410,12 +4410,12 @@ msgid "Saving review note..."
 msgstr "검토 메모 저장 중..."
 
 #. ll-tools-public-key: 136399d2999d6e5629fcaff29bfecfc5691a78bd
-#: includes/pages/wordset-pages.php:14137
+#: includes/pages/wordset-pages.php:14145
 msgid "Manage %s"
 msgstr "%s 관리"
 
 #. ll-tools-public-key: 44a71d2543b88f78c4184cc52ee69d4fb26b36dc
-#: includes/pages/wordset-pages.php:17370 includes/pages/wordset-pages.php:3178 includes/pages/wordset-pages.php:9096
+#: includes/pages/wordset-pages.php:17378 includes/pages/wordset-pages.php:3186 includes/pages/wordset-pages.php:9104
 msgid "Category updated."
 msgstr "카테고리가 업데이트되었습니다."
 
@@ -4680,48 +4680,48 @@ msgid "Transcription validation job belongs to a different word set."
 msgstr "전사 검증 작업이 다른 단어 세트에 속합니다."
 
 #. ll-tools-public-key: c7d689ae146ccf489ef492f3c3213b5c7488306b
-#: includes/pages/wordset-pages.php:23460
+#: includes/pages/wordset-pages.php:23468
 msgid "Recorder text"
 msgstr "녹음용 텍스트"
 
 #. ll-tools-public-key: 2ed2d6c1c0c2d05829c80219fb99a7ea207884a3
-#: includes/pages/wordset-pages.php:23082 includes/taxonomies/wordset-taxonomy.php:3845
+#: includes/pages/wordset-pages.php:23090 includes/taxonomies/wordset-taxonomy.php:3845
 msgid "Recorder text visibility"
 msgstr "녹음용 텍스트 표시 여부"
 
 #. ll-tools-public-key: ef75e7914d7453df3efb6c89399aaac1a4ef1ea8
-#: includes/admin/google-classroom-integration.php:267 includes/pages/wordset-pages.php:25768 includes/pages/wordset-pages.php:25769
+#: includes/admin/google-classroom-integration.php:267 includes/pages/wordset-pages.php:25776 includes/pages/wordset-pages.php:25777
 msgid "Not ready"
 msgstr "준비되지 않음"
 
 #. ll-tools-public-key: 3c446568e9ffff13c1a058035683c700558397cb
-#: includes/pages/wordset-pages.php:25786
+#: includes/pages/wordset-pages.php:25794
 msgid "Zip unavailable"
 msgstr "ZIP을 사용할 수 없음"
 
 #. ll-tools-public-key: b2e305e4ef33e9390b5063f40826ebb01de7c257
-#: includes/pages/wordset-pages.php:25790
+#: includes/pages/wordset-pages.php:25798
 msgid "%d category ready"
 msgid_plural "%d categories ready"
 msgstr[0] "%d개 카테고리 준비됨"
 
 #. ll-tools-public-key: 00eb82f2ef70829d6350549fc73da90b3c77224b
-#: includes/pages/wordset-pages.php:25793
+#: includes/pages/wordset-pages.php:25801
 msgid "No exportable categories"
 msgstr "내보낼 수 있는 카테고리가 없음"
 
 #. ll-tools-public-key: 6e9bd323c455ca1d04844307328567c14dedae60
-#: includes/pages/wordset-pages.php:25796
+#: includes/pages/wordset-pages.php:25804
 msgid "Admin permission required"
 msgstr "관리자 권한 필요"
 
 #. ll-tools-public-key: d72b9e6029ad92669015934195c9afd69af97d3e
-#: includes/admin/teacher-classes-page.php:1092 includes/pages/wordset-pages.php:13264
+#: includes/admin/teacher-classes-page.php:1092 includes/pages/wordset-pages.php:13272
 msgid "Remove %s from this class?"
 msgstr "이 수업에서 %s을(를) 제거할까요?"
 
 #. ll-tools-public-key: c2b96eed68191883324f14eb640a891d64fbb4da
-#: includes/admin/audio-processor-admin.php:197 includes/admin/ipa-keyboard-admin.php:501 includes/admin/teacher-classes-page.php:1038 includes/admin/teacher-classes-page.php:1099 includes/admin/word-option-rules-admin.php:2261 includes/admin/word-option-rules-admin.php:2442 includes/admin/word-option-rules-admin.php:290 includes/pages/wordset-pages.php:13245 includes/pages/wordset-pages.php:13271
+#: includes/admin/audio-processor-admin.php:197 includes/admin/ipa-keyboard-admin.php:502 includes/admin/teacher-classes-page.php:1038 includes/admin/teacher-classes-page.php:1099 includes/admin/word-option-rules-admin.php:2261 includes/admin/word-option-rules-admin.php:2442 includes/admin/word-option-rules-admin.php:290 includes/pages/wordset-pages.php:13253 includes/pages/wordset-pages.php:13279
 msgid "Remove"
 msgstr "제거"
 
@@ -4851,22 +4851,22 @@ msgid "Word image category ownership preflight failed. No ownership metadata was
 msgstr "단어 이미지 카테고리 소유권 사전 확인에 실패했습니다. 소유권 메타데이터는 변경되지 않았습니다."
 
 #. ll-tools-public-key: 2a9ccfbf2ea3ed745ad98e65248a56652308377a
-#: includes/pages/wordset-pages.php:1794
+#: includes/pages/wordset-pages.php:1802
 msgid "Manager view"
 msgstr "관리자 보기"
 
 #. ll-tools-public-key: f281cd263ea571843ab105cd96edfb53be778c21
-#: includes/pages/wordset-pages.php:1795
+#: includes/pages/wordset-pages.php:1803
 msgid "Words without a category in this word set."
 msgstr "이 단어 세트에서 카테고리가 없는 단어."
 
 #. ll-tools-public-key: b4e3fb784c4865444ee1a91cfa25c67b9defc7a4
-#: includes/pages/wordset-pages.php:1803
+#: includes/pages/wordset-pages.php:1811
 msgid "The uncategorized lesson is a system view and cannot be deleted."
 msgstr "카테고리 없는 레슨은 시스템 보기이므로 삭제할 수 없습니다."
 
 #. ll-tools-public-key: 0fc4eca930b330710a53c1e21a18366553b14a0a
-#: includes/pages/wordset-pages.php:16939 includes/pages/wordset-pages.php:16952 includes/pages/wordset-pages.php:2182 includes/pages/wordset-pages.php:2192 includes/pages/wordset-pages.php:2201
+#: includes/pages/wordset-pages.php:16947 includes/pages/wordset-pages.php:16960 includes/pages/wordset-pages.php:2190 includes/pages/wordset-pages.php:2200 includes/pages/wordset-pages.php:2209
 msgid "Unable to remove this category from its words right now."
 msgstr "지금은 이 카테고리를 해당 단어에서 제거할 수 없습니다."
 
@@ -4876,22 +4876,22 @@ msgid "Rename categories, update translated names, move them under a different p
 msgstr "카테고리 이름을 바꾸고, 번역된 이름을 업데이트하고, 다른 상위 항목 아래로 이동하거나 카테고리를 삭제하세요."
 
 #. ll-tools-public-key: 3e9ec8babe6858af57642104b7748825767f1e8f
-#: includes/pages/wordset-pages.php:17551
+#: includes/pages/wordset-pages.php:17559
 msgid "Delete this category? Words in it will become uncategorized and any linked vocab lesson will be deleted. This cannot be undone."
 msgstr "이 카테고리를 삭제할까요? 그 안의 단어는 카테고리가 없어지고 연결된 모든 어휘 레슨이 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
 
 #. ll-tools-public-key: 88a262c83bdf38c06a8322fc4546f84c5a973c49
-#: includes/pages/wordset-pages.php:17554 templates/vocab-lesson-template.php:1123
+#: includes/pages/wordset-pages.php:17562 templates/vocab-lesson-template.php:1123
 msgid "Delete Category"
 msgstr "카테고리 삭제"
 
 #. ll-tools-public-key: 2867c52e085927c4988ba53aec5c54df609ba9a9
-#: includes/pages/wordset-pages.php:23093
+#: includes/pages/wordset-pages.php:23101
 msgid "Current effective recorder state: %s. Applies to every recorder assigned to this word set."
 msgstr "현재 적용 중인 녹음자 상태: %s. 이 단어 세트에 배정된 모든 녹음자에게 적용됩니다."
 
 #. ll-tools-public-key: 6280f1361be372741fd948a1ce23532f33153658
-#: includes/pages/wordset-pages.php:23100
+#: includes/pages/wordset-pages.php:23108
 msgid "Save recorder text setting"
 msgstr "녹음자 텍스트 설정 저장"
 
@@ -4906,42 +4906,42 @@ msgid "Delete empty category"
 msgstr "빈 카테고리 삭제"
 
 #. ll-tools-public-key: a40be5dccaaa202a508e87f138f06a120020ddaf
-#: includes/admin/teacher-classes-page.php:775 includes/admin/teacher-classes-page.php:839 includes/admin/teacher-classes-page.php:906 includes/pages/wordset-pages.php:12960 includes/privacy.php:471 includes/user-roles/teacher-role.php:36
+#: includes/admin/teacher-classes-page.php:775 includes/admin/teacher-classes-page.php:839 includes/admin/teacher-classes-page.php:906 includes/pages/wordset-pages.php:12968 includes/privacy.php:471 includes/user-roles/teacher-role.php:36
 msgid "Teacher"
 msgstr "교사"
 
 #. ll-tools-public-key: f490614f08ab34c1a38877a3fcbeec5b875ec52c
-#: includes/admin/teacher-classes-page.php:795 includes/pages/wordset-pages.php:12972
+#: includes/admin/teacher-classes-page.php:795 includes/pages/wordset-pages.php:12980
 msgid "Create class"
 msgstr "클래스 만들기"
 
 #. ll-tools-public-key: 9b69b2ff3f39c66177b3f7d9a72cb3fd63f4709d
-#: includes/pages/wordset-pages.php:23784
+#: includes/pages/wordset-pages.php:23792
 msgid "No audio recorder users are currently assigned to this word set."
 msgstr "현재 이 단어 세트에 배정된 오디오 녹음자가 없습니다."
 
 #. ll-tools-public-key: a4a4e99356b1eddc4690566c40504b1dee20120b
-#: includes/pages/wordset-pages.php:24478
+#: includes/pages/wordset-pages.php:24486
 msgid "Quiz display"
 msgstr "퀴즈 표시"
 
 #. ll-tools-public-key: 18dab2b8e1ca6de37c9d85c97d55df4ff65e0db1
-#: includes/pages/wordset-pages.php:24488
+#: includes/pages/wordset-pages.php:24496
 msgid "Sign language"
 msgstr "수어"
 
 #. ll-tools-public-key: 71ca27ba5ae3673a474775669bf460c212c5fce5
-#: includes/pages/wordset-pages.php:24497
+#: includes/pages/wordset-pages.php:24505
 msgid "Use sign language quiz defaults and disable audio requirements for this word set."
 msgstr "이 단어 세트에 수어 퀴즈 기본값을 사용하고 오디오 요구 사항을 끕니다."
 
 #. ll-tools-public-key: b1f32933c4667155f36da53f94cb4aed75a4d964
-#: includes/pages/wordset-pages.php:24500
+#: includes/pages/wordset-pages.php:24508
 msgid "Categories default to image prompts with image answer options. Category quiz settings can still use image prompts with text answers."
 msgstr "카테고리는 기본적으로 이미지 프롬프트와 이미지 답변 옵션을 사용합니다. 카테고리 퀴즈 설정에서는 이미지 프롬프트와 텍스트 답변을 계속 사용할 수 있습니다."
 
 #. ll-tools-public-key: 86dc2b205fdce5ce7b294716a895e355d3180c74
-#: includes/pages/wordset-pages.php:25691
+#: includes/pages/wordset-pages.php:25699
 msgid "Defaults"
 msgstr "기본값"
 
@@ -4951,7 +4951,7 @@ msgid "No categories yet"
 msgstr "아직 카테고리가 없음"
 
 #. ll-tools-public-key: ffd3a6ddf2510c20293568c9726b69a4ccea8658
-#: includes/pages/wordset-pages.php:25727
+#: includes/pages/wordset-pages.php:25735
 msgid "No template content yet"
 msgstr "아직 템플릿 콘텐츠가 없음"
 
@@ -4973,22 +4973,22 @@ msgid_plural "%d recorders ready"
 msgstr[0] "%d명 녹음자 준비됨"
 
 #. ll-tools-public-key: 8468f858a3e16c66204ea51e05df2ef8680b1640
-#: includes/pages/wordset-pages.php:14364 includes/pages/wordset-pages.php:24745 includes/pages/wordset-pages.php:26921
+#: includes/pages/wordset-pages.php:14372 includes/pages/wordset-pages.php:24753 includes/pages/wordset-pages.php:26929
 msgid "Word Set Tools"
 msgstr "단어 세트 도구"
 
 #. ll-tools-public-key: 0b1ae8ef7a8aaf3f43139a2cd8035839d84f8d89
-#: includes/pages/wordset-pages.php:26923
+#: includes/pages/wordset-pages.php:26931
 msgid "Back to word set tools"
 msgstr "단어 세트 도구로 돌아가기"
 
 #. ll-tools-public-key: 9e42dd2f54e1f0609bef22b9d2619e5129755c74
-#: includes/pages/wordset-pages.php:17487 includes/pages/wordset-pages.php:7434
+#: includes/pages/wordset-pages.php:17495 includes/pages/wordset-pages.php:7442
 msgid "Add Category"
 msgstr "카테고리 추가"
 
 #. ll-tools-public-key: 033f8e7c3a7936e7c9dead828481df5985d46bf1
-#: includes/pages/wordset-pages.php:7435
+#: includes/pages/wordset-pages.php:7443
 msgid "Create a fresh lesson category."
 msgstr "새 레슨 카테고리를 만드세요."
 
@@ -5003,42 +5003,42 @@ msgid "Verb mood"
 msgstr "동사의 서법"
 
 #. ll-tools-public-key: b9d99c2dcf1f992f8cc5833f8483759d0c52c5c3
-#: includes/admin/uploads/audio-upload-form.php:571 includes/admin/uploads/image-upload-form.php:640 includes/pages/wordset-pages.php:24505 includes/taxonomies/word-category-taxonomy.php:2797 includes/taxonomies/word-category-taxonomy.php:4360 includes/taxonomies/word-category-taxonomy.php:4474
+#: includes/admin/uploads/audio-upload-form.php:571 includes/admin/uploads/image-upload-form.php:640 includes/pages/wordset-pages.php:24513 includes/taxonomies/word-category-taxonomy.php:2797 includes/taxonomies/word-category-taxonomy.php:4360 includes/taxonomies/word-category-taxonomy.php:4474
 msgid "Text + audio pairs"
 msgstr "텍스트 + 오디오 쌍"
 
 #. ll-tools-public-key: 38c18b2774f29a89d525b5ac5eaa7a67751c2b75
-#: includes/pages/wordset-pages.php:24514 includes/taxonomies/wordset-taxonomy.php:3868
+#: includes/pages/wordset-pages.php:24522 includes/taxonomies/wordset-taxonomy.php:3868
 msgid "Automatically play the audio for text + audio answer options during quizzes."
 msgstr "퀴즈 중 텍스트 + 오디오 답변 선택지의 오디오를 자동으로 재생합니다."
 
 #. ll-tools-public-key: 8d58bf3d39c63086b9130b59df833134ac1a6759
-#: includes/pages/wordset-pages.php:24517 includes/taxonomies/wordset-taxonomy.php:3870
+#: includes/pages/wordset-pages.php:24525 includes/taxonomies/wordset-taxonomy.php:3870
 msgid "When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play."
 msgstr "이 설정이 꺼져 있으면 학습자가 텍스트 + 오디오 답변 선택지를 수동으로 재생할 수 있습니다. 오디오 전용 답변 선택지는 계속 자동 재생됩니다."
 
 #. ll-tools-public-key: 1a9d9f0329f12256fbd9fedfd644cb219c20530d
-#: includes/pages/wordset-pages.php:24522
+#: includes/pages/wordset-pages.php:24530
 msgid "Lesson and word-grid text"
 msgstr "레슨 및 단어 그리드 텍스트"
 
 #. ll-tools-public-key: 74cab7744d508b97d795d3e4af9ac27c8c42c279
-#: includes/pages/wordset-pages.php:24531
+#: includes/pages/wordset-pages.php:24539
 msgid "Hide word text on lesson pages and word grids when the category quiz uses only images or audio."
 msgstr "카테고리 퀴즈가 이미지나 오디오만 사용할 때 레슨 페이지와 단어 그리드에서 단어 텍스트를 숨깁니다."
 
 #. ll-tools-public-key: bc80d553aab8d97f379adcd62bc1a130ddbe7f1a
-#: includes/pages/wordset-pages.php:24534 includes/taxonomies/wordset-taxonomy.php:3839
+#: includes/pages/wordset-pages.php:24542 includes/taxonomies/wordset-taxonomy.php:3839
 msgid "Categories can override this in their quiz settings."
 msgstr "카테고리별 퀴즈 설정에서 이 값을 재정의할 수 있습니다."
 
 #. ll-tools-public-key: 8b1c88119d9eaa89ad4683ec01ce9b71c40f4847
-#: includes/pages/wordset-pages.php:24557
+#: includes/pages/wordset-pages.php:24565
 msgid "Save Study Settings"
 msgstr "학습 설정 저장"
 
 #. ll-tools-public-key: 166f90af5421d93da889b29787e61bc4c816e27a
-#: includes/pages/wordset-pages.php:22629 includes/pages/wordset-pages.php:23023
+#: includes/pages/wordset-pages.php:22637 includes/pages/wordset-pages.php:23031
 msgid "%d word"
 msgid_plural "%d words"
 msgstr[0] "%d개 단어"
@@ -5050,45 +5050,45 @@ msgid_plural "%d missing audio"
 msgstr[0] "%d개 누락된 오디오"
 
 #. ll-tools-public-key: 36a22fa6bb6c7fa7086507115ccd0164fcf1bf9f
-#: includes/pages/wordset-pages.php:15127 includes/pages/wordset-pages.php:25669
+#: includes/pages/wordset-pages.php:15135 includes/pages/wordset-pages.php:25677
 msgid "%d grammar feature"
 msgid_plural "%d grammar features"
 msgstr[0] "%d개 문법 기능"
 
 #. ll-tools-public-key: 1a6d6f0ed8fe365a3bea9df2c04b3b03a617cbf4
-#: includes/pages/wordset-pages.php:25674
+#: includes/pages/wordset-pages.php:25682
 msgid "Profile image"
 msgstr "프로필 이미지"
 
 #. ll-tools-public-key: d7a1de9597306c29be5b388708f5ee5b00ff156b
-#: includes/pages/wordset-pages.php:15196 includes/pages/wordset-pages.php:25677
+#: includes/pages/wordset-pages.php:15204 includes/pages/wordset-pages.php:25685
 msgid "Intro blurb"
 msgstr "소개 문구"
 
 #. ll-tools-public-key: 7db216606fa0b0d656719e92187cf519b411b146
-#: includes/pages/wordset-pages.php:25680
+#: includes/pages/wordset-pages.php:25688
 msgid "Large images"
 msgstr "큰 이미지"
 
 #. ll-tools-public-key: 5b95bfb0a3f520db53312a0cdcc209cf05f3af4a
-#: includes/pages/wordset-pages.php:15134 includes/pages/wordset-pages.php:25683
+#: includes/pages/wordset-pages.php:15142 includes/pages/wordset-pages.php:25691
 msgid "Original audio kept"
 msgstr "원본 오디오 보관됨"
 
 #. ll-tools-public-key: f744e8b629f3e6303f97bbea1db0187ba5fbf131
-#: includes/pages/wordset-editor.php:4223 includes/pages/wordset-pages.php:15119 includes/pages/wordset-pages.php:17427 includes/pages/wordset-pages.php:23389 includes/pages/wordset-pages.php:23572 includes/pages/wordset-pages.php:25709
+#: includes/pages/wordset-editor.php:4223 includes/pages/wordset-pages.php:15127 includes/pages/wordset-pages.php:17435 includes/pages/wordset-pages.php:23397 includes/pages/wordset-pages.php:23580 includes/pages/wordset-pages.php:25717
 msgid "%d category"
 msgid_plural "%d categories"
 msgstr[0] "%d개 카테고리"
 
 #. ll-tools-public-key: bd89de7a53ace7b12d12a205808bc36cfdb9798e
-#: includes/pages/wordset-pages.php:25715
+#: includes/pages/wordset-pages.php:25723
 msgid "%d image"
 msgid_plural "%d images"
 msgstr[0] "%d개 이미지"
 
 #. ll-tools-public-key: 2668afd8fcc111c97a329914463fa7ca2968c16c
-#: includes/pages/wordset-editor.php:4734 includes/pages/wordset-pages.php:7428
+#: includes/pages/wordset-editor.php:4734 includes/pages/wordset-pages.php:7436
 msgid "Add category"
 msgstr "카테고리 추가"
 
@@ -5108,39 +5108,39 @@ msgid "All parts of speech"
 msgstr "모든 품사"
 
 #. ll-tools-public-key: 5a9b8a529c88e930a0e37b6a8080546a0db51d63
-#: includes/pages/wordset-pages.php:25598
+#: includes/pages/wordset-pages.php:25606
 msgid "Add target language"
 msgstr "대상 언어 추가"
 
 #. ll-tools-public-key: 26be578a8b2bc29b75ce09b7c97f96539761c796
-#: includes/pages/wordset-pages.php:25603
+#: includes/pages/wordset-pages.php:25611
 msgid "Category translations"
 msgstr "카테고리 번역"
 
 #. ll-tools-public-key: f6a1dc9382aa09c300c15bff14f4c7d98af39721
-#: includes/pages/wordset-pages.php:25632
+#: includes/pages/wordset-pages.php:25640
 msgid "%d hidden"
 msgid_plural "%d hidden"
 msgstr[0] "%d개 숨김"
 
 #. ll-tools-public-key: b3e8a9933c442dc107182fd506f5aa4e5adf73a0
-#: includes/pages/wordset-pages.php:15102 includes/pages/wordset-pages.php:25657 includes/taxonomies/wordset-taxonomy.php:2877
+#: includes/pages/wordset-pages.php:15110 includes/pages/wordset-pages.php:25665 includes/taxonomies/wordset-taxonomy.php:2877
 msgid "Manual order"
 msgstr "수동 순서"
 
 #. ll-tools-public-key: ddf8cbedc0a12a287bc38cc5353c4962f7a5f03a
-#: includes/pages/wordset-pages.php:15103 includes/pages/wordset-pages.php:25659 includes/taxonomies/wordset-taxonomy.php:2944 templates/vocab-lesson-template.php:1142
+#: includes/pages/wordset-pages.php:15111 includes/pages/wordset-pages.php:25667 includes/taxonomies/wordset-taxonomy.php:2944 templates/vocab-lesson-template.php:1142
 msgid "Prerequisites"
 msgstr "선행 조건"
 
 #. ll-tools-public-key: 9cce4ad358936955a26589e94092c01d2bf15948
-#: includes/pages/wordset-pages.php:11779 includes/pages/wordset-pages.php:11817
+#: includes/pages/wordset-pages.php:11787 includes/pages/wordset-pages.php:11825
 msgid "%d file failed."
 msgid_plural "%d files failed."
 msgstr[0] "%d개 파일 실패."
 
 #. ll-tools-public-key: 30ebcaa85fde0048d19236eb899f7d5655c8e741
-#: includes/pages/wordset-pages.php:11822
+#: includes/pages/wordset-pages.php:11830
 msgid "Image upload completed with no processed files."
 msgstr "이미지 업로드가 완료되었지만 처리된 파일이 없습니다."
 
@@ -5160,22 +5160,22 @@ msgid "Dictionary definition not found."
 msgstr "사전 정의를 찾을 수 없습니다."
 
 #. ll-tools-public-key: 9f2d7d1cede89aa621287a6231e906a4cf4d0f29
-#: includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17797 includes/pages/wordset-pages.php:17915 includes/pages/wordset-pages.php:25554
+#: includes/lib/wordset-language-settings.php:1238 includes/pages/wordset-pages.php:17805 includes/pages/wordset-pages.php:17923 includes/pages/wordset-pages.php:25562
 msgid "Disabled"
 msgstr "비활성화됨"
 
 #. ll-tools-public-key: 73df9b4032a80156f0990cf45a7396096fbd6859
-#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17812 includes/pages/wordset-pages.php:25557 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4004
+#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17820 includes/pages/wordset-pages.php:25565 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4004
 msgid "Recording text"
 msgstr "녹음 텍스트"
 
 #. ll-tools-public-key: d3367c646e56edaa6704f7bc64bad2acdc2f0d0f
-#: includes/lib/recording-history.php:163 includes/pages/wordset-editor.php:4083 includes/pages/wordset-editor.php:4625 includes/pages/wordset-pages.php:14818 includes/pages/wordset-pages.php:25618 includes/taxonomies/word-category-taxonomy.php:2429 includes/taxonomies/word-category-taxonomy.php:2456 includes/taxonomies/wordset-taxonomy.php:3827
+#: includes/lib/recording-history.php:163 includes/pages/wordset-editor.php:4083 includes/pages/wordset-editor.php:4625 includes/pages/wordset-pages.php:14826 includes/pages/wordset-pages.php:25626 includes/taxonomies/word-category-taxonomy.php:2429 includes/taxonomies/word-category-taxonomy.php:2456 includes/taxonomies/wordset-taxonomy.php:3827
 msgid "Private"
 msgstr "비공개"
 
 #. ll-tools-public-key: 2d4748184f86c6be58e19132ed4d500fc9295cb4
-#: includes/pages/wordset-pages.php:14817 includes/pages/wordset-pages.php:25618 includes/taxonomies/word-category-taxonomy.php:2428 includes/taxonomies/word-category-taxonomy.php:2455 includes/taxonomies/wordset-taxonomy.php:3826
+#: includes/pages/wordset-pages.php:14825 includes/pages/wordset-pages.php:25626 includes/taxonomies/word-category-taxonomy.php:2428 includes/taxonomies/word-category-taxonomy.php:2455 includes/taxonomies/wordset-taxonomy.php:3826
 msgid "Public"
 msgstr "공개"
 
@@ -5280,22 +5280,22 @@ msgid "Open the utilities menu for import/export, processing, and maintenance wo
 msgstr "가져오기/내보내기, 처리, 유지관리 작업을 위한 유틸리티 메뉴를 엽니다."
 
 #. ll-tools-public-key: a134aa0b0a53ca371362e01986a2512120a0c156
-#: includes/admin/admin-dashboard-menu.php:403 includes/admin/admin-dashboard-menu.php:845 includes/pages/wordset-pages.php:14313 language-learner-tools.php:1169
+#: includes/admin/admin-dashboard-menu.php:403 includes/admin/admin-dashboard-menu.php:845 includes/pages/wordset-pages.php:14321 language-learner-tools.php:1169
 msgid "Settings"
 msgstr "설정"
 
 #. ll-tools-public-key: 29a6d3b2f58380d9888b4219d3bc8ce48d9819c2
-#: includes/admin/dictionary-import-admin.php:3010 includes/admin/duplicate-category-words-admin.php:849 includes/admin/offline-app-export.php:743 includes/admin/teacher-classes-page.php:837 includes/admin/teacher-classes-page.php:908 includes/admin/uploads/upload-scope.php:71 includes/pages/wordset-pages.php:14274 includes/pages/wordset-pages.php:14804 includes/pages/wordset-pages.php:24751 includes/post-types/dictionary-entry-post-type.php:1961 includes/post-types/words-post-type.php:2006 includes/taxonomies/wordset-taxonomy.php:1406 includes/user-roles/audio-recorder-role.php:129 includes/user-roles/audio-recorder-role.php:263
+#: includes/admin/dictionary-import-admin.php:3010 includes/admin/duplicate-category-words-admin.php:849 includes/admin/offline-app-export.php:743 includes/admin/teacher-classes-page.php:837 includes/admin/teacher-classes-page.php:908 includes/admin/uploads/upload-scope.php:71 includes/pages/wordset-pages.php:14282 includes/pages/wordset-pages.php:14812 includes/pages/wordset-pages.php:24759 includes/post-types/dictionary-entry-post-type.php:1961 includes/post-types/words-post-type.php:2006 includes/taxonomies/wordset-taxonomy.php:1406 includes/user-roles/audio-recorder-role.php:129 includes/user-roles/audio-recorder-role.php:263
 msgid "Word Set"
 msgstr "단어 세트"
 
 #. ll-tools-public-key: f462ff48cd6c23110e78114325051abf88c8eda7
-#: includes/pages/wordset-pages.php:11784
+#: includes/pages/wordset-pages.php:11792
 msgid "Audio upload completed with no processed files."
 msgstr "처리된 파일 없이 오디오 업로드가 완료되었습니다."
 
 #. ll-tools-public-key: f4aed40e8dde53210b26538673153bc00bc00af2
-#: includes/pages/wordset-pages.php:11811
+#: includes/pages/wordset-pages.php:11819
 msgid "Image upload: %d file succeeded."
 msgid_plural "Image upload: %d files succeeded."
 msgstr[0] "이미지 업로드: %d개 파일이 성공했습니다."
@@ -5331,72 +5331,72 @@ msgid "Utility and configuration pages used less frequently."
 msgstr "자주 사용하지 않는 유틸리티 및 구성 페이지입니다."
 
 #. ll-tools-public-key: 9df7799fc8f5484fbe6be6ce1c17b755830dc977
-#: includes/pages/wordset-pages.php:23724
+#: includes/pages/wordset-pages.php:23732
 msgid "Hidden by Category"
 msgstr "카테고리별 숨김"
 
 #. ll-tools-public-key: 79b7ab57424e7f093a923ece4f82eb65da5427a1
-#: includes/pages/wordset-pages.php:23726
+#: includes/pages/wordset-pages.php:23734
 msgid "No hidden words for this recorder."
 msgstr "이 녹음 담당자에게 숨겨진 단어가 없습니다."
 
 #. ll-tools-public-key: 7d883c13c72882ab303702bcab11d7e5e63ef123
-#: includes/pages/wordset-pages.php:23893
+#: includes/pages/wordset-pages.php:23901
 msgid "Enable Recorder Access"
 msgstr "녹음 담당자 접근 활성화"
 
 #. ll-tools-public-key: 570016a6dd4bf6e76ff0e5279f4298d35b8488b1
-#: includes/pages/wordset-pages.php:23899
+#: includes/pages/wordset-pages.php:23907
 msgid "Invite Recorder By Email"
 msgstr "이메일로 녹음 담당자 초대"
 
 #. ll-tools-public-key: 9cbffaddfbe077b1282c142ceeb10b6670ee4015
-#: includes/pages/wordset-pages.php:23910
+#: includes/pages/wordset-pages.php:23918
 msgid "Recorder email"
 msgstr "녹음 담당자 이메일"
 
 #. ll-tools-public-key: 97f540db500bb827fd42c4cd066ac15bc0c4a09e
-#: includes/pages/wordset-pages.php:23920
+#: includes/pages/wordset-pages.php:23928
 msgid "This sends a special signup link that creates or connects a recorder account and assigns that person to this word set."
 msgstr "특별 가입 링크를 보내 녹음 담당자 계정을 만들거나 연결하고, 그 사람을 이 단어 세트에 배정합니다."
 
 #. ll-tools-public-key: 3e7bc8a76c5e12b6994cb38b2a3c7445fa80f31d
-#: includes/pages/wordset-pages.php:23923
+#: includes/pages/wordset-pages.php:23931
 msgid "Send Recorder Invite"
 msgstr "녹음 담당자 초대 보내기"
 
 #. ll-tools-public-key: 5ac0da8ad9e5ec568c68be8e2fa89d298e9c99c3
-#: includes/pages/wordset-pages.php:23948
+#: includes/pages/wordset-pages.php:23956
 msgid "This upload tool is unavailable right now."
 msgstr "지금은 이 업로드 도구를 사용할 수 없습니다."
 
 #. ll-tools-public-key: 1cb01584664f9dfefdb414792d8d926defd62c35
-#: includes/lib/ai-crawler-support.php:1002
+#: includes/lib/ai-crawler-support.php:1113
 msgid "LL Tools llms.txt"
 msgstr "LL Tools llms.txt"
 
 #. ll-tools-public-key: 0ca23ca676a4d058292029bc8f4828b79fadcbff
-#: includes/lib/ai-crawler-support.php:994
+#: includes/lib/ai-crawler-support.php:1105
 msgid "%s LL Tools AI Index"
 msgstr "%s LL Tools AI 색인"
 
 #. ll-tools-public-key: 130c2bdae2400de1d49790480b9327c27e49d46c
-#: includes/lib/ai-crawler-support.php:1001
+#: includes/lib/ai-crawler-support.php:1112
 msgid "Site-level AI discovery file."
 msgstr "사이트 수준 AI 검색 파일."
 
 #. ll-tools-public-key: 074a4a20020e1527a67b29c959fb77fccc3f36b0
-#: includes/lib/ai-crawler-support.php:1003 includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:1091 includes/lib/ai-crawler-support.php:1114
 msgid "Schema.org structured discovery graph for the generated public exports."
 msgstr "생성된 공개 내보내기를 위한 Schema.org 구조화 검색 그래프."
 
 #. ll-tools-public-key: 0bf8a1b5afbb105b1888b609ad3a079ae17d5f8f
-#: includes/lib/ai-crawler-support.php:1142
+#: includes/lib/ai-crawler-support.php:1253
 msgid "Generated, bounded, anonymous-public LL Tools discovery index for AI agents."
 msgstr "AI 에이전트를 위한 생성된 제한형 익명 공개 LL Tools 검색 색인."
 
 #. ll-tools-public-key: 0f8434a150b1e0e4aeddca627fda3f54068cd5bb
-#: includes/lib/ai-crawler-support.php:998
+#: includes/lib/ai-crawler-support.php:1109
 msgid "This generated index points AI agents at compact public LL Tools content. It is intentionally read-only and bounded; the linked HTML pages remain the canonical source for citation."
 msgstr "이 생성된 색인은 AI 에이전트를 간결한 공개 LL Tools 콘텐츠로 안내합니다. 의도적으로 읽기 전용이며 범위가 제한되어 있고, 연결된 HTML 페이지가 인용을 위한 표준 원본으로 남습니다."
 
@@ -5431,22 +5431,22 @@ msgid "Maintain reusable source labels, attribution text, source-page URLs, and 
 msgstr "사전 항목에서 사용하는 재사용 가능한 출처 라벨, 저작자 표시 텍스트, 출처 페이지 URL, 기본 방언을 관리합니다."
 
 #. ll-tools-public-key: 701e12699d0ce92843f4a6b3cd7b81de93783bbb
-#: includes/pages/wordset-pages.php:23890
+#: includes/pages/wordset-pages.php:23898
 msgid "Find an existing user by username or email, add the Audio Recorder role, and assign them to this word set in one step."
 msgstr "사용자 이름 또는 이메일로 기존 사용자를 찾고, 오디오 녹음자 역할을 추가한 다음 한 단계로 이 단어 세트에 배정하세요."
 
 #. ll-tools-public-key: 8f1f9cd6c05556d426a9996ca9239b567001c180
-#: includes/lib/ai-crawler-support.php:1003 includes/lib/ai-crawler-support.php:980
+#: includes/lib/ai-crawler-support.php:1091 includes/lib/ai-crawler-support.php:1114
 msgid "AI index JSON-LD"
 msgstr "AI 인덱스 JSON-LD"
 
 #. ll-tools-public-key: 4adc5738ee8315f022d33b01ad664b8475c8773d
-#: includes/lib/ai-crawler-support.php:1011 includes/lib/ai-crawler-support.php:983
+#: includes/lib/ai-crawler-support.php:1094 includes/lib/ai-crawler-support.php:1122
 msgid "AI crawler notes"
 msgstr "AI 크롤러 참고 사항"
 
 #. ll-tools-public-key: 93c3e15a17074057657bc4595aa787cdb90b82ca
-#: includes/lib/ai-crawler-support.php:1001 includes/lib/ai-crawler-support.php:1044
+#: includes/lib/ai-crawler-support.php:1112 includes/lib/ai-crawler-support.php:1155
 msgid "Root llms.txt"
 msgstr "루트 llms.txt"
 
