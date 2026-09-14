@@ -55,7 +55,7 @@ function buildMarkup() {
   `;
 }
 
-test('clicking an IPA transcription field opens the sticky keyboard and inserts symbols without autosaving', async ({ page }) => {
+test('IPA keyboard edits stay local until the illegal-symbol refresh saves and preserves them', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.setContent(buildMarkup());
@@ -185,7 +185,8 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
       const requestData = Object.assign({}, data);
       window.__llTranscriptionKeyboardMock.postCalls.push({
         url: String(url || ''),
-        action: String(requestData.action || '')
+        action: String(requestData.action || ''),
+        data: requestData
       });
 
       window.setTimeout(function () {
@@ -217,6 +218,16 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
                 custom_rules: []
               }
             }
+          });
+          return;
+        }
+
+        if (requestData.action === 'll_tools_update_ipa_keyboard_recording') {
+          baseRecording.recording_text = String(requestData.recording_text || '');
+          baseRecording.recording_ipa = String(requestData.recording_ipa || '');
+          deferred.resolve({
+            success: true,
+            data: { recording: clone(baseRecording) }
           });
           return;
         }
@@ -349,6 +360,9 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
 
   await page.locator('.ll-ipa-inline-key[data-ipa-char="ʰ"]').click();
   await expect(ipaInput).toHaveValue('teɪʰ');
+  expect(await page.evaluate(() => (
+    window.__llTranscriptionKeyboardMock.postCalls.map((call) => call.action)
+  ))).toEqual(['ll_tools_search_ipa_keyboard_recordings']);
 
   page.once('dialog', async (dialog) => {
     await dialog.accept();
@@ -367,8 +381,19 @@ test('clicking an IPA transcription field opens the sticky keyboard and inserts 
   expect(actions).toEqual([
     'll_tools_search_ipa_keyboard_recordings',
     'll_tools_flag_ipa_keyboard_illegal_symbol',
+    'll_tools_update_ipa_keyboard_recording',
     'll_tools_search_ipa_keyboard_recordings'
   ]);
+  expect(await page.evaluate(() => (
+    window.__llTranscriptionKeyboardMock.postCalls
+      .filter((call) => call.action === 'll_tools_update_ipa_keyboard_recording')
+      .map((call) => ({
+        recordingId: call.data.recording_id,
+        text: call.data.recording_text,
+        ipa: call.data.recording_ipa
+      }))
+  ))).toEqual([{ recordingId: 101, text: 'test', ipa: 'teɪʰ' }]);
+  await expect(ipaInput).toHaveValue('teɪʰ');
 
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-ll-ipa-inline-keyboard-wrap]')).toHaveCount(0);

@@ -636,6 +636,8 @@ Representative E2E coverage areas:
   - Verifies sortable teacher headers retain an explicit keyboard-visible focus indicator under hostile theme styles.
 - `tests/e2e/specs/text-document-review-notes-autosave.spec.js`
   - Verifies one-flight/latest-queued autosave, saved-value CAS bases, server-normalization reconciliation without a save loop, timeout/late-response fencing, and visible same-key conflicts without automatic overwrite.
+- `tests/e2e/specs/transcription-manager-ipa-keyboard.spec.js`
+  - Verifies sticky IPA keyboard layout and symbol insertion without an immediate save, then requires one draft save before the illegal-symbol result refresh and preserves the edited IPA in the refreshed row.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
   - Verifies marking a transcription as reviewed updates the row in place without refreshing the filtered result list out from under the current admin session; review responses preserve text/IPA typed after the request began; duplicate word-note editors serialize latest-value-wins autosaves; and dirty rows display the detached editor loading shell immediately, save once before fetching, advance their saved baseline cleanly, and release a timed-out prepared shell without aborting or duplicating the ambiguous save.
   - Search and view-transition races hold text/IPA, review, and internal-note
