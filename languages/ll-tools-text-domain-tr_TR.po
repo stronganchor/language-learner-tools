@@ -15,6 +15,18 @@ msgstr ""
 "X-Generator: Codex + WP-CLI 2.12.0\n"
 "X-Loco-Version: 2.8.0; wp-6.9.1; php-8.2.23\n"
 
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Word count unavailable"
+msgstr "Kelime sayısı alınamadı"
+
+#. translators: %d is the number of published words in this category and word set.
+#: includes/shortcodes/word-grid-shortcode.php
+#, php-format
+msgid "%d published word"
+msgid_plural "%d published words"
+msgstr[0] "%d yayımlanmış kelime"
+msgstr[1] "%d yayımlanmış kelime"
+
 #. translators: 1: completed file count, 2: total file count
 #: includes/admin/audio-processor-admin.php:148
 #, php-format
@@ -25021,14 +25033,6 @@ msgstr "Aranacak diller"
 #: includes/admin/dictionary-import-admin.php:1239
 msgid "Backup snapshot skipped for this import job."
 msgstr "Bu içe aktarma işi için yedek anlık görüntü atlandı."
-
-#. translators: %d is the number of quiz-ready published words in a category.
-#: includes/shortcodes/word-grid-shortcode.php:6413
-#, php-format
-msgid "%d quizzable word"
-msgid_plural "%d quizzable words"
-msgstr[0] "%d quiz'e uygun kelime"
-msgstr[1] "%d quiz'e uygun kelime"
 
 #: includes/admin/ipa-keyboard-admin.php:2906
 msgid "Unexpected tie-bar pair"

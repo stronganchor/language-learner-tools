@@ -1530,6 +1530,35 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     color: #dc2626;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-category-meta--published {
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-count.ll-word-edit-category-count--published {
+    color: #475569;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-count-label,
+.word-grid.ll-word-grid .ll-word-edit-category-identity {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-identity {
+    display: block;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-count-label {
+    max-width: 7em;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-category-empty {
     padding: 8px 9px;
     border: 1px dashed #cbd5e1;

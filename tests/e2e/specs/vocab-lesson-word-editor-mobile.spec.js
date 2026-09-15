@@ -78,7 +78,9 @@ function buildCategoryEditorMarkup() {
     { id: 1, name: 'Aile - Benim, Bizim', count: 10, quizzable: true },
     { id: 2, name: 'Al etli Dil nerede?', count: 0, quizzable: false },
     { id: 3, name: 'Doğa: gökyüzü', count: 7, quizzable: true },
-    { id: 4, name: 'Diğer Ev Eşyası', count: 36, quizzable: true }
+    { id: 4, name: 'Diğer Ev Eşyası', count: 36, quizzable: true },
+    { id: 5, name: 'Giyim - Modern', identity: 'giyim-modern', count: 10, quizzable: true },
+    { id: 6, name: 'Giyim - Modern', identity: 'giyim-modern-with-a-long-legacy-category-identity', count: 0, quizzable: false }
   ];
 
   const categoryOptions = categories.map((category) => `
@@ -92,9 +94,10 @@ function buildCategoryEditorMarkup() {
     >
       <input type="checkbox" id="category-${category.id}" class="ll-word-edit-category-checkbox" />
       <span class="ll-word-edit-category-main">
-        <span class="ll-word-edit-category-label">${category.name}</span>
-        <span class="ll-word-edit-category-meta">
-          <span class="ll-word-edit-category-count">${category.count}</span>
+        <span class="ll-word-edit-category-label">${category.name}${category.identity ? `<span class="ll-word-edit-category-identity">${category.identity}</span>` : ''}</span>
+        <span class="ll-word-edit-category-meta ll-word-edit-category-meta--published" aria-label="${category.count} published words">
+          <span class="ll-word-edit-category-count ll-word-edit-category-count--published">${category.count}</span>
+          <span class="ll-word-edit-category-count-label">Published</span>
         </span>
       </span>
     </label>
@@ -208,5 +211,29 @@ test('category editor counts do not crowd category labels', async ({ page }) => 
   expect(labelBox.width).toBeGreaterThanOrEqual(150);
   expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(countBox.x - 4);
 
-  await expect(count).toHaveCSS('color', 'rgb(220, 38, 38)');
+  await expect(count).toHaveCSS('color', 'rgb(71, 85, 105)');
+});
+
+test('duplicate category identities and zero published counts fit on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('about:blank');
+  await page.setContent(buildCategoryEditorMarkup());
+  await page.addStyleTag({ content: languageLearnerToolsCssSource });
+  await page.addStyleTag({ content: hostileThemeCss });
+
+  for (const id of [5, 6]) {
+    const option = page.locator(`[data-ll-word-category-id="${id}"]`);
+    const identity = option.locator('.ll-word-edit-category-identity');
+    const meta = option.locator('.ll-word-edit-category-meta');
+    await expect(identity).toBeVisible();
+    await expect(meta).toBeVisible();
+    const optionBox = await option.boundingBox();
+    const labelBox = await option.locator('.ll-word-edit-category-label').boundingBox();
+    const metaBox = await meta.boundingBox();
+    expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(metaBox.x - 4);
+    expect(metaBox.x + metaBox.width).toBeLessThanOrEqual(optionBox.x + optionBox.width);
+    expect(await option.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  await expect(page.locator('[data-ll-word-category-id="6"] .ll-word-edit-category-count')).toHaveText('0');
+  await expect(page.locator('[data-ll-word-category-id="6"] .ll-word-edit-category-count-label')).toHaveText('Published');
 });
