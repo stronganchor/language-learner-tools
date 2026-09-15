@@ -3362,9 +3362,118 @@ function ll_tools_word_grid_get_category_editor_quizzable_counts(int $wordset_id
     return $counts;
 }
 
+/**
+ * Count published words without loading words or their media. Legacy source and
+ * isolated-copy memberships count once; a foreign-owned source is never an alias.
+ * An incomplete source returns no counts, so the UI cannot mistake failure for 0.
+ */
+function ll_tools_word_grid_get_category_editor_published_counts(int $wordset_id, array $category_ids, ?bool &$complete = null): array {
+    global $wpdb;
+
+    $complete = true;
+    $category_ids = ll_tools_word_grid_normalize_category_id_list($category_ids);
+    if ($wordset_id <= 0 || empty($category_ids)) {
+        return [];
+    }
+
+    $counts = array_fill_keys($category_ids, 0);
+    foreach (array_chunk($category_ids, 200) as $category_chunk) {
+        $wpdb->last_error = '';
+        $category_terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false, 'include' => $category_chunk]);
+        if (is_wp_error($category_terms) || $wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+        update_meta_cache('term', $category_chunk);
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return [];
+        }
+        $source_ids_by_category = [];
+        foreach ($category_terms as $term) {
+            $source_complete = true;
+            $source_id = function_exists('ll_tools_get_category_isolation_source_id')
+                ? (int) ll_tools_get_category_isolation_source_id($term, $source_complete) : 0;
+            if (!$source_complete) {
+                $complete = false;
+                return [];
+            }
+            if ($source_id > 0 && $source_id !== (int) $term->term_id) {
+                $source_ids_by_category[(int) $term->term_id] = $source_id;
+            }
+        }
+        $source_owner_ids = [];
+        if ($source_ids_by_category) {
+            $source_ids = array_values(array_unique($source_ids_by_category));
+            $wpdb->last_error = '';
+            $source_terms = get_terms(['taxonomy' => 'word-category', 'hide_empty' => false, 'include' => $source_ids]);
+            if (is_wp_error($source_terms) || $wpdb->last_error !== '') {
+                $complete = false;
+                return [];
+            }
+            update_meta_cache('term', $source_ids);
+            if ($wpdb->last_error !== '') {
+                $complete = false;
+                return [];
+            }
+            foreach ($source_terms as $source_term) {
+                $owner_complete = true;
+                $source_owner_ids[(int) $source_term->term_id] = function_exists('ll_tools_get_category_wordset_owner_id')
+                    ? (int) ll_tools_get_category_wordset_owner_id($source_term, $owner_complete) : 0;
+                if (!$owner_complete) {
+                    $complete = false;
+                    return [];
+                }
+            }
+        }
+        $mapping_rows = [];
+        $mapping_args = [];
+        foreach ($category_chunk as $category_id) {
+            $mapping_rows[] = 'SELECT %d AS category_id, %d AS query_id';
+            $mapping_args[] = $category_id;
+            $mapping_args[] = $category_id;
+            $source_id = $source_ids_by_category[$category_id] ?? 0;
+            if ($source_id > 0 && isset($source_owner_ids[$source_id]) && $source_owner_ids[$source_id] <= 0) {
+                $mapping_rows[] = 'SELECT %d, %d';
+                $mapping_args[] = $category_id;
+                $mapping_args[] = $source_id;
+            }
+        }
+        $mapping_sql = implode(' UNION ALL ', $mapping_rows);
+        $sql = $wpdb->prepare(
+            "SELECT editor_categories.category_id, COUNT(DISTINCT p.ID) AS published_count
+             FROM ({$mapping_sql}) AS editor_categories
+             INNER JOIN {$wpdb->term_taxonomy} AS tt_cat
+                ON tt_cat.taxonomy = 'word-category' AND tt_cat.term_id = editor_categories.query_id
+             INNER JOIN {$wpdb->term_relationships} AS tr_cat
+                ON tr_cat.term_taxonomy_id = tt_cat.term_taxonomy_id
+             INNER JOIN {$wpdb->posts} AS p
+                ON p.ID = tr_cat.object_id AND p.post_type = 'words' AND p.post_status = 'publish'
+             INNER JOIN {$wpdb->term_relationships} AS tr_ws ON tr_ws.object_id = p.ID
+             INNER JOIN {$wpdb->term_taxonomy} AS tt_ws
+                ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+                AND tt_ws.taxonomy = 'wordset' AND tt_ws.term_id = %d
+             GROUP BY editor_categories.category_id",
+            array_merge($mapping_args, [$wordset_id])
+        );
+        $wpdb->last_error = '';
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if ($wpdb->last_error !== '' || !is_array($rows)) {
+            $complete = false;
+            return [];
+        }
+        foreach ($rows as $row) {
+            $counts[(int) $row['category_id']] = max(0, (int) $row['published_count']);
+        }
+    }
+    return $counts;
+}
+
 function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $specific_word_ids = [], bool $include_quiz_meta = false): array {
     $rows = [];
     $terms = ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id, $specific_word_ids);
+    $published_counts = ll_tools_word_grid_get_category_editor_published_counts($wordset_id, wp_list_pluck($terms, 'term_id'));
+    $label_counts = [];
     $quizzable_counts = $include_quiz_meta
         ? ll_tools_word_grid_get_category_editor_quizzable_counts($wordset_id, $terms)
         : [];
@@ -3384,7 +3493,12 @@ function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $spe
             'id'    => $term_id,
             'slug'  => (string) $term->slug,
             'label' => $label !== '' ? $label : (string) $term->name,
+            'published_count' => $published_counts[$term_id] ?? null,
         ];
+        $label_key = trim(wp_strip_all_tags(html_entity_decode($row['label'], ENT_QUOTES, 'UTF-8')));
+        $label_key = function_exists('mb_strtolower') ? mb_strtolower($label_key, 'UTF-8') : strtolower($label_key);
+        $label_counts[$label_key] = ($label_counts[$label_key] ?? 0) + 1;
+        $row['label_key'] = $label_key;
         if ($include_quiz_meta) {
             $quizzable_count = max(0, (int) ($quizzable_counts[$term_id] ?? 0));
             $is_private = function_exists('ll_tools_is_category_private') && ll_tools_is_category_private($term);
@@ -3397,6 +3511,12 @@ function ll_tools_word_grid_get_category_editor_rows(int $wordset_id, array $spe
         }
         $rows[] = $row;
     }
+
+    foreach ($rows as &$row) {
+        $row['identity_label'] = $label_counts[$row['label_key']] > 1 ? $row['slug'] : '';
+        unset($row['label_key']);
+    }
+    unset($row);
 
     return $rows;
 }
@@ -6405,25 +6525,33 @@ function ll_tools_word_grid_shortcode($atts) {
                         if (!$category_is_quizzable) {
                             $category_option_classes .= ' ll-word-edit-category-option--not-quizzable';
                         }
-                        $category_attrs = ' data-ll-word-category-option data-ll-word-category-id="' . esc_attr((string) $category_option_id) . '" data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '"';
-                        $category_count_label = '';
-                        if ($category_has_quiz_meta) {
-                            $category_count_label = sprintf(
-                                /* translators: %d is the number of quiz-ready published words in a category. */
-                                _n('%d quizzable word', '%d quizzable words', $category_quizzable_count, 'll-tools-text-domain'),
-                                $category_quizzable_count
+                        $category_identity_label = (string) ($category_row['identity_label'] ?? '');
+                        $category_search_text = trim($category_option_label . ' ' . $category_identity_label);
+                        $category_attrs = ' data-ll-word-category-option data-ll-word-category-id="' . esc_attr((string) $category_option_id) . '" data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_search_text) . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '"';
+                        $category_published_count = $category_row['published_count'] ?? null;
+                        $category_count_label = $category_published_count === null
+                            ? __('Word count unavailable', 'll-tools-text-domain')
+                            : sprintf(
+                                /* translators: %d is the number of published words in this category and word set. */
+                                _n('%d published word', '%d published words', $category_published_count, 'll-tools-text-domain'),
+                                $category_published_count
                             );
-                            $category_attrs .= ' data-ll-word-category-quizzable-count="' . esc_attr((string) $category_quizzable_count) . '" data-ll-word-category-quizzable="' . ($category_is_quizzable ? '1' : '0') . '" data-ll-word-category-public="' . ($category_is_public ? '1' : '0') . '" title="' . esc_attr($category_count_label) . '"';
+                        $category_attrs .= ' data-ll-word-category-published-count="' . esc_attr($category_published_count === null ? '' : (string) $category_published_count) . '" title="' . esc_attr($category_count_label) . '"';
+                        if ($category_has_quiz_meta) {
+                            $category_attrs .= ' data-ll-word-category-quizzable-count="' . esc_attr((string) $category_quizzable_count) . '" data-ll-word-category-quizzable="' . ($category_is_quizzable ? '1' : '0') . '" data-ll-word-category-public="' . ($category_is_public ? '1' : '0') . '"';
                         }
                         echo '<label class="' . esc_attr($category_option_classes) . '" for="' . esc_attr($category_input_id) . '"' . $category_attrs . '>';
                         echo '<input type="checkbox" id="' . esc_attr($category_input_id) . '" class="ll-word-edit-category-checkbox" data-ll-word-category-input value="' . esc_attr((string) $category_option_id) . '"' . checked($is_checked, true, false) . ' />';
                         echo '<span class="ll-word-edit-category-main">';
-                        echo '<span class="ll-word-edit-category-label">' . esc_html($category_option_label) . '</span>';
-                        if ($category_has_quiz_meta) {
-                            echo '<span class="ll-word-edit-category-meta">';
-                            echo '<span class="ll-word-edit-category-count" aria-label="' . esc_attr($category_count_label) . '" title="' . esc_attr($category_count_label) . '">' . esc_html((string) $category_quizzable_count) . '</span>';
-                            echo '</span>';
+                        echo '<span class="ll-word-edit-category-label">' . esc_html($category_option_label);
+                        if ($category_identity_label !== '') {
+                            echo '<span class="ll-word-edit-category-identity">' . esc_html($category_identity_label) . '</span>';
                         }
+                        echo '</span>';
+                        echo '<span class="ll-word-edit-category-meta ll-word-edit-category-meta--published" aria-label="' . esc_attr($category_count_label) . '" title="' . esc_attr($category_count_label) . '">';
+                        echo '<span class="ll-word-edit-category-count ll-word-edit-category-count--published" aria-hidden="true">' . esc_html($category_published_count === null ? '—' : (string) $category_published_count) . '</span>';
+                        echo '<span class="ll-word-edit-category-count-label" aria-hidden="true">' . esc_html__('Published', 'll-tools-text-domain') . '</span>';
+                        echo '</span>';
                         echo '</span>';
                         echo '</label>';
                         $category_order_index++;
@@ -8367,8 +8495,8 @@ function ll_tools_word_grid_update_word_handler() {
             $submitted_category_ids_raw = [$submitted_category_ids_raw];
         }
         $submitted_category_ids = ll_tools_word_grid_normalize_category_id_list($submitted_category_ids_raw);
-        $available_category_rows = $wordset_id > 0 ? ll_tools_word_grid_get_category_editor_rows($wordset_id) : [];
-        $available_category_ids = ll_tools_word_grid_normalize_category_id_list(wp_list_pluck($available_category_rows, 'id'));
+        $available_category_terms = $wordset_id > 0 ? ll_tools_word_grid_get_category_editor_terms_for_wordset($wordset_id) : [];
+        $available_category_ids = ll_tools_word_grid_normalize_category_id_list(wp_list_pluck($available_category_terms, 'term_id'));
 
         $available_category_lookup = array_fill_keys($available_category_ids, true);
         $has_out_of_scope_category = false;

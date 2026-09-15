@@ -556,12 +556,6 @@ return [
                     'end' => ": __('Star word'",
                 ],
                 [
-                    'name' => 'public-category-word-count',
-                    'symbol' => 'll_tools_word_grid_shortcode',
-                    'start' => "_n('%d quizzable word'",
-                    'end' => "_n('%d quizzable word'",
-                ],
-                [
                     'name' => 'empty-public-word-grid',
                     'symbol' => 'll_tools_word_grid_shortcode',
                     'start' => "esc_html__('No words found in this category.'",

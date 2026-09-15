@@ -143,7 +143,9 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-recording-delete-toggle', $html);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $html);
         $this->assertStringContainsString('Detached Modal Off Page Category', $html);
-        $this->assertStringNotContainsString('ll-word-edit-category-count', $html);
+        $this->assertStringContainsString('ll-word-edit-category-count--published', $html);
+        $this->assertStringContainsString('data-ll-word-category-published-count="1"', $html);
+        $this->assertStringNotContainsString('data-ll-word-category-quizzable-count', $html);
         $this->assertIsArray($data['config'] ?? null);
         $this->assertNotEmpty((string) (($data['config'] ?? [])['editNonce'] ?? ''));
     }

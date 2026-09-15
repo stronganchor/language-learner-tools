@@ -93,6 +93,161 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_published_counts_are_scoped_and_aggregate_without_loading_words(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $this->loginEditor();
+        foreach (['draft', 'pending', 'private', 'trash', 'future'] as $status) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words', 'post_status' => $status,
+                'post_title' => 'Unpublished category count ' . $status,
+                'post_date' => $status === 'future' ? gmdate('Y-m-d H:i:s', time() + DAY_IN_SECONDS) : current_time('mysql'),
+            ]);
+            wp_set_post_terms($word_id, [$fixture['category_a_id']], 'word-category');
+            wp_set_post_terms($word_id, [$fixture['wordset_id']], 'wordset');
+        }
+        $foreign_word_id = self::factory()->post->create([
+            'post_type' => 'words', 'post_status' => 'publish', 'post_title' => 'Foreign count word',
+        ]);
+        wp_set_post_terms($foreign_word_id, [$fixture['category_a_id']], 'word-category');
+        wp_set_post_terms($foreign_word_id, [$fixture['foreign_wordset_id']], 'wordset');
+
+        $aggregates = [];
+        $hydrations = [];
+        $capture_sql = static function (string $sql) use (&$aggregates): string {
+            if (strpos($sql, 'GROUP BY editor_categories.category_id') !== false) {
+                $aggregates[] = $sql;
+            }
+            return $sql;
+        };
+        $capture_posts = static function (WP_Query $query) use (&$hydrations): void {
+            if (array_intersect(['words', 'word_audio', 'word_images'], (array) $query->get('post_type'))) {
+                $hydrations[] = $query->query_vars;
+            }
+        };
+        add_filter('query', $capture_sql);
+        add_action('pre_get_posts', $capture_posts);
+        try {
+            $counts = ll_tools_word_grid_get_category_editor_published_counts(
+                $fixture['wordset_id'], [$fixture['category_a_id'], $fixture['category_b_id']], $complete
+            );
+        } finally {
+            remove_filter('query', $capture_sql);
+            remove_action('pre_get_posts', $capture_posts);
+        }
+        $this->assertTrue($complete);
+        $this->assertSame(1, $counts[$fixture['category_a_id']]);
+        $this->assertSame(0, $counts[$fixture['category_b_id']]);
+        $this->assertCount(1, $aggregates);
+        $this->assertSame([], $hydrations);
+    }
+
+    public function test_published_counts_deduplicate_ownerless_sources_and_exclude_foreign_source_assignments(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $source_id = $this->ensureTerm('word-category', 'Legacy count source', 'legacy-count-source');
+        update_term_meta($fixture['category_b_id'], LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY, $source_id);
+        ll_tools_replace_post_terms_for_isolation($fixture['word_id'], [$source_id, $fixture['category_b_id']], 'word-category');
+        $counts = ll_tools_word_grid_get_category_editor_published_counts($fixture['wordset_id'], [$fixture['category_b_id']]);
+        $this->assertSame(1, $counts[$fixture['category_b_id']], 'A source and its copy on one word count once.');
+
+        ll_tools_replace_post_terms_for_isolation($fixture['word_id'], [$source_id], 'word-category');
+        $counts = ll_tools_word_grid_get_category_editor_published_counts($fixture['wordset_id'], [$fixture['category_b_id']]);
+        $this->assertSame(1, $counts[$fixture['category_b_id']], 'An unmigrated ownerless source counts for its copy.');
+
+        ll_tools_set_category_wordset_owner($source_id, $fixture['foreign_wordset_id'], $source_id);
+        $counts = ll_tools_word_grid_get_category_editor_published_counts($fixture['wordset_id'], [$fixture['category_b_id']]);
+        $this->assertSame(0, $counts[$fixture['category_b_id']], 'Foreign-owned source assignments never count for a current-wordset copy.');
+    }
+
+    public function test_published_counts_bulk_prime_cold_legacy_source_metadata(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $category_ids = [];
+        $all_ids = [];
+        for ($index = 0; $index < 20; $index++) {
+            $source_id = $this->ensureTerm('word-category', 'Cold count source ' . $index, 'cold-count-source-' . $index);
+            $category_id = $this->createWordsetCategory('Cold count copy ' . $index, 'cold-count-copy-' . $index, $fixture['wordset_id']);
+            update_term_meta($category_id, LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY, $source_id);
+            $category_ids[] = $category_id;
+            $all_ids[] = $source_id;
+            $all_ids[] = $category_id;
+        }
+        foreach ($all_ids as $term_id) {
+            wp_cache_delete($term_id, 'terms');
+            wp_cache_delete($term_id, 'term_meta');
+        }
+        $queries = [];
+        $capture = static function (string $sql) use (&$queries): string {
+            $queries[] = $sql;
+            return $sql;
+        };
+        add_filter('query', $capture);
+        try {
+            $counts = ll_tools_word_grid_get_category_editor_published_counts($fixture['wordset_id'], $category_ids, $complete);
+        } finally {
+            remove_filter('query', $capture);
+        }
+        $this->assertTrue($complete);
+        $this->assertSame(array_fill_keys($category_ids, 0), $counts);
+        $this->assertLessThanOrEqual(7, count($queries), 'Cold source identity and metadata reads must be batched, not grow per category.');
+    }
+
+    public function test_duplicate_display_names_keep_distinct_selectable_identities_and_published_counts(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $this->loginEditor();
+        $display = static function (string $label, WP_Term $term) use ($fixture): string {
+            return in_array((int) $term->term_id, [$fixture['category_a_id'], $fixture['category_b_id'], $fixture['foreign_category_id']], true)
+                ? 'Giyim - Modern' : $label;
+        };
+        add_filter('ll_tools_category_display_name', $display, 10, 2);
+        try {
+            $rows = ll_tools_word_grid_get_category_editor_rows($fixture['wordset_id']);
+            $output = $this->renderLessonWordGridForFixture($fixture);
+        } finally {
+            remove_filter('ll_tools_category_display_name', $display, 10);
+        }
+        $rows = array_column($rows, null, 'id');
+        $this->assertArrayHasKey($fixture['category_a_id'], $rows);
+        $this->assertArrayHasKey($fixture['category_b_id'], $rows);
+        $this->assertArrayNotHasKey($fixture['foreign_category_id'], $rows);
+        foreach ([$fixture['category_a_id'], $fixture['category_b_id']] as $category_id) {
+            $this->assertSame('Giyim - Modern', $rows[$category_id]['label']);
+            $this->assertSame($rows[$category_id]['slug'], $rows[$category_id]['identity_label']);
+            $this->assertStringContainsString('<span class="ll-word-edit-category-identity">' . esc_html($rows[$category_id]['slug']) . '</span>', $output);
+        }
+        $this->assertSame(1, $rows[$fixture['category_a_id']]['published_count']);
+        $this->assertSame(0, $rows[$fixture['category_b_id']]['published_count']);
+        $this->assertStringContainsString('1 published word', $output);
+        $this->assertStringContainsString('0 published words', $output);
+    }
+
+    public function test_failed_published_count_query_is_not_rendered_as_zero(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $this->loginEditor();
+        $fail_count = static function (string $sql): string {
+            return strpos($sql, 'GROUP BY editor_categories.category_id') !== false
+                ? 'SELECT * FROM ll_tools_missing_category_count_table' : $sql;
+        };
+        global $wpdb;
+        $previous_suppression = $wpdb->suppress_errors();
+        add_filter('query', $fail_count);
+        try {
+            $counts = ll_tools_word_grid_get_category_editor_published_counts($fixture['wordset_id'], [$fixture['category_a_id']], $complete);
+            $output = $this->renderLessonWordGridForFixture($fixture);
+        } finally {
+            remove_filter('query', $fail_count);
+            $wpdb->suppress_errors($previous_suppression);
+            $wpdb->last_error = '';
+        }
+        $this->assertFalse($complete);
+        $this->assertSame([], $counts);
+        $this->assertStringContainsString('Word count unavailable', $output);
+        $this->assertStringNotContainsString('data-ll-word-category-published-count="0"', $output);
+    }
+
     public function test_ajax_word_update_replaces_only_current_wordset_category_assignments(): void
     {
         $fixture = $this->createCategoryEditFixture();

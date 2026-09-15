@@ -25015,13 +25015,17 @@ msgstr "In Sprachen suchen"
 msgid "Backup snapshot skipped for this import job."
 msgstr "Backup-Schnappschuss für diesen Importauftrag übersprungen."
 
-#. translators: %d is the number of quiz-ready published words in a category.
-#: includes/shortcodes/word-grid-shortcode.php:6413
+#: includes/shortcodes/word-grid-shortcode.php
+msgid "Word count unavailable"
+msgstr "Vokabelanzahl nicht verfügbar"
+
+#. translators: %d is the number of published words in this category and word set.
+#: includes/shortcodes/word-grid-shortcode.php
 #, php-format
-msgid "%d quizzable word"
-msgid_plural "%d quizzable words"
-msgstr[0] "%d quizfähige Vokabel"
-msgstr[1] "%d quizfähige Vokabeln"
+msgid "%d published word"
+msgid_plural "%d published words"
+msgstr[0] "%d veröffentlichte Vokabel"
+msgstr[1] "%d veröffentlichte Vokabeln"
 
 #: includes/admin/ipa-keyboard-admin.php:2907
 msgid "Unexpected tie-bar pair"
