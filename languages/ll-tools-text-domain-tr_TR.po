@@ -15,12 +15,12 @@ msgstr ""
 "X-Generator: Codex + WP-CLI 2.12.0\n"
 "X-Loco-Version: 2.8.0; wp-6.9.1; php-8.2.23\n"
 
-#: includes/shortcodes/word-grid-shortcode.php
+#: includes/shortcodes/word-grid-shortcode.php:6533
 msgid "Word count unavailable"
 msgstr "Kelime sayısı alınamadı"
 
 #. translators: %d is the number of published words in this category and word set.
-#: includes/shortcodes/word-grid-shortcode.php
+#: includes/shortcodes/word-grid-shortcode.php:6536
 #, php-format
 msgid "%d published word"
 msgid_plural "%d published words"
@@ -532,7 +532,7 @@ msgstr "Etkinlik"
 msgid "Add"
 msgstr "Ekle"
 
-#: includes/shortcodes/word-grid-shortcode.php:4059
+#: includes/shortcodes/word-grid-shortcode.php:4179
 #, php-format
 msgid "Add %s"
 msgstr "%s ekle"
@@ -862,7 +862,7 @@ msgstr "Yükselen"
 msgid "AssemblyAI API Key"
 msgstr "AssemblyAI API Anahtarı"
 
-#: includes/shortcodes/word-grid-shortcode.php:11278
+#: includes/shortcodes/word-grid-shortcode.php:11406
 msgid "AssemblyAI integration not available"
 msgstr "AssemblyAI entegrasyonu mevcut değil"
 
@@ -874,7 +874,7 @@ msgstr "AssemblyAI entegrasyonu mevcut değil."
 #: includes/admin/api/assemblyai-api.php:296
 #: includes/shortcodes/audio-recording-shortcode.php:5662
 #: includes/shortcodes/audio-recording-shortcode.php:5721
-#: includes/shortcodes/word-grid-shortcode.php:11359
+#: includes/shortcodes/word-grid-shortcode.php:11487
 msgid "AssemblyAI transcription failed."
 msgstr "AssemblyAI transkripsiyonu başarısız oldu."
 
@@ -1176,8 +1176,8 @@ msgstr "Toplu Resim Ekleme"
 msgid "Bulk Audio Upload for Words"
 msgstr "Kelimeler için Toplu Ses Yükleme"
 
-#: includes/shortcodes/word-grid-shortcode.php:4038
-#: includes/shortcodes/word-grid-shortcode.php:10802
+#: includes/shortcodes/word-grid-shortcode.php:10930
+#: includes/shortcodes/word-grid-shortcode.php:4158
 msgid "Bulk changes undone."
 msgstr "Toplu değişiklikler geri alındı."
 
@@ -1231,16 +1231,16 @@ msgstr "%d kelime kategorisi için önbellek sürümü artırıldı."
 msgid "Cache flush failed security check. Please try again."
 msgstr "Önbellek yıkama güvenlik denetimi başarısız oldu. Lütfen tekrar dene."
 
-#: includes/admin/audio-processor-admin.php:153
 #: includes/admin/audio-processor-admin.php:1241
 #: includes/admin/audio-processor-admin.php:1464
+#: includes/admin/audio-processor-admin.php:153
 #: includes/admin/missing-audio-admin-page.php:606
 #: includes/admin/offline-app-export.php:2939
 #: includes/admin/offline-app-export.php:3682
 #: includes/admin/split-word-admin.php:178
 #: includes/lib/word-copy.php:433
 #: includes/shortcodes/language-switcher-shortcode.php:1066
-#: includes/shortcodes/word-grid-shortcode.php:5820
+#: includes/shortcodes/word-grid-shortcode.php:5940
 #: templates/offline-app-shell-template.php:691
 #: templates/vocab-lesson-template.php:638
 msgid "Cancel"
@@ -1258,7 +1258,7 @@ msgstr "Otomatik transkripsiyonu iptal et"
 msgid "Cancel transcription"
 msgstr "Transkripsiyonu iptal et"
 
-#: includes/shortcodes/word-grid-shortcode.php:4061
+#: includes/shortcodes/word-grid-shortcode.php:4181
 #, php-format
 msgid "Cannot add %s because it would create a loop."
 msgstr "Bir döngü oluşturacağı için %s eklenemiyor."
@@ -1287,7 +1287,7 @@ msgstr "Standart oran"
 #: includes/post-types/word-image-post-type.php:1220
 #: includes/post-types/words-post-type.php:2004
 #: includes/shortcodes/flashcard-widget.php:640
-#: includes/shortcodes/word-grid-shortcode.php:5769
+#: includes/shortcodes/word-grid-shortcode.php:5889
 msgid "Categories"
 msgstr "Kategoriler"
 
@@ -1445,15 +1445,15 @@ msgstr "Yeni kelimeye taşınacak kayıtları işaretle. İşaretlenmemiş kayı
 msgid "Checking upload..."
 msgstr "Yükleme kontrol ediliyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4047
+#: includes/shortcodes/word-grid-shortcode.php:4167
 msgid "Choose a gender."
 msgstr "Bir cinsiyet seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:4046
+#: includes/shortcodes/word-grid-shortcode.php:4166
 msgid "Choose a part of speech."
 msgstr "Bir konuşma parçası seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:4048
+#: includes/shortcodes/word-grid-shortcode.php:4168
 msgid "Choose a plurality option."
 msgstr "Çoğunluk seçeneğini seç."
 
@@ -1461,11 +1461,11 @@ msgstr "Çoğunluk seçeneğini seç."
 msgid "Choose a tool below to run a workflow. Each card includes a quick summary to help you find the right utility at a glance."
 msgstr "Bir iş akışı çalıştırmak için aşağıdan bir araç seç. Her kart, bir bakışta doğru yardımcı programı bulmanıza yardımcı olacak hızlı bir özet içerir."
 
-#: includes/shortcodes/word-grid-shortcode.php:4050
+#: includes/shortcodes/word-grid-shortcode.php:4170
 msgid "Choose a verb mood option."
 msgstr "Bir fiil kipi seçeneği seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:4049
+#: includes/shortcodes/word-grid-shortcode.php:4169
 msgid "Choose a verb tense option."
 msgstr "Bir fiil zamanı seçeneği seç."
 
@@ -1697,7 +1697,7 @@ msgid "Copy words from one category into another category within the same word s
 msgstr "Kelimeleri bir kategoriden aynı kelime seti içindeki başka bir kategoriye kopyala. Yeni kelimeler başlık, resim ve meta verileri korur, ancak kayıtlar olmadan başlar."
 
 #: includes/post-types/word-image-post-type.php:1221
-#: includes/shortcodes/word-grid-shortcode.php:5781
+#: includes/shortcodes/word-grid-shortcode.php:5901
 msgid "Copyright Info"
 msgstr "Telif Hakkı Bilgisi"
 
@@ -2047,7 +2047,7 @@ msgstr "Özel oran"
 msgid "Custom Recording Page"
 msgstr "Özel Kayıt Sayfası"
 
-#: includes/shortcodes/word-grid-shortcode.php:4064
+#: includes/shortcodes/word-grid-shortcode.php:4184
 msgid "Cycle"
 msgstr "Döngü"
 
@@ -2260,9 +2260,9 @@ msgid "Dictionary Entry"
 msgstr "Sözlük Girdisi"
 
 #: includes/pages/wordset-editor.php:971
-#: includes/shortcodes/editor-hub-shortcode.php:513
 #: includes/shortcodes/editor-hub-shortcode.php:1056
-#: includes/shortcodes/word-grid-shortcode.php:6471
+#: includes/shortcodes/editor-hub-shortcode.php:513
+#: includes/shortcodes/word-grid-shortcode.php:6599
 msgid "Dictionary entry"
 msgstr "Sözlük girdisi"
 
@@ -2422,7 +2422,7 @@ msgstr "Kelime Dersini Düzenle"
 #: includes/admin/ipa-keyboard-admin.php:529
 #: includes/pages/wordset-editor.php:4825
 #: includes/pages/wordset-pages.php:22513
-#: includes/shortcodes/word-grid-shortcode.php:5761
+#: includes/shortcodes/word-grid-shortcode.php:5881
 msgid "Edit word"
 msgstr "Kelimeyi düzenle"
 
@@ -2455,8 +2455,8 @@ msgstr "Editör Merkezi Sayfası Oluşturuldu!"
 msgid "Email"
 msgstr "E-posta"
 
-#: includes/shortcodes/word-grid-shortcode.php:11002
-#: includes/shortcodes/word-grid-shortcode.php:11116
+#: includes/shortcodes/word-grid-shortcode.php:11130
+#: includes/shortcodes/word-grid-shortcode.php:11244
 msgid "Empty transcript"
 msgstr "Boş transkript"
 
@@ -2843,7 +2843,7 @@ msgstr "Dosya kaydedilemedi"
 #: includes/admin/audio-processor-admin.php:1659
 #: includes/shortcodes/audio-recording-shortcode.php:8706
 #: includes/shortcodes/audio-recording-shortcode.php:9732
-#: includes/shortcodes/word-grid-shortcode.php:8116
+#: includes/shortcodes/word-grid-shortcode.php:8244
 #, php-format
 msgid "Failed to save file: %s"
 msgstr "Dosya kaydedilemedi: %s"
@@ -3049,23 +3049,23 @@ msgstr "Her gün gönderilen ilk kayıt e-postası için, en son yüklemeden son
 #: includes/lib/word-grid-bulk-operations.php:1125
 #: includes/pages/wordset-transcription-review.php:268
 #: includes/shortcodes/editor-hub-shortcode.php:975
-#: includes/shortcodes/word-grid-shortcode.php:10180
-#: includes/shortcodes/word-grid-shortcode.php:10846
-#: includes/shortcodes/word-grid-shortcode.php:10930
-#: includes/shortcodes/word-grid-shortcode.php:11177
-#: includes/shortcodes/word-grid-shortcode.php:8044
-#: includes/shortcodes/word-grid-shortcode.php:8192
-#: includes/shortcodes/word-grid-shortcode.php:8312
-#: includes/shortcodes/word-grid-shortcode.php:8995
-#: includes/shortcodes/word-grid-shortcode.php:9002
-#: includes/shortcodes/word-grid-shortcode.php:9072
-#: includes/shortcodes/word-grid-shortcode.php:9160
-#: includes/shortcodes/word-grid-shortcode.php:9234
-#: includes/shortcodes/word-grid-shortcode.php:9307
-#: includes/shortcodes/word-grid-shortcode.php:9310
-#: includes/shortcodes/word-grid-shortcode.php:9332
-#: includes/shortcodes/word-grid-shortcode.php:9361
-#: includes/shortcodes/word-grid-shortcode.php:9364
+#: includes/shortcodes/word-grid-shortcode.php:10308
+#: includes/shortcodes/word-grid-shortcode.php:10974
+#: includes/shortcodes/word-grid-shortcode.php:11058
+#: includes/shortcodes/word-grid-shortcode.php:11305
+#: includes/shortcodes/word-grid-shortcode.php:8172
+#: includes/shortcodes/word-grid-shortcode.php:8320
+#: includes/shortcodes/word-grid-shortcode.php:8440
+#: includes/shortcodes/word-grid-shortcode.php:9123
+#: includes/shortcodes/word-grid-shortcode.php:9130
+#: includes/shortcodes/word-grid-shortcode.php:9200
+#: includes/shortcodes/word-grid-shortcode.php:9288
+#: includes/shortcodes/word-grid-shortcode.php:9362
+#: includes/shortcodes/word-grid-shortcode.php:9435
+#: includes/shortcodes/word-grid-shortcode.php:9438
+#: includes/shortcodes/word-grid-shortcode.php:9460
+#: includes/shortcodes/word-grid-shortcode.php:9489
+#: includes/shortcodes/word-grid-shortcode.php:9492
 msgid "Forbidden"
 msgstr "İznin yok"
 
@@ -3118,7 +3118,7 @@ msgstr "GD resim kitaplığı beyaz dolgu için kullanılamaz."
 #: includes/shortcodes/flashcard-widget.php:733
 #: includes/shortcodes/flashcard-widget.php:821
 #: includes/shortcodes/flashcard-widget.php:822
-#: includes/shortcodes/word-grid-shortcode.php:6497
+#: includes/shortcodes/word-grid-shortcode.php:6625
 #: templates/offline-app-shell-template.php:826
 #: templates/vocab-lesson-template.php:180
 #: templates/vocab-lesson-template.php:753
@@ -3126,7 +3126,7 @@ msgstr "GD resim kitaplığı beyaz dolgu için kullanılamaz."
 msgid "Gender"
 msgstr "Cinsiyet"
 
-#: includes/shortcodes/word-grid-shortcode.php:10612
+#: includes/shortcodes/word-grid-shortcode.php:10740
 msgid "Gender is not enabled for this word set."
 msgstr "Bu kelime seti için cinsiyet etkinleştirilmemiştir."
 
@@ -3248,7 +3248,7 @@ msgstr "Öne Çıkan Görsele Sahip"
 
 #: includes/pages/wordset-pages.php:18050
 #: includes/shortcodes/audio-recording-shortcode.php:1720
-#: includes/shortcodes/word-grid-shortcode.php:6314
+#: includes/shortcodes/word-grid-shortcode.php:6434
 msgid "Hidden"
 msgstr "Gizlenmiş"
 
@@ -3368,7 +3368,7 @@ msgstr "Hiçbiri seçilmezse, bu kategori için kayıt devre dışı bırakılı
 #: includes/admin/word-option-rules-admin.php:2272
 #: includes/pages/wordset-editor.php:4629
 #: includes/shortcodes/editor-hub-shortcode.php:1083
-#: includes/shortcodes/word-grid-shortcode.php:5775
+#: includes/shortcodes/word-grid-shortcode.php:5895
 msgid "Image"
 msgstr "Resim"
 
@@ -3722,8 +3722,8 @@ msgid "Insufficient permissions to edit this recording."
 msgstr "Bu kaydı düzenlemek için yeterli izin yok."
 
 #: includes/admin/audio-processor-admin.php:1748
-#: includes/shortcodes/word-grid-shortcode.php:4228
-#: includes/shortcodes/word-grid-shortcode.php:4231
+#: includes/shortcodes/word-grid-shortcode.php:4348
+#: includes/shortcodes/word-grid-shortcode.php:4351
 msgid "Insufficient permissions to edit this word."
 msgstr "Bu kelimeyi düzenlemek için yeterli izin yok."
 
@@ -3731,9 +3731,9 @@ msgstr "Bu kelimeyi düzenlemek için yeterli izin yok."
 #: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/shortcodes/editor-hub-shortcode.php:303
 #: includes/shortcodes/flashcard-widget.php:677
-#: includes/shortcodes/word-grid-shortcode.php:5254
-#: includes/shortcodes/word-grid-shortcode.php:5722
-#: includes/shortcodes/word-grid-shortcode.php:7749
+#: includes/shortcodes/word-grid-shortcode.php:5374
+#: includes/shortcodes/word-grid-shortcode.php:5842
+#: includes/shortcodes/word-grid-shortcode.php:7877
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr "Kelimeyi tanıt (örn. \"Bu bir X.\")"
@@ -3759,11 +3759,11 @@ msgstr "Geçersiz ses gönderimi"
 #: includes/shortcodes/audio-recording-shortcode.php:462
 #: includes/shortcodes/audio-recording-shortcode.php:5626
 #: includes/shortcodes/audio-recording-shortcode.php:9522
-#: includes/shortcodes/word-grid-shortcode.php:8057
+#: includes/shortcodes/word-grid-shortcode.php:8185
 msgid "Invalid audio upload."
 msgstr "Geçersiz ses yüklemesi."
 
-#: includes/shortcodes/word-grid-shortcode.php:10359
+#: includes/shortcodes/word-grid-shortcode.php:10487
 msgid "Invalid bulk edit mode."
 msgstr "Geçersiz toplu düzenleme modu."
 
@@ -3779,7 +3779,7 @@ msgstr "Geçersiz kategori belirtildi."
 #: includes/shortcodes/flashcard-widget.php:2505
 #: includes/shortcodes/flashcard-widget.php:2564
 #: includes/shortcodes/flashcard-widget.php:2739
-#: includes/shortcodes/word-grid-shortcode.php:10347
+#: includes/shortcodes/word-grid-shortcode.php:10475
 #: includes/wordset-isolation.php:1630
 msgid "Invalid category."
 msgstr "Geçersiz kategori."
@@ -3872,7 +3872,7 @@ msgid "Invalid word"
 msgstr "Geçersiz kelime"
 
 #: includes/shortcodes/audio-recording-shortcode.php:9582
-#: includes/shortcodes/word-grid-shortcode.php:8307
+#: includes/shortcodes/word-grid-shortcode.php:8435
 msgid "Invalid word ID"
 msgstr "Geçersiz kelime kimliği"
 
@@ -3920,8 +3920,8 @@ msgstr "Dışa aktarma için geçersiz kelime seti seçimi."
 #: includes/shortcodes/editor-hub-shortcode.php:644
 #: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/interlinear-shortcode.php:304
-#: includes/shortcodes/word-grid-shortcode.php:5743
-#: includes/shortcodes/word-grid-shortcode.php:5754
+#: includes/shortcodes/word-grid-shortcode.php:5863
+#: includes/shortcodes/word-grid-shortcode.php:5874
 msgid "IPA"
 msgstr "IPA"
 
@@ -3934,8 +3934,8 @@ msgid "IPA Special Characters"
 msgstr "IPA Özel Karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1332
-#: includes/shortcodes/word-grid-shortcode.php:5747
-#: includes/shortcodes/word-grid-shortcode.php:6782
+#: includes/shortcodes/word-grid-shortcode.php:5867
+#: includes/shortcodes/word-grid-shortcode.php:6910
 msgid "IPA suggestions"
 msgstr "IPA önerileri"
 
@@ -3944,8 +3944,8 @@ msgstr "IPA önerileri"
 #: includes/admin/ipa-keyboard-admin.php:807
 #: includes/lib/wordset-language-settings.php:1333
 #: includes/lib/wordset-language-settings.php:1337
-#: includes/shortcodes/word-grid-shortcode.php:5748
-#: includes/shortcodes/word-grid-shortcode.php:6786
+#: includes/shortcodes/word-grid-shortcode.php:5868
+#: includes/shortcodes/word-grid-shortcode.php:6914
 msgid "IPA symbols"
 msgstr "IPA sembolleri"
 
@@ -3963,9 +3963,9 @@ msgstr "IPA:"
 #: includes/shortcodes/audio-recording-shortcode.php:29
 #: includes/shortcodes/editor-hub-shortcode.php:302
 #: includes/shortcodes/flashcard-widget.php:676
-#: includes/shortcodes/word-grid-shortcode.php:5253
-#: includes/shortcodes/word-grid-shortcode.php:5721
-#: includes/shortcodes/word-grid-shortcode.php:7748
+#: includes/shortcodes/word-grid-shortcode.php:5373
+#: includes/shortcodes/word-grid-shortcode.php:5841
+#: includes/shortcodes/word-grid-shortcode.php:7876
 #: includes/taxonomies/recording-type-taxonomy.php:41
 msgid "Isolation"
 msgstr "Kelimeyi tek başına kaydet"
@@ -4232,8 +4232,8 @@ msgstr "Ders sayfaları artık bu kelime seti için etkinleştirilmiştir."
 
 #: includes/pages/vocab-lesson-pages.php:8055
 #: includes/pages/vocab-lesson-pages.php:8749
-#: includes/shortcodes/word-grid-shortcode.php:8199
-#: includes/shortcodes/word-grid-shortcode.php:8211
+#: includes/shortcodes/word-grid-shortcode.php:8327
+#: includes/shortcodes/word-grid-shortcode.php:8339
 msgid "Lesson terms are missing."
 msgstr "Ders terimleri eksik."
 
@@ -4734,7 +4734,7 @@ msgstr "Eksik ses dosyası."
 #: includes/admin/ipa-keyboard-admin.php:10588
 #: includes/admin/ipa-keyboard-admin.php:10709
 #: includes/shortcodes/audio-recording-shortcode.php:9514
-#: includes/shortcodes/word-grid-shortcode.php:11164
+#: includes/shortcodes/word-grid-shortcode.php:11292
 msgid "Missing data"
 msgstr "Eksik veri"
 
@@ -4806,7 +4806,7 @@ msgstr "Eksik kelime verileri"
 #: includes/api/automation-rest.php:4497
 #: includes/api/word-metadata-plan-rest.php:1747
 #: includes/shortcodes/audio-recording-shortcode.php:5337
-#: includes/shortcodes/word-grid-shortcode.php:8986
+#: includes/shortcodes/word-grid-shortcode.php:9114
 msgid "Missing word ID."
 msgstr "Eksik kelime kimliği."
 
@@ -4823,8 +4823,8 @@ msgid "Missing word set or category for import."
 msgstr "İçe aktarma için eksik kelime seti veya kategori."
 
 #: includes/lib/word-grid-bulk-operations.php:1117
-#: includes/shortcodes/word-grid-shortcode.php:9392
-#: includes/shortcodes/word-grid-shortcode.php:10342
+#: includes/shortcodes/word-grid-shortcode.php:10470
+#: includes/shortcodes/word-grid-shortcode.php:9520
 msgid "Missing word set or category."
 msgstr "Eksik kelime seti veya kategori."
 
@@ -5013,7 +5013,7 @@ msgstr "Yeni kelimeler"
 msgid "Next"
 msgstr "Sonraki"
 
-#: includes/shortcodes/word-grid-shortcode.php:6777
+#: includes/shortcodes/word-grid-shortcode.php:6905
 msgid "Next letter"
 msgstr "Sonraki harf"
 
@@ -5146,7 +5146,7 @@ msgstr "Resim yok"
 #: includes/admin/ipa-keyboard-admin.php:479
 #: includes/admin/site-sync-admin.php:1785
 #: includes/admin/word-option-rules-admin.php:2299
-#: includes/shortcodes/word-grid-shortcode.php:5780
+#: includes/shortcodes/word-grid-shortcode.php:5900
 msgid "No image"
 msgstr "Resim yok"
 
@@ -5191,7 +5191,7 @@ msgstr "Henüz eşleme yok."
 msgid "no match"
 msgstr "eşleşme yok"
 
-#: includes/shortcodes/word-grid-shortcode.php:4063
+#: includes/shortcodes/word-grid-shortcode.php:4183
 msgid "No matching categories."
 msgstr "Eşleşen kategori yok."
 
@@ -5224,7 +5224,7 @@ msgstr "Hiçbir gönderi seçilmedi"
 msgid "No posts without translations found on this page."
 msgstr "Bu sayfada çevirisi bulunmayan gönderi yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:4057
+#: includes/shortcodes/word-grid-shortcode.php:4177
 msgid "No prerequisites selected."
 msgstr "Ön koşul seçilmemiştir."
 
@@ -5406,7 +5406,7 @@ msgstr "Seçilen kelime seti için kelime bulunamadı."
 msgid "No words found for this word set and category."
 msgstr "Bu kelime seti ve kategori için kelime bulunamadı."
 
-#: includes/shortcodes/word-grid-shortcode.php:6924
+#: includes/shortcodes/word-grid-shortcode.php:7052
 msgid "No words found in this category."
 msgstr "Bu kategoride kelime bulunamadı."
 
@@ -5429,11 +5429,11 @@ msgstr "Gürültü Azaltma"
 #: includes/admin/metabox-word-audio-parent.php:35
 #: includes/post-types/dictionary-entry-post-type.php:1489
 #: includes/shortcodes/editor-hub-shortcode.php:1065
-#: includes/shortcodes/word-grid-shortcode.php:6479
-#: includes/shortcodes/word-grid-shortcode.php:6499
-#: includes/shortcodes/word-grid-shortcode.php:6532
-#: includes/shortcodes/word-grid-shortcode.php:6559
-#: includes/shortcodes/word-grid-shortcode.php:6586
+#: includes/shortcodes/word-grid-shortcode.php:6607
+#: includes/shortcodes/word-grid-shortcode.php:6627
+#: includes/shortcodes/word-grid-shortcode.php:6660
+#: includes/shortcodes/word-grid-shortcode.php:6687
+#: includes/shortcodes/word-grid-shortcode.php:6714
 msgid "None"
 msgstr "Hiçbiri"
 
@@ -5454,9 +5454,9 @@ msgid "Not configured"
 msgstr "Yapılandırılmamış"
 
 #: includes/pages/wordset-editor.php:954
-#: includes/shortcodes/editor-hub-shortcode.php:512
 #: includes/shortcodes/editor-hub-shortcode.php:1054
-#: includes/shortcodes/word-grid-shortcode.php:5768
+#: includes/shortcodes/editor-hub-shortcode.php:512
+#: includes/shortcodes/word-grid-shortcode.php:5888
 msgid "Note"
 msgstr "Not"
 
@@ -5468,8 +5468,8 @@ msgstr "Bu sıra için kaydedilecek bir şey yok."
 msgid "Nothing to save."
 msgstr "Kurtaracak bir şey yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:10395
-#: includes/shortcodes/word-grid-shortcode.php:10479
+#: includes/shortcodes/word-grid-shortcode.php:10523
+#: includes/shortcodes/word-grid-shortcode.php:10607
 msgid "Nothing was available to undo."
 msgstr "Geri alınabilecek hiçbir şey yoktu."
 
@@ -5725,7 +5725,7 @@ msgstr "Konuşma Parçası"
 #: includes/post-types/dictionary-entry-post-type.php:1487
 #: includes/shortcodes/editor-hub-shortcode.php:1058
 #: includes/shortcodes/editor-hub-shortcode.php:514
-#: includes/shortcodes/word-grid-shortcode.php:6477
+#: includes/shortcodes/word-grid-shortcode.php:6605
 #: templates/vocab-lesson-template.php:732
 msgid "Part of speech"
 msgstr "Konuşma parçası"
@@ -5820,10 +5820,10 @@ msgstr "Oyna"
 #: includes/admin/word-option-rules-admin.php:2317
 #: includes/pages/wordset-editor.php:4148
 #: includes/shortcodes/flashcard-widget.php:675
-#: includes/shortcodes/word-grid-shortcode.php:5258
-#: includes/shortcodes/word-grid-shortcode.php:5759
-#: includes/shortcodes/word-grid-shortcode.php:8163
-#: includes/shortcodes/word-grid-shortcode.php:8813
+#: includes/shortcodes/word-grid-shortcode.php:5378
+#: includes/shortcodes/word-grid-shortcode.php:5879
+#: includes/shortcodes/word-grid-shortcode.php:8291
+#: includes/shortcodes/word-grid-shortcode.php:8941
 #: templates/vocab-lesson-template.php:1733
 #, php-format
 msgid "Play %s recording"
@@ -6033,9 +6033,9 @@ msgid "Please select a category."
 msgstr "Lütfen bir kategori seç."
 
 #: includes/pages/wordset-editor.php:1039
-#: includes/shortcodes/editor-hub-shortcode.php:516
 #: includes/shortcodes/editor-hub-shortcode.php:1060
-#: includes/shortcodes/word-grid-shortcode.php:6530
+#: includes/shortcodes/editor-hub-shortcode.php:516
+#: includes/shortcodes/word-grid-shortcode.php:6658
 #: includes/taxonomies/wordset-taxonomy.php:4017
 #: templates/vocab-lesson-template.php:808
 #: templates/vocab-lesson-template.php:833
@@ -6045,7 +6045,7 @@ msgstr "Çoğulculuk"
 #: includes/admin/duplicate-category-words-admin.php:1036
 #: includes/api/word-metadata-plan-rest.php:619
 #: includes/cli/cli-support.php:958
-#: includes/shortcodes/word-grid-shortcode.php:10649
+#: includes/shortcodes/word-grid-shortcode.php:10777
 msgid "Plurality is not enabled for this word set."
 msgstr "Bu kelime seti için çoğulluk etkinleştirilmemiştir."
 
@@ -6104,7 +6104,7 @@ msgstr "Yeni kelime hazırlanıyor..."
 msgid "Preparing uploads..."
 msgstr "Yüklemeler hazırlanıyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:9417
+#: includes/shortcodes/word-grid-shortcode.php:9545
 msgid "Prerequisite editing is unavailable right now."
 msgstr "Önkoşul düzenleme şu anda kullanılamıyor."
 
@@ -6123,16 +6123,16 @@ msgstr "Önkoşul tabanlı"
 msgid "Prerequisites"
 msgstr "Ön Koşullar"
 
-#: includes/shortcodes/word-grid-shortcode.php:4055
-#: includes/shortcodes/word-grid-shortcode.php:9546
+#: includes/shortcodes/word-grid-shortcode.php:4175
+#: includes/shortcodes/word-grid-shortcode.php:9674
 msgid "Prerequisites saved."
 msgstr "Önkoşullar kaydedildi."
 
-#: includes/shortcodes/word-grid-shortcode.php:9528
+#: includes/shortcodes/word-grid-shortcode.php:9656
 msgid "Prerequisites were not saved because they create a loop."
 msgstr "Önkoşullar bir döngü oluşturdukları için kaydedilmemiştir."
 
-#: includes/shortcodes/word-grid-shortcode.php:9516
+#: includes/shortcodes/word-grid-shortcode.php:9644
 #, php-format
 msgid "Prerequisites were not saved because they create a loop: %s"
 msgstr "Önkoşullar bir döngü oluşturdukları için kaydedilmedi: %s"
@@ -6236,7 +6236,7 @@ msgstr "Önizleme, bu kelime setindeki metin tabanlı quiz kategorilerinden 2 ra
 msgid "Previous"
 msgstr "Önceki"
 
-#: includes/shortcodes/word-grid-shortcode.php:6775
+#: includes/shortcodes/word-grid-shortcode.php:6903
 msgid "Previous letter"
 msgstr "Önceki harf"
 
@@ -6269,7 +6269,7 @@ msgid "Process recordings immediately and publish them after review."
 msgstr "Kayıtları hemen işle ve inceledikten sonra yayınla."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1567
-#: includes/shortcodes/word-grid-shortcode.php:3989
+#: includes/shortcodes/word-grid-shortcode.php:4109
 msgid "Processing audio..."
 msgstr "Ses işleme..."
 
@@ -6345,9 +6345,9 @@ msgstr "Eski %d meta satırları temizlendi."
 #: includes/admin/export-import.php:591
 #: includes/shortcodes/audio-recording-shortcode.php:30
 #: includes/shortcodes/editor-hub-shortcode.php:301
-#: includes/shortcodes/word-grid-shortcode.php:5252
-#: includes/shortcodes/word-grid-shortcode.php:5720
-#: includes/shortcodes/word-grid-shortcode.php:7747
+#: includes/shortcodes/word-grid-shortcode.php:5372
+#: includes/shortcodes/word-grid-shortcode.php:5840
+#: includes/shortcodes/word-grid-shortcode.php:7875
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr "Soru halinde kaydet (örn. \"X nerede?\")"
@@ -6531,7 +6531,7 @@ msgstr "Kaydediciler:"
 #: includes/post-types/words-post-type.php:2062
 #: includes/post-types/words-post-type.php:2065
 #: includes/shortcodes/editor-hub-shortcode.php:653
-#: includes/shortcodes/word-grid-shortcode.php:7738
+#: includes/shortcodes/word-grid-shortcode.php:7866
 #: templates/vocab-lesson-template.php:1246
 msgid "Recording"
 msgstr "Kayıt"
@@ -6582,10 +6582,10 @@ msgstr "Kayıt Türleri Yönetimi"
 #: includes/pages/wordset-transcription-review.php:307
 #: includes/shortcodes/editor-hub-shortcode.php:1063
 #: includes/shortcodes/flashcard-widget.php:678
-#: includes/shortcodes/word-grid-shortcode.php:4003
-#: includes/shortcodes/word-grid-shortcode.php:5784
-#: includes/shortcodes/word-grid-shortcode.php:6840
-#: includes/shortcodes/word-grid-shortcode.php:6905
+#: includes/shortcodes/word-grid-shortcode.php:4123
+#: includes/shortcodes/word-grid-shortcode.php:5904
+#: includes/shortcodes/word-grid-shortcode.php:6968
+#: includes/shortcodes/word-grid-shortcode.php:7033
 msgid "Recordings"
 msgstr "Ses kayıtları"
 
@@ -6643,8 +6643,8 @@ msgstr "Kaldırmak"
 msgid "Remove \"%s\" from this batch? It will remain unprocessed."
 msgstr "\"%s\" başlıklı ses kaydını bu toplu işlemden çıkarmak istiyor musun? İşlenmeden kalacak."
 
-#: includes/shortcodes/word-grid-shortcode.php:4058
-#: includes/shortcodes/word-grid-shortcode.php:4060
+#: includes/shortcodes/word-grid-shortcode.php:4178
+#: includes/shortcodes/word-grid-shortcode.php:4180
 #, php-format
 msgid "Remove %s"
 msgstr "%s'yi kaldır"
@@ -6811,7 +6811,7 @@ msgstr "Örnek"
 #: includes/admin/recording-types-admin.php:207
 #: includes/shortcodes/word-grid-shortcode.php:2273
 #: includes/shortcodes/word-grid-shortcode.php:2274
-#: includes/shortcodes/word-grid-shortcode.php:5819
+#: includes/shortcodes/word-grid-shortcode.php:5939
 msgid "Save"
 msgstr "Kaydet"
 
@@ -6887,8 +6887,8 @@ msgstr "Kaydedilen \"%s\" yazı tipi şu anda bu sitede algılanmıyor, bu neden
 
 #: includes/admin/ipa-keyboard-admin.php:396
 #: includes/shortcodes/editor-hub-shortcode.php:1068
-#: includes/shortcodes/word-grid-shortcode.php:3987
-#: includes/shortcodes/word-grid-shortcode.php:4034
+#: includes/shortcodes/word-grid-shortcode.php:4107
+#: includes/shortcodes/word-grid-shortcode.php:4154
 msgid "Saved."
 msgstr "Kaydedildi."
 
@@ -6896,7 +6896,7 @@ msgstr "Kaydedildi."
 msgid "Saved. Next type selected."
 msgstr "Kaydedildi. Sonraki tip seçildi."
 
-#: includes/shortcodes/word-grid-shortcode.php:3985
+#: includes/shortcodes/word-grid-shortcode.php:4105
 msgid "Saving in background..."
 msgstr "Arka planda kaydediliyor..."
 
@@ -6908,7 +6908,7 @@ msgstr "Kaydetme işlemi hala devam ediyor. Bu sayfadan ayrılmak yüklemeleri k
 msgid "Saving match…"
 msgstr "Eşleşme kaydediliyor…"
 
-#: includes/shortcodes/word-grid-shortcode.php:4054
+#: includes/shortcodes/word-grid-shortcode.php:4174
 msgid "Saving prerequisites..."
 msgstr "Ön koşulları kaydediyorum..."
 
@@ -6923,7 +6923,7 @@ msgstr "İşlenmiş Sesi Kaydetme"
 #: includes/pages/wordset-pages.php:26317
 #: includes/shortcodes/content-lesson-index-shortcode.php:388
 #: includes/shortcodes/dictionary-shortcode.php:335
-#: includes/shortcodes/word-grid-shortcode.php:3984
+#: includes/shortcodes/word-grid-shortcode.php:4104
 #: templates/vocab-lesson-template.php:413
 msgid "Saving..."
 msgstr "Kaydediliyor..."
@@ -6980,7 +6980,7 @@ msgstr "Ses Kayıtlarında Ara"
 #: includes/pages/wordset-pages.php:17511
 #: includes/pages/wordset-pages.php:26518
 #: includes/pages/wordset-pages.php:26524
-#: includes/shortcodes/word-grid-shortcode.php:5770
+#: includes/shortcodes/word-grid-shortcode.php:5890
 msgid "Search categories"
 msgstr "Arama kategorileri"
 
@@ -7008,7 +7008,7 @@ msgstr "Kelime Setlerinde Ara"
 #: includes/admin/word-option-rules-admin.php:2380
 #: includes/admin/word-option-rules-admin.php:2396
 #: includes/pages/wordset-pages.php:26603
-#: includes/shortcodes/word-grid-shortcode.php:5812
+#: includes/shortcodes/word-grid-shortcode.php:5932
 #: includes/taxonomies/word-category-taxonomy.php:3524
 msgid "Search words"
 msgstr "Arama kelimeleri"
@@ -7261,9 +7261,9 @@ msgid "Semi-bold (600)"
 msgstr "Yarı kalın (600)"
 
 #: includes/admin/export-import.php:594
-#: includes/shortcodes/word-grid-shortcode.php:5255
-#: includes/shortcodes/word-grid-shortcode.php:5723
-#: includes/shortcodes/word-grid-shortcode.php:7750
+#: includes/shortcodes/word-grid-shortcode.php:5375
+#: includes/shortcodes/word-grid-shortcode.php:5843
+#: includes/shortcodes/word-grid-shortcode.php:7878
 msgid "Sentence"
 msgstr "Cümle"
 
@@ -7687,15 +7687,15 @@ msgstr "Kelime Ses Kaydını Böl"
 msgid "Standard"
 msgstr "Standart"
 
-#: includes/shortcodes/word-grid-shortcode.php:3980
+#: includes/shortcodes/word-grid-shortcode.php:4100
 #: templates/vocab-lesson-template.php:563
 msgid "Star all"
 msgstr "Tümünü işaretle"
 
 #: includes/pages/wordset-pages.php:26255
 #: includes/shortcodes/flashcard-widget.php:659
-#: includes/shortcodes/word-grid-shortcode.php:3978
-#: includes/shortcodes/word-grid-shortcode.php:6249
+#: includes/shortcodes/word-grid-shortcode.php:4098
+#: includes/shortcodes/word-grid-shortcode.php:6369
 msgid "Star word"
 msgstr "Kelimeyi yıldızla"
 
@@ -7804,7 +7804,7 @@ msgstr "önerilen"
 msgid "Suggested / Edit"
 msgstr "Önerilen / Düzenle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5794
+#: includes/shortcodes/word-grid-shortcode.php:5914
 msgid "Superscript selection"
 msgstr "Üst simge seçimi"
 
@@ -7862,9 +7862,9 @@ msgstr "Şablon bulunamadı: %s"
 #: includes/lib/interlinear.php:1792
 #: includes/lib/interlinear.php:2010
 #: includes/pages/wordset-editor.php:4923
-#: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
-#: includes/shortcodes/word-grid-shortcode.php:5787
+#: includes/shortcodes/editor-hub-shortcode.php:660
+#: includes/shortcodes/word-grid-shortcode.php:5907
 #: templates/vocab-lesson-print-template.php:127
 #: templates/vocab-lesson-template.php:1355
 msgid "Text"
@@ -8040,7 +8040,7 @@ msgstr "Bu görüntünün şu anda optimizasyona ihtiyacı yoktur."
 msgid "This image format is not supported for WebP optimization."
 msgstr "Bu görüntü formatı WebP optimizasyonu için desteklenmez."
 
-#: includes/shortcodes/word-grid-shortcode.php:9425
+#: includes/shortcodes/word-grid-shortcode.php:9553
 msgid "This lesson category is not available for prerequisite ordering."
 msgstr "Bu ders kategorisi önkoşul sıralaması için kullanılamaz."
 
@@ -8093,7 +8093,7 @@ msgstr "Bu kelime seti şu anda özeldir."
 msgid "This word set is currently public."
 msgstr "Bu kelime seti şu anda herkese açıktır."
 
-#: includes/shortcodes/word-grid-shortcode.php:9405
+#: includes/shortcodes/word-grid-shortcode.php:9533
 msgid "This word set is not using prerequisite ordering."
 msgstr "Bu kelime setinde önkoşul sıralaması kullanılmamaktadır."
 
@@ -8127,26 +8127,26 @@ msgstr "Başlık"
 msgid "Title, category, #post-id"
 msgstr "Başlık, kategori, #post-id"
 
-#: includes/shortcodes/word-grid-shortcode.php:4068
+#: includes/shortcodes/word-grid-shortcode.php:4188
 msgid "Transcribe missing recordings for this lesson?"
 msgstr "Bu ders için eksik kayıtların transkripsiyonu?"
 
-#: includes/shortcodes/word-grid-shortcode.php:4072
+#: includes/shortcodes/word-grid-shortcode.php:4192
 #, php-format
 msgid "Transcribing %1$d of %2$d..."
 msgstr "%2$d'nin %1$d'si yazıya dökülüyor..."
 
 #: includes/pages/wordset-pages.php:13548
 #: includes/shortcodes/audio-recording-shortcode.php:1595
-#: includes/shortcodes/word-grid-shortcode.php:4071
+#: includes/shortcodes/word-grid-shortcode.php:4191
 msgid "Transcribing..."
 msgstr "Transkripsiyon..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4077
+#: includes/shortcodes/word-grid-shortcode.php:4197
 msgid "Transcription cancelled."
 msgstr "Transkripsiyon iptal edildi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4073
+#: includes/shortcodes/word-grid-shortcode.php:4193
 msgid "Transcription complete."
 msgstr "Transkripsiyon tamamlandı."
 
@@ -8158,7 +8158,7 @@ msgstr "Transkripsiyon başarısız"
 msgid "Transcription failed:"
 msgstr "Transkripsiyon başarısız oldu:"
 
-#: includes/shortcodes/word-grid-shortcode.php:6774
+#: includes/shortcodes/word-grid-shortcode.php:6902
 msgid "Transcription guide"
 msgstr "Transkripsiyon kılavuzu"
 
@@ -8166,11 +8166,11 @@ msgstr "Transkripsiyon kılavuzu"
 msgid "Transcription is still processing. Please try again in a moment."
 msgstr "Transkripsiyon hala işleniyor. Lütfen birazdan tekrar dene."
 
-#: includes/shortcodes/word-grid-shortcode.php:11289
+#: includes/shortcodes/word-grid-shortcode.php:11417
 msgid "Transcription session expired"
 msgstr "Transkripsiyon oturumunun süresi doldu"
 
-#: includes/shortcodes/word-grid-shortcode.php:11292
+#: includes/shortcodes/word-grid-shortcode.php:11420
 msgid "Transcription session mismatch"
 msgstr "Transkripsiyon oturumu uyuşmazlığı"
 
@@ -8204,26 +8204,26 @@ msgstr "%1$s dilinden %2$s diline çevriliyor."
 msgid "Translating..."
 msgstr "Çeviri..."
 
-#: includes/admin/audio-processor-admin.php:156
 #: includes/admin/audio-processor-admin.php:1225
+#: includes/admin/audio-processor-admin.php:156
 #: includes/admin/export-import.php:13837
 #: includes/admin/export-import.php:13872
 #: includes/admin/user-progress-report.php:1158
 #: includes/lib/interlinear.php:2007
-#: includes/pages/wordset-editor.php:929
 #: includes/pages/wordset-editor.php:4775
 #: includes/pages/wordset-editor.php:4924
+#: includes/pages/wordset-editor.php:929
 #: includes/post-types/dictionary-entry-post-type.php:1328
 #: includes/post-types/dictionary-entry-post-type.php:1471
 #: includes/post-types/dictionary-entry-post-type.php:1958
 #: includes/post-types/words-post-type.php:2003
-#: includes/shortcodes/editor-hub-shortcode.php:511
-#: includes/shortcodes/editor-hub-shortcode.php:668
 #: includes/shortcodes/editor-hub-shortcode.php:1053
 #: includes/shortcodes/editor-hub-shortcode.php:1080
+#: includes/shortcodes/editor-hub-shortcode.php:511
+#: includes/shortcodes/editor-hub-shortcode.php:668
 #: includes/shortcodes/ranked-word-list-shortcode.php:636
 #: includes/shortcodes/ranked-word-list-shortcode.php:654
-#: includes/shortcodes/word-grid-shortcode.php:5765
+#: includes/shortcodes/word-grid-shortcode.php:5885
 msgid "Translation"
 msgstr "Çeviri"
 
@@ -8297,7 +8297,7 @@ msgid "Type"
 msgstr "Tip"
 
 #: includes/shortcodes/editor-hub-shortcode.php:1057
-#: includes/shortcodes/word-grid-shortcode.php:6472
+#: includes/shortcodes/word-grid-shortcode.php:6600
 msgid "Type to select or create dictionary entry"
 msgstr "Sözlük girdisi seçmek veya oluşturmak için yazın"
 
@@ -8387,11 +8387,11 @@ msgid "Unable to resolve a canonical ratio."
 msgstr "Standart oran belirlenemiyor."
 
 #: includes/shortcodes/editor-hub-shortcode.php:1069
-#: includes/shortcodes/word-grid-shortcode.php:3988
+#: includes/shortcodes/word-grid-shortcode.php:4108
 msgid "Unable to save changes."
 msgstr "Değişiklikler kaydedilemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4056
+#: includes/shortcodes/word-grid-shortcode.php:4176
 msgid "Unable to save prerequisites."
 msgstr "Ön koşullar kaydedilemiyor."
 
@@ -8404,12 +8404,12 @@ msgstr "Şu anda kaydedilemiyor."
 msgid "Unable to save word option rules. Please check your selections."
 msgstr "Kelime seçeneği kuralları kaydedilemiyor. Lütfen seçimlerinizi kontrol et."
 
-#: includes/shortcodes/word-grid-shortcode.php:4078
+#: includes/shortcodes/word-grid-shortcode.php:4198
 msgid "Unable to transcribe recordings."
 msgstr "Kayıtların transkripsiyonu yapılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4040
-#: includes/shortcodes/word-grid-shortcode.php:10446
+#: includes/shortcodes/word-grid-shortcode.php:10574
+#: includes/shortcodes/word-grid-shortcode.php:4160
 msgid "Unable to undo bulk changes."
 msgstr "Toplu değişiklikler geri alınamıyor."
 
@@ -8421,7 +8421,7 @@ msgstr "Kaydedici erişimi şu anda güncellenemiyor."
 msgid "Unable to update word set settings right now."
 msgstr "Kelime seti ayarları şu anda güncellenemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4051
+#: includes/shortcodes/word-grid-shortcode.php:4171
 msgid "Unable to update words."
 msgstr "Kelimeler güncellenemiyor."
 
@@ -8543,7 +8543,7 @@ msgstr "İçe aktarmayı geri al"
 msgid "Undo is unavailable for this import record."
 msgstr "Bu içe aktarma kaydı için geri alma kullanılamaz."
 
-#: includes/shortcodes/word-grid-shortcode.php:4037
+#: includes/shortcodes/word-grid-shortcode.php:4157
 #: templates/vocab-lesson-template.php:686
 msgid "Undo last bulk change"
 msgstr "Son toplu değişikliği geri al"
@@ -8611,13 +8611,13 @@ msgstr "Bilinmeyen boyut"
 msgid "Unknown user"
 msgstr "Bilinmeyen kullanıcı"
 
-#: includes/shortcodes/word-grid-shortcode.php:3981
+#: includes/shortcodes/word-grid-shortcode.php:4101
 msgid "Unstar all"
 msgstr "Hepsini kaldır"
 
 #: includes/pages/wordset-pages.php:26256
-#: includes/shortcodes/word-grid-shortcode.php:3979
-#: includes/shortcodes/word-grid-shortcode.php:6248
+#: includes/shortcodes/word-grid-shortcode.php:4099
+#: includes/shortcodes/word-grid-shortcode.php:6368
 msgid "Unstar word"
 msgstr "Yıldızsız kelime"
 
@@ -8668,19 +8668,19 @@ msgstr "%s olarak güncelle"
 msgid "Update Word Set"
 msgstr "Kelime Setini Güncelle"
 
-#: includes/shortcodes/word-grid-shortcode.php:4042
-#: includes/shortcodes/word-grid-shortcode.php:4043
+#: includes/shortcodes/word-grid-shortcode.php:4162
+#: includes/shortcodes/word-grid-shortcode.php:4163
 #, php-format
 msgid "Updated %d nouns."
 msgstr "Güncellenmiş %d isimler."
 
-#: includes/shortcodes/word-grid-shortcode.php:4044
-#: includes/shortcodes/word-grid-shortcode.php:4045
+#: includes/shortcodes/word-grid-shortcode.php:4164
+#: includes/shortcodes/word-grid-shortcode.php:4165
 #, php-format
 msgid "Updated %d verbs."
 msgstr "%d fiilleri güncellendi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4041
+#: includes/shortcodes/word-grid-shortcode.php:4161
 #, php-format
 msgid "Updated %d words."
 msgstr "Güncellenmiş %d kelime."
@@ -8689,7 +8689,7 @@ msgstr "Güncellenmiş %d kelime."
 msgid "Updated Posts:"
 msgstr "Güncellenmiş Gönderiler:"
 
-#: includes/shortcodes/word-grid-shortcode.php:4033
+#: includes/shortcodes/word-grid-shortcode.php:4153
 msgid "Updating..."
 msgstr "Güncelleniyor..."
 
@@ -8831,9 +8831,9 @@ msgstr "Kullanıcı Adı"
 msgid "Utility and configuration pages used less frequently."
 msgstr "Yardımcı program ve yapılandırma sayfaları daha az kullanılır."
 
-#: includes/shortcodes/editor-hub-shortcode.php:518
 #: includes/shortcodes/editor-hub-shortcode.php:1062
-#: includes/shortcodes/word-grid-shortcode.php:6584
+#: includes/shortcodes/editor-hub-shortcode.php:518
+#: includes/shortcodes/word-grid-shortcode.php:6712
 #: includes/taxonomies/wordset-taxonomy.php:4051
 #: templates/vocab-lesson-template.php:908
 #: templates/vocab-lesson-template.php:931
@@ -8843,7 +8843,7 @@ msgstr "Fiil kipi"
 
 #: includes/api/word-metadata-plan-rest.php:653
 #: includes/cli/cli-support.php:1028
-#: includes/shortcodes/word-grid-shortcode.php:10729
+#: includes/shortcodes/word-grid-shortcode.php:10857
 msgid "Verb mood is not enabled for this word set."
 msgstr "Fiil kipi bu kelime seti için etkinleştirilmemiştir."
 
@@ -8860,9 +8860,9 @@ msgstr "Fiil Kipi Geçersiz Kılma"
 msgid "Verb mood tags are not enabled for this word set."
 msgstr "Fiil kipi etiketleri bu kelime seti için etkinleştirilmemiştir."
 
-#: includes/shortcodes/editor-hub-shortcode.php:517
 #: includes/shortcodes/editor-hub-shortcode.php:1061
-#: includes/shortcodes/word-grid-shortcode.php:6557
+#: includes/shortcodes/editor-hub-shortcode.php:517
+#: includes/shortcodes/word-grid-shortcode.php:6685
 #: includes/taxonomies/wordset-taxonomy.php:4034
 #: templates/vocab-lesson-template.php:858
 #: templates/vocab-lesson-template.php:881
@@ -8872,7 +8872,7 @@ msgstr "Fiil zamanı"
 
 #: includes/api/word-metadata-plan-rest.php:636
 #: includes/cli/cli-support.php:993
-#: includes/shortcodes/word-grid-shortcode.php:10689
+#: includes/shortcodes/word-grid-shortcode.php:10817
 msgid "Verb tense is not enabled for this word set."
 msgstr "Fiil zamanı bu kelime seti için etkinleştirilmemiştir."
 
@@ -9029,7 +9029,7 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
 #: includes/shortcodes/ranked-word-list-shortcode.php:652
-#: includes/shortcodes/word-grid-shortcode.php:5764
+#: includes/shortcodes/word-grid-shortcode.php:5884
 msgid "Word"
 msgstr "Kelime"
 
@@ -9043,7 +9043,7 @@ msgstr "kelime"
 #: includes/admin/export-import.php:8982
 #: includes/pages/wordset-pages.php:1765
 #: includes/post-types/words-post-type.php:1747
-#: includes/shortcodes/word-grid-shortcode.php:7564
+#: includes/shortcodes/word-grid-shortcode.php:7692
 #, php-format
 msgid "Word #%d"
 msgstr "Kelime #%d"
@@ -9321,7 +9321,7 @@ msgstr "İş Akışları"
 msgid "Working..."
 msgstr "Çalışıyorum."
 
-#: includes/shortcodes/word-grid-shortcode.php:4062
+#: includes/shortcodes/word-grid-shortcode.php:4182
 msgid "Would create a prerequisite loop."
 msgstr "Bir önkoşul döngüsü yaratacaktır."
 
@@ -9336,7 +9336,7 @@ msgid "Wrong"
 msgstr "Yanlış"
 
 #: includes/shortcodes/editor-hub-shortcode.php:1055
-#: includes/shortcodes/word-grid-shortcode.php:5783
+#: includes/shortcodes/word-grid-shortcode.php:5903
 msgid "Wrong answer options (one per line)"
 msgstr "Yanlış cevap seçenekleri (her satır için bir tane)"
 
@@ -9401,7 +9401,7 @@ msgstr "Kategori oluşturma iznin yok."
 msgid "You do not have permission to download this export file."
 msgstr "Bu dışa aktarma dosyasını indirmek için iznin yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:9397
+#: includes/shortcodes/word-grid-shortcode.php:9525
 msgid "You do not have permission to edit prerequisites for this word set."
 msgstr "Bu kelime seti için önkoşulları düzenleme iznin yok."
 
@@ -9484,7 +9484,7 @@ msgstr "Kayıtları atlamak için iznin yok."
 msgid "You do not have permission to split this word."
 msgstr "Bu kelimeyi bölmek için iznin yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:10352
+#: includes/shortcodes/word-grid-shortcode.php:10480
 msgid "You do not have permission to undo bulk changes for this word set."
 msgstr "Bu kelime seti için toplu değişiklikleri geri alma iznin yok."
 
@@ -9629,7 +9629,7 @@ msgstr "ZipArchive bu sunucuda mevcut değil."
 msgid "ZipArchive is not available on this server. Please enable it to use the export/import tool."
 msgstr "ZipArchive bu sunucuda mevcut değil. Lütfen dışa/içe aktarma aracını kullanmak için etkinleştir."
 
-#: includes/shortcodes/word-grid-shortcode.php:4065
+#: includes/shortcodes/word-grid-shortcode.php:4185
 msgid "—"
 msgstr "-"
 
@@ -11168,7 +11168,7 @@ msgstr "Kelime örneği cümle çevirisi"
 #: includes/pages/wordset-pages.php:17820
 #: includes/pages/wordset-pages.php:25565
 #: includes/pages/wordset-transcription-review.php:289
-#: includes/shortcodes/word-grid-shortcode.php:4004
+#: includes/shortcodes/word-grid-shortcode.php:4124
 msgid "Recording text"
 msgstr "Metin kaydediliyor"
 
@@ -16911,7 +16911,7 @@ msgid "No image selected yet."
 msgstr "Henüz resim seçilmedi."
 
 #: includes/pages/wordset-pages.php:15194
-#: includes/shortcodes/word-grid-shortcode.php:5776
+#: includes/shortcodes/word-grid-shortcode.php:5896
 msgid "Choose image"
 msgstr "Resim seç"
 
@@ -17790,7 +17790,7 @@ msgstr "Kelime seti araçları"
 
 #: includes/pages/wordset-pages.php:27290
 #: includes/pages/wordset-pages.php:27291
-#: includes/shortcodes/word-grid-shortcode.php:5771
+#: includes/shortcodes/word-grid-shortcode.php:5891
 #: templates/offline-app-shell-template.php:762
 #: templates/offline-app-shell-template.php:763
 msgid "Sort categories"
@@ -17802,7 +17802,7 @@ msgid "Default"
 msgstr "Varsayılan"
 
 #: includes/pages/wordset-pages.php:27305
-#: includes/shortcodes/word-grid-shortcode.php:5773
+#: includes/shortcodes/word-grid-shortcode.php:5893
 #: templates/offline-app-shell-template.php:782
 msgid "A-Z"
 msgstr "A'dan Z'ye"
@@ -18273,8 +18273,8 @@ msgstr "Bağlantıyı aç"
 
 #: includes/post-types/word-image-post-type.php:810
 #: includes/post-types/word-image-post-type.php:829
-#: includes/shortcodes/word-grid-shortcode.php:4218
-#: includes/shortcodes/word-grid-shortcode.php:8991
+#: includes/shortcodes/word-grid-shortcode.php:4338
+#: includes/shortcodes/word-grid-shortcode.php:9119
 msgid "Invalid word."
 msgstr "Geçersiz kelime."
 
@@ -18295,7 +18295,7 @@ msgid "Copyright Info:"
 msgstr "Telif Hakkı Bilgisi:"
 
 #: includes/post-types/word-image-post-type.php:996
-#: includes/shortcodes/word-grid-shortcode.php:5782
+#: includes/shortcodes/word-grid-shortcode.php:5902
 msgid "Edit or add any copyright or source info for this image."
 msgstr "Bu görsel için herhangi bir telif hakkı veya kaynak bilgisini düzenleyin veya ekleyin."
 
@@ -18659,7 +18659,7 @@ msgid "Starting..."
 msgstr "Başlıyor..."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1592
-#: includes/shortcodes/word-grid-shortcode.php:8217
+#: includes/shortcodes/word-grid-shortcode.php:8345
 msgid "New word"
 msgstr "Yeni kelime"
 
@@ -19380,6 +19380,7 @@ msgstr "Henüz hiçbir yönetilen LL Tools sayfası yapılandırılmadı."
 #: includes/pages/wordset-editor.php:4074
 #: includes/pages/wordset-editor.php:4622
 #: includes/shortcodes/site-tools-shortcode.php:1528
+#: includes/shortcodes/word-grid-shortcode.php:6553
 msgid "Published"
 msgstr "Yayınlandı"
 
@@ -19414,31 +19415,31 @@ msgstr "Kaydedici açılıyor..."
 msgid "Cancel editing"
 msgstr "Düzenlemeyi iptal et"
 
-#: includes/shortcodes/word-grid-shortcode.php:3567
+#: includes/shortcodes/word-grid-shortcode.php:3687
 msgid "No audio recording yet."
 msgstr "Henüz ses kaydı yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:3580
+#: includes/shortcodes/word-grid-shortcode.php:3700
 msgid "Audio exists but is not published yet."
 msgstr "Ses mevcut ancak henüz yayınlanmadı."
 
-#: includes/shortcodes/word-grid-shortcode.php:3583
+#: includes/shortcodes/word-grid-shortcode.php:3703
 msgid "Audio record exists but has no file yet."
 msgstr "Ses kaydı mevcut ancak henüz dosyası yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:3586
+#: includes/shortcodes/word-grid-shortcode.php:3706
 msgid "Word has not been published yet."
 msgstr "Kelime henüz yayınlanmadı."
 
 #: includes/admin/ipa-keyboard-admin.php:387
 #: includes/pages/content-lesson-pages.php:1314
-#: includes/shortcodes/word-grid-shortcode.php:3961
+#: includes/shortcodes/word-grid-shortcode.php:4081
 msgid "Saving review note..."
 msgstr "İnceleme notu kaydediliyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:388
 #: includes/pages/content-lesson-pages.php:1315
-#: includes/shortcodes/word-grid-shortcode.php:3962
+#: includes/shortcodes/word-grid-shortcode.php:4082
 msgid "Review note saved."
 msgstr "İnceleme notu kaydedildi."
 
@@ -19446,266 +19447,266 @@ msgstr "İnceleme notu kaydedildi."
 #: includes/lib/interlinear.php:1040
 #: includes/lib/interlinear.php:1108
 #: includes/pages/content-lesson-pages.php:1316
-#: includes/shortcodes/word-grid-shortcode.php:3963
+#: includes/shortcodes/word-grid-shortcode.php:4083
 msgid "Unable to save the review note."
 msgstr "İnceleme notu kaydedilemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:3990
-#: includes/shortcodes/word-grid-shortcode.php:8156
+#: includes/shortcodes/word-grid-shortcode.php:4110
+#: includes/shortcodes/word-grid-shortcode.php:8284
 msgid "Audio processed."
 msgstr "Ses işlendi."
 
-#: includes/shortcodes/word-grid-shortcode.php:3991
-#: includes/shortcodes/word-grid-shortcode.php:5796
+#: includes/shortcodes/word-grid-shortcode.php:4111
+#: includes/shortcodes/word-grid-shortcode.php:5916
 msgid "Process audio"
 msgstr "Sesi işle"
 
-#: includes/shortcodes/word-grid-shortcode.php:3992
-#: includes/shortcodes/word-grid-shortcode.php:5797
+#: includes/shortcodes/word-grid-shortcode.php:4112
+#: includes/shortcodes/word-grid-shortcode.php:5917
 msgid "Reprocess audio"
 msgstr "Sesi yeniden işle"
 
-#: includes/shortcodes/word-grid-shortcode.php:3993
+#: includes/shortcodes/word-grid-shortcode.php:4113
 msgid "Unable to process audio."
 msgstr "Ses işlenemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:3994
+#: includes/shortcodes/word-grid-shortcode.php:4114
 msgid "Unable to read this audio file in the browser."
 msgstr "Bu ses dosyası tarayıcıda okunamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:3995
+#: includes/shortcodes/word-grid-shortcode.php:4115
 msgid "This browser cannot process audio here."
 msgstr "Bu tarayıcı burada sesi işleyemez."
 
-#: includes/shortcodes/word-grid-shortcode.php:3996
-#: includes/shortcodes/word-grid-shortcode.php:5807
+#: includes/shortcodes/word-grid-shortcode.php:4116
+#: includes/shortcodes/word-grid-shortcode.php:5927
 msgid "Using saved original audio"
 msgstr "Kaydedilen orijinal sesi kullanma"
 
-#: includes/shortcodes/word-grid-shortcode.php:3997
-#: includes/shortcodes/word-grid-shortcode.php:5808
+#: includes/shortcodes/word-grid-shortcode.php:4117
+#: includes/shortcodes/word-grid-shortcode.php:5928
 msgid "Using current audio"
 msgstr "Geçerli sesi kullanma"
 
-#: includes/shortcodes/word-grid-shortcode.php:3998
-#: includes/shortcodes/word-grid-shortcode.php:5801
+#: includes/shortcodes/word-grid-shortcode.php:4118
+#: includes/shortcodes/word-grid-shortcode.php:5921
 msgid "Play clip"
 msgstr "Klibi oynat"
 
-#: includes/shortcodes/word-grid-shortcode.php:3999
+#: includes/shortcodes/word-grid-shortcode.php:4119
 msgid "Pause clip"
 msgstr "Klibi duraklat"
 
-#: includes/shortcodes/word-grid-shortcode.php:4001
-#: includes/shortcodes/word-grid-shortcode.php:5803
+#: includes/shortcodes/word-grid-shortcode.php:4121
+#: includes/shortcodes/word-grid-shortcode.php:5923
 msgid "Loading waveform..."
 msgstr "Dalga formu yükleniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4002
-#: includes/shortcodes/word-grid-shortcode.php:5804
+#: includes/shortcodes/word-grid-shortcode.php:4122
+#: includes/shortcodes/word-grid-shortcode.php:5924
 msgid "Waveform unavailable."
 msgstr "Dalga formu mevcut değil."
 
-#: includes/shortcodes/word-grid-shortcode.php:4028
+#: includes/shortcodes/word-grid-shortcode.php:4148
 msgid "Saving order..."
 msgstr "Sıra kaydediliyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4029
+#: includes/shortcodes/word-grid-shortcode.php:4149
 msgid "Order saved."
 msgstr "Sıra kaydedildi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4030
+#: includes/shortcodes/word-grid-shortcode.php:4150
 msgid "Unable to save the lesson order."
 msgstr "Ders sırası kaydedilemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4069
+#: includes/shortcodes/word-grid-shortcode.php:4189
 msgid "Replace transcription for this lesson?"
 msgstr "Bu dersin çeviri yazımı değiştirilsin mi?"
 
-#: includes/shortcodes/word-grid-shortcode.php:4070
+#: includes/shortcodes/word-grid-shortcode.php:4190
 msgid "Clear transcription for this lesson?"
 msgstr "Bu dersin transkripsiyonu temizlensin mi?"
 
-#: includes/shortcodes/word-grid-shortcode.php:4074
+#: includes/shortcodes/word-grid-shortcode.php:4194
 msgid "No recordings need transcription."
 msgstr "Hiçbir kaydın transkripsiyona ihtiyacı yoktur."
 
-#: includes/shortcodes/word-grid-shortcode.php:4075
+#: includes/shortcodes/word-grid-shortcode.php:4195
 msgid "Clearing transcription..."
 msgstr "Çeviri yazı temizleniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4076
+#: includes/shortcodes/word-grid-shortcode.php:4196
 msgid "Transcription cleared."
 msgstr "Transkripsiyon temizlendi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4079
+#: includes/shortcodes/word-grid-shortcode.php:4199
 msgid "Unable to reach the local transcription service."
 msgstr "Yerel transkripsiyon hizmetine ulaşılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4080
+#: includes/shortcodes/word-grid-shortcode.php:4200
 msgid "Unable to fetch the recording audio in this browser."
 msgstr "Bu tarayıcıda kayıt sesi getirilemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4724
+#: includes/shortcodes/word-grid-shortcode.php:4844
 msgid "Please choose an image to upload."
 msgstr "Lütfen yüklemek için bir resim seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:4728
-#: includes/shortcodes/word-grid-shortcode.php:4756
+#: includes/shortcodes/word-grid-shortcode.php:4848
+#: includes/shortcodes/word-grid-shortcode.php:4876
 msgid "Image uploads are not available right now."
 msgstr "Resim yüklemeleri şu anda kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4746
-#: includes/shortcodes/word-grid-shortcode.php:4779
+#: includes/shortcodes/word-grid-shortcode.php:4866
+#: includes/shortcodes/word-grid-shortcode.php:4899
 msgid "Image upload failed. Please try again."
 msgstr "Resim yükleme başarısız oldu. Lütfen tekrar dene."
 
-#: includes/shortcodes/word-grid-shortcode.php:4748
+#: includes/shortcodes/word-grid-shortcode.php:4868
 msgid "Please upload a valid JPG, PNG, GIF, or WebP image."
 msgstr "Lütfen geçerli bir JPG, PNG, GIF veya WebP resmi yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:4788
+#: includes/shortcodes/word-grid-shortcode.php:4908
 msgid "Lesson image"
 msgstr "Ders resmi"
 
-#: includes/shortcodes/word-grid-shortcode.php:4802
+#: includes/shortcodes/word-grid-shortcode.php:4922
 msgid "Could not save the uploaded image."
 msgstr "Yüklenen resim kaydedilemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:5762
+#: includes/shortcodes/word-grid-shortcode.php:5882
 #, php-format
 msgid "Edit %s"
 msgstr "%s'yi düzenle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5763
-#: includes/shortcodes/word-grid-shortcode.php:8164
-#: includes/shortcodes/word-grid-shortcode.php:8814
+#: includes/shortcodes/word-grid-shortcode.php:5883
+#: includes/shortcodes/word-grid-shortcode.php:8292
+#: includes/shortcodes/word-grid-shortcode.php:8942
 #, php-format
 msgid "Edit %s recording"
 msgstr "%s kaydını düzenle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5766
+#: includes/shortcodes/word-grid-shortcode.php:5886
 #: templates/vocab-lesson-template.php:1806
 msgid "Add word"
 msgstr "Kelime ekle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5767
+#: includes/shortcodes/word-grid-shortcode.php:5887
 msgid "Add translation"
 msgstr "Çeviri ekle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5795
+#: includes/shortcodes/word-grid-shortcode.php:5915
 msgid "Audio processing"
 msgstr "Ses işleme"
 
-#: includes/shortcodes/word-grid-shortcode.php:5798
+#: includes/shortcodes/word-grid-shortcode.php:5918
 msgid "Auto trim"
 msgstr "Otomatik düzeltme"
 
-#: includes/shortcodes/word-grid-shortcode.php:5799
+#: includes/shortcodes/word-grid-shortcode.php:5919
 msgid "Noise reduction"
 msgstr "Gürültü azaltma"
 
-#: includes/shortcodes/word-grid-shortcode.php:5800
+#: includes/shortcodes/word-grid-shortcode.php:5920
 msgid "Normalize volume"
 msgstr "Sesi normalleştir"
 
-#: includes/shortcodes/word-grid-shortcode.php:5802
+#: includes/shortcodes/word-grid-shortcode.php:5922
 msgid "Audio clip boundaries"
 msgstr "Ses klibi sınırları"
 
-#: includes/shortcodes/word-grid-shortcode.php:5805
+#: includes/shortcodes/word-grid-shortcode.php:5925
 msgid "Start boundary"
 msgstr "Başlangıç sınırı"
 
-#: includes/shortcodes/word-grid-shortcode.php:5806
+#: includes/shortcodes/word-grid-shortcode.php:5926
 msgid "End boundary"
 msgstr "Bitiş sınırı"
 
-#: includes/shortcodes/word-grid-shortcode.php:6238
+#: includes/shortcodes/word-grid-shortcode.php:6358
 msgid "Drag to reorder word"
 msgstr "Kelimeyi yeniden sıralamak için sürükle"
 
 #: includes/lib/recording-history.php:161
 #: includes/pages/wordset-editor.php:4077
 #: includes/pages/wordset-editor.php:4623
-#: includes/shortcodes/word-grid-shortcode.php:6314
+#: includes/shortcodes/word-grid-shortcode.php:6434
 msgid "Draft"
 msgstr "Taslak"
 
-#: includes/shortcodes/word-grid-shortcode.php:8023
-#: includes/shortcodes/word-grid-shortcode.php:8178
-#: includes/shortcodes/word-grid-shortcode.php:8297
-#: includes/shortcodes/word-grid-shortcode.php:8980
-#: includes/shortcodes/word-grid-shortcode.php:9047
-#: includes/shortcodes/word-grid-shortcode.php:9127
-#: includes/shortcodes/word-grid-shortcode.php:9220
-#: includes/shortcodes/word-grid-shortcode.php:9286
-#: includes/shortcodes/word-grid-shortcode.php:9327
-#: includes/shortcodes/word-grid-shortcode.php:9349
-#: includes/shortcodes/word-grid-shortcode.php:10168
-#: includes/shortcodes/word-grid-shortcode.php:10829
-#: includes/shortcodes/word-grid-shortcode.php:10916
-#: includes/shortcodes/word-grid-shortcode.php:11155
+#: includes/shortcodes/word-grid-shortcode.php:10296
+#: includes/shortcodes/word-grid-shortcode.php:10957
+#: includes/shortcodes/word-grid-shortcode.php:11044
+#: includes/shortcodes/word-grid-shortcode.php:11283
+#: includes/shortcodes/word-grid-shortcode.php:8151
+#: includes/shortcodes/word-grid-shortcode.php:8306
+#: includes/shortcodes/word-grid-shortcode.php:8425
+#: includes/shortcodes/word-grid-shortcode.php:9108
+#: includes/shortcodes/word-grid-shortcode.php:9175
+#: includes/shortcodes/word-grid-shortcode.php:9255
+#: includes/shortcodes/word-grid-shortcode.php:9348
+#: includes/shortcodes/word-grid-shortcode.php:9414
+#: includes/shortcodes/word-grid-shortcode.php:9455
+#: includes/shortcodes/word-grid-shortcode.php:9477
 msgid "You must be logged in"
 msgstr "Giriş yapmış olman gerekir"
 
-#: includes/shortcodes/word-grid-shortcode.php:8028
+#: includes/shortcodes/word-grid-shortcode.php:8156
 msgid "Missing required audio data."
 msgstr "Gerekli ses verileri eksik."
 
 #: includes/admin/ipa-keyboard-admin.php:7477
-#: includes/shortcodes/word-grid-shortcode.php:8033
-#: includes/shortcodes/word-grid-shortcode.php:9058
-#: includes/shortcodes/word-grid-shortcode.php:9139
+#: includes/shortcodes/word-grid-shortcode.php:8161
+#: includes/shortcodes/word-grid-shortcode.php:9186
+#: includes/shortcodes/word-grid-shortcode.php:9267
 msgid "Invalid recording."
 msgstr "Geçersiz kayıt."
 
-#: includes/shortcodes/word-grid-shortcode.php:8039
+#: includes/shortcodes/word-grid-shortcode.php:8167
 msgid "Invalid parent word."
 msgstr "Geçersiz üst kelime."
 
-#: includes/shortcodes/word-grid-shortcode.php:8048
+#: includes/shortcodes/word-grid-shortcode.php:8176
 msgid "Audio upload validation is unavailable."
 msgstr "Ses yükleme doğrulaması kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:8066
+#: includes/shortcodes/word-grid-shortcode.php:8194
 msgid "Upload directory is unavailable."
 msgstr "Yükleme dizini kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:8075
-#: includes/shortcodes/word-grid-shortcode.php:8348
+#: includes/shortcodes/word-grid-shortcode.php:8203
+#: includes/shortcodes/word-grid-shortcode.php:8476
 msgid "Invalid recording type."
 msgstr "Geçersiz kayıt türü."
 
-#: includes/shortcodes/word-grid-shortcode.php:8119
+#: includes/shortcodes/word-grid-shortcode.php:8247
 msgid "Failed to save file."
 msgstr "Dosya kaydedilemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:8410
+#: includes/shortcodes/word-grid-shortcode.php:8538
 msgid "You do not have permission to upload images."
 msgstr "Görsel yükleme iznin yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:8423
+#: includes/shortcodes/word-grid-shortcode.php:8551
 msgid "Unable to upload the image."
 msgstr "Görsel yüklenemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:8830
+#: includes/shortcodes/word-grid-shortcode.php:8958
 msgid "Image syncing is not available right now."
 msgstr "Görsel senkronizasyonu şu anda kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:8838
+#: includes/shortcodes/word-grid-shortcode.php:8966
 msgid "Could not update the linked word image."
 msgstr "Bağlantılı kelime görseli güncellenemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:9384
+#: includes/shortcodes/word-grid-shortcode.php:9512
 msgid "You must be logged in to edit prerequisites."
 msgstr "Önkoşulları düzenlemek için oturum açmalısınız."
 
-#: includes/shortcodes/word-grid-shortcode.php:10334
+#: includes/shortcodes/word-grid-shortcode.php:10462
 msgid "You must be logged in to undo bulk changes."
 msgstr "Toplu değişiklikleri geri almak için oturum açmalısınız."
 
-#: includes/shortcodes/word-grid-shortcode.php:11214
+#: includes/shortcodes/word-grid-shortcode.php:11342
 msgid "Local transcript missing"
 msgstr "Yerel transkript eksik"
 
@@ -20425,13 +20426,13 @@ msgid "Quick edited \"%s\"."
 msgstr "\"%s\" hızlı düzenlendi."
 
 #: includes/pages/wordset-editor.php:3613
-#: includes/shortcodes/word-grid-shortcode.php:9103
+#: includes/shortcodes/word-grid-shortcode.php:9231
 #, php-format
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr "\"%s\" üzerinden bir ses kaydı Çöp Kutusu'na taşındı."
 
 #: includes/pages/wordset-editor.php:3646
-#: includes/shortcodes/word-grid-shortcode.php:9191
+#: includes/shortcodes/word-grid-shortcode.php:9319
 #, php-format
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr "Bir ses kaydı \"%1$s\" üzerinden \"%2$s\" hedefine taşındı."
@@ -20528,14 +20529,14 @@ msgstr[0] "%d öğe geri alındı."
 msgstr[1] "%d öğe geri alındı."
 
 #: includes/pages/wordset-editor.php:4047
-#: includes/shortcodes/word-grid-shortcode.php:4013
-#: includes/shortcodes/word-grid-shortcode.php:9114
+#: includes/shortcodes/word-grid-shortcode.php:4133
+#: includes/shortcodes/word-grid-shortcode.php:9242
 msgid "Recording moved to Trash."
 msgstr "Ses kaydı Çöp Kutusu'na taşındı."
 
 #: includes/pages/wordset-editor.php:4049
-#: includes/shortcodes/word-grid-shortcode.php:4016
-#: includes/shortcodes/word-grid-shortcode.php:9205
+#: includes/shortcodes/word-grid-shortcode.php:4136
+#: includes/shortcodes/word-grid-shortcode.php:9333
 msgid "Recording moved."
 msgstr "Ses kaydı taşındı."
 
@@ -20763,7 +20764,7 @@ msgid "Move this recording to Trash?"
 msgstr "Bu ses kaydı Çöp Kutusu'na taşınsın mı?"
 
 #: includes/pages/wordset-editor.php:4943
-#: includes/shortcodes/word-grid-shortcode.php:5815
+#: includes/shortcodes/word-grid-shortcode.php:5935
 msgid "Move recording to Trash"
 msgstr "Ses kaydını Çöp Kutusu'na taşı"
 
@@ -20771,7 +20772,7 @@ msgstr "Ses kaydını Çöp Kutusu'na taşı"
 msgid "Trash recording"
 msgstr "Ses kaydını çöpe taşı"
 
-#: includes/shortcodes/word-grid-shortcode.php:5810
+#: includes/shortcodes/word-grid-shortcode.php:5930
 msgid "Move recording"
 msgstr "Ses kaydını taşı"
 
@@ -20831,143 +20832,143 @@ msgid_plural "%d words"
 msgstr[0] "%d kelime"
 msgstr[1] "%d kelime"
 
-#: includes/shortcodes/word-grid-shortcode.php:3461
+#: includes/shortcodes/word-grid-shortcode.php:3581
 msgid "Missing word set category scope."
 msgstr "Kelime seti kategori kapsamı eksik."
 
 #: includes/pages/wordset-editor.php:500
-#: includes/shortcodes/word-grid-shortcode.php:3467
-#: includes/shortcodes/word-grid-shortcode.php:8383
+#: includes/shortcodes/word-grid-shortcode.php:3587
+#: includes/shortcodes/word-grid-shortcode.php:8511
 msgid "Select categories from this word set."
 msgstr "Bu kelime setinden kategoriler seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:3599
+#: includes/shortcodes/word-grid-shortcode.php:3719
 msgid "Published but hidden. Reason: missing image."
 msgstr "Yayınlandı ama gizli. Neden: görsel eksik."
 
-#: includes/shortcodes/word-grid-shortcode.php:3603
+#: includes/shortcodes/word-grid-shortcode.php:3723
 msgid "Not public: quiz does not use pictures."
 msgstr "Herkese açık değil: quiz görsel kullanmıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4005
+#: includes/shortcodes/word-grid-shortcode.php:4125
 msgid "Deleting word..."
 msgstr "Kelime siliniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4006
-#: includes/shortcodes/word-grid-shortcode.php:9035
+#: includes/shortcodes/word-grid-shortcode.php:4126
+#: includes/shortcodes/word-grid-shortcode.php:9163
 msgid "Word moved to Trash."
 msgstr "Kelime Çöp Kutusu'na taşındı."
 
-#: includes/shortcodes/word-grid-shortcode.php:4007
-#: includes/shortcodes/word-grid-shortcode.php:9007
+#: includes/shortcodes/word-grid-shortcode.php:4127
+#: includes/shortcodes/word-grid-shortcode.php:9135
 msgid "Unable to delete word."
 msgstr "Kelime silinemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4012
+#: includes/shortcodes/word-grid-shortcode.php:4132
 msgid "Deleting recording..."
 msgstr "Ses kaydı siliniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4014
-#: includes/shortcodes/word-grid-shortcode.php:9080
+#: includes/shortcodes/word-grid-shortcode.php:4134
+#: includes/shortcodes/word-grid-shortcode.php:9208
 msgid "Unable to delete recording."
 msgstr "Ses kaydı silinemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4015
+#: includes/shortcodes/word-grid-shortcode.php:4135
 msgid "Moving recording..."
 msgstr "Ses kaydı taşınıyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4017
-#: includes/shortcodes/word-grid-shortcode.php:9175
+#: includes/shortcodes/word-grid-shortcode.php:4137
+#: includes/shortcodes/word-grid-shortcode.php:9303
 msgid "Unable to move recording."
 msgstr "Ses kaydı taşınamadı."
 
-#: includes/shortcodes/word-grid-shortcode.php:4018
+#: includes/shortcodes/word-grid-shortcode.php:4138
 msgid "Choose a target word."
 msgstr "Bir hedef kelime seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:4019
+#: includes/shortcodes/word-grid-shortcode.php:4139
 msgid "No matching words."
 msgstr "Eşleşen kelime yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:4364
+#: includes/shortcodes/word-grid-shortcode.php:4484
 #, php-format
 msgid "Word image #%d"
 msgstr "Kelime görseli #%d"
 
-#: includes/shortcodes/word-grid-shortcode.php:5777
+#: includes/shortcodes/word-grid-shortcode.php:5897
 msgid "Existing image"
 msgstr "Mevcut görsel"
 
-#: includes/shortcodes/word-grid-shortcode.php:5778
+#: includes/shortcodes/word-grid-shortcode.php:5898
 msgid "Search word set images"
 msgstr "Kelime seti görsellerinde ara"
 
-#: includes/shortcodes/word-grid-shortcode.php:5779
+#: includes/shortcodes/word-grid-shortcode.php:5899
 msgid "Upload a new image or select an existing word image."
 msgstr "Yeni bir görsel yükle veya mevcut bir kelime görseli seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:5811
+#: includes/shortcodes/word-grid-shortcode.php:5931
 msgid "Move to word"
 msgstr "Kelimeye taşı"
 
-#: includes/shortcodes/word-grid-shortcode.php:5813
+#: includes/shortcodes/word-grid-shortcode.php:5933
 msgid "Delete recording"
 msgstr "Ses kaydını sil"
 
-#: includes/shortcodes/word-grid-shortcode.php:5814
+#: includes/shortcodes/word-grid-shortcode.php:5934
 msgid "Delete this recording?"
 msgstr "Bu ses kaydı silinsin mi?"
 
-#: includes/shortcodes/word-grid-shortcode.php:5816
+#: includes/shortcodes/word-grid-shortcode.php:5936
 msgid "Delete word"
 msgstr "Kelimeyi sil"
 
-#: includes/shortcodes/word-grid-shortcode.php:5817
+#: includes/shortcodes/word-grid-shortcode.php:5937
 msgid "Delete this word?"
 msgstr "Bu kelime silinsin mi?"
 
-#: includes/shortcodes/word-grid-shortcode.php:5818
+#: includes/shortcodes/word-grid-shortcode.php:5938
 msgid "Move word to Trash"
 msgstr "Kelimeyi Çöp Kutusu'na taşı"
 
-#: includes/shortcodes/word-grid-shortcode.php:8436
+#: includes/shortcodes/word-grid-shortcode.php:8564
 msgid "Select an image from this word set."
 msgstr "Bu kelime setinden bir görsel seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:8870
+#: includes/shortcodes/word-grid-shortcode.php:8998
 msgid "The selected word image does not have an image file."
 msgstr "Seçilen kelime görselinde görsel dosyası yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:9025
+#: includes/shortcodes/word-grid-shortcode.php:9153
 #, php-format
 msgid "Moved \"%s\" to Trash."
 msgstr "\"%s\" Çöp Kutusu'na taşındı."
 
-#: includes/shortcodes/word-grid-shortcode.php:9053
+#: includes/shortcodes/word-grid-shortcode.php:9181
 msgid "Missing recording ID."
 msgstr "Ses kaydı kimliği eksik."
 
-#: includes/shortcodes/word-grid-shortcode.php:9063
+#: includes/shortcodes/word-grid-shortcode.php:9191
 msgid "Invalid recording parent."
 msgstr "Geçersiz ses kaydı üst öğesi."
 
-#: includes/shortcodes/word-grid-shortcode.php:9069
+#: includes/shortcodes/word-grid-shortcode.php:9197
 msgid "Recording is outside this word set."
 msgstr "Ses kaydı bu kelime setinin dışında."
 
-#: includes/shortcodes/word-grid-shortcode.php:9134
+#: includes/shortcodes/word-grid-shortcode.php:9262
 msgid "Choose a recording and target word."
 msgstr "Bir ses kaydı ve hedef kelime seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:9144
+#: includes/shortcodes/word-grid-shortcode.php:9272
 msgid "Choose a different target word."
 msgstr "Farklı bir hedef kelime seç."
 
-#: includes/shortcodes/word-grid-shortcode.php:9150
+#: includes/shortcodes/word-grid-shortcode.php:9278
 msgid "Invalid target word."
 msgstr "Geçersiz hedef kelime."
 
-#: includes/shortcodes/word-grid-shortcode.php:9157
+#: includes/shortcodes/word-grid-shortcode.php:9285
 msgid "Move recordings within the same word set."
 msgstr "Ses kayıtlarını aynı kelime seti içinde taşı."
 
@@ -21044,7 +21045,7 @@ msgstr "Hiç kelime seçilmedi"
 #: includes/admin/ipa-keyboard-admin.php:10717
 #: includes/admin/ipa-keyboard-admin.php:10722
 #: includes/admin/ipa-keyboard-admin.php:10727
-#: includes/shortcodes/word-grid-shortcode.php:11189
+#: includes/shortcodes/word-grid-shortcode.php:11317
 msgid "Invalid recording"
 msgstr "Geçersiz kayıt"
 
@@ -21208,102 +21209,102 @@ msgstr "Dil listesini yenile"
 msgid "Rebuild the bundled language taxonomy list used by wordset and language settings."
 msgstr "Kelime seti ve dil ayarlarında kullanılan paket dil taksonomisi listesini yeniden oluştur."
 
-#: includes/shortcodes/word-grid-shortcode.php:8302
+#: includes/shortcodes/word-grid-shortcode.php:8430
 msgid "Missing word ID"
 msgstr "Kelime kimliği eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:8184
-#: includes/shortcodes/word-grid-shortcode.php:9226
-#: includes/shortcodes/word-grid-shortcode.php:10838
-#: includes/shortcodes/word-grid-shortcode.php:10922
-#: includes/shortcodes/word-grid-shortcode.php:11169
+#: includes/shortcodes/word-grid-shortcode.php:10966
+#: includes/shortcodes/word-grid-shortcode.php:11050
+#: includes/shortcodes/word-grid-shortcode.php:11297
+#: includes/shortcodes/word-grid-shortcode.php:8312
+#: includes/shortcodes/word-grid-shortcode.php:9354
 msgid "Invalid lesson"
 msgstr "Geçersiz ders"
 
-#: includes/shortcodes/word-grid-shortcode.php:8189
-#: includes/shortcodes/word-grid-shortcode.php:9231
-#: includes/shortcodes/word-grid-shortcode.php:10843
-#: includes/shortcodes/word-grid-shortcode.php:10927
-#: includes/shortcodes/word-grid-shortcode.php:11174
+#: includes/shortcodes/word-grid-shortcode.php:10971
+#: includes/shortcodes/word-grid-shortcode.php:11055
+#: includes/shortcodes/word-grid-shortcode.php:11302
+#: includes/shortcodes/word-grid-shortcode.php:8317
+#: includes/shortcodes/word-grid-shortcode.php:9359
 msgid "Missing lesson metadata"
 msgstr "Ders meta verileri eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:10174
+#: includes/shortcodes/word-grid-shortcode.php:10302
 msgid "Missing wordset or category"
 msgstr "Kelime seti veya kategori eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9972
-#: includes/shortcodes/word-grid-shortcode.php:10185
+#: includes/shortcodes/word-grid-shortcode.php:10100
+#: includes/shortcodes/word-grid-shortcode.php:10313
 msgid "Invalid mode"
 msgstr "Geçersiz mod"
 
-#: includes/shortcodes/word-grid-shortcode.php:9923
+#: includes/shortcodes/word-grid-shortcode.php:10051
 msgid "Missing part of speech"
 msgstr "Konuşma parçası eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9927
+#: includes/shortcodes/word-grid-shortcode.php:10055
 msgid "Invalid part of speech"
 msgstr "Geçersiz konuşma parçası"
 
-#: includes/shortcodes/word-grid-shortcode.php:9941
+#: includes/shortcodes/word-grid-shortcode.php:10069
 msgid "Gender not enabled"
 msgstr "Cinsiyet etkin değil"
 
-#: includes/shortcodes/word-grid-shortcode.php:9942
+#: includes/shortcodes/word-grid-shortcode.php:10070
 msgid "Missing gender"
 msgstr "Cinsiyet eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9943
+#: includes/shortcodes/word-grid-shortcode.php:10071
 msgid "Invalid gender"
 msgstr "Geçersiz cinsiyet"
 
-#: includes/shortcodes/word-grid-shortcode.php:9949
+#: includes/shortcodes/word-grid-shortcode.php:10077
 msgid "Plurality not enabled"
 msgstr "Çoğulluk etkin değil"
 
-#: includes/shortcodes/word-grid-shortcode.php:9950
+#: includes/shortcodes/word-grid-shortcode.php:10078
 msgid "Missing plurality"
 msgstr "Çoğulluk eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9951
+#: includes/shortcodes/word-grid-shortcode.php:10079
 msgid "Invalid plurality"
 msgstr "Geçersiz çoğulluk"
 
-#: includes/shortcodes/word-grid-shortcode.php:9957
+#: includes/shortcodes/word-grid-shortcode.php:10085
 msgid "Verb tense not enabled"
 msgstr "Fiil zamanı etkin değil"
 
-#: includes/shortcodes/word-grid-shortcode.php:9958
+#: includes/shortcodes/word-grid-shortcode.php:10086
 msgid "Missing verb tense"
 msgstr "Fiil zamanı eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9959
+#: includes/shortcodes/word-grid-shortcode.php:10087
 msgid "Invalid verb tense"
 msgstr "Geçersiz fiil zamanı"
 
-#: includes/shortcodes/word-grid-shortcode.php:9965
+#: includes/shortcodes/word-grid-shortcode.php:10093
 msgid "Verb mood not enabled"
 msgstr "Fiil kipi etkin değil"
 
-#: includes/shortcodes/word-grid-shortcode.php:9966
+#: includes/shortcodes/word-grid-shortcode.php:10094
 msgid "Missing verb mood"
 msgstr "Fiil kipi eksik"
 
-#: includes/shortcodes/word-grid-shortcode.php:9967
+#: includes/shortcodes/word-grid-shortcode.php:10095
 msgid "Invalid verb mood"
 msgstr "Geçersiz fiil kipi"
 
-#: includes/shortcodes/word-grid-shortcode.php:10857
-#: includes/shortcodes/word-grid-shortcode.php:11180
+#: includes/shortcodes/word-grid-shortcode.php:10985
+#: includes/shortcodes/word-grid-shortcode.php:11308
 msgid "Transcription service not configured"
 msgstr "Transkripsiyon servisi yapılandırılmamış"
 
-#: includes/shortcodes/word-grid-shortcode.php:11184
+#: includes/shortcodes/word-grid-shortcode.php:11312
 msgid "Recording not in lesson"
 msgstr "Kayıt bu derste değil"
 
-#: includes/shortcodes/word-grid-shortcode.php:11237
-#: includes/shortcodes/word-grid-shortcode.php:11320
+#: includes/shortcodes/word-grid-shortcode.php:11365
+#: includes/shortcodes/word-grid-shortcode.php:11448
 msgid "Audio file missing"
 msgstr "Ses dosyası eksik"
 
@@ -21337,10 +21338,10 @@ msgid "Specific wrong answers"
 msgstr "Belirli yanlış cevaplar"
 
 #: includes/admin/site-sync-admin.php:1058
-#: includes/pages/wordset-editor.php:976
 #: includes/pages/wordset-editor.php:4566
+#: includes/pages/wordset-editor.php:976
 #: includes/pages/wordset-transcription-review.php:289
-#: includes/shortcodes/word-grid-shortcode.php:5793
+#: includes/shortcodes/word-grid-shortcode.php:5913
 msgid "Review note"
 msgstr "İnceleme notu"
 
@@ -21369,44 +21370,44 @@ msgstr "Bu kategoriyi ve bağlı kelime dersini silmek istiyor musun? Bu işlem 
 msgid "Unable to delete the linked vocab lesson right now."
 msgstr "Bağlı kelime dersi şu anda silinemiyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4008
+#: includes/shortcodes/word-grid-shortcode.php:4128
 msgid "Adding word..."
 msgstr "Kelime ekleniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4009
+#: includes/shortcodes/word-grid-shortcode.php:4129
 msgid "Word added."
 msgstr "Kelime eklendi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4010
+#: includes/shortcodes/word-grid-shortcode.php:4130
 msgid "Unable to add word."
 msgstr "Kelime eklenemedi."
 
-#: includes/shortcodes/word-grid-shortcode.php:4011
+#: includes/shortcodes/word-grid-shortcode.php:4131
 msgid "Lesson words are still loading."
 msgstr "Ders kelimeleri hala yükleniyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:5772
+#: includes/shortcodes/word-grid-shortcode.php:5892
 msgid "Wordset order"
 msgstr "Kelime seti sırası"
 
-#: includes/shortcodes/word-grid-shortcode.php:5774
+#: includes/shortcodes/word-grid-shortcode.php:5894
 msgid "No categories match."
 msgstr "Eşleşen kategori yok."
 
-#: includes/shortcodes/word-grid-shortcode.php:8214
+#: includes/shortcodes/word-grid-shortcode.php:8342
 msgid "This category is outside the lesson word set."
 msgstr "Bu kategori dersin kelime setinin dışında."
 
-#: includes/shortcodes/word-grid-shortcode.php:8227
+#: includes/shortcodes/word-grid-shortcode.php:8355
 msgid "Unable to create the word."
 msgstr "Kelime oluşturulamadı."
 
-#: includes/shortcodes/word-grid-shortcode.php:8271
+#: includes/shortcodes/word-grid-shortcode.php:8399
 #, php-format
 msgid "Created a new word in \"%s\"."
 msgstr "\"%s\" içinde yeni bir kelime oluşturuldu."
 
-#: includes/shortcodes/word-grid-shortcode.php:8281
+#: includes/shortcodes/word-grid-shortcode.php:8409
 msgid "Word created."
 msgstr "Kelime oluşturuldu."
 
@@ -22820,11 +22821,11 @@ msgstr "Kuyruk ayarlarını değiştir"
 msgid "Changes saved."
 msgstr "Değişiklikler kaydedildi."
 
-#: includes/shortcodes/word-grid-shortcode.php:5792
+#: includes/shortcodes/word-grid-shortcode.php:5912
 msgid "Clear pronunciation review flag"
 msgstr "Telaffuz inceleme işaretini temizle"
 
-#: includes/shortcodes/word-grid-shortcode.php:5790
+#: includes/shortcodes/word-grid-shortcode.php:5910
 msgid "Clear text review flag"
 msgstr "Metin inceleme işaretini temizle"
 
@@ -22899,7 +22900,7 @@ msgid "Mark imported transcription changes as needing review"
 msgstr "İçe aktarılan transkripsiyon değişikliklerini inceleme gerekiyor olarak işaretle"
 
 #: includes/admin/ipa-keyboard-admin.php:526
-#: includes/shortcodes/word-grid-shortcode.php:5791
+#: includes/shortcodes/word-grid-shortcode.php:5911
 msgid "Mark pronunciation for review"
 msgstr "Telaffuzu inceleme için işaretle"
 
@@ -22908,7 +22909,7 @@ msgid "Mark pronunciation reviewed"
 msgstr "Telaffuzu incelendi olarak işaretle"
 
 #: includes/admin/ipa-keyboard-admin.php:525
-#: includes/shortcodes/word-grid-shortcode.php:5789
+#: includes/shortcodes/word-grid-shortcode.php:5909
 msgid "Mark text for review"
 msgstr "Metni inceleme için işaretle"
 
@@ -22943,7 +22944,7 @@ msgstr "Yalnızca bu türleri dahil et"
 msgid "Or new category"
 msgstr "Veya yeni kategori"
 
-#: includes/shortcodes/word-grid-shortcode.php:3596
+#: includes/shortcodes/word-grid-shortcode.php:3716
 msgid "Published but hidden. Reason: missing audio."
 msgstr "Yayınlandı ama gizli. Neden: ses kaydı eksik."
 
@@ -23410,18 +23411,18 @@ msgstr "Sembol izin verilmeyen olarak işaretlendi ve kontroller yeniden tarand�
 #: includes/admin/ipa-keyboard-admin.php:803
 #: includes/lib/sort.php:1037
 #: includes/lib/wordset-language-settings.php:1324
-#: includes/shortcodes/word-grid-shortcode.php:3833
-#: includes/shortcodes/word-grid-shortcode.php:4021
-#: includes/shortcodes/word-grid-shortcode.php:4024
+#: includes/shortcodes/word-grid-shortcode.php:3953
+#: includes/shortcodes/word-grid-shortcode.php:4141
+#: includes/shortcodes/word-grid-shortcode.php:4144
 msgid "Diacritics and signs"
 msgstr "Aksanlar ve işaretler"
 
 #: includes/admin/ipa-keyboard-admin.php:751
 #: includes/lib/wordset-language-settings.php:1325
 #: includes/lib/wordset-language-settings.php:1404
-#: includes/shortcodes/word-grid-shortcode.php:3834
-#: includes/shortcodes/word-grid-shortcode.php:4022
-#: includes/shortcodes/word-grid-shortcode.php:4025
+#: includes/shortcodes/word-grid-shortcode.php:3954
+#: includes/shortcodes/word-grid-shortcode.php:4142
+#: includes/shortcodes/word-grid-shortcode.php:4145
 msgid "Wordset symbols"
 msgstr "Kelime seti sembolleri"
 
@@ -24165,8 +24166,8 @@ msgstr "SERBEST"
 msgid "Other languages"
 msgstr "Diğer diller"
 
-#: includes/shortcodes/word-grid-shortcode.php:4000
-#: includes/shortcodes/word-grid-shortcode.php:5809
+#: includes/shortcodes/word-grid-shortcode.php:4120
+#: includes/shortcodes/word-grid-shortcode.php:5929
 msgid "Download audio"
 msgstr "Sesi indir"
 
@@ -24338,9 +24339,9 @@ msgid "Word editor opened."
 msgstr "Kelime düzenleyici açıldı."
 
 #: includes/admin/ipa-keyboard-admin.php:532
-#: includes/shortcodes/word-grid-shortcode.php:4157
-#: includes/shortcodes/word-grid-shortcode.php:4158
-#: includes/shortcodes/word-grid-shortcode.php:4236
+#: includes/shortcodes/word-grid-shortcode.php:4277
+#: includes/shortcodes/word-grid-shortcode.php:4278
+#: includes/shortcodes/word-grid-shortcode.php:4356
 msgid "Unable to open the word editor."
 msgstr "Kelime düzenleyici açılamadı."
 
@@ -24397,11 +24398,11 @@ msgstr "Kelime dersi sayfası bildirimlerini kapatma iznin yok."
 msgid "Too many dictionary searches. Please wait a moment and try again."
 msgstr "Çok fazla sözlük araması yapıldı. Lütfen biraz bekleyip yeniden dene."
 
-#: includes/shortcodes/word-grid-shortcode.php:4159
+#: includes/shortcodes/word-grid-shortcode.php:4279
 msgid "Word editor modal is not available on this page."
 msgstr "Kelime düzenleyici penceresi bu sayfada kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:4223
+#: includes/shortcodes/word-grid-shortcode.php:4343
 msgid "Invalid word editor context."
 msgstr "Geçersiz kelime düzenleyici bağlamı."
 
@@ -24661,15 +24662,15 @@ msgstr "Yinelenen: varsayılan alıştırma ses kaydı olarak kullanılmıyor."
 msgid "Secondary recording."
 msgstr "İkincil ses kaydı."
 
-#: includes/shortcodes/word-grid-shortcode.php:5256
-#: includes/shortcodes/word-grid-shortcode.php:5724
-#: includes/shortcodes/word-grid-shortcode.php:7751
+#: includes/shortcodes/word-grid-shortcode.php:5376
+#: includes/shortcodes/word-grid-shortcode.php:5844
+#: includes/shortcodes/word-grid-shortcode.php:7879
 msgid "In sentence"
 msgstr "Cümle içinde"
 
-#: includes/shortcodes/word-grid-shortcode.php:6186
-#: includes/shortcodes/word-grid-shortcode.php:6665
-#: includes/shortcodes/word-grid-shortcode.php:6862
+#: includes/shortcodes/word-grid-shortcode.php:6306
+#: includes/shortcodes/word-grid-shortcode.php:6793
+#: includes/shortcodes/word-grid-shortcode.php:6990
 msgid "Secondary"
 msgstr "İkincil"
 
@@ -24934,11 +24935,11 @@ msgstr "Daha fazla eşleşen kelime yükle"
 msgid "Loading matching words..."
 msgstr "Eşleşen kelimeler yükleniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4160
+#: includes/shortcodes/word-grid-shortcode.php:4280
 msgid "Loading word editor..."
 msgstr "Kelime düzenleyici yükleniyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4161
+#: includes/shortcodes/word-grid-shortcode.php:4281
 msgid "Loading word editor"
 msgstr "Kelime düzenleyici yükleniyor"
 
@@ -25549,11 +25550,11 @@ msgstr "Bu toplu işleme ait geri alma verileri eksik."
 msgid "The rollback was applied, but its progress could not be saved. Reload to retry."
 msgstr "Geri alma uygulandı ancak ilerlemesi kaydedilemedi. Yeniden denemek için sayfayı yeniden yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:4035
+#: includes/shortcodes/word-grid-shortcode.php:4155
 msgid "Continuing bulk change..."
 msgstr "Toplu değişikliğe devam ediliyor..."
 
-#: includes/shortcodes/word-grid-shortcode.php:4036
+#: includes/shortcodes/word-grid-shortcode.php:4156
 msgid "Bulk change interrupted. Continue or undo it."
 msgstr "Toplu değişiklik kesintiye uğradı. Devam et veya geri al."
 
@@ -25561,17 +25562,17 @@ msgstr "Toplu değişiklik kesintiye uğradı. Devam et veya geri al."
 msgid "Continue interrupted bulk change"
 msgstr "Kesintiye uğrayan toplu değişikliğe devam et"
 
-#: includes/shortcodes/word-grid-shortcode.php:4039
+#: includes/shortcodes/word-grid-shortcode.php:4159
 #, php-format
 msgid "Rollback skipped %d words changed after the bulk operation."
 msgstr "%d kelime toplu işlemden sonra değiştirildiği için geri alma sırasında atlandı."
 
-#: includes/shortcodes/word-grid-shortcode.php:10418
-#: includes/shortcodes/word-grid-shortcode.php:10468
+#: includes/shortcodes/word-grid-shortcode.php:10546
+#: includes/shortcodes/word-grid-shortcode.php:10596
 msgid "Bulk rollback skipped words changed after the bulk operation."
 msgstr "Toplu geri alma, toplu işlemden sonra değiştirilen kelimeleri atladı."
 
-#: includes/shortcodes/word-grid-shortcode.php:10177
+#: includes/shortcodes/word-grid-shortcode.php:10305
 msgid "Invalid category"
 msgstr "Geçersiz kategori"
 
@@ -25580,20 +25581,20 @@ msgid "Unable to save rollback progress."
 msgstr "Geri alma ilerlemesi kaydedilemedi."
 
 #: includes/lib/word-grid-bulk-operations.php:841
-#: includes/shortcodes/word-grid-shortcode.php:10274
-#: includes/shortcodes/word-grid-shortcode.php:10490
+#: includes/shortcodes/word-grid-shortcode.php:10402
+#: includes/shortcodes/word-grid-shortcode.php:10618
 msgid "Another bulk request took over this operation. Reload before continuing."
 msgstr "Bu işlemi başka bir toplu istek devraldı. Devam etmeden önce sayfayı yeniden yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:10306
+#: includes/shortcodes/word-grid-shortcode.php:10434
 msgid "Some words could not be updated. Reload to retry or undo."
 msgstr "Bazı kelimeler güncellenemedi. Yeniden denemek veya geri almak için sayfayı yeniden yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:10431
+#: includes/shortcodes/word-grid-shortcode.php:10559
 msgid "This older bulk rollback is no longer available. Reload before making another change."
 msgstr "Bu eski toplu geri alma işlemi artık kullanılamıyor. Başka bir değişiklik yapmadan önce sayfayı yeniden yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:10787
+#: includes/shortcodes/word-grid-shortcode.php:10915
 msgid "Some words could not be restored. Reload to retry the rollback."
 msgstr "Bazı kelimeler geri yüklenemedi. Geri almayı yeniden denemek için sayfayı yeniden yükle."
 
@@ -27237,15 +27238,15 @@ msgstr "Ses kaydı kuyruklarını görüntüleme iznin yok."
 msgid "Recording queues are not available right now."
 msgstr "Kayıt kuyrukları şu anda kullanılamıyor."
 
-#: includes/shortcodes/word-grid-shortcode.php:5785
+#: includes/shortcodes/word-grid-shortcode.php:5905
 msgid "Recording type"
 msgstr "Kayıt türü"
 
-#: includes/shortcodes/word-grid-shortcode.php:5786
+#: includes/shortcodes/word-grid-shortcode.php:5906
 msgid "No recording types available"
 msgstr "Kullanılabilir kayıt türü yok"
 
-#: includes/shortcodes/word-grid-shortcode.php:8341
+#: includes/shortcodes/word-grid-shortcode.php:8469
 msgid "Choose a recording type."
 msgstr "Bir kayıt türü seç."
 
@@ -30374,12 +30375,12 @@ msgid "Your browser could not save this copy request. Enable session storage and
 msgstr "Tarayıcın bu kopyalama isteğini saklayamadı. Oturum depolamasını etkinleştirip yeniden dene."
 
 #: includes/pages/wordset-editor.php:4829
-#: includes/shortcodes/word-grid-shortcode.php:6811
+#: includes/shortcodes/word-grid-shortcode.php:6939
 msgid "Copy or split word"
 msgstr "Kelimeyi kopyala veya böl"
 
 #: includes/pages/wordset-editor.php:4830
-#: includes/shortcodes/word-grid-shortcode.php:6811
+#: includes/shortcodes/word-grid-shortcode.php:6939
 msgid "Copy / Split"
 msgstr "Kopyala / Böl"
 
@@ -30418,7 +30419,7 @@ msgstr "Daha fazla ses kaydı var. Sonraki sayfaya geç."
 msgid "Finish saving or reload the changed recordings before leaving this page."
 msgstr "Bu sayfadan ayrılmadan önce kaydetme işlemini tamamla veya değişen ses kayıtlarını yeniden yükle."
 
-#: includes/shortcodes/word-grid-shortcode.php:3986
+#: includes/shortcodes/word-grid-shortcode.php:4106
 msgid "Save changes before copying or splitting this word."
 msgstr "Bu kelimeyi kopyalamadan veya bölmeden önce değişiklikleri kaydet."
 

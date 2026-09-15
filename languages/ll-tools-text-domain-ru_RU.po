@@ -291,7 +291,7 @@ msgid "Text background"
 msgstr "Фон текста"
 
 #. ll-tools-public-key: 86e7242f1c2038bda9953a1e9673923f5d1d06a9
-#: includes/lib/interlinear.php:2007 includes/shortcodes/ranked-word-list-shortcode.php:636 includes/shortcodes/ranked-word-list-shortcode.php:654 includes/shortcodes/word-grid-shortcode.php:5765
+#: includes/lib/interlinear.php:2007 includes/shortcodes/ranked-word-list-shortcode.php:636 includes/shortcodes/ranked-word-list-shortcode.php:654 includes/shortcodes/word-grid-shortcode.php:5885
 msgid "Translation"
 msgstr "Перевод"
 
@@ -644,7 +644,7 @@ msgid "Cached reference STT"
 msgstr "Кэшированная ссылка STT"
 
 #. ll-tools-public-key: 643ad0bb1f223ad4f36f01310668a409627def0f
-#: includes/lib/wordset-language-settings.php:896 includes/lib/wordset-language-settings.php:932 includes/pages/wordset-games.php:5805 includes/pages/wordset-pages.php:13557 includes/pages/wordset-pages.php:28420 includes/shortcodes/word-grid-shortcode.php:5743 includes/shortcodes/word-grid-shortcode.php:5754
+#: includes/lib/wordset-language-settings.php:896 includes/lib/wordset-language-settings.php:932 includes/pages/wordset-games.php:5805 includes/pages/wordset-pages.php:13557 includes/pages/wordset-pages.php:28420 includes/shortcodes/word-grid-shortcode.php:5863 includes/shortcodes/word-grid-shortcode.php:5874
 msgid "IPA"
 msgstr "МКП"
 
@@ -1718,7 +1718,7 @@ msgid "Target"
 msgstr "Цель"
 
 #. ll-tools-public-key: f15201948e422eef35673a517a0911cc51146033
-#: includes/pages/wordset-pages.php:13556 includes/pages/wordset-pages.php:26226 includes/pages/wordset-pages.php:26646 includes/pages/wordset-pages.php:26648 includes/pages/wordset-pages.php:28416 includes/shortcodes/ranked-word-list-shortcode.php:635 includes/shortcodes/ranked-word-list-shortcode.php:652 includes/shortcodes/word-grid-shortcode.php:5764
+#: includes/pages/wordset-pages.php:13556 includes/pages/wordset-pages.php:26226 includes/pages/wordset-pages.php:26646 includes/pages/wordset-pages.php:26648 includes/pages/wordset-pages.php:28416 includes/shortcodes/ranked-word-list-shortcode.php:635 includes/shortcodes/ranked-word-list-shortcode.php:652 includes/shortcodes/word-grid-shortcode.php:5884
 msgid "Word"
 msgstr "Слово"
 
@@ -1958,7 +1958,7 @@ msgid "Upcoming activities"
 msgstr "Предстоящие мероприятия"
 
 #. ll-tools-public-key: 30ce486d6dbba8f52ebccbf3437ebbc8df65ccbf
-#: includes/pages/wordset-pages.php:24349 includes/pages/wordset-pages.php:26166 includes/pages/wordset-pages.php:26181 includes/pages/wordset-pages.php:26243 includes/pages/wordset-pages.php:26491 includes/shortcodes/flashcard-widget.php:640 includes/shortcodes/word-grid-shortcode.php:5769
+#: includes/pages/wordset-pages.php:24349 includes/pages/wordset-pages.php:26166 includes/pages/wordset-pages.php:26181 includes/pages/wordset-pages.php:26243 includes/pages/wordset-pages.php:26491 includes/shortcodes/flashcard-widget.php:640 includes/shortcodes/word-grid-shortcode.php:5889
 msgid "Categories"
 msgstr "Категории"
 
@@ -2304,12 +2304,12 @@ msgid "Play audio for %s"
 msgstr "Воспроизвести аудио для «%s»"
 
 #. ll-tools-public-key: 832189150fd2b0a735cde3e80c49389c04067c22
-#: includes/pages/wordset-pages.php:26255 includes/shortcodes/flashcard-widget.php:659 includes/shortcodes/word-grid-shortcode.php:3978 includes/shortcodes/word-grid-shortcode.php:6249
+#: includes/pages/wordset-pages.php:26255 includes/shortcodes/flashcard-widget.php:659 includes/shortcodes/word-grid-shortcode.php:4098 includes/shortcodes/word-grid-shortcode.php:6369
 msgid "Star word"
 msgstr "Отметить слово звездочкой"
 
 #. ll-tools-public-key: c79a116c9854b71566ab47e47d385c2cd01fc27a
-#: includes/pages/wordset-pages.php:26256 includes/shortcodes/word-grid-shortcode.php:3979 includes/shortcodes/word-grid-shortcode.php:6248
+#: includes/pages/wordset-pages.php:26256 includes/shortcodes/word-grid-shortcode.php:4099 includes/shortcodes/word-grid-shortcode.php:6368
 msgid "Unstar word"
 msgstr "Снять отметку с слова"
 
@@ -2564,7 +2564,7 @@ msgid "Reset all categories"
 msgstr "Сбросить все категории"
 
 #. ll-tools-public-key: 526fa0931116208a605c00e854273b8d39a7a7eb
-#: includes/pages/wordset-pages.php:26518 includes/pages/wordset-pages.php:26524 includes/shortcodes/word-grid-shortcode.php:5770
+#: includes/pages/wordset-pages.php:26518 includes/pages/wordset-pages.php:26524 includes/shortcodes/word-grid-shortcode.php:5890
 msgid "Search categories"
 msgstr "Категории поиска"
 
@@ -2664,7 +2664,7 @@ msgid "Clear search"
 msgstr "Очистить результаты поиска"
 
 #. ll-tools-public-key: 10cb1d0010e5466c84801be639f3ea46a761d113
-#: includes/pages/wordset-pages.php:27290 includes/pages/wordset-pages.php:27291 includes/shortcodes/word-grid-shortcode.php:5771 templates/offline-app-shell-template.php:762 templates/offline-app-shell-template.php:763
+#: includes/pages/wordset-pages.php:27290 includes/pages/wordset-pages.php:27291 includes/shortcodes/word-grid-shortcode.php:5891 templates/offline-app-shell-template.php:762 templates/offline-app-shell-template.php:763
 msgid "Sort categories"
 msgstr "Сортировать по категориям"
 
@@ -2674,7 +2674,7 @@ msgid "Default"
 msgstr "По умолчанию"
 
 #. ll-tools-public-key: 44ce059c39b8eac2e7f49f57b35530c6914c4c51
-#: includes/pages/wordset-pages.php:27305 includes/shortcodes/word-grid-shortcode.php:5773 templates/offline-app-shell-template.php:782
+#: includes/pages/wordset-pages.php:27305 includes/shortcodes/word-grid-shortcode.php:5893 templates/offline-app-shell-template.php:782
 msgid "A-Z"
 msgstr "А–Я"
 
@@ -3397,17 +3397,17 @@ msgid "Learning"
 msgstr "Обучение"
 
 #. ll-tools-public-key: a09d64b5249c44b39b840b47ad5a7d663d112cc2
-#: includes/shortcodes/flashcard-widget.php:675 includes/shortcodes/word-grid-shortcode.php:5258 includes/shortcodes/word-grid-shortcode.php:5759 templates/vocab-lesson-template.php:1733
+#: includes/shortcodes/flashcard-widget.php:675 includes/shortcodes/word-grid-shortcode.php:5378 includes/shortcodes/word-grid-shortcode.php:5879 templates/vocab-lesson-template.php:1733
 msgid "Play %s recording"
 msgstr "Воспроизвести запись «%s»"
 
 #. ll-tools-public-key: 3d982e68acb7db26a8dda35e0824320c8a38bee9
-#: includes/shortcodes/flashcard-widget.php:676 includes/shortcodes/word-grid-shortcode.php:5253 includes/shortcodes/word-grid-shortcode.php:5721 includes/shortcodes/word-grid-shortcode.php:7748
+#: includes/shortcodes/flashcard-widget.php:676 includes/shortcodes/word-grid-shortcode.php:5373 includes/shortcodes/word-grid-shortcode.php:5841 includes/shortcodes/word-grid-shortcode.php:7876
 msgid "Isolation"
 msgstr "Изоляция"
 
 #. ll-tools-public-key: 71f59379d65dd4743e2338d029b7cb7f24be5ab9
-#: includes/shortcodes/flashcard-widget.php:677 includes/shortcodes/word-grid-shortcode.php:5254 includes/shortcodes/word-grid-shortcode.php:5722 includes/shortcodes/word-grid-shortcode.php:7749
+#: includes/shortcodes/flashcard-widget.php:677 includes/shortcodes/word-grid-shortcode.php:5374 includes/shortcodes/word-grid-shortcode.php:5842 includes/shortcodes/word-grid-shortcode.php:7877
 msgid "Introduction"
 msgstr "Введение"
 
@@ -3742,37 +3742,37 @@ msgid "No translation available"
 msgstr "Перевод отсутствует"
 
 #. ll-tools-public-key: acfb4faef880cf553926018fec3690ec6371a349
-#: includes/shortcodes/word-grid-shortcode.php:5252 includes/shortcodes/word-grid-shortcode.php:5720 includes/shortcodes/word-grid-shortcode.php:7747
+#: includes/shortcodes/word-grid-shortcode.php:5372 includes/shortcodes/word-grid-shortcode.php:5840 includes/shortcodes/word-grid-shortcode.php:7875
 msgid "Question"
 msgstr "Вопрос"
 
 #. ll-tools-public-key: dbc208ad1d4f711a5330ed59025d6bb26d684a44
-#: includes/shortcodes/word-grid-shortcode.php:5255 includes/shortcodes/word-grid-shortcode.php:5723 includes/shortcodes/word-grid-shortcode.php:7750
+#: includes/shortcodes/word-grid-shortcode.php:5375 includes/shortcodes/word-grid-shortcode.php:5843 includes/shortcodes/word-grid-shortcode.php:7878
 msgid "Sentence"
 msgstr "Предложение"
 
 #. ll-tools-public-key: 2553763c133a7c8d34d66113b55059e1fd454fac
-#: includes/shortcodes/word-grid-shortcode.php:5256 includes/shortcodes/word-grid-shortcode.php:5724 includes/shortcodes/word-grid-shortcode.php:7751
+#: includes/shortcodes/word-grid-shortcode.php:5376 includes/shortcodes/word-grid-shortcode.php:5844 includes/shortcodes/word-grid-shortcode.php:7879
 msgid "In sentence"
 msgstr "В предложении"
 
 #. ll-tools-public-key: dc629fc8187fa34415803ccd6ad0e783d3e85e1a
-#: includes/shortcodes/word-grid-shortcode.php:5747
+#: includes/shortcodes/word-grid-shortcode.php:5867
 msgid "IPA suggestions"
 msgstr "Предложения по IPA"
 
 #. ll-tools-public-key: 6ddb4593b902eef78c290cdfd8861a3c5c5703e6
-#: includes/shortcodes/word-grid-shortcode.php:5748
+#: includes/shortcodes/word-grid-shortcode.php:5868
 msgid "IPA symbols"
 msgstr "Символы МФА"
 
 #. ll-tools-public-key: 246cbe8c3c33b986eb9e64d8235dcf4651d8f996
-#: includes/shortcodes/word-grid-shortcode.php:5772
+#: includes/shortcodes/word-grid-shortcode.php:5892
 msgid "Wordset order"
 msgstr "Порядок слов в наборе"
 
 #. ll-tools-public-key: 03d7ae4d72ab1cd6d56cf36ae0b3378fdfb5430f
-#: includes/shortcodes/word-grid-shortcode.php:5774
+#: includes/shortcodes/word-grid-shortcode.php:5894
 msgid "No categories match."
 msgstr "Соответствующих категорий нет."
 
@@ -3785,12 +3785,12 @@ msgstr[1] "%d слова для теста"
 msgstr[2] "%d слова для теста"
 
 #. ll-tools-public-key: 9f8cfdc71b4666353aa6e93e29ac7f742be5367f
-#: includes/shortcodes/word-grid-shortcode.php:6924
+#: includes/shortcodes/word-grid-shortcode.php:7052
 msgid "No words found in this category."
 msgstr "В этой категории слов не найдено."
 
 #. ll-tools-public-key: d1f65032db9e5b793e434c7d0be330b12172d644
-#: includes/shortcodes/word-grid-shortcode.php:7738
+#: includes/shortcodes/word-grid-shortcode.php:7866
 msgid "Recording"
 msgstr "Запись"
 
@@ -4056,27 +4056,27 @@ msgid "Quiz Results"
 msgstr "Результаты теста"
 
 #. ll-tools-public-key: fee6db5dcf20ef77c839b6ea43b70bd059a6aaf0
-#: includes/shortcodes/word-grid-shortcode.php:3567
+#: includes/shortcodes/word-grid-shortcode.php:3687
 msgid "No audio recording yet."
 msgstr "Аудиозаписи пока нет."
 
 #. ll-tools-public-key: 4a2567c32f885430ffe9a8d20436205e8e8cec97
-#: includes/shortcodes/word-grid-shortcode.php:3580
+#: includes/shortcodes/word-grid-shortcode.php:3700
 msgid "Audio exists but is not published yet."
 msgstr "Аудиозапись есть, но она еще не опубликована."
 
 #. ll-tools-public-key: e099bfe402e0268a9e4878d5089211da80604898
-#: includes/shortcodes/word-grid-shortcode.php:3583
+#: includes/shortcodes/word-grid-shortcode.php:3703
 msgid "Audio record exists but has no file yet."
 msgstr "Аудиозапись существует, но файл пока отсутствует."
 
 #. ll-tools-public-key: 2190a278ad6747c125cd3dd4be97a618d4726f1c
-#: includes/shortcodes/word-grid-shortcode.php:3586
+#: includes/shortcodes/word-grid-shortcode.php:3706
 msgid "Word has not been published yet."
 msgstr "Слово ещё не опубликовано."
 
 #. ll-tools-public-key: aa943527c26e3f163a13acd5399ee50bc106763c
-#: includes/shortcodes/word-grid-shortcode.php:3596
+#: includes/shortcodes/word-grid-shortcode.php:3716
 msgid "Published but hidden. Reason: missing audio."
 msgstr "Опубликовано, но скрыто. Причина: отсутствует аудио."
 
@@ -4391,17 +4391,17 @@ msgid "Word set tools"
 msgstr "Инструменты набора слов"
 
 #. ll-tools-public-key: eca7c992f131636f870f6e2583f55bf25ecc40c5
-#: includes/shortcodes/word-grid-shortcode.php:6774
+#: includes/shortcodes/word-grid-shortcode.php:6902
 msgid "Transcription guide"
 msgstr "Руководство по транскрипции"
 
 #. ll-tools-public-key: bc7d7be5aa7004fc20f6bd886d6f7efe9bd48e03
-#: includes/shortcodes/word-grid-shortcode.php:6775
+#: includes/shortcodes/word-grid-shortcode.php:6903
 msgid "Previous letter"
 msgstr "Предыдущая буква"
 
 #. ll-tools-public-key: 83b7f3d3e18b7f59b7520b6685a52278c8f45d2e
-#: includes/shortcodes/word-grid-shortcode.php:6777
+#: includes/shortcodes/word-grid-shortcode.php:6905
 msgid "Next letter"
 msgstr "Следующая буква"
 
@@ -4431,7 +4431,7 @@ msgid "Enable lesson pages"
 msgstr "Включить страницы уроков"
 
 #. ll-tools-public-key: 043f68fceaa4b3a7ec14d3bfea78d474e9168538
-#: includes/admin/ipa-keyboard-admin.php:387 includes/pages/content-lesson-pages.php:1314 includes/shortcodes/word-grid-shortcode.php:3961
+#: includes/admin/ipa-keyboard-admin.php:387 includes/pages/content-lesson-pages.php:1314 includes/shortcodes/word-grid-shortcode.php:4081
 msgid "Saving review note..."
 msgstr "Сохранение заметки проверки..."
 
@@ -5025,12 +5025,12 @@ msgid "Create a fresh lesson category."
 msgstr "Создать новую категорию урока."
 
 #. ll-tools-public-key: 191a4f579013e1829d5ee1209853b25817324675
-#: includes/shortcodes/word-grid-shortcode.php:3603
+#: includes/shortcodes/word-grid-shortcode.php:3723
 msgid "Not public: quiz does not use pictures."
 msgstr "Не публично: викторина не использует изображения."
 
 #. ll-tools-public-key: c99ea454c18e6d61c16eeab79b6c87efa4e95724
-#: includes/shortcodes/editor-hub-shortcode.php:1062 includes/shortcodes/editor-hub-shortcode.php:518 includes/shortcodes/word-grid-shortcode.php:6584 includes/taxonomies/wordset-taxonomy.php:4051 templates/vocab-lesson-template.php:908 templates/vocab-lesson-template.php:931 templates/vocab-lesson-template.php:933
+#: includes/shortcodes/editor-hub-shortcode.php:1062 includes/shortcodes/editor-hub-shortcode.php:518 includes/shortcodes/word-grid-shortcode.php:6712 includes/taxonomies/wordset-taxonomy.php:4051 templates/vocab-lesson-template.php:908 templates/vocab-lesson-template.php:931 templates/vocab-lesson-template.php:933
 msgid "Verb mood"
 msgstr "Наклонение глагола"
 
@@ -5211,7 +5211,7 @@ msgid "Disabled"
 msgstr "Отключено"
 
 #. ll-tools-public-key: 73df9b4032a80156f0990cf45a7396096fbd6859
-#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17820 includes/pages/wordset-pages.php:25565 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4004
+#: includes/admin/export-import.php:14326 includes/admin/export-import.php:14358 includes/admin/export-import.php:3364 includes/lib/wordset-language-settings.php:1261 includes/pages/wordset-pages.php:17820 includes/pages/wordset-pages.php:25565 includes/pages/wordset-transcription-review.php:289 includes/shortcodes/word-grid-shortcode.php:4124
 msgid "Recording text"
 msgstr "Текст записи"
 
@@ -5266,7 +5266,7 @@ msgid "Dictionary row entry is required."
 msgstr "Запись в строке словаря обязательна."
 
 #. ll-tools-public-key: 197524acad12412d866ab667b316e66a20ec7de9
-#: includes/shortcodes/word-grid-shortcode.php:6238
+#: includes/shortcodes/word-grid-shortcode.php:6358
 msgid "Drag to reorder word"
 msgstr "Перетащите, чтобы изменить порядок слова"
 
