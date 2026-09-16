@@ -117,6 +117,16 @@ next to the input archive.
 
 ## Focused verification
 
+Keep `adm-zip` at 0.6.1 or newer: the upstream 0.6.1 release blocks extraction
+through pre-existing destination symlinks (CVE-2026-76845 /
+GHSA-vwc7-r8mq-g2x9). `tests/adm-zip-extraction-security.test.mjs` exercises
+sync, async and single-entry extraction with overwrite enabled, checks that an
+outside sentinel remains unchanged, and checks ordinary extraction still works.
+On Windows the regression uses a directory junction; on other platforms it
+uses a directory symlink. This is build-time Node tooling, excluded from the
+packaged WordPress plugin by `.gitattributes`; a dependency-only fix does not
+require a plugin version bump, WordPress deployment or APK rebuild.
+
 From this directory, run `npm test` (`npm.cmd test` in PowerShell when needed)
 for the Node archive/icon/configuration checks in
 `tests/builder-hardening.test.mjs`. Android PCM unit coverage is in
