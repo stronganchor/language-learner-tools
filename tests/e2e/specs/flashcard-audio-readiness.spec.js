@@ -252,3 +252,125 @@ test('target audio uses live prompt helpers loaded after the audio module', asyn
 
   expect(result.src).toBe('https://cdn.test/question-prompt.mp3');
 });
+
+test('accepted answers keep playing feedback before the prompt playback flag settles', async ({ page }) => {
+  await mountAudioHarness(page);
+
+  const result = await page.evaluate(async () => {
+    const feedback = [];
+    class FeedbackAudio extends EventTarget {
+      constructor(src) {
+        super();
+        this.src = src;
+        this.readyState = 4;
+        this.paused = true;
+        this.currentTime = 0;
+        this.volume = 1;
+        this.muted = false;
+        this.playCalls = 0;
+        feedback.push(this);
+      }
+      load() {}
+      pause() { this.paused = true; }
+      play() {
+        this.paused = false;
+        this.playCalls += 1;
+        return Promise.resolve();
+      }
+    }
+    window.Audio = FeedbackAudio;
+    const api = window.FlashcardAudio;
+    api.initializeAudio();
+    await api.startNewSession();
+
+    // A slow first answer works. Subsequent accepted answers can arrive before
+    // a prompt timeupdate marks the first 400 ms as played.
+    await api.setTargetWordAudio({ audio: 'data:audio/mpeg;base64,' }, { autoplay: false });
+    api.setTargetAudioHasPlayed(true);
+    await api.playFeedback(true);
+    const firstCorrect = feedback[0].playCalls;
+    for (let round = 0; round < 25; round += 1) {
+      await api.setTargetWordAudio({ audio: 'data:audio/mpeg;base64,' }, { autoplay: false });
+      await api.playFeedback(true);
+    }
+    const repeatedCorrect = feedback[0].playCalls;
+    await api.playFeedback(false);
+    const wrong = feedback[1].playCalls;
+
+    await api.suspendPlayback();
+    await api.playFeedback(true);
+    const suspendedCorrect = feedback[0].playCalls;
+    await api.flushAllAudioSessions();
+    await api.startNewSession();
+    await api.setTargetWordAudio({ audio: 'data:audio/mpeg;base64,' }, { autoplay: false });
+    await api.playFeedback(true);
+    return { firstCorrect, repeatedCorrect, wrong, suspendedCorrect, reopenedCorrect: feedback[0].playCalls };
+  });
+
+  expect(result).toEqual({
+    firstCorrect: 1,
+    repeatedCorrect: 26,
+    wrong: 1,
+    suspendedCorrect: 26,
+    reopenedCorrect: 27
+  });
+});
+
+test('native correct-answer audio produces sound through 25 quick rounds and a reopen', async ({ page }) => {
+  const sound = fs.readFileSync(path.resolve(__dirname, '../../../media/right-answer.mp3'));
+  await page.route('https://feedback.test/**', (route) => route.fulfill(
+    route.request().url().endsWith('.mp3')
+      ? { contentType: 'audio/mpeg', body: sound }
+      : { contentType: 'text/html', body: '<button>Start</button><div id="ll-tools-flashcard"></div>' }
+  ));
+  await page.goto('https://feedback.test/');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    window.llToolsFlashcardsData = { plugin_dir: 'https://feedback.test/' };
+    window.LLFlashcards = { Dom: {} };
+    window.__feedbackAudio = [];
+    const NativeAudio = window.Audio;
+    window.Audio = function (src) {
+      const audio = new NativeAudio(src);
+      window.__feedbackAudio.push(audio);
+      return audio;
+    };
+  });
+  await page.addScriptTag({ content: audioSource });
+  await page.getByRole('button', { name: 'Start' }).click();
+
+  const result = await page.evaluate(async () => {
+    const api = window.FlashcardAudio;
+    api.initializeAudio();
+    const context = new AudioContext();
+    await context.resume();
+    const analyser = context.createAnalyser();
+    const source = context.createMediaElementSource(window.__feedbackAudio[0]);
+    source.connect(analyser);
+    analyser.connect(context.destination);
+    const samples = new Float32Array(analyser.fftSize);
+    const peaks = [];
+    for (let round = 0; round < 26; round += 1) {
+      if (round === 25) {
+        await api.suspendPlayback();
+        await api.flushAllAudioSessions();
+        await api.startNewSession();
+      }
+      await api.setTargetWordAudio({ audio: 'https://feedback.test/prompt.mp3' }, { autoplay: false });
+      await api.playFeedback(true);
+      let peak = 0;
+      const deadline = performance.now() + 1500;
+      while (peak < 0.01 && performance.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        analyser.getFloatTimeDomainData(samples);
+        peak = Math.max(...samples.map(Math.abs));
+      }
+      peaks.push(peak);
+      await api.fadeOutFeedbackAudio(140, 'correct');
+    }
+    await api.flushAllAudioSessions();
+    await context.close();
+    return { rounds: peaks.length, silentRounds: peaks.filter((peak) => peak < 0.01).length };
+  });
+  expect(result).toEqual({ rounds: 26, silentRounds: 0 });
+});

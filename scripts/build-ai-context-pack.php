@@ -236,6 +236,9 @@ function ll_tools_context_pack_definitions(): array
                 'prompt card',
                 'embed route',
                 'quiz popup',
+                'correct-answer sound',
+                'confetti',
+                'audio feedback',
                 'gender mode',
                 'self check',
                 'quiz catalog',
@@ -245,6 +248,7 @@ function ll_tools_context_pack_definitions(): array
             'invariants' => [
                 'Do not hydrate all words when a count or bounded candidate pool is enough.',
                 'Keep ll_get_words_by_category() payload fields stable for option safety.',
+                'Accepted answers play feedback independently of the prompt playback timing flag; suspended sessions must remain silent.',
                 'Localize flashcard data and message globals once on their dependency-owning handles; do not duplicate assignments on main or mode handles.',
                 'Anonymous public surfaces should remain cache-aware and nonce-safe.',
                 'Bounded practice transport chunks form one logical session: keep full logical IDs separate from current hydration IDs, append one verified chunk serially before results, preserve cumulative score/replay/progress state, and emit completion only after the final chunk.',

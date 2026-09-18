@@ -744,11 +744,9 @@
                 return Promise.resolve();
             }
 
-            // If there's no target audio, treat the requirement as satisfied
-            var playbackSatisfied = targetAudioHasPlayed || !currentTargetAudio;
-            if (!playbackSatisfied) {
-                return Promise.resolve();
-            }
+            // The caller has already accepted the answer. Prompt timeupdate
+            // events can lag behind quick answers or very short recordings;
+            // they must not silently suppress feedback for an accepted answer.
 
             if (!isCorrect) {
                 // Wrong answer: play wrong sound, then target audio if available
