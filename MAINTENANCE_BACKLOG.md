@@ -1,22 +1,181 @@
 # Maintenance Backlog
 
-Updated September 11, 2026 during the 6.7.39 maintenance follow-up. This pass
-adds automatic startup of the matching Local test site, preserves queued
-Transcription Manager edits across view changes, bounds Unicode dictionary
-browse and anonymous crawler cache misses, repairs localized failure messages,
-and updates the offline builder dependency and high-confidence Turkish copy.
-The protocol-, deployment-, and human-review-dependent work below remains for
-deliberate review. Validation uses the local test site; no deployed-site check,
-deployment, or real provider authorization is part of this pass.
+Updated September 19, 2026 to record the September 18 review-only audit as
+open follow-up issues. No fixes were implemented while documenting these
+issues. The reviewed commit was `ed4405812767784e1d4e3eb688fc9ebbf632a41b`
+(6.7.39); source line numbers below refer to that commit. Recheck the owning
+functions and current tests before implementation. No deployed-site checks,
+deployment, or real provider authorization were part of the audit.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
+## September 18 audit issues
+
+All issues below are **open**. IDs are stable so later audits and implementation
+passes can update the same issue instead of duplicating it. "Autonomous" means
+appropriate for an authorized implementation pass; it does not override a
+review-only request. Evidence distinguishes isolated current-source probes
+from source-traced risks and unmeasured production behavior.
+
+### AUDIT-2026-09-18-01 — P1: Enforce dictionary entry password protection
+
+- **Evidence and impact:** An isolated probe using the current plugin resolver
+  and WordPress password function returned entry ID 77 while
+  `post_password_required()` was true, with no password cookie. The public
+  detail AJAX/render path was source-traced, not executed against deployed
+  entries. Published protected entries in otherwise visible wordsets can pass
+  the access guard and expose raw entry content, translations, and senses.
+- **Owners:** `includes/lib/dictionary-browser.php:2380`
+  (`ll_tools_dictionary_current_user_can_view_entry`);
+  `includes/shortcodes/dictionary-shortcode.php:909`
+  (`ll_tools_dictionary_resolve_entry_id`), detail handler at 4083 and anonymous
+  registration at 4247. The crawler already excludes nonempty post passwords
+  in `includes/lib/ai-crawler-support.php:647`.
+- **Strategy:** Centralize password-aware public visibility across detail,
+  browse/search, related-entry hydration, and shared caches. Audit existing
+  cached output and invalidate affected entries as part of the eventual fix.
+- **Verification:** Add real WordPress coverage for protected detail/browse/
+  live-search results, warmed caches, password changes, and a valid-password
+  visitor followed by an anonymous visitor in `DictionaryFeatureTest.php`.
+- **Disposition/risk:** Autonomous; moderate compatibility risk. Supporting
+  password-unlocked dictionary views needs an explicit cache/access policy.
+  Whether any deployed entry is affected remains unknown.
+
+### AUDIT-2026-09-18-02 — P2: Retain failed word-option autosave scopes
+
+- **Evidence and impact:** Current-source execution reproduced a failed group
+  save followed by a successful pair save. Requests sent scopes `groups`, then
+  `pairs`; the UI reported "Word options saved" while the group edit remained
+  unsaved. Dirty scopes are discarded before acknowledgement, and the server
+  intentionally excludes groups from a pair-only mutation.
+- **Owners:** `js/word-option-rules-admin.js:120,135` (failure handling and
+  `performSave`); `includes/admin/word-option-rules-admin.php:2704` (scope gate).
+- **Strategy:** Keep dirty scopes until acknowledged, merge later edits without
+  dropping failed work, expose explicit Retry, and never claim global Saved
+  while a scope remains dirty. Preserve unsaved work during navigation.
+- **Verification:** Browser cases for failed groups then successful pairs, the
+  reverse order, edits during an in-flight failure, retry, and independent
+  persisted readback. Successful-autosave coverage alone misses this transition.
+- **Disposition/risk:** Autonomous; moderate concurrency/change risk. Do not
+  automatically replay an uncertain non-idempotent operation.
+
+### AUDIT-2026-09-18-03 — P2: Fence public-cache rebuild ownership and publication
+
+- **Evidence and impact:** An in-memory probe of the actual lock helpers let A
+  acquire, expire, and be replaced by B; A's later release deleted B's lock,
+  allowing C to acquire while B remained active. Shutdown publication does not
+  verify ownership or a captured mutation generation. Stale publication after
+  purge is source-traced, not an end-to-end reproduction.
+- **Owners:** `includes/lib/public-static-cache.php:558` (acquire/release),
+  963-985 (cold lock loser), 1111-1135 (publication), and 1198 (purge locks).
+- **Strategy:** Use exact-owner tokens, conditional takeover/release, and a
+  generation check before publication. Measure concurrent cold requests: when
+  no stale file exists, lock losers still dynamically render, so the current
+  writer lock does not prevent a cold rendering stampede. Preserve cheap cache
+  hits and crawlable links when choosing bounded waiting/retry behavior.
+- **Verification:** Extend `PublicStaticCacheTest.php` beyond sequential lock
+  checks to overlapping workers, expiry/takeover, and purge during rendering;
+  measure cold concurrency before claiming resource savings.
+- **Related privacy check:** Protected lessons with a valid anonymous password
+  cookie qualify for public-file storage at lines 428/453. Exclude them from
+  shared storage alongside issue 01. Ordinary no-cookie route requests remain
+  gated and headers vary by Cookie; direct uploads-file exposure depends on
+  server rules and was not tested. Do not claim a normal route cache-hit leak.
+- **Disposition/risk:** Autonomous; moderate concurrency risk. Production load
+  impact and cache-file access rules remain unmeasured.
+
+### AUDIT-2026-09-18-04 — P2: Recover dictionary reads after terminal failure
+
+- **Evidence and impact:** A rejected live-search fetch left two skeletons and
+  "Loading dictionary results..." with no Retry, although `aria-busy` was
+  cleared. Normal typed searches use the silent failure path. Toolbar, search,
+  and detail reads also lack bounded request deadlines.
+- **Owners:** `js/dictionary-shortcode.js:1519` (`requestResults` failure),
+  1546 (typed-search caller), and read requests at 862, 1328, and 1449.
+- **Strategy:** Replace loading markup with a translated error and Retry for
+  the unchanged query; bound read deadlines and preserve stale-response fences
+  plus ordinary form/link fallbacks.
+- **Verification:** Extend `dictionary-shortcode-deferred-toolbar.spec.js` for
+  network rejection, invalid JSON, exhausted warming retries, stalled reads,
+  retry success, and query changes during recovery.
+- **Disposition/risk:** Autonomous; low-to-moderate UI/change risk. A separate
+  cached-A / pending-B / cached-A stale-response hypothesis was disproved:
+  `showLoadingState()` aborts and generation-fences B. Do not reopen it without
+  new evidence.
+
+### AUDIT-2026-09-18-05 — P2: Keep independent Line-Up read failures visible
+
+- **Evidence and impact:** Rejecting the sequence read showed an error; a
+  later successful candidate read hid it, leaving the sequence unloaded with
+  no explanation. A stalled read can also retain the shared disabled state.
+- **Owners:** `js/category-lineup-manager.js:374` (`loadView` shared status),
+  51 (`managerRequest`, no deadline); `css/category-lineup-manager.css:224`.
+- **Strategy:** Track sequence/candidate read states independently, retain each
+  failure until that view succeeds, and add bounded read deadlines and Retry.
+- **Verification:** Both failure/success completion orders, one stalled view,
+  independent retry, and preservation of the successful sibling's state.
+- **Disposition/risk:** Autonomous for reads/UI; moderate change risk. Retrying
+  relative move mutations after an uncertain response needs protocol review.
+
+### AUDIT-2026-09-18-06 — P3: Localize native failures and correct Turkish drift
+
+- **Evidence and impact:** Executing `js/content-lesson-progress.js:130` with
+  Turkish configuration displayed native `Failed to fetch` and JSON parser
+  errors verbatim. Retry remained Turkish. Full catalog coverage does not catch
+  this runtime bypass. At `languages/ll-tools-text-domain-tr_TR.po:5748`, font
+  help translates "quizzes" as `testlerde` and ends with formal `getirin`;
+  the glossary guard in `PublicUiTranslationManifestTest.php:303` misses that
+  inflection.
+- **Strategy:** Separate validated server messages from native transport/parser
+  exceptions using the existing Copy/Split localized-error pattern. Correct
+  the exact glossary/tone entry and regenerate both compiled Turkish catalogs.
+- **Verification:** Turkish network/parser/timeout/server-error browser cases
+  with retained state and Retry; an exact source-aware glossary regression;
+  source/POT, full-catalog, and compiled parity checks.
+- **Disposition/risk:** Exact fixes autonomous and low risk. Broader Turkish/
+  German fluency remains human review. Similar source-traced native-error paths
+  in dictionary inline edits, offline export, and Site Sync need targeted
+  reproduction before expanding the implementation scope.
+
+### AUDIT-2026-09-18-07 — P3: Remove confirmed unused private JavaScript helpers
+
+- **Evidence:** Declaration-only private functions in `js/wordset-pages.js`:
+  `collectWordIdsForCategories` (14832), `filterWordIdsByCategories` (14904),
+  `pickBestCategoryIdByCounts` (14991), and `buildSelectionChunkLaunchPlan`
+  (15229). `js/ipa-keyboard-admin.js:1630` has an unused
+  `buildSearchPagination`, its sole helper `getSearchPaginationItems` at 1598,
+  and six obsolete pagination labels in `includes/admin/ipa-keyboard-admin.php:466`.
+  These are closure-private functions, not externally callable PHP aliases.
+- **Strategy:** Reconfirm references, then narrowly remove unreachable helpers
+  and their unused localized payload keys. Do not fold in a broad refactor.
+- **Verification:** Selection/chunk/progress and transcription load-more
+  browser coverage, JavaScript syntax, source/POT and catalog checks.
+- **Disposition/risk:** Autonomous and low risk. No speedup has been measured.
+
+### AUDIT-2026-09-18-08 — P2 investigation: Separate recorder server and media cost
+
+- **Evidence/status:** Keep the cold Genç recorder-summary investigation in
+  the short list below. September 11 reached 132/209 categories within the
+  120-second budget while previews transferred about 23.8 MB. The September 18
+  audit did not rerun that seeded benchmark; this is historical Local evidence,
+  not proof of a new or deployed regression.
+- **Owners:** `includes/pages/wordset-pages.php` recorder-summary handlers,
+  `js/wordset-pages.js` recorder-summary loading, and the Genç scenarios in
+  `tests/e2e/specs/performance-benchmark.spec.js`.
+- **Strategy/verification:** Profile summary PHP/SQL separately from preview
+  sizing/network transfer; compare cold and warm runs on the same fixture and
+  throttle settings. Retain serial loading, visible progress, and current
+  limits until evidence identifies the growth dimension to change.
+- **Disposition/risk:** Local profiling autonomous and low risk. Production
+  measurements require the live safety context; schema/protocol changes and
+  budget changes need deliberate review. No implementation choice is settled.
+
 ## Current Short List
 
-The active maintenance list is narrowed to work that needs product,
-compatibility, schema/backfill, live evidence, credentials, or human-language
-judgment:
+In addition to the actionable audit issues above, these follow-ups need product,
+compatibility, schema/backfill, measurements, credentials, or human-language
+judgment. The recorder investigation is tracked as AUDIT-2026-09-18-08:
 
 - Profile the cold Genç recorder-summary path before changing its batch size or
   performance limit. On September 11, 132 of 209 categories completed within the
@@ -26,7 +185,7 @@ judgment:
   about 23.8 MB with browser caching disabled on the 1,600 kbps profile; HTTP
   waiting time cannot isolate PHP work from that contention. Measure server
   summary construction separately from preview sizing and media transfer before
-  optimizing. This is a current Local measurement, not evidence of a
+  optimizing. This is a September 11 Local measurement, not evidence of a
   deployed-site or change-induced regression.
 - Native review of machine-assisted German and residual Turkish admin/formal
   copy. Automated completeness and curated high-confidence regressions do not
@@ -76,7 +235,24 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (September 11)
+### Current verification inventory (September 18)
+
+- Review-only audit at `ed440581`: PHPUnit passed 2,662 tests / 65,413
+  assertions / nine expected skips. Maintenance/startup contracts passed 47/47;
+  the selected browser set passed 149/149, including Local recording-tools
+  persistence and both throttled page-load checks. Discovery found 852 tests
+  in 122 files; this audit did not execute the full browser inventory.
+- Builder tests passed 13/13; Composer and both npm audits reported zero
+  advisories. Changed-source PHP lint passed 23/23 and JS syntax 14/14.
+- Source/POT was fresh at 6,385 keys; Turkish/German each passed 6,385/6,385
+  with compiled parity; eight active public locales passed 799/799. All eight
+  context packs and 50 checked canonical-document links passed.
+- The audit left source/docs/catalogs unchanged and ran no live-site/provider
+  checks. Seeded Genç/stress benchmarks, deployed exposure, and native-language
+  fluency were not revalidated. The open issues above concern cases missing
+  from the current regression coverage; passing suites do not close them.
+
+### Previous verification inventory (September 11)
 
 - The complete PHPUnit suite passed **2,657 tests, 65,239 assertions, and nine
   expected skips**. A focused run of the cache, Games, lazy-card, and Copy/Split
