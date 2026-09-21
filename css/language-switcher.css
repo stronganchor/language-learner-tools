@@ -288,6 +288,13 @@ button.ll-lang-switcher__summary {
     color: #0f5d52;
 }
 
+@media print {
+    .ll-tools-header-language-switcher,
+    .ll-lang-switcher {
+        display: none !important;
+    }
+}
+
 @media (max-width: 600px) {
     .ll-tools-header-language-switcher {
         justify-content: center;
