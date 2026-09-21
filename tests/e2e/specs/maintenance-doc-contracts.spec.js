@@ -705,6 +705,8 @@ function runWordpressReadinessCase(responses, { timeout = '180', sleepElapsed = 
 set -euo pipefail
 source tests/bin/wordpress-readiness.sh
 fixture_dir="$1"
+# Remove Bash's automatic wall-clock behavior before using a simulated clock.
+unset SECONDS
 SECONDS=0
 # Simulate elapsed time without sleeping or connecting to any server.
 clock_step="$4"

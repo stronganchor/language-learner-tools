@@ -483,6 +483,9 @@ add a generic retry, and treat a route that fails again before the recycle
 boundary as an application failure.
 The separate pre-test `/wp-admin/` warmup has the narrowly bounded readiness
 retries described above; measured requests and assertions remain strict.
+Its filesystem-only deadline fixtures disable Bash's automatic `SECONDS`
+clock before simulating elapsed time, so host scheduling cannot change the
+expected retry count or remaining timeout.
 
 Read-only live-site smoke checks use a separate Playwright config and a local-only site list:
 
