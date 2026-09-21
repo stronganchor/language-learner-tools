@@ -14,6 +14,9 @@
         var correctAudio, wrongAudio;
         var autoplayBlocked = false;
         var playbackSuspended = false;
+        var playbackRequests = new WeakMap();
+        var activeFades = new WeakMap();
+        var activeFeedback = null;
 
         // Cleanup tracking
         var pendingCleanup = null;
@@ -105,6 +108,7 @@
          * Returns a promise that resolves when cleanup is complete
          */
         function startNewSession() {
+            pauseAllAudio(-1);
             var previousSession = currentSession;
             currentSession++;
             playbackSuspended = false;
@@ -323,7 +327,8 @@
         /**
          * Play audio with session validation + AbortError resilience
          */
-        function playAudio(audio) {
+        function playAudio(audio, options) {
+            options = options || {};
             if (!audio) {
                 warn('Audio: Cannot play null audio');
                 return Promise.reject(new Error('No audio element'));
@@ -340,22 +345,26 @@
                 return Promise.resolve();
             }
 
-            return waitForAudioPlayable(audio).catch(function () {
-                return false;
-            }).then(function () {
-                if (playbackSuspended) {
-                    log('Audio: Playback suspended after readiness wait, skipping play request');
-                    return stopAudio(audio).then(function () { return; });
+            cancelFade(audio);
+            var request = { started: false, promise: null };
+            playbackRequests.set(audio, request);
+            var isActive = function () {
+                return playbackRequests.get(audio) === request && !playbackSuspended && isCurrentSession(audio);
+            };
+            var reportFailure = function (e) {
+                if (!isActive()) return;
+                if (e && e.name === 'NotAllowedError' && !autoplayBlocked) {
+                    autoplayBlocked = true;
+                    requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
                 }
-
-                if (!isCurrentSession(audio)) {
-                    log('Audio: Ignoring ready play from old session');
-                    return;
-                }
+                error('Audio: Play failed', e);
+                throw e;
+            };
+            var startPlayback = function () {
+                if (!isActive()) return;
 
                 try {
-                    // Reset if already playing
-                    if (!audio.paused) {
+                    if (options.restart || !audio.paused) {
                         audio.pause();
                         audio.currentTime = 0;
                     }
@@ -364,33 +373,56 @@
                         return Promise.reject(new Error('Quiz audio is muted'));
                     }
 
-                    return audio.play().catch(function (e) {
+                    return Promise.resolve(audio.play()).catch(function (e) {
                         // Browser-specific interruption when a late pause hits just after play()
                         if (e && e.name === 'AbortError') {
                             // Retry once after a short tick *if* we're still in the current session
                             return new Promise(function (r) { setTimeout(r, 80); }).then(function () {
-                                if (!isCurrentSession(audio)) return;
+                                if (!isActive()) return;
                                 return waitForAudioPlayable(audio).catch(function () {
                                     return false;
                                 }).then(function () {
-                                    if (!isCurrentSession(audio)) return;
-                                    return audio.play().catch(function () { /* swallow second abort */ });
+                                    if (!isActive()) return;
+                                    return Promise.resolve(audio.play()).catch(reportFailure);
                                 });
                             });
                         }
 
-                        if (e.name === 'NotAllowedError' && !autoplayBlocked) {
-                            autoplayBlocked = true;
-                            requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
-                        }
-                        error('Audio: Play failed', e);
-                        throw e;
+                        return reportFailure(e);
                     });
                 } catch (e) {
                     error('Audio: Play error', e);
                     return Promise.reject(e);
                 }
+            };
+            // Feedback is requested by an answer gesture. Let native play()
+            // buffer it without moving that request behind a readiness timer.
+            var playback = options.immediate || isAudioPlayable(audio)
+                ? startPlayback()
+                : waitForAudioPlayable(audio).catch(function () { return false; }).then(startPlayback);
+            request.promise = Promise.resolve(playback).then(function () {
+                if (isActive()) request.started = true;
             });
+            return request.promise;
+        }
+
+        function cancelFeedback() {
+            if (!activeFeedback) return;
+            var feedback = activeFeedback;
+            activeFeedback = null;
+            clearTimeout(feedback.timer);
+            feedback.audio.onended = null;
+            feedback.audio.onerror = null;
+            feedback.resolveStart();
+        }
+
+        function cancelFade(audio) {
+            var fade = audio && activeFades.get(audio);
+            if (!fade) return;
+            activeFades.delete(audio);
+            clearInterval(fade.interval);
+            try { audio.volume = fade.volume; } catch (_) { /* no-op */ }
+            fade.resolve();
         }
 
         /**
@@ -398,6 +430,10 @@
          */
         function stopAudio(audio) {
             if (!audio) return Promise.resolve();
+
+            playbackRequests.delete(audio);
+            cancelFade(audio);
+            if (activeFeedback && activeFeedback.audio === audio) cancelFeedback();
 
             return new Promise(function (resolve) {
                 try {
@@ -425,6 +461,8 @@
             return new Promise(function (resolve) {
                 if (!audio) { resolve(); return; }
 
+                cancelFade(audio);
+
                 var startingVolume = (typeof audio.volume === 'number') ? audio.volume : 1;
                 var resetVolume = function () {
                     try { audio.volume = startingVolume; } catch (_) { /* no-op */ }
@@ -443,18 +481,23 @@
                 var stepMs = Math.max(16, fadeDuration / steps);
                 var decrement = startingVolume / steps;
                 var stepCount = 0;
+                var fade = { volume: startingVolume, resolve: resolve, interval: null };
+                activeFades.set(audio, fade);
                 var intervalId = setInterval(function () {
+                    if (activeFades.get(audio) !== fade) return;
                     stepCount++;
                     var nextVolume = Math.max(0, startingVolume - (decrement * stepCount));
                     try { audio.volume = nextVolume; } catch (_) { /* ignore */ }
                     if (stepCount >= steps || nextVolume <= 0.01) {
                         clearInterval(intervalId);
+                        activeFades.delete(audio);
                         stopAudio(audio).then(function () {
                             resetVolume();
                             resolve();
                         });
                     }
                 }, stepMs);
+                fade.interval = intervalId;
             });
         }
 
@@ -481,6 +524,14 @@
             if (!which || which === 'correct' || which === 'both') targets.push(correctAudio);
             if (!which || which === 'wrong' || which === 'both') targets.push(wrongAudio);
             var fades = targets.filter(Boolean).map(function (audio) {
+                var request = playbackRequests.get(audio);
+                if (request && !request.started) {
+                    return Promise.resolve(request.promise).then(function () {
+                        if (playbackRequests.get(audio) === request && request.started && !playbackSuspended) {
+                            return fadeOutAudio(audio, durationMs);
+                        }
+                    }).catch(function () { return; });
+                }
                 return fadeOutAudio(audio, durationMs);
             });
             if (!fades.length) return Promise.resolve();
@@ -559,6 +610,9 @@
          */
         function cleanupSingleAudio(audio) {
             if (!audio) return Promise.resolve();
+
+            playbackRequests.delete(audio);
+            cancelFade(audio);
 
             return new Promise(function (resolve) {
                 try {
@@ -648,6 +702,7 @@
          */
         function setTargetWordAudio(targetWord, options) {
             options = options || {};
+            pauseAllAudio(-1);
             var shouldAutoplay = options.autoplay !== false;
             var util = getUtil();
             var promptAudioUrl = String(
@@ -748,22 +803,48 @@
             // events can lag behind quick answers or very short recordings;
             // they must not silently suppress feedback for an accepted answer.
 
-            if (!isCorrect) {
-                // Wrong answer: play wrong sound, then target audio if available
-                if (currentTargetAudio) {
-                    wrongAudio.onended = function () { playAudio(currentTargetAudio); };
-                } else if (typeof callback === 'function') {
-                    // If no target audio, chain to callback if provided
-                    wrongAudio.onended = callback;
-                } else {
-                    wrongAudio.onended = null;
-                }
-                return playAudio(audioToPlay);
-            } else {
-                // Correct answer: play correct sound, then callback if provided
-                correctAudio.onended = (typeof callback === 'function') ? callback : null;
-                return playAudio(audioToPlay);
-            }
+            pauseAllAudio(-1);
+            if (!audioToPlay) return Promise.resolve();
+            var target = currentTargetAudio;
+            var session = currentSession;
+            // The prompt must be replayed from its start after a mistake, even
+            // if feedback fails. A later answer/round/close cancels this sequence.
+            if (!isCorrect && target) stopAudio(target);
+            return new Promise(function (resolve) {
+                var feedback = { audio: audioToPlay, timer: null, resolveStart: resolve };
+                activeFeedback = feedback;
+                var isActive = function () {
+                    return activeFeedback === feedback && !playbackSuspended &&
+                        currentSession === session && currentTargetAudio === target;
+                };
+                var complete = function () {
+                    if (!isActive()) return;
+                    cancelFeedback();
+                    if (!isCorrect && target) {
+                        playAudio(target, { restart: true }).catch(function () { /* sound gate handles blocked playback */ });
+                    } else if (typeof callback === 'function') {
+                        try { callback(); } catch (_) { /* no-op */ }
+                    }
+                };
+                var fail = function () {
+                    if (!isActive()) return;
+                    complete();
+                    stopAudio(audioToPlay);
+                };
+                audioToPlay.onended = complete;
+                audioToPlay.onerror = fail;
+                // Do not wait forever for a mobile decoder or a missing ended
+                // event. The same bounded completion also restores prompt replay.
+                feedback.timer = setTimeout(fail, 1800);
+                playAudio(audioToPlay, { immediate: true, restart: true }).then(function () {
+                    if (!isActive()) return;
+                    clearTimeout(feedback.timer);
+                    var duration = Number(audioToPlay.duration);
+                    feedback.timer = setTimeout(fail, Number.isFinite(duration)
+                        ? Math.max(1000, Math.min(4000, duration * 1000 + 500)) : 1800);
+                    resolve();
+                }).catch(fail);
+            });
         }
 
         /**

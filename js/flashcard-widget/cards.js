@@ -8,6 +8,7 @@
     let textCardResizeTimer = null;
     let imageFitResizeBound = false;
     let imageFitResizeTimer = null;
+    let lastAnswerPointerHandledAt = 0;
 
     function sanitizeFontFamily(value) {
         let fontFamily = String(value || '').trim();
@@ -839,13 +840,14 @@
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
         const gateOnAudio = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
-        let lastPointerHandledAt = 0;
         const handleSelection = function (e, triggerType) {
             // Ignore clicks on the inline play button for audio options
             if ($(e.target).closest('.ll-audio-play').length) return;
 
-            // On touch devices pointerup is followed by click; suppress duplicate handling.
-            if (triggerType === 'click' && lastPointerHandledAt > 0 && (Date.now() - lastPointerHandledAt) < 450) {
+            // Removing a wrong option can move another card under the touch's
+            // following click. Own that pointer across all cards, while keeping
+            // keyboard and accessibility clicks (detail 0) immediately usable.
+            if (triggerType === 'click' && Number(e.detail) > 0 && lastAnswerPointerHandledAt > 0 && (Date.now() - lastAnswerPointerHandledAt) < 450) {
                 return;
             }
 
@@ -899,7 +901,7 @@
 
         $card.off('.llCardSelect')
             .on('pointerup.llCardSelect', function (e) {
-                lastPointerHandledAt = Date.now();
+                lastAnswerPointerHandledAt = Date.now();
                 handleSelection.call(this, e, 'pointerup');
             })
             .on('click.llCardSelect', function (e) {

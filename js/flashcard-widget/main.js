@@ -1821,6 +1821,14 @@
         }
 
         const loader = root.FlashcardLoader || {};
+        // The loader owns scoped cache keys, including ordered-launch variants.
+        // Reconstructing those keys here can discard complete category data and
+        // fall back to the bootstrap's capped launch-eligibility word count.
+        if (typeof loader.isCategoryLoaded === 'function') {
+            return names.every(function (name) {
+                return !!loader.isCategoryLoaded(name);
+            });
+        }
         const loadedCategories = Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
         if (!loadedCategories.length) {
             return false;
@@ -3803,6 +3811,8 @@
 
         if (useFastTransitions) {
             recordResultForWord();
+            const feedbackSession = __LLSession;
+            let feedbackPlayback;
             try {
                 if (root.FlashcardAudio) {
                     if (typeof root.FlashcardAudio.fadeOutAllAudio === 'function') {
@@ -3811,24 +3821,27 @@
                         root.FlashcardAudio.pauseAllAudio();
                     }
                     if (typeof root.FlashcardAudio.playFeedback === 'function') {
-                        root.FlashcardAudio.playFeedback(true, null, null);
-                    }
-                    if (typeof root.FlashcardAudio.fadeOutFeedbackAudio === 'function') {
-                        // Let the ding play a bit longer, then gently fade so the next round starts clean
-                        setGuardedTimeout(function () {
-                            root.FlashcardAudio.fadeOutFeedbackAudio(140, 'correct');
-                        }, 210);
+                        feedbackPlayback = root.FlashcardAudio.playFeedback(true, null, null);
                     }
                 }
             } catch (_) { /* no-op */ }
 
             fadeOtherCards();
-            setGuardedTimeout(function () {
-                $correctCard.addClass('fade-out');
-            }, 120);
-            setGuardedTimeout(function () {
-                goToNextRound();
-            }, 360);
+            const finishFastAnswer = function () {
+                if (feedbackSession !== __LLSession || !State.is(STATES.PROCESSING_ANSWER)) return;
+                // Mobile buffering can outlast the whole fast transition. Start
+                // its timers after playback starts (or the bounded audio fallback).
+                if (root.FlashcardAudio && typeof root.FlashcardAudio.fadeOutFeedbackAudio === 'function') {
+                    setGuardedTimeout(function () {
+                        root.FlashcardAudio.fadeOutFeedbackAudio(140, 'correct');
+                    }, 210);
+                }
+                setGuardedTimeout(function () {
+                    $correctCard.addClass('fade-out');
+                }, 120);
+                setGuardedTimeout(goToNextRound, 360);
+            };
+            Promise.resolve(feedbackPlayback).then(finishFastAnswer, finishFastAnswer);
             return;
         }
 
@@ -3846,8 +3859,15 @@
         const audioApi = root.FlashcardAudio;
         if (audioApi && typeof audioApi.playFeedback === 'function') {
             try {
-                audioApi.playFeedback(true, null, advanceOnce);
-                setGuardedTimeout(advanceOnce, 1000);
+                const feedbackSession = __LLSession;
+                const feedbackPlayback = audioApi.playFeedback(true, null, advanceOnce);
+                Promise.resolve(feedbackPlayback).then(function () {
+                    if (feedbackSession === __LLSession && State.is(STATES.PROCESSING_ANSWER)) {
+                        setGuardedTimeout(advanceOnce, 1000);
+                    }
+                }, function () {
+                    if (feedbackSession === __LLSession && State.is(STATES.PROCESSING_ANSWER)) advanceOnce();
+                });
                 return;
             } catch (_) {
                 // continue to fallback below
