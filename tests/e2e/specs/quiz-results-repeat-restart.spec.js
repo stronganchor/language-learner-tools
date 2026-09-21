@@ -15,6 +15,10 @@ const mainSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/main.js'),
   'utf8'
 );
+const loaderSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/flashcard-widget/loader.js'),
+  'utf8'
+);
 
 function fixtureImage(fill, label) {
   return `data:image/svg+xml,${encodeURIComponent(`
@@ -1316,6 +1320,50 @@ test('practice progress falls back to configured category counts before other ca
   const progressCalls = await page.evaluate(() => window.__progressCalls.slice());
   expect(progressCalls.at(-1)).toEqual({ current: 0, total: 4 });
 });
+
+for (const preserveWordOrder of [false, true]) {
+  test(`practice progress uses all 12 loaded words instead of the five-word launch threshold (${preserveWordOrder ? 'ordered' : 'random'})`, async ({ page }) => {
+    const targets = Array.from({ length: 12 }, (_, index) => ({
+      id: 501 + index,
+      title: `Word ${index + 1}`,
+      __categoryName: 'Kitchen'
+    }));
+    await mountPracticeProgressHarness(page, {
+      targets,
+      categories: [
+        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: 5 }
+      ]
+    });
+    await page.addScriptTag({ content: loaderSource });
+    await page.evaluate(async ({ targets, preserveWordOrder }) => {
+      Object.assign(window.llToolsFlashcardsData, {
+        runtimeMode: 'offline',
+        wordset: 'progress-fixture',
+        wordsetFallback: false,
+        preserveWordOrder,
+        orderedWordIds: preserveWordOrder ? targets.map((word) => word.id) : [],
+        offlineCategoryData: { Kitchen: targets }
+      });
+      await window.FlashcardLoader.loadResourcesForCategory('Kitchen', null, { skipCategoryPreload: true });
+      window.llToolsFlashcardsData.runtimeMode = 'wp';
+      window.LLFlashcards.Main.runQuizRound();
+    }, { targets, preserveWordOrder });
+    await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+
+    expect(await page.evaluate(() => window.__progressCalls.at(-1))).toEqual({ current: 0, total: 12 });
+    for (let answered = 1; answered <= targets.length; answered += 1) {
+      await page.evaluate(() => {
+        window.LLFlashcards.Main.onCorrectAnswer(window.__currentTarget, window.jQuery('.correct-card'));
+      });
+      await expect.poll(() => page.evaluate(() => window.__progressCalls.at(-1))).toEqual({ current: answered, total: 12 });
+      expect(await page.evaluate(() => window.__progressDisplayRatios.at(-1))).toBeCloseTo(answered / 12);
+      if (answered < targets.length) {
+        await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
+      }
+    }
+    await page.waitForFunction(() => window.__showResultsCount === 1);
+  });
+}
 
 test('practice rounds skip an unready rendered image instead of showing a blank option', async ({ page }) => {
   await mountRenderedImageReadinessHarness(page);

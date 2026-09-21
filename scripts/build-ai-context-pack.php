@@ -248,7 +248,8 @@ function ll_tools_context_pack_definitions(): array
             'invariants' => [
                 'Do not hydrate all words when a count or bounded candidate pool is enough.',
                 'Keep ll_get_words_by_category() payload fields stable for option safety.',
-                'Accepted answers play feedback independently of the prompt playback timing flag; suspended sessions must remain silent.',
+                'Accepted answers play feedback independently of prompt timing. Feedback starts within the answer gesture, transition timers wait for playback onset, and failure still replays the captured wrong-answer prompt. Playback requests, fades and feedback callbacks must be cancelled on replacement, close or session change.',
+                'One pointer gesture is one answer across card reflow: suppress the subsequent pointer-generated click even if it targets a different card, but preserve keyboard and accessibility clicks.',
                 'Localize flashcard data and message globals once on their dependency-owning handles; do not duplicate assignments on main or mode handles.',
                 'Anonymous public surfaces should remain cache-aware and nonce-safe.',
                 'Bounded practice transport chunks form one logical session: keep full logical IDs separate from current hydration IDs, append one verified chunk serially before results, preserve cumulative score/replay/progress state, and emit completion only after the final chunk.',
