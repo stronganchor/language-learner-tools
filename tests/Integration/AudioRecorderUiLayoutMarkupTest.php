@@ -107,9 +107,14 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-recorder-category-overview', $output);
         $this->assertStringContainsString('data-ll-recorder-category-grid', $output);
         $this->assertStringContainsString('data-ll-recorder-queue-summary-placeholder="true"', $output);
-        $this->assertStringContainsString('ll-wordset-recorder-queue-category-card__title-skeleton', $output);
-        $this->assertStringContainsString('aria-label="Loading recording category"', $output);
-        $this->assertStringNotContainsString('data-recorder-queue-category-name=', $output);
+        $this->assertStringContainsString('ll-recorder-category-card', $output);
+        $this->assertStringContainsString('ll-wordset-recorder-queue-category-card__count-skeleton', $output);
+        $this->assertStringContainsString('ll-wordset-preview-item--lazy-skeleton', $output);
+        $this->assertStringContainsString('data-recorder-queue-category-name=', $output);
+        $this->assertStringContainsString('Recorder UI Layout Category', $output);
+        $this->assertStringContainsString('ll_record_category=recorder-ui-layout-category', $output);
+        $this->assertStringNotContainsString('ll-wordset-recorder-queue-category-card__title-skeleton', $output);
+        $this->assertStringNotContainsString('aria-label="Loading recording category"', $output);
 
         $this->assertTrue(wp_script_is('ll-audio-recorder', 'enqueued'));
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');

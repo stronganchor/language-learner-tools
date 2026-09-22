@@ -17,11 +17,11 @@ function buildRecorderMarkup(view = 'category') {
   const categoryOverviewMarkup = isOverview ? `
       <section data-ll-recorder-category-overview aria-busy="true">
         <div data-ll-recorder-category-grid>
-          <article data-recorder-queue-category="trees" data-ll-recorder-queue-summary-placeholder="true"><span class="ll-recorder-category-placeholder__title"></span></article>
-          <article data-recorder-queue-category="baby-animals" data-ll-recorder-queue-summary-placeholder="true"><span class="ll-recorder-category-placeholder__title"></span></article>
-          <article data-recorder-queue-category="colors" data-ll-recorder-queue-summary-placeholder="true"><span class="ll-recorder-category-placeholder__title"></span></article>
-          <article data-recorder-queue-category="foods" data-ll-recorder-queue-summary-placeholder="true" hidden><span class="ll-recorder-category-placeholder__title"></span></article>
-          <article data-recorder-queue-category="places" data-ll-recorder-queue-summary-placeholder="true" hidden><span class="ll-recorder-category-placeholder__title"></span></article>
+          <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="trees" data-recorder-queue-category-name="Tree varieties" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=trees" aria-label="Tree varieties" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Tree varieties</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
+          <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-category-name="Baby animals" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=baby-animals" aria-label="Baby animals" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Baby animals</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
+          <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="colors" data-recorder-queue-category-name="Colors" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=colors" aria-label="Colors" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Colors</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
+          <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="foods" data-recorder-queue-category-name="Foods" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=foods" aria-label="Foods" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Foods</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
+          <a class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading ll-recorder-category-card" data-recorder-queue-category="places" data-recorder-queue-category-name="Places" data-ll-recorder-queue-summary-placeholder="true" href="/record/?ll_record_wordset=11&ll_record_category=places" aria-label="Places" aria-busy="true"><span class="ll-wordset-card__top ll-wordset-recorder-queue-category-card__top"><span class="ll-wordset-card__title ll-wordset-recorder-queue-category__name">Places</span><span class="ll-wordset-settings-card__pill ll-wordset-recorder-queue-category-card__count-skeleton" aria-hidden="true"></span></span><span class="ll-wordset-card__lesson-link ll-wordset-recorder-queue-category-card__preview-link" aria-hidden="true"><span class="ll-wordset-card__preview ll-wordset-recorder-queue-category__preview has-images"><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span><span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span></span></span></a>
         </div>
         <span data-ll-recorder-category-more aria-hidden="true">&hellip;</span>
         <p data-ll-recorder-category-empty hidden>No words currently need recordings.</p>
@@ -348,10 +348,11 @@ async function mountRecorder(page, options = {}) {
         }),
       category_overview: categoryOverview ? {
         enabled: true,
-        action: 'll_tools_recorder_queue_summaries',
-        batch_size: 6,
-        max_auto_retries: 2,
-        catalog_complete: catalogComplete
+         action: 'll_tools_recorder_queue_summaries',
+         batch_size: 6,
+         max_auto_retries: 2,
+         show_all_categories: true,
+         catalog_complete: catalogComplete
       } : { enabled: false },
       stop_delay_ms: 0,
       current_user_id: 10,
@@ -388,10 +389,10 @@ async function mountRecorder(page, options = {}) {
   });
 }
 
-test('recorder overview uses neutral bounded loading shells and opens an exact-count category page', async ({ page }) => {
+test('recorder overview names every category while counts and previews hydrate', async ({ page }) => {
   await mountRecorder(page, {
     categoryOverview: true,
-    categoryOverviewDelay: 1200,
+    categoryOverviewDelay: 3000,
     includeTypes: 'isolation,question',
     excludeTypes: 'sentence',
     categoryOverviewResponse: {
@@ -421,12 +422,23 @@ test('recorder overview uses neutral bounded loading shells and opens an exact-c
   await expect(page.locator('select#ll-category-select')).toHaveCount(0);
   await expect(page.locator('.ll-recording-main')).toHaveCount(0);
   const shownPlaceholders = page.locator('[data-ll-recorder-queue-summary-placeholder="true"]:not([hidden])');
-  await expect(shownPlaceholders).toHaveCount(3);
-  await expect(shownPlaceholders).toHaveText(['', '', '']);
-  await expect(page.locator('[data-ll-recorder-category-more]')).toBeVisible();
-  await expect(page.locator('[data-ll-recorder-category-grid]')).not.toContainText('Baby animals');
+  await expect(shownPlaceholders).toHaveCount(5);
+  await expect(shownPlaceholders).toHaveText([
+    'Tree varieties',
+    'Baby animals',
+    'Colors',
+    'Foods',
+    'Places'
+  ]);
+  await expect(page.locator('[data-ll-recorder-category-more]')).toBeHidden();
+  await expect(page.locator('[data-ll-recorder-category-grid]')).toContainText('Baby animals');
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]'))
+    .toHaveAttribute('aria-label', 'Baby animals');
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]'))
+    .toHaveAttribute('href', /ll_record_category=baby-animals/);
 
-  await expect(page.locator('.ll-recorder-category-card')).toHaveCount(2);
+  const loadedCards = page.locator('.ll-recorder-category-card:not([data-ll-recorder-queue-summary-placeholder="true"])');
+  await expect(loadedCards).toHaveCount(2, { timeout: 8000 });
   await expect(page.locator('[data-recorder-queue-category="baby-animals"] .ll-wordset-settings-card__pill')).toHaveText('12 words');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveAttribute('data-recorder-queue-count', '12');
   await expect(page.locator('[data-ll-recorder-category-grid]')).not.toContainText('+');
@@ -446,6 +458,24 @@ test('recorder overview uses neutral bounded loading shells and opens an exact-c
   ))).toBe(0);
 });
 
+test('recorder overview opens a known category before its preview summary finishes', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    categoryOverviewDelay: 5000
+  });
+
+  const categoryCard = page.locator('[data-recorder-queue-category="trees"]');
+  await expect(categoryCard).toBeVisible();
+  await expect(categoryCard).toHaveText('Tree varieties');
+  await categoryCard.click();
+
+  await expect(page).toHaveURL(url => (
+    url.searchParams.get('ll_record_wordset') === '11'
+    && url.searchParams.get('ll_record_category') === 'trees'
+    && !url.searchParams.has('ll_record_word')
+  ));
+});
+
 test('incomplete category discovery keeps the overview non-authoritative and retryable', async ({ page }) => {
   await mountRecorder(page, {
     categoryOverview: true,
@@ -455,7 +485,7 @@ test('incomplete category discovery keeps the overview non-authoritative and ret
   await expect(page.locator('[data-ll-recorder-category-empty]')).toBeHidden();
   await expect(page.locator('[data-ll-recorder-category-retry]')).toBeVisible();
   await expect(page.locator('[data-ll-recorder-category-overview]')).toHaveClass(/has-error/);
-  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]:not([hidden])')).toHaveCount(3);
+  await expect(page.locator('[data-ll-recorder-queue-summary-placeholder="true"]:not([hidden])')).toHaveCount(5);
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(0);
 });
 

@@ -87,6 +87,7 @@
         : {};
     const categoryOverviewEnabled = !!categoryOverviewConfig.enabled;
     const categoryOverviewCatalogComplete = categoryOverviewConfig.catalog_complete !== false;
+    const categoryOverviewShowAllCategories = categoryOverviewConfig.show_all_categories === true;
     const categoryOverviewBatchSize = Math.max(1, Math.min(20, parseInt(categoryOverviewConfig.batch_size, 10) || 6));
     const categoryOverviewMaxAutoRetries = Math.max(1, Math.min(30, parseInt(categoryOverviewConfig.max_auto_retries, 10) || 12));
     const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
@@ -1454,10 +1455,10 @@
         const el = window.llRecorder;
         const placeholders = getCategoryOverviewPlaceholders();
         placeholders.forEach((placeholder, index) => {
-            placeholder.hidden = index >= 3;
+            placeholder.hidden = !categoryOverviewShowAllCategories && index >= 3;
         });
         if (el?.categoryOverviewMore) {
-            el.categoryOverviewMore.hidden = placeholders.length <= 3;
+            el.categoryOverviewMore.hidden = categoryOverviewShowAllCategories || placeholders.length <= 3;
         }
     }
 

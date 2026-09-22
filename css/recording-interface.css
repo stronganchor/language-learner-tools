@@ -403,6 +403,11 @@
     pointer-events: none;
 }
 
+.ll-recording-interface .ll-wordset-card--lazy-placeholder.ll-recorder-category-card {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
 .ll-recording-interface .ll-wordset-card--lazy-placeholder::after {
     content: "";
     position: absolute;

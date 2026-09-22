@@ -22666,15 +22666,34 @@ function ll_tools_wordset_page_render_recorder_queue_category_placeholder(array 
     }
     $hidden = !empty($args['hidden']);
     $neutral = !empty($args['neutral']);
+    $interactive = !empty($args['interactive']);
+    $category_url = trim((string) ($args['category_url'] ?? ''));
+    $root_tag = $interactive && $category_url !== ''
+        ? 'a'
+        : ($interactive ? 'button' : 'article');
+    $card_classes = 'll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading';
+    if ($interactive) {
+        $card_classes .= ' ll-recorder-category-card';
+    }
 
     ob_start();
     ?>
+    <?php if ($root_tag === 'a') : ?>
+    <a
+        class="<?php echo esc_attr($card_classes); ?>"
+        href="<?php echo esc_url($category_url); ?>"
+    <?php elseif ($root_tag === 'button') : ?>
+    <button
+        type="button"
+        class="<?php echo esc_attr($card_classes); ?>"
+    <?php else : ?>
     <article
-        class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-recorder-queue-category-card ll-wordset-recorder-queue-category-card--loading"
+        class="<?php echo esc_attr($card_classes); ?>"
+    <?php endif; ?>
         data-recorder-queue-category="<?php echo esc_attr($category_slug); ?>"
         <?php if (!$neutral) : ?>data-recorder-queue-category-name="<?php echo esc_attr($category_name); ?>"<?php endif; ?>
         data-ll-recorder-queue-summary-placeholder="true"
-        <?php if ($neutral) : ?>aria-label="<?php echo esc_attr__('Loading recording category', 'll-tools-text-domain'); ?>"<?php endif; ?>
+        <?php if ($interactive) : ?>aria-label="<?php echo esc_attr($category_name); ?>"<?php elseif ($neutral) : ?>aria-label="<?php echo esc_attr__('Loading recording category', 'll-tools-text-domain'); ?>"<?php endif; ?>
         aria-busy="true"
         <?php echo $hidden ? ' hidden' : ''; ?>
     >
@@ -22692,7 +22711,13 @@ function ll_tools_wordset_page_render_recorder_queue_category_placeholder(array 
                 <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>
             </span>
         </span>
+    <?php if ($root_tag === 'a') : ?>
+    </a>
+    <?php elseif ($root_tag === 'button') : ?>
+    </button>
+    <?php else : ?>
     </article>
+    <?php endif; ?>
     <?php
 
     return (string) ob_get_clean();

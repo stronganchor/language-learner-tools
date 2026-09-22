@@ -1534,6 +1534,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                 && function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch'),
             'catalog_complete' => $recorder_summary_catalog_complete,
             'action' => 'll_tools_recorder_queue_summaries',
+            'show_all_categories' => true,
             'batch_size' => function_exists('ll_tools_wordset_page_get_recorder_queue_summary_batch_size')
                 ? ll_tools_wordset_page_get_recorder_queue_summary_batch_size()
                 : 6,
@@ -1736,14 +1737,27 @@ function ll_audio_recording_interface_shortcode($atts) {
         <?php if ($recorder_view === 'overview') : ?>
         <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? 'false' : 'true'; ?>">
             <div class="ll-recorder-category-grid" data-ll-recorder-category-grid>
-                <?php foreach ($recorder_summary_categories as $summary_index => $summary_category) : ?>
+                <?php foreach ($recorder_summary_categories as $summary_category) : ?>
                     <?php
                     if (!is_array($summary_category) || !function_exists('ll_tools_wordset_page_render_recorder_queue_category_placeholder')) {
                         continue;
                     }
+                    $summary_slug = sanitize_title((string) ($summary_category['slug'] ?? ''));
+                    if ($summary_slug === '') {
+                        continue;
+                    }
+                    $summary_category_url = add_query_arg(
+                        'll_record_category',
+                        $summary_slug,
+                        $recorder_overview_url
+                    );
                     echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($summary_category, [
-                        'hidden' => $summary_index >= 3,
-                        'neutral' => true,
+                        // The catalog is complete here, so let recorders scan
+                        // and open a known category while counts/previews hydrate.
+                        'hidden' => false,
+                        'neutral' => false,
+                        'interactive' => true,
+                        'category_url' => $summary_category_url,
                     ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 <?php endforeach; ?>
