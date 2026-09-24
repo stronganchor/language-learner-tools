@@ -10,6 +10,10 @@ const recorderCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/recording-interface.css'),
   'utf8'
 );
+const wordsetPagesCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/wordset-pages.css'),
+  'utf8'
+);
 const onePixelPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
 function buildRecorderMarkup(view = 'category') {
@@ -131,7 +135,7 @@ async function mountRecorder(page, options = {}) {
     || (view === 'overview'
       ? 'https://ll-recorder-fixture.test/record/?ll_record_wordset=11&ll_record_word=999'
       : 'https://ll-recorder-fixture.test/record/?ll_record_wordset=11&ll_record_category=baby-animals');
-  await page.route('https://ll-recorder-fixture.test/**', route => route.fulfill({
+  await page.context().route('https://ll-recorder-fixture.test/**', route => route.fulfill({
     status: 200,
     contentType: 'text/html',
     body: '<!doctype html><html><head></head><body></body></html>'
@@ -403,14 +407,14 @@ test('recorder overview names every category while counts and previews hydrate',
           name: 'Baby animals',
           count: 12,
           optionLabel: 'Baby animals (12)',
-          html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="baby-animals" data-recorder-queue-count="12"><span class="ll-wordset-card__title">Baby animals</span><span class="ll-wordset-settings-card__pill">12 words</span></button>'
+          html: '<a class="ll-wordset-card ll-recorder-category-card" href="https://ll-recorder-fixture.test/record/?ll_record_wordset=11&amp;ll_record_category=baby-animals" aria-label="Baby animals" data-recorder-queue-category="baby-animals" data-recorder-queue-count="12"><span class="ll-wordset-card__title">Baby animals</span><span class="ll-wordset-settings-card__pill">12 words</span></a>'
         },
         {
           slug: 'colors',
           name: 'Colors',
           count: 2,
           optionLabel: 'Colors (2)',
-          html: '<button type="button" class="ll-wordset-card ll-recorder-category-card" data-recorder-queue-category="colors" data-recorder-queue-count="2"><span class="ll-wordset-card__title">Colors</span><span class="ll-wordset-settings-card__pill">2 words</span></button>'
+          html: '<a class="ll-wordset-card ll-recorder-category-card" href="https://ll-recorder-fixture.test/record/?ll_record_wordset=11&amp;ll_record_category=colors" aria-label="Colors" data-recorder-queue-category="colors" data-recorder-queue-count="2"><span class="ll-wordset-card__title">Colors</span><span class="ll-wordset-settings-card__pill">2 words</span></a>'
         }
       ],
       resolvedSlugs: ['trees', 'baby-animals', 'colors', 'foods', 'places'],
@@ -441,12 +445,20 @@ test('recorder overview names every category while counts and previews hydrate',
   await expect(loadedCards).toHaveCount(2, { timeout: 8000 });
   await expect(page.locator('[data-recorder-queue-category="baby-animals"] .ll-wordset-settings-card__pill')).toHaveText('12 words');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveAttribute('data-recorder-queue-count', '12');
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveJSProperty('tagName', 'A');
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveAttribute('href', /ll_record_category=baby-animals/);
   await expect(page.locator('[data-ll-recorder-category-grid]')).not.toContainText('+');
   await expect.poll(async () => page.evaluate(() => window.__categoryOverviewTypeScopes[0])).toEqual({
     include: 'isolation,question',
     exclude: 'sentence'
   });
-  await page.locator('.ll-recorder-category-card[data-recorder-queue-category="colors"]').click();
+  const colorsLink = page.locator('.ll-recorder-category-card[data-recorder-queue-category="colors"]');
+  const newTabPromise = page.context().waitForEvent('page');
+  await colorsLink.click({ button: 'middle' });
+  const newTab = await newTabPromise;
+  await expect(newTab).toHaveURL(/ll_record_category=colors/);
+  await newTab.close();
+  await colorsLink.click();
 
   await expect(page).toHaveURL(url => (
     url.searchParams.get('ll_record_wordset') === '11'
@@ -463,10 +475,13 @@ test('recorder overview opens a known category before its preview summary finish
     categoryOverview: true,
     categoryOverviewDelay: 5000
   });
+  await page.addStyleTag({ content: wordsetPagesCssSource });
+  await page.addStyleTag({ content: recorderCssSource });
 
   const categoryCard = page.locator('[data-recorder-queue-category="trees"]');
   await expect(categoryCard).toBeVisible();
   await expect(categoryCard).toHaveText('Tree varieties');
+  await expect(categoryCard).toHaveCSS('pointer-events', 'auto');
   await categoryCard.click();
 
   await expect(page).toHaveURL(url => (

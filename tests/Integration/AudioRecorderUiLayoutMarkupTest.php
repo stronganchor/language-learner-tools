@@ -122,6 +122,7 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('checking_upload', $localized);
         $this->assertStringContainsString('"category_overview"', $localized);
         $this->assertStringContainsString('"action":"ll_tools_recorder_queue_summaries"', $localized);
+        $this->assertStringContainsString('"category_url_base"', $localized);
         $this->assertStringContainsString('"view":"overview"', $localized);
         $this->assertStringContainsString('"images":[]', $localized);
         $this->assertStringContainsString('"initial_category":""', $localized);

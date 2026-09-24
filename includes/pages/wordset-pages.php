@@ -22896,6 +22896,9 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
     }
 
     $card_interaction = sanitize_key((string) ($options['card_interaction'] ?? 'link'));
+    $category_url_base = trim((string) ($options['category_url_base'] ?? ''));
+    $category_url_query_arg = sanitize_key((string) ($options['category_url_query_arg'] ?? ''));
+    $category_card_class = sanitize_html_class((string) ($options['category_card_class'] ?? ''));
     if ($card_interaction !== 'button' && $action_url === '') {
         $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder-queues');
     }
@@ -22909,10 +22912,14 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
         if ($scan_complete && isset($group_lookup[$slug])) {
             $category_url = '';
             if ($card_interaction !== 'button') {
-                $category_url = add_query_arg([
-                    'll_recorder_queue_focus' => (string) $recorder_user_id,
-                    'll_recorder_queue_category' => $slug,
-                ], $action_url) . '#ll-recorder-queue-' . $recorder_user_id;
+                if ($category_url_base !== '' && $category_url_query_arg !== '') {
+                    $category_url = add_query_arg($category_url_query_arg, $slug, $category_url_base);
+                } else {
+                    $category_url = add_query_arg([
+                        'll_recorder_queue_focus' => (string) $recorder_user_id,
+                        'll_recorder_queue_category' => $slug,
+                    ], $action_url) . '#ll-recorder-queue-' . $recorder_user_id;
+                }
             }
             $category_name = trim((string) ($group_lookup[$slug]['name'] ?? ''));
             if ($category_name === '') {
@@ -22935,7 +22942,9 @@ function ll_tools_wordset_page_build_recorder_queue_summary_batch(
                     $category_url,
                     [
                         'interaction' => $card_interaction,
-                        'class' => $card_interaction === 'button' ? 'll-recorder-category-card' : '',
+                        'class' => $category_card_class !== ''
+                            ? $category_card_class
+                            : ($card_interaction === 'button' ? 'll-recorder-category-card' : ''),
                     ]
                 ),
             ];

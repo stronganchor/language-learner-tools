@@ -1469,8 +1469,12 @@
         getLoadedCategoryOverviewCards().forEach(card => {
             const selected = String(card.getAttribute('data-recorder-queue-category') || '') === selectedSlug;
             card.classList.toggle('is-selected', selected);
-            card.setAttribute('aria-pressed', selected ? 'true' : 'false');
-            card.disabled = !!el.categorySelect.disabled;
+            if (card.tagName === 'BUTTON') {
+                card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                card.disabled = !!el.categorySelect.disabled;
+            } else {
+                card.removeAttribute('aria-pressed');
+            }
         });
     }
 
@@ -1655,6 +1659,8 @@
         formData.append('wordset_ids', JSON.stringify(window.ll_recorder_data?.wordset_ids || []));
         formData.append('include_recording_types', String(window.ll_recorder_data?.include_types || ''));
         formData.append('exclude_recording_types', String(window.ll_recorder_data?.exclude_types || ''));
+        const categoryUrlBase = String(categoryOverviewConfig.category_url_base || '').trim();
+        if (categoryUrlBase) formData.append('category_url_base', categoryUrlBase);
         slugs.forEach(slug => formData.append('category_slugs[]', slug));
 
         let retryAutomatically = false;
@@ -1739,6 +1745,14 @@
         el.categoryOverviewGrid.addEventListener('click', event => {
             const card = event.target?.closest?.('.ll-recorder-category-card[data-recorder-queue-category]');
             if (!card || card.disabled) return;
+            if (
+                card.tagName === 'A'
+                || event.button !== 0
+                || event.metaKey
+                || event.ctrlKey
+                || event.shiftKey
+                || event.altKey
+            ) return;
             const slug = String(card.getAttribute('data-recorder-queue-category') || '');
             if (!slug) return;
             event.preventDefault();

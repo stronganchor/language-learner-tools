@@ -654,6 +654,30 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('href=', (string) $card['html']);
         $this->assertStringNotContainsString('aria-pressed', (string) $card['html']);
 
+        $overview_url = add_query_arg('ll_record_wordset', (string) $wordset_term->slug, home_url('/ses-kaydedici/'));
+        $link_batch = ll_tools_wordset_page_build_recorder_queue_summary_batch(
+            $wordset_id,
+            $wordset_term,
+            $admin_id,
+            [(string) $category['slug']],
+            '',
+            [
+                'card_interaction' => 'link',
+                'category_url_base' => $overview_url,
+                'category_url_query_arg' => 'll_record_category',
+                'category_card_class' => 'll-recorder-category-card',
+            ]
+        );
+        $this->assertCount(1, $link_batch['cards']);
+        $link_html = (string) $link_batch['cards'][0]['html'];
+        $this->assertMatchesRegularExpression('/^<a\s/i', trim($link_html));
+        $this->assertStringContainsString(
+            'href="' . esc_url(add_query_arg('ll_record_category', (string) $category['slug'], $overview_url)) . '"',
+            $link_html
+        );
+        $this->assertStringContainsString('ll-recorder-category-card', $link_html);
+        $this->assertStringNotContainsString('<button', $link_html);
+
         $placeholder = ll_tools_wordset_page_render_recorder_queue_category_placeholder($category);
         $this->assertStringContainsString((string) $category['name'], $placeholder);
         $this->assertStringContainsString('data-recorder-queue-category-name=', $placeholder);

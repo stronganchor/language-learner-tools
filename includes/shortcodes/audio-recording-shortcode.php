@@ -1534,6 +1534,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                 && function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch'),
             'catalog_complete' => $recorder_summary_catalog_complete,
             'action' => 'll_tools_recorder_queue_summaries',
+            'category_url_base' => $recorder_overview_url,
             'show_all_categories' => true,
             'batch_size' => function_exists('ll_tools_wordset_page_get_recorder_queue_summary_batch_size')
                 ? ll_tools_wordset_page_get_recorder_queue_summary_batch_size()
@@ -4665,6 +4666,15 @@ function ll_tools_recorder_queue_summaries_handler(): void {
             sanitize_text_field(wp_unslash((string) $_POST['exclude_recording_types']))
         ))
         : '';
+    $category_url_base = isset($_POST['category_url_base']) && !is_array($_POST['category_url_base'])
+        ? wp_validate_redirect(
+            esc_url_raw(wp_unslash((string) $_POST['category_url_base'])),
+            ''
+        )
+        : '';
+    if ($category_url_base !== '') {
+        $category_url_base = remove_query_arg(['ll_record_category', 'll_record_word'], $category_url_base);
+    }
 
     wp_send_json_success(ll_tools_wordset_page_build_recorder_queue_summary_batch(
         $wordset_id,
@@ -4673,7 +4683,12 @@ function ll_tools_recorder_queue_summaries_handler(): void {
         $requested_slugs,
         '',
         [
-            'card_interaction' => 'button',
+            // Keep hydrated cards as native links so middle/right-click and
+            // modified clicks retain browser navigation behavior.
+            'card_interaction' => $category_url_base !== '' ? 'link' : 'button',
+            'category_url_base' => $category_url_base,
+            'category_url_query_arg' => 'll_record_category',
+            'category_card_class' => 'll-recorder-category-card',
             'include_recording_types' => $include_types,
             'exclude_recording_types' => $exclude_types,
         ]
