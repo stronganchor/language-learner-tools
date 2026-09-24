@@ -498,6 +498,71 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_cache_schema_upgrade_prewarms_existing_recorder_configurations(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $recorder_id = self::factory()->user->create([
+            'role' => 'audio_recorder',
+            'display_name' => 'Upgrade Prewarm Recorder',
+        ]);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+        $option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($option_name, $missing_option);
+        delete_option($option_name);
+        $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+        $upgrade_args = [0];
+        $summary_hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+
+        try {
+            $this->assertNotFalse(has_action(
+                'admin_init',
+                'll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm'
+            ));
+            ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm();
+            $this->assertNotFalse(wp_next_scheduled($upgrade_hook, $upgrade_args));
+
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $this->assertSame('6', (string) get_option($option_name));
+            $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+                $wordset_id,
+                $recorder_id,
+                $catalog_complete
+            );
+            $scope = ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
+                $wordset_id,
+                $recorder_id,
+                $categories,
+                '',
+                ''
+            );
+            $summary_args = [$wordset_id, $recorder_id, '', '', (string) ($scope['generation'] ?? ''), 0, []];
+            $this->assertTrue($catalog_complete);
+            $this->assertNotEmpty($summary_args[4]);
+            $this->assertNotFalse(wp_next_scheduled($summary_hook, $summary_args));
+        } finally {
+            wp_clear_scheduled_hook($upgrade_hook);
+            if (isset($summary_args) && is_array($summary_args)) {
+                wp_clear_scheduled_hook($summary_hook, $summary_args);
+            }
+            if ($original_schema === $missing_option) {
+                delete_option($option_name);
+            } else {
+                update_option($option_name, $original_schema, false);
+            }
+        }
+    }
+
     public function test_audio_change_schedules_only_its_recorder_category_summary_refresh(): void
     {
         $fixture = $this->createWordsetWithCategories(3);

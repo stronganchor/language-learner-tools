@@ -388,9 +388,11 @@ async function mountRecorder(page, options = {}) {
   });
 
   await page.addScriptTag({ content: recorderJsSource });
-  await page.evaluate(() => {
-    document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
-  });
+  if (options.dispatchDomReady !== false) {
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+    });
+  }
 }
 
 test('recorder overview names every category while counts and previews hydrate', async ({ page }) => {
@@ -468,6 +470,23 @@ test('recorder overview names every category while counts and previews hydrate',
   await expect.poll(async () => page.evaluate(() => (
     parseInt(window.sessionStorage.getItem('ll-recorder-fixture-queue-requests'), 10) || 0
   ))).toBe(0);
+});
+
+test('recorder overview initializes when its script loads after DOMContentLoaded', async ({ page }) => {
+  await mountRecorder(page, {
+    categoryOverview: true,
+    dispatchDomReady: false,
+    categoryOverviewResponse: {
+      generation: 'late-script-generation',
+      cards: [],
+      resolvedSlugs: ['trees', 'baby-animals', 'colors', 'foods', 'places'],
+      pendingSlugs: []
+    }
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.__categoryOverviewRequests.length)).toBe(1);
+  await expect(page.locator('[data-ll-recorder-category-overview]')).not.toHaveClass(/is-loading/);
+  await expect(page.locator('[data-ll-recorder-category-empty]')).toBeVisible();
 });
 
 test('recorder overview opens a known category before its preview summary finishes', async ({ page }) => {

@@ -216,7 +216,18 @@
         unhide: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></svg>',
     };
 
-    document.addEventListener('DOMContentLoaded', init);
+    function runRecorderWhenDomReady(callback) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', callback, { once: true });
+            return;
+        }
+
+        // Optimizers can inject this footer asset after DOMContentLoaded. Defer
+        // one task so the IIFE finishes initializing its constants first.
+        window.setTimeout(callback, 0);
+    }
+
+    runRecorderWhenDomReady(init);
 
     function appendRequestLocale(formData) {
         if (!formData || !requestLocale) return;
@@ -4404,7 +4415,7 @@
     }
 
     // Proactively surface likely microphone issues so users know what to fix
-    document.addEventListener('DOMContentLoaded', () => {
+    runRecorderWhenDomReady(() => {
         preflightMicCheck().catch(() => { /* ignore */ });
     });
 

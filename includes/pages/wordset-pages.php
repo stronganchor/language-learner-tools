@@ -22406,6 +22406,89 @@ add_action(
 );
 
 /**
+ * Queue a one-time bounded prewarm for existing recorders after this cache schema ships.
+ *
+ * Configuration saves already warm new or changed recorders. This upgrade
+ * pass covers sites that already had recorder configurations when the summary
+ * cache was introduced, before their first visit to the overview page.
+ */
+function ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm(): void {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    $schema_version = '6';
+    if ((string) get_option('ll_tools_recorder_queue_summary_prewarm_schema', '') === $schema_version) {
+        return;
+    }
+
+    $hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+    $args = [0];
+    if (wp_next_scheduled($hook, $args)) {
+        return;
+    }
+
+    wp_schedule_single_event(time() + 5, $hook, $args);
+}
+add_action('admin_init', 'll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm', 30);
+
+/**
+ * Schedule recorder summary warmups in bounded user batches.
+ *
+ * @param int $offset Recorder-user offset for the next resumable batch.
+ */
+function ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(int $offset = 0): void {
+    $schema_version = '6';
+    $option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+    if ((string) get_option($option_name, '') === $schema_version) {
+        return;
+    }
+
+    $batch_size = 20;
+    $user_ids = get_users([
+        'role' => 'audio_recorder',
+        'fields' => 'ID',
+        'number' => $batch_size,
+        'offset' => max(0, $offset),
+        'orderby' => 'ID',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($user_ids) || !is_array($user_ids)) {
+        return;
+    }
+
+    foreach ($user_ids as $user_id) {
+        $user_id = absint($user_id);
+        if ($user_id <= 0) {
+            continue;
+        }
+        $config = function_exists('ll_get_user_recording_config')
+            ? ll_get_user_recording_config($user_id)
+            : get_user_meta($user_id, 'll_recording_config', true);
+        if (is_array($config)) {
+            ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_config($user_id, $config);
+        }
+    }
+
+    if (count($user_ids) >= $batch_size) {
+        wp_schedule_single_event(
+            time() + 5,
+            'll_tools_wordset_page_prewarm_recorder_queue_summary_users',
+            [max(0, $offset) + $batch_size]
+        );
+        return;
+    }
+
+    update_option($option_name, $schema_version, false);
+}
+add_action(
+    'll_tools_wordset_page_prewarm_recorder_queue_summary_users',
+    'll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm',
+    10,
+    1
+);
+
+/**
  * Refresh only the recorder's affected category summaries after an audio save.
  *
  * @param int[] $category_ids
