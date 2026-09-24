@@ -967,15 +967,6 @@
                 pagination.hidden = currentPage <= 1 && !hasMore;
             }
 
-            const tabCount = document.querySelector(`.ll-tab-count[data-tab-count="${tab}"]`);
-            if (tabCount) {
-                const knownCount = Math.max(0, parseInt(data.knownCount, 10) || 0);
-                tabCount.textContent = hasMore
-                    ? formatText(t('queueCountMoreTemplate', '%d+'), [knownCount])
-                    : String(knownCount);
-                tabCount.removeAttribute('aria-label');
-            }
-
             if (recordings.length === 0) {
                 setQueueStatus(list, getQueueEmptyMessage(tab), 'empty');
             } else {

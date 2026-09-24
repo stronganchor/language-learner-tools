@@ -218,8 +218,6 @@ function ll_enqueue_audio_processor_assets($hook) {
             'queueNext' => __('Next', 'll-tools-text-domain'),
             /* translators: %d: current queue page number */
             'queuePageTemplate' => __('Page %d', 'll-tools-text-domain'),
-            /* translators: %d: known minimum number of recordings in a queue */
-            'queueCountMoreTemplate' => __('%d+', 'll-tools-text-domain'),
             'wordsetLabel' => __('Wordset:', 'll-tools-text-domain'),
             'categoryLabel' => __('Category:', 'll-tools-text-domain'),
         ],
@@ -731,6 +729,162 @@ function ll_audio_processor_queue_access_sql(string $audio_alias): string {
 }
 
 /**
+ * SQL for recordings currently waiting for audio processing.
+ */
+function ll_audio_processor_get_processing_candidates_sql(): string {
+    global $wpdb;
+
+    $candidate_type_sql = ll_audio_processor_recording_type_slug_sql('audio');
+    $access_sql = ll_audio_processor_queue_access_sql('audio');
+
+    return "
+        SELECT audio.ID, audio.post_parent, audio.post_date, {$candidate_type_sql} AS recording_type_slug
+        FROM {$wpdb->posts} audio
+        WHERE audio.post_type = 'word_audio'
+          AND audio.post_status IN ('publish', 'draft')
+          AND audio.post_parent > 0
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} processing_flag
+              WHERE processing_flag.post_id = audio.ID
+                AND processing_flag.meta_key = '_ll_needs_audio_processing'
+                AND processing_flag.meta_value = '1'
+          )
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} audio_path
+              WHERE audio_path.post_id = audio.ID
+                AND audio_path.meta_key = 'audio_file_path'
+                AND TRIM(COALESCE(audio_path.meta_value, '')) <> ''
+          )
+          {$access_sql}
+    ";
+}
+
+/**
+ * CASE expression used to classify queued recordings with duplicate audio.
+ */
+function ll_audio_processor_get_queue_candidate_duplicate_reason_sql(): string {
+    global $wpdb;
+
+    $published_type_sql = ll_audio_processor_recording_type_slug_sql('published_audio');
+    $earlier_type_sql = ll_audio_processor_recording_type_slug_sql('earlier_audio');
+
+    $published_duplicate_sql = "EXISTS (
+        SELECT 1
+        FROM {$wpdb->posts} published_audio
+        WHERE published_audio.post_type = 'word_audio'
+          AND published_audio.post_status = 'publish'
+          AND published_audio.post_parent = candidate.post_parent
+          AND published_audio.ID <> candidate.ID
+          AND {$published_type_sql} = candidate.recording_type_slug
+    )";
+    $earlier_pending_sql = "EXISTS (
+        SELECT 1
+        FROM {$wpdb->posts} earlier_audio
+        WHERE earlier_audio.post_type = 'word_audio'
+          AND earlier_audio.post_status IN ('publish', 'draft')
+          AND earlier_audio.post_parent = candidate.post_parent
+          AND (
+              earlier_audio.post_date > candidate.post_date
+              OR (earlier_audio.post_date = candidate.post_date AND earlier_audio.ID > candidate.ID)
+          )
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} earlier_processing_flag
+              WHERE earlier_processing_flag.post_id = earlier_audio.ID
+                AND earlier_processing_flag.meta_key = '_ll_needs_audio_processing'
+                AND earlier_processing_flag.meta_value = '1'
+          )
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} earlier_audio_path
+              WHERE earlier_audio_path.post_id = earlier_audio.ID
+                AND earlier_audio_path.meta_key = 'audio_file_path'
+                AND TRIM(COALESCE(earlier_audio_path.meta_value, '')) <> ''
+          )
+          AND {$earlier_type_sql} = candidate.recording_type_slug
+    )";
+
+    return "CASE
+        WHEN {$published_duplicate_sql} THEN 'published'
+        WHEN {$earlier_pending_sql} THEN 'queued'
+        ELSE ''
+    END";
+}
+
+/**
+ * Count every item in each Audio Processor tab without hydrating queue rows.
+ *
+ * @return array{queue:?int,duplicates:?int,reprocess:?int}
+ */
+function ll_audio_processor_get_queue_counts(): array {
+    global $wpdb;
+
+    $counts = [
+        'queue' => null,
+        'duplicates' => null,
+        'reprocess' => null,
+    ];
+
+    $candidate_sql = ll_audio_processor_get_processing_candidates_sql();
+    $duplicate_reason_sql = ll_audio_processor_get_queue_candidate_duplicate_reason_sql();
+    $processing_counts = $wpdb->get_row(
+        "
+        SELECT
+            COALESCE(SUM(CASE WHEN counted.duplicate_reason = '' THEN 1 ELSE 0 END), 0) AS queue_count,
+            COALESCE(SUM(CASE WHEN counted.duplicate_reason <> '' THEN 1 ELSE 0 END), 0) AS duplicates_count
+        FROM (
+            SELECT {$duplicate_reason_sql} AS duplicate_reason
+            FROM ({$candidate_sql}) candidate
+        ) counted
+        ",
+        ARRAY_A
+    );
+    if (is_array($processing_counts) && $wpdb->last_error === '') {
+        $counts['queue'] = max(0, (int) ($processing_counts['queue_count'] ?? 0));
+        $counts['duplicates'] = max(0, (int) ($processing_counts['duplicates_count'] ?? 0));
+    }
+
+    if (!defined('LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY')) {
+        $counts['reprocess'] = 0;
+        return $counts;
+    }
+
+    $original_meta_key = esc_sql((string) LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY);
+    $access_sql = ll_audio_processor_queue_access_sql('audio');
+    $reprocess_count = $wpdb->get_var(
+        "
+        SELECT COUNT(*)
+        FROM {$wpdb->posts} audio
+        WHERE audio.post_type = 'word_audio'
+          AND audio.post_status IN ('publish', 'draft')
+          AND audio.post_parent > 0
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} source_path
+              WHERE source_path.post_id = audio.ID
+                AND source_path.meta_key = '{$original_meta_key}'
+                AND TRIM(COALESCE(source_path.meta_value, '')) <> ''
+          )
+          AND EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} audio_path
+              WHERE audio_path.post_id = audio.ID
+                AND audio_path.meta_key = 'audio_file_path'
+                AND TRIM(COALESCE(audio_path.meta_value, '')) <> ''
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM {$wpdb->postmeta} processing_flag
+              WHERE processing_flag.post_id = audio.ID
+                AND processing_flag.meta_key = '_ll_needs_audio_processing'
+                AND processing_flag.meta_value = '1'
+          )
+          {$access_sql}
+        "
+    );
+    if ($reprocess_count !== null && $wpdb->last_error === '') {
+        $counts['reprocess'] = max(0, (int) $reprocess_count);
+    }
+
+    return $counts;
+}
+
+/**
  * Prime only the posts, metadata, and terms needed by the current queue page.
  *
  * @param array<int,array<string,mixed>> $rows
@@ -894,67 +1048,8 @@ function ll_audio_processor_get_queue_page(
             );
         }
     } else {
-        $candidate_type_sql = ll_audio_processor_recording_type_slug_sql('audio');
-        $published_type_sql = ll_audio_processor_recording_type_slug_sql('published_audio');
-        $earlier_type_sql = ll_audio_processor_recording_type_slug_sql('earlier_audio');
-        $candidate_sql = "
-            SELECT audio.ID, audio.post_parent, audio.post_date, {$candidate_type_sql} AS recording_type_slug
-            FROM {$wpdb->posts} audio
-            WHERE audio.post_type = 'word_audio'
-              AND audio.post_status IN ('publish', 'draft')
-              AND audio.post_parent > 0
-              AND EXISTS (
-                  SELECT 1 FROM {$wpdb->postmeta} processing_flag
-                  WHERE processing_flag.post_id = audio.ID
-                    AND processing_flag.meta_key = '_ll_needs_audio_processing'
-                    AND processing_flag.meta_value = '1'
-              )
-              AND EXISTS (
-                  SELECT 1 FROM {$wpdb->postmeta} audio_path
-                  WHERE audio_path.post_id = audio.ID
-                    AND audio_path.meta_key = 'audio_file_path'
-                    AND TRIM(COALESCE(audio_path.meta_value, '')) <> ''
-              )
-              {$access_sql}
-        ";
-        $published_duplicate_sql = "EXISTS (
-            SELECT 1
-            FROM {$wpdb->posts} published_audio
-            WHERE published_audio.post_type = 'word_audio'
-              AND published_audio.post_status = 'publish'
-              AND published_audio.post_parent = candidate.post_parent
-              AND published_audio.ID <> candidate.ID
-              AND {$published_type_sql} = candidate.recording_type_slug
-        )";
-        $earlier_pending_sql = "EXISTS (
-            SELECT 1
-            FROM {$wpdb->posts} earlier_audio
-            WHERE earlier_audio.post_type = 'word_audio'
-              AND earlier_audio.post_status IN ('publish', 'draft')
-              AND earlier_audio.post_parent = candidate.post_parent
-              AND (
-                  earlier_audio.post_date > candidate.post_date
-                  OR (earlier_audio.post_date = candidate.post_date AND earlier_audio.ID > candidate.ID)
-              )
-              AND EXISTS (
-                  SELECT 1 FROM {$wpdb->postmeta} earlier_processing_flag
-                  WHERE earlier_processing_flag.post_id = earlier_audio.ID
-                    AND earlier_processing_flag.meta_key = '_ll_needs_audio_processing'
-                    AND earlier_processing_flag.meta_value = '1'
-              )
-              AND EXISTS (
-                  SELECT 1 FROM {$wpdb->postmeta} earlier_audio_path
-                  WHERE earlier_audio_path.post_id = earlier_audio.ID
-                    AND earlier_audio_path.meta_key = 'audio_file_path'
-                    AND TRIM(COALESCE(earlier_audio_path.meta_value, '')) <> ''
-              )
-              AND {$earlier_type_sql} = candidate.recording_type_slug
-        )";
-        $duplicate_reason_sql = "CASE
-            WHEN {$published_duplicate_sql} THEN 'published'
-            WHEN {$earlier_pending_sql} THEN 'queued'
-            ELSE ''
-        END";
+        $candidate_sql = ll_audio_processor_get_processing_candidates_sql();
+        $duplicate_reason_sql = ll_audio_processor_get_queue_candidate_duplicate_reason_sql();
         $having_sql = $tab === 'duplicates'
             ? "HAVING duplicate_reason <> ''"
             : "HAVING duplicate_reason = ''";
@@ -1355,6 +1450,7 @@ function ll_render_audio_processor_page() {
     );
     $active_page = (int) $active_request_page['page'];
     $active_cursor = (string) $active_request_page['cursor'];
+    $queue_counts = ll_audio_processor_get_queue_counts();
     ?>
     <div class="wrap ll-audio-processor-wrap" aria-busy="false">
         <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>
@@ -1424,7 +1520,7 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-queue"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Queue', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="queue" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
+                    <span class="ll-tab-count" data-tab-count="queue"><?php echo esc_html($queue_counts['queue'] === null ? '…' : number_format_i18n((int) $queue_counts['queue'])); ?></span>
                 </button>
                 <button
                     type="button"
@@ -1435,7 +1531,7 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-duplicates"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Duplicates', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="duplicates" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
+                    <span class="ll-tab-count" data-tab-count="duplicates"><?php echo esc_html($queue_counts['duplicates'] === null ? '…' : number_format_i18n((int) $queue_counts['duplicates'])); ?></span>
                 </button>
                 <button
                     type="button"
@@ -1446,7 +1542,7 @@ function ll_render_audio_processor_page() {
                     aria-controls="ll-recordings-reprocess"
                 >
                     <span class="ll-tab-label"><?php echo esc_html__('Reprocess', 'll-tools-text-domain'); ?></span>
-                    <span class="ll-tab-count" data-tab-count="reprocess" aria-label="<?php echo esc_attr__('Loading', 'll-tools-text-domain'); ?>">&hellip;</span>
+                    <span class="ll-tab-count" data-tab-count="reprocess"><?php echo esc_html($queue_counts['reprocess'] === null ? '…' : number_format_i18n((int) $queue_counts['reprocess'])); ?></span>
                 </button>
             </div>
 
