@@ -1346,6 +1346,16 @@ function ll_audio_recording_interface_shortcode($atts) {
         && ($launch_category !== '' || $launch_word_id > 0);
     $recorder_summary_categories = [];
     $recorder_summary_catalog_complete = true;
+    $recorder_summary_cached_overview = [
+        'complete' => false,
+        'generation' => '',
+        'groups' => [],
+        'resolved_slugs' => [],
+        'pending_slugs' => [],
+        'status' => [],
+    ];
+    $recorder_summary_cached_group_lookup = [];
+    $recorder_summary_resolved_slug_lookup = [];
     if (
         $requested_category === ''
         && !empty($wordset_term_ids)
@@ -1494,6 +1504,50 @@ function ll_audio_recording_interface_shortcode($atts) {
         ['ll_record_category', 'll_record_word'],
         function_exists('ll_tools_get_current_request_url') ? ll_tools_get_current_request_url() : ''
     );
+    if (
+        $recorder_view === 'overview'
+        && $recorder_summary_catalog_complete
+        && function_exists('ll_tools_wordset_page_get_recorder_queue_cached_overview')
+    ) {
+        $recorder_summary_cached_overview = ll_tools_wordset_page_get_recorder_queue_cached_overview(
+            (int) $wordset_term_ids[0],
+            $current_user_id,
+            $recorder_summary_categories,
+            (string) $atts['include_recording_types'],
+            (string) $atts['exclude_recording_types'],
+            $recorder_summary_catalog_complete
+        );
+        foreach ((array) ($recorder_summary_cached_overview['groups'] ?? []) as $cached_group) {
+            if (!is_array($cached_group)) {
+                continue;
+            }
+            $cached_slug = sanitize_title((string) ($cached_group['slug'] ?? ''));
+            if ($cached_slug !== '') {
+                $recorder_summary_cached_group_lookup[$cached_slug] = $cached_group;
+            }
+        }
+        foreach ((array) ($recorder_summary_cached_overview['resolved_slugs'] ?? []) as $resolved_slug) {
+            $resolved_slug = sanitize_title((string) $resolved_slug);
+            if ($resolved_slug !== '') {
+                $recorder_summary_resolved_slug_lookup[$resolved_slug] = true;
+            }
+        }
+
+        $pending_summary_slugs = array_values(array_filter(array_map(
+            'sanitize_title',
+            (array) ($recorder_summary_cached_overview['pending_slugs'] ?? [])
+        )));
+        if (!empty($pending_summary_slugs) && function_exists('ll_tools_wordset_page_schedule_recorder_queue_summary_warmup')) {
+            ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+                (int) $wordset_term_ids[0],
+                $current_user_id,
+                (string) $atts['include_recording_types'],
+                (string) $atts['exclude_recording_types'],
+                (string) ($recorder_summary_cached_overview['generation'] ?? ''),
+                0
+            );
+        }
+    }
 
     wp_localize_script('ll-audio-recorder', 'll_recorder_data', [
         'ajax_url'        => admin_url('admin-ajax.php'),
@@ -1533,6 +1587,8 @@ function ll_audio_recording_interface_shortcode($atts) {
                 && !empty($wordset_term_ids)
                 && function_exists('ll_tools_wordset_page_build_recorder_queue_summary_batch'),
             'catalog_complete' => $recorder_summary_catalog_complete,
+            'generation' => (string) ($recorder_summary_cached_overview['generation'] ?? ''),
+            'cache_complete' => !empty($recorder_summary_cached_overview['complete']),
             'action' => 'll_tools_recorder_queue_summaries',
             'category_url_base' => $recorder_overview_url,
             'show_all_categories' => true,
@@ -1736,7 +1792,18 @@ function ll_audio_recording_interface_shortcode($atts) {
         ?>
 
         <?php if ($recorder_view === 'overview') : ?>
-        <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? 'false' : 'true'; ?>">
+        <?php
+        $recorder_summary_pending_slugs = array_values(array_filter(array_map(
+            'sanitize_title',
+            (array) ($recorder_summary_cached_overview['pending_slugs'] ?? [])
+        )));
+        $recorder_summary_cache_complete = !empty($recorder_summary_cached_overview['complete']);
+        $recorder_summary_cached_groups = array_values(array_filter(
+            (array) ($recorder_summary_cached_overview['groups'] ?? []),
+            'is_array'
+        ));
+        ?>
+        <section class="ll-recorder-category-overview" data-ll-recorder-category-overview aria-busy="<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_pending_slugs) ? 'false' : 'true'; ?>">
             <div class="ll-recorder-category-grid" data-ll-recorder-category-grid>
                 <?php foreach ($recorder_summary_categories as $summary_category) : ?>
                     <?php
@@ -1752,9 +1819,23 @@ function ll_audio_recording_interface_shortcode($atts) {
                         $summary_slug,
                         $recorder_overview_url
                     );
+                    if (isset($recorder_summary_resolved_slug_lookup[$summary_slug])) {
+                        $cached_group = $recorder_summary_cached_group_lookup[$summary_slug] ?? null;
+                        if (is_array($cached_group) && function_exists('ll_tools_wordset_page_render_recorder_queue_category_card')) {
+                            echo ll_tools_wordset_page_render_recorder_queue_category_card(
+                                $cached_group,
+                                $summary_category_url,
+                                [
+                                    'interaction' => 'link',
+                                    'class' => 'll-recorder-category-card',
+                                ]
+                            ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                        }
+                        continue;
+                    }
                     echo ll_tools_wordset_page_render_recorder_queue_category_placeholder($summary_category, [
-                        // The catalog is complete here, so let recorders scan
-                        // and open a known category while counts/previews hydrate.
+                        // Unknown summaries remain native links with a fixed
+                        // card footprint while the bounded cache warmer runs.
                         'hidden' => false,
                         'neutral' => false,
                         'interactive' => true,
@@ -1762,9 +1843,9 @@ function ll_audio_recording_interface_shortcode($atts) {
                     ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 <?php endforeach; ?>
-                <span class="ll-recorder-category-overview__more" data-ll-recorder-category-more aria-hidden="true"<?php echo count($recorder_summary_categories) > 3 ? '' : ' hidden'; ?>>&hellip;</span>
+                <span class="ll-recorder-category-overview__more" data-ll-recorder-category-more aria-hidden="true"<?php echo count($recorder_summary_pending_slugs) > 3 ? '' : ' hidden'; ?>>&hellip;</span>
             </div>
-            <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty<?php echo $recorder_summary_catalog_complete && empty($recorder_summary_categories) ? '' : ' hidden'; ?>>
+            <p class="ll-recorder-category-overview__empty" data-ll-recorder-category-empty<?php echo $recorder_summary_cache_complete && empty($recorder_summary_cached_groups) ? '' : ' hidden'; ?>>
                 <?php esc_html_e('No words currently need recordings.', 'll-tools-text-domain'); ?>
             </p>
             <div class="ll-recorder-category-overview__status-row">
@@ -1772,7 +1853,7 @@ function ll_audio_recording_interface_shortcode($atts) {
                     <?php
                     if (!$recorder_summary_catalog_complete) {
                         esc_html_e('Some recording queues could not be loaded.', 'll-tools-text-domain');
-                    } elseif (!empty($recorder_summary_categories)) {
+                    } elseif (!empty($recorder_summary_pending_slugs)) {
                         esc_html_e('Loading recording queues...', 'll-tools-text-domain');
                     }
                     ?>

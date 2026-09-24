@@ -88,6 +88,7 @@
     const categoryOverviewEnabled = !!categoryOverviewConfig.enabled;
     const categoryOverviewCatalogComplete = categoryOverviewConfig.catalog_complete !== false;
     const categoryOverviewShowAllCategories = categoryOverviewConfig.show_all_categories === true;
+    categoryOverviewGeneration = String(categoryOverviewConfig.generation || '');
     const categoryOverviewBatchSize = Math.max(1, Math.min(20, parseInt(categoryOverviewConfig.batch_size, 10) || 6));
     const categoryOverviewMaxAutoRetries = Math.max(1, Math.min(30, parseInt(categoryOverviewConfig.max_auto_retries, 10) || 12));
     const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
@@ -1742,6 +1743,16 @@
     function setupCategoryOverview() {
         const el = window.llRecorder;
         if (!categoryOverviewEnabled || !el?.categoryOverview || !el.categoryOverviewGrid) return;
+        const settlePreviewImage = event => {
+            const image = event.target;
+            if (!(image instanceof HTMLImageElement)) return;
+            image.closest('[data-ll-recorder-preview-loading="true"]')?.removeAttribute('data-ll-recorder-preview-loading');
+        };
+        el.categoryOverviewGrid.addEventListener('load', settlePreviewImage, true);
+        el.categoryOverviewGrid.addEventListener('error', settlePreviewImage, true);
+        el.categoryOverviewGrid.querySelectorAll('img').forEach(image => {
+            if (image.complete) settlePreviewImage({ target: image });
+        });
         el.categoryOverviewGrid.addEventListener('click', event => {
             const card = event.target?.closest?.('.ll-recorder-category-card[data-recorder-queue-category]');
             if (!card || card.disabled) return;

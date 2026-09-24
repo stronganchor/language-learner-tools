@@ -306,6 +306,257 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_cached_overview_reads_all_known_categories_and_leaves_one_invalidated_category_pending(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(5);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+
+        $warm_status = [];
+        $warm_states = [];
+        $warm_groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+            $fixture['categories'],
+            $wordset_id,
+            $recorder_id,
+            '',
+            '',
+            count($fixture['categories']),
+            $warm_status,
+            $warm_states
+        );
+        $this->assertCount(5, $warm_groups);
+
+        $candidate_queries = 0;
+        $query_watcher = static function (WP_Query $query) use (&$candidate_queries): void {
+            if (
+                $query->get('post_type') === 'words'
+                && $query->get('fields') === 'ids'
+                && (int) $query->get('posts_per_page') === 120
+                && (bool) $query->get('no_found_rows')
+            ) {
+                $candidate_queries++;
+            }
+        };
+        add_action('pre_get_posts', $query_watcher);
+
+        try {
+            $cached = ll_tools_wordset_page_get_recorder_queue_cached_overview(
+                $wordset_id,
+                $recorder_id,
+                $fixture['categories']
+            );
+            $this->assertTrue((bool) $cached['complete']);
+            $this->assertSame(5, count((array) $cached['resolved_slugs']));
+            $this->assertSame([], (array) $cached['pending_slugs']);
+            $this->assertCount(5, (array) $cached['groups']);
+            $this->assertSame(0, $candidate_queries);
+
+            $changed_category = $fixture['categories'][2];
+            $this->assertContains(
+                (int) $changed_category['id'],
+                ll_tools_bump_category_cache_versions_only([(int) $changed_category['id']])
+            );
+            $partially_cached = ll_tools_wordset_page_get_recorder_queue_cached_overview(
+                $wordset_id,
+                $recorder_id,
+                $fixture['categories']
+            );
+
+            $this->assertFalse((bool) $partially_cached['complete']);
+            $this->assertSame([(string) $changed_category['slug']], (array) $partially_cached['pending_slugs']);
+            $this->assertCount(4, (array) $partially_cached['groups']);
+            $this->assertSame(0, $candidate_queries);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+        }
+    }
+
+    public function test_targeted_warmup_rebuilds_only_the_changed_category(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(4);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+
+        $warm_status = [];
+        $warm_states = [];
+        ll_tools_wordset_page_build_recorder_queue_summary_groups(
+            $fixture['categories'],
+            $wordset_id,
+            $recorder_id,
+            '',
+            '',
+            count($fixture['categories']),
+            $warm_status,
+            $warm_states
+        );
+        $changed_category = $fixture['categories'][1];
+        $this->assertContains(
+            (int) $changed_category['id'],
+            ll_tools_bump_category_cache_versions_only([(int) $changed_category['id']])
+        );
+
+        $candidate_queries = 0;
+        $query_watcher = static function (WP_Query $query) use (&$candidate_queries): void {
+            if (
+                $query->get('post_type') === 'words'
+                && $query->get('fields') === 'ids'
+                && (int) $query->get('posts_per_page') === 120
+                && (bool) $query->get('no_found_rows')
+            ) {
+                $candidate_queries++;
+            }
+        };
+        add_action('pre_get_posts', $query_watcher);
+
+        $hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+        $event_args = [
+            $wordset_id,
+            $recorder_id,
+            '',
+            '',
+            '',
+            0,
+            [(string) $changed_category['slug']],
+        ];
+        try {
+            $this->assertTrue(ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                '',
+                0,
+                [(string) $changed_category['slug']]
+            ));
+            $this->assertNotFalse(wp_next_scheduled($hook, $event_args));
+
+            ll_tools_wordset_page_run_recorder_queue_summary_warmup(...$event_args);
+
+            $cached = ll_tools_wordset_page_get_recorder_queue_cached_overview(
+                $wordset_id,
+                $recorder_id,
+                $fixture['categories']
+            );
+            $this->assertTrue((bool) $cached['complete']);
+            $this->assertSame([], (array) $cached['pending_slugs']);
+            $this->assertCount(4, (array) $cached['groups']);
+            $this->assertSame(1, $candidate_queries);
+        } finally {
+            remove_action('pre_get_posts', $query_watcher);
+            wp_clear_scheduled_hook($hook, $event_args);
+        }
+    }
+
+    public function test_recorder_config_save_schedules_a_bounded_full_summary_prewarm(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $fixture = $this->createWordsetWithCategories(3);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+
+        try {
+            ll_set_user_recording_config($recorder_id, [
+                'wordset' => (string) $wordset_term->slug,
+                'include_recording_types' => 'isolation',
+            ]);
+
+            $catalog_complete = true;
+            $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+                $wordset_id,
+                $recorder_id,
+                $catalog_complete
+            );
+            $this->assertTrue($catalog_complete);
+            $scope = ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
+                $wordset_id,
+                $recorder_id,
+                $categories,
+                'isolation',
+                ''
+            );
+            $event_args = [
+                $wordset_id,
+                $recorder_id,
+                'isolation',
+                '',
+                (string) ($scope['generation'] ?? ''),
+                0,
+                [],
+            ];
+
+            $this->assertNotEmpty($event_args[4]);
+            $this->assertNotFalse(wp_next_scheduled($hook, $event_args));
+        } finally {
+            if (isset($event_args) && is_array($event_args)) {
+                wp_clear_scheduled_hook($hook, $event_args);
+            }
+        }
+    }
+
+    public function test_audio_change_schedules_only_its_recorder_category_summary_refresh(): void
+    {
+        $fixture = $this->createWordsetWithCategories(3);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $category = $fixture['categories'][1];
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Changed recorder summary word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [(int) $category['id']], 'word-category', false);
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_author' => $recorder_id,
+        ]);
+
+        $hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+        $event_args = [
+            $wordset_id,
+            $recorder_id,
+            '',
+            '',
+            '',
+            0,
+            [(string) $category['slug']],
+        ];
+        try {
+            do_action(
+                'll_tools_word_audio_parent_category_cache_bumped',
+                [(int) $category['id']],
+                $audio_id,
+                $word_id
+            );
+
+            $this->assertNotFalse(wp_next_scheduled($hook, $event_args));
+            $this->assertFalse(wp_next_scheduled($hook, [
+                $wordset_id,
+                $recorder_id,
+                '',
+                '',
+                '',
+                0,
+                [],
+            ]));
+        } finally {
+            wp_clear_scheduled_hook($hook, $event_args);
+        }
+    }
+
     public function test_manifest_merge_compacts_card_data_and_preserves_the_newer_source_fence(): void
     {
         $generation = md5('recorder-manifest-' . wp_generate_uuid4());

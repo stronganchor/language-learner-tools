@@ -1962,13 +1962,27 @@ function ll_tools_bump_word_audio_parent_category_cache(int $audio_post_id, bool
         // The content helper resolves direct, prompt-card, and specific-wrong
         // references in one pass. Pre-collecting categories here duplicated the
         // expensive reverse-scope discovery for every audio mutation.
-        return ll_tools_bump_content_post_quiz_cache($parent_word_id, [], [], true, $schedule_final);
+        $category_ids = ll_tools_bump_content_post_quiz_cache($parent_word_id, [], [], true, $schedule_final);
+        do_action(
+            'll_tools_word_audio_parent_category_cache_bumped',
+            $category_ids,
+            $audio_post_id,
+            $parent_word_id
+        );
+        return $category_ids;
     }
 
     $term_ids = ll_tools_get_word_audio_parent_category_ids($audio_post_id);
     if (!empty($term_ids)) {
         ll_tools_bump_category_cache_version($term_ids);
     }
+
+    do_action(
+        'll_tools_word_audio_parent_category_cache_bumped',
+        $term_ids,
+        $audio_post_id,
+        0
+    );
 
     return $term_ids;
 }

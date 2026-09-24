@@ -376,6 +376,16 @@
     object-fit: cover;
 }
 
+.ll-recording-interface .ll-wordset-preview-item--image[data-ll-recorder-preview-loading="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0.08) 18%, rgba(255, 255, 255, 0.82) 36%, rgba(255, 255, 255, 0.08) 54%);
+    background-size: 220% 100%;
+    animation: ll-recorder-category-sheen 1.15s linear infinite;
+    pointer-events: none;
+}
+
 .ll-recording-interface .ll-wordset-preview-item--text {
     padding: 5px;
     box-sizing: border-box;

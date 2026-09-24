@@ -38,6 +38,78 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-utility-bar--context-recorder', $markup);
     }
 
+    public function test_cached_recorder_overview_renders_only_categories_that_need_recordings(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_id = $this->ensure_term('wordset', 'Cached Recorder Overview', 'cached-recorder-overview');
+        $recording_type_id = $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        $pending_category_id = $this->ensure_term('word-category', 'Pending Recorder Category', 'pending-recorder-category');
+        $complete_category_id = $this->ensure_term('word-category', 'Complete Recorder Category', 'complete-recorder-category');
+        foreach ([$pending_category_id, $complete_category_id] as $category_id) {
+            update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+            ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        }
+
+        $pending_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Pending Recorder Word',
+        ]);
+        wp_set_object_terms($pending_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($pending_word_id, [$pending_category_id], 'word-category', false);
+
+        $complete_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Complete Recorder Word',
+        ]);
+        wp_set_object_terms($complete_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($complete_word_id, [$complete_category_id], 'word-category', false);
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $complete_word_id,
+        ]);
+        wp_set_object_terms($recording_id, [$recording_type_id], 'recording_type', false);
+
+        $catalog_complete = true;
+        $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+            $wordset_id,
+            $admin_id,
+            $catalog_complete
+        );
+        $this->assertTrue($catalog_complete);
+        $warm_status = [];
+        $warm_states = [];
+        $groups = ll_tools_wordset_page_build_recorder_queue_summary_groups(
+            $categories,
+            $wordset_id,
+            $admin_id,
+            '',
+            '',
+            count($categories),
+            $warm_status,
+            $warm_states
+        );
+        $this->assertCount(1, $groups);
+        $this->assertSame('pending-recorder-category', (string) ($groups[0]['slug'] ?? ''));
+
+        $output = do_shortcode('[audio_recording_interface wordset="cached-recorder-overview"]');
+
+        $this->assertStringContainsString('data-recorder-queue-category="pending-recorder-category"', $output);
+        $this->assertStringContainsString('data-recorder-queue-count="1"', $output);
+        $this->assertStringContainsString('ll_record_category=pending-recorder-category', $output);
+        $this->assertMatchesRegularExpression(
+            '/<a\s+class="[^"]*ll-recorder-category-card[^"]*"\s+href="[^"]*ll_record_category=pending-recorder-category"/s',
+            $output
+        );
+        $this->assertStringNotContainsString('data-recorder-queue-category="complete-recorder-category"', $output);
+        $this->assertStringNotContainsString('data-ll-recorder-queue-summary-placeholder="true"', $output);
+    }
+
     public function test_audio_recording_shortcode_renders_overlay_shells_and_core_controls(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

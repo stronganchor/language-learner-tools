@@ -75,7 +75,12 @@ function ll_set_user_recording_config($user_id, $config) {
         }
     }
 
-    return update_user_meta($user_id, 'll_recording_config', $filtered_config);
+    $updated = update_user_meta($user_id, 'll_recording_config', $filtered_config);
+    if ($updated !== false) {
+        do_action('ll_tools_recorder_config_saved', (int) $user_id, $filtered_config);
+    }
+
+    return $updated;
 }
 
 /**
