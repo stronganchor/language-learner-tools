@@ -116,9 +116,12 @@ async function mountDictionaryHarness(page, options = {}) {
       debounceMs: 80,
       loadingCards: 2,
       cacheSize: 0,
+      request_timeout_ms: Number(config && config.requestTimeoutMs) || 15000,
       loadingLabel: 'Loading dictionary results...',
       detailLoadingLabel: 'Loading dictionary entry...',
-      toolbarLoadingLabel: 'Loading dictionary filters...'
+      toolbarLoadingLabel: 'Loading dictionary filters...',
+      readError: 'Dictionary results could not be loaded.',
+      retry: 'Retry'
     };
 
     window.__dictionaryFetchCalls = [];
@@ -126,6 +129,7 @@ async function mountDictionaryHarness(page, options = {}) {
     let toolbarRetryableRemaining = Math.max(0, Number(config && config.toolbarRetryableResponses) || 0);
     let liveSearchWarmingRemaining = Math.max(0, Number(config && config.liveSearchWarmingResponses) || 0);
     let liveSearchRetryableRemaining = Math.max(0, Number(config && config.liveSearchRetryableResponses) || 0);
+    let liveSearchFailureRemaining = Math.max(0, Number(config && config.liveSearchFailureResponses) || 0);
     window.fetch = async (_url, init = {}) => {
       const requestData = {};
       const body = init && init.body;
@@ -247,6 +251,22 @@ async function mountDictionaryHarness(page, options = {}) {
       }
 
       if (requestData.action === 'll_tools_dictionary_live_search') {
+        const query = requestData.ll_dictionary_q || '';
+        if (liveSearchFailureRemaining > 0) {
+          liveSearchFailureRemaining -= 1;
+          throw new Error('Failed to fetch');
+        }
+        if (config && config.liveSearchNeverSettles) {
+          await new Promise((_resolve, reject) => {
+            if (init.signal) {
+              init.signal.addEventListener('abort', () => {
+                const error = new Error('Aborted');
+                error.name = 'AbortError';
+                reject(error);
+              }, { once: true });
+            }
+          });
+        }
         if (liveSearchRetryableRemaining > 0) {
           liveSearchRetryableRemaining -= 1;
           return {
@@ -281,33 +301,55 @@ async function mountDictionaryHarness(page, options = {}) {
           });
         }
 
-        const query = requestData.ll_dictionary_q || '';
         return {
           ok: true,
-          json: async () => ({
-            success: true,
-            data: {
-              html: `
-                <article class="ll-dictionary__entry">
-                  <h3 class="ll-dictionary__title">Preview:${query || 'Entry'}</h3>
-                  Query:${query}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}
-                  <div class="ll-dictionary__card-actions">
-                    <a
-                      class="ll-dictionary__details-link"
-                      href="https://example.com/dictionary/?ll_dictionary_entry=77"
-                      data-ll-dictionary-detail-link
-                      data-entry-id="77"
-                    >View details</a>
-                    <span class="ll-dictionary__detail-chips">
-                      <span class="ll-dictionary__detail-chip">+2 examples</span>
-                    </span>
-                  </div>
-                </article>
-              `,
-              has_active_query: true,
-              url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(query)}`
+          json: async () => {
+            const staleMalformedQuery = String(config && config.staleMalformedQuery || '');
+            const isStaleMalformedQuery = staleMalformedQuery !== '' && staleMalformedQuery === query;
+            const bodyDelayMs = isStaleMalformedQuery
+              ? Number(config.staleMalformedDelayMs || 200)
+              : Number(config && config.liveSearchBodyDelayMs || 0);
+            if (bodyDelayMs > 0) {
+              await new Promise((resolve, reject) => {
+                const timer = setTimeout(resolve, bodyDelayMs);
+                if (init.signal && !isStaleMalformedQuery) {
+                  init.signal.addEventListener('abort', () => {
+                    clearTimeout(timer);
+                    const error = new Error('Aborted');
+                    error.name = 'AbortError';
+                    reject(error);
+                  }, { once: true });
+                }
+              });
             }
-          })
+            if (config && (config.malformedLiveSearchBody || isStaleMalformedQuery)) {
+              throw new SyntaxError('Unexpected token < in JSON');
+            }
+            return {
+              success: true,
+              data: {
+                html: `
+                  <article class="ll-dictionary__entry">
+                    <h3 class="ll-dictionary__title">Preview:${query || 'Entry'}</h3>
+                    Query:${query}; Scope:${requestData.ll_dictionary_scope || 'all'}; Source:${requestData.ll_dictionary_source || 'all'}; Letter:${requestData.ll_dictionary_letter || ''}
+                    <div class="ll-dictionary__card-actions">
+                      <a
+                        class="ll-dictionary__details-link"
+                        href="https://example.com/dictionary/?ll_dictionary_entry=77"
+                        data-ll-dictionary-detail-link
+                        data-entry-id="77"
+                      >View details</a>
+                      <span class="ll-dictionary__detail-chips">
+                        <span class="ll-dictionary__detail-chip">+2 examples</span>
+                      </span>
+                    </div>
+                  </article>
+                `,
+                has_active_query: true,
+                url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(query)}`
+              }
+            };
+          }
         };
       }
 
@@ -457,6 +499,17 @@ test('caps warming retries when another toolbar build does not finish', async ({
   await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(0);
 });
 
+test('restores focus inside the deferred toolbar after an explicit retry', async ({ page }) => {
+  await mountDictionaryHarness(page, { toolbarWarmingResponses: 4 });
+
+  await page.locator('#ll-dictionary-search').focus();
+  const retry = page.locator('[data-ll-dictionary-toolbar-retry]');
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(page.locator('[data-ll-dictionary-filter-menu]')).toHaveCount(2);
+  await expect(page.locator('[data-ll-dictionary-filter-menu] summary').first()).toBeFocused();
+});
+
 test('live search accepts one-character queries', async ({ page }) => {
   await mountDictionaryHarness(page);
 
@@ -505,6 +558,74 @@ test('shows the loading skeleton immediately while live search is pending', asyn
   await expect(page.locator('[data-ll-dictionary-results]')).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; Source:all');
   await expect(page.locator('[data-ll-dictionary-results]')).not.toHaveAttribute('aria-busy', 'true');
+});
+
+test('shows localized terminal read feedback and retries the unchanged query', async ({ page }) => {
+  await mountDictionaryHarness(page, { liveSearchFailureResponses: 1 });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  const results = page.locator('[data-ll-dictionary-results]');
+  await expect(results).toContainText('Dictionary results could not be loaded.');
+  await expect(results.locator('[data-ll-dictionary-results-retry]')).toHaveText('Retry');
+
+  await results.locator('[data-ll-dictionary-results-retry]').click();
+  await expect(results).toContainText('Query:ap; Scope:all; Source:all');
+  await expect(results).toBeFocused();
+
+  const searchCalls = await page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_live_search'));
+  expect(searchCalls).toHaveLength(2);
+  expect(searchCalls.map((call) => call.ll_dictionary_q)).toEqual(['ap', 'ap']);
+});
+
+test('bounds a stalled read and offers an explicit retry', async ({ page }) => {
+  test.setTimeout(10000);
+  await mountDictionaryHarness(page, {
+    liveSearchNeverSettles: true,
+    requestTimeoutMs: 3000
+  });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('.ll-dictionary__loading')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-results-retry]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-ll-dictionary-results]')).not.toHaveAttribute('aria-busy', 'true');
+});
+
+test('keeps the read deadline active while the response body is pending', async ({ page }) => {
+  test.setTimeout(10000);
+  await mountDictionaryHarness(page, {
+    liveSearchBodyDelayMs: 5000,
+    requestTimeoutMs: 3000
+  });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('.ll-dictionary__loading')).toBeVisible();
+  await expect(page.locator('[data-ll-dictionary-results-retry]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Dictionary results could not be loaded.');
+});
+
+test('turns malformed live-search JSON into localized terminal feedback', async ({ page }) => {
+  await mountDictionaryHarness(page, { malformedLiveSearchBody: true });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Dictionary results could not be loaded.');
+  await expect(page.locator('[data-ll-dictionary-results]')).not.toContainText('Unexpected token');
+});
+
+test('does not let an older malformed response replace newer results', async ({ page }) => {
+  await mountDictionaryHarness(page, {
+    staleMalformedQuery: 'a',
+    staleMalformedDelayMs: 250
+  });
+
+  await page.locator('#ll-dictionary-search').fill('a');
+  await expect.poll(async () => page.evaluate(() => window.__dictionaryFetchCalls
+    .filter((call) => call.action === 'll_tools_dictionary_live_search').length)).toBe(1);
+  await page.locator('#ll-dictionary-search').fill('ab');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ab; Scope:all; Source:all');
+  await page.waitForTimeout(300);
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ab; Scope:all; Source:all');
+  await expect(page.locator('[data-ll-dictionary-results-retry]')).toHaveCount(0);
 });
 
 test('opens entry details in place and restores the live search results', async ({ page }) => {

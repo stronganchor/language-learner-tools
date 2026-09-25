@@ -447,7 +447,7 @@ For behavior changes touching quiz/recording flows:
    option parity. Query-shape assertions should keep primary/prompt scans on
    keysets and page reads on a metadata-first row/byte budget; do not weaken
    them to accept a full-category fallback.
-4. For recorder overview-summary shell, timeout, retry, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js`.
+4. For recorder overview-summary shell, timeout, retry, prewarm, or catalog changes, first run `tests/bin/run-tests.sh --filter WordsetRecorderQueueOverviewResourceTest` and `tests/bin/run-e2e.sh specs/wordset-manager-settings-ui.spec.js specs/audio-recorder-category-switch.spec.js`. The manager's neutral shells and the shortcode's native named links are different presentation contracts; keep both covered, including focus retention during hydration.
 5. For recorder-queue cursor/continuation changes, first run `tests/bin/run-tests.sh --filter AudioRecordingShortcodeHelpersTest` and `tests/bin/run-e2e.sh specs/audio-recorder-category-switch.spec.js`. These protect signed-cursor rebasing, cumulative same-page legacy/prompt state, and empty-but-continuable client behavior.
 6. For raw-password REST admission, run `Integration/RestPasswordAuthAdmissionTest.php`. For public dictionary input, run `Integration/DictionaryPublicFilterBoundsTest.php`. For inactive previews and lesson maps, run `Integration/WordsetPageInactiveCategoryCardsTest.php` and `Integration/WordsetPageWarmLessonMapTest.php`. For masked-media fallback cache changes, run `Integration/MediaProxyFallbackCacheTest.php`.
 7. `tests/bin/run-tests.sh`

@@ -489,6 +489,12 @@ return [
                     'start' => "'loadingLabel' =>",
                     'end' => "'toolbarLoadingLabel' =>",
                 ],
+                [
+                    'name' => 'public-dictionary-recovery',
+                    'symbol' => 'll_tools_dictionary_enqueue_assets',
+                    'start' => "'readError' =>",
+                    'end' => "'retry' =>",
+                ],
             ],
         ],
         ['path' => 'includes/shortcodes/flashcard-widget.php'],

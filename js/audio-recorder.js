@@ -1594,7 +1594,17 @@
         template.innerHTML = html.trim();
         const cardElement = template.content.firstElementChild;
         if (!cardElement) return false;
+        const activeElement = document.activeElement;
+        const shouldRestoreFocus = activeElement === replaceTarget
+            || (activeElement && replaceTarget.contains(activeElement));
         replaceTarget.replaceWith(cardElement);
+        if (shouldRestoreFocus && typeof cardElement.focus === 'function') {
+            try {
+                cardElement.focus({ preventScroll: true });
+            } catch (error) {
+                cardElement.focus();
+            }
+        }
         updateCategoryOverviewOption(card);
         syncCategoryOverviewPlaceholderVisibility();
         return true;

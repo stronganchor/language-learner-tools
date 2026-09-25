@@ -83,6 +83,19 @@ rows per word (8151 audio rows). It also creates one fixture-tagged
 both isolation and question audio while seeding only isolation audio. This
 produces bounded but meaningful queue work in all 209 categories.
 
+The `2026-09-25-genc.2` fixture opts into truthful attachment dimensions and a
+real WordPress `medium` derivative. Source discovery is capped at 24 images,
+and the seeder creates at most one verified derivative per materialized source
+file; the 2717 attachment rows reuse that bounded physical pool instead of
+performing thousands of redundant resizes. The default, XL, and stress
+fixtures keep their existing media contract. If the active WordPress image
+editor cannot create and read back the selected derivative, Genç seeding fails
+before deleting the current fixture instead of silently benchmarking full-size
+files as medium previews. GD or Imagick must therefore be enabled for the PHP
+process that runs the Genç seeder. A process-local override is sufficient (for
+example, invoke the WP-CLI PHP binary with `-d extension=gd`); no global PHP
+configuration change is required.
+
 Authenticated scenarios measure the settings hub, recorder-queue initial
 usability, and the separate navigation-to-completion time for all lazy summary
 batches. The lazy-completion samples retain the category counts observed when
@@ -101,6 +114,81 @@ refreshes affected cards without restarting that bounded stream. Genç history i
 written to `tests/performance/reports/performance-latest-genc.*`. Set
 `LL_E2E_ADMIN_USER` and `LL_E2E_ADMIN_PASS` in `tests/.env.local`; these are the
 manager credentials, not the generated recorder account.
+
+Recorder completion samples also retain navigation-to-completion and strict
+interaction-phase summary request durations/response-start timings, media
+resource counts and transfer/encoded bytes, and a bounded list of slow media.
+Response waiting includes network contention and is not a PHP-only measurement.
+For a paired media-isolation diagnostic on the same verified fixture, run:
+
+```bash
+LL_PERF_PROFILE=genc LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_WRITE_HISTORY=0 LL_E2E_PERF_COMPARE_HISTORY=0 tests/bin/run-performance-benchmark.sh
+LL_PERF_PROFILE=genc LL_PERF_SKIP_SEED=1 LL_E2E_PERF_RUNS=1 LL_E2E_PERF_RECORDER_BLOCK_MEDIA=1 tests/bin/run-performance-benchmark.sh
+```
+
+The second command blocks image/media requests only for recorder completion,
+uses the separate `recorder-media-blocked-v1` diagnostic/report suffix, and
+disables history comparison/writes. It keeps all normal budgets unchanged and
+must never be presented as normal user-visible page performance. Separate
+cold/warm cache state when interpreting the pair.
+
+Add `LL_E2E_PERF_RECORDER_ONLY=1` to measure only the recorder completion
+scenario. It uses `recorder-only-v1` and a `-recorder-only.json` report suffix;
+combining it with media blocking uses the media-blocked identity instead.
+Both diagnostics disable historical comparison and writes. A failed recorder
+scenario attaches its partial request timings (including in-flight elapsed
+time), media bytes, and remaining placeholders without turning failure into a
+successful sample; prior completed scenarios remain in the partial diagnostic.
+
+### Recorder summary server profile
+
+Use the tracked WP-CLI profiler when the browser completion result needs to be
+separated into PHP/SQL cache-rebuild cost. Run cold first and warm second as
+separate WP-CLI processes from the plugin root:
+
+```bash
+wp eval-file tests/performance/profile-recorder-summary.php cold 80 180
+wp eval-file tests/performance/profile-recorder-summary.php warm 80 180
+wp eval-file tests/performance/profile-recorder-summary.php reset
+```
+
+The profiler refuses any fixture except the checksum-verified, fixture-tagged
+Genç wordset and recorder. It requires exactly 209 categories, 13 words per
+category, and the normal six-category server batch. The cold phase deletes only
+the 211 exact derived recorder-summary keys (catalog, manifest, and one key per
+category); it never flushes a broad cache or changes content. Work is capped by
+the supplied batch and wall-time limits (hard maxima: 120 batches and 300
+seconds) and eight attempts per category. Catalog and fixture verification are
+deliberately outside the timed interval. Incomplete work exits nonzero and the
+JSON output retains remaining slugs and per-batch timing/query evidence.
+
+Use `reset` immediately before each arm of a paired recorder browser diagnostic.
+It reproduces the unfocused recorder-page selection and fails before deletion
+unless that page would select the checksum-verified, tagged fixture recorder.
+On success it deletes the same 211 exact keys as `cold`, reports the selected
+recorder ID, assigned-recorder count, locale, normalized recording-type scope,
+and cache schema, then exits without rebuilding. Run each browser arm in a
+fresh process after its own successful reset. Confirm the reset scope matches
+the browser context and do not compare arms whose initial loaded and placeholder
+counts differ.
+
+The 2026-09-25 Local server baseline on the older `2026-07-13-genc.1` fixture
+completed all 209 categories in 35 batches. Cold
+rebuild took 26,191.566 ms and 6,295 queries after 211 exact-key deletions; the
+separate warm process took 296.970 ms and 3 queries. These are server-only
+diagnostics, not browser latency or a user-visible performance budget.
+The old normal/media-blocked browser arms started with different summary cache
+states and cannot establish a media-isolation improvement. The corrected
+`2026-09-25-genc.2` preview fixture starts a new baseline; never compare its
+browser times to the old full-size-image fixture as a production speedup.
+On September 25, the corrected fixture's single cold normal and media-blocked
+arms both started at zero loaded / 209 placeholders after independent guarded
+211-key resets. Both missed 120 seconds: normal reached 171/209 with 2,280,301
+media bytes and a 3,845 ms summary-request median; blocked reached 99/209 with
+zero media bytes and a 5,879 ms median. Concurrency stayed at one. This pair
+does not establish a causal media speedup or regression: fresh-process AJAX
+phase profiling and repeated matched runs are still needed. See
+`MAINTENANCE_BACKLOG.md` issue `AUDIT-2026-09-18-08` for the next measurement.
 
 For full local stress coverage, use the opt-in stress profile:
 

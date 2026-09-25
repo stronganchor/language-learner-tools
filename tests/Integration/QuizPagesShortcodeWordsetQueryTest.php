@@ -131,6 +131,41 @@ final class QuizPagesShortcodeWordsetQueryTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_wordset_scoped_quiz_catalog_ignores_whitespace_password_shells_before_deduplication(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $wordset_id = $this->createTerm('Quiz Protected Shell Wordset', 'wordset');
+            $category_id = $this->createQuizzableCategory('Quiz Protected Shell Category');
+            $protected_page_id = $this->createQuizShellForCategory($category_id, 'Protected Quiz Shell');
+            wp_update_post([
+                'ID' => $protected_page_id,
+                'post_password' => '   ',
+            ]);
+            $public_page_id = $this->createQuizShellForCategory($category_id, 'Public Quiz Shell');
+            $this->createWord($wordset_id, $category_id, 'Quiz Protected Shell Word');
+
+            $wordset = get_term($wordset_id, 'wordset');
+            $this->assertInstanceOf(WP_Term::class, $wordset);
+            $items = ll_tools_quiz_pages_rebuild_catalog_data([
+                'wordset' => $wordset->slug,
+            ]);
+            $post_ids = array_values(array_map(static function (array $item): int {
+                return (int) ($item['post_id'] ?? 0);
+            }, $items));
+
+            $this->assertSame('   ', (string) get_post($protected_page_id)->post_password);
+            $this->assertSame([$public_page_id], $post_ids);
+            $this->assertNotContains($protected_page_id, $post_ids);
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
     private function createTerm(string $name, string $taxonomy): int
     {
         $created = wp_insert_term($name . ' ' . wp_generate_password(6, false), $taxonomy);

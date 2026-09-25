@@ -489,6 +489,145 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_public_static_cache_cold_rebuild_wait_is_opt_in(): void
+    {
+        $this->assertSame(0, ll_tools_public_static_cache_rebuild_wait_ms());
+    }
+
+    public function test_public_static_cache_expired_owner_cannot_release_replacement_lease(): void
+    {
+        $key = md5('public-static-cache-owner-fence-test');
+        $option = ll_tools_public_static_cache_rebuild_lock_option($key);
+        delete_option($option);
+
+        try {
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+            $owner_a = $GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key];
+
+            update_option($option, (time() - 10) . '|expired-owner', false);
+            unset($GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key]);
+
+            $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+            $owner_b = $GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key];
+            $this->assertNotSame($owner_a['lease_value'], $owner_b['lease_value']);
+
+            $GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key] = $owner_a;
+            ll_tools_public_static_cache_release_rebuild_lock($key);
+            $this->assertSame($owner_b['lease_value'], get_option($option));
+
+            $GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key] = $owner_b;
+            ll_tools_public_static_cache_release_rebuild_lock($key);
+            $this->assertFalse(get_option($option, false));
+        } finally {
+            delete_option($option);
+            unset($GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key]);
+        }
+    }
+
+    public function test_public_static_cache_old_purge_owner_cannot_clear_successor_quarantine(): void
+    {
+        $owner_a = 'purge-owner-a-' . wp_generate_password(12, false, false);
+        $owner_b = 'purge-owner-b-' . wp_generate_password(12, false, false);
+
+        $this->assertTrue(ll_tools_public_static_cache_quarantine($owner_a));
+        $this->assertTrue(ll_tools_public_static_cache_quarantine($owner_b));
+        $this->assertFalse(ll_tools_public_static_cache_clear_quarantine($owner_a));
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        $this->assertSame($owner_b, file_get_contents(ll_tools_public_static_cache_quarantine_file()));
+        $this->assertTrue(ll_tools_public_static_cache_clear_quarantine($owner_b));
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_public_static_cache_lock_and_generation_fail_closed_on_option_table_error(): void
+    {
+        global $wpdb;
+
+        $original_options_table = $wpdb->options;
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
+        $wpdb->options = $original_options_table . '_missing_for_public_cache_test';
+
+        try {
+            $this->assertFalse(ll_tools_public_static_cache_acquire_rebuild_lock(md5('db-error-lock')));
+            $this->assertSame('', ll_tools_public_static_cache_generation());
+            $this->assertSame('', ll_tools_public_static_cache_rotate_generation());
+            ll_tools_purge_public_static_cache();
+        } finally {
+            $wpdb->options = $original_options_table;
+            $wpdb->suppress_errors($previous_suppress_errors);
+            $wpdb->last_error = '';
+        }
+
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        $this->assertFalse(ll_tools_is_cacheable_public_static_request());
+        ll_tools_purge_public_static_cache(['wordset_ids' => [999999]]);
+        $this->assertTrue(ll_tools_public_static_cache_is_quarantined());
+        ll_tools_purge_public_static_cache();
+        $this->assertFalse(ll_tools_public_static_cache_is_quarantined());
+    }
+
+    public function test_public_static_cache_excludes_password_lessons_even_with_valid_unlock_cookie(): void
+    {
+        $cookie_name = 'wp-postpass_' . COOKIEHASH;
+        $original_cookie = $_COOKIE[$cookie_name] ?? null;
+
+        try {
+            require_once ABSPATH . WPINC . '/class-phpass.php';
+            $hasher = new PasswordHash(8, true);
+            foreach (['ll_vocab_lesson', 'll_content_lesson'] as $post_type) {
+                $password = 'shared-cache-secret-' . $post_type;
+                $post_id = self::factory()->post->create([
+                    'post_type' => $post_type,
+                    'post_status' => 'publish',
+                    'post_title' => 'Protected Static Cache Lesson',
+                    'post_password' => $password,
+                ]);
+                $_COOKIE[$cookie_name] = $hasher->HashPassword($password);
+
+                $this->go_to(get_permalink($post_id));
+                $this->assertFalse(post_password_required(get_post($post_id)));
+                $this->assertNull(ll_tools_public_static_cache_request_identity());
+            }
+        } finally {
+            if ($original_cookie === null) {
+                unset($_COOKIE[$cookie_name]);
+            } else {
+                $_COOKIE[$cookie_name] = $original_cookie;
+            }
+        }
+    }
+
+    public function test_static_cache_excludes_raw_whitespace_passwords(): void
+    {
+        $dictionary_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Whitespace Protected Dictionary',
+            'post_content' => '[ll_dictionary]',
+            'post_password' => '   ',
+        ]);
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Whitespace Protected Entry',
+            'post_password' => '   ',
+        ]);
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Whitespace Protected Lesson',
+            'post_password' => '   ',
+        ]);
+
+        $this->assertSame('   ', (string) get_post($dictionary_page_id)->post_password);
+        $this->assertFalse(ll_tools_dictionary_static_cache_entry_is_public($entry_id));
+
+        $this->go_to(get_permalink($dictionary_page_id));
+        $this->assertNull(ll_tools_dictionary_static_cache_request_identity());
+
+        $this->go_to(get_permalink($lesson_id));
+        $this->assertNull(ll_tools_public_static_cache_request_identity());
+    }
+
     public function test_public_static_cache_file_freshness_helpers_detect_stale_files(): void
     {
         $dir = ll_tools_public_static_cache_dir();
@@ -508,6 +647,64 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
 
         $this->assertTrue(ll_tools_public_static_cache_file_is_fresh($file, 60));
         $this->assertFalse(ll_tools_public_static_cache_file_is_stale($file, 60));
+    }
+
+    public function test_public_static_cache_reader_misses_while_publication_stripe_is_exclusive(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-reader-publication-lock-test.html';
+        file_put_contents(
+            $file,
+            ll_tools_public_static_cache_prepare_html_for_storage(
+                '<!doctype html><html><body>' . str_repeat('shared reader lock ', 40) . '</body></html>'
+            )
+        );
+
+        $publication_lock = ll_tools_public_static_cache_open_publication_lock($file, LOCK_EX);
+        $this->assertIsResource($publication_lock);
+        try {
+            $this->assertNull(ll_tools_public_static_cache_read_prepared_file($file));
+        } finally {
+            ll_tools_public_static_cache_close_publication_lock($publication_lock);
+        }
+
+        $this->assertIsString(ll_tools_public_static_cache_read_prepared_file($file));
+    }
+
+    public function test_public_static_cache_publication_locks_use_bounded_stripes(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file_by_stripe = [];
+        $collision = [];
+        for ($index = 0; $index <= 256; $index++) {
+            $file = trailingslashit($dir) . 'public-stripe-' . $index . '.html';
+            $stripe = substr(hash('sha256', wp_normalize_path($file)), 0, 2);
+            if (isset($file_by_stripe[$stripe])) {
+                $collision = [$file_by_stripe[$stripe], $file];
+                break;
+            }
+            $file_by_stripe[$stripe] = $file;
+        }
+        $this->assertCount(2, $collision);
+
+        $first_lock = ll_tools_public_static_cache_open_publication_lock($collision[0], LOCK_EX);
+        $this->assertIsResource($first_lock);
+        try {
+            $this->assertNull(ll_tools_public_static_cache_open_publication_lock($collision[1], LOCK_EX));
+        } finally {
+            ll_tools_public_static_cache_close_publication_lock($first_lock);
+        }
+
+        $this->assertLessThanOrEqual(
+            256,
+            count(glob(trailingslashit($dir) . '.ll-tools-public-static-publish-*.lock') ?: [])
+        );
     }
 
     public function test_static_caches_do_not_cache_front_page_requests(): void
@@ -606,6 +803,13 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
                 'wordset_id' => 17,
             ],
             'lock_acquired' => true,
+            'lease_value' => ll_tools_public_static_cache_get_rebuild_lease_value($key),
+            'generation' => ll_tools_public_static_cache_generation([
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/cached-wordset',
+                'wordset_id' => 17,
+            ]),
             'buffer_level' => $buffer_level,
         ];
 
@@ -624,6 +828,260 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertStringContainsString('public cache store test', (string) file_get_contents($file));
         $this->assertFalse(get_option($lock_option, false));
         delete_option($lock_option);
+    }
+
+    public function test_public_static_cache_purge_fences_capture_started_before_purge(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-generation-fence-test.html';
+        @unlink($file);
+        $key = md5('public-generation-fence-test');
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'identity' => [
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/generation-fenced-wordset',
+                'wordset_id' => 17,
+            ],
+            'lock_acquired' => true,
+            'lease_value' => ll_tools_public_static_cache_get_rebuild_lease_value($key),
+            'generation' => ll_tools_public_static_cache_generation([
+                'type' => 'wordset_main',
+                'id' => 17,
+                'path' => '/generation-fenced-wordset',
+                'wordset_id' => 17,
+            ]),
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('stale captured output ', 40) . '</body></html>';
+            ll_tools_purge_public_static_cache(['wordset_ids' => [999999]]);
+            ll_tools_store_public_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+
+        $this->assertFileDoesNotExist($file);
+        $this->assertFalse(get_option(ll_tools_public_static_cache_rebuild_lock_option($key), false));
+    }
+
+    public function test_public_static_cache_rebuild_does_not_overwrite_successor_publication(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-successor-publication-test.html';
+        @unlink($file);
+        $key = md5('public-successor-publication-test');
+        $identity = [
+            'type' => 'wordset_main',
+            'id' => 42,
+            'path' => '/successor-publication',
+            'wordset_id' => 42,
+        ];
+        $generation = ll_tools_public_static_cache_generation($identity);
+        $this->assertNotSame('', $generation);
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'identity' => $identity,
+            'lock_acquired' => true,
+            'lease_value' => ll_tools_public_static_cache_get_rebuild_lease_value($key),
+            'generation' => $generation,
+            'original_file_signature' => '',
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('older owner body ', 40) . '</body></html>';
+            file_put_contents(
+                $file,
+                ll_tools_public_static_cache_prepare_html_for_storage(
+                    '<!doctype html><html><body>' . str_repeat('successor body ', 40) . '</body></html>',
+                    $identity,
+                    $generation
+                )
+            );
+            ll_tools_store_public_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+
+        $stored = ll_tools_public_static_cache_read_prepared_file($file, $identity);
+        $this->assertIsString($stored);
+        $this->assertStringContainsString('successor body', $stored);
+        $this->assertStringNotContainsString('older owner body', $stored);
+    }
+
+    public function test_public_static_cache_discards_owner_that_loses_lease_between_precheck_and_rename(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-mid-publish-lease-turnover-test.html';
+        @unlink($file);
+        $key = md5('public-mid-publish-lease-turnover-test');
+        $identity = [
+            'type' => 'wordset_main',
+            'id' => 43,
+            'path' => '/mid-publish-lease-turnover',
+            'wordset_id' => 43,
+        ];
+        $generation = ll_tools_public_static_cache_generation($identity);
+        $this->assertNotSame('', $generation);
+        $this->assertTrue(ll_tools_public_static_cache_acquire_rebuild_lock($key));
+
+        $option_name = ll_tools_public_static_cache_rebuild_lock_option($key);
+        $successor_lease = (time() + 60) . '|successor-publish-owner';
+        $turnover_count = 0;
+        $replace_lease = static function (array $context, string $publishing_file) use (
+            &$turnover_count,
+            $file,
+            $option_name,
+            $successor_lease
+        ): void {
+            if ($publishing_file !== $file) {
+                return;
+            }
+            $turnover_count++;
+            update_option($option_name, $successor_lease, false);
+        };
+
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $buffer_level = ob_get_level();
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'identity' => $identity,
+            'lock_acquired' => true,
+            'lease_value' => ll_tools_public_static_cache_get_rebuild_lease_value($key),
+            'generation' => $generation,
+            'original_file_signature' => '',
+            'buffer_level' => $buffer_level,
+        ];
+
+        add_action('ll_tools_public_static_cache_before_publish_rename', $replace_lease, 10, 2);
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('expired owner body ', 40) . '</body></html>';
+            ll_tools_store_public_static_cache();
+        } finally {
+            remove_action('ll_tools_public_static_cache_before_publish_rename', $replace_lease, 10);
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+
+        $this->assertSame(1, $turnover_count);
+        $this->assertFileDoesNotExist($file);
+        $this->assertSame($successor_lease, get_option($option_name));
+
+        $GLOBALS['ll_tools_public_static_cache_rebuild_leases'][$key] = [
+            'option_name' => $option_name,
+            'lease_value' => $successor_lease,
+        ];
+        $GLOBALS['ll_tools_public_static_cache_request'] = [
+            'active' => true,
+            'key' => $key,
+            'file' => $file,
+            'identity' => $identity,
+            'lock_acquired' => true,
+            'lease_value' => $successor_lease,
+            'generation' => $generation,
+            'original_file_signature' => '',
+            'buffer_level' => $buffer_level,
+        ];
+
+        ob_start();
+        try {
+            echo '<!doctype html><html><body>' . str_repeat('successor owner body ', 40) . '</body></html>';
+            ll_tools_store_public_static_cache();
+        } finally {
+            while (ob_get_level() > $buffer_level) {
+                ob_end_clean();
+            }
+            unset($GLOBALS['ll_tools_public_static_cache_request']);
+        }
+
+        $stored = ll_tools_public_static_cache_read_prepared_file($file, $identity);
+        $this->assertIsString($stored);
+        $this->assertStringContainsString('successor owner body', $stored);
+        $this->assertStringNotContainsString('expired owner body', $stored);
+    }
+
+    public function test_public_static_cache_rejects_old_generation_file_without_deleting_it(): void
+    {
+        $dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'public-old-generation-test.html';
+        $generation = ll_tools_public_static_cache_generation();
+        $this->assertNotSame('', $generation);
+        file_put_contents(
+            $file,
+            ll_tools_public_static_cache_prepare_html_for_storage(
+                '<!doctype html><html><body>' . str_repeat('generation marker test ', 40) . '</body></html>',
+                null,
+                $generation
+            )
+        );
+
+        $this->assertIsString(ll_tools_public_static_cache_read_prepared_file($file));
+        $this->assertNotSame('', ll_tools_public_static_cache_rotate_generation());
+        $this->assertNull(ll_tools_public_static_cache_read_prepared_file($file));
+        $this->assertFileExists($file);
+    }
+
+    public function test_public_static_cache_targeted_generation_keeps_unrelated_identity_current(): void
+    {
+        $matching = [
+            'type' => 'wordset_main',
+            'id' => 17,
+            'path' => '/matching-generation',
+            'wordset_id' => 17,
+        ];
+        $unrelated = [
+            'type' => 'wordset_main',
+            'id' => 18,
+            'path' => '/unrelated-generation',
+            'wordset_id' => 18,
+        ];
+        $matching_before = ll_tools_public_static_cache_generation($matching);
+        $unrelated_before = ll_tools_public_static_cache_generation($unrelated);
+
+        $this->assertNotSame('', ll_tools_public_static_cache_rotate_generation(['wordset_ids' => [17]]));
+
+        $this->assertNotSame($matching_before, ll_tools_public_static_cache_generation($matching));
+        $this->assertSame($unrelated_before, ll_tools_public_static_cache_generation($unrelated));
     }
 
     public function test_public_static_cache_store_skips_oversized_payloads(): void
@@ -735,6 +1193,55 @@ final class PublicStaticCacheTest extends LL_Tools_TestCase
         $this->assertFileDoesNotExist($dictionary_file);
         $this->assertFileDoesNotExist($public_file);
         $this->assertFileDoesNotExist(ll_tools_public_static_cache_meta_file_path($public_file));
+    }
+
+    public function test_security_schema_migration_removes_only_generated_static_cache_files(): void
+    {
+        $dictionary_dir = ll_tools_dictionary_static_cache_dir();
+        $public_dir = ll_tools_public_static_cache_dir();
+        $this->assertNotSame('', $dictionary_dir);
+        $this->assertNotSame('', $public_dir);
+        $this->assertTrue(wp_mkdir_p($dictionary_dir));
+        $this->assertTrue(wp_mkdir_p($public_dir));
+
+        $dictionary_file = trailingslashit($dictionary_dir) . 'dictionary-legacy-security-schema.html';
+        $dictionary_unrelated = trailingslashit($dictionary_dir) . 'keep-unrelated.txt';
+        $public_file = trailingslashit($public_dir) . 'public-legacy-security-schema.html';
+        $public_unrelated = trailingslashit($public_dir) . 'keep-unrelated.txt';
+        file_put_contents($dictionary_file, '<!doctype html><html><body>legacy dictionary cache</body></html>');
+        file_put_contents($dictionary_unrelated, 'keep');
+        file_put_contents($public_file, '<!doctype html><html><body>legacy public cache</body></html>');
+        file_put_contents($public_unrelated, 'keep');
+
+        $old_dictionary_schema = get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, false);
+        $old_public_schema = get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, false);
+        update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA - 1, false);
+        update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA - 1, false);
+
+        try {
+            ll_tools_dictionary_static_cache_maybe_purge_legacy_schema();
+            ll_tools_public_static_cache_maybe_purge_legacy_schema();
+
+            $this->assertFileDoesNotExist($dictionary_file);
+            $this->assertFileExists($dictionary_unrelated);
+            $this->assertFileDoesNotExist($public_file);
+            $this->assertFileExists($public_unrelated);
+            $this->assertSame(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION));
+            $this->assertSame(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA, (int) get_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION));
+        } finally {
+            @unlink($dictionary_unrelated);
+            @unlink($public_unrelated);
+            if ($old_dictionary_schema === false) {
+                delete_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION);
+            } else {
+                update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, $old_dictionary_schema, false);
+            }
+            if ($old_public_schema === false) {
+                delete_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION);
+            } else {
+                update_option(LL_TOOLS_PUBLIC_STATIC_CACHE_SCHEMA_OPTION, $old_public_schema, false);
+            }
+        }
     }
 
     public function test_static_cache_purge_does_not_call_cloudflare_when_not_configured(): void

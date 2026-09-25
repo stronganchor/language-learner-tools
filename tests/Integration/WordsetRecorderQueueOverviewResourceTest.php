@@ -516,9 +516,12 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
         wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
 
         $option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
         $missing_option = '__ll_tools_missing_option__';
         $original_schema = get_option($option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
         delete_option($option_name);
+        delete_option($state_option_name);
         $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
         $upgrade_args = [0];
         $summary_hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
@@ -533,7 +536,11 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
 
             ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
 
-            $this->assertSame('6', (string) get_option($option_name));
+            $this->assertSame('7', (string) get_option($option_name));
+            $upgrade_state = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame('completed', (string) $upgrade_state['state']['status']);
+            $this->assertSame($recorder_id, (int) $upgrade_state['state']['last_user_id']);
+            $this->assertSame('', (string) $upgrade_state['state']['owner']);
             $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
                 $wordset_id,
                 $recorder_id,
@@ -559,6 +566,419 @@ final class WordsetRecorderQueueOverviewResourceTest extends LL_Tools_TestCase
                 delete_option($option_name);
             } else {
                 update_option($option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_recorder_summary_warmup_retry_plan_backs_off_then_pauses(): void
+    {
+        $this->assertSame(['attempts' => 1, 'delay' => 15],
+            ll_tools_wordset_page_recorder_queue_warmup_retry_plan(1));
+        $this->assertSame(['attempts' => 2, 'delay' => 30],
+            ll_tools_wordset_page_recorder_queue_warmup_retry_plan(2));
+        $this->assertSame(['attempts' => 3, 'delay' => 60],
+            ll_tools_wordset_page_recorder_queue_warmup_retry_plan(3));
+        $this->assertSame(['attempts' => 0, 'delay' => 15 * MINUTE_IN_SECONDS],
+            ll_tools_wordset_page_recorder_queue_warmup_retry_plan(4));
+    }
+
+    public function test_failed_summary_cron_insert_persists_and_rearms_a_bounded_intent(): void
+    {
+        $fixture = $this->createWordsetWithCategories(1);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+        $event_args = [$wordset_id, $recorder_id, '', '', '', 0, []];
+        $pending_option = ll_tools_wordset_page_recorder_queue_warmup_pending_option($event_args);
+        $fail_schedule = static function ($pre, $event) use ($hook) {
+            if (is_object($event) && (string) ($event->hook ?? '') === $hook) {
+                return false;
+            }
+            return $pre;
+        };
+        add_filter('pre_schedule_event', $fail_schedule, 10, 2);
+
+        try {
+            $this->assertFalse(ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+                $wordset_id,
+                $recorder_id
+            ));
+            $this->assertFalse(wp_next_scheduled($hook, $event_args));
+            $intent = get_option($pending_option, []);
+            $this->assertIsArray($intent);
+            $this->assertSame($event_args, array_values((array) ($intent['args'] ?? [])));
+            $this->assertSame(1, (int) ($intent['attempts'] ?? 0));
+            $this->assertGreaterThan(time(), (int) ($intent['next_attempt_at'] ?? 0));
+
+            remove_filter('pre_schedule_event', $fail_schedule, 10);
+            $intent['next_attempt_at'] = 0;
+            update_option($pending_option, $intent, false);
+            wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+
+            ll_tools_wordset_page_rearm_recorder_queue_warmup_pending_intents();
+
+            $this->assertNotFalse(wp_next_scheduled($hook, $event_args));
+            $this->assertFalse(get_option($pending_option, false));
+        } finally {
+            remove_filter('pre_schedule_event', $fail_schedule, 10);
+            wp_clear_scheduled_hook($hook, $event_args);
+            delete_option($pending_option);
+        }
+    }
+
+    public function test_upgrade_prewarm_cursor_uses_an_exact_owner_lease(): void
+    {
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($state_option_name);
+
+        try {
+            $first = ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state();
+            $this->assertIsArray($first);
+            $this->assertNotEmpty($first['owner_token']);
+            $this->assertTrue(ll_tools_wordset_page_recorder_queue_summary_upgrade_owner_is_current(
+                (string) $first['owner_token']
+            ));
+            $this->assertFalse(ll_tools_wordset_page_recorder_queue_summary_upgrade_owner_is_current(
+                'not-the-owner'
+            ));
+            $this->assertNull(ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state());
+            $this->assertFalse(ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+                'not-the-owner',
+                ['last_user_id' => 99]
+            ));
+            $this->assertTrue(ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+                (string) $first['owner_token'],
+                ['last_user_id' => 4, 'status' => 'pending']
+            ));
+
+            $checkpoint = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame(4, (int) $checkpoint['state']['last_user_id']);
+            $this->assertSame('', (string) $checkpoint['state']['owner']);
+            $this->assertFalse(ll_tools_wordset_page_recorder_queue_summary_upgrade_owner_is_current(
+                (string) $first['owner_token']
+            ));
+
+            $second = ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state();
+            $this->assertIsArray($second);
+            $this->assertNotSame((string) $first['owner_token'], (string) $second['owner_token']);
+            $this->assertTrue(ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+                (string) $second['owner_token'],
+                ['last_user_id' => 5, 'status' => 'pending']
+            ));
+
+            $expired = ll_tools_wordset_page_normalize_recorder_queue_summary_upgrade_state([
+                'last_user_id' => 5,
+                'status' => 'pending',
+                'owner' => 'boundary-owner',
+                'owner_expires' => time(),
+            ]);
+            update_option($state_option_name, $expired, false);
+            $this->assertFalse(ll_tools_wordset_page_recorder_queue_summary_upgrade_owner_is_current(
+                'boundary-owner'
+            ));
+            $replacement = ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state();
+            $this->assertIsArray($replacement);
+            $this->assertNotSame('boundary-owner', (string) ($replacement['owner_token'] ?? ''));
+        } finally {
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_completed_upgrade_checkpoint_repairs_a_missing_schema_marker(): void
+    {
+        $schema_option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($schema_option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($schema_option_name);
+        update_option(
+            $state_option_name,
+            ll_tools_wordset_page_normalize_recorder_queue_summary_upgrade_state([
+                'last_user_id' => 41,
+                'status' => 'completed',
+                'owner' => '',
+                'owner_expires' => 0,
+            ]),
+            false
+        );
+
+        try {
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $this->assertSame('7', (string) get_option($schema_option_name, ''));
+            $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame('completed', (string) $snapshot['state']['status']);
+            $this->assertSame(41, (int) $snapshot['state']['last_user_id']);
+            $this->assertSame('', (string) $snapshot['state']['owner']);
+        } finally {
+            if ($original_schema === $missing_option) {
+                delete_option($schema_option_name);
+            } else {
+                update_option($schema_option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_stale_upgrade_owner_cannot_publish_the_completion_marker(): void
+    {
+        $schema_option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($schema_option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($schema_option_name);
+        delete_option($state_option_name);
+        $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+        $lease_stolen = false;
+        $steal_lease = null;
+        $steal_lease = static function (string $query) use (
+            &$lease_stolen,
+            &$steal_lease,
+            $state_option_name
+        ): string {
+            if (
+                !$lease_stolen
+                && strpos($query, 'SELECT DISTINCT u.ID') !== false
+                && strpos($query, 'ORDER BY u.ID ASC') !== false
+            ) {
+                remove_filter('query', $steal_lease, 10);
+                $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+                $replacement = $snapshot['state'];
+                $replacement['owner'] = 'replacement-owner';
+                $replacement['owner_expires'] = time() + MINUTE_IN_SECONDS;
+                update_option($state_option_name, $replacement, false);
+                $lease_stolen = true;
+            }
+            return $query;
+        };
+        add_filter('query', $steal_lease, 10, 1);
+
+        try {
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $this->assertTrue($lease_stolen);
+            $this->assertNotSame('7', (string) get_option($schema_option_name, ''));
+            $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame('replacement-owner', (string) $snapshot['state']['owner']);
+            $this->assertSame('pending', (string) $snapshot['state']['status']);
+            $this->assertNotFalse(wp_next_scheduled($upgrade_hook, [0]));
+        } finally {
+            remove_filter('query', $steal_lease, 10);
+            wp_clear_scheduled_hook($upgrade_hook);
+            if ($original_schema === $missing_option) {
+                delete_option($schema_option_name);
+            } else {
+                update_option($schema_option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_upgrade_prewarm_does_not_advance_or_complete_when_child_schedule_fails(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $schema_option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($schema_option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($schema_option_name);
+        delete_option($state_option_name);
+        $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+        $summary_hook = 'll_tools_wordset_page_warm_recorder_queue_summaries';
+        $catalog_complete = true;
+        $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
+            (int) $fixture['wordset_id'],
+            $recorder_id,
+            $catalog_complete
+        );
+        $scope = ll_tools_wordset_page_build_recorder_queue_summary_manifest_scope(
+            (int) $fixture['wordset_id'],
+            $recorder_id,
+            $categories,
+            '',
+            ''
+        );
+        $summary_args = [
+            (int) $fixture['wordset_id'],
+            $recorder_id,
+            '',
+            '',
+            (string) ($scope['generation'] ?? ''),
+            0,
+            [],
+        ];
+        $pending_option = ll_tools_wordset_page_recorder_queue_warmup_pending_option($summary_args);
+        $fail_summary_schedule = static function ($pre, $event) use ($summary_hook) {
+            if (is_object($event) && (string) ($event->hook ?? '') === $summary_hook) {
+                return false;
+            }
+            return $pre;
+        };
+        add_filter('pre_schedule_event', $fail_summary_schedule, 10, 2);
+
+        try {
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $this->assertNotSame('7', (string) get_option($schema_option_name, ''));
+            $state = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame(0, (int) $state['state']['last_user_id']);
+            $this->assertSame(1, (int) $state['state']['no_progress_attempts']);
+            $this->assertSame('schedule_failed', (string) $state['state']['last_error']);
+            $this->assertSame('pending', (string) $state['state']['status']);
+            $this->assertSame('', (string) $state['state']['owner']);
+            $this->assertNotFalse(wp_next_scheduled($upgrade_hook, [0]));
+            $this->assertFalse(wp_next_scheduled($summary_hook));
+            $this->assertTrue($catalog_complete);
+            $this->assertNotEmpty($summary_args[4]);
+            $this->assertIsArray(get_option($pending_option, null));
+        } finally {
+            remove_filter('pre_schedule_event', $fail_summary_schedule, 10);
+            wp_clear_scheduled_hook($upgrade_hook);
+            wp_clear_scheduled_hook($summary_hook);
+            delete_option($pending_option);
+            if ($original_schema === $missing_option) {
+                delete_option($schema_option_name);
+            } else {
+                update_option($schema_option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_upgrade_prewarm_does_not_advance_past_an_incomplete_child_scope(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $fixture = $this->createWordsetWithCategories(2);
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        update_user_meta($recorder_id, 'll_recording_config', [
+            'wordset' => (string) $wordset_term->slug,
+        ]);
+
+        $schema_option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($schema_option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($schema_option_name);
+        delete_option($state_option_name);
+        $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+        $injected = false;
+        $term_failure = static function ($terms, array $taxonomies) use (&$injected) {
+            if (!$injected && in_array('word-category', $taxonomies, true)) {
+                $injected = true;
+                return new WP_Error('ll_tools_test_incomplete_upgrade_recorder_catalog');
+            }
+            return $terms;
+        };
+        add_filter('get_terms', $term_failure, 10, 2);
+
+        try {
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $this->assertTrue($injected);
+            $this->assertNotSame('7', (string) get_option($schema_option_name, ''));
+            $state = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame(0, (int) $state['state']['last_user_id']);
+            $this->assertSame(1, (int) $state['state']['no_progress_attempts']);
+            $this->assertSame('incomplete', (string) $state['state']['last_error']);
+            $this->assertSame('pending', (string) $state['state']['status']);
+            $this->assertSame('', (string) $state['state']['owner']);
+            $this->assertNotFalse(wp_next_scheduled($upgrade_hook, [0]));
+        } finally {
+            remove_filter('get_terms', $term_failure, 10);
+            wp_clear_scheduled_hook($upgrade_hook);
+            if ($original_schema === $missing_option) {
+                delete_option($schema_option_name);
+            } else {
+                update_option($schema_option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
+            }
+        }
+    }
+
+    public function test_upgrade_prewarm_keyset_does_not_skip_after_an_earlier_user_is_deleted(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $recorder_ids = [];
+        for ($index = 0; $index < 21; $index++) {
+            $recorder_ids[] = self::factory()->user->create(['role' => 'audio_recorder']);
+        }
+        sort($recorder_ids, SORT_NUMERIC);
+
+        $schema_option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
+        $state_option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+        $missing_option = '__ll_tools_missing_option__';
+        $original_schema = get_option($schema_option_name, $missing_option);
+        $original_state = get_option($state_option_name, $missing_option);
+        delete_option($schema_option_name);
+        delete_option($state_option_name);
+        $upgrade_hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+
+        try {
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $first_state = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertNotSame('7', (string) get_option($schema_option_name, ''));
+            $this->assertSame((int) $recorder_ids[19], (int) $first_state['state']['last_user_id']);
+
+            wp_delete_user((int) $recorder_ids[0]);
+            ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(0);
+
+            $final_state = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+            $this->assertSame('7', (string) get_option($schema_option_name, ''));
+            $this->assertSame((int) $recorder_ids[20], (int) $final_state['state']['last_user_id']);
+            $this->assertSame('completed', (string) $final_state['state']['status']);
+        } finally {
+            wp_clear_scheduled_hook($upgrade_hook);
+            if ($original_schema === $missing_option) {
+                delete_option($schema_option_name);
+            } else {
+                update_option($schema_option_name, $original_schema, false);
+            }
+            if ($original_state === $missing_option) {
+                delete_option($state_option_name);
+            } else {
+                update_option($state_option_name, $original_state, false);
             }
         }
     }

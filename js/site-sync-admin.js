@@ -8,6 +8,12 @@
     return strings[key] || '';
   }
 
+  function userFacingError(message) {
+    var error = new Error('request_failed');
+    error.llToolsUserMessage = String(message || '');
+    return error;
+  }
+
 
   function setLoading(container) {
     container.setAttribute('aria-busy', 'true');
@@ -82,12 +88,12 @@
       .then(function (payload) {
         if (!payload || !payload.success || !payload.data || !payload.data.html) {
           var message = payload && payload.data && payload.data.message ? payload.data.message : '';
-          throw new Error(message || t('overviewFailed'));
+          throw userFacingError(message || t('overviewFailed'));
         }
         container.outerHTML = payload.data.html;
       })
       .catch(function (error) {
-        setError(container, error && error.message ? error.message : '');
+        setError(container, error && error.llToolsUserMessage ? error.llToolsUserMessage : '');
       });
   }
 
@@ -177,7 +183,7 @@
         .then(function (payload) {
           if (!payload || !payload.success) {
             var message = payload && payload.data && payload.data.message ? payload.data.message : '';
-            throw new Error(message || t('applyFailed'));
+            throw userFacingError(message || t('applyFailed'));
           }
 
           var data = payload.data || {};
@@ -207,7 +213,7 @@
           if (button) {
             button.disabled = false;
           }
-          setApplyStatus(form, error && error.message ? error.message : t('applyFailed'), false);
+          setApplyStatus(form, error && error.llToolsUserMessage ? error.llToolsUserMessage : t('applyFailed'), false);
         });
     }
 

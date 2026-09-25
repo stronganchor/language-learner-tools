@@ -14829,11 +14829,6 @@
         });
     }
 
-    function collectWordIdsForCategories(categoryIds, options) {
-        const lists = buildWordIdListsByCategory(categoryIds, options);
-        return lists.filteredWordIds;
-    }
-
     function buildWordIdListsByCategory(categoryIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []);
@@ -14901,65 +14896,6 @@
         return out;
     }
 
-    function filterWordIdsByCategories(wordIds, categoryIds, allByCategory) {
-        const ids = uniqueIntList(wordIds || []);
-        const categoriesForWords = uniqueIntList(categoryIds || []);
-        if (!ids.length || !categoriesForWords.length) {
-            return [];
-        }
-
-        const allowedLookup = {};
-        categoriesForWords.forEach(function (categoryId) {
-            const words = (allByCategory && Array.isArray(allByCategory[categoryId])) ? allByCategory[categoryId] : [];
-            words.forEach(function (wordId) {
-                const wid = parseInt(wordId, 10) || 0;
-                if (wid > 0) {
-                    allowedLookup[wid] = true;
-                }
-            });
-        });
-
-        return ids.filter(function (wordId) {
-            return !!allowedLookup[wordId];
-        });
-    }
-
-    function collectUniqueWordIdsFromCategoryLists(categoryIds, wordsByCategoryMap) {
-        const out = [];
-        const seen = {};
-        uniqueIntList(categoryIds || []).forEach(function (categoryId) {
-            const ids = (wordsByCategoryMap && Array.isArray(wordsByCategoryMap[categoryId])) ? wordsByCategoryMap[categoryId] : [];
-            ids.forEach(function (wordId) {
-                const wid = parseInt(wordId, 10) || 0;
-                if (!wid || seen[wid]) { return; }
-                seen[wid] = true;
-                out.push(wid);
-            });
-        });
-        return out;
-    }
-
-    function getRepresentedCategoryIdsForWordIds(wordIds, categoryIds, wordsByCategoryMap) {
-        const categoryList = uniqueIntList(categoryIds || []);
-        const words = uniqueIntList(wordIds || []);
-        if (!categoryList.length || !words.length) {
-            return [];
-        }
-
-        const wordLookup = {};
-        words.forEach(function (wordId) {
-            wordLookup[wordId] = true;
-        });
-
-        return categoryList.filter(function (categoryId) {
-            const ids = (wordsByCategoryMap && Array.isArray(wordsByCategoryMap[categoryId])) ? wordsByCategoryMap[categoryId] : [];
-            return ids.some(function (wordId) {
-                const wid = parseInt(wordId, 10) || 0;
-                return !!wordLookup[wid];
-            });
-        });
-    }
-
     function appendUniqueWordIds(baseWordIds, candidateWordIds, minimumCount) {
         const target = uniqueIntList(baseWordIds || []);
         const limit = Math.max(0, parseInt(minimumCount, 10) || 0);
@@ -14986,44 +14922,6 @@
         }
 
         return target;
-    }
-
-    function pickBestCategoryIdByCounts(categoryIds, options) {
-        const ids = uniqueIntList(categoryIds || []);
-        if (!ids.length) {
-            return 0;
-        }
-
-        const opts = (options && typeof options === 'object') ? options : {};
-        const priorityCounts = (opts.priorityCounts && typeof opts.priorityCounts === 'object') ? opts.priorityCounts : {};
-        const totalCounts = (opts.totalCounts && typeof opts.totalCounts === 'object') ? opts.totalCounts : {};
-        const preferredCategoryId = parseInt(opts.preferCategoryId, 10) || ids[0] || 0;
-        let bestId = ids[0];
-        let bestPriority = -1;
-        let bestTotal = -1;
-
-        ids.forEach(function (id) {
-            const priority = Math.max(0, parseInt(priorityCounts[id], 10) || 0);
-            const total = Math.max(0, parseInt(totalCounts[id], 10) || 0);
-            if (priority > bestPriority) {
-                bestPriority = priority;
-                bestTotal = total;
-                bestId = id;
-                return;
-            }
-            if (priority === bestPriority) {
-                if (total > bestTotal) {
-                    bestTotal = total;
-                    bestId = id;
-                    return;
-                }
-                if (total === bestTotal && id === preferredCategoryId) {
-                    bestId = id;
-                }
-            }
-        });
-
-        return bestId;
     }
 
     function rankCategoryIdsByCounts(categoryIds, options) {
@@ -15194,141 +15092,6 @@
             sessionWordIds: sessionWordIds,
             criteriaKey: criteriaKey,
             categoryLabelOverride: categoryLabelOverride
-        };
-    }
-
-    function buildCategoryCompatibilityGroups(categoryIds, options) {
-        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return categoryIdIsLaunchable(id);
-        });
-        if (!ids.length) {
-            return [];
-        }
-
-        const opts = (options && typeof options === 'object') ? options : {};
-        const groups = {};
-        ids.forEach(function (id, index) {
-            const key = getCategoryCompatibilityKey(id, opts);
-            if (!groups[key]) {
-                groups[key] = {
-                    key: key,
-                    order: index,
-                    category_ids: []
-                };
-            }
-            groups[key].category_ids.push(id);
-        });
-
-        return Object.keys(groups).map(function (key) {
-            return groups[key];
-        }).sort(function (left, right) {
-            return left.order - right.order;
-        });
-    }
-
-    function buildSelectionChunkLaunchPlan(categoryIds, options) {
-        const opts = (options && typeof options === 'object') ? options : {};
-        const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return categoryIdIsLaunchable(id);
-        });
-        if (!ids.length) {
-            return {
-                entries: [],
-                filteredWordCount: 0
-            };
-        }
-
-        const minimumWords = Math.max(1, parseInt(opts.minimumWords, 10) || getSelectionMinimumWordCount());
-        const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || CHUNK_SIZE);
-        const minimumChunkSize = Math.max(1, parseInt(opts.minChunkSize, 10) || minimumWords);
-        const requireMatchingPresentation = !!opts.requireMatchingPresentation;
-        const wordLists = buildWordIdListsByCategory(ids, {
-            starOnly: !!opts.starOnly,
-            hardOnly: !!opts.hardOnly,
-            priorityOnly: !!opts.priorityOnly,
-            priorityFocus: opts.priorityFocus || ''
-        });
-        const groups = buildCategoryCompatibilityGroups(ids, {
-            requireMatchingPresentation: requireMatchingPresentation,
-            mode: opts.mode || ''
-        });
-        const entries = [];
-
-        groups.forEach(function (group) {
-            const groupCategoryIds = uniqueIntList(group.category_ids || []);
-            if (!groupCategoryIds.length) {
-                return;
-            }
-
-            const mixedCategoryIds = [];
-
-            groupCategoryIds.forEach(function (categoryId) {
-                const categoryWordIds = uniqueIntList(wordLists.filteredByCategory[categoryId] || []);
-                if (!categoryWordIds.length) {
-                    return;
-                }
-
-                if (categoryWordIds.length < minimumWords) {
-                    mixedCategoryIds.push(categoryId);
-                    return;
-                }
-
-                const categoryChunks = buildChunkList(categoryWordIds, {
-                    chunkSize: chunkSize,
-                    minChunkSize: minimumChunkSize
-                });
-                categoryChunks.forEach(function (chunkWordIds) {
-                    const sessionWordIds = uniqueIntList(chunkWordIds || []);
-                    if (sessionWordIds.length < minimumWords) {
-                        return;
-                    }
-                    entries.push({
-                        category_ids: [categoryId],
-                        session_word_ids: sessionWordIds.slice(),
-                        category_label_override: '',
-                        details: {}
-                    });
-                });
-            });
-
-            if (!mixedCategoryIds.length) {
-                return;
-            }
-
-            const mixedWordIds = collectUniqueWordIdsFromCategoryLists(mixedCategoryIds, wordLists.filteredByCategory);
-            if (mixedWordIds.length < minimumWords) {
-                return;
-            }
-
-            const chunks = buildChunkList(mixedWordIds, {
-                chunkSize: chunkSize,
-                minChunkSize: minimumChunkSize
-            });
-            chunks.forEach(function (chunkWordIds) {
-                const sessionWordIds = uniqueIntList(chunkWordIds || []);
-                if (sessionWordIds.length < minimumWords) {
-                    return;
-                }
-                const representedCategoryIds = getRepresentedCategoryIdsForWordIds(
-                    sessionWordIds,
-                    mixedCategoryIds,
-                    wordLists.filteredByCategory
-                );
-                if (!representedCategoryIds.length) {
-                    return;
-                }
-                entries.push({
-                    category_ids: representedCategoryIds.slice(),
-                    session_word_ids: sessionWordIds.slice(),
-                    category_label_override: '',
-                    details: {}
-                });
-            });
-        });
-
-        return {
-            entries: entries,
-            filteredWordCount: uniqueIntList(wordLists.filteredWordIds || []).length
         };
     }
 

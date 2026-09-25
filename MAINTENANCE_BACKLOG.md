@@ -1,25 +1,35 @@
 # Maintenance Backlog
 
-Updated September 19, 2026 to record the September 18 review-only audit as
-open follow-up issues. No fixes were implemented while documenting these
-issues. The reviewed commit was `ed4405812767784e1d4e3eb688fc9ebbf632a41b`
-(6.7.39); source line numbers below refer to that commit. Recheck the owning
-functions and current tests before implementation. No deployed-site checks,
-deployment, or real provider authorization were part of the audit.
+Updated September 25, 2026 during the authorized 6.7.43 implementation pass.
+The original September 18 evidence and line numbers below refer to
+`ed4405812767784e1d4e3eb688fc9ebbf632a41b` (6.7.39); current status notes identify
+the implemented follow-up without erasing that history. This maintenance pass
+does not deploy the changes or authorize provider/live-site testing.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## September 18 audit issues
 
-All issues below are **open**. IDs are stable so later audits and implementation
-passes can update the same issue instead of duplicating it. "Autonomous" means
+IDs are stable so later audits and implementation passes can update the same
+issue instead of duplicating it. Each issue has its own current status.
+"Autonomous" means
 appropriate for an authorized implementation pass; it does not override a
 review-only request. Evidence distinguishes isolated current-source probes
 from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-01 — P1: Enforce dictionary entry password protection
 
+- **September 25 status:** Implemented in 6.7.43. Public dictionary surfaces
+  exclude password-protected entries even after a visitor unlocks one; an
+  explicitly authorized staff editor retains editing access. Shared payload
+  schemas advance and legacy generated HTML is purged. Tests cover detail,
+  search/browse visibility, unlock cookies, and staff access. Byte-exact SQL
+  guards also exclude spaces-only passwords from aggregates, crawler letters,
+  and quiz-page duplicate selection. The legacy quiz query applies the same
+  byte-exact SQL guard without per-entry hydration; catalog data/scope schemas
+  and the builder token fence older materialized output. No deployed exposure
+  or remediation is claimed.
 - **Evidence and impact:** An isolated probe using the current plugin resolver
   and WordPress password function returned entry ID 77 while
   `post_password_required()` was true, with no password cookie. The public
@@ -44,6 +54,10 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-02 — P2: Retain failed word-option autosave scopes
 
+- **September 25 status:** Implemented in 6.7.43. Failed scopes remain dirty
+  until explicit Retry succeeds, queued sibling edits still save, global Saved
+  requires every scope to be acknowledged, and navigation warns about unsaved
+  work. Browser coverage includes edits while the failed request is in flight.
 - **Evidence and impact:** Current-source execution reproduced a failed group
   save followed by a successful pair save. Requests sent scopes `groups`, then
   `pairs`; the UI reported "Word options saved" while the group edit remained
@@ -62,6 +76,13 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-03 — P2: Fence public-cache rebuild ownership and publication
 
+- **September 25 status:** Implemented in 6.7.43. Atomic exact-owner leases and
+  scoped generation markers fence publication and reads; protected lessons
+  never enter shared files, including for password-unlocked visitors. Legacy
+  generated files are purged before the migration marker advances. A stale
+  owner cannot release a successor or delete its output. Optional bounded cold
+  waiting defaults off; cold losers still render without publishing, so no
+  production stampede/resource-saving claim is made.
 - **Evidence and impact:** An in-memory probe of the actual lock helpers let A
   acquire, expire, and be replaced by B; A's later release deleted B's lock,
   allowing C to acquire while B remained active. Shutdown publication does not
@@ -87,6 +108,10 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-04 — P2: Recover dictionary reads after terminal failure
 
+- **September 25 status:** Implemented in 6.7.43. Search and toolbar failures
+  replace shimmers with localized Retry; read deadlines cover response bodies
+  as well as headers. Retry keeps the current query and stale responses remain
+  fenced. Tests cover network/JSON/body stalls, warming exhaustion, and recovery.
 - **Evidence and impact:** A rejected live-search fetch left two skeletons and
   "Loading dictionary results..." with no Retry, although `aria-busy` was
   cleared. Normal typed searches use the silent failure path. Toolbar, search,
@@ -106,6 +131,9 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-05 — P2: Keep independent Line-Up read failures visible
 
+- **September 25 status:** Implemented in 6.7.43. Sequence and candidate reads
+  have independent error/Retry state and bounded deadlines. A successful sibling
+  cannot erase a failure. Relative mutation retries remain deliberately unchanged.
 - **Evidence and impact:** Rejecting the sequence read showed an error; a
   later successful candidate read hid it, leaving the sequence unloaded with
   no explanation. A stalled read can also retain the shared disabled state.
@@ -120,6 +148,12 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-06 — P3: Localize native failures and correct Turkish drift
 
+- **September 25 status:** Implemented in 6.7.43. Native transport/parser errors
+  use localized fallbacks in lesson progress, dictionary inline edits, offline
+  export, and Site Sync; validated server messages remain visible. Corrected
+  the font-help wording and a CSV quiz-type label exposed by the expanded
+  inflection guard. Rebuilt core and active public locale artifacts. Broad
+  native fluency and uncertain mutation-replay protocols remain separate work.
 - **Evidence and impact:** Executing `js/content-lesson-progress.js:130` with
   Turkish configuration displayed native `Failed to fetch` and JSON parser
   errors verbatim. Retry remained Turkish. Full catalog coverage does not catch
@@ -140,6 +174,11 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-07 — P3: Remove confirmed unused private JavaScript helpers
 
+- **September 25 status:** Implemented in 6.7.43. Removed the four named
+  declaration-only wordset helpers plus three exclusively used dependencies,
+  the IPA pagination pair, six obsolete localized keys, and unused pagination
+  CSS. Preserved current selection planners and load-more behavior. No measured
+  speedup is claimed for this cleanup.
 - **Evidence:** Declaration-only private functions in `js/wordset-pages.js`:
   `collectWordIdsForCategories` (14832), `filterWordIdsByCategories` (14904),
   `pickBestCategoryIdByCounts` (14991), and `buildSelectionChunkLaunchPlan`
@@ -155,11 +194,43 @@ from source-traced risks and unmeasured production behavior.
 
 ### AUDIT-2026-09-18-08 — P2 investigation: Separate recorder server and media cost
 
+- **September 25 status:** Partially addressed by 6.7.40–6.7.42 native recorder
+  links, cached manifests/overviews, and prewarming; 6.7.43 adds bounded
+  no-progress recovery, durable upgrade scheduling, and explicit summary-request
+  versus media-transfer diagnostics. The guarded profiler now isolates server
+  rebuild cost and resets only the verified fixture's exact summary keys.
+  The Genç seeder also fixes a measurement defect: metadata previously called
+  full-size source images medium previews. Version `2026-09-25-genc.2` creates
+  truthful, reusable previews from at most 24 source images, with image-editor
+  preflight before deleting the old tagged fixture. This changes the baseline,
+  not the production image pipeline or the 120-second budget.
 - **Evidence/status:** Keep the cold Genç recorder-summary investigation in
   the short list below. September 11 reached 132/209 categories within the
   120-second budget while previews transferred about 23.8 MB. The September 18
   audit did not rerun that seeded benchmark; this is historical Local evidence,
   not proof of a new or deployed regression.
+- **September 25 server evidence (old Genç fixture):** All 209 categories
+  completed in 35 bounded batches. Cold rebuild took 26,191.566 ms / 6,295 SQL
+  queries after 211 exact-key deletions; a separate warm process took 296.970 ms
+  / three queries. Fixture verification and catalog setup are outside this
+  timed interval. The old normal browser arm stopped at 171/209 after 120 seconds
+  with 11.1 MB of media transfer. Its media-blocked arm began with 177 categories
+  already loaded rather than nine, so those arms are not comparable and do not
+  establish a media-isolation speedup.
+- **Corrected fixture evidence:** The `2026-09-25-genc.2` normal-media arm
+  started cold (zero loaded, 209 placeholders) after a guarded 211-key reset,
+  but still reached only 171/209 categories within 120 seconds. It made 30
+  serial summary requests (one still in flight), with a 3,845 ms median full
+  request duration, and transferred 2,280,301 media bytes. Correct preview sizing
+  is verified; it does not close the completion-budget failure. Preserved
+  failure trace/video live under the ignored
+  `tests/e2e/test-results-maintenance-genc2-normal/` directory.
+  The matched media-blocked arm used the same fixture/recorder/generation,
+  another 211-key reset, and the same zero/209 initial state; it also failed,
+  reaching 99/209 with 18 serial requests, a 5,879 ms request median, and zero
+  media bytes. One local pair, including interception and runtime variation,
+  cannot quantify a causal media contribution. Both failures retain the
+  unchanged budget and remain failures; neither is appended to history.
 - **Owners:** `includes/pages/wordset-pages.php` recorder-summary handlers,
   `js/wordset-pages.js` recorder-summary loading, and the Genç scenarios in
   `tests/e2e/specs/performance-benchmark.spec.js`.
@@ -167,9 +238,43 @@ from source-traced risks and unmeasured production behavior.
   sizing/network transfer; compare cold and warm runs on the same fixture and
   throttle settings. Retain serial loading, visible progress, and current
   limits until evidence identifies the growth dimension to change.
+  Next isolate fresh-process authenticated AJAX costs (first cold batch, later
+  uncached batch, fully warm batch): bootstrap/auth, full-catalog generation,
+  category signatures/scan, and HTML/JSON rendering, with queries per phase.
+  The CLI helper reuses one bootstrapped process and request-local caches across
+  35 batches; it cannot apportion the browser's repeated request overhead.
+  Optimize measured repeated work through durable manifest/prewarm consumption
+  or a deliberately bounded continuation design before enlarging batches or
+  adding concurrency. Acceptance remains 209/209 within 120 seconds, serial
+  requests, bounded queries, and preserved foreground recovery.
 - **Disposition/risk:** Local profiling autonomous and low risk. Production
   measurements require the live safety context; schema/protocol changes and
-  budget changes need deliberate review. No implementation choice is settled.
+  budget changes need deliberate review. Do not infer deployed improvement
+  from corrected synthetic media or nonmatching cache states.
+
+## September 25 follow-up findings
+
+- **AUDIT-2026-09-25-01 — Recorder warmup retry pressure:** 6.7.43 adds stable
+  bounded scan-progress witnesses, increasing delays for unchanged incomplete
+  work, and a longer pause/rearm. Foreground recovery remains independent; a
+  permanently failing source must not produce a five-second cron loop.
+- **AUDIT-2026-09-25-02 — Upgrade warmup durability:** 6.7.43 replaces a
+  positional user offset and optimistic completion marker with a durable owned
+  checkpoint and ascending user-ID cursor. Failed child scheduling or incomplete
+  scopes retain the current user; deleting earlier users cannot skip later IDs.
+  Completion must follow an acknowledged durable checkpoint, not an attempted
+  schedule. Failed continuation schedules retain a non-autoloaded intent;
+  capability-bearing requests inspect at most 100 intents and rearm at most 10
+  due items, with backoff rather than a public or hot-cron repair scan.
+- **AUDIT-2026-09-25-03 — Recorder link focus:** 6.7.43 retains focus on the same
+  native category link while its summary hydrates; source/spec coverage includes
+  clicking a category before previews finish. Manager neutral-shell behavior
+  remains distinct from named shortcode navigation.
+- **AUDIT-2026-09-25-04 — Stale public locale selection:** 6.7.43 checks normalized
+  source references as well as gettext keys before public-manifest selection.
+  Refreshed the POT, public manifest, and active catalogs, including translated
+  dictionary recovery. A source-line-only move is now a failing freshness check.
+  Updated architecture, router, and recorder/test documentation in the same pass.
 
 ## Current Short List
 
@@ -177,16 +282,10 @@ In addition to the actionable audit issues above, these follow-ups need product,
 compatibility, schema/backfill, measurements, credentials, or human-language
 judgment. The recorder investigation is tracked as AUDIT-2026-09-18-08:
 
-- Profile the cold Genç recorder-summary path before changing its batch size or
-  performance limit. On September 11, 132 of 209 categories completed within the
-  existing 120-second action budget; 77 remained. Completed six-category batches
-  returned successful, complete responses in roughly 5.2–5.8 seconds, with no
-  transport errors or stalled viewport trigger. Concurrent previews transferred
-  about 23.8 MB with browser caching disabled on the 1,600 kbps profile; HTTP
-  waiting time cannot isolate PHP work from that contention. Measure server
-  summary construction separately from preview sizing and media transfer before
-  optimizing. This is a September 11 Local measurement, not evidence of a
-  deployed-site or change-induced regression.
+- Continue evidence-led recorder profiling under AUDIT-2026-09-18-08 before
+  changing its batch size or performance limit. Server-only cold/warm evidence
+  and a corrected media fixture are now available; production latency and a
+  matching-state browser/media comparison remain distinct from those results.
 - Native review of machine-assisted German and residual Turkish admin/formal
   copy. Automated completeness and curated high-confidence regressions do not
   establish native fluency across the full catalogs.
@@ -235,7 +334,38 @@ The local Google Classroom and authorized-private-wordset browser gaps are now
 closed with controlled fixtures; live provider/site assertions remain outside
 the normal regression suite.
 
-### Current verification inventory (September 18)
+### Current verification inventory (September 25 implementation)
+
+- The full PHP run executed 2,695 tests / 65,689 assertions / nine expected
+  skips and exposed three dictionary regressions. Their SQL/password fixes
+  passed the final affected-class runs: 319 tests / 20,721 assertions across
+  dictionary, crawler, quiz catalog/query/translation/epochs/deduplication,
+  public static cache, recorder resource coordination, and public translations.
+  A new whitespace-password quiz test also found and now covers the legacy
+  query path. This is full-run evidence plus targeted post-fix verification,
+  not a claim that a single final unsharded run passed. Discard the separate
+  interrupted run; its broken child processes and mixed source are not results.
+- The affected browser set passed 142/142, and the final documentation,
+  recovery-localization, and performance contracts passed 52/52. Discovery
+  lists 888 tests in 125 files; the full browser inventory was not rerun.
+- Source/POT keys and normalized references are fresh at 6,383. Turkish and
+  German each pass 6,383/6,383 with exact compiled parity; all eight active
+  public locales pass 800/800. Planned unshipped locales remain excluded from
+  active-locale acceptance. All eight context packs validate; changed PHP and
+  JavaScript syntax and diff checks pass.
+- The earlier same-day review-only audit passed 19 offline-builder tests and
+  reported zero Composer/E2E npm/builder npm advisories. Dependencies have not
+  changed in this implementation pass. No production/provider or native-language
+  acceptance is claimed, and no maintenance deployment or push was performed.
+  The separate correct/incorrect-sound task owns its own committed changes;
+  this pass does not modify its widget, media, or feedback-test files.
+- Regenerated only tagged local performance data: the seeder replaced 16,512
+  fixture posts, 209 quiz pages, 209 categories, one wordset, one synthetic
+  recorder account, and 48 fixture media files. These are reproducible from
+  the committed manifest/seeder; production content was not touched. The new
+  fixture has 2,717 words, 8,151 audio rows, and 24 reusable medium previews.
+
+### Previous verification inventory (September 18)
 
 - Review-only audit at `ed440581`: PHPUnit passed 2,662 tests / 65,413
   assertions / nine expected skips. Maintenance/startup contracts passed 47/47;

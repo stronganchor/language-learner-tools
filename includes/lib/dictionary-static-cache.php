@@ -25,6 +25,14 @@ if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX')) {
     define('LL_TOOLS_DICTIONARY_STATIC_CACHE_REBUILD_LOCK_OPTION_PREFIX', '_ll_tools_dictionary_static_cache_lock_');
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA', 3);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION', 'll_tools_dictionary_static_cache_schema');
+}
+
 /**
  * Return the anonymous dictionary static-cache storage TTL.
  */
@@ -405,7 +413,7 @@ function ll_tools_dictionary_static_cache_request_identity(): ?array {
     if (!($post instanceof WP_Post) || $post->post_type !== 'page') {
         return null;
     }
-    if (post_password_required($post)) {
+    if ((string) $post->post_password !== '') {
         return null;
     }
 
@@ -497,7 +505,7 @@ function ll_tools_dictionary_static_cache_entry_is_public(int $entry_id): bool {
     return $post instanceof WP_Post
         && $post->post_type === 'll_dictionary_entry'
         && $post->post_status === 'publish'
-        && !post_password_required($post);
+        && (string) $post->post_password === '';
 }
 
 /**
@@ -800,7 +808,7 @@ function ll_tools_dictionary_static_cache_key(?array $identity = null, ?array $r
     }
 
     $payload = [
-        'schema' => 2,
+        'schema' => LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'identity' => [
@@ -1280,6 +1288,29 @@ function ll_tools_purge_dictionary_static_cache(): int {
 
     return $deleted;
 }
+
+/**
+ * Remove only generated dictionary-cache files from older security schemas.
+ */
+function ll_tools_dictionary_static_cache_maybe_purge_legacy_schema(): void {
+    $installed_schema = (int) get_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, 0);
+    if ($installed_schema >= LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA) {
+        return;
+    }
+
+    ll_tools_purge_dictionary_static_cache();
+    $dir = ll_tools_dictionary_static_cache_dir();
+    $remaining = $dir !== '' && is_dir($dir)
+        ? array_merge(
+            glob(trailingslashit($dir) . 'dictionary-*.html') ?: [],
+            glob(trailingslashit($dir) . 'dictionary-*.html.tmp-*') ?: []
+        )
+        : [];
+    if (empty($remaining)) {
+        update_option(LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA_OPTION, LL_TOOLS_DICTIONARY_STATIC_CACHE_SCHEMA, false);
+    }
+}
+add_action('init', 'll_tools_dictionary_static_cache_maybe_purge_legacy_schema', 2);
 
 /**
  * Delete static dictionary HTML cache files at most once in one request.

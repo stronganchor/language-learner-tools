@@ -22031,6 +22031,11 @@ function ll_tools_wordset_page_build_recorder_queue_summary_groups(
             'complete' => $source_matches && !empty($payload['scan_complete']),
             'has_group' => $source_matches && is_array($payload['group'] ?? null),
             'fresh' => $is_fresh,
+            'progress_signature' => hash('sha256', wp_json_encode([
+                'source_signature' => $source_signature,
+                'scan_complete' => !empty($payload['scan_complete']),
+                'scan_state' => is_array($payload['scan_state'] ?? null) ? $payload['scan_state'] : [],
+            ])),
         ];
     }
 
@@ -22156,7 +22161,10 @@ function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
     string $exclude_types_csv = '',
     string $generation = '',
     int $offset = 0,
-    array $category_slugs = []
+    array $category_slugs = [],
+    int $no_progress_attempts = 0,
+    string $progress_signature = '',
+    int $delay = 5
 ): bool {
     $wordset_id = max(0, $wordset_id);
     $recorder_user_id = max(0, $recorder_user_id);
@@ -22187,12 +22195,171 @@ function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
         max(0, $offset),
         $normalized_slugs,
     ];
+    $no_progress_attempts = max(0, min(10, $no_progress_attempts));
+    $progress_signature = preg_match('/^[a-f0-9]{64}$/', $progress_signature) === 1
+        ? $progress_signature
+        : '';
+    if ($no_progress_attempts > 0 || $progress_signature !== '') {
+        $args[] = $no_progress_attempts;
+        $args[] = $progress_signature;
+    }
+    $pending_option = ll_tools_wordset_page_recorder_queue_warmup_pending_option($args);
     if (wp_next_scheduled($hook, $args)) {
+        delete_option($pending_option);
         return true;
     }
 
-    $scheduled = wp_schedule_single_event(time() + 5, $hook, $args);
-    return $scheduled !== false && !is_wp_error($scheduled);
+    $delay = max(1, min(HOUR_IN_SECONDS, $delay));
+    $scheduled = wp_schedule_single_event(time() + $delay, $hook, $args);
+    if ($scheduled !== false && !is_wp_error($scheduled)) {
+        delete_option($pending_option);
+        return true;
+    }
+
+    ll_tools_wordset_page_store_recorder_queue_warmup_pending_intent($args);
+    return false;
+}
+
+function ll_tools_wordset_page_recorder_queue_warmup_pending_option(array $args): string {
+    return 'll_tools_recorder_queue_warmup_pending_' . md5((string) wp_json_encode($args));
+}
+
+/**
+ * Persist a failed cron insertion so a later bounded admin request can rearm it.
+ *
+ * @param array<int,mixed> $args
+ */
+function ll_tools_wordset_page_store_recorder_queue_warmup_pending_intent(array $args): void {
+    $option_name = ll_tools_wordset_page_recorder_queue_warmup_pending_option($args);
+    $existing = get_option($option_name, []);
+    $existing = is_array($existing) ? $existing : [];
+    $retry_plan = ll_tools_wordset_page_recorder_queue_warmup_retry_plan(
+        max(0, (int) ($existing['attempts'] ?? 0)) + 1
+    );
+    update_option($option_name, [
+        'args' => array_values($args),
+        'attempts' => (int) $retry_plan['attempts'],
+        'next_attempt_at' => time() + (int) $retry_plan['delay'],
+        'created_at' => max(0, (int) ($existing['created_at'] ?? 0)) ?: time(),
+    ], false);
+}
+
+/**
+ * Retry a bounded number of failed recorder-summary cron insertions.
+ *
+ * Running on authorized foreground/admin requests avoids depending on the
+ * failed cron insertion itself for recovery.
+ */
+function ll_tools_wordset_page_rearm_recorder_queue_warmup_pending_intents(): void {
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    global $wpdb;
+    $prefix = 'll_tools_recorder_queue_warmup_pending_';
+    $wpdb->last_error = '';
+    $option_names = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name
+         FROM {$wpdb->options}
+         WHERE option_name LIKE %s
+         ORDER BY option_id ASC
+         LIMIT 100",
+        $wpdb->esc_like($prefix) . '%'
+    ));
+    if (!is_array($option_names) || $wpdb->last_error !== '') {
+        $wpdb->last_error = '';
+        return;
+    }
+
+    $rearmed = 0;
+    foreach ($option_names as $option_name) {
+        if ($rearmed >= 10) {
+            break;
+        }
+        $intent = get_option((string) $option_name, []);
+        if (!is_array($intent) || !is_array($intent['args'] ?? null)) {
+            delete_option((string) $option_name);
+            continue;
+        }
+        if ((int) ($intent['next_attempt_at'] ?? 0) > time()) {
+            continue;
+        }
+
+        $args = array_values($intent['args']);
+        if (count($args) !== 7 && count($args) !== 9) {
+            delete_option((string) $option_name);
+            continue;
+        }
+        $scheduled = ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+            (int) ($args[0] ?? 0),
+            (int) ($args[1] ?? 0),
+            (string) ($args[2] ?? ''),
+            (string) ($args[3] ?? ''),
+            (string) ($args[4] ?? ''),
+            (int) ($args[5] ?? 0),
+            is_array($args[6] ?? null) ? $args[6] : [],
+            (int) ($args[7] ?? 0),
+            (string) ($args[8] ?? '')
+        );
+        if ($scheduled) {
+            delete_option((string) $option_name);
+        }
+        $rearmed++;
+    }
+}
+add_action('init', 'll_tools_wordset_page_rearm_recorder_queue_warmup_pending_intents', 31);
+
+/**
+ * Build one stable witness for a bounded recorder-summary batch.
+ *
+ * @param string[] $pending_slugs
+ */
+function ll_tools_wordset_page_recorder_queue_warmup_progress_signature(
+    array $pending_slugs,
+    array $states
+): string {
+    $witnesses = [];
+    foreach ($pending_slugs as $raw_slug) {
+        $slug = sanitize_title((string) $raw_slug);
+        if ($slug === '') {
+            continue;
+        }
+        $witnesses[$slug] = (string) ($states[$slug]['progress_signature'] ?? '');
+    }
+    ksort($witnesses, SORT_STRING);
+    return hash('sha256', wp_json_encode($witnesses));
+}
+
+/**
+ * Bound repeated no-progress work with exponential backoff and a longer pause.
+ *
+ * Foreground summary requests remain independent and may advance the same
+ * durable category cache while the background worker is backed off.
+ *
+ * @return array{attempts:int,delay:int}
+ */
+function ll_tools_wordset_page_recorder_queue_warmup_retry_plan(int $attempts): array {
+    $attempts = max(1, $attempts);
+    $max_attempts = (int) apply_filters(
+        'll_tools_recorder_queue_summary_warmup_no_progress_limit',
+        3
+    );
+    $max_attempts = max(1, min(6, $max_attempts));
+    if ($attempts > $max_attempts) {
+        $pause = (int) apply_filters(
+            'll_tools_recorder_queue_summary_warmup_pause_seconds',
+            15 * MINUTE_IN_SECONDS
+        );
+        return [
+            'attempts' => 0,
+            'delay' => max(MINUTE_IN_SECONDS, min(HOUR_IN_SECONDS, $pause)),
+        ];
+    }
+
+    return [
+        'attempts' => $attempts,
+        'delay' => min(5 * MINUTE_IN_SECONDS, 15 * (2 ** ($attempts - 1))),
+    ];
 }
 
 /**
@@ -22211,12 +22378,52 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
     string $exclude_types_csv = '',
     string $generation = '',
     int $offset = 0,
-    array $category_slugs = []
+    array $category_slugs = [],
+    int $no_progress_attempts = 0,
+    string $progress_signature = ''
 ): void {
     $wordset_term = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
     if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term) || $recorder_user_id <= 0) {
         return;
     }
+
+    $schedule_incomplete_retry = static function (string $reason) use (
+        $wordset_id,
+        $recorder_user_id,
+        $include_types_csv,
+        $exclude_types_csv,
+        $generation,
+        $offset,
+        $category_slugs,
+        $no_progress_attempts,
+        $progress_signature
+    ): void {
+        $current_signature = hash('sha256', wp_json_encode([
+            'reason' => sanitize_key($reason),
+            'wordset_id' => $wordset_id,
+            'recorder_user_id' => $recorder_user_id,
+            'generation' => sanitize_text_field($generation),
+            'offset' => max(0, $offset),
+            'category_slugs' => array_values(array_map('sanitize_title', $category_slugs)),
+        ]));
+        $same_failure = preg_match('/^[a-f0-9]{64}$/', $progress_signature) === 1
+            && hash_equals($progress_signature, $current_signature);
+        $retry_plan = $same_failure
+            ? ll_tools_wordset_page_recorder_queue_warmup_retry_plan($no_progress_attempts + 1)
+            : ['attempts' => 0, 'delay' => 5];
+        ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+            $wordset_id,
+            $recorder_user_id,
+            $include_types_csv,
+            $exclude_types_csv,
+            $generation,
+            $offset,
+            $category_slugs,
+            (int) $retry_plan['attempts'],
+            $current_signature,
+            (int) $retry_plan['delay']
+        );
+    };
 
     $catalog_complete = true;
     $categories = ll_tools_wordset_page_get_recorder_queue_summary_categories(
@@ -22225,8 +22432,10 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
         $catalog_complete
     );
     if (!$catalog_complete) {
-        // A later page request or a new config/content event can retry. Never
-        // turn an incomplete category read into a cached empty result.
+        // Never turn an incomplete category read into a cached empty result.
+        // Back off repeated identical failures while preserving foreground
+        // reads and later config/content events as independent recovery paths.
+        $schedule_incomplete_retry('catalog_incomplete');
         return;
     }
 
@@ -22240,6 +22449,7 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
         $exclude_types_csv
     );
     if (empty($manifest_scope['complete'])) {
+        $schedule_incomplete_retry('manifest_scope_incomplete');
         return;
     }
 
@@ -22303,6 +22513,16 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
             $pending_slugs[] = $slug;
         }
     }
+    $current_progress_signature = ll_tools_wordset_page_recorder_queue_warmup_progress_signature(
+        $pending_slugs,
+        $states
+    );
+    $same_pending_progress = !empty($pending_slugs)
+        && preg_match('/^[a-f0-9]{64}$/', $progress_signature) === 1
+        && hash_equals($progress_signature, $current_progress_signature);
+    $retry_plan = $same_pending_progress
+        ? ll_tools_wordset_page_recorder_queue_warmup_retry_plan($no_progress_attempts + 1)
+        : ['attempts' => 0, 'delay' => 5];
 
     if ($is_targeted) {
         $processed_count = count($selected_categories);
@@ -22318,7 +22538,10 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
                 $exclude_types_csv,
                 $current_generation,
                 0,
-                $next_slugs
+                $next_slugs,
+                (int) $retry_plan['attempts'],
+                $current_progress_signature,
+                (int) $retry_plan['delay']
             );
         }
         return;
@@ -22334,7 +22557,11 @@ function ll_tools_wordset_page_run_recorder_queue_summary_warmup(
             $include_types_csv,
             $exclude_types_csv,
             $current_generation,
-            $next_cursor
+            $next_cursor,
+            [],
+            (int) $retry_plan['attempts'],
+            $current_progress_signature,
+            (int) $retry_plan['delay']
         );
     }
 }
@@ -22342,30 +22569,30 @@ add_action(
     'll_tools_wordset_page_warm_recorder_queue_summaries',
     'll_tools_wordset_page_run_recorder_queue_summary_warmup',
     10,
-    7
+    9
 );
 
 function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_config(
     int $user_id,
     $meta_value
-): void {
+): string {
     if (!is_array($meta_value) || $user_id <= 0) {
-        return;
+        return 'not_applicable';
     }
     $user = get_userdata($user_id);
     if (!($user instanceof WP_User) || !in_array('audio_recorder', (array) $user->roles, true)) {
-        return;
+        return 'not_applicable';
     }
 
     $wordset_spec = trim((string) ($meta_value['wordset'] ?? ''));
     if ($wordset_spec === '') {
-        return;
+        return 'not_applicable';
     }
     $wordset_term = ctype_digit($wordset_spec)
         ? get_term((int) $wordset_spec, 'wordset')
         : get_term_by('slug', sanitize_title($wordset_spec), 'wordset');
     if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
-        return;
+        return 'not_applicable';
     }
 
     $catalog_complete = true;
@@ -22375,7 +22602,7 @@ function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_c
         $catalog_complete
     );
     if (!$catalog_complete) {
-        return;
+        return 'incomplete';
     }
     $include_types = trim((string) ($meta_value['include_recording_types'] ?? ''));
     $exclude_types = trim((string) ($meta_value['exclude_recording_types'] ?? ''));
@@ -22387,16 +22614,17 @@ function ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_c
         $exclude_types
     );
     if (empty($scope['complete'])) {
-        return;
+        return 'incomplete';
     }
 
-    ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
+    $scheduled = ll_tools_wordset_page_schedule_recorder_queue_summary_warmup(
         (int) $wordset_term->term_id,
         $user_id,
         $include_types,
         $exclude_types,
         (string) ($scope['generation'] ?? '')
     );
+    return $scheduled ? 'scheduled' : 'schedule_failed';
 }
 add_action(
     'll_tools_recorder_config_saved',
@@ -22412,48 +22640,285 @@ add_action(
  * pass covers sites that already had recorder configurations when the summary
  * cache was introduced, before their first visit to the overview page.
  */
+function ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(int $delay = 5): bool {
+    $hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
+    $args = [0];
+    if (wp_next_scheduled($hook, $args)) {
+        return true;
+    }
+
+    $scheduled = wp_schedule_single_event(
+        time() + max(1, min(HOUR_IN_SECONDS, $delay)),
+        $hook,
+        $args
+    );
+    return $scheduled !== false && !is_wp_error($scheduled);
+}
+
+/**
+ * Normalize the durable cursor used by the recorder-summary upgrade prewarm.
+ *
+ * @param mixed $raw_state
+ * @return array<string,mixed>
+ */
+function ll_tools_wordset_page_normalize_recorder_queue_summary_upgrade_state($raw_state): array {
+    $raw_state = is_array($raw_state) ? $raw_state : [];
+    $status = sanitize_key((string) ($raw_state['status'] ?? 'pending'));
+    if (!in_array($status, ['pending', 'paused', 'completed'], true)) {
+        $status = 'pending';
+    }
+
+    return [
+        'schema' => '7',
+        'last_user_id' => max(0, (int) ($raw_state['last_user_id'] ?? 0)),
+        'no_progress_attempts' => max(0, min(10, (int) ($raw_state['no_progress_attempts'] ?? 0))),
+        'status' => $status,
+        'next_attempt_at' => max(0, (int) ($raw_state['next_attempt_at'] ?? 0)),
+        'last_error' => sanitize_key((string) ($raw_state['last_error'] ?? '')),
+        'owner' => sanitize_text_field((string) ($raw_state['owner'] ?? '')),
+        'owner_expires' => max(0, (int) ($raw_state['owner_expires'] ?? 0)),
+        'updated_at' => max(0, (int) ($raw_state['updated_at'] ?? 0)),
+    ];
+}
+
+/**
+ * Read an option directly so an ownership compare-and-swap uses exact bytes.
+ *
+ * @return array{exists:bool,raw:?string,state:array<string,mixed>}
+ */
+function ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state(): array {
+    global $wpdb;
+
+    $option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+    $raw = $wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1",
+        $option_name
+    ));
+    $exists = is_string($raw);
+    return [
+        'exists' => $exists,
+        'raw' => $exists ? $raw : null,
+        'state' => ll_tools_wordset_page_normalize_recorder_queue_summary_upgrade_state(
+            $exists ? maybe_unserialize($raw) : []
+        ),
+    ];
+}
+
+/**
+ * Acquire the upgrade cursor with an atomic exact-owner lease.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state(): ?array {
+    global $wpdb;
+
+    $option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+    $now = time();
+    $owner = wp_generate_uuid4();
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+        $state = $snapshot['state'];
+        if (
+            (string) $state['owner'] !== ''
+            && (int) $state['owner_expires'] > $now
+        ) {
+            return null;
+        }
+
+        $state['owner'] = $owner;
+        $state['owner_expires'] = $now + (10 * MINUTE_IN_SECONDS);
+        $state['updated_at'] = $now;
+        $serialized = maybe_serialize($state);
+        if (!$snapshot['exists']) {
+            $wpdb->last_error = '';
+            $inserted = $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload)
+                 VALUES (%s, %s, 'no')",
+                $option_name,
+                $serialized
+            ));
+            wp_cache_delete($option_name, 'options');
+            wp_cache_delete('notoptions', 'options');
+            if ($inserted === 1 && (string) $wpdb->last_error === '') {
+                $state['owner_token'] = $owner;
+                return $state;
+            }
+            if ($inserted === false || (string) $wpdb->last_error !== '') {
+                $wpdb->last_error = '';
+                return null;
+            }
+            continue;
+        }
+
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+            $serialized,
+            $option_name,
+            (string) $snapshot['raw']
+        ));
+        if ($updated === 1) {
+            wp_cache_delete($option_name, 'options');
+            wp_cache_delete('notoptions', 'options');
+            $state['owner_token'] = $owner;
+            return $state;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Release an exact-owner lease while durably checkpointing the cursor.
+ *
+ * @param array<string,mixed> $changes
+ */
+function ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+    string $owner,
+    array $changes
+): bool {
+    global $wpdb;
+
+    if ($owner === '') {
+        return false;
+    }
+    $option_name = 'll_tools_recorder_queue_summary_prewarm_state';
+    $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+    if (!$snapshot['exists']) {
+        return false;
+    }
+    $state = $snapshot['state'];
+    if ((string) $state['owner'] === '' || !hash_equals((string) $state['owner'], $owner)) {
+        return false;
+    }
+
+    $state = ll_tools_wordset_page_normalize_recorder_queue_summary_upgrade_state(
+        array_merge($state, $changes)
+    );
+    $state['owner'] = '';
+    $state['owner_expires'] = 0;
+    $state['updated_at'] = time();
+    $updated = $wpdb->query($wpdb->prepare(
+        "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND option_value = %s",
+        maybe_serialize($state),
+        $option_name,
+        (string) $snapshot['raw']
+    ));
+    if ($updated !== 1) {
+        return false;
+    }
+
+    wp_cache_delete($option_name, 'options');
+    wp_cache_delete('notoptions', 'options');
+    return true;
+}
+
+function ll_tools_wordset_page_recorder_queue_summary_upgrade_owner_is_current(string $owner): bool {
+    if ($owner === '') {
+        return false;
+    }
+    $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+    $state = $snapshot['state'];
+    return $snapshot['exists']
+        && (string) $state['owner'] !== ''
+        && hash_equals((string) $state['owner'], $owner)
+        && (int) $state['owner_expires'] > time();
+}
+
 function ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm(): void {
     if (!current_user_can('manage_options')) {
         return;
     }
 
-    $schema_version = '6';
+    $schema_version = '7';
     if ((string) get_option('ll_tools_recorder_queue_summary_prewarm_schema', '') === $schema_version) {
         return;
     }
 
-    $hook = 'll_tools_wordset_page_prewarm_recorder_queue_summary_users';
-    $args = [0];
-    if (wp_next_scheduled($hook, $args)) {
-        return;
+    $snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+    $state = $snapshot['state'];
+    $delay = 5;
+    if ($state['status'] === 'paused' && (int) $state['next_attempt_at'] > time()) {
+        $delay = (int) $state['next_attempt_at'] - time();
     }
-
-    wp_schedule_single_event(time() + 5, $hook, $args);
+    ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event($delay);
 }
 add_action('admin_init', 'll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_prewarm', 30);
 
 /**
  * Schedule recorder summary warmups in bounded user batches.
  *
- * @param int $offset Recorder-user offset for the next resumable batch.
+ * @param int $offset Legacy cron argument retained for scheduled-event compatibility.
  */
 function ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(int $offset = 0): void {
-    $schema_version = '6';
+    unset($offset);
+    $schema_version = '7';
     $option_name = 'll_tools_recorder_queue_summary_prewarm_schema';
     if ((string) get_option($option_name, '') === $schema_version) {
         return;
     }
 
+    $durable_snapshot = ll_tools_wordset_page_read_recorder_queue_summary_upgrade_state();
+    if ((string) $durable_snapshot['state']['status'] === 'completed') {
+        update_option($option_name, $schema_version, false);
+        if ((string) get_option($option_name, '') !== $schema_version) {
+            ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(30);
+        }
+        return;
+    }
+
+    $state = ll_tools_wordset_page_acquire_recorder_queue_summary_upgrade_state();
+    if (!is_array($state)) {
+        ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(30);
+        return;
+    }
+    $owner = (string) ($state['owner_token'] ?? '');
+    $last_user_id = max(0, (int) $state['last_user_id']);
+
+    $checkpoint_failure = static function (string $reason, int $next_user_id) use ($owner, $state): void {
+        $same_cursor = $next_user_id === (int) $state['last_user_id'];
+        $attempt = $same_cursor
+            ? ((int) $state['no_progress_attempts'] + 1)
+            : 1;
+        $retry_plan = ll_tools_wordset_page_recorder_queue_warmup_retry_plan($attempt);
+        $paused = (int) $retry_plan['attempts'] === 0;
+        $delay = (int) $retry_plan['delay'];
+        $checkpointed = ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+            $owner,
+            [
+                'last_user_id' => $next_user_id,
+                'no_progress_attempts' => (int) $retry_plan['attempts'],
+                'status' => $paused ? 'paused' : 'pending',
+                'next_attempt_at' => time() + $delay,
+                'last_error' => $reason,
+            ]
+        );
+        ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(
+            $checkpointed ? $delay : 30
+        );
+    };
+
+    global $wpdb;
     $batch_size = 20;
-    $user_ids = get_users([
-        'role' => 'audio_recorder',
-        'fields' => 'ID',
-        'number' => $batch_size,
-        'offset' => max(0, $offset),
-        'orderby' => 'ID',
-        'order' => 'ASC',
-    ]);
-    if (is_wp_error($user_ids) || !is_array($user_ids)) {
+    $capabilities_key = $wpdb->get_blog_prefix() . 'capabilities';
+    $role_match = '%' . $wpdb->esc_like('"audio_recorder"') . '%';
+    $wpdb->last_error = '';
+    $user_ids = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT u.ID
+         FROM {$wpdb->users} u
+         INNER JOIN {$wpdb->usermeta} um
+            ON um.user_id = u.ID
+           AND um.meta_key = %s
+         WHERE u.ID > %d
+           AND um.meta_value LIKE %s
+         ORDER BY u.ID ASC
+         LIMIT %d",
+        $capabilities_key,
+        $last_user_id,
+        $role_match,
+        $batch_size
+    ));
+    if (!is_array($user_ids) || $wpdb->last_error !== '') {
+        $checkpoint_failure('user_query_failed', $last_user_id);
         return;
     }
 
@@ -22465,21 +22930,50 @@ function ll_tools_wordset_page_run_recorder_queue_summary_upgrade_prewarm(int $o
         $config = function_exists('ll_get_user_recording_config')
             ? ll_get_user_recording_config($user_id)
             : get_user_meta($user_id, 'll_recording_config', true);
-        if (is_array($config)) {
-            ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_config($user_id, $config);
+        $result = ll_tools_wordset_page_schedule_recorder_queue_summary_warmup_for_user_config(
+            $user_id,
+            $config
+        );
+        if (!in_array($result, ['scheduled', 'not_applicable'], true)) {
+            $checkpoint_failure($result, $last_user_id);
+            return;
         }
+        $last_user_id = $user_id;
     }
 
     if (count($user_ids) >= $batch_size) {
-        wp_schedule_single_event(
-            time() + 5,
-            'll_tools_wordset_page_prewarm_recorder_queue_summary_users',
-            [max(0, $offset) + $batch_size]
+        $checkpointed = ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+            $owner,
+            [
+                'last_user_id' => $last_user_id,
+                'no_progress_attempts' => 0,
+                'status' => 'pending',
+                'next_attempt_at' => time() + 5,
+                'last_error' => '',
+            ]
         );
+        ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event($checkpointed ? 5 : 30);
         return;
     }
 
+    $completed = ll_tools_wordset_page_checkpoint_recorder_queue_summary_upgrade_state(
+        $owner,
+        [
+            'last_user_id' => $last_user_id,
+            'no_progress_attempts' => 0,
+            'status' => 'completed',
+            'next_attempt_at' => 0,
+            'last_error' => '',
+        ]
+    );
+    if (!$completed) {
+        ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(30);
+        return;
+    }
     update_option($option_name, $schema_version, false);
+    if ((string) get_option($option_name, '') !== $schema_version) {
+        ll_tools_wordset_page_schedule_recorder_queue_summary_upgrade_event(30);
+    }
 }
 add_action(
     'll_tools_wordset_page_prewarm_recorder_queue_summary_users',

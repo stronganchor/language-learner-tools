@@ -38,6 +38,12 @@ function ll_tools_dictionary_live_search_debounce_ms(): int {
     return max(300, min(1000, $debounce_ms));
 }
 
+function ll_tools_dictionary_request_timeout_ms(): int {
+    $timeout_ms = (int) apply_filters('ll_tools_dictionary_request_timeout_ms', 15000);
+
+    return max(3000, min(30000, $timeout_ms));
+}
+
 function ll_tools_dictionary_public_search_max_length(): int {
     $max_length = (int) apply_filters('ll_tools_dictionary_public_search_max_length', 80);
 
@@ -325,6 +331,7 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
             'minChars' => ll_tools_dictionary_live_search_min_chars(),
             'debounceMs' => ll_tools_dictionary_live_search_debounce_ms(),
+            'request_timeout_ms' => ll_tools_dictionary_request_timeout_ms(),
             'loadingCards' => 3,
             'cacheSize' => 24,
             'loadingLabel' => __('Loading dictionary results...', 'll-tools-text-domain'),
@@ -334,6 +341,8 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'entryDefinitionRequiredLabel' => __('Enter a definition.', 'll-tools-text-domain'),
             'entrySavingLabel' => __('Saving...', 'll-tools-text-domain'),
             'entryErrorLabel' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
+            'readError' => __('Dictionary results could not be loaded.', 'll-tools-text-domain'),
+            'retry' => __('Retry', 'll-tools-text-domain'),
         ]);
         $script_localized = true;
     }

@@ -637,6 +637,45 @@
     gap: 14px;
 }
 
+.ll-dictionary__read-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    color: #7f1d1d;
+    border: 1px solid #fecaca;
+    border-radius: 14px;
+    background: #fef2f2;
+}
+
+.ll-dictionary__read-error p {
+    flex: 1 1 240px;
+    margin: 0;
+}
+
+.ll-dictionary .ll-dictionary__retry {
+    min-height: 42px;
+    padding: 8px 16px;
+    color: #ffffff;
+    border: 1px solid var(--ll-dictionary-accent);
+    border-radius: 999px;
+    background: var(--ll-dictionary-accent);
+    box-shadow: none;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.ll-dictionary .ll-dictionary__retry:hover,
+.ll-dictionary .ll-dictionary__retry:focus-visible {
+    color: #ffffff;
+    border-color: var(--ll-dictionary-accent);
+    background: var(--ll-dictionary-accent);
+    filter: brightness(0.9);
+}
+
 .ll-dictionary__card {
     padding: 18px;
     border: 1px solid var(--ll-dictionary-border);

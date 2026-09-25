@@ -3533,6 +3533,7 @@ function ll_tools_get_category_lineup_manager_i18n(): array {
         'moveUp' => __('Move earlier', 'll-tools-text-domain'),
         'moveDown' => __('Move later', 'll-tools-text-domain'),
         'loadError' => __('Unable to load Line-Up words right now.', 'll-tools-text-domain'),
+        'retry' => __('Retry', 'll-tools-text-domain'),
         'updateError' => __('Unable to update the Line-Up sequence right now.', 'll-tools-text-domain'),
         'updating' => __('Updating sequence...', 'll-tools-text-domain'),
         'updated' => __('Sequence updated.', 'll-tools-text-domain'),
@@ -3559,6 +3560,7 @@ function ll_tools_enqueue_category_lineup_manager_assets(array $context = []): v
         'updateAction' => 'll_tools_update_category_lineup_sequence',
         'nonce' => isset($context['nonce']) ? (string) $context['nonce'] : '',
         'pageSize' => ll_tools_category_lineup_page_size(),
+        'requestTimeoutMs' => max(3000, min(30000, (int) apply_filters('ll_tools_category_lineup_request_timeout_ms', 15000))),
         'i18n' => ll_tools_get_category_lineup_manager_i18n(),
     ]);
 }

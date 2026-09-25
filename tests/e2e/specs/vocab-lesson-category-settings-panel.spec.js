@@ -255,7 +255,11 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
         fetchAction: 'll_tools_get_category_lineup_candidates',
         updateAction: 'll_tools_update_category_lineup_sequence',
         pageSize: 5,
-        i18n: {}
+        requestTimeoutMs: ${Number.isFinite(options.lineupRequestTimeoutMs) ? options.lineupRequestTimeoutMs : 15000},
+        i18n: {
+          retry: 'Retry',
+          loadError: 'Unable to load Line-Up words right now.'
+        }
       };
 
       window.__llCategorySettingsSaves = [];
@@ -265,6 +269,10 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
       window.__llCategorySettingsServerState = null;
       window.__llCategorySettingsServerWriter = { clientId: '', sequence: 0 };
       window.__llLineupRequests = [];
+      window.__llLineupReadFailures = {
+        sequence: ${Math.max(0, Number(options.lineupSequenceFailures) || 0)},
+        candidates: ${Math.max(0, Number(options.lineupCandidateFailures) || 0)}
+      };
       window.__llLineupSequence = Array.from({ length: ${lineupCount} }, (_, index) => 41 + index);
       window.__llLineupCandidates = Array.from({ length: ${lineupCount} }, (_, index) => ({
         id: 41 + index,
@@ -297,6 +305,19 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
             const pageNumber = Math.max(1, Number.parseInt(value('page', '1'), 10) || 1);
             const perPage = Math.max(1, Number.parseInt(value('per_page', '5'), 10) || 5);
             const search = value('search').trim().toLowerCase();
+            window.__llLineupRequests.push({
+              action,
+              view,
+              page: pageNumber,
+              perPage,
+              search,
+              timeout: Number(options && options.timeout ? options.timeout : 0)
+            });
+            if (window.__llLineupReadFailures[view] > 0) {
+              window.__llLineupReadFailures[view] -= 1;
+              deferred.reject({ responseJSON: null }, 'error');
+              return;
+            }
             let source = [];
             if (view === 'sequence') {
               source = window.__llLineupSequence.map((id, index) => {
@@ -323,7 +344,6 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
             const totalPages = Math.max(1, Math.ceil(total / perPage));
             const effectivePage = Math.min(pageNumber, totalPages);
             const offset = (effectivePage - 1) * perPage;
-            window.__llLineupRequests.push({ action, view, page: pageNumber, perPage, search });
             deferred.resolve({
               success: true,
               data: {
@@ -641,6 +661,36 @@ test('lesson category settings keeps autosave feedback above overlapping lesson 
   )).toBeGreaterThan(0);
   const lastSave = await page.evaluate(() => window.__llCategorySettingsSaves.at(-1));
   expect(lastSave.entries.ll_vocab_lesson_category_lineup_word_ids).toBeUndefined();
+});
+
+test('Line-Up reads keep failures independent and retry only the failed view', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, {
+    lineupCount: 6,
+    lineupSequenceFailures: 1,
+    lineupRequestTimeoutMs: 4321
+  });
+
+  const sequenceStatus = page.locator('[data-ll-lineup-read-status="sequence"]');
+  const candidateStatus = page.locator('[data-ll-lineup-read-status="candidates"]');
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  await expect(sequenceStatus).toHaveAttribute('data-state', 'error');
+  await expect(sequenceStatus).toContainText('Unable to load Line-Up words right now.');
+  await expect(sequenceStatus.locator('[data-ll-lineup-retry-view="sequence"]')).toHaveText('Retry');
+  await expect(page.locator('[data-ll-lineup-candidate-item]')).toHaveCount(5);
+  await expect(candidateStatus).toBeHidden();
+
+  const initialRequests = await page.evaluate(() => window.__llLineupRequests.slice());
+  expect(initialRequests).toHaveLength(2);
+  expect(initialRequests.every((request) => request.timeout === 4321)).toBe(true);
+
+  await sequenceStatus.locator('[data-ll-lineup-retry-view="sequence"]').click();
+  await expect(page.locator('[data-ll-lineup-sequence-item]')).toHaveCount(5);
+  await expect(sequenceStatus).toBeHidden();
+  await expect(page.locator('[data-ll-lineup-sequence-list]')).toBeFocused();
+
+  const finalRequests = await page.evaluate(() => window.__llLineupRequests.slice());
+  expect(finalRequests).toHaveLength(3);
+  expect(finalRequests[2]).toMatchObject({ view: 'sequence', timeout: 4321 });
 });
 
 test('Line-Up mutations advance the shared revision before the next lesson autosave', async ({ page }) => {

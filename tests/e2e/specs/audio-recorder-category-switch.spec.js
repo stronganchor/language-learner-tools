@@ -442,9 +442,13 @@ test('recorder overview names every category while counts and previews hydrate',
     .toHaveAttribute('aria-label', 'Baby animals');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]'))
     .toHaveAttribute('href', /ll_record_category=baby-animals/);
+  const focusedCategory = page.locator('[data-recorder-queue-category="baby-animals"]');
+  await focusedCategory.focus();
+  await expect(focusedCategory).toBeFocused();
 
   const loadedCards = page.locator('.ll-recorder-category-card:not([data-ll-recorder-queue-summary-placeholder="true"])');
   await expect(loadedCards).toHaveCount(2, { timeout: 8000 });
+  await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toBeFocused();
   await expect(page.locator('[data-recorder-queue-category="baby-animals"] .ll-wordset-settings-card__pill')).toHaveText('12 words');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveAttribute('data-recorder-queue-count', '12');
   await expect(page.locator('[data-recorder-queue-category="baby-animals"]')).toHaveJSProperty('tagName', 'A');

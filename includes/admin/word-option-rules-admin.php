@@ -294,6 +294,7 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
         'groupLabelFallback' => __('Group', 'll-tools-text-domain'),
         'autosaveSaving' => __('Saving word options...', 'll-tools-text-domain'),
         'autosaveSaved' => __('Word options saved.', 'll-tools-text-domain'),
+        'autosaveRetry' => __('Retry', 'll-tools-text-domain'),
         'autosaveError' => __('Unable to save word options.', 'll-tools-text-domain'),
         'candidateNonce' => wp_create_nonce('ll_word_option_rules_candidates'),
         'candidateSearchError' => __('Unable to search words.', 'll-tools-text-domain'),
