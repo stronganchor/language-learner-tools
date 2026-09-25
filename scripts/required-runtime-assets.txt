@@ -42,3 +42,4 @@ js/flashcard-widget/audio.js
 js/flashcard-widget/audio-visualizer.js
 media/right-answer.mp3
 media/wrong-answer.mp3
+media/.htaccess

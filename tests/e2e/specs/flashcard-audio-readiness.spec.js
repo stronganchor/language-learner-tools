@@ -319,7 +319,7 @@ test('accepted answers keep playing feedback before the prompt playback flag set
 test('native correct-answer audio produces sound through 25 quick rounds and a reopen', async ({ page }) => {
   const sound = fs.readFileSync(path.resolve(__dirname, '../../../media/right-answer.mp3'));
   await page.route('https://feedback.test/**', (route) => route.fulfill(
-    route.request().url().endsWith('.mp3')
+    new URL(route.request().url()).pathname.endsWith('.mp3')
       ? { contentType: 'audio/mpeg', body: sound }
       : { contentType: 'text/html', body: '<button>Start</button><div id="ll-tools-flashcard"></div>' }
   ));

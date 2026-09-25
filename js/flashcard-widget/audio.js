@@ -87,8 +87,9 @@
          * Initialize feedback sounds (persist across sessions)
          */
         function initializeAudio() {
-            correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
-            wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
+            // Bypass cached compressed responses predating the media range fix.
+            correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3?ver=2');
+            wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3?ver=2');
             correctAudio.__options = { type: 'feedback-correct', minReadyState: 2, readyTimeoutMs: 900 };
             wrongAudio.__options = { type: 'feedback-wrong', minReadyState: 2, readyTimeoutMs: 900 };
             try { correctAudio.preload = 'auto'; } catch (_) { /* no-op */ }

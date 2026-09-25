@@ -1,0 +1,11 @@
+# Feedback MP3s must retain one byte representation for native media ranges.
+# Inherited compression plus CDN decompression can mix encoded offsets with
+# decoded bytes. Keep this exception limited to the two quiz feedback clips.
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase Request_URI "(?:^|/)(?:right|wrong)-answer\.mp3$" no-gzip=1 no-brotli=1
+</IfModule>
+<IfModule mod_headers.c>
+    <FilesMatch "^(?:right|wrong)-answer\.mp3$">
+        Header merge Cache-Control "no-transform"
+    </FilesMatch>
+</IfModule>
