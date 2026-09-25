@@ -11513,23 +11513,10 @@ function ll_tools_user_progress_batch_ajax() {
                 if (ll_tools_user_progress_stats_are_retryable_failure($stats)) {
                     $result = ['stats' => $stats];
                 } else {
-                    $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-                        ? ll_tools_user_study_categories_for_wordset($wordset_id)
-                        : [];
-                    $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, $category_ids, $categories, 8);
-                    $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-                    if (!$recommendation) {
-                        $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, $category_ids, $categories);
-                    }
-                    if ($recommendation) {
-                        ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
-                    }
-
-                    $result = [
-                        'stats' => $stats,
-                        'next_activity' => $recommendation,
-                        'recommendation_queue' => $queue,
-                    ];
+                    $result = array_merge(
+                        ['stats' => $stats],
+                        ll_tools_user_study_recommendation_payload($user_id, $wordset_id, $category_ids)
+                    );
                 }
             }
         } finally {
@@ -11582,34 +11569,10 @@ function ll_tools_user_study_save_goals_request(
         $user_id,
         static function () use ($user_id, $goals_raw, $wordset_id, $category_ids): array {
             $goals = ll_tools_save_user_study_goals($goals_raw, $user_id);
-            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-                ? ll_tools_user_study_categories_for_wordset($wordset_id)
-                : [];
-            $queue = ll_tools_refresh_user_recommendation_queue(
-                $user_id,
-                $wordset_id,
-                $category_ids,
-                $categories,
-                8
+            return array_merge(
+                ['goals' => $goals],
+                ll_tools_user_study_recommendation_payload($user_id, $wordset_id, $category_ids)
             );
-            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-            if (!$recommendation) {
-                $recommendation = ll_tools_build_next_activity_recommendation(
-                    $user_id,
-                    $wordset_id,
-                    $category_ids,
-                    $categories
-                );
-            }
-            if ($recommendation) {
-                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
-            }
-
-            return [
-                'goals' => $goals,
-                'next_activity' => $recommendation,
-                'recommendation_queue' => $queue,
-            ];
         }
     );
 }
@@ -11682,7 +11645,9 @@ function ll_tools_user_study_recommendation_payload(
 
     if ($sources_complete && ($force_refresh || !$recommendation)) {
         $catalog_complete = true;
-        if (!$force_refresh && function_exists('ll_tools_user_study_recommendation_categories_for_wordset')) {
+        // Saves and progress batches hold the learner's privacy/write lock.
+        // Forced refreshes must use the same bounded window as a cold page.
+        if (function_exists('ll_tools_user_study_recommendation_categories_for_wordset')) {
             $categories = ll_tools_user_study_recommendation_categories_for_wordset(
                 $wordset_id,
                 $category_ids,
@@ -11692,8 +11657,6 @@ function ll_tools_user_study_recommendation_payload(
             $recommendation_category_ids = array_values(array_unique(array_filter(array_map('intval', wp_list_pluck($categories, 'id')), static function (int $category_id): bool {
                 return $category_id > 0;
             })));
-        } elseif (function_exists('ll_tools_user_study_categories_for_wordset')) {
-            $categories = ll_tools_user_study_categories_for_wordset($wordset_id, $catalog_complete);
         } else {
             $catalog_complete = false;
         }
@@ -11829,27 +11792,12 @@ function ll_tools_user_study_queue_remove_request(int $user_id, int $wordset_id,
                 }
             }
 
-            $categories = function_exists('ll_tools_user_study_categories_for_wordset')
-                ? ll_tools_user_study_categories_for_wordset($wordset_id)
-                : [];
             if (is_array($removed_activity) && function_exists('ll_tools_defer_user_recommendation_activity')) {
                 ll_tools_defer_user_recommendation_activity($removed_activity, $user_id, $wordset_id);
             } elseif ($removed_signature !== '') {
                 ll_tools_add_user_recommendation_dismissed_signature($removed_signature, $user_id, $wordset_id);
             }
-            $queue = ll_tools_refresh_user_recommendation_queue($user_id, $wordset_id, [], $categories, 8);
-            $recommendation = ll_tools_recommendation_queue_pick_next($queue);
-            if (!$recommendation) {
-                $recommendation = ll_tools_build_next_activity_recommendation($user_id, $wordset_id, [], $categories);
-            }
-            if ($recommendation) {
-                ll_tools_save_user_last_recommendation_activity($recommendation, $user_id, $wordset_id);
-            }
-
-            return [
-                'next_activity' => $recommendation,
-                'recommendation_queue' => $queue,
-            ];
+            return ll_tools_user_study_recommendation_payload($user_id, $wordset_id, []);
         }
     );
 }

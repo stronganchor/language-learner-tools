@@ -1513,34 +1513,10 @@ function ll_tools_user_study_save_request(
                 'fast_transitions' => $fast_transitions,
             ], $user_id);
 
-            $categories = ll_tools_user_study_categories_for_wordset($wordset_id);
-            $recommendation_queue = [];
-            if (function_exists('ll_tools_refresh_user_recommendation_queue')) {
-                $recommendation_queue = ll_tools_refresh_user_recommendation_queue(
-                    $user_id,
-                    $wordset_id,
-                    $payload['category_ids'],
-                    $categories,
-                    8
-                );
-            }
-            $next_activity = function_exists('ll_tools_recommendation_queue_pick_next')
-                ? ll_tools_recommendation_queue_pick_next($recommendation_queue)
-                : null;
-            if (!$next_activity && function_exists('ll_tools_build_next_activity_recommendation')) {
-                $next_activity = ll_tools_build_next_activity_recommendation(
-                    $user_id,
-                    $wordset_id,
-                    $payload['category_ids'],
-                    $categories
-                );
-            }
-
-            return [
-                'state' => $payload,
-                'next_activity' => $next_activity,
-                'recommendation_queue' => $recommendation_queue,
-            ];
+            return array_merge(
+                ['state' => $payload],
+                ll_tools_user_study_recommendation_payload($user_id, $wordset_id, $payload['category_ids'])
+            );
         }
     );
 }

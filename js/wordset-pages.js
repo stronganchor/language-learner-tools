@@ -120,6 +120,8 @@
     let stateSaveRequestToken = 0;
     let stateSaveLatestToken = 0;
     let goalsSaveRequestToken = 0;
+    const studyMutationQueue = [];
+    let studyMutationRunning = false;
     let analyticsTimer = null;
     let analyticsTimerOptions = null;
     let analyticsRequestToken = 0;
@@ -11746,6 +11748,51 @@
         return true;
     }
 
+    // A lock refusal means the server has not performed this mutation. Retry
+    // only that explicit response; replaying a lost response could duplicate
+    // an action. Serialize this page's settings writes to preserve click order.
+    function postStudyMutation(payload) {
+        const deferred = $.Deferred();
+        studyMutationQueue.push({ payload: payload, deferred: deferred, attempts: 0 });
+        runNextStudyMutation();
+        return deferred.promise();
+    }
+
+    function runNextStudyMutation() {
+        if (studyMutationRunning || !studyMutationQueue.length) { return; }
+        studyMutationRunning = true;
+        const job = studyMutationQueue[0];
+        const finish = function (success, args) {
+            studyMutationQueue.shift();
+            if (success) {
+                job.deferred.resolve.apply(job.deferred, args);
+            } else {
+                job.deferred.reject.apply(job.deferred, args);
+            }
+            studyMutationRunning = false;
+            runNextStudyMutation();
+        };
+        const send = function () {
+            job.attempts += 1;
+            $.ajax({ url: ajaxUrl, type: 'POST', data: job.payload, timeout: 30000 })
+                .done(function (res) {
+                    finish(!!(res && res.success), [res]);
+                })
+                .fail(function (xhr, status, error) {
+                    const data = xhr && xhr.responseJSON && xhr.responseJSON.data;
+                    const retryAfter = Math.max(1, Number(data && data.retry_after) || 1);
+                    if (xhr && xhr.status === 503 && data && data.retryable === true
+                        && data.code === 'user_data_mutation_lock_unavailable'
+                        && retryAfter <= 5 && job.attempts < 4) {
+                        window.setTimeout(send, retryAfter * 1000);
+                        return;
+                    }
+                    finish(false, [xhr, status, error]);
+                });
+        };
+        send();
+    }
+
     function saveStateDebounced(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (!isLoggedIn || !ajaxUrl || !nonce) { return; }
@@ -11759,7 +11806,7 @@
             stateSaveQueued = false;
             const requestToken = ++stateSaveRequestToken;
             stateSaveLatestToken = requestToken;
-            stateSaveInFlightRequest = $.post(ajaxUrl, {
+            stateSaveInFlightRequest = postStudyMutation({
                 action: 'll_user_study_save',
                 nonce: nonce,
                 wordset_id: wordsetId,
@@ -11811,7 +11858,7 @@
         }
 
         const requestToken = ++goalsSaveRequestToken;
-        const request = $.post(ajaxUrl, {
+        const request = postStudyMutation({
             action: 'll_user_study_save_goals',
             nonce: nonce,
             wordset_id: wordsetId,
@@ -18442,7 +18489,7 @@
         if (!id || !isLoggedIn || !ajaxUrl || !nonce) {
             return $.Deferred().reject().promise();
         }
-        return $.post(ajaxUrl, {
+        return postStudyMutation({
             action: 'll_user_study_queue_remove',
             nonce: nonce,
             wordset_id: wordsetId,

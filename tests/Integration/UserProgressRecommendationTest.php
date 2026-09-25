@@ -51,6 +51,54 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
         $this->assertSame($expected_queue, (array) $payload['recommendation_queue']);
     }
 
+    public function test_learner_mutations_and_forced_refresh_keep_recommendations_bounded(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $fixture = $this->create_wordset_with_category_counts(array_fill(0, 20, 5));
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_ids = array_map('intval', $fixture['category_ids']);
+        $full_builds = 0;
+        $windows = [];
+        $capture_full = static function () use (&$full_builds): void { $full_builds++; };
+        $capture_window = static function (int $wordset, array $ids) use (&$windows): void { $windows[] = $ids; };
+        $window_size = static fn (): int => 4;
+        add_action('ll_tools_user_study_categories_for_wordset_before_build', $capture_full);
+        add_action('ll_tools_user_study_recommendation_categories_for_wordset_before_build', $capture_window, 10, 2);
+        add_filter('ll_tools_user_study_recommendation_category_window_size', $window_size);
+        try {
+            $goals = ll_tools_get_user_study_goals($user_id);
+            $goals['enabled_modes'] = ['practice'];
+            $saved = ll_tools_user_study_save_goals_request($user_id, $goals, $wordset_id, $category_ids);
+            $this->assertIsArray($saved);
+            $this->assertSame(['practice'], $saved['goals']['enabled_modes']);
+            $state = ll_tools_user_study_save_request($user_id, $wordset_id, $category_ids, [], true);
+            $this->assertIsArray($state);
+            $this->assertTrue($state['state']['fast_transitions']);
+            $forced = ll_tools_user_study_recommendation_request($user_id, $wordset_id, $category_ids, 'practice', true);
+            $this->assertIsArray($forced);
+            $this->assertNotEmpty($forced['recommendation_queue']);
+            $removed = ll_tools_user_study_queue_remove_request($user_id, $wordset_id, $forced['recommendation_queue'][0]['queue_id']);
+            $this->assertIsArray($removed);
+            $this->assertSame(0, $full_builds, 'Settings and progress-related refreshes must not hold the user lock across the full catalog.');
+            $this->assertCount(4, $windows);
+            foreach ($windows as $ids) {
+                $this->assertLessThanOrEqual(4, count($ids));
+            }
+            foreach ([$saved, $state, $forced, $removed] as $result) {
+                $this->assertNotEmpty($result['recommendation_queue']);
+                foreach ($result['recommendation_queue'] as $activity) {
+                    $this->assertSame('practice', $activity['mode']);
+                    $this->assert_recommendation_word_count_within_bounds($activity, 'bounded learner mutation');
+                }
+            }
+        } finally {
+            remove_action('ll_tools_user_study_categories_for_wordset_before_build', $capture_full);
+            remove_action('ll_tools_user_study_recommendation_categories_for_wordset_before_build', $capture_window, 10);
+            remove_filter('ll_tools_user_study_recommendation_category_window_size', $window_size);
+        }
+    }
+
     public function test_missing_queue_refresh_hydrates_only_a_bounded_category_window(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
