@@ -1346,10 +1346,10 @@ msgstr[1] "%1$d Aufnahmen in %2$s haben möglicherweise Transkriptionsprobleme"
 #. translators: 1: number of recordings, 2: wordset name
 #: includes/admin/audio-processor-admin.php:2886
 #, php-format
-msgid "%1$d auto-generated transcription in %2$s needs review"
-msgid_plural "%1$d auto-generated transcriptions in %2$s need review"
-msgstr[0] "%1$d Auto-generierte Transkription in %2$s muss überarbeitet werden"
-msgstr[1] "%1$d automatisch generierte Transkriptionen in %2$s müssen überarbeitet werden"
+msgid "%1$d recording in %2$s has auto-generated transcription data that needs review"
+msgid_plural "%1$d recordings in %2$s have auto-generated transcription data that needs review"
+msgstr[0] "%1$d Aufnahme in %2$s enthält automatisch erzeugte Transkriptionsdaten, die überprüft werden müssen"
+msgstr[1] "%1$d Aufnahmen in %2$s enthalten automatisch erzeugte Transkriptionsdaten, die überprüft werden müssen"
 
 #: includes/admin/audio-processor-admin.php:2956
 msgid "LL Tools Admin Tasks"

@@ -1616,8 +1616,8 @@ msgstr[1] ""
 
 #. translators: 1: number of recordings, 2: wordset name
 #: includes/admin/audio-processor-admin.php:2886
-msgid "%1$d auto-generated transcription in %2$s needs review"
-msgid_plural "%1$d auto-generated transcriptions in %2$s need review"
+msgid "%1$d recording in %2$s has auto-generated transcription data that needs review"
+msgid_plural "%1$d recordings in %2$s have auto-generated transcription data that needs review"
 msgstr[0] ""
 msgstr[1] ""
 

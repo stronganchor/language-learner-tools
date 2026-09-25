@@ -2884,8 +2884,8 @@ function ll_tools_get_admin_maintenance_tasks(): array {
                 'message' => sprintf(
                     /* translators: 1: number of recordings, 2: wordset name */
                     _n(
-                        '%1$d auto-generated transcription in %2$s needs review',
-                        '%1$d auto-generated transcriptions in %2$s need review',
+                        '%1$d recording in %2$s has auto-generated transcription data that needs review',
+                        '%1$d recordings in %2$s have auto-generated transcription data that needs review',
                         $review_count,
                         'll-tools-text-domain'
                     ),
