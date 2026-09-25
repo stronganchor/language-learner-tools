@@ -1389,6 +1389,83 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertNotSame((int) $foreign_word_id, (int) ($items[0]['word_id'] ?? 0));
     }
 
+    public function test_candidate_image_map_skips_attachment_queries_when_direct_links_resolve_the_batch(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Direct Fast Map', 'recorder-direct-fast-map');
+        $attachment_id = $this->create_image_attachment('recorder-direct-fast-map.png');
+        $expected = [];
+        for ($index = 0; $index < 3; $index++) {
+            $image_id = self::factory()->post->create(['post_type' => 'word_images', 'post_status' => 'publish']);
+            set_post_thumbnail($image_id, $attachment_id);
+            $word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+            update_post_meta($word_id, '_ll_autopicked_image_id', $image_id);
+            wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $expected[$image_id] = $word_id;
+        }
+
+        $lookup_queries = [];
+        $watch_query = static function ($sql) use (&$lookup_queries) {
+            if (strpos($sql, 'MAX(candidate_word.ID) AS word_id') !== false) {
+                $lookup_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_filter('query', $watch_query);
+        try {
+            $complete = false;
+            $actual = ll_tools_recorder_get_candidate_image_word_map(array_keys($expected), [$wordset_id], false, $complete);
+        } finally {
+            remove_filter('query', $watch_query);
+        }
+
+        $this->assertTrue($complete);
+        $this->assertSame($expected, $actual);
+        $this->assertCount(1, $lookup_queries, 'Direct links must avoid both attachment reverse queries.');
+        $this->assertStringContainsString("candidate_meta.meta_key = '_ll_autopicked_image_id'", $lookup_queries[0]);
+    }
+
+    public function test_candidate_image_map_preserves_direct_precedence_and_shared_attachment_maximum(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Mixed Fast Map', 'recorder-mixed-fast-map');
+        $attachment_id = $this->create_image_attachment('recorder-mixed-fast-map.png');
+        $images = [];
+        foreach (range(1, 3) as $index) {
+            $images[] = self::factory()->post->create(['post_type' => 'word_images', 'post_status' => 'publish']);
+            set_post_thumbnail(end($images), $attachment_id);
+        }
+        $direct_word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+        update_post_meta($direct_word_id, '_ll_autopicked_image_id', $images[0]);
+        wp_set_post_terms($direct_word_id, [$wordset_id], 'wordset', false);
+        $newer_linked_word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'pending']);
+        update_post_meta($newer_linked_word_id, '_ll_autopicked_image_id', $images[2]);
+        wp_set_post_terms($newer_linked_word_id, [$wordset_id], 'wordset', false);
+        $newest_thumbnail_word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+        set_post_thumbnail($newest_thumbnail_word_id, $attachment_id);
+        wp_set_post_terms($newest_thumbnail_word_id, [$wordset_id], 'wordset', false);
+
+        $lookup_queries = [];
+        $watch_query = static function ($sql) use (&$lookup_queries) {
+            if (strpos($sql, 'MAX(candidate_word.ID) AS word_id') !== false) {
+                $lookup_queries[] = $sql;
+            }
+            return $sql;
+        };
+        add_filter('query', $watch_query);
+        try {
+            $complete = false;
+            $actual = ll_tools_recorder_get_candidate_image_word_map([$images[0], $images[1]], [$wordset_id], false, $complete);
+        } finally {
+            remove_filter('query', $watch_query);
+        }
+
+        $this->assertTrue($complete);
+        $this->assertSame([$images[0] => $direct_word_id, $images[1] => $newer_linked_word_id], $actual);
+        $this->assertCount(2, $lookup_queries, 'Only the unresolved attachment needs a reverse join; no plain-thumbnail query is needed.');
+        $this->assertStringContainsString('linked_thumbnail.meta_value', $lookup_queries[1]);
+    }
+
     public function test_candidate_image_map_resolves_an_isolated_copy_from_the_source_link(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);

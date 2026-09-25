@@ -28,6 +28,7 @@ This directory contains the plugin test framework:
   - A network-restricted sandbox skips the browser installer when its policy also hides the global Playwright cache; tests then fail fast at launch if Chromium is genuinely absent. `LL_TOOLS_E2E_SKIP_BROWSER_INSTALL=1` provides the same explicit offline behavior.
   - Under Git Bash, the wrapper runs npm's JavaScript entry point and Playwright's installed CLI through the resolved Node executable. This avoids PATHEXT selecting npm's extensionless shell shim or handing its shebang to WSL.
 - `bin/run-performance-benchmark.sh`: reuses or refreshes the static `ll-perf-*` Local-site fixture, completes and verifies the target wordset's bounded durable category-search materialization outside timed scenarios, and runs the opt-in performance benchmark.
+- `performance/profile-recorder-summary-fresh-process.ps1`: local-only, checksum/tag-guarded first-cold, later-cold, and warm six-category profiles in separate PHP processes. Separates bootstrap/authentication setup from the exact production batch builder; SQL attribution is not PHP phase timing. See `performance/README.md` for matching reset/baseline rules and the static safety contract.
 - `e2e/*`: Playwright configuration + browser test specs.
 
 ## 1) Prerequisites
@@ -517,7 +518,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/audio-image-matcher-pagination.spec.js`
   - Verifies matcher requests stay serialized, delayed Start/Skip/page actions cannot overlap, image and next-audio failures expose retry, timed-out reads abort cleanly, deterministically released slow assignment writes stay authoritative, failed assignments restore the current choice, native image buttons work once via Enter or Space, and rematches refresh both old/new used states.
 - `tests/e2e/specs/audio-recorder-category-switch.spec.js`
-  - Verifies the category-neutral recorder overview, all-category native named links with exact cached counts or bounded pending hydration, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path.
+  - Verifies the category-neutral recorder overview, all-category native named links with exact cached counts or bounded pending hydration, exact completed counts, dedicated category-page navigation/back state, and focused queue continuation without the removed dropdown/in-place switching path. Overview regressions cover direct jumps to later visible shells, hidden-shell exclusion, untouched-before-pending fairness, partial exhaustion with explicit Retry, whole-JSON deadlines, fail-closed card/classification checks, catalog reload recovery, and focus preservation.
 - `tests/e2e/specs/audio-recorder-reduced-motion.spec.js`
   - Verifies recorder spinners, decorative shells, progress animation, category-card hover/focus movement, and interactive transitions are disabled when the browser requests reduced motion.
 - `tests/e2e/specs/wordset-buttons-loading-refresh.spec.js`

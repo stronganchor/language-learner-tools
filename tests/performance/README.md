@@ -190,6 +190,72 @@ does not establish a causal media speedup or regression: fresh-process AJAX
 phase profiling and repeated matched runs are still needed. See
 `MAINTENANCE_BACKLOG.md` issue `AUDIT-2026-09-18-08` for the next measurement.
 
+#### Fresh-process recorder request profile
+
+The local-only companion separates one-process WP-CLI helper time from the
+repeated WordPress bootstrap and request work paid by browser AJAX. On Windows,
+run it from the plugin root with the PHP executable and Local's `wp-cli.phar`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\performance\profile-recorder-summary-fresh-process.ps1 `
+  -PhpPath 'C:\php\8.4\php.exe' `
+  -WpCliPath 'C:\path\to\Local\wp-cli.phar' `
+  -ManagerLogin 'codex'
+```
+
+`-ManagerLogin` may be omitted when `LL_E2E_ADMIN_USER` is set. `-WpRoot`
+defaults to the WordPress root containing this plugin checkout. Before any
+cache deletion, the runner reads the site's `home` option and refuses hosts
+other than localhost or names ending in `.localhost`, `.local`, or `.test`.
+It then reuses the checksum/tag-guarded `reset` phase above, which deletes only
+the exact 211 fixture cache keys and proves the browser-selected recorder.
+
+The runner invokes three separate PHP processes in this fixed order:
+
+1. `first-cold6` requests fixture categories 1-6 after the exact-key reset.
+2. `later-cold6` requests still-cold categories 7-12.
+3. `warm6` requests categories 1-6 again from a new process.
+
+Each probe rejects non-CLI execution, enables `SAVEQUERIES` before `wp-load.php`, checks the local host,
+canonical manifest checksum, stored seed identity, fixture markers, 209-by-13
+shape, deterministic category slugs, manager permissions, recorder assignment,
+generation, and six-item batch contract before accepting the result. It calls
+the existing production batch builder once; it does not invoke the exiting
+AJAX handler or add production telemetry. Manager identity is established with
+`wp_set_current_user()` after core bootstrap, so bootstrap and authorization
+figures are reported separately and must not be described as cookie-auth
+timing.
+
+The JSON reports authoritative batch-builder wall time, WordPress/bootstrap,
+guard, authorization, and serialization timings and query totals. Its catalog,
+source-signature/generation, summary-scan, render, and cache buckets are only
+`SAVEQUERIES` caller-stack attribution of database time, not PHP phase timers.
+The five slowest batch queries contain elapsed time and caller stack but never
+SQL text or values. A second top-ten table aggregates count, total/average, and
+maximum database time by the final non-`wpdb` caller in WordPress's outer-to-
+inner stack plus its nearest LL Tools parent. Including both disambiguates
+shared WordPress metadata/query helpers without disclosing SQL. The runner
+deliberately emits no full-stream extrapolation:
+three selected batches do not prove that every request has the same cost.
+
+For a before/after diagnostic, save the entire JSON from two otherwise
+identical invocations as, for example, ignored
+`_codex_temp/recorder-performance-YYYYMMDD/fresh-before.json` and
+`fresh-after.json`. Do not run either arm concurrently with browser, WP-CLI,
+fixture, or PHPUnit work. Require the same fixture version/checksum, IDs,
+generation, local host, PHP/WP-CLI configuration, ordered phases, and successful
+211-key guard in both files. Compare like-named phases using authoritative
+batch wall time, query count/database time, caller aggregates, resolved/pending
+counts, and response bytes. Treat a single pair as bottleneck evidence, not a
+benchmark or a general production speedup claim; repeat matched pairs before
+setting a performance budget.
+
+Run the no-WordPress static safety contract separately:
+
+```bash
+php tests/performance/verify-recorder-summary-fresh-process-profiler.php
+```
+
 For full local stress coverage, use the opt-in stress profile:
 
 ```bash

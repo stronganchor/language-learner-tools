@@ -2837,6 +2837,7 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
     $complete = true;
     $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
     $single_wordset_id = ll_tools_recorder_get_single_wordset_id($normalized_wordset_ids);
+    $single_wordset_ids_pre_remapped = false;
 
     if ($single_wordset_id > 0) {
         $category_ids = [];
@@ -2876,7 +2877,61 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
             }
         }
 
-        if (!empty($category_ids) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        if (!empty($category_ids) && function_exists('ll_tools_wordset_isolation_get_category_id_map_for_wordset')) {
+            $source_category_ids = array_map('intval', array_keys($category_ids));
+            $wpdb->last_error = '';
+            $effective_category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
+                $single_wordset_id,
+                $source_category_ids,
+                false
+            );
+            $bulk_remap_complete = $wpdb->last_error === '';
+            if (
+                $bulk_remap_complete
+                && function_exists('ll_tools_is_wordset_isolation_enabled')
+                && ll_tools_is_wordset_isolation_enabled()
+                && function_exists('ll_tools_get_category_wordset_owner_id')
+                && function_exists('ll_tools_get_category_isolation_source_id')
+            ) {
+                $remap_validation_ids = array_values(array_unique(array_merge(
+                    $source_category_ids,
+                    array_map('intval', array_values($effective_category_id_map))
+                )));
+                $wpdb->last_error = '';
+                update_meta_cache('term', $remap_validation_ids);
+                $bulk_remap_complete = $wpdb->last_error === '';
+                foreach ($remap_validation_ids as $validation_category_id) {
+                    $owner_complete = true;
+                    $origin_complete = true;
+                    ll_tools_get_category_wordset_owner_id($validation_category_id, $owner_complete);
+                    ll_tools_get_category_isolation_source_id($validation_category_id, $origin_complete);
+                    if (!$owner_complete || !$origin_complete) {
+                        $bulk_remap_complete = false;
+                        break;
+                    }
+                }
+            }
+            if ($bulk_remap_complete) {
+                $effective_category_ids = [];
+                foreach ($source_category_ids as $category_id) {
+                    $effective_category_id = (int) ($effective_category_id_map[$category_id] ?? $category_id);
+                    if ($effective_category_id > 0) {
+                        $effective_category_ids[$effective_category_id] = true;
+                    }
+                }
+                $category_ids = $effective_category_ids;
+                $single_wordset_ids_pre_remapped = true;
+            } else {
+                $complete = false;
+            }
+        }
+
+        // Retain the previous per-ID path as an error/compatibility fallback.
+        if (
+            !empty($category_ids)
+            && !$single_wordset_ids_pre_remapped
+            && function_exists('ll_tools_get_effective_category_id_for_wordset')
+        ) {
             $effective_category_ids = [];
             foreach (array_keys($category_ids) as $category_id) {
                 $wpdb->last_error = '';
@@ -2921,10 +2976,12 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
         return [];
     }
 
-    $remap_complete = true;
-    $terms = ll_tools_recorder_remap_category_terms_for_wordsets((array) $terms, $normalized_wordset_ids, false, $remap_complete);
-    if (!$remap_complete) {
-        $complete = false;
+    if (!$single_wordset_ids_pre_remapped) {
+        $remap_complete = true;
+        $terms = ll_tools_recorder_remap_category_terms_for_wordsets((array) $terms, $normalized_wordset_ids, false, $remap_complete);
+        if (!$remap_complete) {
+            $complete = false;
+        }
     }
     if (empty($terms)) {
         return [];
@@ -2940,6 +2997,14 @@ function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, i
     }
     if (empty($terms)) {
         return [];
+    }
+
+    if (function_exists('ll_tools_get_category_cache_versions')) {
+        $wpdb->last_error = '';
+        ll_tools_get_category_cache_versions(array_map('intval', wp_list_pluck($terms, 'term_id')));
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+        }
     }
 
     usort($terms, static function (WP_Term $left, WP_Term $right) use ($normalized_wordset_ids): int {
@@ -3492,12 +3557,19 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
         array_map('intval', array_values($origin_id_by_image))
     )));
     $word_by_linked_image = $get_word_by_meta_value('_ll_autopicked_image_id', $linked_image_lookup_ids);
-    $word_by_linked_attachment = $get_word_by_linked_attachment(array_values($attachment_id_by_image));
-    $word_by_attachment = $get_word_by_meta_value(
-        '_thumbnail_id',
-        array_values($attachment_id_by_image),
-        true
-    );
+
+    // A direct image/origin link always wins. Only unresolved images need the
+    // more expensive attachment reverse joins; on an explicitly linked queue
+    // neither fallback query is necessary. Keep the lookup scoped to candidate
+    // identifiers rather than hydrating a wordset-wide reverse map.
+    $unresolved_attachment_ids = [];
+    foreach ($attachment_id_by_image as $image_id => $attachment_id) {
+        $origin_id = (int) ($origin_id_by_image[$image_id] ?? $image_id);
+        if ((int) ($word_by_linked_image[$image_id] ?? $word_by_linked_image[$origin_id] ?? 0) <= 0) {
+            $unresolved_attachment_ids[$attachment_id] = $attachment_id;
+        }
+    }
+    $word_by_linked_attachment = $get_word_by_linked_attachment(array_values($unresolved_attachment_ids));
 
     // The legacy resolver is attachment-based. Once one candidate image (or
     // its isolation origin) has a directly linked word, every candidate that
@@ -3514,6 +3586,11 @@ function ll_tools_recorder_get_candidate_image_word_map(array $image_post_ids, a
             $word_by_candidate_attachment[$attachment_id] = $direct_word_id;
         }
     }
+
+    // An attachment-linked match outranks a plain word thumbnail. Query the
+    // latter only for identifiers not resolved by either stronger source.
+    $fallback_attachment_ids = array_diff_key($unresolved_attachment_ids, $word_by_candidate_attachment);
+    $word_by_attachment = $get_word_by_meta_value('_thumbnail_id', array_values($fallback_attachment_ids), true);
 
     $word_by_image = [];
     foreach ($valid_image_ids as $image_id) {

@@ -1,6 +1,6 @@
 # Maintenance Backlog
 
-Updated September 25, 2026 during the authorized 6.7.43 implementation pass.
+Updated September 25, 2026 during the authorized 6.7.43 maintenance and 6.7.44 recorder-performance passes.
 The original September 18 evidence and line numbers below refer to
 `ed4405812767784e1d4e3eb688fc9ebbf632a41b` (6.7.39); current status notes identify
 the implemented follow-up without erasing that history. This maintenance pass
@@ -232,15 +232,65 @@ from source-traced risks and unmeasured production behavior.
   cannot quantify a causal media contribution. Both failures retain the
   unchanged budget and remain failures; neither is appended to history.
 - **Owners:** `includes/pages/wordset-pages.php` recorder-summary handlers,
-  `js/wordset-pages.js` recorder-summary loading, and the Genç scenarios in
+  `includes/shortcodes/audio-recording-shortcode.php` candidate/category reads,
+  `js/audio-recorder.js` shortcode viewport hydration, `js/wordset-pages.js`
+  manager recorder-summary loading, and the Genç scenarios in
   `tests/e2e/specs/performance-benchmark.spec.js`.
+- **6.7.44 implementation:** Prepared category eligibility once per bounded
+  scan, bulk-remapped the already-known category IDs, primed category versions
+  in one read, and avoided attachment reverse joins when direct image links
+  already resolve the candidate. Exact counts, isolation ownership, fallback
+  precedence, incomplete-source retry, batch size, and serial requests remain
+  unchanged. The shortcode now observes all unresolved visible shells so a
+  jump down the grid loads nearby categories; response-body timeouts, payload
+  identity checks, bounded retries, and keyboard focus are retained or hardened.
+- **Fresh-process evidence:** On the same corrected fixture and 211-key reset,
+  the first cold six-category batch changed from 4,376.865 ms / 621 queries to
+  2,051.474 ms / 198 queries; a later cold batch changed from 3,681.908 ms / 612
+  queries to 1,632.880 ms / 194 queries. Warm batches used 12 queries (44.711 ms
+  before, 25.072 ms after). Every case resolved the same six cards with matching
+  response sizes. These are individual local diagnostic samples, not production
+  page-load guarantees; bootstrap, authentication setup, and SQL phases are
+  recorded separately by `profile-recorder-summary-fresh-process.ps1`.
+  Measurements kept version metadata at 6.7.43 to avoid upgrade warmup changing
+  the experiment; the final 6.7.44 commit contains the same recorder algorithms.
+- **Final cold browser evidence:** Still **open**. The unchanged 120-second
+  Genç manager benchmark again reached 171/209 from zero loaded / 209 initial
+  placeholders, with 30 serial requests (one unfinished), a 3,908 ms request
+  median, and maximum concurrency one. The intermediate pre-bulk run reached
+  only 87/209; retain both failures rather than cherry-picking a speedup. Local
+  PHP/HTTP runtime and database variability prevent a causal whole-page claim.
+  Exact failure artifacts are retained under ignored
+  `test-results/recorder-performance-20260925/browser-after-bulk/` and
+  `browser-after-first-optimization/`. History remains unchanged.
+- **HTTP diagnostic limitation:** Two bounded Local-only diagnostic passes
+  each returned three successful summary responses, but the temporary MU
+  profiler produced no server phase reports. Its exact installed file was
+  removed and absence verified after each pass. The actual Local HTTP runtime
+  is PHP 8.2 CGI, whereas the fresh-process probe uses PHP 8.4 CLI. Do not treat
+  the browser response timings as SQL/phase attribution or assume the two
+  runtimes' bootstrap costs match. No production profiler was installed.
+- **Scoped live preview:** Only the three recorder production files were
+  applied to Zazacaogren's 6.7.42 baseline with rollback copies and cache purges;
+  this is not deployment of the separate 6.7.43 maintenance release. The
+  unrelated correct/incorrect-sound files were hash-verified unchanged.
+  Authenticated no-recording/no-upload UI checks confirmed that jumping to
+  the bottom resolves nearby summaries while earlier offscreen shells remain
+  deferred, native links and keyboard focus survive hydration, and Enter opens
+  the selected category's one-item queue. No browser console errors were seen.
+  This closes the observed viewport starvation bug, not the full cold budget.
+- **Local verification:** Full PHPUnit passed 2,702 tests / 65,840 assertions
+  with nine expected skips; the final recorder/recording-history/real-WordPress
+  fixture/documentation browser set passed 94/94. Source/POT references,
+  Turkish/German full catalogs (6,383 each), all eight active public locales
+  (800 each), context packs, PHP/JS/PowerShell syntax, and diff hygiene passed.
 - **Strategy/verification:** Profile summary PHP/SQL separately from preview
   sizing/network transfer; compare cold and warm runs on the same fixture and
   throttle settings. Retain serial loading, visible progress, and current
   limits until evidence identifies the growth dimension to change.
-  Next isolate fresh-process authenticated AJAX costs (first cold batch, later
-  uncached batch, fully warm batch): bootstrap/auth, full-catalog generation,
-  category signatures/scan, and HTML/JSON rendering, with queries per phase.
+  Continue isolating actual HTTP request overhead from the now-measured fresh
+  process batch costs: bootstrap/auth, full-catalog generation, category
+  signatures/scan, and HTML/JSON rendering, with queries per phase.
   The CLI helper reuses one bootstrapped process and request-local caches across
   35 batches; it cannot apportion the browser's repeated request overhead.
   Optimize measured repeated work through durable manifest/prewarm consumption
