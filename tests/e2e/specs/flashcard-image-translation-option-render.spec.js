@@ -54,6 +54,8 @@ async function renderQuizFrame(page, options = {}) {
   const width = Number(options.width || 390);
   const height = Number(options.height || 600);
   const imageSize = String(options.imageSize || 'large');
+  const imageA = String(options.imageA || '#dbeafe');
+  const imageB = String(options.imageB || '#dcfce7');
   const isEmbed = options.isEmbed !== false;
   const useCaptions = !!options.useCaptions;
 
@@ -176,8 +178,8 @@ async function renderQuizFrame(page, options = {}) {
     window.LLFlashcards.Cards.fitImageAnswerOptionCardsForViewport();
   }, {
     useCaptions,
-    imageA: fixtureImage('#dbeafe', 'A'),
-    imageB: fixtureImage('#dcfce7', 'B')
+    imageA: fixtureImage(imageA, 'A'),
+    imageB: fixtureImage(imageB, 'B')
   });
 
   await frame.waitForTimeout(80);
@@ -209,7 +211,8 @@ async function renderQuizFrame(page, options = {}) {
         return {
           rect: rectFor(card),
           imageRect: rectFor(media || image),
-          className: card.className
+          className: card.className,
+          boxShadow: window.getComputedStyle(card).boxShadow
         };
       })
     };
@@ -502,6 +505,23 @@ test('large embedded image quizzes keep the same image size as large standalone 
   expect(standalone.rootClass).not.toContain('ll-compact-quiz-layout');
   expect(embedded.cards[0].imageRect.width).toBeCloseTo(standalone.cards[0].imageRect.width, 0);
   expect(embedded.cards[0].imageRect.width).toBeCloseTo(250, 0);
+});
+
+test('white image answer options retain a visible tile shadow', async ({ page }) => {
+  const rendered = await renderQuizFrame(page, {
+    width: 390,
+    height: 700,
+    imageSize: 'small',
+    imageA: '#fff',
+    imageB: '#fff'
+  });
+
+  expect(rendered.cards).toHaveLength(2);
+  for (const card of rendered.cards) {
+    expect(card.className).toContain('ll-answer-option-image-card');
+    expect(card.boxShadow).not.toBe('none');
+    expect(card.boxShadow).toMatch(/rgba?\(/);
+  }
 });
 
 test('white prompt images retain a visible shadow boundary', async ({ page }) => {
