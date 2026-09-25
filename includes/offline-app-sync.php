@@ -1421,7 +1421,7 @@ if (!function_exists('ll_tools_offline_app_user_data_write_error')) {
             [
                 'status' => 503,
                 'retryable' => true,
-                'retry_after' => 60,
+                'retry_after' => $code === 'user_data_mutation_lock_unavailable' ? 1 : 60,
             ]
         );
     }

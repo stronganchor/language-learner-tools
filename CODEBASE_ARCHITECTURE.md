@@ -44,6 +44,16 @@ read_first:
 
 # Overview (30-second tour)
 
+Learner save contention: `ll_tools_user_study_recommendation_payload()` owns the
+bounded recommendation window for settings, study-state saves, progress batches,
+queue removal, and explicit refreshes. These operations retain the shared user
+write/privacy lock; never hydrate the full wordset catalog under that lock.
+`postStudyMutation()` serializes page settings writes and retries only a typed
+pre-write lock refusal (at most four attempts, respecting short server backoff).
+Authentication failures, privacy erasure, and ambiguous transport failures must
+not be replayed. Canonical guards are `UserProgressRecommendationTest`,
+`OfflineAppSyncTest`, and `wordset-study-save-recovery.spec.js`.
+
 For a compact source-to-test index, start with
 [the codebase map](docs/ai-context/codebase-map.md). Use
 [the task router](docs/ai-context/task-router.md) to select a context pack;

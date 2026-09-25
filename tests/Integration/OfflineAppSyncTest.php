@@ -515,6 +515,8 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
 
         $this->assertWPError($result);
         $this->assertSame('user_data_mutation_lock_unavailable', $result->get_error_code());
+        $this->assertSame(1, $result->get_error_data()['retry_after']);
+        $this->assertSame(60, ll_tools_offline_app_user_data_write_error('user_data_privacy_erasure_in_progress')->get_error_data()['retry_after']);
         $this->assertFalse($callback_ran);
     }
 
