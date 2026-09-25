@@ -24,7 +24,7 @@ async function mountFeedbackHarness(page) {
       const model = {
         src, readyState: 4, currentTime: 0, paused: true, ended: false,
         duration: 0.6, error: null, behavior: 'normal', plays: [], starts: 0,
-        pauses: 0, pending: []
+        pauses: 0, loads: 0, pending: []
       };
       audio.model = model;
       for (const key of ['src', 'readyState', 'currentTime', 'paused', 'ended', 'duration', 'error']) {
@@ -34,9 +34,23 @@ async function mountFeedbackHarness(page) {
           set(value) { model[key] = value; }
         });
       }
-      audio.load = () => {};
+      audio.load = () => {
+        model.loads += 1;
+        // A native media error is sticky across pause/play and seeking. The
+        // resource-selection reset performed by load() clears that error.
+        model.error = null;
+        model.currentTime = 0;
+        model.ended = false;
+        model.readyState = 4;
+        if (model.behavior === 'deferred') model.behavior = 'normal';
+        model.pending.splice(0).forEach(pending => pending.reject(new DOMException('Resource load restarted', 'AbortError')));
+      };
       audio.play = () => {
         model.plays.push({ time: model.currentTime, volume: audio.volume, at: performance.now() });
+        if (model.error) {
+          model.paused = true;
+          return Promise.reject(new DOMException('The media resource is still in an error state', 'NotSupportedError'));
+        }
         model.paused = false;
         model.ended = false;
         if (model.behavior === 'reject' || model.behavior === 'abort-once') {
@@ -72,6 +86,13 @@ async function mountFeedbackHarness(page) {
         model.ended = true;
         audio.dispatchEvent(new Event('ended'));
       };
+      model.failMedia = code => {
+        model.error = { code };
+        model.readyState = 0;
+        model.paused = true;
+        audio.dispatchEvent(new Event('error'));
+        model.pending.splice(0).forEach(pending => pending.reject(new DOMException('Media resource failed', 'NotSupportedError')));
+      };
       elements.push(audio);
       return audio;
     }
@@ -102,6 +123,177 @@ test('a rejected wrong-answer sound still replays the captured prompt from the b
     return { promptPlays: target.model.plays.length, start: target.model.plays[0]?.time };
   });
   expect(result).toEqual({ promptPlays: 1, start: 0 });
+});
+
+for (const isCorrect of [true, false]) {
+  for (const [failure, code] of [['network', 2], ['decode', 3]]) {
+    test(`${isCorrect ? 'correct' : 'wrong'} feedback recovers from a persistent ${failure} error after several rounds`, async ({ page }) => {
+      await mountFeedbackHarness(page);
+      const result = await page.evaluate(async ({ isCorrect, code }) => {
+        const fixture = window.feedbackFixture;
+        const target = await fixture.target('repeated');
+        const feedback = fixture.elements[isCorrect ? 0 : 1];
+        for (let round = 0; round < 3; round += 1) {
+          await window.FlashcardAudio.playFeedback(isCorrect);
+          feedback.model.finish();
+        }
+        const healthy = { starts: feedback.model.starts, loads: feedback.model.loads };
+        feedback.model.failMedia(code);
+        // Seeking and pause/play cannot clear a native MediaError. A later
+        // accepted answer must recover the retained feedback element.
+        for (let round = 0; round < 3; round += 1) {
+          await window.FlashcardAudio.playFeedback(isCorrect);
+          feedback.model.finish();
+        }
+        return {
+          healthy,
+          starts: feedback.model.starts,
+          loads: feedback.model.loads,
+          error: feedback.error,
+          promptPlays: target.model.plays.length,
+          startPositions: feedback.model.plays.map(play => play.time)
+        };
+      }, { isCorrect, code });
+      expect(result.healthy).toEqual({ starts: 3, loads: 1 });
+      expect(result.starts).toBe(6);
+      expect(result.loads).toBe(2);
+      expect(result.error).toBeNull();
+      expect(result.promptPlays).toBe(isCorrect ? 0 : 6);
+      expect(result.startPositions.every(time => time === 0)).toBe(true);
+    });
+  }
+}
+
+test('a persistent wrong-feedback failure restores its prompt once and recovers on the next answer', async ({ page }) => {
+  await mountFeedbackHarness(page);
+  const result = await page.evaluate(async () => {
+    const fixture = window.feedbackFixture;
+    const target = await fixture.target('failed-resource');
+    const wrong = fixture.elements[1];
+    target.currentTime = 0.35;
+    wrong.model.behavior = 'deferred';
+    const failed = window.FlashcardAudio.playFeedback(false);
+    wrong.model.failMedia(3);
+    await failed;
+    await fixture.wait(30);
+    const afterFailure = { promptPlays: target.model.plays.length, starts: wrong.model.starts };
+    wrong.model.behavior = 'normal';
+    await window.FlashcardAudio.playFeedback(false);
+    wrong.model.finish();
+    await fixture.wait(30);
+    return {
+      afterFailure,
+      starts: wrong.model.starts,
+      loads: wrong.model.loads,
+      promptPlays: target.model.plays.length,
+      promptStartPositions: target.model.plays.map(play => play.time)
+    };
+  });
+  expect(result).toEqual({
+    afterFailure: { promptPlays: 1, starts: 0 },
+    starts: 1, loads: 2, promptPlays: 2, promptStartPositions: [0, 0]
+  });
+});
+
+test('a late media error cannot reload feedback or replay a prompt after cancellation', async ({ page }) => {
+  await mountFeedbackHarness(page);
+  const result = await page.evaluate(async () => {
+    const fixture = window.feedbackFixture;
+    const api = window.FlashcardAudio;
+    const closedTarget = await fixture.target('cancelled-error');
+    const wrong = fixture.elements[1];
+    wrong.model.behavior = 'deferred';
+    const cancelled = api.playFeedback(false);
+    await api.suspendPlayback();
+    await cancelled;
+    const beforeLateFailure = { loads: wrong.model.loads, plays: wrong.model.plays.length };
+    wrong.model.failMedia(2);
+    wrong.model.finish();
+    await fixture.wait(200);
+    const suspended = { loads: wrong.model.loads, plays: wrong.model.plays.length, promptPlays: closedTarget.model.plays.length };
+    await api.startNewSession();
+    const nextTarget = await fixture.target('new-session-error');
+    await fixture.wait(100);
+    const beforeNextAnswer = { loads: wrong.model.loads, plays: wrong.model.plays.length, promptPlays: nextTarget.model.plays.length };
+    wrong.model.behavior = 'normal';
+    await api.playFeedback(false);
+    wrong.model.finish();
+    return {
+      beforeLateFailure, suspended, beforeNextAnswer,
+      final: { starts: wrong.model.starts, loads: wrong.model.loads, closedPromptPlays: closedTarget.model.plays.length, nextPromptPlays: nextTarget.model.plays.length }
+    };
+  });
+  expect(result.beforeLateFailure).toEqual({ loads: 1, plays: 1 });
+  expect(result.suspended).toEqual({ loads: 1, plays: 1, promptPlays: 0 });
+  expect(result.beforeNextAnswer).toEqual({ loads: 1, plays: 1, promptPlays: 0 });
+  expect(result.final).toEqual({ starts: 1, loads: 2, closedPromptPlays: 0, nextPromptPlays: 1 });
+});
+
+test('a stalled feedback watchdog recovers on the next answer and never retries after closing', async ({ page }) => {
+  await mountFeedbackHarness(page);
+  const result = await page.evaluate(async () => {
+    const fixture = window.feedbackFixture;
+    const api = window.FlashcardAudio;
+    const target = await fixture.target('stalled-decoder');
+    const wrong = fixture.elements[1];
+    wrong.model.behavior = 'deferred';
+    // This decoder never settles play() and exposes no MediaError. The harness
+    // stays stalled across pauses; only load() restores normal playback.
+    await api.playFeedback(false);
+    await fixture.wait(100);
+    const afterWatchdog = {
+      starts: wrong.model.starts, plays: wrong.model.plays.length,
+      loads: wrong.model.loads, error: wrong.error,
+      behavior: wrong.model.behavior, promptPlays: target.model.plays.length
+    };
+    await api.playFeedback(false);
+    wrong.model.finish();
+    const recovered = { starts: wrong.model.starts, loads: wrong.model.loads, promptPlays: target.model.plays.length };
+    wrong.model.behavior = 'deferred';
+    const cancelled = api.playFeedback(false);
+    await api.suspendPlayback();
+    await cancelled;
+    // Wait past the failed request's original watchdog, so a forgotten timer
+    // would have had time to reload or replay the closed round's prompt.
+    await fixture.wait(1900);
+    return {
+      afterWatchdog, recovered,
+      afterClose: {
+        starts: wrong.model.starts, plays: wrong.model.plays.length,
+        loads: wrong.model.loads, paused: wrong.paused, promptPlays: target.model.plays.length
+      }
+    };
+  });
+  expect(result.afterWatchdog).toEqual({ starts: 0, plays: 1, loads: 1, error: null, behavior: 'deferred', promptPlays: 1 });
+  expect(result.recovered).toEqual({ starts: 1, loads: 2, promptPlays: 2 });
+  expect(result.afterClose).toEqual({ starts: 1, plays: 3, loads: 2, paused: true, promptPlays: 2 });
+});
+
+test('autoplay rejection does not reload healthy feedback on the next answer', async ({ page }) => {
+  await mountFeedbackHarness(page);
+  const result = await page.evaluate(async () => {
+    const fixture = window.feedbackFixture;
+    const api = window.FlashcardAudio;
+    const target = await fixture.target('autoplay-rejected');
+    const results = [];
+    for (const isCorrect of [true, false]) {
+      const audio = fixture.elements[isCorrect ? 0 : 1];
+      audio.model.behavior = 'reject';
+      await api.playFeedback(isCorrect);
+      const rejected = { starts: audio.model.starts, loads: audio.model.loads, error: audio.error };
+      audio.model.behavior = 'normal';
+      await api.playFeedback(isCorrect);
+      audio.model.finish();
+      results.push({ rejected, starts: audio.model.starts, plays: audio.model.plays.length, loads: audio.model.loads });
+    }
+    return { sounds: results, promptPlays: target.model.plays.length };
+  });
+  expect(result).toEqual({
+    sounds: [true, false].map(() => ({
+      rejected: { starts: 0, loads: 1, error: null }, starts: 1, plays: 2, loads: 1
+    })),
+    promptPlays: 2
+  });
 });
 
 test('suspending playback cancels an outstanding feedback AbortError retry', async ({ page }) => {

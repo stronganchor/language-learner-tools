@@ -17,6 +17,7 @@
         var playbackRequests = new WeakMap();
         var activeFades = new WeakMap();
         var activeFeedback = null;
+        var feedbackNeedsReload = new WeakSet();
 
         // Cleanup tracking
         var pendingCleanup = null;
@@ -805,6 +806,16 @@
 
             pauseAllAudio(-1);
             if (!audioToPlay) return Promise.resolve();
+            // These players outlive rounds. A native media error survives
+            // pause/seek, and a stalled decoder may never reject play(). Reload
+            // only failed players, inside the next answer gesture, so one bad
+            // playback cannot silence feedback for the rest of the page.
+            if (audioToPlay.error || feedbackNeedsReload.has(audioToPlay)) {
+                try {
+                    audioToPlay.load();
+                    feedbackNeedsReload.delete(audioToPlay);
+                } catch (_) { /* the bounded failure path keeps the quiz moving */ }
+            }
             var target = currentTargetAudio;
             var session = currentSession;
             // The prompt must be replayed from its start after a mistake, even
@@ -826,8 +837,15 @@
                         try { callback(); } catch (_) { /* no-op */ }
                     }
                 };
-                var fail = function () {
+                var fail = function (failure) {
                     if (!isActive()) return;
+                    // Cancellation and autoplay denial are not decoder faults.
+                    // The watchdog has no failure argument; retry its player
+                    // only when the learner next answers, never in a loop.
+                    if (!failure || audioToPlay.error || failure.type === 'error' ||
+                        failure.name === 'NotSupportedError' || failure.name === 'AbortError') {
+                        feedbackNeedsReload.add(audioToPlay);
+                    }
                     complete();
                     stopAudio(audioToPlay);
                 };
