@@ -9,34 +9,34 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-25T13:28:42+00:00\n"
+"POT-Creation-Date: 2026-09-26T04:37:36+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 #: includes/privacy.php:2432
 msgid "Language Learner Tools"
 msgstr ""
 
 #. Plugin URI of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://github.com/stronganchor/language-learner-tools"
 msgstr ""
 
 #. Description of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages."
 msgstr ""
 
 #. Author of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "Strong Anchor Tech"
 msgstr ""
 
 #. Author URI of the plugin
-#: C:\Users\messy\Local Sites\starter-english-local\app\public\wp-content\plugins\language-learner-tools\language-learner-tools.php
+#: language-learner-tools.php
 msgid "https://stronganchortech.com"
 msgstr ""
 
@@ -1926,7 +1926,7 @@ msgstr ""
 #: includes/pages/wordset-games.php:6938
 #: includes/user-study.php:1380
 #: includes/user-study.php:1418
-#: includes/user-study.php:1556
+#: includes/user-study.php:1532
 msgid "You do not have permission."
 msgstr ""
 
@@ -6880,17 +6880,17 @@ msgstr ""
 #: includes/pages/wordset-pages.php:27339
 #: includes/shortcodes/flashcard-widget.php:714
 #: includes/shortcodes/quiz-pages-shortcodes.php:1871
-#: includes/user-progress.php:11576
-#: includes/user-progress.php:11756
-#: includes/user-progress.php:11806
-#: includes/user-progress.php:13187
-#: includes/user-progress.php:13213
-#: includes/user-progress.php:13286
-#: includes/user-progress.php:13362
-#: includes/user-progress.php:13427
-#: includes/user-progress.php:13451
-#: includes/user-progress.php:13568
-#: includes/user-progress.php:13740
+#: includes/user-progress.php:11563
+#: includes/user-progress.php:11719
+#: includes/user-progress.php:11769
+#: includes/user-progress.php:13135
+#: includes/user-progress.php:13161
+#: includes/user-progress.php:13234
+#: includes/user-progress.php:13310
+#: includes/user-progress.php:13375
+#: includes/user-progress.php:13399
+#: includes/user-progress.php:13516
+#: includes/user-progress.php:13688
 #: includes/user-study.php:1489
 msgid "Something went wrong. Please try again."
 msgstr ""
@@ -18292,12 +18292,12 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:11533
 #: includes/taxonomies/word-category-taxonomy.php:11543
 #: includes/user-progress.php:1815
-#: includes/user-progress.php:13136
-#: includes/user-progress.php:13595
-#: includes/user-progress.php:13605
-#: includes/user-progress.php:13627
-#: includes/user-progress.php:13636
-#: includes/user-progress.php:13639
+#: includes/user-progress.php:13084
+#: includes/user-progress.php:13543
+#: includes/user-progress.php:13553
+#: includes/user-progress.php:13575
+#: includes/user-progress.php:13584
+#: includes/user-progress.php:13587
 msgid "Invalid request."
 msgstr ""
 
@@ -19347,15 +19347,15 @@ msgstr ""
 #: includes/pages/wordset-games.php:6648
 #: includes/pages/wordset-games.php:6921
 #: includes/user-progress.php:11475
-#: includes/user-progress.php:11550
-#: includes/user-progress.php:11619
-#: includes/user-progress.php:11775
-#: includes/user-progress.php:11859
-#: includes/user-progress.php:13586
-#: includes/user-progress.php:13672
+#: includes/user-progress.php:11537
+#: includes/user-progress.php:11582
+#: includes/user-progress.php:11738
+#: includes/user-progress.php:11807
+#: includes/user-progress.php:13534
+#: includes/user-progress.php:13620
 #: includes/user-study.php:1377
 #: includes/user-study.php:1415
-#: includes/user-study.php:1553
+#: includes/user-study.php:1529
 msgid "Login required."
 msgstr ""
 
@@ -22615,18 +22615,18 @@ msgid "Unable to save right now."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27331
-#: includes/user-progress.php:13156
+#: includes/user-progress.php:13104
 msgid "Select at least one category."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:27332
-#: includes/user-progress.php:12357
-#: includes/user-progress.php:12767
-#: includes/user-progress.php:13171
-#: includes/user-progress.php:13200
-#: includes/user-progress.php:13229
-#: includes/user-progress.php:13438
-#: includes/user-progress.php:13519
+#: includes/user-progress.php:12305
+#: includes/user-progress.php:12715
+#: includes/user-progress.php:13119
+#: includes/user-progress.php:13148
+#: includes/user-progress.php:13177
+#: includes/user-progress.php:13386
+#: includes/user-progress.php:13467
 msgid "No quiz words are available for this selection."
 msgstr ""
 

@@ -3641,7 +3641,7 @@
                 "includes/pages/wordset-games.php:6938",
                 "includes/user-study.php:1380",
                 "includes/user-study.php:1418",
-                "includes/user-study.php:1556"
+                "includes/user-study.php:1532"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:6056",
@@ -3844,15 +3844,15 @@
                 "includes/pages/wordset-games.php:6648",
                 "includes/pages/wordset-games.php:6921",
                 "includes/user-progress.php:11475",
-                "includes/user-progress.php:11550",
-                "includes/user-progress.php:11619",
-                "includes/user-progress.php:11775",
-                "includes/user-progress.php:11859",
-                "includes/user-progress.php:13586",
-                "includes/user-progress.php:13672",
+                "includes/user-progress.php:11537",
+                "includes/user-progress.php:11582",
+                "includes/user-progress.php:11738",
+                "includes/user-progress.php:11807",
+                "includes/user-progress.php:13534",
+                "includes/user-progress.php:13620",
                 "includes/user-study.php:1377",
                 "includes/user-study.php:1415",
-                "includes/user-study.php:1553"
+                "includes/user-study.php:1529"
             ],
             "public_references": [
                 "includes/pages/wordset-games.php:6648",
@@ -6440,7 +6440,7 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27331",
-                "includes/user-progress.php:13156"
+                "includes/user-progress.php:13104"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27331"
@@ -6453,13 +6453,13 @@
             "msgid_plural": null,
             "references": [
                 "includes/pages/wordset-pages.php:27332",
-                "includes/user-progress.php:12357",
-                "includes/user-progress.php:12767",
-                "includes/user-progress.php:13171",
-                "includes/user-progress.php:13200",
-                "includes/user-progress.php:13229",
-                "includes/user-progress.php:13438",
-                "includes/user-progress.php:13519"
+                "includes/user-progress.php:12305",
+                "includes/user-progress.php:12715",
+                "includes/user-progress.php:13119",
+                "includes/user-progress.php:13148",
+                "includes/user-progress.php:13177",
+                "includes/user-progress.php:13386",
+                "includes/user-progress.php:13467"
             ],
             "public_references": [
                 "includes/pages/wordset-pages.php:27332"
@@ -6548,17 +6548,17 @@
                 "includes/pages/wordset-pages.php:27339",
                 "includes/shortcodes/flashcard-widget.php:714",
                 "includes/shortcodes/quiz-pages-shortcodes.php:1871",
-                "includes/user-progress.php:11576",
-                "includes/user-progress.php:11756",
-                "includes/user-progress.php:11806",
-                "includes/user-progress.php:13187",
-                "includes/user-progress.php:13213",
-                "includes/user-progress.php:13286",
-                "includes/user-progress.php:13362",
-                "includes/user-progress.php:13427",
-                "includes/user-progress.php:13451",
-                "includes/user-progress.php:13568",
-                "includes/user-progress.php:13740",
+                "includes/user-progress.php:11563",
+                "includes/user-progress.php:11719",
+                "includes/user-progress.php:11769",
+                "includes/user-progress.php:13135",
+                "includes/user-progress.php:13161",
+                "includes/user-progress.php:13234",
+                "includes/user-progress.php:13310",
+                "includes/user-progress.php:13375",
+                "includes/user-progress.php:13399",
+                "includes/user-progress.php:13516",
+                "includes/user-progress.php:13688",
                 "includes/user-study.php:1489"
             ],
             "public_references": [
@@ -10504,12 +10504,12 @@
                 "includes/taxonomies/word-category-taxonomy.php:3712",
                 "includes/taxonomies/word-category-taxonomy.php:3964",
                 "includes/taxonomies/word-category-taxonomy.php:3978",
-                "includes/user-progress.php:13136",
-                "includes/user-progress.php:13595",
-                "includes/user-progress.php:13605",
-                "includes/user-progress.php:13627",
-                "includes/user-progress.php:13636",
-                "includes/user-progress.php:13639",
+                "includes/user-progress.php:13084",
+                "includes/user-progress.php:13543",
+                "includes/user-progress.php:13553",
+                "includes/user-progress.php:13575",
+                "includes/user-progress.php:13584",
+                "includes/user-progress.php:13587",
                 "includes/user-progress.php:1815"
             ],
             "public_references": [

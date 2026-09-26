@@ -199,7 +199,7 @@ function ll_tools_i18n_compare_source_to_checked_pot(string $root_dir): array
                 $temporary_pot,
                 '--slug=language-learner-tools',
                 '--domain=ll-tools-text-domain',
-                '--exclude=offline-app-builder,tests,_codex_temp',
+                '--exclude=offline-app-builder,tests,test-results,_codex_temp',
                 '--skip-audit',
             ]
         );
