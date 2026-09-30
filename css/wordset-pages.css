@@ -4600,6 +4600,30 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: #f8fbff;
 }
 
+.ll-wordset-editor-split-workspace {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+    min-width: 0;
+}
+
+@media (min-width: 1100px) {
+    .ll-wordset-editor-split-workspace {
+        grid-template-columns: minmax(0, 1fr) 320px;
+    }
+    .ll-wordset-editor-split-workspace .ll-wordset-editor-split {
+        position: sticky;
+        top: 48px;
+    }
+    .ll-wordset-editor-split-workspace .ll-wordset-editor-split-form__grid {
+        grid-template-columns: 1fr;
+    }
+    .ll-wordset-editor-split-workspace .ll-wordset-editor-split__footer .ll-wordset-settings-action {
+        width: 100% !important;
+        justify-content: center;
+    }
+}
+
 .ll-wordset-editor-split__summary {
     margin: 4px 0 0;
     color: var(--ll-wp-muted);
@@ -4610,9 +4634,110 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-editor-split-form__grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(180px, 1fr) auto;
-    gap: 10px;
+    grid-template-columns: minmax(160px, 0.6fr) minmax(220px, 1.4fr);
+    gap: 16px;
     align-items: end;
+}
+
+.ll-wordset-editor-split-intro p {
+    margin: 8px 0 0;
+    color: var(--ll-wp-muted);
+    line-height: 1.5;
+}
+
+.ll-wordset-editor-split-filters {
+    border: 1px solid #d8dde6;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.ll-wordset-editor-split-filters > summary,
+.ll-wordset-editor-split__advanced > summary {
+    padding: 12px 16px;
+    color: var(--ll-wp-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ll-wordset-editor-split-filters .ll-wordset-editor-filters {
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+}
+
+.ll-wordset-editor-split__advanced {
+    margin-top: 12px;
+}
+
+.ll-wordset-editor-split__advanced > summary {
+    padding: 8px 0;
+}
+
+.ll-wordset-editor-split__footer,
+.ll-wordset-editor-split__selection {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    margin-top: 16px;
+}
+
+.ll-wordset-editor-split__footer {
+    justify-content: space-between;
+    border-top: 1px solid #d8dde6;
+    padding-top: 16px;
+}
+
+.ll-wordset-editor-split__footer .ll-wordset-settings-action {
+    min-height: 44px !important;
+    white-space: normal !important;
+    text-align: center;
+}
+
+.ll-wordset-editor-split__error {
+    color: #a32020;
+    font-weight: 700;
+}
+
+.ll-wordset-editor-split [hidden] {
+    display: none !important;
+}
+
+.ll-wordset-editor-table-card--split .ll-wordset-editor-row {
+    grid-template-columns: 34px minmax(0, 1fr) minmax(90px, 0.2fr);
+}
+
+.ll-wordset-editor-table-card--split .ll-wordset-editor-cell--check {
+    min-height: 44px;
+    align-self: stretch;
+    cursor: pointer;
+}
+
+.ll-wordset-editor-table-card--split .ll-wordset-editor-cell--categories,
+.ll-wordset-editor-table-card--split .ll-wordset-editor-cell--media,
+.ll-wordset-editor-table-card--split .ll-wordset-editor-row--head > :nth-child(3),
+.ll-wordset-editor-table-card--split .ll-wordset-editor-row--head > :nth-child(5) {
+    display: none !important;
+}
+
+.ll-wordset-editor-table-card--split .ll-wordset-editor-row:has([data-ll-wordset-editor-word]:checked) {
+    background: #edf5ff;
+    box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.ll-wordset-editor-table-card--split .ll-wordset-editor-table {
+    margin-top: 16px;
+}
+
+@media (max-width: 780px) {
+    .ll-wordset-editor-table-card--split .ll-wordset-editor-row {
+        grid-template-columns: 34px minmax(0, 1fr);
+    }
+    .ll-wordset-editor-split__footer .ll-wordset-settings-action {
+        width: 100% !important;
+        justify-content: center;
+    }
 }
 
 .ll-wordset-editor-toggle--split-copy {

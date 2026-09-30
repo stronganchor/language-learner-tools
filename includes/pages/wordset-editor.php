@@ -3309,7 +3309,7 @@ function ll_tools_wordset_editor_undo_action(string $action_id, int $wordset_id)
     return $restored;
 }
 
-function ll_tools_wordset_editor_redirect_with_notice(WP_Term $wordset_term, string $back_url, string $status, string $result, int $count = 0, int $blocked = 0): void {
+function ll_tools_wordset_editor_redirect_with_notice(WP_Term $wordset_term, string $back_url, string $status, string $result, int $count = 0, int $blocked = 0, int $target_category_id = 0): void {
     $url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor', $back_url);
     $filter_args = [];
     if (!empty($_POST)) {
@@ -3324,6 +3324,13 @@ function ll_tools_wordset_editor_redirect_with_notice(WP_Term $wordset_term, str
         'll_wordset_manager_editor_count'   => max(0, $count),
         'll_wordset_manager_editor_blocked' => max(0, $blocked),
     ];
+    if ($status === 'ok' && $result === 'split_category' && $count > 0 && $target_category_id > 0) {
+        foreach (['ll_editor_q', 'll_editor_exact', 'll_editor_split_category', 'll_editor_category_state', 'll_editor_status', 'll_editor_image', 'll_editor_recording', 'll_editor_page'] as $filter_key) {
+            unset($filter_args[$filter_key]);
+        }
+        $filter_args['ll_editor_category'] = $target_category_id;
+        $notice_args['ll_wordset_manager_editor_target_category'] = $target_category_id;
+    }
     $bulk_job_id = isset($_POST['ll_wordset_editor_bulk_job_id'])
         ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_editor_bulk_job_id']))
         : '';
@@ -3662,7 +3669,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
     }
     $selected_word_ids = ll_tools_wordset_editor_get_selected_word_ids_from_post($wordset_id, $category_rows);
     if (empty($selected_word_ids)) {
-        $redirect_error('selection');
+        $redirect_error($action === 'split_category' ? 'split_selection' : 'selection');
     }
 
     $target_category_id = isset($_POST['ll_wordset_editor_target_category'])
@@ -3796,7 +3803,32 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         $source_category_ids = ll_tools_wordset_editor_get_filter_category_ids(ll_tools_wordset_editor_get_filters_from_source($_POST));
         $source_category_id = count($source_category_ids) === 1 ? (int) $source_category_ids[0] : 0;
         if ($source_category_id <= 0 || !in_array($source_category_id, $available_category_ids, true)) {
-            $redirect_error('category');
+            $redirect_error('split_source');
+        }
+
+        // A split has one destination. Reject conflicting or unavailable targets
+        // before creating a category or changing any word memberships.
+        if ($new_category_name !== '' && $target_category_id > 0) {
+            $redirect_error('split_target_ambiguous');
+        }
+        if ($new_category_name === '') {
+            if ($target_category_id === $source_category_id) {
+                $redirect_error('split_target_same');
+            }
+            if ($target_category_id <= 0 || !in_array($target_category_id, $available_category_ids, true)) {
+                $redirect_error('split_target');
+            }
+        }
+
+        $source_memberships = [];
+        foreach ($selected_word_ids as $word_id) {
+            $previous_ids = ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids);
+            if (in_array($source_category_id, $previous_ids, true)) {
+                $source_memberships[$word_id] = $previous_ids;
+            }
+        }
+        if (empty($source_memberships)) {
+            $redirect_error('split_selection');
         }
 
         $source_category = get_term($source_category_id, 'word-category');
@@ -3839,11 +3871,11 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         }
 
         foreach ($selected_word_ids as $word_id) {
-            $previous_ids = ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids);
-            if (!in_array($source_category_id, $previous_ids, true)) {
+            if (!isset($source_memberships[$word_id])) {
                 $blocked++;
                 continue;
             }
+            $previous_ids = $source_memberships[$word_id];
 
             $next_ids = array_values(array_diff($previous_ids, [$source_category_id]));
             if (!in_array($target_category_id, $next_ids, true)) {
@@ -3881,7 +3913,7 @@ function ll_tools_wordset_page_handle_manager_editor_action(): void {
         }
         ll_tools_wordset_editor_finish_bulk_job_batch($bulk_job_id, $selected_word_ids, $changed, $blocked, $bulk_job_has_more);
         ll_tools_wordset_editor_invalidate_wordset($wordset_id);
-        ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'split_category', $changed, $blocked);
+        ll_tools_wordset_editor_redirect_with_notice($wordset_term, $back_url, 'ok', 'split_category', $changed, $blocked, $changed > 0 ? $target_category_id : 0);
     }
 
     if ($action === 'missing_audio_review') {
@@ -4018,11 +4050,18 @@ function ll_tools_wordset_page_manager_editor_notice(): ?array {
         : 0;
 
     if ($status !== 'ok') {
+        $split_errors = [
+            'split_selection' => __('Select at least one word from the category you are splitting.', 'll-tools-text-domain'),
+            'split_source' => __('Choose one source category and open Split Category again.', 'll-tools-text-domain'),
+            'split_target' => __('Enter a new category name or choose a destination from this word set.', 'll-tools-text-domain'),
+            'split_target_same' => __('Choose a destination different from the source category.', 'll-tools-text-domain'),
+            'split_target_ambiguous' => __('Choose either a new category or an existing destination.', 'll-tools-text-domain'),
+        ];
         return [
             'type'    => 'error',
             'message' => $result === 'category_cleanup_failed'
                 ? __('The category was created, but its settings were not saved. Reload the category list, open the category, and try again.', 'll-tools-text-domain')
-                : __('The editor action could not be completed. Check the selection and try again.', 'll-tools-text-domain'),
+                : ($split_errors[$result] ?? __('The editor action could not be completed. Check the selection and try again.', 'll-tools-text-domain')),
         ];
     }
 
@@ -4034,7 +4073,18 @@ function ll_tools_wordset_page_manager_editor_notice(): ?array {
     } elseif (in_array($result, ['add_category', 'remove_category', 'move_category'], true)) {
         $message = sprintf(_n('Updated categories for %d word.', 'Updated categories for %d words.', $count, 'll-tools-text-domain'), $count);
     } elseif ($result === 'split_category') {
-        $message = sprintf(_n('Split %d word into another category.', 'Split %d words into another category.', $count, 'll-tools-text-domain'), $count);
+        $target_category_id = isset($_GET['ll_wordset_manager_editor_target_category'])
+            ? absint(wp_unslash((string) $_GET['ll_wordset_manager_editor_target_category']))
+            : 0;
+        $target_wordset_id = $target_category_id > 0 && function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($target_category_id)
+            : 0;
+        $can_name_target = current_user_can('manage_options')
+            || ($target_wordset_id > 0 && ll_tools_wordset_editor_user_can_manage_categories($target_wordset_id));
+        $target_category = $target_category_id > 0 && $can_name_target ? get_term($target_category_id, 'word-category') : null;
+        $message = $target_category instanceof WP_Term
+            ? sprintf(_n('Moved %1$d word to "%2$s".', 'Moved %1$d words to "%2$s".', $count, 'll-tools-text-domain'), $count, $target_category->name)
+            : sprintf(_n('Split %d word into another category.', 'Split %d words into another category.', $count, 'll-tools-text-domain'), $count);
     } elseif ($result === 'missing_audio_review') {
         $message = sprintf(_n('Flagged %d word for missing audio review.', 'Flagged %d words for missing audio review.', $count, 'll-tools-text-domain'), $count);
     } elseif ($result === 'missing_image_review') {
@@ -4312,7 +4362,8 @@ function ll_tools_wordset_editor_render_split_panel(
     array $available_category_ids,
     string $action_url,
     string $back_url,
-    int $total_filtered
+    int $total_filtered,
+    string $selection_form_id = ''
 ): string {
     if (empty($filters['split']) || !ll_tools_wordset_editor_user_can_manage_categories($wordset_id)) {
         return '';
@@ -4343,36 +4394,45 @@ function ll_tools_wordset_editor_render_split_panel(
         return '';
     }
 
+    if ($selection_form_id === '') {
+        $selection_form_id = 'll-wordset-editor-split-' . $wordset_id;
+    }
     ob_start();
     ?>
-    <section id="ll-wordset-editor-split" class="ll-wordset-settings-card ll-wordset-editor-split" aria-label="<?php echo esc_attr__('Split category', 'll-tools-text-domain'); ?>">
+    <section id="ll-wordset-editor-split-destination" class="ll-wordset-settings-card ll-wordset-editor-split" aria-label="<?php echo esc_attr__('Split category', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-editor-panel-head">
             <div>
-                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Split Category', 'll-tools-text-domain'); ?></h2>
+                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('2. Choose destination', 'll-tools-text-domain'); ?></h2>
                 <p class="ll-wordset-editor-split__summary">
                     <?php
-                    echo esc_html(sprintf(
-                        _n('Move %1$d filtered word out of %2$s.', 'Move %1$d filtered words out of %2$s.', $total_filtered, 'll-tools-text-domain'),
-                        $total_filtered,
-                        $source_label
-                    ));
+                    echo esc_html__('Published words stay published; draft words stay drafts.', 'll-tools-text-domain');
                     ?>
                 </p>
             </div>
         </div>
-        <form class="ll-wordset-editor-split-form" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-confirm="<?php echo esc_attr__('Move all filtered words to the target category?', 'll-tools-text-domain'); ?>">
+        <form id="<?php echo esc_attr($selection_form_id); ?>" class="ll-wordset-editor-split-form" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-split-form data-ll-wordset-editor-empty-selection="<?php echo esc_attr__('Select at least one word above.', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-category-required="<?php echo esc_attr__('Enter a new category name or choose an existing category.', 'll-tools-text-domain'); ?>">
             <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
             <input type="hidden" name="ll_wordset_manager_editor_action" value="split_category" />
-            <input type="hidden" name="ll_wordset_editor_all_filtered" value="1" />
             <input type="hidden" name="ll_wordset_tool" value="editor" />
             <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
             <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <div class="ll-wordset-editor-split-form__grid">
                 <label class="ll-wordset-editor-field">
+                    <span class="ll-wordset-editor-field__label"><?php echo esc_html__('Destination', 'll-tools-text-domain'); ?></span>
+                    <select data-ll-wordset-editor-split-target-mode>
+                        <option value="new"><?php echo esc_html__('New category', 'll-tools-text-domain'); ?></option>
+                        <option value="existing"><?php echo esc_html__('Existing category', 'll-tools-text-domain'); ?></option>
+                    </select>
+                </label>
+                <label class="ll-wordset-editor-field" data-ll-wordset-editor-split-new>
+                    <span class="ll-wordset-editor-field__label"><?php echo esc_html__('New category name', 'll-tools-text-domain'); ?></span>
+                    <input type="text" name="ll_wordset_editor_new_category_name" required />
+                </label>
+                <label class="ll-wordset-editor-field" data-ll-wordset-editor-split-existing hidden>
                     <span class="ll-wordset-editor-field__label"><?php echo esc_html__('Existing target', 'll-tools-text-domain'); ?></span>
-                    <select name="ll_wordset_editor_target_category">
-                        <option value="0"><?php echo esc_html__('Choose category', 'll-tools-text-domain'); ?></option>
+                    <select name="ll_wordset_editor_target_category" disabled>
+                        <option value=""><?php echo esc_html__('Choose category', 'll-tools-text-domain'); ?></option>
                         <?php foreach ($category_rows as $category_row) : ?>
                             <?php $category_id = (int) ($category_row['id'] ?? 0); ?>
                             <?php if ($category_id <= 0 || $category_id === $source_category_id || !in_array($category_id, $available_category_ids, true)) { continue; } ?>
@@ -4380,17 +4440,20 @@ function ll_tools_wordset_editor_render_split_panel(
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label class="ll-wordset-editor-field">
-                    <span class="ll-wordset-editor-field__label"><?php echo esc_html__('Or new category', 'll-tools-text-domain'); ?></span>
-                    <input type="text" name="ll_wordset_editor_new_category_name" placeholder="<?php echo esc_attr__('New category name', 'll-tools-text-domain'); ?>" />
-                </label>
+            </div>
+            <details class="ll-wordset-editor-split__advanced" data-ll-wordset-editor-split-new>
+                <summary><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></summary>
                 <label class="ll-wordset-editor-toggle ll-wordset-editor-toggle--split-copy">
                     <input type="checkbox" name="ll_wordset_editor_copy_category_settings" value="1" checked />
                     <span><?php echo esc_html__('Copy quiz, game, and recording settings', 'll-tools-text-domain'); ?></span>
                 </label>
-                <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary">
+            </details>
+            <p class="ll-wordset-editor-split__error" data-ll-wordset-editor-split-error role="alert" hidden></p>
+            <div class="ll-wordset-editor-split__footer">
+                <span class="ll-wordset-editor-selected-count" data-ll-wordset-editor-selected-count aria-live="polite"><?php echo esc_html__('0 selected', 'll-tools-text-domain'); ?></span>
+                <button type="submit" class="ll-wordset-settings-action ll-wordset-settings-action--primary" data-ll-wordset-editor-split-submit disabled>
                     <?php echo ll_tools_wordset_editor_icon('category'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    <span><?php echo esc_html__('Move Filtered Words', 'll-tools-text-domain'); ?></span>
+                    <span><?php echo esc_html__('Move selected words', 'll-tools-text-domain'); ?></span>
                 </button>
             </div>
         </form>
@@ -4447,7 +4510,6 @@ function ll_tools_wordset_editor_render_bulk_job_panel(array $job, int $wordset_
 }
 
 function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $category_rows): string {
-    ll_tools_word_copy_enqueue_assets($wordset_id);
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor', $back_url);
     $filters = ll_tools_wordset_editor_get_filters();
     $per_page = 75;
@@ -4519,14 +4581,27 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
         );
     }
     $can_manage_wordset_categories = ll_tools_wordset_editor_user_can_manage_categories($wordset_id);
+    $split_source_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    $is_split = !empty($filters['split']) && $can_manage_wordset_categories
+        && count($split_source_ids) === 1 && in_array((int) $split_source_ids[0], $available_category_ids, true);
+    if (!$is_split) {
+        ll_tools_word_copy_enqueue_assets($wordset_id);
+    }
     $recent_actions = ll_tools_wordset_editor_get_recent_actions($wordset_id, 8);
     $reset_url = $action_url;
     $bulk_form_id = 'll-wordset-editor-bulk-' . (int) $wordset_id;
+    if ($is_split) {
+        $bulk_form_id = 'll-wordset-editor-split-' . (int) $wordset_id;
+        $reset_url = add_query_arg([
+            'll_editor_split_category' => '1',
+            'll_editor_category' => (int) $split_source_ids[0],
+        ], $action_url);
+    }
     $page_word_ids = ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($page_rows, 'id'));
-    if (!empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_enqueue_assets')) {
+    if (!$is_split && !empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_enqueue_assets')) {
         ll_tools_word_edit_modal_enqueue_assets($wordset_id, $page_word_ids);
     }
-    $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids, $wordset_id);
+    $recordings_by_word_id = $is_split ? [] : ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids, $wordset_id);
     $recording_transcription_label = ll_tools_wordset_editor_get_recording_transcription_label($wordset_id);
     $recording_transcription_enabled = ll_tools_wordset_editor_recording_transcription_enabled($wordset_id);
     $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
@@ -4564,6 +4639,17 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     ob_start();
     ?>
     <section class="ll-wordset-settings-page ll-wordset-editor" data-ll-wordset-editor data-ll-wordset-id="<?php echo esc_attr((string) $wordset_id); ?>" data-ll-wordset-editor-category-id="<?php echo esc_attr((string) $modal_category_id); ?>" data-ll-wordset-editor-review-note-label="<?php echo esc_attr__('Review note', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-word-details-label="<?php echo esc_attr__('Word details', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-singular="<?php echo esc_attr__('1 selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-plural="<?php echo esc_attr__('%d selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-all-filtered="<?php echo esc_attr(sprintf(_n('All %d filtered word selected', 'All %d filtered words selected', $total_filtered, 'll-tools-text-domain'), $total_filtered)); ?>">
+        <?php if ($is_split) : ?>
+            <div id="ll-wordset-editor-split" class="ll-wordset-editor-split-intro">
+                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Split Category', 'll-tools-text-domain'); ?></h2>
+                <p><?php
+                    $source_term = get_term((int) $split_source_ids[0], 'word-category');
+                    echo esc_html(sprintf(__('Select the words to move out of %s, then choose their destination below.', 'll-tools-text-domain'), $source_term instanceof WP_Term ? $source_term->name : ''));
+                ?></p>
+            </div>
+            <details class="ll-wordset-editor-split-filters" <?php echo (!empty($filters['q']) || !empty($filters['status']) || !empty($filters['image']) || !empty($filters['recording'])) ? 'open' : ''; ?>>
+                <summary><?php echo esc_html__('Find words (optional)', 'll-tools-text-domain'); ?></summary>
+        <?php else : ?>
         <div class="ll-wordset-editor-stats" aria-label="<?php echo esc_attr__('Wordset editor summary', 'll-tools-text-domain'); ?>">
             <a class="ll-wordset-editor-stat" href="<?php echo esc_url($all_words_url); ?>" aria-label="<?php echo esc_attr__('Show all words', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('table'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -4586,6 +4672,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 <span class="ll-wordset-editor-stat__label"><?php echo esc_html__('Recent actions', 'll-tools-text-domain'); ?></span>
             </a>
         </div>
+        <?php endif; ?>
 
         <form class="ll-wordset-settings-card ll-wordset-editor-filters" method="get" action="<?php echo esc_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings')); ?>">
             <input type="hidden" name="ll_wordset_tool" value="editor" />
@@ -4611,10 +4698,14 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                         <span><?php echo esc_html__('Exact letters + diacritics', 'll-tools-text-domain'); ?></span>
                     </label>
                 </div>
+                <?php if ($is_split) : ?>
+                    <input type="hidden" name="ll_editor_category" value="<?php echo esc_attr((string) $split_source_ids[0]); ?>" />
+                <?php else : ?>
                 <label class="ll-wordset-editor-field">
                     <span class="ll-wordset-editor-field__label"><?php echo ll_tools_wordset_editor_icon('category'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
                     <?php echo ll_tools_wordset_editor_render_category_filter_dropdown($category_rows, $filters, $category_filter_ids); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </label>
+                <?php endif; ?>
                 <label class="ll-wordset-editor-field">
                     <span class="ll-wordset-editor-field__label"><?php echo ll_tools_wordset_editor_icon('draft'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php echo esc_html__('Status', 'll-tools-text-domain'); ?></span>
                     <select name="ll_editor_status">
@@ -4653,6 +4744,9 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
             </div>
         </form>
 
+        <?php if ($is_split) : ?>
+            </details>
+        <?php else : ?>
         <section class="ll-wordset-settings-card ll-wordset-editor-saved-views" aria-label="<?php echo esc_attr__('Saved editor views', 'll-tools-text-domain'); ?>">
             <div class="ll-wordset-editor-panel-head">
                 <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Saved views', 'll-tools-text-domain'); ?></h2>
@@ -4705,13 +4799,13 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 </div>
             <?php endif; ?>
         </section>
+        <?php endif; ?>
 
         <?php if ($bulk_job) : ?>
             <?php echo ll_tools_wordset_editor_render_bulk_job_panel($bulk_job, $wordset_id, $action_url, $back_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php endif; ?>
 
-        <?php echo ll_tools_wordset_editor_render_split_panel($wordset_id, $filters, $category_rows, $available_category_ids, $action_url, $back_url, $total_filtered); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-
+        <?php if (!$is_split) : ?>
         <form id="<?php echo esc_attr($bulk_form_id); ?>" class="ll-wordset-settings-card ll-wordset-editor-bulk" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-bulk-form data-ll-wordset-editor-empty-selection="<?php echo esc_attr__('Select at least one visible word first.', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-category-required="<?php echo esc_attr__('Choose a category target for this action.', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-trash-confirm="<?php echo esc_attr__('Move the selected words to Trash?', 'll-tools-text-domain'); ?>">
             <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
             <input type="hidden" name="ll_wordset_tool" value="editor" />
@@ -4762,8 +4856,18 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 </button>
             </div>
         </form>
+        <?php endif; ?>
 
-        <div class="ll-wordset-settings-card ll-wordset-editor-table-card">
+        <?php if ($is_split) : ?><div class="ll-wordset-editor-split-workspace"><?php endif; ?>
+        <div class="ll-wordset-settings-card ll-wordset-editor-table-card<?php echo $is_split ? ' ll-wordset-editor-table-card--split' : ''; ?>">
+            <?php if ($is_split) : ?>
+                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('1. Select words', 'll-tools-text-domain'); ?></h2>
+                <div class="ll-wordset-editor-split__selection">
+                    <label class="ll-wordset-editor-toggle"><input type="checkbox" data-ll-wordset-editor-select-all /><span><?php echo esc_html__('Select this page', 'll-tools-text-domain'); ?></span></label>
+                    <label class="ll-wordset-editor-toggle"><input type="checkbox" name="ll_wordset_editor_all_filtered" value="1" form="<?php echo esc_attr($bulk_form_id); ?>" data-ll-wordset-editor-all-filtered /><span><?php echo esc_html(sprintf(_n('Select all %d matching word', 'Select all %d matching words', $total_filtered, 'll-tools-text-domain'), $total_filtered)); ?></span></label>
+                    <span class="ll-wordset-editor-selected-count" data-ll-wordset-editor-selected-count aria-live="polite"><?php echo esc_html__('0 selected', 'll-tools-text-domain'); ?></span>
+                </div>
+            <?php endif; ?>
             <div class="ll-wordset-editor-table" role="table" aria-label="<?php echo esc_attr__('Words in this word set', 'll-tools-text-domain'); ?>">
                 <div class="ll-wordset-editor-row ll-wordset-editor-row--head" role="row">
                     <span class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="columnheader">
@@ -4822,6 +4926,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                         <?php if ((string) ($row['translation'] ?? '') !== '') : ?>
                                             <span class="ll-wordset-editor-word-translation"><?php echo esc_html((string) ($row['translation'] ?? '')); ?></span>
                                         <?php endif; ?>
+                                        <?php if (!$is_split) : ?>
                                         <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="<?php echo esc_attr((string) $word_id); ?>" data-ll-wordset-editor-edit-url="<?php echo esc_url((string) ($row['edit_url'] ?? '')); ?>" aria-label="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>">
                                             <?php echo ll_tools_wordset_editor_icon('edit'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                             <span><?php echo esc_html__('Edit', 'll-tools-text-domain'); ?></span>
@@ -4829,6 +4934,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                         <button type="button" class="ll-word-copy-trigger" data-ll-word-copy data-word-id="<?php echo esc_attr((string) $word_id); ?>" data-wordset-id="<?php echo esc_attr((string) $wordset_id); ?>" data-word-copy-nonce="<?php echo esc_attr(wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id)); ?>" aria-label="<?php echo esc_attr__('Copy or split word', 'll-tools-text-domain'); ?>">
                                             <span aria-hidden="true">⧉</span><span><?php echo esc_html__('Copy / Split', 'll-tools-text-domain'); ?></span>
                                         </button>
+                                        <?php endif; ?>
                                     </span>
                                 </div>
                             </div>
@@ -4870,7 +4976,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     </span>
                                 </div>
                             </div>
-                            <?php if (!empty($text_fields) || !empty($metadata_tags)) : ?>
+                            <?php if (!$is_split && (!empty($text_fields) || !empty($metadata_tags))) : ?>
                                 <div class="ll-wordset-editor-row__details ll-wordset-editor-row__details--word" role="cell" aria-colspan="4" data-label="<?php echo esc_attr__('Word details', 'll-tools-text-domain'); ?>">
                                     <div class="ll-wordset-editor-word-details">
                                         <?php if (!empty($metadata_tags)) : ?>
@@ -4955,7 +5061,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 <?php endif; ?>
             </div>
 
-            <?php if (!empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_host_html')) : ?>
+            <?php if (!$is_split && !empty($page_word_ids) && function_exists('ll_tools_word_edit_modal_host_html')) : ?>
                 <?php echo ll_tools_word_edit_modal_host_html($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endif; ?>
 
@@ -4976,6 +5082,10 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
             <?php endif; ?>
         </div>
 
+        <?php if ($is_split) : ?>
+            <?php echo ll_tools_wordset_editor_render_split_panel($wordset_id, $filters, $category_rows, $available_category_ids, $action_url, $back_url, $total_filtered, $bulk_form_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </div>
+        <?php else : ?>
         <section id="ll-wordset-editor-history" class="ll-wordset-settings-card ll-wordset-editor-history" aria-label="<?php echo esc_attr__('Editor action history', 'll-tools-text-domain'); ?>">
             <div class="ll-wordset-editor-history__head">
                 <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Action history', 'll-tools-text-domain'); ?></h2>
@@ -5072,6 +5182,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 <?php endif; ?>
             <?php endif; ?>
         </section>
+        <?php endif; ?>
     </section>
     <?php
 

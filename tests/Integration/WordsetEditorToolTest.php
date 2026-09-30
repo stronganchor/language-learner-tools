@@ -1186,7 +1186,12 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_manager_editor_action" value="split_category"', $html);
         $this->assertStringContainsString('name="ll_wordset_editor_new_category_name"', $html);
         $this->assertStringContainsString('ll_wordset_editor_copy_category_settings', $html);
-        $this->assertStringContainsString('Move 2 filtered words', $html);
+        $this->assertStringContainsString('Select all 2 matching words', $html);
+        $this->assertMatchesRegularExpression('/<input type="checkbox" name="ll_wordset_editor_word_ids\[\]"[^>]*form="ll-wordset-editor-split-' . $wordset_id . '"/', $html);
+        $this->assertMatchesRegularExpression('/<input type="checkbox" name="ll_wordset_editor_all_filtered"[^>]*form="ll-wordset-editor-split-' . $wordset_id . '"/', $html);
+        $this->assertSame(1, preg_match_all('/name="ll_wordset_manager_editor_action"/', $html));
+        $this->assertStringNotContainsString('data-ll-wordset-editor-bulk-form', $html);
+        $this->assertStringNotContainsString('data-ll-wordset-editor-bulk-action', $html);
     }
 
     public function test_split_category_action_creates_target_moves_filtered_words_and_linked_images(): void
@@ -1235,11 +1240,14 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $split_query = $this->parseRedirectQuery($split_redirect);
         $this->assertSame('split_category', (string) ($split_query['ll_wordset_manager_editor_result'] ?? ''));
         $this->assertSame('1', (string) ($split_query['ll_wordset_manager_editor_count'] ?? ''));
-        $this->assertSame('Alpha Translation', (string) ($split_query['ll_editor_q'] ?? ''));
+        $this->assertArrayNotHasKey('ll_editor_q', $split_query);
+        $this->assertArrayNotHasKey('ll_editor_split_category', $split_query);
 
         $target_category = get_term_by('name', 'Split Action Target', 'word-category');
         $this->assertInstanceOf(WP_Term::class, $target_category);
         $target_category_id = (int) $target_category->term_id;
+        $this->assertSame((string) $target_category_id, (string) ($split_query['ll_editor_category'] ?? ''));
+        $this->assertSame((string) $target_category_id, (string) ($split_query['ll_wordset_manager_editor_target_category'] ?? ''));
         $this->assertSame('audio', (string) get_term_meta($target_category_id, 'll_quiz_prompt_type', true));
         $this->assertSame(['isolation'], array_values((array) get_term_meta($target_category_id, 'll_desired_recording_types', true)));
 
@@ -1331,6 +1339,240 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $category_ids = array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids']));
         $this->assertContains((int) $fixture['category_a_id'], $category_ids);
         $this->assertNotContains((int) $fixture['category_b_id'], $category_ids);
+    }
+
+    public function test_split_category_moves_only_selected_words_preserving_status_and_other_categories(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-selected');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        wp_set_object_terms((int) $fixture['beta_word_id'], [(int) $fixture['category_a_id'], (int) $fixture['category_b_id']], 'word-category', false);
+
+        $back_url = home_url('/split-return/');
+        $_GET = ['ll_wordset_back' => $back_url];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'split_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_word_ids' => [(string) $fixture['beta_word_id']],
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+            'll_editor_q' => 'Beta Translation',
+            'll_editor_exact' => '1',
+            'll_editor_status' => 'draft',
+            'll_editor_image' => 'missing',
+            'll_editor_recording' => 'missing',
+            'll_editor_page' => '3',
+            'll_wordset_editor_new_category_name' => 'Selected Split Target',
+            'll_wordset_editor_copy_category_settings' => '1',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_editor'] ?? ''));
+        $this->assertSame('split_category', (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('1', (string) ($query['ll_wordset_manager_editor_count'] ?? ''));
+        $target = get_term_by('name', 'Selected Split Target', 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $target);
+        $this->assertSame((string) $target->term_id, (string) ($query['ll_editor_category'] ?? ''));
+        $this->assertSame($back_url, (string) ($query['ll_wordset_back'] ?? ''));
+        foreach (['ll_editor_q', 'll_editor_exact', 'll_editor_split_category', 'll_editor_status', 'll_editor_image', 'll_editor_recording', 'll_editor_page'] as $filter_key) {
+            $this->assertArrayNotHasKey($filter_key, $query);
+        }
+        $_GET = $query;
+        $notice = ll_tools_wordset_page_manager_editor_notice();
+        $this->assertSame('success', (string) ($notice['type'] ?? ''));
+        $this->assertSame('Moved 1 word to "Selected Split Target".', (string) ($notice['message'] ?? ''));
+        $beta_categories = array_map('intval', wp_get_post_terms((int) $fixture['beta_word_id'], 'word-category', ['fields' => 'ids']));
+        $this->assertContains((int) $target->term_id, $beta_categories);
+        $this->assertContains((int) $fixture['category_b_id'], $beta_categories);
+        $this->assertNotContains((int) $fixture['category_a_id'], $beta_categories);
+        $this->assertSame([(int) $fixture['category_a_id']], array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids'])));
+        $this->assertSame('draft', get_post_status((int) $fixture['beta_word_id']));
+        $this->assertSame('publish', get_post_status((int) $fixture['alpha_word_id']));
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertCount(1, $recent);
+        $this->assertSame('category_split', (string) ($recent[0]['type'] ?? ''));
+        $this->assertSame((int) $fixture['beta_word_id'], (int) ($recent[0]['payload']['words'][0]['word_id'] ?? 0));
+    }
+
+    public function test_split_category_rejects_words_outside_source_before_creating_target(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-source-guard');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        wp_set_object_terms((int) $fixture['beta_word_id'], [(int) $fixture['category_b_id']], 'word-category', false);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'split_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_word_ids' => [(string) $fixture['beta_word_id']],
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+            'll_wordset_editor_new_category_name' => 'Invalid Source Split Target',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('error', (string) ($query['ll_wordset_manager_editor'] ?? ''));
+        $this->assertSame('split_selection', (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertFalse(get_term_by('name', 'Invalid Source Split Target', 'word-category'));
+        $this->assertSame([(int) $fixture['category_b_id']], array_map('intval', wp_get_post_terms((int) $fixture['beta_word_id'], 'word-category', ['fields' => 'ids'])));
+        $this->assertSame([], ll_tools_wordset_editor_get_recent_actions($wordset_id, 1));
+    }
+
+    public function test_split_category_rejects_conflicting_destinations_before_creating_target(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-target-guard');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'split_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_word_ids' => [(string) $fixture['alpha_word_id']],
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+            'll_wordset_editor_target_category' => (string) $fixture['category_b_id'],
+            'll_wordset_editor_new_category_name' => 'Conflicting Split Target',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('error', (string) ($query['ll_wordset_manager_editor'] ?? ''));
+        $this->assertSame('split_target_ambiguous', (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertFalse(get_term_by('name', 'Conflicting Split Target', 'word-category'));
+        $this->assertSame([(int) $fixture['category_a_id']], array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids'])));
+        $this->assertSame([], ll_tools_wordset_editor_get_recent_actions($wordset_id, 1));
+    }
+
+    public function test_split_category_invalid_submissions_return_specific_notices_without_changes(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-invalid');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $base_post = [
+            'll_wordset_manager_editor_action' => 'split_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_editor_category' => (string) $fixture['category_a_id'],
+            'll_editor_split_category' => '1',
+            'll_wordset_tool' => 'editor',
+        ];
+        $selected = ['ll_wordset_editor_word_ids' => [(string) $fixture['alpha_word_id']]];
+        $cases = [
+            'split_selection' => [
+                'post' => ['ll_wordset_editor_new_category_name' => 'Empty Split Target'],
+                'message' => 'Select at least one word from the category you are splitting.',
+            ],
+            'split_target' => [
+                'post' => $selected,
+                'message' => 'Enter a new category name or choose a destination from this word set.',
+            ],
+            'split_target_same' => [
+                'post' => array_merge($selected, ['ll_wordset_editor_target_category' => (string) $fixture['category_a_id']]),
+                'message' => 'Choose a destination different from the source category.',
+            ],
+            'split_source' => [
+                'post' => array_merge($selected, ['ll_editor_category' => '0', 'll_wordset_editor_target_category' => (string) $fixture['category_b_id']]),
+                'message' => 'Choose one source category and open Split Category again.',
+            ],
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        foreach ($cases as $expected_result => $case) {
+            $_GET = [];
+            $_POST = array_merge($base_post, $case['post']);
+            $redirect = $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_editor_action();
+            });
+            $query = $this->parseRedirectQuery($redirect);
+            $this->assertSame('error', (string) ($query['ll_wordset_manager_editor'] ?? ''));
+            $this->assertSame($expected_result, (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+            $this->assertSame('1', (string) ($query['ll_editor_split_category'] ?? ''));
+            $_GET = $query;
+            $notice = ll_tools_wordset_page_manager_editor_notice();
+            $this->assertSame('error', (string) ($notice['type'] ?? ''));
+            $this->assertSame($case['message'], (string) ($notice['message'] ?? ''));
+            $this->completeLlToolsSimulatedRequest();
+        }
+
+        $this->assertFalse(get_term_by('name', 'Empty Split Target', 'word-category'));
+        $this->assertSame([(int) $fixture['category_a_id']], array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids'])));
+        $this->assertSame([], ll_tools_wordset_editor_get_recent_actions($wordset_id, 1));
+    }
+
+    public function test_split_category_notice_hides_destinations_from_unmanaged_wordsets(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-split-notice-scope');
+        $private_wordset_id = self::factory()->term->create([
+            'taxonomy' => 'wordset',
+            'name' => 'Private Split Notice Wordset',
+        ]);
+        update_term_meta($private_wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+        $private_category_id = $this->createOwnedCategory('private-split-notice-destination', $private_wordset_id);
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        ll_tools_cli_assign_wordset_manager((int) $fixture['wordset_id'], $manager_id);
+        wp_set_current_user($manager_id);
+        $this->assertTrue(ll_tools_wordset_editor_user_can_manage_categories((int) $fixture['wordset_id']));
+        $this->assertFalse(ll_tools_wordset_editor_user_can_manage_categories($private_wordset_id));
+
+        $_GET = [
+            'll_wordset_manager_editor' => 'ok',
+            'll_wordset_manager_editor_result' => 'split_category',
+            'll_wordset_manager_editor_count' => '1',
+            'll_wordset_manager_editor_target_category' => (string) $fixture['category_a_id'],
+        ];
+        $allowed_notice = ll_tools_wordset_page_manager_editor_notice();
+        $allowed_category = get_term((int) $fixture['category_a_id'], 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $allowed_category);
+        $this->assertStringContainsString($allowed_category->name, (string) ($allowed_notice['message'] ?? ''));
+
+        $_GET['ll_wordset_manager_editor_target_category'] = (string) $private_category_id;
+        $private_notice = ll_tools_wordset_page_manager_editor_notice();
+        $this->assertSame('Split 1 word into another category.', (string) ($private_notice['message'] ?? ''));
+        $this->assertStringNotContainsString('Private Split Notice Destination', (string) ($private_notice['message'] ?? ''));
     }
 
     public function test_missing_audio_review_adds_internal_note_and_is_undoable(): void

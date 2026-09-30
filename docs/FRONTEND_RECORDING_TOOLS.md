@@ -4,6 +4,28 @@ These tools use existing wordset manager and recorder access. Open the wordset's
 **Word Set Tools** menu for editor/review work, or the **Recording Interface**
 for a contributor's own playback history.
 
+## Split a category
+
+Open **Split Category** from a lesson's category settings. Select the words in
+step 1, then enter a new category name in step 2 and choose **Move selected
+words**. The destination stays beside the table on wide screens. Existing
+categories are an explicit alternative; only the active destination is submitted.
+Published words remain published and draft words remain drafts. Category settings
+are copied by default for a new destination, with an optional switch under
+**Category settings**.
+
+Selection is limited to checked words on the current page unless **Select all
+matching words** is explicitly checked. Unchecking a word returns to page-local
+selection. Optional filters retain the source category, and an empty selection
+cannot create a destination. Successful moves show their count and destination,
+open that destination's editor, and retain the existing action-history Undo.
+Linked word-image category assignments move with their words.
+
+The split screen has one selection form and one move action. General editor
+status actions, saved views, recording tools, and word editing are omitted so
+their forms cannot accidentally substitute for the split. Canonical coverage is
+`WordsetEditorToolTest.php` and `wordset-category-split.spec.js`.
+
 ## Copy or split a word
 
 Open a word's **Edit word** popup from a lesson or Wordset Editor and choose

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-29T04:35:01+00:00\n"
+"POT-Creation-Date: 2026-09-30T05:42:43+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -69,8 +69,8 @@ msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:156
 #: includes/admin/admin-dashboard-menu.php:468
-#: includes/admin/audio-processor-admin.php:1360
-#: includes/admin/audio-processor-admin.php:2706
+#: includes/admin/audio-processor-admin.php:1456
+#: includes/admin/audio-processor-admin.php:2802
 msgid "Audio Processor"
 msgstr ""
 
@@ -155,13 +155,13 @@ msgid "Word Option Rules"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:170
-#: includes/admin/audio-processor-admin.php:2732
+#: includes/admin/audio-processor-admin.php:2828
 #: includes/admin/image-aspect-normalizer-admin.php:129
 msgid "Image Aspect Normalizer"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:171
-#: includes/admin/audio-processor-admin.php:2763
+#: includes/admin/audio-processor-admin.php:2859
 #: includes/admin/image-webp-optimizer-admin.php:1778
 msgid "WebP Image Optimizer"
 msgstr ""
@@ -294,11 +294,11 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:354
 #: includes/admin/admin-dashboard-menu.php:812
 #: includes/admin/admin-dashboard-menu.php:813
-#: includes/admin/audio-processor-admin.php:2792
+#: includes/admin/audio-processor-admin.php:2888
 #: includes/admin/bulk-translation-admin.php:147
 #: includes/admin/image-aspect-normalizer-admin.php:111
 #: includes/admin/user-progress-report.php:1119
-#: includes/pages/wordset-editor.php:4571
+#: includes/pages/wordset-editor.php:4657
 #: includes/pages/wordset-pages.php:27368
 #: includes/pages/wordset-pages.php:27616
 #: includes/post-types/words-post-type.php:21
@@ -739,7 +739,7 @@ msgstr ""
 
 #: includes/admin/audio-image-matcher.php:76
 #: includes/admin/audio-processor-admin.php:213
-#: includes/admin/audio-processor-admin.php:1314
+#: includes/admin/audio-processor-admin.php:1409
 #: includes/admin/ipa-keyboard-admin.php:450
 #: includes/admin/site-sync-admin.php:655
 #: includes/admin/site-sync-admin.php:1934
@@ -881,7 +881,7 @@ msgid "Save %d processed audio file(s)?"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:137
-#: includes/admin/audio-processor-admin.php:1462
+#: includes/admin/audio-processor-admin.php:1558
 msgid "Save All Changes"
 msgstr ""
 
@@ -898,7 +898,7 @@ msgid "Saving..."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:139
-#: includes/admin/audio-processor-admin.php:1401
+#: includes/admin/audio-processor-admin.php:1497
 msgid "Preparing uploads..."
 msgstr ""
 
@@ -935,22 +935,22 @@ msgid "Deletion is still in progress. Leaving this page may interrupt it."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:151
-#: includes/admin/audio-processor-admin.php:1194
+#: includes/admin/audio-processor-admin.php:1289
 #: includes/admin/ipa-keyboard-admin.php:523
-#: includes/pages/wordset-editor.php:4825
+#: includes/pages/wordset-editor.php:4930
 #: includes/pages/wordset-pages.php:23603
 #: includes/shortcodes/word-grid-shortcode.php:5881
 msgid "Edit word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:152
-#: includes/admin/audio-processor-admin.php:1238
+#: includes/admin/audio-processor-admin.php:1333
 msgid "Save changes"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:153
-#: includes/admin/audio-processor-admin.php:1241
-#: includes/admin/audio-processor-admin.php:1464
+#: includes/admin/audio-processor-admin.php:1336
+#: includes/admin/audio-processor-admin.php:1560
 #: includes/admin/missing-audio-admin-page.php:606
 #: includes/admin/offline-app-export.php:2939
 #: includes/admin/offline-app-export.php:3682
@@ -964,7 +964,7 @@ msgid "Cancel"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:154
-#: includes/admin/audio-processor-admin.php:1211
+#: includes/admin/audio-processor-admin.php:1306
 #: includes/admin/bulk-translation-admin.php:199
 #: includes/admin/bulk-translation-admin.php:221
 #: includes/admin/export-import.php:4636
@@ -974,8 +974,8 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:854
 #: includes/admin/user-progress-report.php:1157
 #: includes/admin/word-option-rules-admin.php:2275
-#: includes/pages/wordset-editor.php:4774
-#: includes/pages/wordset-editor.php:4813
+#: includes/pages/wordset-editor.php:4878
+#: includes/pages/wordset-editor.php:4917
 #: includes/pages/wordset-pages.php:13559
 #: includes/pages/wordset-pages.php:27350
 #: includes/pages/wordset-pages.php:27770
@@ -994,19 +994,19 @@ msgid "Word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:155
-#: includes/admin/audio-processor-admin.php:1218
+#: includes/admin/audio-processor-admin.php:1313
 msgid "Enter word"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:156
-#: includes/admin/audio-processor-admin.php:1225
+#: includes/admin/audio-processor-admin.php:1320
 #: includes/admin/export-import.php:13837
 #: includes/admin/export-import.php:13872
 #: includes/admin/user-progress-report.php:1158
 #: includes/lib/interlinear.php:2007
 #: includes/pages/wordset-editor.php:929
-#: includes/pages/wordset-editor.php:4775
-#: includes/pages/wordset-editor.php:4924
+#: includes/pages/wordset-editor.php:4879
+#: includes/pages/wordset-editor.php:5030
 #: includes/post-types/dictionary-entry-post-type.php:1328
 #: includes/post-types/dictionary-entry-post-type.php:1471
 #: includes/post-types/dictionary-entry-post-type.php:1958
@@ -1022,7 +1022,7 @@ msgid "Translation"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:157
-#: includes/admin/audio-processor-admin.php:1232
+#: includes/admin/audio-processor-admin.php:1327
 msgid "Enter translation"
 msgstr ""
 
@@ -1035,7 +1035,7 @@ msgid "Translation cannot be empty for this word."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:161
-#: includes/admin/audio-processor-admin.php:1759
+#: includes/admin/audio-processor-admin.php:1855
 msgid "Could not update word details."
 msgstr ""
 
@@ -1054,14 +1054,14 @@ msgid "Deleting %1$d of %2$d..."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:167
-#: includes/admin/audio-processor-admin.php:1386
+#: includes/admin/audio-processor-admin.php:1482
 #: includes/admin/orphan-media-admin.php:1813
 #: includes/admin/orphan-media-admin.php:1885
 msgid "Delete Selected"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:168
-#: includes/admin/audio-processor-admin.php:1463
+#: includes/admin/audio-processor-admin.php:1559
 msgid "Delete All"
 msgstr ""
 
@@ -1221,7 +1221,7 @@ msgid "Processing complete! Review the results below."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:211
-#: includes/admin/audio-processor-admin.php:1312
+#: includes/admin/audio-processor-admin.php:1407
 #: includes/admin/ipa-keyboard-admin.php:414
 msgid "Loading recordings..."
 msgstr ""
@@ -1243,7 +1243,7 @@ msgid "No recordings with preserved original audio are ready to reprocess."
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:217
-#: includes/admin/audio-processor-admin.php:1320
+#: includes/admin/audio-processor-admin.php:1415
 #: includes/admin/image-webp-optimizer-admin.php:1736
 #: includes/admin/ipa-keyboard-admin.php:488
 #: includes/admin/site-sync-admin.php:1128
@@ -1271,7 +1271,7 @@ msgid "Previous"
 msgstr ""
 
 #: includes/admin/audio-processor-admin.php:218
-#: includes/admin/audio-processor-admin.php:1324
+#: includes/admin/audio-processor-admin.php:1419
 #: includes/admin/image-webp-optimizer-admin.php:1737
 #: includes/admin/ipa-keyboard-admin.php:489
 #: includes/admin/site-sync-admin.php:1131
@@ -1316,39 +1316,34 @@ msgstr ""
 msgid "Page %d"
 msgstr ""
 
-#. translators: %d: known minimum number of recordings in a queue
-#: includes/admin/audio-processor-admin.php:222
-msgid "%d+"
-msgstr ""
-
-#: includes/admin/audio-processor-admin.php:223
+#: includes/admin/audio-processor-admin.php:221
 #: includes/lib/ai-crawler-support.php:1624
 msgid "Wordset:"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:224
+#: includes/admin/audio-processor-admin.php:222
 #: includes/shortcodes/audio-recording-shortcode.php:1620
 #: templates/audio-image-matcher-template.php:31
 msgid "Category:"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1058
+#: includes/admin/audio-processor-admin.php:1153
 msgid "Duplicates are hidden so you can process one recording per word and recording type first."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1062
+#: includes/admin/audio-processor-admin.php:1157
 msgid "These recordings use their saved original audio source. Saving replaces the current processed audio for the same word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1078
+#: includes/admin/audio-processor-admin.php:1173
 msgid "The queue request expired. Refresh the page and try again."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1082
-#: includes/admin/audio-processor-admin.php:1567
-#: includes/admin/audio-processor-admin.php:1570
-#: includes/admin/audio-processor-admin.php:1720
-#: includes/admin/audio-processor-admin.php:2579
+#: includes/admin/audio-processor-admin.php:1177
+#: includes/admin/audio-processor-admin.php:1663
+#: includes/admin/audio-processor-admin.php:1666
+#: includes/admin/audio-processor-admin.php:1816
+#: includes/admin/audio-processor-admin.php:2675
 #: includes/admin/word-images-fixer.php:120
 #: includes/pages/default-shortcode-page-helper.php:391
 #: includes/post-types/word-audio-post-type.php:531
@@ -1356,27 +1351,27 @@ msgstr ""
 msgid "Permission denied"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1087
+#: includes/admin/audio-processor-admin.php:1182
 msgid "Invalid queue."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1129
+#: includes/admin/audio-processor-admin.php:1224
 msgid "Published audio exists"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1131
+#: includes/admin/audio-processor-admin.php:1226
 msgid "Duplicate in queue"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1134
+#: includes/admin/audio-processor-admin.php:1229
 msgid "Saved original source"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1203
+#: includes/admin/audio-processor-admin.php:1298
 msgid "Split word"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1253
+#: includes/admin/audio-processor-admin.php:1348
 #: includes/admin/bulk-translation-admin.php:144
 #: includes/admin/bulk-translation-admin.php:200
 #: includes/admin/dictionary-import-admin.php:2423
@@ -1387,114 +1382,108 @@ msgstr ""
 msgid "Type"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1267
+#: includes/admin/audio-processor-admin.php:1362
 #: includes/admin/uploads/audio-upload-form.php:438
 msgid "Unassigned"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1361
+#: includes/admin/audio-processor-admin.php:1457
 msgid "Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1364
+#: includes/admin/audio-processor-admin.php:1460
 msgid "Processing Options"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1367
+#: includes/admin/audio-processor-admin.php:1463
 msgid "Trim silence from start and end"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1371
+#: includes/admin/audio-processor-admin.php:1467
 msgid "Apply noise reduction"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1375
+#: includes/admin/audio-processor-admin.php:1471
 msgid "Normalize loudness"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1380
+#: includes/admin/audio-processor-admin.php:1476
 #: includes/admin/bulk-translation-admin.php:186
 msgid "Select All"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1381
+#: includes/admin/audio-processor-admin.php:1477
 #: includes/admin/bulk-translation-admin.php:187
 msgid "Deselect All"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1383
+#: includes/admin/audio-processor-admin.php:1479
 msgid "Process Selected"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1394
+#: includes/admin/audio-processor-admin.php:1490
 #: includes/shortcodes/audio-recording-shortcode.php:1688
 msgid "Processing..."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1400
+#: includes/admin/audio-processor-admin.php:1496
 msgid "Saving Processed Audio"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1407
+#: includes/admin/audio-processor-admin.php:1503
 msgid "Keep this page open until saving is complete. Navigating away will interrupt remaining uploads."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1426
+#: includes/admin/audio-processor-admin.php:1522
 msgid "Queue"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1427
-#: includes/admin/audio-processor-admin.php:1438
-#: includes/admin/audio-processor-admin.php:1449
-msgid "Loading"
-msgstr ""
-
-#: includes/admin/audio-processor-admin.php:1437
+#: includes/admin/audio-processor-admin.php:1533
 msgid "Duplicates"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1448
+#: includes/admin/audio-processor-admin.php:1544
 msgid "Reprocess"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1459
+#: includes/admin/audio-processor-admin.php:1555
 #: includes/shortcodes/audio-recording-shortcode.php:2141
 msgid "Review Processed Audio"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1577
-#: includes/admin/audio-processor-admin.php:1739
+#: includes/admin/audio-processor-admin.php:1673
+#: includes/admin/audio-processor-admin.php:1835
 msgid "Missing required data"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1582
-#: includes/admin/audio-processor-admin.php:2492
-#: includes/admin/audio-processor-admin.php:2498
-#: includes/admin/audio-processor-admin.php:2630
+#: includes/admin/audio-processor-admin.php:1678
+#: includes/admin/audio-processor-admin.php:2588
+#: includes/admin/audio-processor-admin.php:2594
+#: includes/admin/audio-processor-admin.php:2726
 msgid "Invalid audio post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1585
+#: includes/admin/audio-processor-admin.php:1681
 msgid "Insufficient permissions to edit this recording."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1590
+#: includes/admin/audio-processor-admin.php:1686
 msgid "No parent word post found"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1595
+#: includes/admin/audio-processor-admin.php:1691
 msgid "Invalid parent word post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1598
+#: includes/admin/audio-processor-admin.php:1694
 msgid "Insufficient permissions to edit the parent word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1604
+#: includes/admin/audio-processor-admin.php:1700
 msgid "Audio upload validation is unavailable"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1611
+#: includes/admin/audio-processor-admin.php:1707
 #: includes/pages/wordset-games.php:6734
 #: includes/shortcodes/audio-recording-shortcode.php:462
 #: includes/shortcodes/audio-recording-shortcode.php:5813
@@ -1503,129 +1492,129 @@ msgstr ""
 msgid "Invalid audio upload."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1618
-#: includes/admin/audio-processor-admin.php:1621
+#: includes/admin/audio-processor-admin.php:1714
+#: includes/admin/audio-processor-admin.php:1717
 msgid "Upload directory is unavailable"
 msgstr ""
 
 #. translators: %s: upload subsystem error message
-#: includes/admin/audio-processor-admin.php:1659
+#: includes/admin/audio-processor-admin.php:1755
 #: includes/shortcodes/audio-recording-shortcode.php:8893
 #: includes/shortcodes/audio-recording-shortcode.php:9919
 #: includes/shortcodes/word-grid-shortcode.php:8244
 msgid "Failed to save file: %s"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1665
+#: includes/admin/audio-processor-admin.php:1761
 #: includes/shortcodes/audio-recording-shortcode.php:8896
 #: includes/shortcodes/audio-recording-shortcode.php:9925
 msgid "Failed to save file"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1706
+#: includes/admin/audio-processor-admin.php:1802
 msgid "Audio processed and published successfully"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1744
+#: includes/admin/audio-processor-admin.php:1840
 msgid "Invalid word post"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:1748
+#: includes/admin/audio-processor-admin.php:1844
 #: includes/shortcodes/word-grid-shortcode.php:4348
 #: includes/shortcodes/word-grid-shortcode.php:4351
 msgid "Insufficient permissions to edit this word."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2125
+#: includes/admin/audio-processor-admin.php:2221
 msgid "Audio recording deleted"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2313
-#: includes/admin/audio-processor-admin.php:2482
-#: includes/admin/audio-processor-admin.php:2506
-#: includes/admin/audio-processor-admin.php:2548
-#: includes/admin/audio-processor-admin.php:2555
+#: includes/admin/audio-processor-admin.php:2409
+#: includes/admin/audio-processor-admin.php:2578
+#: includes/admin/audio-processor-admin.php:2602
+#: includes/admin/audio-processor-admin.php:2644
+#: includes/admin/audio-processor-admin.php:2651
 msgid "Could not prepare this deletion safely. Please retry."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2359
-#: includes/admin/audio-processor-admin.php:2625
+#: includes/admin/audio-processor-admin.php:2455
+#: includes/admin/audio-processor-admin.php:2721
 msgid "The recording was deleted, but cleanup is still pending. Please retry."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2513
-#: includes/admin/audio-processor-admin.php:2633
+#: includes/admin/audio-processor-admin.php:2609
+#: includes/admin/audio-processor-admin.php:2729
 msgid "Insufficient permissions to delete this recording."
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2564
-#: includes/admin/audio-processor-admin.php:2659
+#: includes/admin/audio-processor-admin.php:2660
+#: includes/admin/audio-processor-admin.php:2755
 msgid "Failed to delete audio recording"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2585
+#: includes/admin/audio-processor-admin.php:2681
 msgid "Invalid post ID"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2604
-#: includes/admin/audio-processor-admin.php:2609
-#: includes/admin/audio-processor-admin.php:2642
+#: includes/admin/audio-processor-admin.php:2700
+#: includes/admin/audio-processor-admin.php:2705
+#: includes/admin/audio-processor-admin.php:2738
 msgid "Deletion is already in progress. Please retry shortly."
 msgstr ""
 
 #. translators: %d: number of audio recordings
-#: includes/admin/audio-processor-admin.php:2709
+#: includes/admin/audio-processor-admin.php:2805
 msgid "%d audio recording needs processing"
 msgid_plural "%d audio recordings need processing"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of categories
-#: includes/admin/audio-processor-admin.php:2735
+#: includes/admin/audio-processor-admin.php:2831
 msgid "Images need aspect ratio normalization in %d category"
 msgid_plural "Images need aspect ratio normalization in %d categories"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of word images
-#: includes/admin/audio-processor-admin.php:2766
+#: includes/admin/audio-processor-admin.php:2862
 msgid "%d image needs WebP optimization"
 msgid_plural "%d images need WebP optimization"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of words
-#: includes/admin/audio-processor-admin.php:2795
+#: includes/admin/audio-processor-admin.php:2891
 msgid "%d word is not in any quizzable category"
 msgid_plural "%d words are not in any quizzable category"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: wordset name
-#: includes/admin/audio-processor-admin.php:2835
-#: includes/admin/audio-processor-admin.php:2881
+#: includes/admin/audio-processor-admin.php:2931
+#: includes/admin/audio-processor-admin.php:2977
 msgid "Transcription Manager: %s"
 msgstr ""
 
 #. translators: 1: number of recordings, 2: wordset name
-#: includes/admin/audio-processor-admin.php:2840
+#: includes/admin/audio-processor-admin.php:2936
 msgid "%1$d recording in %2$s has possible transcription issues"
 msgid_plural "%1$d recordings in %2$s have possible transcription issues"
 msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: number of recordings, 2: wordset name
-#: includes/admin/audio-processor-admin.php:2886
+#: includes/admin/audio-processor-admin.php:2982
 msgid "%1$d recording in %2$s has auto-generated transcription data that needs review"
 msgid_plural "%1$d recordings in %2$s have auto-generated transcription data that needs review"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/audio-processor-admin.php:2956
+#: includes/admin/audio-processor-admin.php:3052
 msgid "LL Tools Admin Tasks"
 msgstr ""
 
-#: includes/admin/audio-processor-admin.php:2957
+#: includes/admin/audio-processor-admin.php:3053
 msgid "The following maintenance tasks need attention."
 msgstr ""
 
@@ -1691,7 +1680,7 @@ msgstr ""
 #: includes/admin/image-webp-optimizer-admin.php:1796
 #: includes/admin/user-progress-report.php:1118
 #: includes/admin/word-option-rules-admin.php:1888
-#: includes/pages/wordset-editor.php:4615
+#: includes/pages/wordset-editor.php:4705
 #: includes/pages/wordset-pages.php:18034
 #: includes/pages/wordset-pages.php:27351
 #: includes/pages/wordset-pages.php:27660
@@ -1713,11 +1702,11 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:153
 #: includes/admin/bulk-translation-admin.php:163
 #: includes/admin/bulk-translation-admin.php:322
-#: includes/pages/wordset-editor.php:4217
-#: includes/pages/wordset-editor.php:4259
-#: includes/pages/wordset-editor.php:4621
-#: includes/pages/wordset-editor.php:4631
-#: includes/pages/wordset-editor.php:4639
+#: includes/pages/wordset-editor.php:4267
+#: includes/pages/wordset-editor.php:4309
+#: includes/pages/wordset-editor.php:4712
+#: includes/pages/wordset-editor.php:4722
+#: includes/pages/wordset-editor.php:4730
 #: includes/pages/wordset-pages.php:13506
 #: includes/pages/wordset-pages.php:27363
 #: includes/pages/wordset-pages.php:27370
@@ -1774,7 +1763,7 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:182
 #: includes/admin/orphan-media-admin.php:1789
 #: includes/admin/user-progress-report.php:901
-#: includes/pages/wordset-editor.php:4648
+#: includes/pages/wordset-editor.php:4739
 #: includes/shortcodes/image-copyright-grid-shortcode.php:237
 msgid "Filter"
 msgstr ""
@@ -1800,7 +1789,7 @@ msgstr ""
 #: includes/admin/split-word-admin.php:383
 #: includes/admin/user-progress-report.php:1159
 #: includes/lms/assignments.php:2039
-#: includes/pages/wordset-editor.php:4619
+#: includes/pages/wordset-editor.php:4710
 #: includes/pages/wordset-pages.php:27383
 #: includes/pages/wordset-pages.php:27814
 #: includes/pages/wordset-pages.php:27822
@@ -1818,7 +1807,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1855
 #: includes/admin/site-sync-admin.php:1060
 #: includes/admin/word-option-rules-admin.php:2273
-#: includes/pages/wordset-editor.php:4629
+#: includes/pages/wordset-editor.php:4720
 #: includes/shortcodes/editor-hub-shortcode.php:1083
 #: includes/shortcodes/word-grid-shortcode.php:5895
 msgid "Image"
@@ -2423,7 +2412,7 @@ msgstr ""
 #: includes/admin/dictionary-import-admin.php:2426
 #: includes/admin/export-import.php:3794
 #: includes/admin/login-blocks-admin.php:252
-#: includes/pages/wordset-editor.php:4730
+#: includes/pages/wordset-editor.php:4824
 msgid "Action"
 msgstr ""
 
@@ -2451,7 +2440,7 @@ msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:2451
 #: includes/admin/export-import.php:3831
-#: includes/pages/wordset-editor.php:5025
+#: includes/pages/wordset-editor.php:5135
 msgid "Undone"
 msgstr ""
 
@@ -2926,7 +2915,7 @@ msgstr ""
 #: includes/admin/duplicate-category-words-admin.php:114
 #: includes/admin/duplicate-category-words-admin.php:455
 #: includes/pages/wordset-editor.php:467
-#: includes/pages/wordset-editor.php:4024
+#: includes/pages/wordset-editor.php:4063
 #: includes/taxonomies/word-category-taxonomy.php:2077
 #: includes/wordset-isolation.php:1600
 msgid "The category was created, but its settings were not saved. Reload the category list, open the category, and try again."
@@ -3146,8 +3135,8 @@ msgid "New Category Details"
 msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:945
-#: includes/pages/wordset-editor.php:4385
-#: includes/pages/wordset-editor.php:4756
+#: includes/pages/wordset-editor.php:4429
+#: includes/pages/wordset-editor.php:4850
 #: includes/pages/wordset-pages.php:18062
 #: includes/pages/wordset-pages.php:18069
 msgid "New category name"
@@ -4590,7 +4579,7 @@ msgstr ""
 #: includes/admin/export-import.php:4654
 #: includes/admin/ipa-keyboard-admin.php:1320
 #: includes/admin/word-option-rules-admin.php:2318
-#: includes/pages/wordset-editor.php:4148
+#: includes/pages/wordset-editor.php:4198
 #: includes/shortcodes/flashcard-widget.php:675
 #: includes/shortcodes/word-grid-shortcode.php:5378
 #: includes/shortcodes/word-grid-shortcode.php:5879
@@ -5622,7 +5611,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:428
 #: includes/lib/interlinear.php:1792
 #: includes/lib/interlinear.php:2010
-#: includes/pages/wordset-editor.php:4923
+#: includes/pages/wordset-editor.php:5029
 #: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
 #: includes/shortcodes/word-grid-shortcode.php:5907
@@ -6429,8 +6418,8 @@ msgid "No featured image attached."
 msgstr ""
 
 #: includes/admin/image-webp-optimizer-admin.php:559
-#: includes/pages/wordset-editor.php:4633
-#: includes/pages/wordset-editor.php:4864
+#: includes/pages/wordset-editor.php:4724
+#: includes/pages/wordset-editor.php:4970
 msgid "Missing image"
 msgstr ""
 
@@ -7009,7 +6998,7 @@ msgstr ""
 #: includes/admin/split-word-admin.php:381
 #: includes/admin/split-word-admin.php:393
 #: includes/admin/split-word-admin.php:400
-#: includes/pages/wordset-editor.php:4637
+#: includes/pages/wordset-editor.php:4728
 #: includes/post-types/words-post-type.php:2062
 #: includes/post-types/words-post-type.php:2065
 #: includes/shortcodes/editor-hub-shortcode.php:653
@@ -7048,7 +7037,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:436
 #: includes/pages/vocab-lesson-pages.php:9008
-#: includes/pages/wordset-editor.php:5051
+#: includes/pages/wordset-editor.php:5161
 #: templates/vocab-lesson-template.php:687
 msgid "Undo"
 msgstr ""
@@ -7181,8 +7170,8 @@ msgstr ""
 #: includes/admin/user-progress-report.php:1111
 #: includes/flashcard-shell.php:107
 #: includes/flashcard-shell.php:224
-#: includes/pages/wordset-editor.php:4778
-#: includes/pages/wordset-editor.php:4835
+#: includes/pages/wordset-editor.php:4882
+#: includes/pages/wordset-editor.php:4941
 #: includes/pages/wordset-pages.php:14288
 #: includes/pages/wordset-pages.php:17433
 #: includes/pages/wordset-pages.php:25186
@@ -7780,7 +7769,7 @@ msgid "Only flagged typos"
 msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:690
-#: includes/pages/wordset-editor.php:4611
+#: includes/pages/wordset-editor.php:4698
 msgid "Exact letters + diacritics"
 msgstr ""
 
@@ -8327,7 +8316,7 @@ msgstr ""
 #. translators: 1: attempt count, 2: limit
 #: includes/admin/login-blocks-admin.php:264
 #: includes/lib/interlinear.php:1771
-#: includes/pages/wordset-editor.php:4425
+#: includes/pages/wordset-editor.php:4488
 msgid "%1$d of %2$d"
 msgstr ""
 
@@ -9729,8 +9718,8 @@ msgid "Preview"
 msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1824
-#: includes/pages/wordset-editor.php:4780
-#: includes/pages/wordset-editor.php:4862
+#: includes/pages/wordset-editor.php:4884
+#: includes/pages/wordset-editor.php:4968
 msgid "Media"
 msgstr ""
 
@@ -9945,7 +9934,7 @@ msgstr[1] ""
 
 #: includes/admin/recording-types-admin.php:158
 #: includes/pages/default-shortcode-page-helper.php:320
-#: includes/pages/wordset-editor.php:4827
+#: includes/pages/wordset-editor.php:4932
 #: includes/post-types/word-audio-post-type.php:635
 msgid "Edit"
 msgstr ""
@@ -10384,7 +10373,7 @@ msgstr ""
 
 #: includes/admin/site-sync-admin.php:1058
 #: includes/pages/wordset-editor.php:976
-#: includes/pages/wordset-editor.php:4566
+#: includes/pages/wordset-editor.php:4641
 #: includes/pages/wordset-transcription-review.php:289
 #: includes/shortcodes/word-grid-shortcode.php:5913
 msgid "Review note"
@@ -14949,16 +14938,16 @@ msgid "Awaiting processing"
 msgstr ""
 
 #: includes/lib/recording-history.php:160
-#: includes/pages/wordset-editor.php:4074
-#: includes/pages/wordset-editor.php:4622
+#: includes/pages/wordset-editor.php:4124
+#: includes/pages/wordset-editor.php:4713
 #: includes/shortcodes/site-tools-shortcode.php:1528
 #: includes/shortcodes/word-grid-shortcode.php:6553
 msgid "Published"
 msgstr ""
 
 #: includes/lib/recording-history.php:161
-#: includes/pages/wordset-editor.php:4077
-#: includes/pages/wordset-editor.php:4623
+#: includes/pages/wordset-editor.php:4127
+#: includes/pages/wordset-editor.php:4714
 #: includes/shortcodes/word-grid-shortcode.php:6434
 msgid "Draft"
 msgstr ""
@@ -14968,8 +14957,8 @@ msgid "Pending review"
 msgstr ""
 
 #: includes/lib/recording-history.php:163
-#: includes/pages/wordset-editor.php:4083
-#: includes/pages/wordset-editor.php:4625
+#: includes/pages/wordset-editor.php:4133
+#: includes/pages/wordset-editor.php:4716
 #: includes/pages/wordset-pages.php:14829
 #: includes/pages/wordset-pages.php:26750
 #: includes/taxonomies/word-category-taxonomy.php:2429
@@ -15053,7 +15042,7 @@ msgid "Recording transcriptions"
 msgstr ""
 
 #: includes/lib/site-sync.php:24
-#: includes/pages/wordset-editor.php:4877
+#: includes/pages/wordset-editor.php:4983
 msgid "Word metadata"
 msgstr ""
 
@@ -17221,7 +17210,7 @@ msgstr ""
 #: includes/login-window.php:2844
 #: includes/login-window.php:2847
 #: includes/login-window.php:2858
-#: includes/pages/wordset-editor.php:5001
+#: includes/pages/wordset-editor.php:5111
 msgid "Show"
 msgstr ""
 
@@ -18652,157 +18641,183 @@ msgstr ""
 msgid "Nothing could be restored from that action."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3402
+#: includes/pages/wordset-editor.php:3409
 msgid "Choose an action to undo."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3572
+#: includes/pages/wordset-editor.php:3579
 msgid "Quick edited \"%s\"."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3613
+#: includes/pages/wordset-editor.php:3620
 #: includes/shortcodes/word-grid-shortcode.php:9231
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3646
+#: includes/pages/wordset-editor.php:3653
 #: includes/shortcodes/word-grid-shortcode.php:9319
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3713
-#: includes/pages/wordset-editor.php:4031
+#: includes/pages/wordset-editor.php:3720
+#: includes/pages/wordset-editor.php:4070
 msgid "Published %d word."
 msgid_plural "Published %d words."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3714
-#: includes/pages/wordset-editor.php:4033
+#: includes/pages/wordset-editor.php:3721
+#: includes/pages/wordset-editor.php:4072
 msgid "Moved %d word to draft."
 msgid_plural "Moved %d words to draft."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3776
-#: includes/pages/wordset-editor.php:4035
+#: includes/pages/wordset-editor.php:3783
+#: includes/pages/wordset-editor.php:4074
 msgid "Updated categories for %d word."
 msgid_plural "Updated categories for %d words."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3871
-#: includes/pages/wordset-editor.php:4037
+#: includes/pages/wordset-editor.php:3903
+#: includes/pages/wordset-editor.php:4087
 msgid "Split %d word into another category."
 msgid_plural "Split %d words into another category."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3888
+#: includes/pages/wordset-editor.php:3920
 msgid "Missing audio review: this word needs a published recording before it is learner-ready."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3921
+#: includes/pages/wordset-editor.php:3953
 msgid "Flagged %d word for missing audio."
 msgid_plural "Flagged %d words for missing audio."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3931
+#: includes/pages/wordset-editor.php:3963
 msgid "Missing image review: this word needs an image before it is learner-ready."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:3966
+#: includes/pages/wordset-editor.php:3998
 msgid "Flagged %d word for missing images."
 msgid_plural "Flagged %d words for missing images."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:3993
-#: includes/pages/wordset-editor.php:4043
+#: includes/pages/wordset-editor.php:4025
+#: includes/pages/wordset-editor.php:4093
 msgid "Moved %d word to Trash."
 msgid_plural "Moved %d words to Trash."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4025
+#: includes/pages/wordset-editor.php:4054
+msgid "Select at least one word from the category you are splitting."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4055
+msgid "Choose one source category and open Split Category again."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4056
+msgid "Enter a new category name or choose a destination from this word set."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4057
+msgid "Choose a destination different from the source category."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4058
+msgid "Choose either a new category or an existing destination."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4064
 msgid "The editor action could not be completed. Check the selection and try again."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4029
+#: includes/pages/wordset-editor.php:4068
 msgid "Editor action completed."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4039
+#: includes/pages/wordset-editor.php:4086
+msgid "Moved %1$d word to \"%2$s\"."
+msgid_plural "Moved %1$d words to \"%2$s\"."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/pages/wordset-editor.php:4089
 msgid "Flagged %d word for missing audio review."
 msgid_plural "Flagged %d words for missing audio review."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4041
+#: includes/pages/wordset-editor.php:4091
 msgid "Flagged %d word for missing image review."
 msgid_plural "Flagged %d words for missing image review."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4045
+#: includes/pages/wordset-editor.php:4095
 msgid "Undid %d item."
 msgid_plural "Undid %d items."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4047
+#: includes/pages/wordset-editor.php:4097
 #: includes/shortcodes/word-grid-shortcode.php:4133
 #: includes/shortcodes/word-grid-shortcode.php:9242
 msgid "Recording moved to Trash."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4049
+#: includes/pages/wordset-editor.php:4099
 #: includes/shortcodes/word-grid-shortcode.php:4136
 #: includes/shortcodes/word-grid-shortcode.php:9333
 msgid "Recording moved."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4051
+#: includes/pages/wordset-editor.php:4101
 msgid "Word updated."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4051
+#: includes/pages/wordset-editor.php:4101
 msgid "No word changes were needed."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4053
+#: includes/pages/wordset-editor.php:4103
 msgid "Saved editor view."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4055
+#: includes/pages/wordset-editor.php:4105
 msgid "Deleted editor view."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4057
+#: includes/pages/wordset-editor.php:4107
 msgid "Prepared a batch job for %d word."
 msgid_plural "Prepared a batch job for %d words."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4059
+#: includes/pages/wordset-editor.php:4109
 msgid "Completed the batch job with %d change."
 msgid_plural "Completed the batch job with %d changes."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4063
+#: includes/pages/wordset-editor.php:4113
 msgid "%d item was skipped."
 msgid_plural "%d items were skipped."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4080
-#: includes/pages/wordset-editor.php:4624
+#: includes/pages/wordset-editor.php:4130
+#: includes/pages/wordset-editor.php:4715
 msgid "Pending"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4223
+#: includes/pages/wordset-editor.php:4273
 #: includes/pages/wordset-pages.php:15130
 #: includes/pages/wordset-pages.php:17438
 #: includes/pages/wordset-pages.php:24521
@@ -18813,283 +18828,326 @@ msgid_plural "%d categories"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4253
-#: includes/pages/wordset-editor.php:4838
+#: includes/pages/wordset-editor.php:4303
+#: includes/pages/wordset-editor.php:4944
 #: includes/pages/wordset-pages.php:1747
 msgid "No category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4259
+#: includes/pages/wordset-editor.php:4309
 msgid "%d categories"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4265
+#: includes/pages/wordset-editor.php:4315
 msgid "No matching categories"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4348
+#: includes/pages/wordset-editor.php:4402
 msgid "Split category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4351
-#: templates/vocab-lesson-template.php:1099
-msgid "Split Category"
+#: includes/pages/wordset-editor.php:4405
+msgid "2. Choose destination"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4355
-msgid "Move %1$d filtered word out of %2$s."
-msgid_plural "Move %1$d filtered words out of %2$s."
-msgstr[0] ""
-msgstr[1] ""
-
-#: includes/pages/wordset-editor.php:4363
-msgid "Move all filtered words to the target category?"
+#: includes/pages/wordset-editor.php:4408
+msgid "Published words stay published; draft words stay drafts."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4373
+#: includes/pages/wordset-editor.php:4413
+msgid "Select at least one word above."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4413
+msgid "Enter a new category name or choose an existing category."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4422
+msgid "Destination"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4424
+#: includes/pages/wordset-editor.php:4849
+msgid "New category"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4425
+#: includes/pages/wordset-pages.php:18035
+msgid "Existing category"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4433
 msgid "Existing target"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4375
-#: includes/pages/wordset-editor.php:4745
+#: includes/pages/wordset-editor.php:4435
+#: includes/pages/wordset-editor.php:4839
 msgid "Choose category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4384
-msgid "Or new category"
+#: includes/pages/wordset-editor.php:4445
+#: includes/taxonomies/word-category-taxonomy.php:1510
+#: templates/vocab-lesson-template.php:1047
+#: templates/vocab-lesson-template.php:1073
+msgid "Category settings"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4389
+#: includes/pages/wordset-editor.php:4448
 msgid "Copy quiz, game, and recording settings"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4393
-msgid "Move Filtered Words"
+#: includes/pages/wordset-editor.php:4453
+#: includes/pages/wordset-editor.php:4817
+#: includes/pages/wordset-editor.php:4868
+msgid "0 selected"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4417
-#: includes/pages/wordset-editor.php:4419
+#: includes/pages/wordset-editor.php:4456
+msgid "Move selected words"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4480
+#: includes/pages/wordset-editor.php:4482
 msgid "Bulk action progress"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4421
+#: includes/pages/wordset-editor.php:4484
 msgid "Processed %1$d of %2$d. %3$d changed, %4$d skipped."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4437
+#: includes/pages/wordset-editor.php:4500
 msgid "Continue batch"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4441
+#: includes/pages/wordset-editor.php:4504
 msgid "Batch complete."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4566
-#: includes/pages/wordset-editor.php:4874
+#: includes/pages/wordset-editor.php:4641
+#: includes/pages/wordset-editor.php:4980
 msgid "Word details"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4566
+#: includes/pages/wordset-editor.php:4641
 msgid "1 selected"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4566
+#: includes/pages/wordset-editor.php:4641
 #: includes/pages/wordset-pages.php:27308
 #: includes/shortcodes/dictionary-shortcode.php:3611
 #: includes/shortcodes/dictionary-shortcode.php:3625
 msgid "%d selected"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4566
+#: includes/pages/wordset-editor.php:4641
 msgid "All %d filtered word selected"
 msgid_plural "All %d filtered words selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4567
-msgid "Wordset editor summary"
+#: includes/pages/wordset-editor.php:4644
+#: templates/vocab-lesson-template.php:1099
+msgid "Split Category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4568
-msgid "Show all words"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4573
-msgid "Show words missing published audio"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4576
-#: includes/pages/wordset-editor.php:4641
-#: includes/pages/wordset-editor.php:4867
-msgid "Missing audio"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4578
-msgid "Show words missing images"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4581
-msgid "Missing images"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4583
-msgid "Jump to recent actions"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4586
-msgid "Recent actions"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4606
-msgid "Word or translation"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4632
-#: includes/pages/wordset-editor.php:4864
-msgid "Has image"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4640
-msgid "Has published audio"
+#: includes/pages/wordset-editor.php:4647
+msgid "Select the words to move out of %s, then choose their destination below."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4651
-msgid "Reset"
+msgid "Find words (optional)"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4656
-msgid "Saved editor views"
+#: includes/pages/wordset-editor.php:4653
+msgid "Wordset editor summary"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4658
-msgid "Saved views"
+#: includes/pages/wordset-editor.php:4654
+msgid "Show all words"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4666
-msgid "Saved view name"
+#: includes/pages/wordset-editor.php:4659
+msgid "Show words missing published audio"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4662
+#: includes/pages/wordset-editor.php:4732
+#: includes/pages/wordset-editor.php:4973
+msgid "Missing audio"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4664
+msgid "Show words missing images"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4667
-msgid "View name"
+msgid "Missing images"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4668
-msgid "Save current view"
+#: includes/pages/wordset-editor.php:4669
+msgid "Jump to recent actions"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4674
-msgid "No saved views yet."
+#: includes/pages/wordset-editor.php:4672
+msgid "Recent actions"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4691
-msgid "Delete this saved view?"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4699
-msgid "Delete saved view"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4715
-msgid "Select at least one visible word first."
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4715
-msgid "Choose a category target for this action."
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4715
-msgid "Move the selected words to Trash?"
+#: includes/pages/wordset-editor.php:4693
+msgid "Word or translation"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:4723
-msgid "0 selected"
+#: includes/pages/wordset-editor.php:4970
+msgid "Has image"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4727
+#: includes/pages/wordset-editor.php:4731
+msgid "Has published audio"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4742
+msgid "Reset"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4750
+msgid "Saved editor views"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4752
+msgid "Saved views"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4760
+msgid "Saved view name"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4761
+msgid "View name"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4762
+msgid "Save current view"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4768
+msgid "No saved views yet."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4785
+msgid "Delete this saved view?"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4793
+msgid "Delete saved view"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4809
+msgid "Select at least one visible word first."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4809
+msgid "Choose a category target for this action."
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4809
+msgid "Move the selected words to Trash?"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4821
 msgid "All %d filtered word"
 msgid_plural "All %d filtered words"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/pages/wordset-editor.php:4732
+#: includes/pages/wordset-editor.php:4826
 msgid "Move to draft"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4733
+#: includes/pages/wordset-editor.php:4827
 msgid "Publish"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4734
+#: includes/pages/wordset-editor.php:4828
 #: includes/pages/wordset-pages.php:7436
 msgid "Add category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4735
+#: includes/pages/wordset-editor.php:4829
 msgid "Remove category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4736
+#: includes/pages/wordset-editor.php:4830
 msgid "Move to category"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4737
+#: includes/pages/wordset-editor.php:4831
 msgid "Missing-audio review"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4738
+#: includes/pages/wordset-editor.php:4832
 msgid "Missing-image review"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4739
+#: includes/pages/wordset-editor.php:4833
 msgid "Move to Trash"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4743
+#: includes/pages/wordset-editor.php:4837
 msgid "Category target"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4755
-msgid "New category"
-msgstr ""
-
-#: includes/pages/wordset-editor.php:4761
+#: includes/pages/wordset-editor.php:4855
 msgid "Apply"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4767
+#: includes/pages/wordset-editor.php:4864
+msgid "1. Select words"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4866
+msgid "Select this page"
+msgstr ""
+
+#: includes/pages/wordset-editor.php:4867
+msgid "Select all %d matching word"
+msgid_plural "Select all %d matching words"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/pages/wordset-editor.php:4871
 msgid "Words in this word set"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4770
+#: includes/pages/wordset-editor.php:4874
 msgid "Select all visible words"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4779
-#: includes/pages/wordset-editor.php:4857
+#: includes/pages/wordset-editor.php:4883
+#: includes/pages/wordset-editor.php:4963
 msgid "State"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4783
+#: includes/pages/wordset-editor.php:4887
 msgid "No words match these filters."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4811
+#: includes/pages/wordset-editor.php:4915
 #: includes/pages/wordset-pages.php:7263
 #: includes/pages/wordset-pages.php:27318
 msgid "Select %s"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4829
+#: includes/pages/wordset-editor.php:4934
 #: includes/shortcodes/word-grid-shortcode.php:6939
 msgid "Copy or split word"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4830
+#: includes/pages/wordset-editor.php:4935
 #: includes/shortcodes/word-grid-shortcode.php:6939
 msgid "Copy / Split"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4895
+#: includes/pages/wordset-editor.php:5001
 #: includes/pages/wordset-transcription-review.php:307
 #: includes/shortcodes/editor-hub-shortcode.php:1063
 #: includes/shortcodes/flashcard-widget.php:678
@@ -19100,56 +19158,56 @@ msgstr ""
 msgid "Recordings"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4905
+#: includes/pages/wordset-editor.php:5011
 msgid "Recording %d"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4935
+#: includes/pages/wordset-editor.php:5041
 msgid "Move this recording to Trash?"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4943
+#: includes/pages/wordset-editor.php:5049
 #: includes/shortcodes/word-grid-shortcode.php:5935
 msgid "Move recording to Trash"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4943
+#: includes/pages/wordset-editor.php:5049
 msgid "Trash recording"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4963
+#: includes/pages/wordset-editor.php:5069
 msgid "Word editor pages"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4979
+#: includes/pages/wordset-editor.php:5089
 msgid "Editor action history"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4981
+#: includes/pages/wordset-editor.php:5091
 msgid "Action history"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4982
+#: includes/pages/wordset-editor.php:5092
 msgid "Undo is available for recent quick edits, Trash, recording moves, status, category, and review actions."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4991
+#: includes/pages/wordset-editor.php:5101
 msgid "History type"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:4993
+#: includes/pages/wordset-editor.php:5103
 msgid "All actions"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:5005
+#: includes/pages/wordset-editor.php:5115
 msgid "No editor actions match this view."
 msgstr ""
 
-#: includes/pages/wordset-editor.php:5031
+#: includes/pages/wordset-editor.php:5141
 msgid "Details"
 msgstr ""
 
-#: includes/pages/wordset-editor.php:5059
+#: includes/pages/wordset-editor.php:5169
 msgid "Editor history pages"
 msgstr ""
 
@@ -21821,10 +21879,6 @@ msgstr ""
 msgid ""
 "merhaba[TAB]hello\n"
 "nasilsin[TAB]how are you"
-msgstr ""
-
-#: includes/pages/wordset-pages.php:18035
-msgid "Existing category"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:18037
@@ -27890,12 +27944,6 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:1484
 #: includes/taxonomies/word-category-taxonomy.php:1511
 msgid "Category settings are temporarily unavailable. Reload the page and try again."
-msgstr ""
-
-#: includes/taxonomies/word-category-taxonomy.php:1510
-#: templates/vocab-lesson-template.php:1047
-#: templates/vocab-lesson-template.php:1073
-msgid "Category settings"
 msgstr ""
 
 #: includes/taxonomies/word-category-taxonomy.php:1551
