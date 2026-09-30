@@ -34,7 +34,8 @@
     async function send(action, values = {}) {
         const ownedController = new AbortController(); controller = ownedController;
         const timeout = window.setTimeout(() => ownedController.abort(), Number(cfg.timeoutMs) || 30000);
-        const data = new URLSearchParams({ action, nonce, wordset_id: wordsetId, word_id: sourceId, request_id: requestId });
+        const categoryId = Number(opener?.closest('[data-ll-word-grid]')?.dataset.llCategoryId) || 0;
+        const data = new URLSearchParams({ action, nonce, wordset_id: wordsetId, word_id: sourceId, request_id: requestId, category_id: categoryId });
         Object.keys(values).forEach(name => {
             const value = values[name];
             if (Array.isArray(value)) value.forEach(item => data.append(name + '[]', item));
@@ -139,12 +140,17 @@
             mode = 'uncertain'; submit.textContent = cfg.check;
             showMessage(data.message || cfg.uncertain);
         } else {
-            mode = 'completed'; remember(null); submit.textContent = cfg.close; showMessage(data.message);
+            mode = 'completed'; remember(null); showMessage('');
             if (sourceRow) {
                 const resultLink = node('a', cfg.open + ': ' + data.title, 'll-word-copy-result'); resultLink.href = data.url;
                 (sourceRow.querySelector('[data-ll-word-copy]') || opener).after(resultLink);
             }
-            document.dispatchEvent(new CustomEvent('ll-word-copy-completed', { detail: { ...data, wordId: sourceId, wordsetId } }));
+            // Release the native dialog before the category view closes its
+            // editor and moves focus to the newly inserted word.
+            setBusy(false, false);
+            close();
+            document.dispatchEvent(new CustomEvent('ll-word-copy-completed', { detail: { ...data, wordId: sourceId, wordsetId, trigger: opener } }));
+            return;
         }
         dialog.querySelector('.ll-word-copy-outcome')?.remove();
         if (data.new_word_id && data.url) {

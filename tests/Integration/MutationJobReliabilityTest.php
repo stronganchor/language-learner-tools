@@ -26,6 +26,85 @@ final class MutationJobReliabilityTest extends LL_Tools_TestCase
         parent::tearDown();
     }
 
+    private function withLatin1Connection(callable $callback): void
+    {
+        global $wpdb;
+        $previous = $wpdb->get_row('SELECT @@character_set_client AS client_charset, @@character_set_connection AS connection_charset, @@character_set_results AS results_charset, @@collation_connection AS connection_collation', ARRAY_A);
+        $wpdb->set_charset($wpdb->dbh, 'latin1', 'latin1_swedish_ci');
+        try { $callback(); }
+        finally {
+            $wpdb->set_charset($wpdb->dbh, $previous['client_charset']);
+            $wpdb->query($wpdb->prepare('SET character_set_connection = %s, character_set_results = %s, collation_connection = %s', $previous['connection_charset'], $previous['results_charset'], $previous['connection_collation']));
+        }
+    }
+
+    public function test_unicode_checkpoints_update_and_delete_when_connection_and_storage_bytes_differ(): void
+    {
+        global $wpdb;
+        $option = 'll_review_charset_' . str_replace('-', '_', wp_generate_uuid4());
+        $this->jobOptions[] = $option;
+        $this->withLatin1Connection(function () use ($wpdb, $option): void {
+            $lease = ll_tools_mutation_job_acquire('review', $option);
+            $this->assertNotWPError($lease);
+            try {
+                $original = ['title' => "Rıştê 'quote' \\ path", 'state' => 'pending'];
+                $updated = $original;
+                $updated['state'] = 'completed';
+                $this->assertSame($original, ll_tools_mutation_job_write_option($option, $original, $lease));
+                $stored = $wpdb->get_row($wpdb->prepare("SELECT option_value, HEX(option_value) AS stored_hex, BINARY option_value = BINARY %s AS old_fence_matches, option_value = %s AS text_matches FROM {$wpdb->options} WHERE option_name = %s", maybe_serialize($original), maybe_serialize($original), $option), ARRAY_A);
+                $this->assertSame(maybe_serialize($original), $stored['option_value']);
+                $this->assertNotSame(strtoupper(bin2hex($stored['option_value'])), $stored['stored_hex']);
+                $this->assertSame('0', (string) $stored['old_fence_matches']);
+                $this->assertSame('1', (string) $stored['text_matches']);
+                $this->assertSame($updated, ll_tools_mutation_job_write_option($option, $updated, $lease));
+                $this->assertSame($updated, ll_tools_mutation_job_write_option($option, $updated, $lease));
+                $this->assertWPError(ll_tools_mutation_job_delete_option($option, $original, $lease));
+                $this->assertSame($updated, ll_tools_mutation_job_read_option($option));
+                $this->assertTrue(ll_tools_mutation_job_delete_option($option, $updated, $lease));
+                $this->assertNull(ll_tools_mutation_job_read_option($option));
+            } finally { ll_tools_mutation_job_release($lease); }
+        });
+    }
+
+    public function test_transcoding_cannot_hide_physical_checkpoint_changes_from_update_or_delete_fences(): void
+    {
+        global $wpdb;
+        $this->withLatin1Connection(function () use ($wpdb): void {
+            foreach (['update', 'noop', 'delete'] as $operation) {
+                $option = 'll_review_charset_race_' . $operation . '_' . str_replace('-', '_', wp_generate_uuid4());
+                $this->jobOptions[] = $option;
+                $lease = ll_tools_mutation_job_acquire('review', $option);
+                $this->assertNotWPError($lease);
+                $original = ['title' => '?', 'state' => 'pending'];
+                $this->assertSame($original, ll_tools_mutation_job_write_option($option, $original, $lease));
+                // Distinct Unicode characters both decode to '?' through latin1.
+                // Retain the serialized decoded byte length, matching readback.
+                $first_hex = bin2hex(str_replace('?', 'ʃ', maybe_serialize($original)));
+                $changed_hex = bin2hex(str_replace('?', 'ɛ', maybe_serialize($original)));
+                $this->assertSame(1, $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = CONVERT(UNHEX(%s) USING utf8mb4) WHERE option_name = %s", $first_hex, $option)));
+                $this->assertSame($original, ll_tools_mutation_job_read_option($option));
+                $injected = false;
+                $hook = static function (string $sql) use ($wpdb, $option, $changed_hex, &$injected): string {
+                    if (!$injected && str_contains($sql, $option) && str_contains($sql, 'IS_USED_LOCK') && (str_starts_with($sql, 'UPDATE') || str_starts_with($sql, 'DELETE'))) {
+                        $injected = true;
+                        $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = CONVERT(UNHEX(%s) USING utf8mb4) WHERE option_name = %s", $changed_hex, $option));
+                    }
+                    return $sql;
+                };
+                add_filter('query', $hook);
+                try {
+                    $result = $operation === 'delete'
+                        ? ll_tools_mutation_job_delete_option($option, $original, $lease)
+                        : ll_tools_mutation_job_write_option($option, $operation === 'noop' ? $original : ['title' => '?', 'state' => 'completed'], $lease);
+                } finally { remove_filter('query', $hook); ll_tools_mutation_job_release($lease); }
+                $this->assertTrue($injected);
+                $this->assertWPError($result);
+                $this->assertSame($original, ll_tools_mutation_job_read_option($option));
+                $this->assertSame(strtoupper($changed_hex), $wpdb->get_var($wpdb->prepare("SELECT HEX(option_value) FROM {$wpdb->options} WHERE option_name = %s", $option)));
+            }
+        });
+    }
+
     private function importJob(string $status = 'running'): array
     {
         $id = wp_generate_uuid4();

@@ -10,6 +10,18 @@ deployment, or real provider authorization were part of the audit.
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
+## September 30 copy workflow follow-up
+
+- **Bounded lesson continuation after a content mutation:** Copying a word rotates
+  the wordset/quiz epochs used by the lesson paging cursor. An already loaded
+  partial category keeps its old cursor, and `js/vocab-lesson-page.js` currently
+  reports `invalid_cursor` without replacing that cursor on Retry. Add a bounded
+  first-page restart with replacement semantics and preserve the newly revealed
+  copied card and focus. Do not clear the cursor and append page one, or hydrate
+  the full category. Guard a copy from page one of a multi-page category, successful
+  continuation without duplicate cards, and an independent transport failure.
+  This is source-traced; the small-category copy fix does not change paging.
+
 ## September 18 audit issues
 
 All issues below are **open**. IDs are stable so later audits and implementation

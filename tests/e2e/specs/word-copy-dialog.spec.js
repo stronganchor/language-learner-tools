@@ -16,7 +16,8 @@ async function mount(page, scenario = 'success') {
       uncertain: 'Check the result before starting another copy.', limit: 'Choose at most 50 recordings.',
       storageUnavailable: 'Your browser could not save this copy request.'
     };
-    window.calls = []; window.nextPreviewFailure = scenario === 'preview_failure';
+    window.calls = []; window.completed = []; window.nextPreviewFailure = scenario === 'preview_failure';
+    document.addEventListener('ll-word-copy-completed', event => window.completed.push(event.detail));
     window.fetch = async (url, options) => {
       const params = Object.fromEntries(options.body.entries());
       params.moveIds = options.body.getAll('move_ids[]');
@@ -51,19 +52,25 @@ async function mount(page, scenario = 'success') {
   await expect(page.getByRole('textbox', { name: 'New word title' })).toHaveValue('Same title');
 }
 
+async function expectCompleted(page) {
+  await expect(page.locator('dialog.ll-word-copy-dialog')).not.toBeVisible();
+  await expect(page.locator('.ll-word-copy-message')).toHaveText('');
+  await expect.poll(() => page.evaluate(() => window.completed.length)).toBe(1);
+  await expect(page.getByRole('button', { name: 'Copy / Split', exact: true })).toBeFocused();
+}
+
 test('copy keeps the same title and retains every recording by default without navigating', async ({ page }) => {
   await mount(page);
   await expect(page.getByRole('checkbox').first()).not.toBeChecked();
   await expect(page.getByRole('checkbox').last()).not.toBeChecked();
   const before = page.url();
   await page.getByRole('button', { name: 'Create copy', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Word copied.');
+  await expectCompleted(page);
   expect(page.url()).toBe(before);
   const writes = await page.evaluate(() => window.calls.filter(call => call.action === 'll_tools_word_copy_apply'));
   expect(writes).toHaveLength(1); expect(writes[0].title).toBe('Same title'); expect(writes[0].moveIds).toEqual([]);
+  expect(await page.evaluate(() => window.calls.map(call => call.category_id))).toEqual(['0', '0']);
   await expect(page.locator('[data-recording-id]')).toHaveCount(2);
-  await page.locator('dialog').getByRole('button', { name: 'Close', exact: true }).last().click();
-  await expect(page.getByRole('button', { name: 'Copy / Split', exact: true })).toBeFocused();
 });
 
 test('split sends only explicitly selected recording IDs and updates the source row', async ({ page }) => {
@@ -71,7 +78,7 @@ test('split sends only explicitly selected recording IDs and updates the source 
   await page.getByRole('checkbox', { name: 'Second recording · Draft' }).check();
   await page.getByRole('textbox', { name: 'New word title' }).fill('Another meaning');
   await page.getByRole('button', { name: 'Create copy', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Word copied.');
+  await expectCompleted(page);
   expect(await page.evaluate(() => window.calls.find(call => call.action === 'll_tools_word_copy_apply').moveIds)).toEqual(['32']);
   await expect(page.locator('[data-recording-id="31"]')).toHaveCount(1);
   await expect(page.locator('[data-recording-id="32"]')).toHaveCount(0);
@@ -81,7 +88,7 @@ test('audio-less source can be copied', async ({ page }) => {
   await mount(page, 'empty');
   await expect(page.getByRole('status')).toHaveText('No recordings to move.');
   await page.getByRole('button', { name: 'Create copy', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Word copied.');
+  await expectCompleted(page);
 });
 
 test('lost response offers readback and never automatically repeats creation', async ({ page }) => {
@@ -90,7 +97,7 @@ test('lost response offers readback and never automatically repeats creation', a
   await expect(page.getByRole('button', { name: 'Check result', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button', { name: 'Copy / Split', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Word copied.');
+  await expectCompleted(page);
   expect(await page.evaluate(() => window.calls.filter(call => call.action === 'll_tools_word_copy_apply').length)).toBe(1);
   const requests = await page.evaluate(() => window.calls.filter(call => ['ll_tools_word_copy_apply', 'll_tools_word_copy_status'].includes(call.action)));
   expect(requests[0].request_id).toBe(requests[1].request_id);
@@ -112,7 +119,7 @@ test('inflight mutation disables duplicate submission and dismissal', async ({ p
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Create copy', exact: true })).toBeDisabled();
   await page.evaluate(() => window.finishCopy());
-  await expect(page.getByRole('status')).toHaveText('Word copied.');
+  await expectCompleted(page);
 });
 
 test('session storage write failure blocks mutation and reopening cannot create a duplicate', async ({ page }) => {
@@ -196,7 +203,7 @@ for (const kind of ['network', 'json', 'abort', 'server']) {
     await expect(page.getByRole('button', { name: 'Check result', exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Copy / Split', exact: true }).click();
-    await expect(page.getByRole('status')).toHaveText('Word copied.');
+    await expectCompleted(page);
     const calls = await page.evaluate(() => window.calls.filter(call => ['ll_tools_word_copy_apply', 'll_tools_word_copy_status'].includes(call.action)));
     expect(calls.map(call => call.action)).toEqual(['ll_tools_word_copy_apply', 'll_tools_word_copy_status']);
     expect(calls[1].request_id).toBe(calls[0].request_id);

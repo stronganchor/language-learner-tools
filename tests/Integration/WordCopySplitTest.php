@@ -40,11 +40,11 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         return [$wordset, $word, $category, $audio_ids];
     }
 
-    private function apply(int $wordset, int $word, array $ids = [], string $title = '', string $request = '')
+    private function apply(int $wordset, int $word, array $ids = [], string $title = '', string $request = '', int $category_id = 0)
     {
         $request = $request ?: wp_generate_uuid4();
         $this->receipts[] = ll_tools_word_copy_receipt_key($wordset, $word, $request);
-        return ll_tools_word_copy_apply($wordset, $word, $request, $title, $ids);
+        return ll_tools_word_copy_apply($wordset, $word, $request, $title, $ids, $category_id);
     }
 
     private function manager(int $wordset): int
@@ -53,6 +53,33 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         update_term_meta($wordset, 'manager_user_id', $manager);
         wp_set_current_user($manager);
         return $manager;
+    }
+
+    public function test_dotless_i_copy_completes_with_latin1_connection_and_reuses_the_same_saved_receipt(): void
+    {
+        global $wpdb;
+        $previous = $wpdb->get_row('SELECT @@character_set_client AS client_charset, @@character_set_connection AS connection_charset, @@character_set_results AS results_charset, @@collation_connection AS connection_collation', ARRAY_A);
+        $wpdb->set_charset($wpdb->dbh, 'latin1', 'latin1_swedish_ci');
+        try {
+            [$set, $word, $category] = $this->fixture();
+            wp_update_post(['ID' => $word, 'post_title' => 'Rıştê']);
+            $this->manager($set);
+            $request = wp_generate_uuid4();
+            $result = $this->apply($set, $word, [], 'Rıştê', $request, $category);
+            $this->assertNotWPError($result);
+            $this->assertSame('completed', $result['state']);
+            $this->assertSame('draft', $result['status']);
+            $this->assertSame('Rıştê', $result['title']);
+            $this->assertSame([$category], $result['category_ids']);
+            $this->assertStringContainsString('ll-word-item--draft', $result['card_html']);
+            $this->assertSame($result['new_word_id'], $this->apply($set, $word, [], 'Rıştê', $request, $category)['new_word_id']);
+            $receipt = ll_tools_mutation_job_read_option(ll_tools_word_copy_receipt_key($set, $word, $request));
+            $this->assertSame('completed', $receipt['state']);
+            $this->assertSame($result['new_word_id'], ll_tools_word_copy_result($receipt, $category)['new_word_id']);
+        } finally {
+            $wpdb->set_charset($wpdb->dbh, $previous['client_charset']);
+            $wpdb->query($wpdb->prepare('SET character_set_connection = %s, character_set_results = %s, collation_connection = %s', $previous['connection_charset'], $previous['results_charset'], $previous['connection_collation']));
+        }
     }
 
     public function test_audio_less_word_copies_title_metadata_and_current_category_without_source_identity(): void
@@ -86,6 +113,84 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         foreach ($ids as $id) { $this->assertSame($word, (int) wp_get_post_parent_id($id)); }
         $this->assertSame([], $result['moved_ids']);
         $this->assertFileExists($upload['file']);
+    }
+
+    public function test_copy_without_moving_audio_returns_only_the_new_gray_category_card(): void
+    {
+        [$set, $word, $category, $ids] = $this->fixture(1);
+        update_term_meta($category, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category, 'll_quiz_option_type', 'text_translation');
+        wp_update_post(['ID' => $ids[0], 'post_status' => 'publish']);
+        wp_update_post(['ID' => $word, 'post_status' => 'publish']);
+        $this->assertSame('publish', get_post_status($word));
+        $this->manager($set);
+
+        $result = $this->apply($set, $word, [], 'Second meaning', '', $category);
+        $this->assertNotWPError($result);
+        $this->assertSame('completed', $result['state']);
+        $copy = (int) $result['new_word_id'];
+        $this->assertSame('draft', $result['status']);
+        $this->assertSame([$category], $result['category_ids']);
+        $this->assertSame('Translation', get_post_meta($copy, 'word_translation', true));
+        $this->assertSame($word, (int) wp_get_post_parent_id($ids[0]));
+        $this->assertSame('publish', get_post_status($word));
+
+        $document = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        try { $document->loadHTML($result['card_html']); }
+        finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
+        $cards = (new DOMXPath($document))->query('//*[contains(concat(" ", normalize-space(@class), " "), " word-item ")]');
+        $this->assertSame(1, $cards->length);
+        $card = $cards->item(0);
+        $this->assertSame((string) $copy, $card->getAttribute('data-word-id'));
+        $this->assertSame('draft', $card->getAttribute('data-ll-word-status'));
+        $this->assertStringContainsString('ll-word-item--draft', $card->getAttribute('class'));
+        $this->assertStringContainsString('Second meaning', $card->textContent);
+        $this->assertStringContainsString('No audio recording yet.', $card->textContent);
+    }
+
+    public function test_copy_card_preserves_category_presentation_without_changing_the_saved_intent(): void
+    {
+        [$set, $word, $category] = $this->fixture();
+        update_term_meta($category, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category, 'll_quiz_option_type', 'text_translation');
+        $this->manager($set);
+        $request = wp_generate_uuid4();
+
+        $result = $this->apply($set, $word, [], 'Second meaning', $request, $category);
+        $this->assertNotWPError($result);
+        $this->assertSame('completed', $result['state']);
+        $this->assertStringContainsString('ll-word-grid--text', $result['card_html']);
+        $this->assertStringContainsString('data-ll-category-id="' . $category . '"', $result['card_html']);
+        $this->assertStringContainsString('class="word-title"', $result['card_html']);
+        $this->assertStringNotContainsString('ll-word-item--no-image', $result['card_html']);
+
+        update_term_meta($category, 'll_lesson_grid_text_visibility_override', 'hide');
+        $recovered = $this->apply($set, $word, [], 'Second meaning', $request, $category);
+        $this->assertNotWPError($recovered);
+        $this->assertSame('completed', $recovered['state']);
+        $this->assertSame($result['new_word_id'], $recovered['new_word_id']);
+        $this->assertStringNotContainsString('class="word-title"', $recovered['card_html']);
+        $this->assertStringNotContainsString('data-ll-word-note', $recovered['card_html']);
+        $this->assertStringContainsString('data-ll-word-edit-deferred', $recovered['card_html']);
+    }
+
+    public function test_foreign_display_category_is_rejected_before_copy_creation_and_on_readback(): void
+    {
+        global $wpdb;
+        [$set, $word, $category] = $this->fixture();
+        [$other_set, , $other_category] = $this->fixture();
+        $this->manager($set);
+        $request = wp_generate_uuid4();
+        $before = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='words'");
+        $this->assertWPError($this->apply($set, $word, [], '', $request, $other_category));
+        $this->assertSame($before, (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='words'"));
+
+        $result = $this->apply($set, $word, [], '', $request, $category);
+        $this->assertNotWPError($result);
+        $receipt = ll_tools_mutation_job_read_option(ll_tools_word_copy_receipt_key($set, $word, $request));
+        $this->assertWPError(ll_tools_word_copy_result($receipt, $other_category));
+        $this->assertSame($result['new_word_id'], ll_tools_word_copy_result($receipt, $category)['new_word_id']);
     }
 
     public function test_only_explicit_audio_ids_move_and_repeated_request_reuses_the_same_copy(): void
@@ -213,6 +318,7 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         $this->assertSame('pending', $result['state']);
         $this->assertGreaterThan(0, $result['new_word_id']);
         $this->assertSame('draft', get_post_status($result['new_word_id']));
+        $this->assertSame('', $result['card_html']);
         $retry = $this->apply($set, $word, [], '', $request);
         $this->assertSame('pending', $retry['state']);
         $this->assertSame($result['new_word_id'], $retry['new_word_id']);
@@ -454,6 +560,8 @@ final class WordCopySplitTest extends LL_Tools_TestCase
         $this->assertSame('', $result['title']);
         $this->assertSame('', $result['url']);
         $this->assertSame([], $result['image']);
+        $this->assertSame([], $result['category_ids']);
+        $this->assertSame('', $result['card_html']);
         $this->assertStringContainsString('#' . $result['retained_word_id'], $result['message']);
         $retry = $this->apply($set, $word, [], '', $request);
         $this->assertSame($result['retained_word_id'], $retry['retained_word_id']);
