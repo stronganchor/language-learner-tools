@@ -39,8 +39,11 @@ with no recordings can also be copied.
 To split recordings between meanings, select exactly the recordings to move
 before creating the copy. Recording previews are paginated, and one operation
 accepts at most 50 moves. The normal category audio requirement still controls
-whether either word can be published. A successful operation updates the source
-row and provides a link to the new word without refreshing the page.
+whether either word can be published. A successful operation closes the copy
+dialog and word editor, inserts the new word in the matching category grid, and
+scrolls to it without refreshing the page or showing a success message. Copies
+without the required published audio appear gray. Manager table rows retain a
+link to the copy.
 
 If the response is lost, use the dialog's status check. Its saved request receipt
 prevents a retry from creating another word. An incomplete copy remains available
@@ -92,7 +95,16 @@ editors. The nested native dialog owns focus and Escape while open. Its result
 event `ll-word-copy-source-updated` updates recording ownership in visible source cards
 and invalidates cached detached editor markup without a page refresh, including
 confirmed partial moves in an incomplete copy. Creation stays blocked while the
-receipt needs review.
+receipt needs review. Receipt updates and deletion compare the stored option
+bytes captured by the same read as the decoded value, so a legacy connection
+charset cannot make a non-ASCII title fail its exact checkpoint comparison.
+Completed receipts return only one rendered card and its
+scoped category IDs. Optional display context must be one of those categories so
+the copied card keeps its category's text/image presentation. `ll-word-copy-completed`
+inserts it only into matching wordset/category grids, preserves their
+paging and lesson attributes, and moves focus after both dialogs release it.
+`word-copy-popup.spec.js` guards insertion,
+scrolling, status recovery, and the gray no-audio state.
 
 Copy and transcription-review transport failures use the configured translated
 messages for network, malformed-response, and timeout errors. Validated server

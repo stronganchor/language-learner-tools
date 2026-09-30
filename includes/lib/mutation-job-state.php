@@ -78,10 +78,11 @@ function ll_tools_mutation_job_write_option(string $option, array $value, array 
     if (!empty($lease) && !ll_tools_mutation_job_owns($lease)) {
         return new WP_Error('ll_tools_mutation_job_lock_lost', __('Job ownership was lost. Read back the job before continuing.', 'll-tools-text-domain'), ['status' => 503]);
     }
-    $old_raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $option));
+    $old_row = $wpdb->get_row($wpdb->prepare("SELECT option_value, HEX(option_value) AS option_value_hex FROM {$wpdb->options} WHERE option_name = %s", $option), ARRAY_A);
     if ($wpdb->last_error !== '') {
         return new WP_Error('ll_tools_mutation_job_storage_failed', __('The job state could not be read from storage.', 'll-tools-text-domain'), ['status' => 503]);
     }
+    $old_raw = is_array($old_row) ? $old_row['option_value'] : null;
     $old_value = $old_raw === null ? false : maybe_unserialize($old_raw);
     $candidate = apply_filters("pre_update_option_{$option}", $value, $old_value, $option);
     $candidate = apply_filters('pre_update_option', $candidate, $option, $old_value);
@@ -107,10 +108,12 @@ function ll_tools_mutation_job_write_option(string $option, array $value, array 
             array_merge([$option, $new_raw], $fence_args)
         ));
     } else {
+        // Result text is converted to the connection charset. Fence the
+        // physical column bytes captured with that same decoded checkpoint.
         $written = $wpdb->query($wpdb->prepare(
             "UPDATE {$wpdb->options} SET option_value = %s, autoload = 'off'
-             WHERE option_name = %s AND BINARY option_value = BINARY %s" . $fence,
-            array_merge([$new_raw, $option, $old_raw], $fence_args)
+             WHERE option_name = %s AND BINARY option_value = UNHEX(%s)" . $fence,
+            array_merge([$new_raw, $option, $old_row['option_value_hex']], $fence_args)
         ));
     }
     wp_cache_delete($option, 'options');
@@ -119,9 +122,14 @@ function ll_tools_mutation_job_write_option(string $option, array $value, array 
     if (!empty($lease) && !ll_tools_mutation_job_owns($lease)) {
         return new WP_Error('ll_tools_mutation_job_lock_lost', __('Job ownership was lost. Read back the job before continuing.', 'll-tools-text-domain'), ['status' => 503]);
     }
-    $saved = ll_tools_mutation_job_read_option($option);
-    if ($written === false || ($written !== 1 && $old_raw !== $new_raw)
-        || is_wp_error($saved) || maybe_serialize($saved) !== $new_raw) {
+    $saved_row = $wpdb->get_row($wpdb->prepare("SELECT option_value, HEX(option_value) AS option_value_hex FROM {$wpdb->options} WHERE option_name = %s", $option), ARRAY_A);
+    $saved = is_array($saved_row) ? maybe_unserialize($saved_row['option_value']) : null;
+    // An unchanged value can legitimately affect zero rows. It must still be
+    // the same physical checkpoint; result transcoding can mask other bytes.
+    $unchanged = $written === 0 && $old_raw === $new_raw && is_array($old_row) && is_array($saved_row)
+        && $old_row['option_value_hex'] === $saved_row['option_value_hex'];
+    if ($written === false || ($written !== 1 && !$unchanged)
+        || $wpdb->last_error !== '' || !is_array($saved_row) || maybe_serialize($saved) !== $new_raw) {
         return new WP_Error('ll_tools_mutation_job_storage_failed', __('The job checkpoint could not be saved. Read back the job before continuing.', 'll-tools-text-domain'), ['status' => 503]);
     }
     if ($old_raw !== null && $old_raw !== $new_raw) {
@@ -141,11 +149,15 @@ function ll_tools_mutation_job_delete_option(string $option, array $expected, ar
     if (!ll_tools_mutation_job_owns($lease)) {
         return ll_tools_mutation_job_recovery_error();
     }
+    $before = $wpdb->get_row($wpdb->prepare("SELECT option_value, HEX(option_value) AS option_value_hex FROM {$wpdb->options} WHERE option_name = %s", $option), ARRAY_A);
+    if ($wpdb->last_error !== '' || !is_array($before) || $before['option_value'] !== maybe_serialize($expected)) {
+        return ll_tools_mutation_job_recovery_error();
+    }
     $deleted = $wpdb->query($wpdb->prepare(
-        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND BINARY option_value = BINARY %s
+        "DELETE FROM {$wpdb->options} WHERE option_name = %s AND BINARY option_value = UNHEX(%s)
          AND CONNECTION_ID() = %d AND IS_USED_LOCK(%s) = %d",
         $option,
-        maybe_serialize($expected),
+        $before['option_value_hex'],
         (int) $lease['connection_id'],
         (string) $lease['name'],
         (int) $lease['connection_id']

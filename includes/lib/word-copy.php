@@ -150,7 +150,7 @@ function ll_tools_word_copy_receipt_key(int $wordset_id, int $word_id, string $r
     return 'll_word_copy_' . hash('sha256', get_current_user_id() . '|' . $wordset_id . '|' . $word_id . '|' . $request_id);
 }
 
-function ll_tools_word_copy_result(array $receipt) {
+function ll_tools_word_copy_result(array $receipt, int $category_id = 0) {
     global $wpdb;
     $new_id = (int) ($receipt['new_word_id'] ?? 0);
     if (!$new_id && !empty($receipt['key'])) {
@@ -204,6 +204,26 @@ function ll_tools_word_copy_result(array $receipt) {
     }
     $term = get_term((int) $receipt['wordset_id'], 'wordset');
     $url = $term instanceof WP_Term && $visible_new_id ? add_query_arg('ll_editor_q', (string) get_the_title($visible_new_id), ll_tools_get_wordset_settings_tool_url($term, 'editor')) . '#ll-wordset-editor-word-' . $visible_new_id : '';
+    $category_ids = $visible_new_id ? ll_tools_word_copy_categories($visible_new_id, (int) $receipt['wordset_id']) : [];
+    if (is_wp_error($category_ids)) { return $category_ids; }
+    $category = null;
+    if ($visible_new_id && $receipt['state'] === 'completed' && $category_id > 0) {
+        if (!in_array($category_id, $category_ids, true)) { return ll_tools_word_copy_error('', 403); }
+        $category = get_term($category_id, 'word-category');
+        if (!$category instanceof WP_Term) { return ll_tools_word_copy_error('', 503); }
+    }
+    // Reuse the canonical draft/media presentation for exactly this copy. The
+    // browser inserts the card into its existing category grid after completion.
+    // A retained partial copy must never be presented as a finished new card.
+    $card_html = $visible_new_id && $receipt['state'] === 'completed'
+        ? ll_tools_word_grid_shortcode([
+            'category' => $category instanceof WP_Term ? (string) $category->slug : '',
+            'wordset' => (string) $receipt['wordset_id'],
+            'word_ids' => (string) $visible_new_id,
+            'editor_context' => '1',
+            'defer_edit_panels' => '1',
+            'category_editor_counts' => '0',
+        ]) : '';
     return [
         'state' => (string) $receipt['state'], 'new_word_id' => $visible_new_id,
         'retained_word_id' => $unscoped_pending ? $new_id : 0,
@@ -216,6 +236,8 @@ function ll_tools_word_copy_result(array $receipt) {
         'source_audio_label' => sprintf(_n('%d published recording', '%d published recordings', $source_audio_count, 'll-tools-text-domain'), $source_audio_count),
         'moved_ids' => $moved_ids,
         'image' => $image,
+        'category_ids' => $category_ids,
+        'card_html' => $card_html,
         'message' => $unscoped_pending
             /* translators: %d: ID of a retained draft word that needs administrative recovery. */
             ? sprintf(__('Draft word #%d was retained before word-set setup finished. Ask an administrator to review it; do not create another copy.', 'll-tools-text-domain'), $new_id)
@@ -226,7 +248,7 @@ function ll_tools_word_copy_result(array $receipt) {
 }
 
 /** A durable receipt makes retry/readback safe after a lost browser response. */
-function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request_id, string $title, array $move_ids = []) {
+function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request_id, string $title, array $move_ids = [], int $category_id = 0) {
     global $wpdb;
     if (!preg_match('/^[a-f0-9-]{36}$/D', $request_id) || count($move_ids) > 50 || strlen($title) > 1000) {
         return ll_tools_word_copy_error(__('Choose at most 50 recordings for one copy.', 'll-tools-text-domain'), 400);
@@ -239,6 +261,13 @@ function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request
     $title = trim(sanitize_text_field($title));
     $source = ll_tools_word_copy_source($wordset_id, $word_id);
     if (is_wp_error($source)) { return $source; }
+    // Display context is not part of the saved intent. Check its exact scope
+    // before creating a copy, then use it only for the returned card markup.
+    if ($category_id > 0) {
+        $source_categories = ll_tools_word_copy_categories($word_id, $wordset_id);
+        if (is_wp_error($source_categories)) { return $source_categories; }
+        if (!in_array($category_id, $source_categories, true)) { return ll_tools_word_copy_error('', 403); }
+    }
     $key = ll_tools_word_copy_receipt_key($wordset_id, $word_id, $request_id);
     $lease = ll_tools_mutation_job_acquire('word_copy', (string) $word_id);
     if (is_wp_error($lease)) { return $lease; }
@@ -248,7 +277,7 @@ function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request
         if (is_wp_error($receipt)) { return $receipt; }
         if (is_array($receipt)) {
             if (($receipt['intent'] ?? null) !== $intent) { return ll_tools_word_copy_error(__('This request already belongs to a different copy.', 'll-tools-text-domain')); }
-            return ll_tools_word_copy_result($receipt);
+            return ll_tools_word_copy_result($receipt, $category_id);
         }
         $source = ll_tools_word_copy_source($wordset_id, $word_id);
         if (is_wp_error($source)) { return $source; }
@@ -307,61 +336,61 @@ function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request
             'ping_status' => (string) $source->ping_status, 'menu_order' => (int) $source->menu_order,
             'meta_input' => ['_ll_word_copy_receipt' => $key],
         ]), true);
-        if (is_wp_error($new_id) || !$new_id) { return ll_tools_word_copy_result($receipt); }
+        if (is_wp_error($new_id) || !$new_id) { return ll_tools_word_copy_result($receipt, $category_id); }
         $receipt['new_word_id'] = (int) $new_id;
-        if (is_wp_error(ll_tools_mutation_job_write_option($key, $receipt, $lease))) { return ll_tools_word_copy_result($receipt); }
+        if (is_wp_error(ll_tools_mutation_job_write_option($key, $receipt, $lease))) { return ll_tools_word_copy_result($receipt, $category_id); }
         wp_cache_delete($new_id, 'post_meta');
-        if (get_post_meta($new_id, '_ll_word_copy_receipt', true) !== $key || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt); }
+        if (get_post_meta($new_id, '_ll_word_copy_receipt', true) !== $key || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt, $category_id); }
         // Assign scope first so a retained partial copy remains accessible to its manager.
         $taxonomies = ['wordset' => [$wordset_id]] + $taxonomies;
         foreach ($taxonomies as $taxonomy => $ids) {
             $wpdb->last_error = '';
             $assigned = wp_set_object_terms($new_id, $ids, $taxonomy, false);
-            if (is_wp_error($assigned) || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt); }
+            if (is_wp_error($assigned) || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt, $category_id); }
             wp_cache_delete($new_id, $taxonomy . '_relationships');
             $actual = wp_get_object_terms($new_id, $taxonomy, ['fields' => 'ids', 'suppress_filter' => true]);
-            if (is_wp_error($actual) || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt); }
+            if (is_wp_error($actual) || $wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt, $category_id); }
             $actual = array_map('intval', $actual); sort($actual);
-            if ($actual !== $ids) { return ll_tools_word_copy_result($receipt); }
+            if ($actual !== $ids) { return ll_tools_word_copy_result($receipt, $category_id); }
         }
         foreach ($meta as $meta_key => $values) {
             if (!ll_tools_word_copy_meta_allowed($meta_key)) { continue; }
             if (metadata_exists('post', $new_id, $meta_key)) { delete_post_meta($new_id, $meta_key); }
             foreach ($values as $value) {
-                if (!add_post_meta($new_id, $meta_key, wp_slash(maybe_unserialize($value)))) { return ll_tools_word_copy_result($receipt); }
+                if (!add_post_meta($new_id, $meta_key, wp_slash(maybe_unserialize($value)))) { return ll_tools_word_copy_result($receipt, $category_id); }
             }
             wp_cache_delete($new_id, 'post_meta');
-            if (get_post_meta($new_id, $meta_key, false) !== array_map('maybe_unserialize', $values)) { return ll_tools_word_copy_result($receipt); }
+            if (get_post_meta($new_id, $meta_key, false) !== array_map('maybe_unserialize', $values)) { return ll_tools_word_copy_result($receipt, $category_id); }
         }
         if ($image_id > 0) {
             set_post_thumbnail($new_id, $image_id);
             wp_cache_delete($new_id, 'post_meta');
-            if ((int) get_post_thumbnail_id($new_id) !== $image_id) { return ll_tools_word_copy_result($receipt); }
+            if ((int) get_post_thumbnail_id($new_id) !== $image_id) { return ll_tools_word_copy_result($receipt, $category_id); }
         }
         // Exact parent compare-and-swap prevents moving an audio record that
         // another editor reassigned after preflight. No audio or image file is copied.
         foreach ($move_ids as $id) {
-            if (!ll_tools_mutation_job_owns($lease)) { return ll_tools_word_copy_result($receipt); }
+            if (!ll_tools_mutation_job_owns($lease)) { return ll_tools_word_copy_result($receipt, $category_id); }
             clean_post_cache($id);
             $audio = get_post($id);
             if (!$audio instanceof WP_Post || !in_array($audio->post_status, ['publish','draft','pending','private'], true)
-                || !ll_tools_word_copy_can_read_post($audio)) { return ll_tools_word_copy_result($receipt); }
+                || !ll_tools_word_copy_can_read_post($audio)) { return ll_tools_word_copy_result($receipt, $category_id); }
             $moved = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->posts} SET post_parent = %d
                 WHERE ID = %d AND post_type = 'word_audio' AND post_parent = %d AND post_author = %d
                 AND BINARY post_status = BINARY %s AND BINARY post_password = BINARY %s
                 AND CONNECTION_ID() = %d AND IS_USED_LOCK(%s) = %d", $new_id, $id, $word_id, $audio->post_author, $audio->post_status, $audio->post_password, (int) $lease['connection_id'], $lease['name'], (int) $lease['connection_id']));
             clean_post_cache($id);
-            if ($moved !== 1 || (int) wp_get_post_parent_id($id) !== $new_id) { return ll_tools_word_copy_result($receipt); }
+            if ($moved !== 1 || (int) wp_get_post_parent_id($id) !== $new_id) { return ll_tools_word_copy_result($receipt, $category_id); }
             if (function_exists('ll_word_requires_audio_to_publish') && ll_word_requires_audio_to_publish($word_id)) {
                 ll_tools_sync_parent_word_status_by_children($word_id);
             }
             $receipt['moved_ids'][] = $id;
-            if (is_wp_error(ll_tools_mutation_job_write_option($key, $receipt, $lease))) { return ll_tools_word_copy_result($receipt); }
+            if (is_wp_error(ll_tools_mutation_job_write_option($key, $receipt, $lease))) { return ll_tools_word_copy_result($receipt, $category_id); }
         }
         $desired_status = (string) $source->post_status;
         if ($desired_status === 'publish' && function_exists('ll_word_requires_audio_to_publish') && ll_word_requires_audio_to_publish($new_id)) {
             $has_audio = $wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_type='word_audio' AND post_parent=%d AND post_status='publish' LIMIT 1", $new_id));
-            if ($wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt); }
+            if ($wpdb->last_error !== '') { return ll_tools_word_copy_result($receipt, $category_id); }
             if (!$has_audio) { $desired_status = 'draft'; }
         }
         if ($move_ids && function_exists('ll_word_requires_audio_to_publish') && ll_word_requires_audio_to_publish($word_id)) {
@@ -373,13 +402,13 @@ function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request
         $new_post = get_post($new_id);
         if (is_wp_error($updated) || !$new_post || $new_post->post_status !== $desired_status || $new_post->post_title !== $new_title
             || $new_post->post_content !== $source->post_content || $new_post->post_excerpt !== $source->post_excerpt
-            || $new_post->post_password !== $source->post_password) { return ll_tools_word_copy_result($receipt); }
+            || $new_post->post_password !== $source->post_password) { return ll_tools_word_copy_result($receipt, $category_id); }
         $receipt['state'] = 'completed';
         if (is_wp_error(ll_tools_mutation_job_write_option($key, $receipt, $lease))) { $receipt['state'] = 'pending'; }
-        return ll_tools_word_copy_result($receipt);
+        return ll_tools_word_copy_result($receipt, $category_id);
     } catch (Throwable $error) {
         $receipt = ll_tools_mutation_job_read_option($key);
-        return is_array($receipt) ? ll_tools_word_copy_result($receipt) : ll_tools_word_copy_error('', 503);
+        return is_array($receipt) ? ll_tools_word_copy_result($receipt, $category_id) : ll_tools_word_copy_error('', 503);
     } finally {
         // Partial copies/moves affect caches too. Invalidate only the captured
         // source word-set scope; receipt writes never decide whether this runs.
@@ -391,11 +420,12 @@ function ll_tools_word_copy_apply(int $wordset_id, int $word_id, string $request
 }
 
 function ll_tools_word_copy_ajax(): void {
-    foreach (['wordset_id', 'word_id', 'request_id', 'title', 'after_id'] as $field) {
+    foreach (['wordset_id', 'word_id', 'request_id', 'title', 'after_id', 'category_id'] as $field) {
         if (isset($_POST[$field]) && !is_scalar($_POST[$field])) { wp_send_json_error(['message' => __('Invalid copy request.', 'll-tools-text-domain')], 400); }
     }
     $wordset_id = absint($_POST['wordset_id'] ?? 0);
     $word_id = absint($_POST['word_id'] ?? 0);
+    $category_id = absint($_POST['category_id'] ?? 0);
     if (!check_ajax_referer('ll_wordset_manager_editor_' . $wordset_id, 'nonce', false)) {
         wp_send_json_error(['message' => __('Your session expired. Reload the page.', 'll-tools-text-domain')], 403);
     }
@@ -405,9 +435,9 @@ function ll_tools_word_copy_ajax(): void {
         $result = ll_tools_word_copy_preview($wordset_id, $word_id, absint($_POST['after_id'] ?? 0));
     } elseif (($_POST['action'] ?? '') === 'll_tools_word_copy_status') {
         $receipt = ll_tools_mutation_job_read_option(ll_tools_word_copy_receipt_key($wordset_id, $word_id, sanitize_text_field(wp_unslash($_POST['request_id'] ?? ''))));
-        $result = is_wp_error($receipt) ? $receipt : (is_array($receipt) ? ll_tools_word_copy_result($receipt) : ['state' => 'not_started']);
+        $result = is_wp_error($receipt) ? $receipt : (is_array($receipt) ? ll_tools_word_copy_result($receipt, $category_id) : ['state' => 'not_started']);
     } else {
-        $result = ll_tools_word_copy_apply($wordset_id, $word_id, sanitize_text_field(wp_unslash($_POST['request_id'] ?? '')), (string) wp_unslash($_POST['title'] ?? ''), (array) ($_POST['move_ids'] ?? []));
+        $result = ll_tools_word_copy_apply($wordset_id, $word_id, sanitize_text_field(wp_unslash($_POST['request_id'] ?? '')), (string) wp_unslash($_POST['title'] ?? ''), (array) ($_POST['move_ids'] ?? []), $category_id);
     }
     if (is_wp_error($result)) { wp_send_json_error(['message' => $result->get_error_message()] + (array) $result->get_error_data(), (int) ($result->get_error_data()['status'] ?? 500)); }
     wp_send_json_success($result);

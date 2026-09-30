@@ -6754,14 +6754,14 @@
             });
         }
 
-        function insertCreatedLessonWord($grid, html, wordId) {
+        function insertCreatedLessonWord($grid, html, wordId, preserveGridAttributes) {
             const targetGrid = $grid.get(0);
             if (!targetGrid || typeof document === 'undefined') { return $(); }
 
             const wrapper = document.createElement('div');
             wrapper.innerHTML = (html || '').toString();
             const sourceGrid = wrapper.querySelector('[data-ll-word-grid]');
-            if (sourceGrid) {
+            if (sourceGrid && !preserveGridAttributes) {
                 syncCreatedLessonGridAttributes(sourceGrid, targetGrid);
             }
 
@@ -9554,9 +9554,44 @@
             $('.word-item[data-word-id="' + wordId + '"]').each(function () {
                 const $item = $(this);
                 data.moved_ids.forEach(function (id) { removeRecordingDom($item, id); });
-                if (data.source_status) { $item.attr('data-ll-word-status', data.source_status); }
+                if (data.source_status) {
+                    $item.attr('data-ll-word-status', data.source_status);
+                    $item.toggleClass('ll-word-item--draft', data.source_status === 'draft' || $item.hasClass('ll-word-item--presentation-hidden'));
+                }
             });
             clearMoveWordCache();
+        });
+
+        $(document).off('ll-word-copy-completed.llWordCopy').on('ll-word-copy-completed.llWordCopy', function (event) {
+            const data = event.originalEvent?.detail || {};
+            const newWordId = parseInt(data.new_word_id, 10) || 0;
+            const wordsetId = parseInt(data.wordsetId, 10) || 0;
+            if (!newWordId || !wordsetId) { return; }
+            const $sourceItem = $(data.trigger).closest('.word-item');
+            if ($sourceItem.length) { setEditPanelOpen($sourceItem, false); }
+
+            const categoryIds = normalizeIds(data.category_ids || []);
+            let $target = $();
+            $grids.each(function () {
+                const $grid = $(this);
+                if ($grid.is('[data-ll-word-edit-modal-grid]') || $grid.closest('.ll-word-edit-modal-host').length
+                    || parseInt($grid.attr('data-ll-wordset-id'), 10) !== wordsetId) { return; }
+                const categoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
+                if (categoryId && categoryIds.indexOf(categoryId) < 0) { return; }
+                const $item = insertCreatedLessonWord($grid, data.card_html || '', newWordId, true);
+                if (!$item.length) { return; }
+                cacheOriginalInputs($item);
+                updateOriginalInputs($item);
+                $(document).trigger('lltools:word-grid-rendered', [{ scope: $item }]);
+                if (!$target.length && $grid.is(':visible')) { $target = $item; }
+            });
+            updateGridLayouts();
+            if ($target.length) {
+                const target = $target.get(0);
+                target.setAttribute('tabindex', '-1');
+                target.focus({ preventScroll: true });
+                target.scrollIntoView({ block: 'center', behavior: 'instant' });
+            }
         });
 
         $(document).on('keydown.llWordEditModal', function (event) {
