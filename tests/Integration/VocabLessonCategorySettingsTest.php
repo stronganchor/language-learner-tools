@@ -58,6 +58,230 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_editor_category=' . (int) $fixture['category_id'], $html);
         $this->assertStringContainsString('#ll-wordset-editor-split', $html);
         $this->assertStringNotContainsString('ll-vocab-lesson-category-settings-save', $html);
+        $this->assertStringNotContainsString('name="ll_vocab_lesson_category_visibility"', $html);
+    }
+
+    public function test_administrator_lesson_popup_renders_visibility_and_preserves_existing_user_grants(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$learner_id]);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+        $this->assertStringContainsString('name="ll_vocab_lesson_category_visibility"', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-category-settings-section--privacy', $html);
+        $this->assertStringContainsString('Private categories are visible only to administrators and assigned users.', $html);
+
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'private']
+        ));
+        $this->assertIsArray($result);
+        $this->assertSame(1, $result['revision']);
+        $this->assertSame('private', get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+        $this->assertSame([$learner_id], get_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true));
+        $this->assertTrue(ll_tools_user_can_view_category($category_id, $learner_id));
+        wp_set_current_user(0);
+        $this->assertFalse(ll_tools_user_can_view_category($category_id));
+    }
+
+    public function test_wordset_manager_cannot_forge_category_privacy_but_other_settings_preserve_it(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+        $fixture = $this->createManagedLessonFixture($manager_id);
+        $category_id = (int) $fixture['category_id'];
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$manager_id]);
+        $request = $this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'public']
+        );
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertWPError($result);
+        $this->assertSame('permission', ll_tools_get_vocab_lesson_category_settings_error_code($result));
+        $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($category_id));
+
+        unset($request['ll_vocab_lesson_category_visibility']);
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertIsArray($result);
+        $this->assertSame('private', get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+        $this->assertSame([$manager_id], get_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true));
+    }
+
+    public function test_lesson_privacy_restricts_only_one_isolated_copy_and_can_restore_public_visibility(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        $source = self::factory()->term->create(['taxonomy' => 'word-category']);
+        $sibling = self::factory()->term->create(['taxonomy' => 'word-category']);
+        ll_tools_set_category_wordset_owner($category_id, (int) $fixture['wordset_id'], $source);
+        ll_tools_set_category_wordset_owner($sibling, 0, $source);
+        update_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        update_term_meta($source, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$learner_id]);
+        $request = $this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'private']
+        );
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertIsArray($result);
+        $this->assertSame('private', get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, true));
+        $this->assertTrue(ll_tools_is_category_private($category_id));
+        $this->assertFalse(ll_tools_is_category_private($source));
+        $this->assertFalse(ll_tools_is_category_private($sibling));
+        $this->assertSame('public', get_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+        $this->assertTrue(ll_tools_user_can_view_category($category_id, $learner_id));
+        wp_set_current_user(0);
+        $this->assertFalse(ll_tools_user_can_view_category($category_id));
+        $this->assertTrue(ll_tools_user_can_view_category($sibling));
+
+        wp_set_current_user($admin_id);
+        $request['ll_vocab_lesson_category_settings_revision'] = '1';
+        $request['ll_vocab_lesson_category_settings_sequence'] = '2';
+        $request['ll_vocab_lesson_category_visibility'] = 'public';
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($request);
+        $this->assertIsArray($result);
+        $this->assertSame(2, $result['revision']);
+        $this->assertFalse(metadata_exists('term', $category_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY));
+        $this->assertFalse(ll_tools_is_category_private($category_id));
+        $this->assertSame('public', get_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+    }
+
+    public function test_lesson_privacy_cannot_publish_a_copy_of_a_private_source(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        $source = self::factory()->term->create(['taxonomy' => 'word-category']);
+        ll_tools_set_category_wordset_owner($category_id, (int) $fixture['wordset_id'], $source);
+        update_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        $panel = ll_tools_get_vocab_lesson_category_settings_panel_data($category_id, (int) $fixture['wordset_id']);
+        $this->assertTrue($panel['complete']);
+        $this->assertSame('private', $panel['category_visibility']);
+        $this->assertTrue($panel['category_visibility_inherited_private']);
+        $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'public']
+        ));
+        $this->assertWPError($result);
+        $this->assertSame('privacy_source_private', ll_tools_get_vocab_lesson_category_settings_error_code($result));
+        $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($category_id));
+        $this->assertSame('private', get_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+        $this->assertTrue(ll_tools_is_category_private($category_id));
+
+        $ordinary_private_request = $this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'private']
+        );
+        $ordinary_result = ll_tools_save_vocab_lesson_category_settings_from_request($ordinary_private_request);
+        $this->assertIsArray($ordinary_result);
+        $this->assertFalse(metadata_exists('term', $category_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY));
+        $this->assertTrue((bool) ($GLOBALS['ll_tools_wordset_page_lesson_cache_invalidation_state']['dirty'] ?? false));
+        update_term_meta($source, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        $this->assertFalse(ll_tools_is_category_private($category_id), 'Saving inherited privacy must not make it a permanent local restriction.');
+    }
+
+    public function test_category_privacy_write_failure_rolls_back_other_settings_and_revision(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'public');
+        $reject_privacy = static function ($check, $term_id, $meta_key) use ($category_id) {
+            return (int) $term_id === $category_id && $meta_key === LL_TOOLS_CATEGORY_VISIBILITY_META_KEY ? false : $check;
+        };
+        add_filter('update_term_metadata', $reject_privacy, 10, 3);
+        try {
+            $result = ll_tools_save_vocab_lesson_category_settings_from_request($this->buildLessonCategorySettingsRequest(
+                $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+                ['ll_vocab_lesson_category_visibility' => 'private']
+            ));
+        } finally {
+            remove_filter('update_term_metadata', $reject_privacy, 10);
+        }
+        $this->assertWPError($result);
+        $this->assertSame('settings_write', ll_tools_get_vocab_lesson_category_settings_error_code($result));
+        $this->assertSame('text_title', get_term_meta($category_id, 'll_quiz_prompt_type', true));
+        $this->assertSame('public', get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true));
+        $this->assertSame(0, ll_tools_get_vocab_lesson_category_settings_revision($category_id));
+    }
+
+    public function test_taxonomy_and_lesson_privacy_share_one_revision_fence_for_isolated_copies(): void
+    {
+        $this->ensureRecordingType('Isolation', 'isolation');
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        $source = self::factory()->term->create(['taxonomy' => 'word-category']);
+        ll_tools_set_category_wordset_owner($category_id, (int) $fixture['wordset_id'], $source);
+        $learner_id = self::factory()->user->create(['role' => 'subscriber']);
+        $result = ll_tools_save_word_category_shared_settings_request($category_id, $this->buildTaxonomyCategorySettingsRequest(
+            $category_id, 0,
+            ['ll_category_visibility' => 'private', 'll_category_access_user_ids_submitted' => '1', 'll_category_access_user_ids' => [$learner_id]]
+        ), true);
+        $this->assertIsArray($result);
+        $this->assertSame(1, $result['revision']);
+        $this->assertSame('private', get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, true));
+        $this->assertSame([$learner_id], get_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true));
+        $this->assertTrue((bool) ($GLOBALS['ll_tools_wordset_page_lesson_cache_invalidation_state']['dirty'] ?? false));
+        $stale_result = ll_tools_save_vocab_lesson_category_settings_from_request($this->buildLessonCategorySettingsRequest(
+            $fixture, 0, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1,
+            ['ll_vocab_lesson_category_visibility' => 'public']
+        ));
+        $this->assertWPError($stale_result);
+        $this->assertSame('revision_conflict', ll_tools_get_vocab_lesson_category_settings_error_code($stale_result));
+
+        $result = ll_tools_save_word_category_shared_settings_request($category_id, $this->buildTaxonomyCategorySettingsRequest(
+            $category_id, 1, ['ll_category_visibility' => 'public']
+        ), true);
+        $this->assertIsArray($result);
+        $this->assertSame(2, $result['revision']);
+        $this->assertFalse(ll_tools_is_category_private($category_id));
+        $this->assertSame([$learner_id], get_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true));
+    }
+
+    public function test_taxonomy_privacy_read_failure_blocks_the_complete_settings_snapshot(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+        $fixture = $this->createManagedLessonFixture($admin_id);
+        $category_id = (int) $fixture['category_id'];
+        $category = get_term($category_id, 'word-category');
+        foreach ([LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY] as $failed_key) {
+            $fail_read = static function ($value, $term_id, $meta_key) use ($wpdb, $category_id, $failed_key) {
+                if ((int) $term_id === $category_id && $meta_key === $failed_key) {
+                    $wpdb->last_error = 'll_tools_test_privacy_render_failure';
+                }
+                return $value;
+            };
+            add_filter('get_term_metadata', $fail_read, 10, 3);
+            try {
+                ob_start();
+                ll_tools_edit_category_privacy_fields($category);
+                ll_tools_edit_category_settings_revision_field($category);
+                $html = (string) ob_get_clean();
+                $this->assertStringContainsString('name="_ll_vocab_lesson_category_settings_render_complete" value="0"', $html);
+            } finally {
+                remove_filter('get_term_metadata', $fail_read, 10);
+                $wpdb->last_error = '';
+            }
+        }
     }
 
     public function test_managed_lesson_page_renders_add_word_button_for_editors(): void
@@ -2353,6 +2577,9 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         wp_set_current_user($managerId);
         $fixture = $this->createManagedLessonFixture($managerId);
         $invalidOverrides = [
+            ['ll_vocab_lesson_category_visibility' => ['private']],
+            ['ll_vocab_lesson_category_visibility' => 'unknown'],
+            ['ll_vocab_lesson_category_visibility' => str_repeat('x', 8)],
             ['ll_vocab_lesson_quiz_prompt_type' => ['audio']],
             ['ll_vocab_lesson_quiz_option_type' => str_repeat('x', 65)],
             ['ll_vocab_lesson_grid_text_visibility' => ['show']],

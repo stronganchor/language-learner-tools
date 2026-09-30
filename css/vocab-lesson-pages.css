@@ -1834,10 +1834,13 @@ body.ll-vocab-lesson-category-settings-open {
 
 .ll-vocab-lesson-prereq-options {
     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    grid-auto-rows: max-content;
+    align-items: start;
     gap: 6px;
     max-height: 210px;
     overflow-y: auto;
-    padding-right: 2px;
+    padding: 2px;
 }
 
 .ll-vocab-lesson-prereq-options-empty {
@@ -1848,25 +1851,33 @@ body.ll-vocab-lesson-category-settings-open {
 
 .ll-vocab-lesson-tool-modal.ll-tools-settings-panel .ll-vocab-lesson-prereq-option.ll-vocab-lesson-prereq-option {
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: 36px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 8px !important;
-    padding: 8px 10px !important;
-    border-radius: 10px !important;
+    padding: 7px 9px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
     border: 1px solid #dbe3ee !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
     color: #0f172a !important;
     font-size: 13px !important;
+    font-weight: 400 !important;
     line-height: 1.35 !important;
     letter-spacing: normal !important;
     text-transform: none !important;
     text-align: left !important;
     text-decoration: none !important;
     box-shadow: none !important;
+    white-space: normal !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
     cursor: pointer !important;
 }
 
@@ -1913,6 +1924,7 @@ body.ll-vocab-lesson-category-settings-open {
 
 .ll-vocab-lesson-prereq-option-main {
     min-width: 0;
+    flex: 1 1 auto;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -1923,6 +1935,7 @@ body.ll-vocab-lesson-category-settings-open {
     width: 18px;
     height: 18px;
     flex: 0 0 auto;
+    box-sizing: border-box;
     border-radius: 999px;
     border: 1px solid #94a3b8;
     background: #ffffff;
@@ -2002,10 +2015,8 @@ body.ll-vocab-lesson-category-settings-open {
     display: block;
     min-width: 0;
     line-height: 1.35;
-    padding-bottom: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .ll-vocab-lesson-prereq-option-level {

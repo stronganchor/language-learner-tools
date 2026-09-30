@@ -4,6 +4,9 @@ if (!defined('WPINC')) { die; }
 if (!defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY')) {
     define('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY', 'll_category_visibility');
 }
+if (!defined('LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY', 'll_category_visibility_override');
+}
 if (!defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')) {
     define('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY', 'll_category_access_user_ids');
 }
@@ -643,6 +646,20 @@ function ll_tools_get_category_visibility($category, ?bool &$complete = null): s
         $complete = false;
         return 'public';
     }
+
+    if ($meta_term_id !== $term_id) {
+        // A wordset-owned copy may be more restrictive than its source. Keep
+        // source privacy authoritative so an override can never publish it.
+        $wpdb->last_error = '';
+        $local_visibility = get_term_meta($term_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, true);
+        if ($wpdb->last_error !== '') {
+            $complete = false;
+            return 'public';
+        }
+        if ($local_visibility === 'private') {
+            $visibility = 'private';
+        }
+    }
     return (string) apply_filters('ll_tools_category_visibility', $visibility, $term_id);
 }
 
@@ -737,6 +754,80 @@ function ll_tools_get_category_access_user_ids($category, ?bool &$complete = nul
 
 function ll_tools_current_user_can_manage_category_privacy(): bool {
     return current_user_can('manage_options');
+}
+
+/**
+ * Plan one category's visibility write while retaining source privacy.
+ * The caller owns the target-category settings lock and transaction.
+ *
+ * @return array{key:string,value:string,delete:bool}|WP_Error
+ */
+function ll_tools_prepare_category_visibility_update(int $category_id, string $visibility) {
+    if (!ll_tools_current_user_can_manage_category_privacy()) {
+        return ll_tools_vocab_lesson_category_settings_error(
+            'permission',
+            __('You do not have permission to update this category.', 'll-tools-text-domain'),
+            403
+        );
+    }
+    if (!in_array($visibility, ['public', 'private'], true)) {
+        return ll_tools_vocab_lesson_category_settings_error('settings_request', __('Invalid request.', 'll-tools-text-domain'), 400);
+    }
+
+    $source_complete = true;
+    $source_id = (int) ll_tools_get_category_isolation_source_id($category_id, $source_complete);
+    if (!$source_complete) {
+        return ll_tools_vocab_lesson_category_settings_error(
+            'privacy_source',
+            __('Unable to save category settings right now.', 'll-tools-text-domain'),
+            503,
+            ['retryable' => true]
+        );
+    }
+    $isolated_copy = $source_id > 0 && $source_id !== $category_id;
+    $delete_override = $isolated_copy && $visibility === 'public';
+    if ($isolated_copy) {
+        wp_cache_delete($source_id, 'term_meta');
+        $source_privacy_complete = true;
+        $source_private = ll_tools_is_category_private($source_id, $source_privacy_complete);
+        if (!$source_privacy_complete) {
+            return ll_tools_vocab_lesson_category_settings_error(
+                'privacy_source',
+                __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                503,
+                ['retryable' => true]
+            );
+        }
+        if ($source_private && $visibility === 'public') {
+            return ll_tools_vocab_lesson_category_settings_error(
+                'privacy_source_private',
+                __('This category inherits private visibility from its source category.', 'll-tools-text-domain'),
+                409
+            );
+        }
+        if ($source_private && $visibility === 'private') {
+            global $wpdb;
+            $wpdb->last_error = '';
+            $local_override = get_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY, true);
+            if ($wpdb->last_error !== '') {
+                return ll_tools_vocab_lesson_category_settings_error(
+                    'privacy_source',
+                    __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                    503,
+                    ['retryable' => true]
+                );
+            }
+            // Ordinary saves must not turn inherited privacy into a permanent
+            // copy-only restriction. Retain an existing explicit restriction.
+            $delete_override = $local_override !== 'private';
+        }
+    }
+
+    return [
+        'key' => $isolated_copy ? LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY : LL_TOOLS_CATEGORY_VISIBILITY_META_KEY,
+        'value' => $visibility,
+        'delete' => $delete_override,
+    ];
 }
 
 function ll_tools_user_can_view_category($category, int $user_id = 0, ?bool &$complete = null): bool {
@@ -1036,8 +1127,6 @@ function ll_tools_initialize_word_category_meta_fields() {
     // Privacy + explicit user access (admin-only)
     add_action('word-category_add_form_fields', 'll_tools_add_category_privacy_fields');
     add_action('word-category_edit_form_fields', 'll_tools_edit_category_privacy_fields');
-    add_action('created_word-category', 'll_tools_save_category_privacy_fields', 10, 2);
-    add_action('edited_word-category', 'll_tools_save_category_privacy_fields', 10, 2);
 }
 
 function ll_tools_reset_word_category_shared_settings_render_state(): void {
@@ -1458,6 +1547,13 @@ function ll_tools_word_category_shared_settings_render_is_complete($term = null)
         $recording_types_complete = true;
         ll_tools_get_desired_recording_types_for_category((int) $term->term_id, $recording_types_complete);
         $complete = $complete && $recording_types_complete;
+        if (ll_tools_current_user_can_manage_category_privacy()) {
+            $privacy_complete = true;
+            ll_tools_get_category_visibility($term, $privacy_complete);
+            $access_complete = true;
+            ll_tools_get_category_access_user_ids($term, $access_complete);
+            $complete = $complete && $privacy_complete && $access_complete;
+        }
     }
 
     $wpdb->last_error = '';
@@ -1523,6 +1619,8 @@ function ll_tools_word_category_shared_settings_request_has_fields(array $reques
         'll_category_enabled_games_submitted',
         'll_category_lineup_config_submitted',
         'll_desired_recording_types_submitted',
+        'll_category_visibility',
+        'll_category_access_user_ids_submitted',
     ] as $field_name) {
         if (array_key_exists($field_name, $request)) {
             return true;
@@ -1617,6 +1715,36 @@ function ll_tools_apply_word_category_shared_settings_mutation(int $term_id, arr
     }
 
     $writes = [];
+    if (array_key_exists('ll_category_visibility', $request)) {
+        $valid = true;
+        $visibility = ll_tools_word_category_settings_request_scalar($request, 'll_category_visibility', 7, $valid);
+        if (!$valid) {
+            return ll_tools_word_category_shared_settings_error('settings_request', __('Invalid request.', 'll-tools-text-domain'), 400);
+        }
+        $privacy_write = ll_tools_prepare_category_visibility_update($term_id, $visibility);
+        if (is_wp_error($privacy_write)) {
+            return $privacy_write;
+        }
+        $writes[] = $privacy_write;
+    }
+    if (array_key_exists('ll_category_access_user_ids_submitted', $request)) {
+        if (!ll_tools_current_user_can_manage_category_privacy()) {
+            return ll_tools_word_category_shared_settings_error('permission', __('You do not have permission to update this category.', 'll-tools-text-domain'), 403);
+        }
+        $valid = true;
+        $marker = ll_tools_word_category_settings_request_scalar($request, 'll_category_access_user_ids_submitted', 1, $valid);
+        $raw_user_ids = $request['ll_category_access_user_ids'] ?? [];
+        if (!$valid || $marker !== '1' || !is_array($raw_user_ids) || count($raw_user_ids) > 1000) {
+            return ll_tools_word_category_shared_settings_error('settings_request', __('Invalid request.', 'll-tools-text-domain'), 400);
+        }
+        foreach ($raw_user_ids as $raw_user_id) {
+            if (!is_scalar($raw_user_id) || !preg_match('/^[1-9][0-9]{0,9}$/D', (string) $raw_user_id)) {
+                return ll_tools_word_category_shared_settings_error('settings_request', __('Invalid request.', 'll-tools-text-domain'), 400);
+            }
+        }
+        $user_ids = ll_tools_normalize_category_access_user_ids(wp_unslash($raw_user_ids));
+        $writes[] = ['key' => LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, 'value' => $user_ids, 'delete' => empty($user_ids)];
+    }
     $has_quiz_fields = array_key_exists('ll_quiz_prompt_type', $request)
         || array_key_exists('ll_quiz_option_type', $request)
         || array_key_exists('ll_lesson_grid_text_visibility_override', $request);
@@ -1942,7 +2070,11 @@ function ll_tools_apply_word_category_shared_settings_mutation(int $term_id, arr
         }
     }
 
-    return ['changed' => true];
+    return [
+        'changed' => true,
+        'privacy_updated' => array_key_exists('ll_category_visibility', $request)
+            || array_key_exists('ll_category_access_user_ids_submitted', $request),
+    ];
 }
 
 /**
@@ -2431,6 +2563,7 @@ function ll_tools_add_category_privacy_fields(): void {
         <p class="description"><?php esc_html_e('Private categories are visible only to administrators and the users assigned below.', 'll-tools-text-domain'); ?></p>
     </div>
     <div class="form-field term-category-access-users-wrap">
+        <input type="hidden" name="ll_category_access_user_ids_submitted" value="1" />
         <label for="ll-category-access-user-ids"><?php esc_html_e('Allowed Users', 'll-tools-text-domain'); ?></label>
         <?php ll_tools_render_category_access_user_select([], 'll-category-access-user-ids'); ?>
         <p class="description"><?php esc_html_e('Assign learners, recorders, or other specific users who should be able to view or work inside this private category.', 'll-tools-text-domain'); ?></p>
@@ -2443,19 +2576,35 @@ function ll_tools_edit_category_privacy_fields($term): void {
         return;
     }
 
-    $visibility = ll_tools_get_category_visibility($term);
-    $selected_user_ids = ll_tools_get_category_access_user_ids($term);
+    $privacy_complete = true;
+    $visibility = ll_tools_get_category_visibility($term, $privacy_complete);
+    $access_complete = true;
+    $selected_user_ids = ll_tools_get_category_access_user_ids($term, $access_complete);
+    $source_complete = true;
+    $source_id = (int) ll_tools_get_category_isolation_source_id($term, $source_complete);
+    $inherited_private = false;
+    if ($source_id > 0 && $source_id !== (int) $term->term_id) {
+        $source_privacy_complete = true;
+        $inherited_private = ll_tools_is_category_private($source_id, $source_privacy_complete);
+        $privacy_complete = $privacy_complete && $source_privacy_complete;
+    }
+    if (!$privacy_complete || !$access_complete || !$source_complete) {
+        ll_tools_mark_word_category_shared_settings_render_incomplete();
+    }
     ?>
     <tr class="form-field term-category-visibility-wrap">
         <th scope="row">
             <label for="ll-category-visibility"><?php esc_html_e('Visibility', 'll-tools-text-domain'); ?></label>
         </th>
         <td>
-            <select name="ll_category_visibility" id="ll-category-visibility">
+            <select name="ll_category_visibility" id="ll-category-visibility" <?php disabled($inherited_private || !$privacy_complete || !$source_complete); ?>>
                 <option value="public" <?php selected($visibility, 'public'); ?>><?php esc_html_e('Public', 'll-tools-text-domain'); ?></option>
                 <option value="private" <?php selected($visibility, 'private'); ?>><?php esc_html_e('Private', 'll-tools-text-domain'); ?></option>
             </select>
             <p class="description"><?php esc_html_e('Private categories are visible only to administrators and the users assigned below.', 'll-tools-text-domain'); ?></p>
+            <?php if ($inherited_private) : ?>
+                <p class="description"><?php esc_html_e('This category inherits private visibility from its source category.', 'll-tools-text-domain'); ?></p>
+            <?php endif; ?>
         </td>
     </tr>
     <tr class="form-field term-category-access-users-wrap">
@@ -2463,6 +2612,7 @@ function ll_tools_edit_category_privacy_fields($term): void {
             <label for="ll-category-access-user-ids"><?php esc_html_e('Allowed Users', 'll-tools-text-domain'); ?></label>
         </th>
         <td>
+            <input type="hidden" name="ll_category_access_user_ids_submitted" value="1" />
             <?php ll_tools_render_category_access_user_select($selected_user_ids, 'll-category-access-user-ids'); ?>
             <p class="description"><?php esc_html_e('Assign learners, recorders, or other specific users who should be able to view or work inside this private category.', 'll-tools-text-domain'); ?></p>
         </td>
@@ -2471,40 +2621,8 @@ function ll_tools_edit_category_privacy_fields($term): void {
 }
 
 function ll_tools_save_category_privacy_fields($term_id): void {
-    if (!ll_tools_current_user_can_manage_category_privacy()) {
-        return;
-    }
-
-    $term_id = (int) $term_id;
-    if ($term_id <= 0) {
-        return;
-    }
-
-    $add_nonce = isset($_POST['_wpnonce_add-tag'])
-        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce_add-tag']))
-        : '';
-    $edit_nonce = isset($_POST['_wpnonce'])
-        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce']))
-        : '';
-    $nonce_valid = ($add_nonce !== '' && wp_verify_nonce($add_nonce, 'add-tag'))
-        || ($edit_nonce !== '' && wp_verify_nonce($edit_nonce, 'update-tag_' . $term_id));
-    if (!$nonce_valid) {
-        return;
-    }
-
-    $visibility = isset($_POST['ll_category_visibility'])
-        ? ll_tools_normalize_category_visibility(wp_unslash((string) $_POST['ll_category_visibility']))
-        : 'public';
-    update_term_meta($term_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, $visibility);
-
-    $user_ids = isset($_POST['ll_category_access_user_ids'])
-        ? ll_tools_normalize_category_access_user_ids(wp_unslash($_POST['ll_category_access_user_ids']))
-        : [];
-    if (empty($user_ids)) {
-        delete_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY);
-    } else {
-        update_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, $user_ids);
-    }
+    // Compatibility entry point; taxonomy hooks use the single guarded writer.
+    ll_tools_save_word_category_shared_settings((int) $term_id);
 }
 
 /**

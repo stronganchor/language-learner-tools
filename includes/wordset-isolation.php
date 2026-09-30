@@ -2216,6 +2216,7 @@ function ll_tools_get_or_create_isolated_category_copy($source_category, int $wo
     $exclude_keys = [
         LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
         LL_TOOLS_CATEGORY_ISOLATION_SOURCE_META_KEY,
+        LL_TOOLS_CATEGORY_VISIBILITY_OVERRIDE_META_KEY,
         '_ll_wc_cache_version',
     ];
     if (defined('LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY')) {
