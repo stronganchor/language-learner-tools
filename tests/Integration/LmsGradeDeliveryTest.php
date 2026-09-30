@@ -1145,14 +1145,17 @@ final class LmsGradeDeliveryTest extends LL_Tools_TestCase
                 return $query;
             }
             if (
-                stripos($query, "SELECT option_value FROM {$wpdb->options}") !== false
+                stripos($query, 'SELECT option_value') !== false
+                && stripos($query, "FROM {$wpdb->options}") !== false
                 && stripos($query, $tombstoneName) !== false
                 && stripos($query, 'FOR UPDATE') === false
             ) {
                 // Model a pre-admission snapshot that predates deletion. The
                 // real tombstone remains in storage for the locked current
                 // read; no re-entrant or second-connection write is needed.
-                return 'SELECT NULL AS option_value';
+                // An absent snapshot has no row. Keep both current-reader
+                // columns so the test also models the exact-byte CAS reader.
+                return "SELECT option_value, HEX(option_value) AS raw_hex FROM {$wpdb->options} WHERE 1 = 0";
             }
             return $query;
         };

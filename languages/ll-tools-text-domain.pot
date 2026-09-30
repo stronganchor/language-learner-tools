@@ -2,21 +2,21 @@
 # This file is distributed under the same license as the Language Learner Tools plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: Language Learner Tools 6.7.45\n"
+"Project-Id-Version: Language Learner Tools 6.7.46\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/language-learner-tools\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-30T07:37:09+00:00\n"
+"POT-Creation-Date: 2026-09-30T09:14:16+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.10.0\n"
 "X-Domain: ll-tools-text-domain\n"
 
 #. Plugin Name of the plugin
 #: language-learner-tools.php
-#: includes/privacy.php:2432
+#: includes/privacy.php:2755
 msgid "Language Learner Tools"
 msgstr ""
 
@@ -41,6 +41,7 @@ msgid "https://stronganchortech.com"
 msgstr ""
 
 #: includes/admin/admin-dashboard-menu.php:37
+#: includes/admin/privacy-cleanup-health.php:56
 msgid "LL Tools"
 msgstr ""
 
@@ -9759,6 +9760,46 @@ msgstr ""
 msgid "Delete this orphaned media item? This cannot be undone."
 msgstr ""
 
+#: includes/admin/privacy-cleanup-health.php:54
+msgid "LL Tools account cleanup is up to date"
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:57
+msgid "No pending deleted-account cleanup was found in the checked queue."
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:63
+msgid "LL Tools cleanup status requires administrator access"
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:70
+msgid "LL Tools account cleanup status could not be checked"
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:71
+msgid "The cleanup queue could not be read. Try Site Health again after resolving the database error."
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:74
+msgid "LL Tools account cleanup needs database maintenance"
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:75
+msgid "Some deleted-account cleanup jobs are blocked by database storage requirements. Their cleanup protections remain active, and retries use longer intervals. Review the affected tables with your site administrator before converting them to InnoDB."
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:81
+msgid "LL Tools account cleanup is pending"
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:82
+msgid "Deleted-account cleanup continues in the background. This check reads at most 50 jobs; check again after the scheduled workers run."
+msgstr ""
+
+#: includes/admin/privacy-cleanup-health.php:90
+msgid "LL Tools account cleanup"
+msgstr ""
+
 #: includes/admin/prompt-audio-import-admin.php:31
 #: includes/admin/prompt-audio-import-admin.php:32
 msgid "LL Prompt Audio Queue"
@@ -17577,22 +17618,22 @@ msgstr ""
 #: includes/offline-app-sync.php:1537
 #: includes/offline-app-sync.php:1561
 #: includes/privacy.php:1175
-#: includes/privacy.php:1214
-#: includes/privacy.php:1223
-#: includes/privacy.php:1266
-#: includes/privacy.php:1300
-#: includes/privacy.php:1316
-#: includes/privacy.php:1345
-#: includes/privacy.php:1357
-#: includes/privacy.php:1366
-#: includes/privacy.php:1382
-#: includes/privacy.php:1406
-#: includes/privacy.php:1417
-#: includes/privacy.php:1439
-#: includes/privacy.php:1452
-#: includes/privacy.php:1469
-#: includes/privacy.php:1497
-#: includes/privacy.php:1505
+#: includes/privacy.php:1435
+#: includes/privacy.php:1444
+#: includes/privacy.php:1484
+#: includes/privacy.php:1518
+#: includes/privacy.php:1534
+#: includes/privacy.php:1563
+#: includes/privacy.php:1575
+#: includes/privacy.php:1584
+#: includes/privacy.php:1600
+#: includes/privacy.php:1624
+#: includes/privacy.php:1635
+#: includes/privacy.php:1657
+#: includes/privacy.php:1670
+#: includes/privacy.php:1687
+#: includes/privacy.php:1715
+#: includes/privacy.php:1723
 #: includes/teacher-classes.php:1130
 #: includes/teacher-classes.php:1136
 #: includes/teacher-classes.php:1203
@@ -24681,71 +24722,71 @@ msgstr ""
 msgid "Profile identifier"
 msgstr ""
 
-#: includes/privacy.php:1232
-#: includes/privacy.php:1239
+#: includes/privacy.php:1453
+#: includes/privacy.php:1464
 msgid "LL Tools personal data cannot be erased safely while transactional storage is unavailable."
 msgstr ""
 
-#: includes/privacy.php:1535
+#: includes/privacy.php:1755
 msgid "LL Tools Study Data"
 msgstr ""
 
-#: includes/privacy.php:1564
+#: includes/privacy.php:1784
 msgid "LL Tools data could not be fenced for erasure because another pass is active or storage is temporarily unavailable."
 msgstr ""
 
-#: includes/privacy.php:1575
+#: includes/privacy.php:1795
 msgid "LL Tools data erasure stopped and the account write fence could not be released. The fence will expire automatically."
 msgstr ""
 
-#: includes/privacy.php:1589
+#: includes/privacy.php:1809
 msgid "External grade delivery data is temporarily unavailable for erasure. No external system was changed."
 msgstr ""
 
-#: includes/privacy.php:1601
-#: includes/privacy.php:1629
+#: includes/privacy.php:1821
+#: includes/privacy.php:1849
 msgid "LL Tools data erasure paused, but its account write fence could not be renewed."
 msgstr ""
 
-#: includes/privacy.php:1607
+#: includes/privacy.php:1827
 msgid "Additional local external-grade records remain for the next bounded erasure pass. No external system was changed."
 msgstr ""
 
-#: includes/privacy.php:1617
+#: includes/privacy.php:1837
 msgid "Assignment attempt data is temporarily unavailable for erasure."
 msgstr ""
 
-#: includes/privacy.php:1635
+#: includes/privacy.php:1855
 msgid "Additional assignment attempt records remain for the next bounded erasure pass."
 msgstr ""
 
-#: includes/privacy.php:1645
+#: includes/privacy.php:1865
 msgid "Google Classroom connection data is temporarily unavailable for erasure. No request was sent to Google."
 msgstr ""
 
-#: includes/privacy.php:1660
-#: includes/privacy.php:1666
+#: includes/privacy.php:1880
+#: includes/privacy.php:1886
 msgid "The local Google Classroom connection could not be erased. No request was sent to Google."
 msgstr ""
 
-#: includes/privacy.php:1671
+#: includes/privacy.php:1891
 msgid "Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account."
 msgstr ""
 
-#: includes/privacy.php:1683
+#: includes/privacy.php:1903
 msgid "LL Tools data was erased, but the account write fence could not be released."
 msgstr ""
 
-#: includes/privacy.php:2421
+#: includes/privacy.php:2744
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr ""
 
-#: includes/privacy.php:2423
+#: includes/privacy.php:2746
 msgid "Suggested Text:"
 msgstr ""
 
 #. translators: %d: retention days
-#: includes/privacy.php:2426
+#: includes/privacy.php:2749
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. When your teacher uses official LL Tools assignments, the site stores the frozen assignment revision, your attempts and responses, the server-calculated score, and the selected grade. If an LMS connector is configured and explicitly mapped, the site also stores hashed external identity/resource mappings and a delivery audit needed to send or correct that selected grade. A teacher who connects Google Classroom authorizes this site to retain an encrypted refresh credential and limited account details for that connection; access tokens are short lived and are not stored. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, let site administrators and assigned teachers review learner work, and deliver an authorized official assignment grade to the configured learning system. Detailed activity log entries are kept for %d days. Summary progress and official assignment data remain until your account is deleted, the connection is removed, or the site erases your LL Tools personal data according to its education-record retention policy. Local privacy erasure does not silently alter or delete a grade already held by an external LMS. You can request an export or erasure of local data through the site’s privacy request tools."
 msgstr ""
 

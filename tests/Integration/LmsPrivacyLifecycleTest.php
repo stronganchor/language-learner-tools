@@ -3,8 +3,24 @@ declare(strict_types=1);
 
 final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
 {
+    private ?wpdb $myisamDdlConnection = null;
+    private string $myisamPostmetaTable = '';
+
     protected function setUp(): void
     {
+        if ($this->name() === 'test_deleted_empty_account_completes_with_real_myisam_postmeta_without_local_mutation') {
+            global $wpdb;
+
+            // An auxiliary connection avoids committing the test transaction,
+            // and the real fixture leaves every core test table unchanged.
+            $this->myisamPostmetaTable = $wpdb->prefix . 'll_privacy_myisam_' . substr(md5(wp_generate_uuid4()), 0, 12);
+            $this->myisamDdlConnection = new wpdb(DB_USER, DB_PASSWORD, DB_NAME, DB_HOST);
+            $this->assertTrue(mysqli_query($this->myisamDdlConnection->dbh, 'SET SESSION lock_wait_timeout = 3'));
+            $this->assertTrue(mysqli_query(
+                $this->myisamDdlConnection->dbh,
+                "CREATE TABLE {$this->myisamPostmetaTable} (meta_id bigint unsigned NOT NULL AUTO_INCREMENT, post_id bigint unsigned NOT NULL DEFAULT 0, meta_key varchar(255), meta_value longtext, PRIMARY KEY (meta_id), KEY post_id (post_id), KEY meta_key (meta_key(191))) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4"
+            ));
+        }
         parent::setUp();
         $this->assertTrue(ll_tools_install_lms_assignment_schema());
         $this->assertTrue(ll_tools_install_grade_delivery_schema());
@@ -37,7 +53,23 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         foreach ((array) $privacyFenceNames as $optionName) {
             delete_option((string) $optionName);
         }
-        parent::tearDown();
+        try {
+            parent::tearDown();
+        } finally {
+            // Parent rollback releases the metadata lock before fixture DDL.
+            if ($this->myisamDdlConnection instanceof wpdb) {
+                try {
+                    $this->assertTrue(mysqli_query(
+                        $this->myisamDdlConnection->dbh,
+                        "DROP TABLE IF EXISTS {$this->myisamPostmetaTable}"
+                    ));
+                } finally {
+                    $this->myisamDdlConnection->close();
+                    $this->myisamDdlConnection = null;
+                    $this->myisamPostmetaTable = '';
+                }
+            }
+        }
     }
 
     public function test_privacy_surfaces_report_errors_instead_of_looping_when_schema_is_unavailable(): void
@@ -228,6 +260,7 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
             'meta_value' => maybe_serialize(['daily_minutes' => 45]),
         ]));
 
+        $this->makeDeletedAccountRetryDue($userId);
         ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
 
         $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare(
@@ -490,6 +523,430 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
         $this->assertLocalPrivacyFixturePresent($fixture);
     }
 
+    public function test_deleted_empty_account_completes_with_real_myisam_postmeta_without_local_mutation(): void
+    {
+        global $wpdb;
+
+        $userId = $this->createDeletedAccountTombstone();
+        $originalPostmeta = $wpdb->postmeta;
+        $localMutations = [];
+        $watchQueries = static function (string $query) use (&$localMutations, $wpdb): string {
+            if (
+                preg_match('/^\s*(?:DELETE|UPDATE|INSERT)\b/i', $query)
+                && strpos($query, $wpdb->postmeta) !== false
+            ) {
+                $localMutations[] = $query;
+            }
+            return $query;
+        };
+        try {
+            $wpdb->postmeta = $this->myisamPostmetaTable;
+            $status = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS WHERE Name = %s', $wpdb->postmeta), ARRAY_A);
+            $this->assertSame('MyISAM', $status['Engine']);
+            $this->assertFalse(ll_tools_privacy_local_erasure_engine_status()['ready']);
+
+            add_filter('query', $watchQueries);
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        } finally {
+            remove_filter('query', $watchQueries);
+            $wpdb->postmeta = $originalPostmeta;
+        }
+
+        $this->assertSame([], $localMutations, 'Empty completion must not mutate non-transactional local storage.');
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertFalse(ll_tools_privacy_deleted_user_post_seen($userId));
+        $this->assertFalse(wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+    }
+
+    public function test_deleted_account_with_retained_local_data_keeps_fence_and_persisted_engine_backoff(): void
+    {
+        global $wpdb;
+
+        $fixture = $this->createLocalPrivacyFixture('retained-myisam');
+        $userId = $this->createDeletedAccountTombstone((int) $fixture['user_id']);
+        $before = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+        $sessionTable = ll_tools_offline_app_session_table();
+        $tables = ll_tools_user_progress_table_names();
+        $rowsBefore = [
+            'sessions' => $wpdb->get_results($wpdb->prepare("SELECT * FROM {$sessionTable} WHERE user_id = %d", $userId), ARRAY_A),
+            'words' => $wpdb->get_results($wpdb->prepare("SELECT * FROM {$tables['words']} WHERE user_id = %d", $userId), ARRAY_A),
+            'events' => $wpdb->get_results($wpdb->prepare("SELECT * FROM {$tables['events']} WHERE user_id = %d", $userId), ARRAY_A),
+            'roster' => get_post_meta((int) $fixture['class_id'], LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true),
+        ];
+        $engineFault = static fn(string $engine, string $tableKey): string => $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        $started = time();
+        try {
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+
+        $blocked = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+        $this->assertSame($before['queued_at'], $blocked['queued_at']);
+        $this->assertSame($before['post_seen_at'], $blocked['post_seen_at']);
+        $this->assertNotSame('', (string) ($blocked['blocked_reason'] ?? ''));
+        $this->assertStringContainsString('MyISAM', implode(' ', (array) ($blocked['blocked_details'] ?? [])));
+        $this->assertGreaterThanOrEqual($started + 15 * MINUTE_IN_SECONDS, (int) ($blocked['next_attempt_at'] ?? 0));
+        $this->assertSame(1, (int) ($blocked['retry_count'] ?? 0));
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertTrue(ll_tools_privacy_deleted_user_post_seen($userId));
+        $this->assertGreaterThanOrEqual((int) $blocked['next_attempt_at'], (int) wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+        $this->assertSame($rowsBefore['sessions'], $wpdb->get_results($wpdb->prepare("SELECT * FROM {$sessionTable} WHERE user_id = %d", $userId), ARRAY_A));
+        $this->assertSame($rowsBefore['words'], $wpdb->get_results($wpdb->prepare("SELECT * FROM {$tables['words']} WHERE user_id = %d", $userId), ARRAY_A));
+        $this->assertSame($rowsBefore['events'], $wpdb->get_results($wpdb->prepare("SELECT * FROM {$tables['events']} WHERE user_id = %d", $userId), ARRAY_A));
+        $this->assertSame($rowsBefore['roster'], get_post_meta((int) $fixture['class_id'], LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true));
+
+        $this->makeDeletedAccountRetryDue($userId);
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        try {
+            $secondStarted = time();
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+            $second = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+            $this->assertSame(2, (int) $second['retry_count']);
+            $this->assertGreaterThanOrEqual($secondStarted + 30 * MINUTE_IN_SECONDS, (int) $second['next_attempt_at']);
+
+            $second['retry_count'] = 6;
+            $second['next_attempt_at'] = time() - 1;
+            update_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId), $second, false);
+            ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($userId);
+            wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
+            $cappedStarted = time();
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+            $capped = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+            $this->assertGreaterThanOrEqual($cappedStarted + 6 * HOUR_IN_SECONDS, (int) $capped['next_attempt_at']);
+            $this->assertLessThanOrEqual(time() + 6 * HOUR_IN_SECONDS, (int) $capped['next_attempt_at']);
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+    }
+
+    public function test_empty_deleted_account_storage_read_errors_never_release_the_fence(): void
+    {
+        global $wpdb;
+
+        $progressTables = ll_tools_user_progress_table_names();
+        $surfaces = [
+            'users' => $wpdb->users,
+            'sessions' => ll_tools_offline_app_session_table(),
+            'progress_words' => $progressTables['words'],
+            'progress_events' => $progressTables['events'],
+            'user_meta' => $wpdb->usermeta,
+            'class_roster' => $wpdb->postmeta,
+        ];
+        $engineFault = static fn(string $engine, string $tableKey): string => $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        try {
+            foreach ($surfaces as $surface => $table) {
+                $userId = $this->createDeletedAccountTombstone();
+                add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+                $failedReads = 0;
+                $queryFault = static function (string $query) use ($table, &$failedReads): string {
+                    if (preg_match('/^\s*SELECT\b/i', $query) && strpos($query, $table) !== false) {
+                        $failedReads++;
+                        return 'SELECT id FROM ll_tools_missing_deleted_privacy_read';
+                    }
+                    return $query;
+                };
+                add_filter('query', $queryFault);
+                $previous = $wpdb->suppress_errors(true);
+                $started = time();
+                try {
+                    ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+                } finally {
+                    remove_filter('query', $queryFault);
+                    remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+                    $wpdb->suppress_errors($previous);
+                }
+
+                $this->assertGreaterThan(0, $failedReads, $surface . ' must be read independently of cached emptiness.');
+                $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId), $surface . ' read failure must retain the deletion fence.');
+                $blocked = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+                $this->assertSame('', (string) ($blocked['blocked_reason'] ?? ''), $surface . ' must not be mislabeled as a persistent storage-engine blocker.');
+                $this->assertNotSame('', (string) ($blocked['last_error_code'] ?? ''), $surface . ' must retain its read-failure diagnosis.');
+                $this->assertNotSame('ll_tools_privacy_transactional_engine_unavailable', (string) $blocked['last_error_code'], $surface . ' must report its read failure instead of an engine-only diagnosis.');
+                $this->assertGreaterThanOrEqual($started + MINUTE_IN_SECONDS, (int) ($blocked['next_attempt_at'] ?? 0), $surface);
+                $this->assertLessThanOrEqual(time() + MINUTE_IN_SECONDS, (int) $blocked['next_attempt_at'], $surface . ' uses transient-error retry timing.');
+            }
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+    }
+
+    public function test_late_writer_retains_deleted_account_fence_until_safe_transactional_retry(): void
+    {
+        global $wpdb;
+
+        $userId = $this->createDeletedAccountTombstone();
+        $denyLock = static fn(string $query): string => stripos($query, 'SELECT GET_LOCK(') !== false ? 'SELECT 0' : $query;
+        add_filter('query', $denyLock);
+        try {
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        } finally {
+            remove_filter('query', $denyLock);
+        }
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+
+        // A previously admitted request commits after the first failed barrier.
+        $this->assertSame(1, $wpdb->insert($wpdb->usermeta, [
+            'user_id' => $userId,
+            'meta_key' => LL_TOOLS_USER_GOALS_META,
+            'meta_value' => maybe_serialize(['daily_minutes' => 45]),
+        ]));
+        $this->makeDeletedAccountRetryDue($userId);
+        $engineFault = static fn(string $engine, string $tableKey): string => $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        try {
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertTrue(ll_tools_offline_app_user_data_write_is_fenced($userId));
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s", $userId, LL_TOOLS_USER_GOALS_META)));
+
+        $this->makeDeletedAccountRetryDue($userId);
+        ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s", $userId, LL_TOOLS_USER_GOALS_META)));
+    }
+
+    public function test_worker_and_runtime_resumer_preserve_persisted_retry_deadline(): void
+    {
+        $userId = $this->createDeletedAccountTombstone();
+        $row = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+        $payload = $row['value'];
+        $deadline = time() + 2 * HOUR_IN_SECONDS;
+        $payload['blocked_reason'] = 'll_tools_privacy_transactional_engine_unavailable';
+        $payload['blocked_details'] = ['postmeta: MyISAM'];
+        $payload['retry_count'] = 3;
+        $payload['next_attempt_at'] = $deadline;
+        update_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId), $payload, false);
+        ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($userId);
+        $before = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['raw'];
+        $engineReads = 0;
+        $watchEngine = static function (string $engine) use (&$engineReads): string {
+            $engineReads++;
+            return $engine;
+        };
+        add_filter('ll_tools_privacy_erasure_table_engine', $watchEngine);
+        try {
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+            $this->assertSame(0, $engineReads, 'A stale early worker must not repeat storage work during backoff.');
+            $this->assertSame($before, ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['raw']);
+            wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
+            ll_tools_privacy_resume_deleted_user_lms_cleanup();
+            $this->assertGreaterThanOrEqual($deadline, (int) wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+            wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
+            delete_transient(LL_TOOLS_LMS_DELETED_USER_CLEANUP_RESUME_TRANSIENT);
+            ll_tools_privacy_maybe_resume_deleted_user_lms_cleanup();
+            $this->assertGreaterThanOrEqual($deadline, (int) wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $watchEngine);
+        }
+        $this->assertSame($before, ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['raw']);
+    }
+
+    public function test_empty_completion_requires_the_owned_user_lock_and_a_fresh_deleted_account(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $this->assertWPError(ll_tools_privacy_deleted_user_local_data_is_empty_locked($userId, ''));
+        $this->assertWPError(ll_tools_privacy_deleted_user_local_data_is_empty_locked($userId, 'unrelated-lock'));
+        $lock = ll_tools_offline_app_acquire_user_session_lock($userId);
+        $this->assertNotSame('', $lock);
+        try {
+            $result = ll_tools_privacy_deleted_user_local_data_is_empty_locked($userId, $lock);
+            $this->assertTrue(is_wp_error($result) || $result === false, 'An existing single-site account is not a deleted-empty account.');
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($lock);
+        }
+    }
+
+    public function test_first_post_delete_boundary_clears_pre_delete_backoff_without_changing_queue_age(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $this->assertTrue(ll_tools_privacy_queue_deleted_user_lms_cleanup($userId));
+        $row = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+        $payload = $row['value'];
+        $payload['blocked_reason'] = 'll_tools_privacy_transactional_engine_unavailable';
+        $payload['blocked_details'] = ['postmeta: MyISAM'];
+        $payload['retry_count'] = 4;
+        $payload['next_attempt_at'] = time() + 6 * HOUR_IN_SECONDS;
+        update_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId), $payload, false);
+        ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($userId);
+
+        $this->assertTrue(ll_tools_privacy_deleted_user_post_seen($userId, true));
+        $marked = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+        $this->assertSame($payload['queued_at'], $marked['queued_at']);
+        $this->assertGreaterThan(0, (int) $marked['post_seen_at']);
+        $this->assertLessThanOrEqual(time(), (int) ($marked['next_attempt_at'] ?? 0));
+        $this->assertSame($payload['retry_count'], $marked['retry_count']);
+        $this->assertSame($payload['blocked_reason'], $marked['blocked_reason']);
+        $this->assertSame($payload['blocked_details'], $marked['blocked_details']);
+
+        $marked['next_attempt_at'] = time() + HOUR_IN_SECONDS;
+        update_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId), $marked, false);
+        ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($userId);
+        $this->assertTrue(ll_tools_privacy_deleted_user_post_seen($userId, true));
+        $this->assertSame($marked, ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'], 'A repeated post-delete event must preserve a new retry deadline.');
+    }
+
+    public function test_empty_verifier_reads_exact_class_roster_membership_after_cached_absence(): void
+    {
+        global $wpdb;
+
+        $userId = $this->createDeletedAccountTombstone();
+        $classId = (int) self::factory()->post->create([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'Exact privacy roster',
+        ]);
+        $otherId = (int) ($userId . '1');
+        $this->assertNotFalse(update_post_meta($classId, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, [$otherId]));
+        $this->assertSame([$otherId], get_post_meta($classId, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true));
+        $lock = ll_tools_offline_app_acquire_user_session_lock($userId);
+        $this->assertNotSame('', $lock);
+        try {
+            $this->assertTrue(ll_tools_privacy_deleted_user_local_data_is_empty_locked($userId, $lock), 'A longer roster ID must not match the deleted user.');
+
+            // Bypass metadata invalidation to model another request committing
+            // a previously admitted roster write while this cache stays stale.
+            $this->assertSame(1, $wpdb->update($wpdb->postmeta, [
+                'meta_value' => maybe_serialize([(string) $userId]),
+            ], [
+                'post_id' => $classId,
+                'meta_key' => LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META,
+            ], ['%s'], ['%d', '%s']));
+            $this->assertSame([$otherId], get_post_meta($classId, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, true));
+            $this->assertFalse(ll_tools_privacy_deleted_user_local_data_is_empty_locked($userId, $lock), 'Fresh storage must detect the exact string-valued roster ID.');
+        } finally {
+            ll_tools_offline_app_release_user_session_lock($lock);
+            clean_post_cache($classId);
+        }
+    }
+
+    public function test_manual_erasure_of_an_empty_existing_account_keeps_the_transactional_engine_guard(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $engineFault = static fn(string $engine, string $tableKey): string => $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        try {
+            $result = ll_tools_privacy_delete_user_personal_data_verified($userId);
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_privacy_transactional_engine_unavailable', $result->get_error_code());
+        $this->assertInstanceOf(WP_User::class, get_userdata($userId));
+        $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+    }
+
+    public function test_retained_data_with_unreadable_engine_metadata_uses_transient_retry(): void
+    {
+        global $wpdb;
+
+        $userId = $this->createDeletedAccountTombstone();
+        $this->assertSame(1, $wpdb->insert($wpdb->usermeta, [
+            'user_id' => $userId,
+            'meta_key' => LL_TOOLS_USER_GOALS_META,
+            'meta_value' => maybe_serialize(['daily_minutes' => 20]),
+        ]));
+        $failedReads = 0;
+        $queryFault = static function (string $query) use (&$failedReads): string {
+            if (preg_match('/^\s*SHOW TABLE STATUS\b/i', $query)) {
+                $failedReads++;
+                return 'SHOW TABLE STATUS FROM ll_tools_missing_privacy_database';
+            }
+            return $query;
+        };
+        $previous = $wpdb->suppress_errors(true);
+        add_filter('query', $queryFault);
+        $started = time();
+        try {
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+        } finally {
+            remove_filter('query', $queryFault);
+            $wpdb->suppress_errors($previous);
+        }
+
+        $this->assertGreaterThan(0, $failedReads);
+        $payload = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+        $this->assertSame('', (string) ($payload['blocked_reason'] ?? ''), 'Unknown engine metadata is not proof of a non-transactional engine.');
+        $this->assertSame('ll_tools_privacy_transactional_engine_unavailable', (string) ($payload['last_error_code'] ?? ''));
+        $this->assertGreaterThanOrEqual($started + MINUTE_IN_SECONDS, (int) $payload['next_attempt_at']);
+        $this->assertLessThanOrEqual(time() + MINUTE_IN_SECONDS, (int) $payload['next_attempt_at']);
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s", $userId, LL_TOOLS_USER_GOALS_META)));
+    }
+
+    public function test_external_favorites_require_a_fresh_valid_single_replay_marker_before_empty_completion(): void
+    {
+        global $wpdb;
+
+        $userId = $this->createDeletedAccountTombstone();
+        $favoritesRaw = maybe_serialize(['external_items' => [401, 402], 'site_id' => get_current_blog_id()]);
+        $this->assertSame(1, $wpdb->insert($wpdb->usermeta, [
+            'user_id' => $userId,
+            'meta_key' => 'simplefavorites',
+            'meta_value' => $favoritesRaw,
+        ]));
+        $markerKey = LL_TOOLS_USER_LEGACY_FAVORITES_ERASURE_META;
+        $engineFault = static fn(string $engine, string $tableKey): string => $tableKey === 'postmeta' ? 'MyISAM' : $engine;
+        add_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10, 2);
+        try {
+            foreach ([[], ['0'], [maybe_serialize(['1'])], ['1', '1'], [str_repeat('1', 128)]] as $markerRows) {
+                $this->assertNotFalse($wpdb->delete($wpdb->usermeta, ['user_id' => $userId, 'meta_key' => $markerKey], ['%d', '%s']));
+                foreach ($markerRows as $raw) {
+                    $this->assertSame(1, $wpdb->insert($wpdb->usermeta, [
+                        'user_id' => $userId,
+                        'meta_key' => $markerKey,
+                        'meta_value' => $raw,
+                    ]));
+                }
+                $this->makeDeletedAccountRetryDue($userId);
+                ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+                $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId), 'Missing, invalid, non-scalar, duplicate, or oversized replay evidence must retain the fence.');
+                $this->assertSame($favoritesRaw, $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'simplefavorites'", $userId)));
+            }
+
+            $this->assertNotFalse($wpdb->delete($wpdb->usermeta, ['user_id' => $userId, 'meta_key' => $markerKey], ['%d', '%s']));
+            $this->assertSame(1, $wpdb->insert($wpdb->usermeta, ['user_id' => $userId, 'meta_key' => $markerKey, 'meta_value' => '1']));
+            $this->makeDeletedAccountRetryDue($userId);
+            $failedReads = 0;
+            $markerReadFault = static function (string $query) use (&$failedReads): string {
+                if (strpos($query, 'marker_raw') !== false) {
+                    $failedReads++;
+                    return 'SELECT marker_raw FROM ll_tools_missing_privacy_favorites_marker';
+                }
+                return $query;
+            };
+            add_filter('query', $markerReadFault);
+            $previous = $wpdb->suppress_errors(true);
+            $started = time();
+            try {
+                ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+            } finally {
+                remove_filter('query', $markerReadFault);
+                $wpdb->suppress_errors($previous);
+            }
+            $this->assertGreaterThan(0, $failedReads);
+            $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+            $fault = ll_tools_privacy_deleted_user_lms_cleanup_row($userId)['value'];
+            $this->assertSame('', (string) ($fault['blocked_reason'] ?? ''));
+            $this->assertNotSame('', (string) ($fault['last_error_code'] ?? ''));
+            $this->assertGreaterThanOrEqual($started + MINUTE_IN_SECONDS, (int) $fault['next_attempt_at']);
+            $this->assertLessThanOrEqual(time() + MINUTE_IN_SECONDS, (int) $fault['next_attempt_at']);
+
+            $this->makeDeletedAccountRetryDue($userId);
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+            $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+            $this->assertFalse(wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+            $this->assertSame($favoritesRaw, $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = 'simplefavorites'", $userId)));
+            $this->assertSame('1', $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id = %d AND meta_key = %s", $userId, $markerKey)));
+        } finally {
+            remove_filter('ll_tools_privacy_erasure_table_engine', $engineFault, 10);
+        }
+    }
+
     public function test_activation_reschedules_an_existing_pending_delivery(): void
     {
         global $wpdb;
@@ -527,6 +984,39 @@ final class LmsPrivacyLifecycleTest extends LL_Tools_TestCase
 
         $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_GRADE_DELIVERY_WORKER_HOOK));
         $wpdb->delete($table, ['dedupe_key' => hash('sha256', 'activation-pending-delivery')], ['%s']);
+    }
+
+    private function createDeletedAccountTombstone(int $userId = 0): int
+    {
+        global $wpdb;
+
+        if ($userId === 0) {
+            $userId = self::factory()->user->create(['role' => 'subscriber']);
+            // Separate test-wrapper installs can reuse a core user ID while
+            // LL custom tables survive. Prepare this fixture's empty surfaces
+            // with normal verified erasure before installing any test fault.
+            $this->assertIsArray(ll_tools_privacy_delete_user_personal_data_verified($userId));
+        }
+        $this->assertTrue(ll_tools_privacy_queue_deleted_user_lms_cleanup($userId));
+        // Model the completed core boundary without its synchronous LL worker,
+        // so each fault is installed before the first post-delete attempt.
+        $this->assertSame(1, $wpdb->delete($wpdb->users, ['ID' => $userId], ['%d']));
+        $this->assertNotFalse($wpdb->delete($wpdb->usermeta, ['user_id' => $userId], ['%d']));
+        clean_user_cache($userId);
+        $this->assertTrue(ll_tools_privacy_deleted_user_post_seen($userId, true));
+        $this->assertFalse(get_userdata($userId));
+        return $userId;
+    }
+
+    private function makeDeletedAccountRetryDue(int $userId): void
+    {
+        $row = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+        $this->assertIsArray($row['value']);
+        $payload = $row['value'];
+        $payload['next_attempt_at'] = time() - 1;
+        update_option(ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId), $payload, false);
+        ll_tools_privacy_deleted_user_lms_cleanup_cache_forget($userId);
+        wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
     }
 
     /** @return array{user_id:int,email:string,word_id:int,class_id:int,token:string,event_uuid:string} */

@@ -1340,9 +1340,9 @@ msgstr "Kategoriler: %d"
 #: includes/pages/wordset-pages.php:26677
 #: includes/pages/wordset-pages.php:26685
 #: includes/post-types/prompt-card-post-type.php:1352
+#: includes/privacy.php:1019
 #: includes/privacy.php:848
 #: includes/privacy.php:937
-#: includes/privacy.php:1019
 #: includes/shortcodes/audio-recording-shortcode.php:1842
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
@@ -4011,7 +4011,7 @@ msgstr "Dil Kimliği"
 
 #. Plugin Name of the plugin
 #: language-learner-tools.php
-#: includes/privacy.php:2432
+#: includes/privacy.php:2755
 msgid "Language Learner Tools"
 msgstr "Dil Eğitimi Araçları"
 
@@ -9023,8 +9023,8 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/pages/wordset-pages.php:28441
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/words-post-type.php:22
-#: includes/privacy.php:846
 #: includes/privacy.php:1015
+#: includes/privacy.php:846
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/editor-hub-shortcode.php:1052
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
@@ -9185,10 +9185,10 @@ msgstr "Kelime Seti"
 #: includes/admin/word-option-rules-admin.php:1875
 #: includes/pages/wordset-pages.php:12957
 #: includes/post-types/content-lesson-post-type.php:1930
+#: includes/privacy.php:1021
 #: includes/privacy.php:470
 #: includes/privacy.php:850
 #: includes/privacy.php:939
-#: includes/privacy.php:1021
 #: includes/shortcodes/audio-recording-shortcode.php:1669
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:131
@@ -9879,6 +9879,7 @@ msgid "Paste the direct media URL here."
 msgstr "Doğrudan medya URL'sini buraya yapıştır."
 
 #: includes/admin/admin-dashboard-menu.php:37
+#: includes/admin/privacy-cleanup-health.php:56
 msgid "LL Tools"
 msgstr "LL Tools"
 
@@ -13531,8 +13532,8 @@ msgid "LL Prompt Audio Queue"
 msgstr "LL Soru Sesi Kuyruğu"
 
 #: includes/admin/prompt-audio-import-admin.php:124
-#: includes/privacy.php:932
 #: includes/privacy.php:1017
+#: includes/privacy.php:932
 msgid "Prompt card"
 msgstr "Soru kartı"
 
@@ -18380,13 +18381,13 @@ msgstr "LL Tools Çalışma İlerlemesi"
 msgid "LL Tools Prompt Card Progress"
 msgstr "LL Tools Soru Kartı İlerlemesi"
 
-#: includes/privacy.php:418
 #: includes/privacy.php:1008
+#: includes/privacy.php:418
 msgid "LL Tools Study Activity"
 msgstr "LL Tools Çalışma Etkinliği"
 
-#: includes/privacy.php:422
 #: includes/privacy.php:1064
+#: includes/privacy.php:422
 msgid "LL Tools Offline Sessions"
 msgstr "LL Tools Çevrimdışı Oturumları"
 
@@ -18462,21 +18463,21 @@ msgstr "Reddedilen öneri imzaları"
 msgid "Recommendation deferrals"
 msgstr "Öneri ertelemeleri"
 
-#: includes/privacy.php:845
 #: includes/privacy.php:1014
+#: includes/privacy.php:845
 msgid "Word ID"
 msgstr "Kelime Kimliği"
 
+#: includes/privacy.php:1018
 #: includes/privacy.php:847
 #: includes/privacy.php:936
-#: includes/privacy.php:1018
 msgid "Category ID"
 msgstr "Kategori Kimliği"
 
+#: includes/privacy.php:1020
 #: includes/privacy.php:469
 #: includes/privacy.php:849
 #: includes/privacy.php:938
-#: includes/privacy.php:1020
 msgid "Word set ID"
 msgstr "Kelime seti kimliği"
 
@@ -18568,8 +18569,8 @@ msgstr "Gerekli pratik kayıt türleri"
 msgid "Correct practice recording types"
 msgstr "Doğru pratik kayıt türleri"
 
-#: includes/privacy.php:931
 #: includes/privacy.php:1016
+#: includes/privacy.php:931
 msgid "Prompt card ID"
 msgstr "Soru kartı kimliği"
 
@@ -18609,8 +18610,8 @@ msgstr "Yük"
 msgid "Session key"
 msgstr "Oturum anahtarı"
 
-#: includes/privacy.php:540
 #: includes/privacy.php:1068
+#: includes/privacy.php:540
 msgid "Created at (UTC)"
 msgstr "(UTC) tarihinde oluşturuldu"
 
@@ -18630,15 +18631,15 @@ msgstr "Cihaz tanımlayıcı"
 msgid "Profile identifier"
 msgstr "Profil tanımlayıcı"
 
-#: includes/privacy.php:1535
+#: includes/privacy.php:1755
 msgid "LL Tools Study Data"
 msgstr "LL Tools Çalışma Verileri"
 
-#: includes/privacy.php:2421
+#: includes/privacy.php:2744
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr "LL Tools öğrenci ilerleme özelliklerini kullanan siteler için önerilen metin."
 
-#: includes/privacy.php:2423
+#: includes/privacy.php:2746
 msgid "Suggested Text:"
 msgstr "Önerilen Metin:"
 
@@ -29680,54 +29681,54 @@ msgstr "En eski yetkilendirme denemesi (UTC)"
 msgid "Latest authorization expiry (UTC)"
 msgstr "En son yetkilendirme sona erme zamanı (UTC)"
 
-#: includes/privacy.php:1564
+#: includes/privacy.php:1784
 msgid "LL Tools data could not be fenced for erasure because another pass is active or storage is temporarily unavailable."
 msgstr "Başka bir geçiş etkin olduğu veya depolama geçici olarak kullanılamadığı için LL Tools verileri silme işlemine karşı kilitlenemedi."
 
-#: includes/privacy.php:1575
+#: includes/privacy.php:1795
 msgid "LL Tools data erasure stopped and the account write fence could not be released. The fence will expire automatically."
 msgstr "LL Tools veri silme işlemi durdu ve hesap yazma kilidi bırakılamadı. Kilidin süresi otomatik olarak dolacak."
 
-#: includes/privacy.php:1589
+#: includes/privacy.php:1809
 msgid "External grade delivery data is temporarily unavailable for erasure. No external system was changed."
 msgstr "Harici not aktarımı verileri silme için geçici olarak kullanılamıyor. Hiçbir harici sistem değiştirilmedi."
 
-#: includes/privacy.php:1601
-#: includes/privacy.php:1629
+#: includes/privacy.php:1821
+#: includes/privacy.php:1849
 msgid "LL Tools data erasure paused, but its account write fence could not be renewed."
 msgstr "LL Tools veri silme işlemi duraklatıldı ancak hesap yazma kilidi yenilenemedi."
 
-#: includes/privacy.php:1607
+#: includes/privacy.php:1827
 msgid "Additional local external-grade records remain for the next bounded erasure pass. No external system was changed."
 msgstr "Bir sonraki sınırlı silme geçişi için ek yerel harici not kayıtları kaldı. Hiçbir harici sistem değiştirilmedi."
 
-#: includes/privacy.php:1617
+#: includes/privacy.php:1837
 msgid "Assignment attempt data is temporarily unavailable for erasure."
 msgstr "Ödev denemesi verileri silme için geçici olarak kullanılamıyor."
 
-#: includes/privacy.php:1635
+#: includes/privacy.php:1855
 msgid "Additional assignment attempt records remain for the next bounded erasure pass."
 msgstr "Bir sonraki sınırlı silme geçişi için ek ödev denemesi kayıtları kaldı."
 
-#: includes/privacy.php:1645
+#: includes/privacy.php:1865
 msgid "Google Classroom connection data is temporarily unavailable for erasure. No request was sent to Google."
 msgstr "Google Classroom bağlantı verileri silme için geçici olarak kullanılamıyor. Google'a istek gönderilmedi."
 
-#: includes/privacy.php:1660
-#: includes/privacy.php:1666
+#: includes/privacy.php:1880
+#: includes/privacy.php:1886
 msgid "The local Google Classroom connection could not be erased. No request was sent to Google."
 msgstr "Yerel Google Classroom bağlantısı silinemedi. Google'a istek gönderilmedi."
 
-#: includes/privacy.php:1671
+#: includes/privacy.php:1891
 msgid "Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account."
 msgstr "Yerel Google Classroom kimlik bilgileri silindi. Gizlilik silme işlemi notları değiştirmedi veya Google erişimini iptal etmedi; kullanıcı uygulamanın yetkisini Google Hesabından ayrıca kaldırabilir."
 
-#: includes/privacy.php:1683
+#: includes/privacy.php:1903
 msgid "LL Tools data was erased, but the account write fence could not be released."
 msgstr "LL Tools verileri silindi ancak hesap yazma kilidi bırakılamadı."
 
 #. translators: %d: retention days
-#: includes/privacy.php:2426
+#: includes/privacy.php:2749
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. When your teacher uses official LL Tools assignments, the site stores the frozen assignment revision, your attempts and responses, the server-calculated score, and the selected grade. If an LMS connector is configured and explicitly mapped, the site also stores hashed external identity/resource mappings and a delivery audit needed to send or correct that selected grade. A teacher who connects Google Classroom authorizes this site to retain an encrypted refresh credential and limited account details for that connection; access tokens are short lived and are not stored. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, let site administrators and assigned teachers review learner work, and deliver an authorized official assignment grade to the configured learning system. Detailed activity log entries are kept for %d days. Summary progress and official assignment data remain until your account is deleted, the connection is removed, or the site erases your LL Tools personal data according to its education-record retention policy. Local privacy erasure does not silently alter or delete a grade already held by an external LMS. You can request an export or erasure of local data through the site’s privacy request tools."
 msgstr "Oturum açmışken LL Tools'u kullandığında bu site çalışma ilerlemeni, öğrenme tercihlerini, seçtiğin kelime setini/kategorileri, yıldızladığın kelimeleri, çalıştığın kelimelere ilişkin ilerleme özetlerini, gelişim amaçlı alıştırma sonuçlarını ve quiz gösterimleri ile sonuçları gibi ayrıntılı etkinlik geçmişini saklar. Çevrimdışı eşitleme özelliğini kullanırsan site, eşitlemenin çalışması için gereken sınırlı çevrimdışı oturum cihaz/profil tanımlayıcılarını da saklar. Öğretmenin resmi LL Tools ödevlerini kullandığında site, sabitlenmiş ödev revizyonunu, denemelerini ve yanıtlarını, sunucunun hesapladığı puanı ve seçilen notu saklar. Bir LMS bağlayıcısı yapılandırılıp açıkça eşlenirse site, seçilen notu göndermek veya düzeltmek için gereken özetlenmiş harici kimlik/kaynak eşlemelerini ve aktarım denetim kaydını da saklar. Google Classroom'a bağlanan bir öğretmen, bu bağlantı için şifrelenmiş yenileme kimlik bilgisinin ve sınırlı hesap ayrıntılarının sitede tutulmasına izin verir; erişim belirteçleri kısa ömürlüdür ve saklanmaz. Bu bilgiler ilerlemeni kaydetmek, sonraki çalışma önerilerini kişiselleştirmek, çalışma durumunu oturumlar arasında geri yüklemek, çevrimdışı çalışma etkinliğini hesabınla eşitlemek, site yöneticilerinin ve sana atanmış öğretmenlerin öğrenci çalışmasını incelemesini sağlamak ve yetkilendirilmiş resmi ödev notunu yapılandırılmış öğrenim sistemine aktarmak için kullanılır. Ayrıntılı etkinlik günlüğü kayıtları %d gün saklanır. Özet ilerleme ve resmi ödev verileri; hesabın silinene, bağlantı kaldırılana veya site eğitim kaydı saklama politikasına göre LL Tools kişisel verilerini silene kadar kalır. Yerel gizlilik silme işlemi, harici bir LMS'de bulunan notu sessizce değiştirmez veya silmez. Yerel verilerinin dışa aktarılmasını veya silinmesini sitenin gizlilik isteği araçları üzerinden talep edebilirsin."
 
@@ -29850,22 +29851,22 @@ msgstr "Alıştırma verileri geçici olarak kullanılamıyor."
 #: includes/offline-app-sync.php:1537
 #: includes/offline-app-sync.php:1561
 #: includes/privacy.php:1175
-#: includes/privacy.php:1214
-#: includes/privacy.php:1223
-#: includes/privacy.php:1266
-#: includes/privacy.php:1300
-#: includes/privacy.php:1316
-#: includes/privacy.php:1345
-#: includes/privacy.php:1357
-#: includes/privacy.php:1366
-#: includes/privacy.php:1382
-#: includes/privacy.php:1406
-#: includes/privacy.php:1417
-#: includes/privacy.php:1439
-#: includes/privacy.php:1452
-#: includes/privacy.php:1469
-#: includes/privacy.php:1497
-#: includes/privacy.php:1505
+#: includes/privacy.php:1435
+#: includes/privacy.php:1444
+#: includes/privacy.php:1484
+#: includes/privacy.php:1518
+#: includes/privacy.php:1534
+#: includes/privacy.php:1563
+#: includes/privacy.php:1575
+#: includes/privacy.php:1584
+#: includes/privacy.php:1600
+#: includes/privacy.php:1624
+#: includes/privacy.php:1635
+#: includes/privacy.php:1657
+#: includes/privacy.php:1670
+#: includes/privacy.php:1687
+#: includes/privacy.php:1715
+#: includes/privacy.php:1723
 #: includes/teacher-classes.php:1130
 #: includes/teacher-classes.php:1136
 #: includes/teacher-classes.php:1203
@@ -29874,8 +29875,8 @@ msgstr "Alıştırma verileri geçici olarak kullanılamıyor."
 msgid "LL Tools personal data could not be erased safely."
 msgstr "LL Tools kişisel verileri güvenli bir şekilde silinemedi."
 
-#: includes/privacy.php:1232
-#: includes/privacy.php:1239
+#: includes/privacy.php:1453
+#: includes/privacy.php:1464
 msgid "LL Tools personal data cannot be erased safely while transactional storage is unavailable."
 msgstr "İşlemsel depolama kullanılamıyorken LL Tools kişisel verileri güvenli bir şekilde silinemez."
 
@@ -30498,3 +30499,43 @@ msgstr "Yeni bir kategori adı gir veya bu kelime setinden bir hedef kategori se
 #: includes/pages/wordset-editor.php:4405
 msgid "2. Choose destination"
 msgstr "2. Hedef kategoriyi seç"
+
+#: includes/admin/privacy-cleanup-health.php:54
+msgid "LL Tools account cleanup is up to date"
+msgstr "LL Tools hesap temizliği güncel"
+
+#: includes/admin/privacy-cleanup-health.php:57
+msgid "No pending deleted-account cleanup was found in the checked queue."
+msgstr "Kontrol edilen kuyrukta silinen hesaplar için bekleyen temizleme görevi bulunamadı."
+
+#: includes/admin/privacy-cleanup-health.php:63
+msgid "LL Tools cleanup status requires administrator access"
+msgstr "LL Tools temizleme durumunu görmek için yönetici erişimi gerekir"
+
+#: includes/admin/privacy-cleanup-health.php:70
+msgid "LL Tools account cleanup status could not be checked"
+msgstr "LL Tools hesap temizleme durumu kontrol edilemedi"
+
+#: includes/admin/privacy-cleanup-health.php:71
+msgid "The cleanup queue could not be read. Try Site Health again after resolving the database error."
+msgstr "Temizleme kuyruğu okunamadı. Veritabanı hatasını giderdikten sonra Site Sağlığı kontrolünü yeniden deneyin."
+
+#: includes/admin/privacy-cleanup-health.php:74
+msgid "LL Tools account cleanup needs database maintenance"
+msgstr "LL Tools hesap temizliği için veritabanı bakımı gerekiyor"
+
+#: includes/admin/privacy-cleanup-health.php:75
+msgid "Some deleted-account cleanup jobs are blocked by database storage requirements. Their cleanup protections remain active, and retries use longer intervals. Review the affected tables with your site administrator before converting them to InnoDB."
+msgstr "Silinen hesapların bazı temizleme görevleri veritabanı depolama gereksinimleri nedeniyle engelleniyor. Bu görevlerin temizleme korumaları etkin kalır ve görevler daha uzun aralıklarla yeniden denenir. Tabloları InnoDB'ye dönüştürmeden önce etkilenen tabloları site yöneticinizle birlikte inceleyin."
+
+#: includes/admin/privacy-cleanup-health.php:81
+msgid "LL Tools account cleanup is pending"
+msgstr "LL Tools hesap temizliği bekliyor"
+
+#: includes/admin/privacy-cleanup-health.php:82
+msgid "Deleted-account cleanup continues in the background. This check reads at most 50 jobs; check again after the scheduled workers run."
+msgstr "Silinen hesapların temizliği arka planda devam ediyor. Bu kontrol en fazla 50 görevi okur; zamanlanmış işlemler çalıştıktan sonra yeniden kontrol edin."
+
+#: includes/admin/privacy-cleanup-health.php:90
+msgid "LL Tools account cleanup"
+msgstr "LL Tools hesap temizliği"

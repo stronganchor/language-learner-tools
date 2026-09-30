@@ -10,6 +10,12 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
         if (!is_multisite()) {
             $this->markTestSkipped('Run with tests/phpunit.multisite.xml.dist.');
         }
+
+        $this->assertTrue(ll_tools_install_user_progress_schema());
+        $this->assertTrue(ll_tools_install_offline_app_session_schema());
+        $this->assertTrue(ll_tools_install_lms_assignment_schema());
+        $this->assertTrue(ll_tools_install_grade_delivery_schema());
+        $this->assertTrue(ll_tools_install_google_classroom_schema());
     }
 
     public function test_registration_sync_preserves_the_network_site_registration_state(): void
@@ -132,12 +138,17 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
         $originalBlogId = get_current_blog_id();
         $secondBlogId = (int) self::factory()->blog->create();
         $userId = self::factory()->user->create(['role' => 'subscriber']);
+        // Core test installations may reuse an ID while LL custom tables
+        // survive. Prepare this fixture's empty local surfaces before adding
+        // the LMS rows whose per-site deletion this regression verifies.
+        $this->assertIsArray(ll_tools_privacy_delete_user_personal_data_verified($userId));
         add_user_to_blog($originalBlogId, $userId, 'subscriber');
         add_user_to_blog($secondBlogId, $userId, 'subscriber');
         $siteIds = [$originalBlogId, $secondBlogId];
         $allowedLmsTables = [];
         $temporaryLmsTables = [];
-        $temporaryStatusShim = static function (string $query) use (&$allowedLmsTables, &$temporaryLmsTables): string {
+        $localProbeTables = [];
+        $temporaryStatusShim = static function (string $query) use (&$allowedLmsTables, &$temporaryLmsTables, &$localProbeTables): string {
             $trimmed = trim($query);
             if (
                 preg_match('/^CREATE TEMPORARY TABLE\s+`?([A-Za-z0-9_]+)`?/i', $trimmed, $matches) === 1
@@ -155,6 +166,14 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
                     }
                 }
             }
+            if (preg_match('/^SHOW TABLES LIKE\b/i', $trimmed) === 1) {
+                $normalized = str_replace(['\\\\_', '\\_'], '_', $trimmed);
+                foreach (array_keys($temporaryLmsTables) as $tableName) {
+                    if (isset($localProbeTables[$tableName]) && str_contains($normalized, "'{$tableName}'")) {
+                        return "SELECT '{$tableName}'";
+                    }
+                }
+            }
             return $query;
         };
         // Runs after WP_UnitTestCase's CREATE->CREATE TEMPORARY rewrite. Only
@@ -165,10 +184,16 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
         try {
             foreach ($siteIds as $siteId) {
                 switch_to_blog($siteId);
+                $localProbeTables += array_fill_keys(array_merge(
+                    array_values(ll_tools_user_progress_table_names()),
+                    [ll_tools_offline_app_session_table()]
+                ), true);
                 $siteTables = array_merge(
                     array_values(ll_tools_lms_assignment_table_names()),
                     array_values(ll_tools_grade_delivery_table_names()),
-                    array_values(ll_tools_google_classroom_table_names())
+                    array_values(ll_tools_google_classroom_table_names()),
+                    array_values(ll_tools_user_progress_table_names()),
+                    [ll_tools_offline_app_session_table()]
                 );
                 $allowedLmsTables = array_fill_keys($siteTables, true);
                 $this->assertTrue(
@@ -178,6 +203,8 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
                 );
                 $this->assertTrue(ll_tools_install_grade_delivery_schema());
                 $this->assertTrue(ll_tools_install_google_classroom_schema());
+                $this->assertTrue(ll_tools_install_user_progress_schema());
+                $this->assertTrue(ll_tools_install_offline_app_session_schema());
                 $now = gmdate('Y-m-d H:i:s');
                 $assignments = ll_tools_lms_assignment_table_names();
                 $deliveries = ll_tools_grade_delivery_table_names();
@@ -225,6 +252,15 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
                 switch_to_blog($siteId);
                 // The hook may finish a small site synchronously; calling the
                 // consumer again is intentionally a no-op once dequeued.
+                $pendingCleanup = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+                if (is_array($pendingCleanup) && !empty($pendingCleanup['exists'])
+                    && is_array($pendingCleanup['value'])
+                    && (int) ($pendingCleanup['value']['next_attempt_at'] ?? 0) > time()) {
+                    // The network boundary marks only its current site. A
+                    // secondary site's native continuation follows its own
+                    // persisted deadline after the global account is gone.
+                    $this->assertEarlyRetryRemainsFencedThenMakeDue($userId);
+                }
                 ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
                 $assignments = ll_tools_lms_assignment_table_names();
                 $deliveries = ll_tools_grade_delivery_table_names();
@@ -351,6 +387,7 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
 
             remove_all_filters('ll_tools_lms_deleted_user_cleanup_passes');
             remove_all_filters('ll_tools_lms_assignment_erasure_batch_size');
+            $this->assertEarlyRetryRemainsFencedThenMakeDue($userId);
             ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
 
             $this->assertSame('0', (string) $wpdb->get_var($wpdb->prepare(
@@ -436,6 +473,7 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
 
             remove_all_filters('ll_tools_lms_deleted_user_cleanup_passes');
             remove_all_filters('ll_tools_lms_assignment_erasure_batch_size');
+            $this->assertEarlyRetryRemainsFencedThenMakeDue($userId);
             ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
 
             $this->assertSame('0', (string) $wpdb->get_var($wpdb->prepare(
@@ -457,6 +495,8 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
 
     public function test_site_only_removal_can_finish_when_post_marker_write_transiently_fails(): void
     {
+        global $wpdb;
+
         if (!function_exists('wp_delete_user')) {
             require_once ABSPATH . 'wp-admin/includes/user.php';
         }
@@ -468,12 +508,45 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
         $userId = self::factory()->user->create(['role' => 'subscriber']);
         add_user_to_blog($blogId, $userId, 'subscriber');
         $optionName = ll_tools_privacy_deleted_user_lms_cleanup_option_name($userId);
+        $tables = ll_tools_lms_assignment_table_names();
+        $now = gmdate('Y-m-d H:i:s');
+        // Keep the bounded job alive at deleted_user, so its fresh marker
+        // update is actually attempted after the membership-removal hook.
+        for ($index = 1; $index <= 3; $index++) {
+            $this->assertSame(1, $wpdb->insert($tables['grades'], [
+                'assignment_id' => 810000 + $index,
+                'revision_id' => 820000 + $index,
+                'user_id' => $userId,
+                'selected_attempt_id' => 830000 + $index,
+                'grade_revision' => 1,
+                'score_given' => 1,
+                'score_maximum' => 1,
+                'points_given' => '1.0000',
+                'points_maximum' => '1.0000',
+                'grade_policy' => 'latest',
+                'updated_at' => $now,
+            ]));
+        }
+        add_filter('ll_tools_lms_deleted_user_cleanup_passes', static fn(): int => 1);
+        add_filter('ll_tools_lms_assignment_erasure_batch_size', static fn(): int => 1);
         $blockedUpdates = 0;
-        $blockPostMarker = static function ($value, $oldValue) use (&$blockedUpdates) {
-            $blockedUpdates++;
-            return $oldValue;
+        $updatePattern = '/^UPDATE\s+' . preg_quote($wpdb->options, '/')
+            . '\s+SET option_value\s*=.*\sWHERE option_name\s*=\s*'
+            . preg_quote($wpdb->prepare('%s', $optionName), '/')
+            . '\s+AND BINARY option_value\s*=\s*UNHEX\(/s';
+        $blockPostMarker = static function (string $query) use ($wpdb, $optionName, $updatePattern, &$blockedUpdates): string {
+            if (preg_match($updatePattern, trim($query)) === 1) {
+                $blockedUpdates++;
+                // Affect only this fixture's exact tombstone CAS. A valid
+                // no-op returns zero affected rows without any SQL error.
+                return $wpdb->prepare(
+                    "UPDATE {$wpdb->options} SET option_value = option_value WHERE option_name = %s AND 1 = 0",
+                    $optionName
+                );
+            }
+            return $query;
         };
-        add_filter('pre_update_option_' . $optionName, $blockPostMarker, 10, 2);
+        add_filter('query', $blockPostMarker, 30);
 
         try {
             $this->assertTrue(wp_delete_user($userId));
@@ -481,15 +554,65 @@ final class MultisiteRegistrationAndMaintenanceTest extends LL_Tools_TestCase
             $this->assertInstanceOf(WP_User::class, get_userdata($userId));
             $this->assertFalse(is_user_member_of_blog($userId, $blogId));
             $this->assertFalse(ll_tools_privacy_deleted_user_post_seen($userId));
+            $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+            $this->assertNotFalse(wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
+            $this->assertSame('1', (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$tables['grades']} WHERE user_id = %d",
+                $userId
+            )));
+
+            remove_filter('query', $blockPostMarker, 30);
+            remove_all_filters('ll_tools_lms_deleted_user_cleanup_passes');
+            remove_all_filters('ll_tools_lms_assignment_erasure_batch_size');
+            // This exact write fault also prevented persisting a retry delay.
+            // The fence and scheduled recovery survive; the now-due native
+            // worker can finish once the storage write succeeds again.
+            $row = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+            $this->assertIsArray($row);
+            $this->assertSame(0, (int) ($row['value']['next_attempt_at'] ?? 0));
+            ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+
+            $this->assertSame('0', (string) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$tables['grades']} WHERE user_id = %d",
+                $userId
+            )));
             $this->assertFalse(ll_tools_privacy_user_lms_deletion_is_pending($userId));
             $this->assertFalse(wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]));
         } finally {
-            remove_filter('pre_update_option_' . $optionName, $blockPostMarker, 10);
+            remove_filter('query', $blockPostMarker, 30);
+            remove_all_filters('ll_tools_lms_deleted_user_cleanup_passes');
+            remove_all_filters('ll_tools_lms_assignment_erasure_batch_size');
             wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
             ll_tools_privacy_dequeue_deleted_user_lms_cleanup($userId);
             if (get_userdata($userId)) {
                 wpmu_delete_user($userId);
             }
         }
+    }
+
+    private function assertEarlyRetryRemainsFencedThenMakeDue(int $userId): void
+    {
+        $before = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+        $this->assertIsArray($before);
+        $this->assertIsArray($before['value']);
+        $this->assertGreaterThan(time(), (int) ($before['value']['next_attempt_at'] ?? 0));
+
+        ll_tools_privacy_cleanup_deleted_user_lms_data($userId);
+
+        $after = ll_tools_privacy_deleted_user_lms_cleanup_row($userId);
+        $this->assertIsArray($after);
+        $this->assertSame($before['raw_hex'], $after['raw_hex']);
+        $this->assertTrue(ll_tools_privacy_user_lms_deletion_is_pending($userId));
+        $this->assertGreaterThanOrEqual(
+            (int) $before['value']['next_attempt_at'],
+            (int) wp_next_scheduled(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId])
+        );
+
+        // Model elapsed time without bypassing the native continuation or
+        // losing the persisted queue age, post-delete proof and retry history.
+        $payload = $after['value'];
+        $payload['next_attempt_at'] = time() - 1;
+        $this->assertTrue(ll_tools_privacy_deleted_user_lms_cleanup_cas($userId, $after['raw_hex'], $payload));
+        wp_clear_scheduled_hook(LL_TOOLS_LMS_DELETED_USER_CLEANUP_HOOK, [$userId]);
     }
 }

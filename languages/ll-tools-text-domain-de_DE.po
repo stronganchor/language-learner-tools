@@ -16,7 +16,7 @@ msgstr ""
 
 #. Plugin Name of the plugin
 #: language-learner-tools.php
-#: includes/privacy.php:2432
+#: includes/privacy.php:2755
 msgid "Language Learner Tools"
 msgstr "Language Learner Tools"
 
@@ -41,6 +41,7 @@ msgid "https://stronganchortech.com"
 msgstr "https://stronganchortech.com"
 
 #: includes/admin/admin-dashboard-menu.php:37
+#: includes/admin/privacy-cleanup-health.php:56
 msgid "LL Tools"
 msgstr "LL Tools"
 
@@ -860,8 +861,8 @@ msgstr "Abbrechen"
 #: includes/pages/wordset-pages.php:28441
 #: includes/post-types/word-audio-post-type.php:114
 #: includes/post-types/words-post-type.php:22
-#: includes/privacy.php:846
 #: includes/privacy.php:1015
+#: includes/privacy.php:846
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/editor-hub-shortcode.php:1052
 #: includes/shortcodes/ranked-word-list-shortcode.php:635
@@ -1415,9 +1416,9 @@ msgstr "Vokabeln + Vokabelbilder"
 #: includes/pages/wordset-pages.php:26677
 #: includes/pages/wordset-pages.php:26685
 #: includes/post-types/prompt-card-post-type.php:1352
+#: includes/privacy.php:1019
 #: includes/privacy.php:848
 #: includes/privacy.php:937
-#: includes/privacy.php:1019
 #: includes/shortcodes/audio-recording-shortcode.php:1842
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
@@ -3827,10 +3828,10 @@ msgstr "Alle unterstützten Vokabel- und Aufnahmetextfelder sind standardmäßig
 #: includes/admin/word-option-rules-admin.php:1875
 #: includes/pages/wordset-pages.php:12957
 #: includes/post-types/content-lesson-post-type.php:1930
+#: includes/privacy.php:1021
 #: includes/privacy.php:470
 #: includes/privacy.php:850
 #: includes/privacy.php:939
-#: includes/privacy.php:1021
 #: includes/shortcodes/audio-recording-shortcode.php:1669
 #: includes/shortcodes/image-copyright-grid-shortcode.php:207
 #: templates/content-lesson-template.php:131
@@ -8245,8 +8246,8 @@ msgid "LL Prompt Audio Queue"
 msgstr "LL-Prompt-Audio-Warteschlange"
 
 #: includes/admin/prompt-audio-import-admin.php:124
-#: includes/privacy.php:932
 #: includes/privacy.php:1017
+#: includes/privacy.php:932
 msgid "Prompt card"
 msgstr "Prompt-Karte"
 
@@ -18724,13 +18725,13 @@ msgstr "LL Tools Lernfortschritt"
 msgid "LL Tools Prompt Card Progress"
 msgstr "LL Tools Lernkarte Fortschritt"
 
-#: includes/privacy.php:418
 #: includes/privacy.php:1008
+#: includes/privacy.php:418
 msgid "LL Tools Study Activity"
 msgstr "LL Tools Lernaktivität"
 
-#: includes/privacy.php:422
 #: includes/privacy.php:1064
+#: includes/privacy.php:422
 msgid "LL Tools Offline Sessions"
 msgstr "LL Tools Offline-Sitzungen"
 
@@ -18806,21 +18807,21 @@ msgstr "Abgelehnte Empfehlungssignaturen"
 msgid "Recommendation deferrals"
 msgstr "Empfehlungsaufschübe"
 
-#: includes/privacy.php:845
 #: includes/privacy.php:1014
+#: includes/privacy.php:845
 msgid "Word ID"
 msgstr "Vokabel-ID"
 
+#: includes/privacy.php:1018
 #: includes/privacy.php:847
 #: includes/privacy.php:936
-#: includes/privacy.php:1018
 msgid "Category ID"
 msgstr "Kategorie-ID"
 
+#: includes/privacy.php:1020
 #: includes/privacy.php:469
 #: includes/privacy.php:849
 #: includes/privacy.php:938
-#: includes/privacy.php:1020
 msgid "Word set ID"
 msgstr "Vokabelset-ID"
 
@@ -18912,8 +18913,8 @@ msgstr "Erforderliche Aufnahmetypen zum Üben"
 msgid "Correct practice recording types"
 msgstr "Richtige Aufnahmetypen zum Üben"
 
-#: includes/privacy.php:931
 #: includes/privacy.php:1016
+#: includes/privacy.php:931
 msgid "Prompt card ID"
 msgstr "Prompt-Karte-ID"
 
@@ -18953,8 +18954,8 @@ msgstr "Nutzlast"
 msgid "Session key"
 msgstr "Sitzungsschlüssel"
 
-#: includes/privacy.php:540
 #: includes/privacy.php:1068
+#: includes/privacy.php:540
 msgid "Created at (UTC)"
 msgstr "Erstellt am (UTC)"
 
@@ -18974,15 +18975,15 @@ msgstr "Gerätekennzeichen"
 msgid "Profile identifier"
 msgstr "Profilbezeichner"
 
-#: includes/privacy.php:1535
+#: includes/privacy.php:1755
 msgid "LL Tools Study Data"
 msgstr "LL Tools Lerndaten"
 
-#: includes/privacy.php:2421
+#: includes/privacy.php:2744
 msgid "Suggested text for sites that use LL Tools learner progress features."
 msgstr "Vorgeschlagener Text für Websites, die die Lernenden-Funktionen der LL Tools nutzen."
 
-#: includes/privacy.php:2423
+#: includes/privacy.php:2746
 msgid "Suggested Text:"
 msgstr "Vorgeschlagener Text:"
 
@@ -29684,54 +29685,54 @@ msgstr "Ältester Autorisierungsversuch (UTC)"
 msgid "Latest authorization expiry (UTC)"
 msgstr "Spätester Ablauf der Autorisierung (UTC)"
 
-#: includes/privacy.php:1564
+#: includes/privacy.php:1784
 msgid "LL Tools data could not be fenced for erasure because another pass is active or storage is temporarily unavailable."
 msgstr "Die Daten „LL Tools“ konnten nicht zum Löschen abgegrenzt werden, da ein anderer Durchlauf aktiv ist oder der Speicher vorübergehend nicht verfügbar ist."
 
-#: includes/privacy.php:1575
+#: includes/privacy.php:1795
 msgid "LL Tools data erasure stopped and the account write fence could not be released. The fence will expire automatically."
 msgstr "Die Löschung der LL-Tools-Daten wurde angehalten und die Schreibsperre des Kontos konnte nicht aufgehoben werden. Die Sperre läuft automatisch ab."
 
-#: includes/privacy.php:1589
+#: includes/privacy.php:1809
 msgid "External grade delivery data is temporarily unavailable for erasure. No external system was changed."
 msgstr "Die Daten der externen Notenübertragung sind vorübergehend nicht zum Löschen verfügbar. Kein externes System wurde geändert."
 
-#: includes/privacy.php:1601
-#: includes/privacy.php:1629
+#: includes/privacy.php:1821
+#: includes/privacy.php:1849
 msgid "LL Tools data erasure paused, but its account write fence could not be renewed."
 msgstr "Die Löschung der LL-Tools-Daten wurde pausiert, aber die Schreibsperre des Kontos konnte nicht erneuert werden."
 
-#: includes/privacy.php:1607
+#: includes/privacy.php:1827
 msgid "Additional local external-grade records remain for the next bounded erasure pass. No external system was changed."
 msgstr "Für den nächsten begrenzten Löschdurchlauf bleiben weitere lokale Datensätze externer Noten übrig. Kein externes System wurde geändert."
 
-#: includes/privacy.php:1617
+#: includes/privacy.php:1837
 msgid "Assignment attempt data is temporarily unavailable for erasure."
 msgstr "Die Daten der Aufgabenversuche sind vorübergehend nicht zum Löschen verfügbar."
 
-#: includes/privacy.php:1635
+#: includes/privacy.php:1855
 msgid "Additional assignment attempt records remain for the next bounded erasure pass."
 msgstr "Für den nächsten begrenzten Löschdurchlauf bleiben weitere Datensätze von Aufgabenversuchen übrig."
 
-#: includes/privacy.php:1645
+#: includes/privacy.php:1865
 msgid "Google Classroom connection data is temporarily unavailable for erasure. No request was sent to Google."
 msgstr "Die Verbindungsdaten von Google Classroom können derzeit nicht gelöscht werden. Es wurde keine Anfrage an Google gesendet."
 
-#: includes/privacy.php:1660
-#: includes/privacy.php:1666
+#: includes/privacy.php:1880
+#: includes/privacy.php:1886
 msgid "The local Google Classroom connection could not be erased. No request was sent to Google."
 msgstr "Die lokale Google Classroom-Verbindung konnte nicht gelöscht werden. Es wurde keine Anfrage an Google gesendet."
 
-#: includes/privacy.php:1671
+#: includes/privacy.php:1891
 msgid "Local Google Classroom credentials were erased. Privacy erasure did not change grades or revoke access in Google; the user can separately revoke the application in their Google Account."
 msgstr "Die lokalen Anmeldedaten für Google Classroom wurden gelöscht. Die Löschung aus Datenschutzgründen hatte keine Auswirkungen auf die Noten und führte nicht zum Entzug des Zugriffs bei Google; der Nutzer kann die Anwendung separat in seinem Google-Konto widerrufen."
 
-#: includes/privacy.php:1683
+#: includes/privacy.php:1903
 msgid "LL Tools data was erased, but the account write fence could not be released."
 msgstr "Die Daten von LL Tools wurden gelöscht, aber die Schreibsperre für das Konto konnte nicht aufgehoben werden."
 
 #. translators: %d: retention days
-#: includes/privacy.php:2426
+#: includes/privacy.php:2749
 msgid "When you use LL Tools while signed in, this site stores your study progress, learning preferences, selected word set/categories, starred words, progress summaries for studied words, formative practice results, and detailed activity history such as quiz exposures and outcomes. If you use the offline sync feature, the site also stores limited offline-session device/profile identifiers needed to keep that sync working. When your teacher uses official LL Tools assignments, the site stores the frozen assignment revision, your attempts and responses, the server-calculated score, and the selected grade. If an LMS connector is configured and explicitly mapped, the site also stores hashed external identity/resource mappings and a delivery audit needed to send or correct that selected grade. A teacher who connects Google Classroom authorizes this site to retain an encrypted refresh credential and limited account details for that connection; access tokens are short lived and are not stored. This information is used to save your progress, personalize next-study recommendations, restore your study state across sessions, sync offline study activity back to your account, let site administrators and assigned teachers review learner work, and deliver an authorized official assignment grade to the configured learning system. Detailed activity log entries are kept for %d days. Summary progress and official assignment data remain until your account is deleted, the connection is removed, or the site erases your LL Tools personal data according to its education-record retention policy. Local privacy erasure does not silently alter or delete a grade already held by an external LMS. You can request an export or erasure of local data through the site’s privacy request tools."
 msgstr "Wenn du LL Tools verwendest, während du angemeldet bist, speichert diese Website deinen Lernfortschritt, deine Lerneinstellungen, ausgewählte Vokabelsets und Kategorien, markierte Wörter, Fortschrittszusammenfassungen zu gelernten Wörtern, Ergebnisse formativer Übungen und einen detaillierten Aktivitätsverlauf wie Quiz-Einblendungen und -Ergebnisse. Wenn du die Offline-Synchronisierung verwendest, speichert die Website außerdem begrenzte Geräte- und Profilkennungen der Offline-Sitzung, die für diese Synchronisierung erforderlich sind. Wenn deine Lehrkraft offizielle LL-Tools-Aufgaben verwendet, speichert die Website die unveränderliche Aufgabenversion, deine Versuche und Antworten, das vom Server berechnete Ergebnis und die ausgewählte Note. Wenn ein LMS-Konnektor konfiguriert und ausdrücklich zugeordnet ist, speichert die Website außerdem gehashte Zuordnungen externer Identitäten und Ressourcen sowie ein Übertragungsprotokoll, das zum Senden oder Korrigieren dieser Note erforderlich ist. Eine Lehrkraft, die Google Classroom verbindet, erlaubt dieser Website, verschlüsselte Anmeldedaten zur Aktualisierung und begrenzte Kontodetails für diese Verbindung aufzubewahren; Zugriffstoken sind kurzlebig und werden nicht gespeichert. Diese Informationen werden verwendet, um deinen Fortschritt zu speichern, Empfehlungen für das weitere Lernen zu personalisieren, deinen Lernstatus sitzungsübergreifend wiederherzustellen, Offline-Lernaktivitäten mit deinem Konto zu synchronisieren, Website-Administratoren und zugewiesenen Lehrkräften die Überprüfung deiner Arbeit zu ermöglichen und eine autorisierte offizielle Aufgabennote an das konfigurierte Lernsystem zu übertragen. Detaillierte Aktivitätsprotokolle werden %d Tage lang aufbewahrt. Zusammengefasster Fortschritt und offizielle Aufgabendaten bleiben erhalten, bis dein Konto gelöscht, die Verbindung entfernt oder deine personenbezogenen LL-Tools-Daten gemäß der Aufbewahrungsrichtlinie für Bildungsdaten gelöscht werden. Die lokale Löschung aus Datenschutzgründen ändert oder löscht eine bereits in einem externen LMS gespeicherte Note nicht unbemerkt. Du kannst über die Datenschutzanfrage-Tools der Website einen Export oder eine Löschung lokaler Daten anfordern."
 
@@ -29854,22 +29855,22 @@ msgstr "Die Übungsdaten sind vorübergehend nicht verfügbar."
 #: includes/offline-app-sync.php:1537
 #: includes/offline-app-sync.php:1561
 #: includes/privacy.php:1175
-#: includes/privacy.php:1214
-#: includes/privacy.php:1223
-#: includes/privacy.php:1266
-#: includes/privacy.php:1300
-#: includes/privacy.php:1316
-#: includes/privacy.php:1345
-#: includes/privacy.php:1357
-#: includes/privacy.php:1366
-#: includes/privacy.php:1382
-#: includes/privacy.php:1406
-#: includes/privacy.php:1417
-#: includes/privacy.php:1439
-#: includes/privacy.php:1452
-#: includes/privacy.php:1469
-#: includes/privacy.php:1497
-#: includes/privacy.php:1505
+#: includes/privacy.php:1435
+#: includes/privacy.php:1444
+#: includes/privacy.php:1484
+#: includes/privacy.php:1518
+#: includes/privacy.php:1534
+#: includes/privacy.php:1563
+#: includes/privacy.php:1575
+#: includes/privacy.php:1584
+#: includes/privacy.php:1600
+#: includes/privacy.php:1624
+#: includes/privacy.php:1635
+#: includes/privacy.php:1657
+#: includes/privacy.php:1670
+#: includes/privacy.php:1687
+#: includes/privacy.php:1715
+#: includes/privacy.php:1723
 #: includes/teacher-classes.php:1130
 #: includes/teacher-classes.php:1136
 #: includes/teacher-classes.php:1203
@@ -29878,8 +29879,8 @@ msgstr "Die Übungsdaten sind vorübergehend nicht verfügbar."
 msgid "LL Tools personal data could not be erased safely."
 msgstr "Die personenbezogenen Daten von LL Tools konnten nicht sicher gelöscht werden."
 
-#: includes/privacy.php:1232
-#: includes/privacy.php:1239
+#: includes/privacy.php:1453
+#: includes/privacy.php:1464
 msgid "LL Tools personal data cannot be erased safely while transactional storage is unavailable."
 msgstr "Die personenbezogenen Daten von LL Tools können nicht sicher gelöscht werden, solange transaktionaler Speicher nicht verfügbar ist."
 
@@ -30497,3 +30498,43 @@ msgstr "Gib einen neuen Kategorienamen ein oder wähle eine Zielkategorie aus di
 #: includes/pages/wordset-editor.php:4405
 msgid "2. Choose destination"
 msgstr "2. Zielkategorie wählen"
+
+#: includes/admin/privacy-cleanup-health.php:54
+msgid "LL Tools account cleanup is up to date"
+msgstr "Die LL Tools-Kontenbereinigung ist auf dem aktuellen Stand"
+
+#: includes/admin/privacy-cleanup-health.php:57
+msgid "No pending deleted-account cleanup was found in the checked queue."
+msgstr "In der geprüften Warteschlange wurden keine ausstehenden Bereinigungsaufgaben für gelöschte Konten gefunden."
+
+#: includes/admin/privacy-cleanup-health.php:63
+msgid "LL Tools cleanup status requires administrator access"
+msgstr "Für den LL Tools-Bereinigungsstatus sind Administratorrechte erforderlich"
+
+#: includes/admin/privacy-cleanup-health.php:70
+msgid "LL Tools account cleanup status could not be checked"
+msgstr "Der Status der LL Tools-Kontenbereinigung konnte nicht geprüft werden"
+
+#: includes/admin/privacy-cleanup-health.php:71
+msgid "The cleanup queue could not be read. Try Site Health again after resolving the database error."
+msgstr "Die Bereinigungswarteschlange konnte nicht gelesen werden. Prüfen Sie den Website-Zustand erneut, nachdem der Datenbankfehler behoben wurde."
+
+#: includes/admin/privacy-cleanup-health.php:74
+msgid "LL Tools account cleanup needs database maintenance"
+msgstr "Die LL Tools-Kontenbereinigung erfordert eine Datenbankwartung"
+
+#: includes/admin/privacy-cleanup-health.php:75
+msgid "Some deleted-account cleanup jobs are blocked by database storage requirements. Their cleanup protections remain active, and retries use longer intervals. Review the affected tables with your site administrator before converting them to InnoDB."
+msgstr "Einige Bereinigungsaufgaben für gelöschte Konten sind durch Anforderungen an den Datenbankspeicher blockiert. Die Schutzmaßnahmen für diese Bereinigung bleiben aktiv, und erneute Versuche erfolgen in größeren Abständen. Prüfen Sie die betroffenen Tabellen mit Ihrer Website-Administration, bevor Sie sie in InnoDB umwandeln."
+
+#: includes/admin/privacy-cleanup-health.php:81
+msgid "LL Tools account cleanup is pending"
+msgstr "Die LL Tools-Kontenbereinigung steht noch aus"
+
+#: includes/admin/privacy-cleanup-health.php:82
+msgid "Deleted-account cleanup continues in the background. This check reads at most 50 jobs; check again after the scheduled workers run."
+msgstr "Die Bereinigung gelöschter Konten läuft im Hintergrund weiter. Diese Prüfung liest höchstens 50 Aufgaben. Prüfen Sie den Status erneut, nachdem die geplanten Hintergrundprozesse ausgeführt wurden."
+
+#: includes/admin/privacy-cleanup-health.php:90
+msgid "LL Tools account cleanup"
+msgstr "LL Tools-Kontenbereinigung"

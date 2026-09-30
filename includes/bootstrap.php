@@ -81,6 +81,7 @@ require_once(__DIR__ . '/lms/grade-delivery.php');
 require_once(__DIR__ . '/lms/google-classroom.php');
 require_once(__DIR__ . '/offline-app-sync.php');
 require_once(__DIR__ . '/privacy.php');
+require_once(__DIR__ . '/admin/privacy-cleanup-health.php');
 // Its bounded continuation must also be registered during WP-Cron requests.
 require_once(__DIR__ . '/admin/example-sentence-migration.php');
 
