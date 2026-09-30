@@ -2749,6 +2749,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 
         $this->assertContains($allowed_audio_id, $ids);
         $this->assertNotContains($blocked_audio_id, $ids);
+        $this->assertSame(['queue' => 1, 'duplicates' => 0, 'reprocess' => 0], ll_audio_processor_get_queue_counts());
     }
 
     /**
