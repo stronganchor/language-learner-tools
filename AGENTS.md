@@ -15,5 +15,6 @@ Codebase-specific guidelines:
 - The audio recording shortcode is `[audio_recording_interface]` (the old `[audio_recording]` is not registered).
 - Publishing a `words` post may be blocked without published `word_audio` based on category config; follow `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Template overrides must respect the loader order in `includes/template-loader.php`.
+- A report or request to fix a named live site authorizes the validated code change, commit, push to `origin/dev`, update of only that named site through its normal LL Tools/WordPress plugin updater, and verification. Publish before updating; do not substitute individual live-file patches. If the normal updater is blocked, report and resolve the blocker instead of silently bypassing it.
 - After completing a code change, commit it without waiting for a separate prompt; use a clear, scoped commit message that describes the change.
 - If the change updates the plugin version, start the commit subject with the new version number (example: `6.0.1 - Fixing such and such...`).

@@ -1,5 +1,7 @@
 # Live Plugin Update Handoff
 
+A report or request to fix a named live site authorizes the validated code change, commit, push to `origin/dev`, update of only that named site through its normal LL Tools/WordPress plugin updater, and verification. Publish before updating; do not substitute individual live-file patches. If the normal updater is blocked, report and resolve the blocker instead of silently bypassing it.
+
 Context: while updating zazacaogren.com from LL Tools 6.3.0 to 6.3.3 on 2026-05-19, the Site Tools "Dev branch builds" update check kept reporting "No update detected" even after the dev branch had a newer version.
 
 What happened:
