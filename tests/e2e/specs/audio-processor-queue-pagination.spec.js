@@ -28,9 +28,9 @@ async function mountAudioProcessor(page, options = {}) {
   await page.goto(pageUrl);
   await page.setContent(`
     <div class="ll-audio-processor-tabs" data-initial-tab="queue" data-auto-select-work="true">
-      <button type="button" class="ll-audio-processor-tab is-active" data-tab="queue"><span class="ll-tab-count" data-tab-count="queue">...</span></button>
-      <button type="button" class="ll-audio-processor-tab" data-tab="duplicates"><span class="ll-tab-count" data-tab-count="duplicates">...</span></button>
-      <button type="button" class="ll-audio-processor-tab" data-tab="reprocess"><span class="ll-tab-count" data-tab-count="reprocess">...</span></button>
+      <button type="button" class="ll-audio-processor-tab is-active" data-tab="queue"><span class="ll-tab-count" data-tab-count="queue">1,234</span></button>
+      <button type="button" class="ll-audio-processor-tab" data-tab="duplicates"><span class="ll-tab-count" data-tab-count="duplicates">56</span></button>
+      <button type="button" class="ll-audio-processor-tab" data-tab="reprocess"><span class="ll-tab-count" data-tab-count="reprocess">789</span></button>
     </div>
     <button id="ll-select-all" type="button">Select all</button>
     <button id="ll-deselect-all" type="button">Deselect all</button>
@@ -163,6 +163,9 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   await expect(queue.locator('.ll-queue-status-text')).toHaveText('Loading recordings...');
   await expect(queue.locator('.ll-recording-item')).toHaveCount(2);
   expect(await page.evaluate(() => window.__queueFetchCalls)).toEqual(['queue:1']);
+  await expect(page.locator('[data-tab-count="queue"]')).toHaveText('1,234');
+  await expect(page.locator('[data-tab-count="duplicates"]')).toHaveText('56');
+  await expect(page.locator('[data-tab-count="reprocess"]')).toHaveText('789');
 
   const checkboxes = queue.locator('.ll-recording-checkbox');
   await checkboxes.nth(0).check();
@@ -174,6 +177,7 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   await expect(queue.locator('.ll-queue-page-label')).toHaveText('Page 2');
   await expect(queue.locator('.ll-recording-item')).toHaveCount(1);
   await expect(page.locator('#ll-selected-count')).toHaveText('0');
+  await expect(page.locator('[data-tab-count="queue"]')).toHaveText('1,234');
   await expect(queue.locator('.ll-queue-page-next')).toBeDisabled();
   await expect(queue.locator('.ll-queue-page-previous')).toBeEnabled();
   expect(await page.evaluate(() => window.__queueCursorCalls.slice(0, 2))).toEqual([
@@ -196,6 +200,7 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   await page.locator('.ll-audio-processor-tab[data-tab="duplicates"]').click();
   const duplicates = page.locator('.ll-recordings-list[data-tab="duplicates"]');
   await expect(duplicates.locator('.ll-queue-status-text')).toHaveText('No duplicates found.');
+  await expect(page.locator('[data-tab-count="duplicates"]')).toHaveText('56');
   expect(await page.evaluate(() => window.__queueFetchCalls)).toEqual(['queue:1', 'queue:2', 'duplicates:1']);
 
   await page.locator('.ll-audio-processor-tab[data-tab="reprocess"]').click();
@@ -204,6 +209,7 @@ test('audio processor lazily pages queues and keeps page-local selection behavio
   await expect(reprocess.locator('.ll-queue-retry')).toBeVisible();
   await reprocess.locator('.ll-queue-retry').click();
   await expect(reprocess.locator('.ll-queue-status-text')).toHaveText('Nothing to reprocess.');
+  await expect(page.locator('[data-tab-count="reprocess"]')).toHaveText('789');
 });
 
 test('audio processor restores and focuses a recording on a returned queue page', async ({ page }) => {

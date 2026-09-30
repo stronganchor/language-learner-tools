@@ -480,6 +480,7 @@ function ll_tools_context_pack_definitions(): array
                 'recording interface',
                 'audio upload',
                 'audio processor',
+                'audio processor tab counts',
                 'bounded delete queue',
                 'delete receipt',
                 'recording type',
@@ -499,6 +500,7 @@ function ll_tools_context_pack_definitions(): array
             ],
             'invariants' => [
                 'Initial admin loads should be paged/lazy; validation can be deeper but must be explicit.',
+                'Audio Processor tab totals use scoped SQL aggregates without recording hydration; paged responses must not replace exact badges with page sizes or lower bounds.',
                 'Publishing words may be blocked without published word_audio depending on category config.',
                 'Autosave/editing flows should avoid page refreshes after successful saves when practical.',
                 'Transcription Manager view transitions must preserve and settle original-scope drafts before replacing rows; failed saves cancel deferred navigation, stale reads cannot overwrite the current view, and only reads expose deadline retry.',

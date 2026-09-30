@@ -313,6 +313,71 @@ final class AudioProcessorQueuePaginationTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_exact_tab_counts_include_all_pages_without_hydrating_recordings(): void
+    {
+        global $wpdb;
+
+        $editor_id = $this->createAudioProcessorEditor();
+        wp_set_current_user($editor_id);
+        $baseline = ll_audio_processor_get_queue_counts();
+        $audio_ids = [];
+        for ($index = 0; $index < 45; $index++) {
+            $word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+            $audio_ids[] = $this->createQueuedAudio($word_id, $editor_id, 'Exact Count ' . $index);
+        }
+        $duplicate_word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+        $audio_ids[] = $this->createQueuedAudio($duplicate_word_id, $editor_id, 'Count Older', '2026-07-16 08:00:00');
+        $audio_ids[] = $this->createQueuedAudio($duplicate_word_id, $editor_id, 'Count Newer', '2026-07-17 08:00:00');
+        $reprocess_word_id = self::factory()->post->create(['post_type' => 'words', 'post_status' => 'draft']);
+        $reprocess_id = self::factory()->post->create(['post_type' => 'word_audio', 'post_status' => 'publish', 'post_parent' => $reprocess_word_id]);
+        update_post_meta($reprocess_id, 'audio_file_path', '/wp-content/uploads/count-reprocess.mp3');
+        update_post_meta($reprocess_id, LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY, '/wp-content/uploads/count-original.wav');
+        // Repeated metadata must not multiply recordings in the aggregates.
+        add_post_meta($audio_ids[0], '_ll_needs_audio_processing', '1');
+        add_post_meta($reprocess_id, LL_TOOLS_ORIGINAL_AUDIO_FILE_PATH_META_KEY, '/wp-content/uploads/count-original.wav');
+        foreach (array_merge($audio_ids, [$reprocess_id]) as $audio_id) {
+            clean_post_cache($audio_id);
+        }
+
+        $query_start = $wpdb->num_queries;
+        $counts = ll_audio_processor_get_queue_counts();
+        $this->assertSame(2, $wpdb->num_queries - $query_start);
+        $this->assertSame($baseline['queue'] + 46, $counts['queue']);
+        $this->assertSame($baseline['duplicates'] + 1, $counts['duplicates']);
+        $this->assertSame($baseline['reprocess'] + 1, $counts['reprocess']);
+        foreach (array_merge($audio_ids, [$reprocess_id]) as $audio_id) {
+            $this->assertFalse(wp_cache_get($audio_id, 'posts'), 'Counting must not hydrate recording posts.');
+        }
+
+        ob_start();
+        ll_render_audio_processor_page();
+        $html = (string) ob_get_clean();
+        foreach ($counts as $tab => $count) {
+            $this->assertStringContainsString('data-tab-count="' . $tab . '">' . number_format_i18n($count) . '</span>', $html);
+        }
+    }
+
+    public function test_failed_count_query_leaves_only_affected_totals_unknown(): void
+    {
+        global $wpdb;
+
+        wp_set_current_user($this->createAudioProcessorEditor());
+        $fail_processing_count = static function (string $query): string {
+            return strpos($query, 'AS queue_count') !== false ? 'SELECT * FROM ll_tools_missing_count_table' : $query;
+        };
+        $previous_suppression = $wpdb->suppress_errors(true);
+        add_filter('query', $fail_processing_count);
+        try {
+            $counts = ll_audio_processor_get_queue_counts();
+        } finally {
+            remove_filter('query', $fail_processing_count);
+            $wpdb->suppress_errors($previous_suppression);
+        }
+        $this->assertNull($counts['queue']);
+        $this->assertNull($counts['duplicates']);
+        $this->assertIsInt($counts['reprocess']);
+    }
+
     public function test_admin_page_renders_lazy_queue_shells_without_recording_cards(): void
     {
         $editor_id = $this->createAudioProcessorEditor();
